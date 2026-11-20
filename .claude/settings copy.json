@@ -1,0 +1,29 @@
+{
+    "attribution": {
+        "commit": "",
+        "pr": "",
+        "sessionUrl": false
+    },
+    "permissions": {
+        "defaultMode": "dontAsk",
+        "allow": [
+            "Bash(git status *)",
+            "Bash(git branch *)",
+            "Bash(git diff *)",
+            "Bash(git log *)",
+            "Bash(git show *)",
+            "Bash(git rm *)",
+            "Bash(git add *)",
+            "Bash(git commit *)",
+            "Bash(git ls-files *)",
+            "Bash(git submodule *)",
+            "Bash(git push *)",
+            "Bash(git rebase --continue)",
+            "Bash(git rebase --abort)",
+            "Bash(git rebase --skip)"
+        ],
+        "deny": [
+            "Bash(git reset *)"
+        ]
+    }
+}
