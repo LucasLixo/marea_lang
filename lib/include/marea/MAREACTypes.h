@@ -1,10 +1,10 @@
 // Copyright (c) 2026 Paulo Lucas Alves Franca
 // Licensed under the MIT License. See LICENSE.txt for full terms.
 
-#if !defined(MAREA_INCLUDE_BASE_MAREACTYPES_H)
-    #define MAREA_INCLUDE_BASE_MAREACTYPES_H
+#if !defined(MAREA_INCLUDE_MAREACTYPES_H)
+    #define MAREA_INCLUDE_MAREACTYPES_H
 
-    #include "marea/base/MAREAMacros.h"
+    #include "marea/MAREAMacros.h"
 
     #if defined(__has_include) && !defined(MAREA_HAS_STDBOOL_H)
         #if __has_include(<stdbool.h>)
@@ -357,4 +357,4 @@ typedef uint32_t MAREA_Character32;
     #define MAREA_CHARACTER_16(text)   u##text
     #define MAREA_CHARACTER_32(text)   U##text
 
-#endif /* MAREA_INCLUDE_BASE_MAREACTYPES_H */
+#endif /* MAREA_INCLUDE_MAREACTYPES_H */
