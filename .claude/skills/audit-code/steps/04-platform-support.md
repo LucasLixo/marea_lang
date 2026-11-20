@@ -9,6 +9,7 @@ Part of the [audit-code](../SKILL.md) skill. This file is a complete prompt for 
 
 For every audited feature, decide per platform whether it works. The platforms are Windows, Linux, Android and Emscripten (web).
 
+1. Find the gates in the diff and in the code it calls: `#if defined(MAREA_PLATFORM_*)` and `MAREA_API_*` in C, `cfg(target_os = ...)` and `api-*` features in Rust, `MAREA_PLATFORM_*` and `MAREA_OPTION_API_*` in CMake.
 2. Run the platform tests that exist for the platforms the diff can reach, and keep the real output. Use the mise tasks, never a hand-rolled command:
 
    | Platform | Task | What it proves | Limit |
@@ -29,6 +30,7 @@ For every audited feature, decide per platform whether it works. The platforms a
 4. Every `unsupported by design` platform needs all of these, or a finding:
    - an explicit runtime answer (an error or "not supported" result) that a caller can read;
    - the `<platforms>` element in `docs/{kind}/{Name}.xml`, listing the platforms where it works (see "Platform support" in [doxygen-documentation](../../doxygen-documentation/SKILL.md)), and a sentence in `<details>` saying what a caller gets on the other platforms. Never put Doxygen comments in the header;
+   - the permission map `tools/marea-permissions/map.lua` is in step (see stage 1A);
    - the gate is as narrow as the real limit: not `#if !defined(MAREA_PLATFORM_WINDOWS)` when only Android lacks it.
 5. Every `not verified` platform is an open point. Write it in `temp/_LOG_APPLY_ERROR.md` with the exact check that is missing. Do not report it as supported.
 6. Look for hidden limits: a hard-coded path separator, a POSIX-only call on Windows, a thread, a file or a network call on the web, a permission on Android, a 32-bit assumption on i686 or armv7.

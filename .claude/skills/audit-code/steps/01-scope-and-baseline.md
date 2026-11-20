@@ -14,11 +14,14 @@ Part of the [audit-code](../SKILL.md) skill. This file is a complete prompt for 
 | `.rs` under `lib/rust/` | [rust-style](../../rust-style/SKILL.md) |
 | `CMakeLists.txt` / `*.cmake` | [cmake-style](../../cmake-style/SKILL.md) |
 | `mise.toml` | [mise-style](../../mise-style/SKILL.md) |
+| anything under `tests/` | [cpp-testing](../../cpp-testing/SKILL.md) |
 
 A file with no matching skill skips stage 1 and the report says so.
 
 1. Resolve the argument list (or the branch diff), drop `3rdparty/`, generated files and `docs/`, and map every file to its skill with the table above.
+2. Record the tests covering each file: C/C++ under `tests/source/<module>/`; Rust under the mirror `lib/rust/tests/<same path as the source under lib/rust/marea/>.rs`, the file the source's `#[path] mod tests;` points at.
 3. A Rust source with an inline `mod tests {` or other test code under `#[cfg(test)]` is a conformance finding, except under `lib/rust/build/` and except the seams the `rust-style` section [Where tests live](../../rust-style/SKILL.md#where-tests-live) lists as allowed (logging seams, host gates, the crate root's two declarations, modules with no test module). Those seams are not findings; do not restate the list here.
+4. Run the covering tests first and record the baseline (`mise run test:rust-crate` for Rust, `mise run test:engine-cpp` for C/C++). A red baseline stops the audit and is reported, never "fixed" blindly.
 
 ## Done when
 

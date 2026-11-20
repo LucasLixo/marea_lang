@@ -6,6 +6,7 @@ Part of the [audit-code](../SKILL.md) skill. This file is a complete prompt for 
 
 - Never add or change a formatter, a config or a mise task. Only call the existing ones.
 
+Run the language task: `mise run format:cpp-sources` (C/C++; on a dirty tree prefer the scoped `clang-format -style=file -i <files>` exception in [c-style](../../c-style/SKILL.md)), `format:rust-sources`, `format:tool-scripts`, `format:cmake-sources`, or `format:all-sources`. The tree is already formatted, so a diff after the run is only what the audit itself changed. Confirm with `mise run format:check-sources`, then re-run the covering tests.
 
 ## Done when
 

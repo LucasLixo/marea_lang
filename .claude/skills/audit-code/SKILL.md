@@ -26,7 +26,9 @@ Arguments: one or more code file paths. With none, audit the files the current b
 
 - Startup, before anything else: `mise trust`, then `git pull --rebase` (dirty tree: `git fetch` plus `git merge --ff-only origin/<branch>`), as the repository `AGENTS.md` states. Never stage what was dirty before the audit started.
 - Commit only through the `generate-commit` skill ([../generate-commit/SKILL.md](../generate-commit/SKILL.md)), one theme per commit and one commit per bug; never a hand-written `git commit`. Never push: the pipeline that called this skill owns the push.
+- ASCII only (`lua tools/marea-ascii-check/main.lua <file>...`). Never author tutorial or report `.md` files.
 - **Precedence**: a style skill's rule beats "fewest lines". Never strip a blank line a skill requires, an LDoc header, a copyright header, a `SAFETY` comment or a doc that a skill requires.
+- **Public API is frozen**: the clean-function principles of stage 2 apply to non-exported code only (`static`, `pub(crate)`, non-exported helpers). Changing the signature or behaviour of an exported C symbol or a `marea.*` public function is an API change (a major or minor bump and a handoff question), so the command only REPORTS such cases.
 - **Bugs are fixed test-first**: every memory or logic bug gets a failing test, then the minimum fix. Simplification is behaviour-preserving: the covering tests are green before AND after.
 - **Deletion rule**: code proven dead (no caller in the repository, confirmed by `git grep` and the build) is deleted together with the tests whose only subject it was (for Rust, in the mirror test file, never in the source). A test that also covers live code is adapted, never dropped. No test, security check, bound check or performance-relevant structure is removed to save lines.
 - Never add or change a formatter, a config or a mise task here; this skill only calls the existing ones.

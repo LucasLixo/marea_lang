@@ -25,6 +25,7 @@ Every file under `cmake/` and every `CMakeLists.txt` has the same shape: a copyr
 |---|---|---|
 | `cmake/functions/` | reusable helpers | `Basic.cmake`, `FindExecutable.cmake`, `YamlParser.cmake`, `CopyRuntimeDependencies.cmake` |
 | `cmake/settings/` | project configuration only: folders, options, languages, LLVM, early checks, the engine's own targets | one `Configure<Thing>.cmake` defining `macro(Configure<Thing>)` |
+| `cmake/dependencies/` | how each vendored 3rdparty library is configured and linked | one `Configure<Thing>.cmake` per library (`ConfigureSDL`, `ConfigureDearImgui`, ...) |
 | `cmake/scripts/` | `cmake -P` script-mode tools | `GenerateDocsGroups.cmake`, driven by `-DPARAM_*` |
 | `cmake/toolchain/` | `<platform>.toolchain.cmake` | `android`, `linux`, `web`, `windows` |
 | `cmake/tests/` | `cmake -P` checks over the modules | `test_arguments.cmake`, `check_guards.cmake`, `RunTests.cmake` |
@@ -94,6 +95,7 @@ Never one `set(NAME ${NAME} PARENT_SCOPE)` block per variable copied by hand: a 
 
 ## Root order
 
+The root `CMakeLists.txt` runs, in this order: policies (top-level only), the labelled block of built-in modules, the function files, `ConfigureFolders`, metadata (`YamlParser`), `project(... LANGUAGES NONE)`, `ConfigureLanguages`, `ConfigureCompilerID`, `ConfigurePlatform`, `ConfigureBuildType`, `ConfigureLlvm`, `ConfigureLinuxLinkDirectories`, `ConfigureOptions`, `ConfigureMiseTools`, `ConfigureThirdpartyProjects`, then the `add_subdirectory()` calls. A module that reads a variable must sit after the module that sets it: the mise tools check needs the options and `ConfigurePlatform`, the 3rdparty check needs the final `MAREA_OPTION_JIT`.
 
 ## macro or function
 
@@ -175,6 +177,7 @@ Reuse `cmake/functions/` rather than rewriting its work.
 | `YamlParser` | `FILE*` `PREFIX*` | metadata.yaml reader |
 | `CopyRuntimeDependencies` | `TARGET_NAME*` `COMPONENT*` | install a target and its resolved runtime libraries under a CPack component |
 | `ConfigureBuildType` | `CURRENT*` `AVAILABLE*` | name the variables that receive the current build type (`$<CONFIG>` for multi-config generators) and the list of types |
+| `ConfigureMarkupAssets` | `TARGET*` `COMPONENT*` plus source directories | stage markup for a target, shared under `cmake/settings/` so any project root that `add_subdirectory()`s the repo root can call it |
 
 `BasicSet` is the default for a mutable value that subdirectories need; a raw `set` with `CACHE` is for an immutable one.
 
@@ -214,6 +217,7 @@ A new helper gets its error cases in `cmake/tests/test_arguments.cmake`; `mise r
 
 ## Generator expressions versus if()
 
+**A generator expression when the condition only picks a flag, a definition or a link library; `if()` when it decides what configure does.** A generator expression is evaluated per target, configuration and language at generate time, so it cannot choose a cache option before `add_subdirectory`, whether to create a target, which tool or build step to use, or a property that does not evaluate them (`SUFFIX`).
 
 The idioms in use:
 
@@ -251,15 +255,22 @@ cmake_dependent_option(
     OFF
 )
 cmake_dependent_option(
+    MAREA_OPTION_STATIC_RUNTIME
+    "Build the runtime library STATIC"
     ON
+    "NOT MAREA_OPTION_SHARED_RUNTIME"
     OFF
 )
 cmake_dependent_option(
+    MAREA_OPTION_BACKEND_LLVM
+    "Enable the LLVM code generation backend"
     ON
+    "NOT MAREA_COMPILER_IS_INTEL_LIKE;NOT MAREA_PLATFORM_WEB"
     OFF
 )
 ```
 
+`cmake_dependent_option` forces silently and works on BOOL only, so what stays outside it is the explanation of a forced value (the `message(WARNING ...)` for an unsupported platform/compiler) and the one combination that has no valid fallback, both the static and shared runtime OFF (`FATAL_ERROR`).
 
 **Each patch under `patches/` has its own `MAREA_OPTION_PATCH_<PROJECT>_<NAME>` option**, an independent `option(...)` ON by default, grouped under a `# One option per patch` comment in `ConfigureOptions`; it feeds the `ENABLED` argument of `ApplyPatch` ([patch-vendored-source](../patch-vendored-source/SKILL.md)).
 

@@ -23,11 +23,14 @@ cmake = { version = "latest", depends = ["conda:llvm", "conda:clang", "conda:lib
 ninja = "latest"
 # Build cache (speeds up incremental builds a lot)
 ccache = { version = "latest", depends = ["conda:llvm", "conda:clang"] }
+# Formatter for the tooling scripts (registry: aqua:JohnnyMorganz/StyLua), used by format:tool-scripts and format:check-sources
 stylua = "latest"
 # Python package and tool runner, needed by the pipx: backend below to install gersemi
 uv = "latest"
 # CMake formatter, used by format:cmake-sources and format:check-sources
 "pipx:gersemi" = "latest"
+# Interpreter for the build-time tooling scripts under tools/ - marea-ascii-check,
+# marea-api-catalog.
 lua = "latest"
 
 [vars]
@@ -107,8 +110,8 @@ description = "Format every tracked .c/.h/.cpp/.hpp file in place with clang-for
 run = 'git ls-files -- "*.c" "*.h" "*.cpp" "*.hpp" | xargs -r clang-format -style=file -i'
 dir = "{{config_root}}"
 
-[tasks."format:lua-sources"]
-description = "Format every tracked .lua file in place with StyLua (.stylua.toml, .styluaignore)"
+[tasks."format:tool-scripts"]
+description = "Format every tracked tooling script in place with StyLua (.stylua.toml, .styluaignore)"
 run = "stylua ."
 dir = "{{config_root}}"
 

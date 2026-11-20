@@ -10,6 +10,7 @@ Read for memory bugs:
 
 - **C**: null checks, ownership and double free, use after free, leaks on error paths, buffer bounds, integer overflow in size math, uninitialized reads.
 - **Rust**: every `unsafe` block has a `SAFETY` reason that holds, raw-pointer lifetimes, FFI ownership, and the raw read, write and reference rules of [rust-style](../../rust-style/SKILL.md) ("Raw pointer reads, writes and references"): the checks before an access, no long-lived `&mut` from an ABI pointer, `MaybeUninit`, and the tests for the null, misaligned, short and overlapping cases.
+- **Tooling scripts (tools/)**: nil access, accidental globals, unchecked fallible results, off-by-one.
 
 - **Shell and PowerShell scripts** - read for silent errors: a `mktemp` or temp-folder result that is never checked, or a temp folder with no `trap` (sh) or `finally` (PowerShell) that removes it; `set -e` without `pipefail`, or a `cd` without a check; unquoted variables, and an empty glob that expands to the literal pattern; the exit code of an external tool that is never checked (`$?` in sh, `$LASTEXITCODE` in PowerShell); a tool that exits 0 and leaves an empty or partial output file; an output directory that does not exist or cannot be created; a `|| true` that hides a failure.
 

@@ -13,10 +13,6 @@ globs: lib/**/*.h, lib/**/*.c
 Conventions for every `.h` and `.c` under `lib/`, derived from `docs/CODE_OF_CONDUCT_CPP.md`. Non-compliance is an error.
 
 
-
-binding: the name must start with the receiver type (first parameter, not an out-parameter) or with the
-header file stem. Choose the name and the header with that in mind. The full rule and the check are in
-
 ## Strict Requirements
 
 - TDD is mandatory: write the failing test first ([cpp-testing](../cpp-testing/SKILL.md)).
@@ -54,6 +50,7 @@ The header then needs only an entry on the bindgen allowlist in `lib/rust/build/
 
 - Never expose internal paths publicly.
 - After adding a `.h` under `lib/include/`, add its `#include` to `lib/include/marea/Marea.h`.
+- A `.c` (and an internal `.h`) includes exactly the headers whose symbols it uses - one `#include` per header that declares something the file references, and nothing it does not use. There is no internal umbrella header: never include a header just to reach another one transitively, and never re-create an all-in-one internal header. `SDL_*` symbols come from `marea/internal/system/MAREASdl.h`. `mise run dev:check-includes` (`lua tools/marea-api-catalog/main.lua check`) reports missing and unused includes and runs on every pull request; keep it at zero. The one exception is `PrecompileHeader.h`, which uses no symbol and lists its headers with angle brackets so the check (quoted includes only) skips them.
 - The public `marea/Marea.h` stays the umbrella for consumers (apps, tests, examples), never for engine sources.
 
 ## Include guards
@@ -98,6 +95,7 @@ Never use a raw keyword or compiler built-in when an `MAREA_` macro exists.
 - **Casts:** `MAREA_STATIC_CAST(t,v)`, `MAREA_REINTERPRET_CAST(t,v)`, `MAREA_CONST_CAST(t,v)`.
 - **Alignment:** `MAREA_ALIGNED(x)`, `MAREA_ALIGNOF(x)`. **Packing:** `MAREA_PACKED_START ... MAREA_PACKED_END;`, only when needed. **Aliasing:** `MAREA_RESTRICT`, see "restrict" below.
 - **Warnings:** wrap system and third-party headers in `BEGIN_IGNORE_PRAGMA_PACK` / `END_IGNORE_PRAGMA` or `BEGIN_IGNORE_UNUSED_AND_INIT_WARNINGS` / `END_IGNORE_PRAGMA`.
+- **Misc:** `MAREA_CALL`, `MAREA_IGNORE(expr)`, `MAREA_ARRAY_SIZE(arr)`, `MAREA_STRINGIFY(x)`, `MAREA_CONCATENATE(x,y)`. `MAREA_SHORT_LIFE_BLOCK` lives in `marea/base/MAREACTypes.h`.
 
 ## Mandatory macros on declarations
 
@@ -198,6 +196,7 @@ The `MAREA_CHECK_*` family - `MAREA_CHECK_NULL`, `MAREA_CHECK_NULL_VOID`, `MAREA
 
 - **Spell it `MAREA_RESTRICT`, never `restrict` or `__restrict`.** The macro (`marea/base/MAREAMacros.h`) is `restrict` in C99 and later, `__restrict` on GCC, Clang and MSVC for C++ consumers of the headers, and nothing elsewhere. The qualifier goes after the star: `const void *MAREA_RESTRICT src`, `MAREA_Null MAREA_RESTRICT dst`, `MAREA_Document **MAREA_RESTRICT outDocument`.
 - **Put it on the written pointer.** Every `out` parameter of a function with a second pointer is `MAREA_RESTRICT`, and so are the source and destination of a copy-like pair (`MAREA_MemoryCopy`, `MAREA_NetAddressFormat`, `MAREA_AabbFromPoints`). Two read-only inputs do not get it, because they may legitimately be the same buffer (`MAREA_MemoryCompare`'s `s1` and `s2`, the centers and radii of a sphere batch).
+- **Never on move-like or in-place-capable APIs** (`MAREA_MemoryMove`, anything where destination may equal source), **never on an opaque handle paired with data it may own** (`MAREA_StringSet(string, value)`, the `MAREA_NetBuffer*` read and write functions), **never on callbacks and `userdata`**, and never where `out` may be the input variable (`MAREA_MemoryReallocate(p, n, &p)`). Grep the call sites in `lib/`, `tests/` and `example/` before adding it.
 - **Assert it in debug builds.** Right after the null guards, a restrict function calls `MAREA_ASSERT_NO_ALIAS(a, b)` for two single objects or two base pointers, or `MAREA_ASSERT_NO_OVERLAP(dst, dstSize, src, srcSize)` for ranges (`marea/internal/base/MAREARestrict.h`). Distinct pointers are not enough for ranges: a copy whose source starts inside the destination violates the promise although the pointers differ. Both macros expand to `MAREA_DIAGNOSTICS_ASSERT` when `MAREA_BUILD_DEBUG` is set and to `((void)0)` otherwise; the pure predicate `MAREA_RangesOverlap` is overflow-safe and tested without aborting the process. A Rust body mirrors them with `marea_debug_assert_no_alias!` and `marea_debug_assert_no_overlap!` (`rust-style`).
 - **Document it.** The function's header comment (see "Documentation" below) names which parameters must not alias in its `@param` lines, and a death test (`EXPECT_DEATH`, debug builds only) shows the assert firing.
 
@@ -214,7 +213,6 @@ void scale(float *a, const float *fator, long n) { for (long i = 0; i < n; i++) 
 void scale(float *MAREA_RESTRICT a, const float *MAREA_RESTRICT fator, long n) { ...same body... }
 //   movss (%rsi), %xmm0 once before the loop, then mulss %xmm0, ...  - *fator hoisted out of the loop
 ```
-
 
 ## Expressions
 
@@ -243,6 +241,7 @@ Any symbol used only inside one `.c` gets internal linkage with `static` and a p
 
 | Kind (file-local only) | Rule | Example |
 |------------------------|------|---------|
+| `const` variable, `struct`, `enum`, `typedef`, function | `static` + `MAREA_G_` + PascalCase | `static const MAREA_Sinteger32 MAREA_G_ExampleTable[]`, `static void MAREA_CALL MAREA_G_ExampleHelper(...)` |
 | Mutable variable | `static` + `marea_g_` + camelBack | `static MAREA_AppContext *marea_g_currentContext` |
 
 File-scope only - function-body locals, including function-local `static`, keep ordinary names. `MAREA_FORCE_INLINE` already expands to `static MAREA_INLINE`, so do not add a second `static`; just apply the `MAREA_G_` name.
@@ -279,7 +278,7 @@ Each API is a package compiled out by `#if defined(MAREA_API_<PKG>)`. CMake owns
 
 A single-file API is `<folder>.<file-without-MAREA>` -> `MAREA_API_<FOLDER>_<FILE>` (`base/MAREAStr.h` -> `MAREA_API_BASE_STR`). A cohesive multi-file folder is named by the folder (`input/` -> `MAREA_API_INPUT`). The core packages `base.macros`, `base.ctypes`, and `base.enum` are never gated.
 
-Converting a package touches four places together:
+Converting a package touches two places together:
 
 1. **Public header** - wrap the declaration block in `#if defined(MAREA_API_<PKG>)`. A disabled package leaves its symbols undeclared, so using one is a compile error; never `#error` on include, since the umbrella includes every header.
 2. **Implementation** - wrap the whole `.c` body in the same guard, so a disabled TU compiles to an empty object and no CMake edit is needed.
@@ -339,6 +338,7 @@ The tag vocabulary (same as `rust-style`, minus `SAFETY`, which is Rust-only):
 | `INFO` | Rationale, cross-reference, or context that does not fit `WARNING`/`ERROR` - the general "why", never the "what". |
 | `TODO` | Deferred work, always with an issue number: `// TODO(#123): description.` A TODO with no issue has no owner and does not get committed. |
 | `FIXME` | Known defect in this code - incorrect or broken-by-design behavior that must be corrected, always with an issue number: `// FIXME(#123): description.` |
+| `BUG` | A workaround for a bug in code this repository does not own (a vendored library, a platform or driver API): names the upstream defect and the condition under which the workaround can be removed. |
 
 A comment explains *why*, never *what* - `index += 1` needs no comment; skipping the increment on a specific error path to keep a caller-visible prefix unchanged does. Prefer enforcing a requirement in a `MAREA_CHECK_*` guard over describing it in a comment; a comment is not a proof.
 
