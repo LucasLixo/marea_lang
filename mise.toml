@@ -1,0 +1,82 @@
+[settings]
+# Pushes tools' bin-paths to the front of PATH instead of allowing modifications of PATH after activation to take precedence
+activate_aggressive = true
+# Print by line with the prefix of the task name
+task.output = "prefix"
+# Automatically install missing tools when executing tasks
+task.run_auto_install = true
+
+[tools]
+# Complete LLVM/Clang toolchain: clang, clang++, clang-format, clang-tidy, lld (linker), lldb (debugger), llvm-ar, llvm-nm, compiler-rt (sanitizers), etc.
+# This project never builds with GCC or another GPL-licensed compiler - clang/LLVM only, on every platform.
+"conda:llvm" = "latest"
+# conda-forge's llvm is a metapackage with no binaries: the archiver (llvm-ar, llvm-ranlib) comes from llvm-tools.
+"conda:llvm-tools" = "latest"
+"conda:clang" = "latest"
+# conda-forge splits the compiler drivers: "clang" only exposes the C driver, so clang++
+# (CXX below) needs this separate package too, or CMake's C++ detection fails at configure time.
+"conda:clangxx" = "latest"
+"conda:libclang" = "latest"
+"conda:lld" = "latest"
+# Build system (needs llvm/clang available for compiler detection)
+cmake = { version = "latest", depends = ["conda:llvm", "conda:clang", "conda:libclang"] }
+ninja = "latest"
+# Build cache (speeds up incremental builds a lot)
+ccache = { version = "latest", depends = ["conda:llvm", "conda:clang"] }
+stylua = "latest"
+# Python package and tool runner, needed by the pipx: backend below to install gersemi
+uv = "latest"
+# CMake formatter, used by format:cmake-sources and format:check-sources
+"pipx:gersemi" = "latest"
+rust = { version = "latest", components = "rustfmt,clippy,llvm-tools", depends = ["conda:llvm", "conda:clang", "conda:libclang", "conda:lld"] }
+
+[vars]
+# Parallel processing
+PARALLEL = "32"
+
+[env]
+# Local scripts
+_.path = ["./tools"]
+# Force every C/C++/Rust build onto the Clang/LLVM toolchain - never GCC or another GPL compiler.
+CC = "clang"
+CXX = "clang++"
+# Neutralize flags inherited from the shell: CMake caches CFLAGS/CXXFLAGS/LDFLAGS on the first
+# configure, so an ambient flag would survive every later reconfigure. Per-machine tuning belongs
+# in a -D on the configure command, not the ambient environment.
+CFLAGS = ""
+CXXFLAGS = ""
+LDFLAGS = ""
+# Generator (once CMakeLists.txt exists)
+CMAKE_GENERATOR = "Ninja"
+# Generate compile_commands.json (for clangd/IDEs)
+CMAKE_EXPORT_COMPILE_COMMANDS = "ON"
+# Mode
+MAREA_BUILD_MODE = "Debug"
+
+# No [tasks."config:cmake"] / "build:*" / "test:*" yet - there is no CMakeLists.txt or lib/rust
+# crate in the repository yet. Add those once that scaffolding exists; until then the format
+# tasks below are safe to run against whatever tracked sources already exist.
+
+[tasks."format:cpp-sources"]
+description = "Format every tracked .c/.h/.cpp/.hpp file in place with clang-format (.clang-format)"
+run = 'git ls-files -- "*.c" "*.h" "*.cpp" "*.hpp" | xargs -r clang-format -style=file -i'
+dir = "{{config_root}}"
+
+[tasks."format:lua-sources"]
+description = "Format every tracked .lua file in place with StyLua (.stylua.toml, .styluaignore)"
+run = "stylua ."
+dir = "{{config_root}}"
+
+[tasks."format:cmake-sources"]
+description = "Format every tracked CMakeLists.txt/*.cmake file in place with gersemi (.gersemirc)"
+run = 'git ls-files -- "CMakeLists.txt" "*.cmake" | xargs -r uvx gersemi -i'
+dir = "{{config_root}}"
+
+[tasks."format:check-sources"]
+description = "Read-only formatting check across every language (clang-format, StyLua, gersemi) - what CI runs"
+run = [
+    'git ls-files -- "*.c" "*.h" "*.cpp" "*.hpp" | xargs -r clang-format -style=file --dry-run --Werror',
+    "stylua --check .",
+    'git ls-files -- "CMakeLists.txt" "*.cmake" | xargs -r uvx gersemi --check',
+]
+dir = "{{config_root}}"
