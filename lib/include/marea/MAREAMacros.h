@@ -1,8 +1,8 @@
 // Copyright (c) 2026 Paulo Lucas Alves Franca
 // Licensed under the MIT License. See LICENSE.txt for full terms.
 
-#if !defined(MAREA_INCLUDE_BASE_MAREAMACROS_H)
-    #define MAREA_INCLUDE_BASE_MAREAMACROS_H
+#if !defined(MAREA_INCLUDE_MAREAMACROS_H)
+    #define MAREA_INCLUDE_MAREAMACROS_H
 
     #if !defined(MAREA_STRINGIFY_DETAIL)
         #define MAREA_STRINGIFY_DETAIL(x) #x
@@ -391,4 +391,4 @@ MAREA_END_IGNORE_PRAGMA
         #define MAREA_IGNORE(expression) ((void)(expression))
     #endif
 
-#endif /* MAREA_INCLUDE_BASE_MAREAMACROS_H */
+#endif /* MAREA_INCLUDE_MAREAMACROS_H */
