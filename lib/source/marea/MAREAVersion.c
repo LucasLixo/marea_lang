@@ -3,7 +3,7 @@
 
 #include "marea/MAREAVersion.h"
 
-const char *MAREA_GetVersion(void)
+const MAREA_Character8 *MAREA_GetVersion(void)
 {
-    return "0.1.0";
+    return MAREA_VERSION;
 }

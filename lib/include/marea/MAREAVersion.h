@@ -4,6 +4,17 @@
 #if !defined(MAREA_INCLUDE_MAREAVERSION_H)
     #define MAREA_INCLUDE_MAREAVERSION_H
 
-const char *MAREA_GetVersion(void);
+    #include "marea/base/MAREACTypes.h"
+    #include "marea/base/MAREAMacros.h"
+
+    #define MAREA_VERSION_MAJOR 0
+    #define MAREA_VERSION_MINOR 1
+    #define MAREA_VERSION_PATCH 0
+
+    #define MAREA_VERSION                    \
+        MAREA_STRINGIFY(MAREA_VERSION_MAJOR) \
+        "." MAREA_STRINGIFY(MAREA_VERSION_MINOR) "." MAREA_STRINGIFY(MAREA_VERSION_PATCH)
+
+const MAREA_Character8 *MAREA_GetVersion(void);
 
 #endif
