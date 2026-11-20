@@ -1,0 +1,96 @@
+---
+# Compatible with clang-format 4.0+
+
+# Consecutive alignment - boolean form for maximum compatibility
+AlignConsecutiveMacros:       true
+AlignConsecutiveAssignments:  false
+AlignConsecutiveBitFields:    false
+AlignConsecutiveDeclarations: false
+AlignEscapedNewlines:         Right
+AlignOperands:                true
+AlignTrailingComments:        true
+
+AllowAllArgumentsOnNextLine:                true
+AllowAllParametersOfDeclarationOnNextLine:  true
+AllowShortEnumsOnASingleLine:               true
+AllowShortBlocksOnASingleLine:              false
+AllowShortCaseLabelsOnASingleLine:          false
+AllowShortFunctionsOnASingleLine:           All
+AllowShortIfStatementsOnASingleLine:        false
+AllowShortLoopsOnASingleLine:               false
+
+AlwaysBreakAfterDefinitionReturnType:   None
+AlwaysBreakAfterReturnType:             None
+AlwaysBreakBeforeMultilineStrings:      false
+AlwaysBreakTemplateDeclarations:        MultiLine
+
+# Custom brace breaking
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterCaseLabel:        true
+  AfterClass:            true
+  AfterControlStatement: false   # boolean - 'Never' only valid in clang-format 13+
+  AfterEnum:             true
+  AfterFunction:         true
+  AfterNamespace:        true
+  AfterObjCDeclaration:  true
+  AfterStruct:           true
+  AfterUnion:            true
+  AfterExternBlock:      false
+  BeforeElse:            false
+  BeforeWhile:           false
+  IndentBraces:          false
+  SplitEmptyFunction:    true
+  SplitEmptyRecord:      true
+
+# Keep closing brace of container literals on its own line
+Cpp11BracedListStyle: false
+
+# Never reorder or regroup includes
+IncludeBlocks: Preserve
+SortIncludes:  false
+
+# No column limit - avoids breaking macros
+# Use /* clang-format off */ and /* clang-format on */ to opt out locally
+ColumnLimit: 0
+
+IndentWidth:              4
+ContinuationIndentWidth:  4
+IndentCaseLabels:         false
+IndentCaseBlocks:         false
+IndentGotoLabels:         true
+IndentPPDirectives:       BeforeHash
+IndentExternBlock:        Indent
+
+PointerAlignment:               Right
+SpaceAfterCStyleCast:           false
+SpacesInCStyleCastParentheses:  false
+SpacesInConditionalStatement:   false
+SpacesInContainerLiterals:      true
+SpaceBeforeAssignmentOperators: true
+SpaceBeforeCaseColon:           false
+SpaceBeforeParens:              ControlStatements
+SpaceAroundPointerQualifiers:   Default
+SpaceInEmptyBlock:              false
+SpaceInEmptyParentheses:        false
+
+NamespaceIndentation: All
+
+UseCRLF:  false
+UseTab:   Never
+
+# Macros that behave like foreach loops
+ForEachMacros:
+  - spa_list_for_each
+  - spa_list_for_each_safe
+  - wl_list_for_each
+  - wl_array_for_each
+  - udev_list_entry_foreach
+  - SHORT_LIFE_BLOCK
+
+# Macros that expand to opening/closing blocks
+# Note: must be valid regex - prefix with .* to match any leading characters
+MacroBlockBegin: ".*BEGIN.*"
+MacroBlockEnd:   ".*END.*"
+
+---

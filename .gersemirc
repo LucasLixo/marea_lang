@@ -1,0 +1,7 @@
+# gersemi configuration (CMake formatter), adapted from the Mimico engine repo.
+# Mimico-specific entries (the android/cmake dialect and its Definitions.cmake macro
+# shims) were dropped since this project has no CMake tree yet.
+indent: 4
+line_length: 120
+list_expansion: favour-inlining
+unsafe: false
