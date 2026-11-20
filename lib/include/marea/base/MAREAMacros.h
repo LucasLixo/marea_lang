@@ -52,6 +52,49 @@
         #define MAREA_EXTERN_DECL extern MAREA_DECL
     #endif
 
+    #if !defined(MAREA_CXX_STANDARD)
+        #if defined(__cplusplus)
+            #if defined(_MSVC_LANG)
+                #define MAREA_CXX_STANDARD _MSVC_LANG
+            #else
+                #define MAREA_CXX_STANDARD __cplusplus
+            #endif
+        #endif
+    #endif
+
+    // Needed so a C header stays callable from the C++ tests (see cpp-testing): a function
+    // compiled as C has plain, unmangled linkage, which a C++ translation unit can only call
+    // through an `extern "C"` declaration. Production code itself is never C++.
+    #if !defined(MAREA_EXTERN_C)
+        #if defined(MAREA_CXX_STANDARD)
+            #define MAREA_EXTERN_C extern "C"
+        #else
+            #define MAREA_EXTERN_C
+        #endif
+    #endif
+
+    #if !defined(MAREA_EXTERN_DECL_C)
+        #define MAREA_EXTERN_DECL_C MAREA_EXTERN_C MAREA_DECL
+    #endif
+
+    #if !defined(MAREA_BEGIN_EXTERN_C)
+        #if defined(MAREA_CXX_STANDARD)
+            #define MAREA_BEGIN_EXTERN_C \
+                MAREA_EXTERN_C           \
+                {
+        #else
+            #define MAREA_BEGIN_EXTERN_C
+        #endif
+    #endif
+
+    #if !defined(MAREA_END_EXTERN_C)
+        #if defined(MAREA_CXX_STANDARD)
+            #define MAREA_END_EXTERN_C }
+        #else
+            #define MAREA_END_EXTERN_C
+        #endif
+    #endif
+
     #if !defined(MAREA_CALL)
         #if (defined(_WIN32) && (defined(_MSC_VER) || defined(__MINGW32__) || defined(__MINGW64__)))
             #define MAREA_CALL __cdecl
