@@ -17,7 +17,6 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 add_library(marea STATIC lib/source/marea/MAREAVersion.c)
 
 target_include_directories(marea PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/lib/include")
-target_include_directories(marea PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/lib/internal")
 
 option(MAREA_OPTION_TARGET_TESTS "Build the GoogleTest suite under tests/" ON)
 

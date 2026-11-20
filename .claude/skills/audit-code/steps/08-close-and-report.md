@@ -6,6 +6,7 @@ Part of the [audit-code](../SKILL.md) skill. This file is a complete prompt for 
 
 - Never push. The pipeline that called this skill owns the push. A clean pass creates no commit.
 
+1. Run the verification the files imply: `mise run build:engine` and `test:engine-cpp` for C/C++/Rust, `test:rust-crate` for Rust.
 2. Commit each theme through `generate-commit`.
 3. Write the success entry in `temp/_LOG_APPLY_SUCCESS.md` and an error entry in `temp/_LOG_APPLY_ERROR.md` for every finding left open (reported public-API issues, unrunnable checks, skipped formatting), in the format [generate-apply](../../generate-apply/SKILL.md) defines. A worker with no `temp/` puts them in its final report instead.
 

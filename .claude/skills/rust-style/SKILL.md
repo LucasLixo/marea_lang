@@ -102,8 +102,9 @@ An internal `#[export_name]` - one no public header declares - must be declared 
 
 **Headers are never generated from Rust.** There is no cbindgen and none is wanted. Adding an exported function means writing its declaration in the `.h` under `lib/include/marea/` by hand, following `c-style`, and then matching it with `#[export_name]`.
 
-The header is the contract; the Rust side conforms to it, not the reverse.
-
+The header is the contract; the Rust side conforms to it, not the reverse. Renaming a symbol or moving it to
+another header therefore changes the `#[export_name]`, the snake_case Rust function name, its callers and the
+mirrored module and test file in the same change set.
 
 ## Consuming external C
 
@@ -119,8 +120,6 @@ The header is the contract; the Rust side conforms to it, not the reverse.
 | `wrapper/cimgui.h` | cimgui | `ALLOWED_CIMGUI_FUNCTIONS`, `_METHODS`, `_FUNCTION_PATTERNS`, `_TYPES` (`build/cimgui.rs`) |
 | `wrapper/imgui_backends.h` | the ImGui SDL3 backends | `ALLOWED_IMGUI_BACKEND_FUNCTIONS` (`build/imgui_backends.rs`) |
 | `wrapper/xxd.h` | the embedded-asset headers | - (`build/xxd.rs`) |
-| `marea_wrapper.h` (generated into `OUT_DIR`, never committed) | the engine's own `MAREA_*` **types** | `ALLOWED_MAREA_TYPES` (`build/marea.rs`) |
-
 
 bindgen parses the real headers, so struct layouts are the target's true C ABI under cross-compile rather than a transcription.
 
@@ -202,6 +201,7 @@ The tag vocabulary:
 | `INFO` | Rationale, cross-reference, or context that does not fit `SAFETY`/`WARNING`/`ERROR` - the general "why", never the "what". |
 | `TODO` | Deferred work, always with an issue number: `// TODO(#123): description.` A TODO with no issue has no owner and does not get committed. |
 | `FIXME` | Known defect in this code - incorrect or broken-by-design behavior that must be corrected, always with an issue number: `// FIXME(#123): description.` |
+| `BUG` | A workaround for a bug in code this repository does not own (a vendored library, a platform or driver API): names the upstream defect and the condition under which the workaround can be removed. |
 
 A comment explains *why*, never *what* - `index += 1` needs no comment; skipping the increment on a specific error path to keep a caller-visible prefix unchanged does. Prefer enforcing a requirement in the type system or a `marea_check_*!` guard over describing it in a comment; a comment is not a proof.
 
@@ -215,6 +215,7 @@ rustfmt is the formatter and wins on whitespace and layout: [`lib/rust/rustfmt.t
 
 Runtime (non-test, non-`build/`) code does not reach for `.unwrap()`/`.expect()` on a condition that can genuinely fail at runtime - a lock, a caller-supplied index, external input crossing the ABI. Route it through the module's `MareaXExcept` instead. Tests and `build/*.rs` scripts may use them freely; a failure there is a build or test defect, not a runtime one.
 
+Values arriving from outside the crate's own control - an FFI argument, an externally-supplied length, a parsed offset - use checked arithmetic (`checked_add`, `checked_sub`, ...) before it feeds an index or a capacity decision, mapped to an `ERROR_*` variant on overflow rather than trusted as-is.
 
 `debug_assert!`/`debug_assert_eq!` are for an internal invariant already established by the preceding `marea_check_*!` guard or by the types involved - never a stand-in for validating a caller-controlled value, and never carrying a side effect the release build depends on.
 
@@ -222,8 +223,11 @@ Runtime (non-test, non-`build/`) code does not reach for `.unwrap()`/`.expect()`
 
 One `api-<id>` feature per `MAREA_API_<PKG>` package, `default = []`. `ConfigureRust.cmake` is the single source of truth and passes the enabled set through Corrosion, so a package compiled out of C is compiled out of Rust too (`cmake-style` owns the CMake half).
 
+Any two features documented as mutually exclusive in `Cargo.toml` raise a `compile_error!` when both or neither
+are selected. **`cargo test --all-features` is therefore invalid for this crate**; pass an explicit list:
 
 ```bash
+cargo test --no-default-features --features "api-math-aabb"
 ```
 
 Disabling an API removes its Rust: with `MAREA_OPTION_API_<PKG>=OFF` the module and every `#[export_name]` in it are compiled out by the `api-<id>` feature, so the symbol is not in the export list and not in the binary. A new export therefore sits under the cargo feature that matches the `MAREA_API_<PKG>` gate of its header (a module declared under `#[cfg(feature = "api-<id>")]`, or the item itself), never under a different one and never ungated. Deleting a header declaration deletes its Rust definition and export in the same change set. `mise run test:exports-match` (and the `Marea-Lib-ExportsMatch` build target) fails on an export no public header declares, a declared symbol nothing defines, and a feature that does not match the gate. A cargo feature that enables another (`api-markup = ["api-ui"]`) keeps that module compiled while the dependency's own package is OFF, so turn off the dependents together with the package.
@@ -286,6 +290,8 @@ mod tests;
 2. Check the module for what a plain move does not cover: more than one `#[cfg(test)]` item, a `#[cfg(test)]` helper that other modules name (`git grep -n <item> -- lib/rust tools`), an `include_str!`/`include_bytes!` inside the tests, and a feature gate on the module's own declaration (`marea/<package>.rs`).
 3. For the plain case (one trailing `#[cfg(test)] mod tests { ... }` and nothing after it): cut the body, remove one indentation level (4 spaces), write it after the three copyright lines at `lib/rust/tests/<path>/<name>.rs`, and replace the block in the source with the three-line declaration. Keep the blank line before `#[cfg(test)]`. `use super::*;`, `use super::<item>;` and the `macro_rules!` macros defined above the declaration keep working unchanged, because textual macro scope reaches a file-backed child module.
 4. Run `rustfmt --edition 2021` on the new test file only (it normally changes nothing, since the inline block was already formatted).
+5. Run `mise run test:rust-crate` again and diff the sorted name list against the baseline. For a feature-gated module run the probe from Feature gating on both states with the features its module needs (`mise run test:rust-crate -- --features "api-fs-path"`), and compare the lists the same way.
+6. Run `mise run build:engine` and `mise run test:exports-match`, and check the touched files with `lua tools/marea-ascii-check/main.lua <file>...`.
 
 `cargo-nextest` is pinned in `mise.toml`. The engine build and the Rust checks go through the mise tasks (`build:engine`, `test:rust-crate`, `build:rust-crate`); `mise tasks` lists the rest.
 
@@ -296,3 +302,7 @@ Two direct cargo invocations are listed exceptions to the mise-only rule (see th
 
 ## Panic policy
 
+Both profiles set `panic = "unwind"`, deliberately: an FFI callback crossing back into the runtime needs to
+signal an error by unwinding, and under `abort` a wrong-type argument would SIGABRT the process instead of
+raising one. This costs no FFI safety: `extern "C"` has aborted on unwind since rustc 1.71, so a panic can never
+unwind into C.

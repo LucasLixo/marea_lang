@@ -44,7 +44,9 @@ from, and what already landed that this builds on.
 
 TDD first, no symbol ships without a test (`cpp-testing`). Docs mirror the symbol
 lifecycle (`doxygen-documentation`). Style per language (`c-style`, `rust-style`,
+`cmake-style`). Build and test with `mise run build:engine` /
 `mise run test:engine-cpp` (`engine-build`). ASCII only, verified with
+`lua tools/marea-ascii-check/main.lua <file>...`.
 
 ## Files
 
@@ -81,6 +83,7 @@ The header's `mode` and `effort` govern the **session that executes the apply**,
 
 Leave `issue:` empty - the executing session fills it. Leave `handoff:` empty too; only [generate-handoff](../../generate-handoff/SKILL.md) fills that field, with the exact title of the section it wrote.
 
+Fill `## Conventions` down to what the task actually touches.
 
 ## Done when
 

@@ -15,6 +15,7 @@ Every `license_embed_add` call goes inside an `if`. The condition says when the 
 | --- | --- | --- | --- |
 | Platform | linked on some platforms only | `MAREA_PLATFORM_WINDOWS`, `MAREA_PLATFORM_ANDROID`, `MAREA_PLATFORM_LINUX`, `MAREA_PLATFORM_WEB` | the Windows-only crates (`windows-sys`, `windows-link`) |
 | Build type | linked in Debug or in Release only | `CMAKE_BUILD_TYPE` in an `if()`. It decides what configure does, so it is not a generator expression (see "Generator expressions versus if()" in [cmake-style](../../cmake-style/SKILL.md)) | none yet: add the case to the test |
+| API package or option | used by one API package or one option | `MAREA_OPTION_API_<PKG>` and the other `MAREA_OPTION_*` | `MAREA_OPTION_BACKEND_LLVM`, `MAREA_OPTION_API_NETWORK_TLS` |
 
 Conditions may be combined with `AND` and `OR`.
 

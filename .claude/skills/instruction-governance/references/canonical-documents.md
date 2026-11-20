@@ -9,6 +9,7 @@ The Creator `.agents/` entries (skills) are symlink aliases into the engine `mar
 | Document | Owned subject |
 | --- | --- |
 | [Engine AGENTS.md](../../../../AGENTS.md) | Engine startup, dirty baseline, ASCII, copyright, truthful reporting, language-boundary summary |
+| [Creator AGENTS.md](../../../../../AGENTS.md) | Creator rules: startup, TDD, computed sizes, product goal, always-log requirement |
 
 ## Skills
 
@@ -19,6 +20,7 @@ The Creator `.agents/` entries (skills) are symlink aliases into the engine `mar
 | [c-style](../../c-style/SKILL.md) | C17 conventions, MAREA_ type system, Except enums, C/Rust boundary detail |
 | [cmake-style](../../cmake-style/SKILL.md) | CMake layout, module skeleton, variables, targets |
 | [cpp-testing](../../cpp-testing/SKILL.md) | GoogleTest conventions and C/C++ TDD |
+| [creator-mcp](../../creator-mcp/SKILL.md) | Creator MCP tools, public-operation metadata, runtime bridges, local transport, and verification |
 | [dispatch-applies](../../dispatch-applies/SKILL.md) | Running several existing applies in parallel worktrees and merging their PRs |
 | [doxygen-documentation](../../doxygen-documentation/SKILL.md) | C header XML authoring lifecycle (create, update, delete under docs/) |
 | [engine-build](../../engine-build/SKILL.md) | Build, test and package invocation and recovery through mise tasks |

@@ -36,6 +36,7 @@ A long prompt read at once loses its middle: the agent skips a step or forgets a
 - a check must pass before the next action may start (a gate);
 - the instructions would pass about 80 lines in one file.
 
+Keep a skill as one file when it is a body of conventions that the agent looks up and does not run in order: the style skills (`c-style`, `rust-style`, `cmake-style`, `mise-style`), `cpp-testing`, `doxygen-documentation`, `engine-build`, `marea-framework` and the generator skills. Splitting those would hide a rule behind a file the agent never opens.
 
 **Layout.**
 
