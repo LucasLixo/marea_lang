@@ -6,12 +6,42 @@
 
 # Files to be converted to native line endings on checkout.
 
-# All files
-*.* text
+# Cmake files
+CMakeLists.txt text working-tree-encoding=UTF-8 eol=lf
+*.cmake text working-tree-encoding=UTF-8 eol=lf
+
+# C files
+*.h text working-tree-encoding=UTF-8 eol=lf
+*.c text working-tree-encoding=UTF-8 eol=lf
+
+# Python files
+*.py text working-tree-encoding=UTF-8 eol=lf
+
+# Patch files
+*.patch text working-tree-encoding=UTF-8 eol=lf
+*.log text working-tree-encoding=UTF-8 eol=lf
 
 # Text files to always have CRLF (dos) line endings on checkout.
-*.bat text eol=crlf
-*.rc text eol=crlf
+*.bat text working-tree-encoding=UTF-8 eol=crlf
+*.rc text working-tree-encoding=UTF-8 eol=crlf
 
 # Text files to always have LF (unix) line endings on checkout.
-*.sh text eol=lf
+*.sh text working-tree-encoding=UTF-8 eol=lf
+
+# Binary files
+*.o binary
+*.a binary
+*.so binary
+*.obj binary
+*.lib binary
+*.exp binary
+*.pdb binary
+*.dll binary
+*.exe binary
+*.manifest binary
+*.dmp binary
+*.swp binary
+*.png binary
+*.ico binary
+*.jpg binary
+*.jpeg binary
