@@ -1,0 +1,4 @@
+ok line
+bad: café
+also bad: — dash
+clean again

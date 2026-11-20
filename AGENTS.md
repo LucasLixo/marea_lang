@@ -38,6 +38,7 @@ The rule that shapes every decision here:
 - Small compilable increments; keep the test suite green - fix broken tests before adding code.
 - Docs are part of the change, not a follow-up.
 - No Unicode characters in code, comments, docs, or commit messages - ASCII only, saved as UTF-8.
+  Verify with `tools/marea-ascii-check` (`mise run dev:ascii-check`).
 - **Copyright header.** Every new or substantially rewritten source file opens with this header as its first
   lines, above any include guard, in the file's own comment marker (`//`, `--`, or `#`):
   ```

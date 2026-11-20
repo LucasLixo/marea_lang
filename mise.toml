@@ -29,6 +29,7 @@ uv = "latest"
 # CMake formatter, used by format:cmake-sources and format:check-sources
 "pipx:gersemi" = "latest"
 rust = { version = "latest", components = "rustfmt,clippy,llvm-tools", depends = ["conda:llvm", "conda:clang", "conda:libclang", "conda:lld"] }
+lua = "latest"
 
 [vars]
 # Parallel processing
@@ -53,9 +54,54 @@ CMAKE_EXPORT_COMPILE_COMMANDS = "ON"
 # Mode
 MAREA_BUILD_MODE = "Debug"
 
-# No [tasks."config:cmake"] / "build:*" / "test:*" yet - there is no CMakeLists.txt or lib/rust
-# crate in the repository yet. Add those once that scaffolding exists; until then the format
-# tasks below are safe to run against whatever tracked sources already exist.
+# No [tasks."test:*"] yet - there is no lib/rust crate or tests/ tree in the repository yet.
+# Add those once that scaffolding exists.
+
+[tasks."dev:ascii-check"]
+description = "Check every tracked text file for non-ASCII bytes (AGENTS.md's ASCII-only rule) - wraps tools/marea-ascii-check."
+run = 'git ls-files | while IFS= read -r f; do [ -f "$f" ] && printf "%s\n" "$f"; done | xargs -r lua ./tools/marea-ascii-check/main.lua'
+dir = "{{config_root}}"
+
+[tasks."dev:build-catalog"]
+description = "Scan lib/include, lib/internal and lib/source into a deterministic JSON token/dependency map (includes, MAREA_API_* gates, declared and used symbols) - wraps tools/marea-api-catalog. Override: mise run dev:build-catalog -- --out tmp/catalog.json"
+usage = '''
+flag "--out <path>" help="JSON output path" default="tmp/catalog.json"
+'''
+run = 'lua ./tools/marea-api-catalog/main.lua catalog --out {{ usage.out }}'
+dir = "{{config_root}}"
+
+[tasks."setup:git-modules"]
+description = "Initialize every Git submodule this repository pins (including nested ones), at the commit it is pinned to - wraps tools/GetGitModules.sh. A no-op until the repository actually vendors a submodule."
+run = "bash ./tools/GetGitModules.sh"
+run_windows = "powershell -NoProfile -File ./tools/GetGitModules.ps1"
+dir = "{{config_root}}"
+
+[tasks."setup:git-modules-update"]
+description = "Move the submodules that follow a branch to the tip of that branch (never a tag), 2 .gitmodules layers deep by default - wraps tools/UpdateGitModules.sh. Override: mise run setup:git-modules-update -- --levels 3, or --dry-run to only report."
+usage = '''
+flag "--levels <n>" help="How many .gitmodules layers to walk below this repository's own submodules" default="2"
+flag "--dry-run" help="Only report what would move, changing nothing"
+'''
+run = 'bash ./tools/UpdateGitModules.sh --levels {{ usage.levels }}{% if usage.dry_run %} --dry-run{% endif %}'
+run_windows = 'powershell -NoProfile -File ./tools/UpdateGitModules.ps1 -Levels {{ usage.levels }}{% if usage.dry_run %} -DryRun{% endif %}'
+dir = "{{config_root}}"
+
+[tasks."config:cmake"]
+description = "Configure the project into cmake-build-<config>. Override: mise run config:cmake -- --config Release"
+usage = '''
+flag "--config <config>" help="Build configuration (Debug, Release, RelWithDebInfo, MinSizeRel)" default="{{env.MAREA_BUILD_MODE}}"
+'''
+run = 'cmake -S "." -B "cmake-build-{{ usage.config | lower }}" -DCMAKE_BUILD_TYPE="{{ usage.config }}" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON'
+dir = "{{config_root}}"
+
+[tasks."build:marea"]
+description = "Build the marea static library target (default Debug). Override: mise run build:marea -- --config Release"
+usage = '''
+flag "--config <config>" help="Build configuration" default="{{env.MAREA_BUILD_MODE}}"
+'''
+depends = ["config:cmake --config {{ usage.config }}"]
+run = 'cmake --build "cmake-build-{{ usage.config | lower }}" --target marea --parallel {{vars.PARALLEL}}'
+dir = "{{config_root}}"
 
 [tasks."format:cpp-sources"]
 description = "Format every tracked .c/.h/.cpp/.hpp file in place with clang-format (.clang-format)"
