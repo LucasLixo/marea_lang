@@ -1,0 +1,3 @@
+[submodule "3rdparty/GoogleTest"]
+	path = 3rdparty/GoogleTest
+	url = https://github.com/google/googletest.git
