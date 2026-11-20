@@ -5,9 +5,11 @@ description: Global policy for agents working in the Marea Lang repository - sco
 
 # Marea Lang
 
-setup, with struct, enum, and explicit function types checked once at compile/parse time and fully erased before
-bytecode generation, an optional JIT that never diverges from the single reference interpreter, and one C macro
-side. The project is independent: no tie to any other engine or repository, with its own name, license, and
+A statically-typed programming language of its own, in C11, on a modern CMake setup, with struct, enum, and
+explicit function types checked once at compile/parse time and fully erased before code generation, compiled to
+native code or to C11 (no VM, no bytecode, no JIT), with arena memory and static ownership/borrow rules, and one C
+macro that registers a function for the language runtime, with no external generator and no hand-written glue on any side. The
+project is independent: no tie to any other engine, language, or repository, with its own name, license, and
 structure.
 
 Comments and session chat according to the ASD-STE100 standard.
@@ -16,14 +18,17 @@ Comments and session chat according to the ASD-STE100 standard.
 
 The rule that shapes every decision here:
 
-  Reorganizing the tree first, then extending it, is the order - never the reverse.
-  substantively rewritten. The project's own header goes only on new or substantially rewritten files (see
-  "Copyright header" below) - never replace an upstream notice with it.
-  bytecode and the same semantics as the interpreter, never a second, divergent implementation; it must be
-  possible to toggle it on or off without changing any observable behavior.
+- **The compiler core is C11**, written from scratch - no legacy tree to reorganize, no inherited
+  source to attribute.
+- **The compilation target is native code (LLVM or an own backend) or a transpile to C11** built with clang or
+  gcc. There is no VM, no bytecode and no JIT, so one execution path exists and no second one can diverge from it.
+- **Memory is arena-based with static ownership and borrow rules.** Primitives and structs pass by value. Parallel
+  code uses structured fork-join or a native thread pool, and the type system guarantees ownership and immutability
+  across threads.
 - **Typing is compile/parse-time only.** `struct`, `enum`, and explicit function types are checked statically and
-  then fully erased before bytecode generation - zero cost at runtime.
-  there is no external binding generator and no per-language glue written by hand.
+  then fully erased before code generation - zero cost at runtime.
+- **One binding declaration, two consumers.** A single C registration macro exposes a function to the language
+  runtime; there is no external binding generator and no per-language glue written by hand.
 - **C++ exists only for tests** (GoogleTest, see [cpp-testing](.claude/skills/cpp-testing/SKILL.md)). Production
   code is C11, never C++.
 
@@ -45,7 +50,8 @@ The rule that shapes every decision here:
   // Copyright (c) 2026 Paulo Lucas Alves Franca
   // Licensed under the MIT License. See LICENSE.txt for full terms.
   ```
-  its original upstream notice stays as the only one, per [LICENSE.txt](LICENSE.txt).
+  Skip this for third-party code that was not substantively rewritten - its original upstream notice stays as the
+  only one, per [LICENSE.txt](LICENSE.txt).
 
 ## Reporting the outcome of any task
 
