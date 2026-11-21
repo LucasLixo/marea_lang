@@ -61,3 +61,17 @@ if(MAREA_OPTION_TARGET_LEX)
         target_compile_definitions(marea_lex PRIVATE MAREA_ENABLE_EXPORT INTERFACE MAREA_ENABLE_IMPORT)
     endif()
 endif()
+
+if(MAREA_OPTION_PRECOMPILE_HEADER)
+    foreach(MAREA_STAGE_TARGET IN ITEMS marea_base marea_lex)
+        if(TARGET ${MAREA_STAGE_TARGET})
+            # PRIVATE: nothing links the precompiled header; the C gate keeps it out of C++ units.
+            target_precompile_headers(
+                ${MAREA_STAGE_TARGET}
+                PRIVATE "$<$<COMPILE_LANGUAGE:C>:${CMAKE_CURRENT_SOURCE_DIR}/internal/marea/internal/PrecompileHeader.h>"
+            )
+            target_compile_definitions(${MAREA_STAGE_TARGET} PRIVATE SETTING_PRECOMPILE_HEADER)
+        endif()
+    endforeach()
+    unset(MAREA_STAGE_TARGET)
+endif()

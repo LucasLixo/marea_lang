@@ -22,6 +22,7 @@ target_include_directories(marea PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/lib/include
 
 option(MAREA_OPTION_TARGET_TESTS "Build the GoogleTest suite under tests/" ON)
 option(MAREA_OPTION_SHARED_LIBS "Build marea_base and marea_lex as shared libraries instead of static" OFF)
+option(MAREA_OPTION_PRECOMPILE_HEADER "Precompile the most basic headers in every library target" ON)
 option(MAREA_OPTION_TARGET_BASE "Build the marea_base library" ON)
 cmake_dependent_option(
     MAREA_OPTION_TARGET_LEX
