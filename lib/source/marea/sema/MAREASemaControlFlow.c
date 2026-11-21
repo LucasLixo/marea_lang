@@ -233,6 +233,11 @@ static const MAREA_AstNode *MAREA_CALL MAREA_G_CaseName(const MAREA_AstNode *val
     return MAREA_NULLPTR;
 }
 
+static MAREA_Boolean MAREA_CALL MAREA_G_SameText(const MAREA_AstNode *left, const MAREA_AstNode *right)
+{
+    return ((MAREA_AstNodeGetTextLength(left) == MAREA_AstNodeGetTextLength(right)) && (memcmp(MAREA_AstNodeGetText(left), MAREA_AstNodeGetText(right), MAREA_AstNodeGetTextLength(left)) == 0)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
 static MAREA_Boolean MAREA_CALL MAREA_G_IsCovered(const MAREA_AstNode *statement, const MAREA_AstNode *variant)
 {
     for (MAREA_IntegerSize index = 1; index < MAREA_AstNodeGetChildCount(statement); ++index) {
@@ -245,7 +250,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsCovered(const MAREA_AstNode *statement
         for (MAREA_IntegerSize valueIndex = 0; (valueIndex + 1) < MAREA_AstNodeGetChildCount(arm); ++valueIndex) {
             const MAREA_AstNode *name = MAREA_G_CaseName(MAREA_SemaChildAt(arm, valueIndex));
 
-            if ((name != MAREA_NULLPTR) && (MAREA_AstNodeGetTextLength(name) == MAREA_AstNodeGetTextLength(variant)) && (memcmp(MAREA_AstNodeGetText(name), MAREA_AstNodeGetText(variant), MAREA_AstNodeGetTextLength(variant)) == 0)) {
+            if ((name != MAREA_NULLPTR) && (MAREA_G_SameText(name, variant) == MAREA_BOOLEAN_TRUE)) {
                 return MAREA_BOOLEAN_TRUE;
             }
         }
@@ -254,11 +259,111 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsCovered(const MAREA_AstNode *statement
     return MAREA_BOOLEAN_FALSE;
 }
 
+// INFO: two case values are the same when they are built from the same literals, names and unary operators.
+static MAREA_Boolean MAREA_CALL MAREA_G_SameValue(const MAREA_AstNode *left, const MAREA_AstNode *right)
+{
+    if ((MAREA_G_IsError(left) == MAREA_BOOLEAN_TRUE) || (MAREA_G_IsError(right) == MAREA_BOOLEAN_TRUE)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_AstKind KIND = MAREA_AstNodeGetKind(left);
+
+    if (KIND != MAREA_AstNodeGetKind(right)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    switch (KIND) {
+    case MAREA_AST_KIND_IDENTIFIER:
+    case MAREA_AST_KIND_INTEGER_LITERAL:
+    case MAREA_AST_KIND_FLOAT_LITERAL:
+    case MAREA_AST_KIND_STRING_LITERAL:
+    case MAREA_AST_KIND_BOOLEAN_LITERAL:
+        return MAREA_G_SameText(left, right);
+    case MAREA_AST_KIND_UNARY_EXPRESSION:
+        return ((MAREA_AstNodeGetOperator(left) == MAREA_AstNodeGetOperator(right)) && (MAREA_G_SameValue(MAREA_SemaChildAt(left, 0), MAREA_SemaChildAt(right, 0)) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+    case MAREA_AST_KIND_MEMBER_ACCESS:
+        return ((MAREA_G_SameValue(MAREA_SemaChildAt(left, 0), MAREA_SemaChildAt(right, 0)) == MAREA_BOOLEAN_TRUE) && (MAREA_G_SameValue(MAREA_SemaChildAt(left, 1), MAREA_SemaChildAt(right, 1)) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+    default:
+        return MAREA_BOOLEAN_FALSE;
+    }
+}
+
+// INFO: over an enum, "red" and "Color.red" name one variant, the same way the coverage check reads them.
+static MAREA_Boolean MAREA_CALL MAREA_G_SameCase(const MAREA_AstNode *left, const MAREA_AstNode *right, MAREA_Boolean isEnum)
+{
+    if (MAREA_G_SameValue(left, right) == MAREA_BOOLEAN_TRUE) {
+        return MAREA_BOOLEAN_TRUE;
+    }
+
+    const MAREA_AstNode *leftName = (isEnum == MAREA_BOOLEAN_TRUE) ? MAREA_G_CaseName(left) : MAREA_NULLPTR;
+
+    const MAREA_AstNode *rightName = (isEnum == MAREA_BOOLEAN_TRUE) ? MAREA_G_CaseName(right) : MAREA_NULLPTR;
+
+    return ((leftName != MAREA_NULLPTR) && (rightName != MAREA_NULLPTR)) ? MAREA_G_SameText(leftName, rightName) : MAREA_BOOLEAN_FALSE;
+}
+
+// INFO: an arm and its values are numbered in source order; only a value or a default that comes before the one in hand counts as seen.
+static MAREA_Boolean MAREA_CALL MAREA_G_ValueSeenBefore(const MAREA_AstNode *statement, MAREA_IntegerSize armIndex, MAREA_IntegerSize valueIndex, MAREA_Boolean isEnum)
+{
+    const MAREA_AstNode *value = MAREA_SemaChildAt(MAREA_SemaChildAt(statement, armIndex), valueIndex);
+
+    for (MAREA_IntegerSize index = 1; index <= armIndex; ++index) {
+        const MAREA_AstNode *arm = MAREA_SemaChildAt(statement, index);
+
+        if ((MAREA_G_IsError(arm) == MAREA_BOOLEAN_TRUE) || (MAREA_AstNodeGetKind(arm) != MAREA_AST_KIND_SWITCH_ARM)) {
+            continue;
+        }
+
+        const MAREA_IntegerSize LIMIT = (index == armIndex) ? valueIndex : (MAREA_AstNodeGetChildCount(arm) - 1);
+
+        for (MAREA_IntegerSize earlier = 0; earlier < LIMIT; ++earlier) {
+            if (MAREA_G_SameCase(MAREA_SemaChildAt(arm, earlier), value, isEnum) == MAREA_BOOLEAN_TRUE) {
+                return MAREA_BOOLEAN_TRUE;
+            }
+        }
+    }
+
+    return MAREA_BOOLEAN_FALSE;
+}
+
+static void MAREA_CALL MAREA_G_CheckDuplicateArms(MAREA_SemaContext *context, const MAREA_AstNode *statement, MAREA_Boolean isEnum)
+{
+    MAREA_Boolean hasDefault = MAREA_BOOLEAN_FALSE;
+
+    for (MAREA_IntegerSize index = 1; index < MAREA_AstNodeGetChildCount(statement); ++index) {
+        const MAREA_AstNode *arm = MAREA_SemaChildAt(statement, index);
+
+        if (MAREA_G_IsError(arm) == MAREA_BOOLEAN_TRUE) {
+            continue;
+        }
+
+        if (MAREA_AstNodeGetKind(arm) == MAREA_AST_KIND_DEFAULT_ARM) {
+            if (hasDefault == MAREA_BOOLEAN_TRUE) {
+                MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_DUPLICATE_SWITCH_ARM, MAREA_AstNodeGetPosition(arm), "switch has more than one default arm");
+            }
+
+            hasDefault = MAREA_BOOLEAN_TRUE;
+
+            continue;
+        }
+
+        for (MAREA_IntegerSize valueIndex = 0; (valueIndex + 1) < MAREA_AstNodeGetChildCount(arm); ++valueIndex) {
+            if (MAREA_G_ValueSeenBefore(statement, index, valueIndex, isEnum) == MAREA_BOOLEAN_TRUE) {
+                MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_DUPLICATE_SWITCH_ARM, MAREA_AstNodeGetPosition(MAREA_SemaChildAt(arm, valueIndex)), "switch repeats a case value");
+            }
+        }
+    }
+}
+
 static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckSwitch(MAREA_SemaContext *context, const MAREA_AstNode *statement)
 {
     const MAREA_AstNode *enumeration = MAREA_NULLPTR;
 
-    if (MAREA_G_ClassifyScrutinee(context, MAREA_SemaChildAt(statement, 0), &enumeration) != MAREA_G_SCRUTINEE_CLASS_ENUM) {
+    const MAREA_G_ScrutineeClass CLASS = MAREA_G_ClassifyScrutinee(context, MAREA_SemaChildAt(statement, 0), &enumeration);
+
+    MAREA_G_CheckDuplicateArms(context, statement, (CLASS == MAREA_G_SCRUTINEE_CLASS_ENUM) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE);
+
+    if (CLASS != MAREA_G_SCRUTINEE_CLASS_ENUM) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
