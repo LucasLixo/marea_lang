@@ -6,7 +6,7 @@
 #include <string.h>
 
 // INFO: the built-in functions that take explicit type arguments; the IR knows no other.
-static const MAREA_Character8 *const MAREA_G_BuiltinNames[] = {
+static const MAREA_Character8 *const MAREA_G_BUILTIN_NAMES[] = {
     "size_of",
     "align_of",
     "convert",
@@ -23,8 +23,8 @@ static MAREA_Boolean MAREA_CALL MAREA_G_TextEquals(const MAREA_Character8 *text,
 
 static MAREA_Boolean MAREA_CALL MAREA_G_IsBuiltinName(const MAREA_Character8 *text, MAREA_IntegerSize length)
 {
-    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < MAREA_ARRAY_SIZE(MAREA_G_BuiltinNames); index = (index + MAREA_INTEGER_SIZE(1))) {
-        if (MAREA_G_TextEquals(text, length, MAREA_G_BuiltinNames[index]) == MAREA_BOOLEAN_TRUE) {
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < MAREA_ARRAY_SIZE(MAREA_G_BUILTIN_NAMES); index = (index + MAREA_INTEGER_SIZE(1))) {
+        if (MAREA_G_TextEquals(text, length, MAREA_G_BUILTIN_NAMES[index]) == MAREA_BOOLEAN_TRUE) {
             return MAREA_BOOLEAN_TRUE;
         }
     }

@@ -28,7 +28,7 @@ MAREA_IrLowerCompilationUnit(ir, typed, &module);
 a typed root whose AST node is not a `COMPILATION_UNIT`, and `MAREA_IR_EXCEPT_ERROR_OUT_OF_MEMORY`
 when the arena cannot grow. A construct that cannot be lowered is not an error code: it is a
 diagnostic in the sink, and the call still returns `MAREA_IR_EXCEPT_SUCCESS`. Every ir diagnostic is
-an error, in the range 4001-4005 (the codes 4001, 4002 and 4003 are no longer raised, see Diagnostics). The tree stays
+an error, and only two codes exist, 4004 and 4005 (4001 to 4003 are retired, see Diagnostics). The tree stays
 valid for the lifetime of the arena.
 
 ## Node model
@@ -348,19 +348,18 @@ now (see Type operands).
 
 | Code | Name | Example |
 |---|---|---|
-| 4001 | `UNSUPPORTED_FORK_JOIN` | no longer raised: `fork_join`, `partition`, `with` and `spawn` are lowered. The code and its name stay in the public header, so a value is never reused. |
-| 4002 | `UNSUPPORTED_SWITCH` | no longer raised: a `switch` statement is lowered. The code and its name stay in the public header, so a value is never reused. |
-| 4003 | `UNSUPPORTED_FOR_EACH` | no longer raised: a `for each` statement is lowered. The code and its name stay in the public header, so a value is never reused. |
 | 4004 | `UNINSTANTIATED_GENERIC` | a generic function, structure or `implementation`; a call with explicit type arguments that is not a built-in call (`identity<integer32>(5)`); a call whose result type is an unbound generic; a `GENERIC_NAME` that is not the receiver of a call, or whose head is a generic type of the unit; a function type as the type argument of a built-in or a static call. `size_of<T>()`, `align_of<T>()`, `convert<T>(x)` and `array<integer32>.filled(8, 0)` raise nothing. |
 | 4005 | `UNSUPPORTED_MACRO` | `print!("hi");`, a module-level `static_assert!(true);`, a macro call inside an expression. `unreachable!();` as a statement is lowered and raises nothing. |
+
+The codes 4001, 4002 and 4003 are retired: `fork_join`, `switch` and `for each` are lowered. The numbers have no
+name in the public header and are never reused.
 
 The message of 4005 and of 4004 on a declaration names the macro or the declaration in single quotes.
 Each diagnostic carries the position of the construct that raised it.
 
 ## Gaps
 
-- The two constructs above are not lowered: generics, and every macro other than a statement
-  `unreachable!()`. The matching declaration is left out of the module, and only its first gap is reported.
+- Generics, and every macro other than a statement `unreachable!()`, are not lowered. The matching declaration is left out of the module, and only its first gap is reported.
 - A `FORK_JOIN_BLOCK` says that the workers end before the node ends, and a `PARTITION_STATEMENT` says that the
   parts are disjoint, but the IR holds nothing else about them: no part count check (a count of zero or less
   is not rejected), no type for the part, and no link from a `spawn` to the `FORK_JOIN_BLOCK` that owns it. A
