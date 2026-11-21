@@ -1,0 +1,330 @@
+// Copyright (c) 2026 Paulo Lucas Alves Franca
+// Licensed under the MIT License. See LICENSE.txt for full terms.
+
+#include "marea/internal/sema/MAREASemaInternal.h"
+
+#include <string.h>
+
+typedef enum MAREA_G_AttributeShape
+{
+    MAREA_G_ATTRIBUTE_SHAPE_FLAG = MAREA_UINTEGER_8(0),
+    MAREA_G_ATTRIBUTE_SHAPE_MEMBER = MAREA_UINTEGER_8(1),
+    MAREA_G_ATTRIBUTE_SHAPE_INTEGER = MAREA_UINTEGER_8(2),
+    MAREA_G_ATTRIBUTE_SHAPE_ALIGNMENT = MAREA_UINTEGER_8(3),
+    MAREA_G_ATTRIBUTE_SHAPE_NAME = MAREA_UINTEGER_8(4),
+    MAREA_G_ATTRIBUTE_SHAPE_NAME_OR_STRING = MAREA_UINTEGER_8(5),
+    MAREA_G_ATTRIBUTE_SHAPE_OPTIONAL_NAME = MAREA_UINTEGER_8(6),
+} MAREA_G_AttributeShape;
+
+typedef struct MAREA_G_AttributeRule
+{
+    const MAREA_Character8 *key;
+    const MAREA_Character8 *const *members;
+    MAREA_G_AttributeShape shape;
+} MAREA_G_AttributeRule;
+
+static const MAREA_Character8 *const MAREA_G_INLINE_MEMBERS[] = { "force", "never", "auto", MAREA_NULLPTR };
+static const MAREA_Character8 *const MAREA_G_BUILD_MEMBERS[] = { "debug", "release", MAREA_NULLPTR };
+static const MAREA_Character8 *const MAREA_G_LAYOUT_MEMBERS[] = { "c", "auto", MAREA_NULLPTR };
+
+enum
+{
+    MAREA_G_RULE_PUBLIC = 0,
+    MAREA_G_RULE_PRIVATE = 1,
+    MAREA_G_RULE_PACK = 7,
+    MAREA_G_RULE_ALIGN = 6,
+    MAREA_G_RULE_COUNT = 13,
+};
+
+// INFO: the order is fixed because the MAREA_G_RULE_ indexes above name entries of this table.
+static const MAREA_G_AttributeRule MAREA_G_RULES[MAREA_G_RULE_COUNT] = {
+    { .key = "public", .members = MAREA_NULLPTR, .shape = MAREA_G_ATTRIBUTE_SHAPE_FLAG },
+    { .key = "private", .members = MAREA_NULLPTR, .shape = MAREA_G_ATTRIBUTE_SHAPE_FLAG },
+    { .key = "inline", .members = MAREA_G_INLINE_MEMBERS, .shape = MAREA_G_ATTRIBUTE_SHAPE_MEMBER },
+    { .key = "build", .members = MAREA_G_BUILD_MEMBERS, .shape = MAREA_G_ATTRIBUTE_SHAPE_MEMBER },
+    { .key = "simd", .members = MAREA_NULLPTR, .shape = MAREA_G_ATTRIBUTE_SHAPE_FLAG },
+    { .key = "layout", .members = MAREA_G_LAYOUT_MEMBERS, .shape = MAREA_G_ATTRIBUTE_SHAPE_MEMBER },
+    { .key = "align", .members = MAREA_NULLPTR, .shape = MAREA_G_ATTRIBUTE_SHAPE_ALIGNMENT },
+    { .key = "pack", .members = MAREA_NULLPTR, .shape = MAREA_G_ATTRIBUTE_SHAPE_INTEGER },
+    { .key = "value", .members = MAREA_NULLPTR, .shape = MAREA_G_ATTRIBUTE_SHAPE_FLAG },
+    { .key = "move_only", .members = MAREA_NULLPTR, .shape = MAREA_G_ATTRIBUTE_SHAPE_FLAG },
+    { .key = "destroy", .members = MAREA_NULLPTR, .shape = MAREA_G_ATTRIBUTE_SHAPE_NAME },
+    { .key = "operator", .members = MAREA_NULLPTR, .shape = MAREA_G_ATTRIBUTE_SHAPE_NAME_OR_STRING },
+    { .key = "export", .members = MAREA_NULLPTR, .shape = MAREA_G_ATTRIBUTE_SHAPE_OPTIONAL_NAME },
+};
+
+static MAREA_Boolean MAREA_CALL MAREA_G_TextIs(const MAREA_AstNode *node, const MAREA_Character8 *text)
+{
+    const MAREA_IntegerSize LENGTH = strlen(text);
+
+    if (MAREA_AstNodeGetTextLength(node) != LENGTH) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    return (memcmp(MAREA_AstNodeGetText(node), text, LENGTH) == 0) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
+static MAREA_Boolean MAREA_CALL MAREA_G_ParseInteger(const MAREA_AstNode *node, MAREA_Uinteger64 *outValue)
+{
+    const MAREA_Character8 *text = MAREA_AstNodeGetText(node);
+
+    const MAREA_IntegerSize LENGTH = MAREA_AstNodeGetTextLength(node);
+
+    MAREA_IntegerSize index = 0;
+
+    MAREA_Uinteger64 base = 10;
+
+    if ((LENGTH > 2) && (text[0] == '0') && ((text[1] == 'x') || (text[1] == 'X'))) {
+        base = 16;
+        index = 2;
+    }
+
+    MAREA_Uinteger64 value = 0;
+
+    MAREA_Boolean any = MAREA_BOOLEAN_FALSE;
+
+    for (; index < LENGTH; ++index) {
+        const MAREA_Character8 LETTER = text[index];
+
+        if (LETTER == '_') {
+            continue;
+        }
+
+        MAREA_Uinteger64 digit = 0;
+
+        if ((LETTER >= '0') && (LETTER <= '9')) {
+            digit = (MAREA_Uinteger64)(LETTER - '0');
+        } else if ((base == 16) && (LETTER >= 'a') && (LETTER <= 'f')) {
+            digit = (MAREA_Uinteger64)((LETTER - 'a') + 10);
+        } else if ((base == 16) && (LETTER >= 'A') && (LETTER <= 'F')) {
+            digit = (MAREA_Uinteger64)((LETTER - 'A') + 10);
+        } else {
+            return MAREA_BOOLEAN_FALSE;
+        }
+
+        if (value > ((MAREA_UINTEGER_64_MAXIMUM - digit) / base)) {
+            return MAREA_BOOLEAN_FALSE;
+        }
+
+        value = ((value * base) + digit);
+        any = MAREA_BOOLEAN_TRUE;
+    }
+
+    *outValue = value;
+
+    return any;
+}
+
+static MAREA_SemaExcept MAREA_CALL MAREA_G_ReportValue(MAREA_SemaContext *context, MAREA_SemaDiagnosticCode code, const MAREA_AstNode *item, const MAREA_Character8 *prefix)
+{
+    const MAREA_AstNode *key = MAREA_SemaChildAt(item, 0);
+
+    return MAREA_SemaReportNamed(context, code, MAREA_AstNodeGetPosition(item), prefix, MAREA_AstNodeGetText(key), MAREA_AstNodeGetTextLength(key));
+}
+
+static MAREA_Boolean MAREA_CALL MAREA_G_IsSingleName(const MAREA_AstNode *value)
+{
+    return ((MAREA_AstNodeGetKind(value) == MAREA_AST_KIND_QUALIFIED_NAME) && (MAREA_AstNodeGetChildCount(value) == 1)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckValue(MAREA_SemaContext *context, const MAREA_G_AttributeRule *rule, const MAREA_AstNode *item)
+{
+    const MAREA_AstNode *value = MAREA_SemaChildAt(item, 1);
+
+    if ((value != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(value) == MAREA_AST_KIND_ERROR_NODE)) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_AstKind KIND = (value == MAREA_NULLPTR) ? MAREA_AST_KIND_ERROR_NODE : MAREA_AstNodeGetKind(value);
+
+    MAREA_Boolean valid = MAREA_BOOLEAN_FALSE;
+
+    switch (rule->shape) {
+    case MAREA_G_ATTRIBUTE_SHAPE_FLAG:
+        valid = ((value == MAREA_NULLPTR) || (KIND == MAREA_AST_KIND_BOOLEAN_LITERAL)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+        break;
+    case MAREA_G_ATTRIBUTE_SHAPE_MEMBER:
+        if ((value != MAREA_NULLPTR) && (MAREA_G_IsSingleName(value) == MAREA_BOOLEAN_TRUE)) {
+            const MAREA_AstNode *member = MAREA_SemaChildAt(value, 0);
+
+            for (const MAREA_Character8 *const *candidate = rule->members; *candidate != MAREA_NULLPTR; ++candidate) {
+                if ((member != MAREA_NULLPTR) && (MAREA_G_TextIs(member, *candidate) == MAREA_BOOLEAN_TRUE)) {
+                    valid = MAREA_BOOLEAN_TRUE;
+                }
+            }
+        }
+        break;
+    case MAREA_G_ATTRIBUTE_SHAPE_INTEGER:
+    case MAREA_G_ATTRIBUTE_SHAPE_ALIGNMENT:
+    {
+        MAREA_Uinteger64 number = 0;
+
+        if ((KIND == MAREA_AST_KIND_INTEGER_LITERAL) && (MAREA_G_ParseInteger(value, &number) == MAREA_BOOLEAN_TRUE)) {
+            valid = MAREA_BOOLEAN_TRUE;
+
+            if ((rule->shape == MAREA_G_ATTRIBUTE_SHAPE_ALIGNMENT) && ((number == 0) || ((number & (number - 1)) != 0))) {
+                return MAREA_G_ReportValue(context, MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_ALIGNMENT, item, "alignment is not a power of two:");
+            }
+        }
+        break;
+    }
+    case MAREA_G_ATTRIBUTE_SHAPE_NAME:
+        valid = (KIND == MAREA_AST_KIND_QUALIFIED_NAME) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+        break;
+    case MAREA_G_ATTRIBUTE_SHAPE_NAME_OR_STRING:
+        valid = ((KIND == MAREA_AST_KIND_QUALIFIED_NAME) || (KIND == MAREA_AST_KIND_STRING_LITERAL)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+        break;
+    case MAREA_G_ATTRIBUTE_SHAPE_OPTIONAL_NAME:
+        valid = ((value == MAREA_NULLPTR) || (KIND == MAREA_AST_KIND_QUALIFIED_NAME) || (KIND == MAREA_AST_KIND_BOOLEAN_LITERAL)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+        break;
+    }
+
+    if (valid == MAREA_BOOLEAN_TRUE) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    return MAREA_G_ReportValue(context, MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_ATTRIBUTE_VALUE, item, "invalid value for attribute:");
+}
+
+static MAREA_Boolean MAREA_CALL MAREA_G_IsOn(const MAREA_AstNode *item)
+{
+    const MAREA_AstNode *value = MAREA_SemaChildAt(item, 1);
+
+    return ((value != MAREA_NULLPTR) && (MAREA_G_TextIs(value, "false") == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_FALSE : MAREA_BOOLEAN_TRUE;
+}
+
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckGroup(MAREA_SemaContext *context, const MAREA_AstNode *owner, MAREA_AstKind listKind)
+{
+    MAREA_Boolean seen[MAREA_G_RULE_COUNT] = { MAREA_BOOLEAN_FALSE };
+
+    MAREA_Boolean publicOn = MAREA_BOOLEAN_FALSE;
+
+    MAREA_Boolean privateOn = MAREA_BOOLEAN_FALSE;
+
+    const MAREA_IntegerSize LIST_COUNT = MAREA_AstNodeGetChildCount(owner);
+
+    for (MAREA_IntegerSize listIndex = 0; listIndex < LIST_COUNT; ++listIndex) {
+        const MAREA_AstNode *list = MAREA_SemaChildAt(owner, listIndex);
+
+        if ((list == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(list) != listKind)) {
+            continue;
+        }
+
+        const MAREA_IntegerSize ITEM_COUNT = MAREA_AstNodeGetChildCount(list);
+
+        for (MAREA_IntegerSize itemIndex = 0; itemIndex < ITEM_COUNT; ++itemIndex) {
+            const MAREA_AstNode *item = MAREA_SemaChildAt(list, itemIndex);
+
+            if ((item == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(item) != MAREA_AST_KIND_ATTRIBUTE_ITEM)) {
+                continue;
+            }
+
+            const MAREA_AstNode *key = MAREA_SemaChildAt(item, 0);
+
+            if ((key == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(key) != MAREA_AST_KIND_IDENTIFIER)) {
+                continue;
+            }
+
+            MAREA_IntegerSize ruleIndex = MAREA_G_RULE_COUNT;
+
+            for (MAREA_IntegerSize candidate = 0; candidate < MAREA_G_RULE_COUNT; ++candidate) {
+                if (MAREA_G_TextIs(key, MAREA_G_RULES[candidate].key) == MAREA_BOOLEAN_TRUE) {
+                    ruleIndex = candidate;
+                }
+            }
+
+            MAREA_SemaExcept result = MAREA_SEMA_EXCEPT_SUCCESS;
+
+            if (ruleIndex == MAREA_G_RULE_COUNT) {
+                result = MAREA_G_ReportValue(context, MAREA_SEMA_DIAGNOSTIC_CODE_UNKNOWN_ATTRIBUTE_KEY, item, "unknown attribute key:");
+            } else if (seen[ruleIndex] == MAREA_BOOLEAN_TRUE) {
+                result = MAREA_G_ReportValue(context, MAREA_SEMA_DIAGNOSTIC_CODE_CONFLICTING_ATTRIBUTES, item, "attribute given twice:");
+            } else {
+                seen[ruleIndex] = MAREA_BOOLEAN_TRUE;
+
+                result = MAREA_G_CheckValue(context, &MAREA_G_RULES[ruleIndex], item);
+
+                if ((result == MAREA_SEMA_EXCEPT_SUCCESS) && (ruleIndex == MAREA_G_RULE_PUBLIC)) {
+                    publicOn = MAREA_G_IsOn(item);
+                }
+
+                if ((result == MAREA_SEMA_EXCEPT_SUCCESS) && (ruleIndex == MAREA_G_RULE_PRIVATE)) {
+                    privateOn = MAREA_G_IsOn(item);
+                }
+
+                const MAREA_Boolean EXCLUDES = (((ruleIndex == MAREA_G_RULE_PUBLIC) || (ruleIndex == MAREA_G_RULE_PRIVATE)) && (publicOn == MAREA_BOOLEAN_TRUE) && (privateOn == MAREA_BOOLEAN_TRUE)) || ((ruleIndex == MAREA_G_RULE_PACK) && (seen[MAREA_G_RULE_ALIGN] == MAREA_BOOLEAN_TRUE)) || ((ruleIndex == MAREA_G_RULE_ALIGN) && (seen[MAREA_G_RULE_PACK] == MAREA_BOOLEAN_TRUE));
+
+                if ((result == MAREA_SEMA_EXCEPT_SUCCESS) && (EXCLUDES == MAREA_BOOLEAN_TRUE)) {
+                    result = MAREA_G_ReportValue(context, MAREA_SEMA_DIAGNOSTIC_CODE_CONFLICTING_ATTRIBUTES, item, "attribute conflicts with another:");
+                }
+            }
+
+            if (result != MAREA_SEMA_EXCEPT_SUCCESS) {
+                return result;
+            }
+        }
+    }
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
+MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckAttributes(MAREA_SemaContext *context, const MAREA_AstNode *node)
+{
+    if (context == MAREA_NULLPTR) {
+        return MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    if (node == MAREA_NULLPTR) {
+        return MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    if (MAREA_AstNodeGetKind(node) == MAREA_AST_KIND_COMPILATION_UNIT) {
+        return MAREA_G_CheckGroup(context, node, MAREA_AST_KIND_FILE_ATTRIBUTE);
+    }
+
+    return MAREA_G_CheckGroup(context, node, MAREA_AST_KIND_ATTRIBUTE);
+}
+
+static MAREA_Boolean MAREA_CALL MAREA_G_FindOn(const MAREA_AstNode *owner, MAREA_AstKind listKind, const MAREA_Character8 *key, MAREA_Boolean *outOn)
+{
+    const MAREA_IntegerSize LIST_COUNT = MAREA_AstNodeGetChildCount(owner);
+
+    for (MAREA_IntegerSize listIndex = 0; listIndex < LIST_COUNT; ++listIndex) {
+        const MAREA_AstNode *list = MAREA_SemaChildAt(owner, listIndex);
+
+        if ((list == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(list) != listKind)) {
+            continue;
+        }
+
+        const MAREA_IntegerSize ITEM_COUNT = MAREA_AstNodeGetChildCount(list);
+
+        for (MAREA_IntegerSize itemIndex = 0; itemIndex < ITEM_COUNT; ++itemIndex) {
+            const MAREA_AstNode *item = MAREA_SemaChildAt(list, itemIndex);
+
+            const MAREA_AstNode *itemKey = (item == MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_SemaChildAt(item, 0);
+
+            if ((itemKey != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(itemKey) == MAREA_AST_KIND_IDENTIFIER) && (MAREA_G_TextIs(itemKey, key) == MAREA_BOOLEAN_TRUE)) {
+                *outOn = MAREA_G_IsOn(item);
+
+                return MAREA_BOOLEAN_TRUE;
+            }
+        }
+    }
+
+    return MAREA_BOOLEAN_FALSE;
+}
+
+MAREA_Boolean MAREA_CALL MAREA_SemaAttributeIsOn(const MAREA_AstNode *root, const MAREA_AstNode *declaration, const MAREA_Character8 *key)
+{
+    MAREA_Boolean on = MAREA_BOOLEAN_FALSE;
+
+    if ((declaration != MAREA_NULLPTR) && (MAREA_G_FindOn(declaration, MAREA_AST_KIND_ATTRIBUTE, key, &on) == MAREA_BOOLEAN_TRUE)) {
+        return on;
+    }
+
+    if ((root != MAREA_NULLPTR) && (MAREA_G_FindOn(root, MAREA_AST_KIND_FILE_ATTRIBUTE, key, &on) == MAREA_BOOLEAN_TRUE)) {
+        return on;
+    }
+
+    return MAREA_BOOLEAN_FALSE;
+}

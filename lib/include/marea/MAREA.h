@@ -18,4 +18,7 @@
     #include "marea/parse/MAREAAstKind.h"
     #include "marea/parse/MAREAParser.h"
 
+    #include "marea/sema/MAREASema.h"
+    #include "marea/sema/MAREASemaImportResolver.h"
+
 #endif

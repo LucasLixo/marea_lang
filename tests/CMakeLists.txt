@@ -25,6 +25,10 @@ if(NOT TARGET Marea-Parse)
     list(FILTER MAREA_TESTS_SOURCES EXCLUDE REGEX "/source/parse/")
 endif()
 
+if(NOT TARGET Marea-Sema)
+    list(FILTER MAREA_TESTS_SOURCES EXCLUDE REGEX "/source/sema/")
+endif()
+
 add_executable(marea_tests ${MAREA_TESTS_SOURCES})
 
 target_include_directories(marea_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include" "${CMAKE_CURRENT_SOURCE_DIR}")
@@ -43,6 +47,10 @@ endif()
 
 if(TARGET Marea-Parse)
     target_link_libraries(marea_tests PRIVATE marea::parse)
+endif()
+
+if(TARGET Marea-Sema)
+    target_link_libraries(marea_tests PRIVATE marea::sema)
 endif()
 
 gtest_discover_tests(marea_tests)

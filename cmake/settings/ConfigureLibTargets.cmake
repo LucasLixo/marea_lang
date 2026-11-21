@@ -75,4 +75,24 @@ macro(ConfigureLibTargets)
             target_compile_definitions(Marea-Parse PRIVATE MAREA_ENABLE_EXPORT INTERFACE MAREA_ENABLE_IMPORT)
         endif()
     endif()
+
+    if(MAREA_OPTION_TARGET_SEMA)
+        message(STATUS "Add target: Marea-Sema")
+
+        file(GLOB MAREA_SEMA_SOURCES CONFIGURE_DEPENDS "${MAREA_FOLDER_LIB_SOURCE}/marea/sema/*.c")
+
+        add_library(Marea-Sema ${MAREA_LIBRARY_TYPE} ${MAREA_SEMA_SOURCES})
+        add_library(marea::sema ALIAS Marea-Sema)
+
+        target_link_libraries(Marea-Sema PUBLIC marea::include PRIVATE marea::internal)
+
+        target_compile_options(Marea-Sema PRIVATE "$<$<C_COMPILER_ID:Clang,AppleClang,GNU>:-Wall;-Wextra;-Wpedantic>")
+
+        target_link_libraries(Marea-Sema PUBLIC marea::parse)
+
+        if(MAREA_OPTION_SHARED_LIBS)
+            set_target_properties(Marea-Sema PROPERTIES C_VISIBILITY_PRESET hidden)
+            target_compile_definitions(Marea-Sema PRIVATE MAREA_ENABLE_EXPORT INTERFACE MAREA_ENABLE_IMPORT)
+        endif()
+    endif()
 endmacro()
