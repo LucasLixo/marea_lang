@@ -76,7 +76,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsTypeDeclaration(const MAREA_AstNode *d
     }
 }
 
-static MAREA_Boolean MAREA_CALL MAREA_G_IsGenericInScope(const MAREA_SemaContext *context, const MAREA_Character8 *text, MAREA_IntegerSize length)
+MAREA_Boolean MAREA_CALL MAREA_SemaIsGenericInScope(const MAREA_SemaContext *context, const MAREA_Character8 *text, MAREA_IntegerSize length)
 {
     for (MAREA_IntegerSize index = 0; index < context->generics.count; ++index) {
         const MAREA_SemaName *entry = &context->generics.entries[index];
@@ -91,31 +91,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsGenericInScope(const MAREA_SemaContext
 
 static MAREA_SemaExcept MAREA_CALL MAREA_G_PushGeneric(MAREA_SemaContext *context, const MAREA_AstNode *identifier)
 {
-    MAREA_SemaNameTable *table = &context->generics;
-
-    if (table->count == table->capacity) {
-        const MAREA_IntegerSize NEW_CAPACITY = (table->capacity == 0) ? MAREA_INTEGER_SIZE(8) : (table->capacity * MAREA_INTEGER_SIZE(2));
-
-        MAREA_Null memory = MAREA_NULLPTR;
-
-        if (MAREA_ArenaAllocate(context->arena, (NEW_CAPACITY * sizeof(MAREA_SemaName)), MAREA_ALIGNOF(MAREA_SemaName), &memory) != MAREA_ARENA_EXCEPT_SUCCESS) {
-            return MAREA_SEMA_EXCEPT_ERROR_OUT_OF_MEMORY;
-        }
-
-        MAREA_SemaName *entries = memory;
-
-        if (table->count > 0) {
-            memcpy(entries, table->entries, (table->count * sizeof(MAREA_SemaName)));
-        }
-
-        table->entries = entries;
-        table->capacity = NEW_CAPACITY;
-    }
-
-    table->entries[table->count] = (MAREA_SemaName){ .text = MAREA_AstNodeGetText(identifier), .declaration = MAREA_NULLPTR, .length = MAREA_AstNodeGetTextLength(identifier), .kind = MAREA_SEMA_NAME_KIND_DECLARATION };
-    table->count += 1;
-
-    return MAREA_SEMA_EXCEPT_SUCCESS;
+    return MAREA_SemaTableAppend(context, &context->generics, (MAREA_SemaName){ .text = MAREA_AstNodeGetText(identifier), .declaration = MAREA_NULLPTR, .length = MAREA_AstNodeGetTextLength(identifier), .kind = MAREA_SEMA_NAME_KIND_DECLARATION });
 }
 
 MAREA_SemaExcept MAREA_CALL MAREA_SemaScopeEnter(MAREA_SemaContext *context, const MAREA_AstNode *node, MAREA_SemaScopeMark *outMark)
@@ -125,6 +101,8 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaScopeEnter(MAREA_SemaContext *context, con
     }
 
     outMark->genericCount = context->generics.count;
+    outMark->localCount = context->locals.count;
+    outMark->function = context->function;
     outMark->selfDepth = context->selfDepth;
 
     const MAREA_AstKind KIND = MAREA_AstNodeGetKind(node);
@@ -137,10 +115,28 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaScopeEnter(MAREA_SemaContext *context, con
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
+    if (KIND == MAREA_AST_KIND_FUNCTION_DECLARATION) {
+        context->function = node;
+    }
+
     const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(node);
 
     for (MAREA_IntegerSize index = 0; index < COUNT; ++index) {
         const MAREA_AstNode *parameters = MAREA_G_ChildAt(node, index);
+
+        if ((KIND == MAREA_AST_KIND_FUNCTION_DECLARATION) && (parameters != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(parameters) == MAREA_AST_KIND_PARAMETER_LIST)) {
+            for (MAREA_IntegerSize parameterIndex = 0; parameterIndex < MAREA_AstNodeGetChildCount(parameters); ++parameterIndex) {
+                const MAREA_AstNode *parameter = MAREA_G_ChildAt(parameters, parameterIndex);
+
+                const MAREA_SemaExcept DECLARE_RESULT = MAREA_SemaDeclareLocal(context, parameter);
+
+                if (DECLARE_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+                    return DECLARE_RESULT;
+                }
+            }
+
+            continue;
+        }
 
         if ((parameters == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(parameters) != MAREA_AST_KIND_GENERIC_PARAMETERS)) {
             continue;
@@ -169,7 +165,76 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaScopeEnter(MAREA_SemaContext *context, con
 void MAREA_CALL MAREA_SemaScopeLeave(MAREA_SemaContext *context, MAREA_SemaScopeMark mark)
 {
     context->generics.count = mark.genericCount;
+    context->locals.count = mark.localCount;
+    context->function = mark.function;
     context->selfDepth = mark.selfDepth;
+}
+
+static MAREA_IntegerSize MAREA_CALL MAREA_G_BuiltinArity(const MAREA_Character8 *text, MAREA_IntegerSize length)
+{
+    if (MAREA_G_TextEquals(text, length, "vector") == MAREA_BOOLEAN_TRUE) {
+        return MAREA_INTEGER_SIZE(2);
+    }
+
+    const MAREA_Boolean TAKES_ONE = (MAREA_G_TextEquals(text, length, "pointer") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextEquals(text, length, "owned") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextEquals(text, length, "slice") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextEquals(text, length, "task") == MAREA_BOOLEAN_TRUE);
+
+    return (TAKES_ONE == MAREA_BOOLEAN_TRUE) ? MAREA_INTEGER_SIZE(1) : MAREA_INTEGER_SIZE(0);
+}
+
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckArity(MAREA_SemaContext *context, const MAREA_AstNode *node, const MAREA_AstNode *declaration, const MAREA_Character8 *name, MAREA_IntegerSize nameLength)
+{
+    const MAREA_AstNode *arguments = MAREA_G_ChildAt(node, 1);
+
+    const MAREA_IntegerSize ACTUAL = ((arguments != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(arguments) == MAREA_AST_KIND_TYPE_ARGUMENTS)) ? MAREA_AstNodeGetChildCount(arguments) : MAREA_INTEGER_SIZE(0);
+
+    const MAREA_AstNode *parameters = MAREA_NULLPTR;
+
+    MAREA_IntegerSize expected = 0;
+
+    if (declaration == MAREA_NULLPTR) {
+        expected = MAREA_G_BuiltinArity(name, nameLength);
+    } else {
+        const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(declaration);
+
+        for (MAREA_IntegerSize index = 0; index < COUNT; ++index) {
+            const MAREA_AstNode *child = MAREA_G_ChildAt(declaration, index);
+
+            if ((child != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(child) == MAREA_AST_KIND_GENERIC_PARAMETERS)) {
+                parameters = child;
+            }
+        }
+
+        expected = (parameters == MAREA_NULLPTR) ? MAREA_INTEGER_SIZE(0) : MAREA_AstNodeGetChildCount(parameters);
+    }
+
+    MAREA_Boolean mismatch = (ACTUAL != expected) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+
+    // INFO: a number may not fill a type parameter, and a function type may not fill a value parameter.
+    for (MAREA_IntegerSize index = 0; ((mismatch == MAREA_BOOLEAN_FALSE) && (parameters != MAREA_NULLPTR) && (index < ACTUAL)); ++index) {
+        const MAREA_AstNode *parameter = MAREA_G_ChildAt(parameters, index);
+
+        const MAREA_AstNode *argument = MAREA_G_ChildAt(arguments, index);
+
+        if ((parameter == MAREA_NULLPTR) || (argument == MAREA_NULLPTR)) {
+            continue;
+        }
+
+        const MAREA_Boolean IS_VALUE_PARAMETER = ((MAREA_AstNodeGetFlags(parameter) & MAREA_AST_FLAG_CONSTANT) != 0) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+
+        if ((IS_VALUE_PARAMETER == MAREA_BOOLEAN_FALSE) && (MAREA_AstNodeGetKind(argument) == MAREA_AST_KIND_INTEGER_LITERAL)) {
+            mismatch = MAREA_BOOLEAN_TRUE;
+        }
+
+        if ((IS_VALUE_PARAMETER == MAREA_BOOLEAN_TRUE) && (MAREA_AstNodeGetKind(argument) == MAREA_AST_KIND_FUNCTION_TYPE)) {
+            mismatch = MAREA_BOOLEAN_TRUE;
+        }
+    }
+
+    if (mismatch == MAREA_BOOLEAN_FALSE) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_GENERIC_ARGUMENT_MISMATCH, MAREA_AstNodeGetPosition(node), "type arguments do not match the generic parameters of", name, nameLength);
 }
 
 MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckNamedType(MAREA_SemaContext *context, const MAREA_AstNode *node)
@@ -207,15 +272,23 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckNamedType(MAREA_SemaContext *context,
     const MAREA_SemaName *entry = MAREA_SemaNameTableFind(context, firstText, FIRST_LENGTH);
 
     if (SEGMENT_COUNT == 1) {
-        if ((MAREA_G_IsBuiltin(firstText, FIRST_LENGTH) == MAREA_BOOLEAN_TRUE) || (MAREA_G_IsGenericInScope(context, firstText, FIRST_LENGTH) == MAREA_BOOLEAN_TRUE)) {
+        if (MAREA_SemaIsGenericInScope(context, firstText, FIRST_LENGTH) == MAREA_BOOLEAN_TRUE) {
             return MAREA_SEMA_EXCEPT_SUCCESS;
+        }
+
+        if (MAREA_G_IsBuiltin(firstText, FIRST_LENGTH) == MAREA_BOOLEAN_TRUE) {
+            return MAREA_G_CheckArity(context, node, MAREA_NULLPTR, firstText, FIRST_LENGTH);
         }
 
         if ((context->selfDepth > 0) && (MAREA_G_TextEquals(firstText, FIRST_LENGTH, "Self") == MAREA_BOOLEAN_TRUE)) {
             return MAREA_SEMA_EXCEPT_SUCCESS;
         }
 
-        if ((entry != MAREA_NULLPTR) && ((entry->kind != MAREA_SEMA_NAME_KIND_DECLARATION) || (MAREA_G_IsTypeDeclaration(entry->declaration) == MAREA_BOOLEAN_TRUE))) {
+        if ((entry != MAREA_NULLPTR) && (entry->kind == MAREA_SEMA_NAME_KIND_DECLARATION) && (MAREA_G_IsTypeDeclaration(entry->declaration) == MAREA_BOOLEAN_TRUE)) {
+            return MAREA_G_CheckArity(context, node, entry->declaration, firstText, FIRST_LENGTH);
+        }
+
+        if ((entry != MAREA_NULLPTR) && (entry->kind != MAREA_SEMA_NAME_KIND_DECLARATION)) {
             return MAREA_SEMA_EXCEPT_SUCCESS;
         }
     } else if ((entry != MAREA_NULLPTR) && (entry->kind == MAREA_SEMA_NAME_KIND_NAMESPACE)) {

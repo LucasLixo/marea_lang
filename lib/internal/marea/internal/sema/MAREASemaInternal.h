@@ -61,7 +61,11 @@ MAREA_BEGIN_EXTERN_C
         MAREA_SemaImportResolver *resolver;
         MAREA_SemaNameTable names;
         MAREA_SemaNameTable generics;
+        MAREA_SemaNameTable locals;
+        const MAREA_AstNode *root;
+        const MAREA_AstNode *function;
         MAREA_Uinteger32 selfDepth;
+        MAREA_Uinteger32 instantiationDepth;
     };
 
     /**
@@ -69,7 +73,9 @@ MAREA_BEGIN_EXTERN_C
      */
     typedef struct MAREA_SemaScopeMark
     {
+        const MAREA_AstNode *function;
         MAREA_IntegerSize genericCount;
+        MAREA_IntegerSize localCount;
         MAREA_Uinteger32 selfDepth;
     } MAREA_SemaScopeMark;
 
@@ -196,6 +202,76 @@ MAREA_BEGIN_EXTERN_C
      * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
      */
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckDeclarations(MAREA_SemaContext * context, const MAREA_AstNode *root);
+
+    /**
+     * @brief Appends a name to any name table of the context, growing it in the arena.
+     * @param context Context of the run. Must not be null.
+     * @param table Table to append to. Must not be null.
+     * @param entry Entry to append.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaTableAppend(MAREA_SemaContext * context, MAREA_SemaNameTable * table, MAREA_SemaName entry);
+
+    /**
+     * @brief Tells whether a boolean attribute is on for a declaration. The attributes of the symbol win over
+     * the file attributes of the compilation unit that holds it. A missing attribute is off.
+     * @param root COMPILATION_UNIT node that holds the declaration. May be null: only the symbol is read.
+     * @param declaration Declaration node. Null returns false.
+     * @param key Attribute key, for example "value".
+     * @return True when the closest attribute with that key is on.
+     */
+    MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_SemaAttributeIsOn(const MAREA_AstNode *root, const MAREA_AstNode *declaration, const MAREA_Character8 *key);
+
+    /**
+     * @brief Checks a WHERE_CLAUSE: every constraint names a generic parameter in scope and known contracts.
+     * @param context Context of the run. Must not be null.
+     * @param node WHERE_CLAUSE node. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckWhereClause(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
+     * @brief Checks a CALL_EXPRESSION whose callee is a function of the file: the argument count, and the
+     * where clause of the callee against the type arguments, written or inferred from the arguments.
+     * @param context Context of the run. Must not be null.
+     * @param node CALL_EXPRESSION node. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckCall(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
+     * @brief Records a LOCAL_DECLARATION in the local scope, so a later call can infer an argument type.
+     * @param context Context of the run. Must not be null.
+     * @param node LOCAL_DECLARATION node. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaDeclareLocal(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
+     * @brief Counts one more level of generic instantiation for a NAMED_TYPE that has type arguments, and
+     * reports INSTANTIATION_TOO_DEEP on the first level past 64.
+     * @param context Context of the run. Must not be null.
+     * @param node NAMED_TYPE node. Must not be null.
+     * @param outEntered Receives true when a level was counted, to hand to MAREA_SemaInstantiationLeave.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaInstantiationEnter(MAREA_SemaContext * context, const MAREA_AstNode *node, MAREA_Boolean *outEntered);
+
+    /**
+     * @brief Gives back the level that MAREA_SemaInstantiationEnter counted.
+     * @param context Context of the run. Must not be null.
+     * @param entered Value that MAREA_SemaInstantiationEnter returned.
+     */
+    void MAREA_CALL MAREA_SemaInstantiationLeave(MAREA_SemaContext * context, MAREA_Boolean entered);
+
+    /**
+     * @brief Tells whether a name is a generic parameter of a declaration that is being visited.
+     * @param context Context of the run. Must not be null.
+     * @param text Text of the name, not NUL terminated.
+     * @param length Length of text in bytes.
+     * @return True when the name is a generic parameter in scope.
+     */
+    MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_SemaIsGenericInScope(const MAREA_SemaContext *context, const MAREA_Character8 *text, MAREA_IntegerSize length);
 
 MAREA_END_EXTERN_C
 
