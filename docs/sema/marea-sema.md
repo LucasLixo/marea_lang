@@ -22,7 +22,7 @@ MAREA_SemaCheckCompilationUnit(sema, root);   /* once per file, dependencies fir
 `MAREA_SemaCheckCompilationUnit` returns an error only for a null argument or an out of memory. A rule
 violation is a diagnostic in the sink. A size that does not fit in `MAREA_IntegerSize` (a diagnostic
 message, or the growth of a name table) is also an out of memory: nothing is allocated or copied.
-Every sema diagnostic is an error, in the range 3001-3023.
+Every sema diagnostic is an error, in the range 3001-3024.
 The lexer file name decides the path rule, so call `MAREA_LexContextSetFileName` with a project
 relative path with forward slashes and the `.marea` extension before the lex step.
 
@@ -82,6 +82,15 @@ nor be the value of a field. A new local of the same name ends the reference.
 constant, or a name that is not a `mutable` parameter and not the source of an active `partition
 mutable`, or a field access (`a.b`, nested too) whose base meets the same rule. Any other expression
 (a call, an index, a computed value) is rejected. This is a simple first rule.
+
+**Parallel bodies.** The body of a `partition` runs once for each part, so it is a worker body and ends
+only at its own `end`. A `return`, a `break` or a `continue` in it that would leave the body is rejected
+with `INVALID_PARALLEL_JUMP` (3024), one diagnostic for each jump. A `break` or `continue` that targets a
+loop inside the body is accepted, also through `if`, `switch` and `with`. The nearest `partition` body
+counts: in a nested `partition`, the inner body is the barrier. A jump in a `with` body, in a loop or in a
+function body outside every `partition` body is not changed. The rule follows the grammar: `return` leaves
+the function (note 9), the body is run once for each part, and all spawned work ends before the `end`
+of the `fork_join`.
 
 **Control flow.** A function with a return type ends every path with `return value;`, through `if`,
 `elseif`, `else`, scope blocks and `switch`. A loop is never an ending path. `unreachable!()` and
@@ -161,6 +170,7 @@ real, instantiated result type is deferred to when the `ir` stage needs one for 
 | 3021 | `NON_EXHAUSTIVE_SWITCH` | a `switch` over an enum that misses a variant and has no `default` |
 | 3022 | `MISSING_RETURN` | `if a then return 1; end` as the whole body of a function with a return type |
 | 3023 | `INVALID_MAIN_SIGNATURE` | `function main(): integer32` in the namespace `main` |
+| 3024 | `INVALID_PARALLEL_JUMP` | `continue;`, `break;` or `return;` in a `partition` body when no loop of the body is the target |
 
 ## Gaps
 
@@ -171,3 +181,8 @@ real, instantiated result type is deferred to when the `ir` stage needs one for 
 - The type of a call result is closed for non-generic calls via the typed-AST hand-off; generic-
   result substitution still open. The type of a library type is not tracked, so a missing `copy` or
   `move` there is not reported.
+- A `break`, `continue` or `return` that stands directly in a `fork_join` block, outside every `partition` body
+  (also around a `spawn`), is accepted with no diagnostic. The grammar does not say whether leaving a
+  `fork_join` this way joins the started workers first, so the form is left as it was.
+- A `break` or `continue` that is not inside any loop is not reported.
+- A `with` statement is not an ending path for `MISSING_RETURN`, even when its body returns.
