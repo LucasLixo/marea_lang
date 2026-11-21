@@ -20,12 +20,14 @@
 MAREA_BEGIN_EXTERN_C
 
     /**
-     * @brief Body of the opaque ir context: the arena and the sink it was created with.
+     * @brief Body of the opaque ir context: the arena and the sink it was created with, and the typed root
+     * of the unit that is being lowered, which tells whether the unit binds a name of its own.
      */
     struct MAREA_IrContext
     {
         MAREA_Arena *arena;
         MAREA_DiagnosticSink *sink;
+        const MAREA_SemaTypedNode *unit;
     };
 
     /**
@@ -82,6 +84,16 @@ MAREA_BEGIN_EXTERN_C
      * @return MAREA_BOOLEAN_TRUE when a name was found, otherwise MAREA_BOOLEAN_FALSE.
      */
     MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_IrAstTypeName(const MAREA_AstNode *type, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength);
+
+    /**
+     * @brief Reads the text span of a QUALIFIED_NAME: from its first segment to its last, a pointer into the
+     * source, so a dotted name stays whole.
+     * @param name AST QUALIFIED_NAME node. Null or another kind gives false.
+     * @param outText Receives the name text. Must not be null.
+     * @param outLength Receives the byte length of outText. Must not be null.
+     * @return MAREA_BOOLEAN_TRUE when a name was found, otherwise MAREA_BOOLEAN_FALSE.
+     */
+    MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_IrAstQualifiedNameSpan(const MAREA_AstNode *name, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength);
 
     /**
      * @brief Sets the type name of a node from an AST type node. A NAMED_TYPE gives the text of its
@@ -184,6 +196,19 @@ MAREA_BEGIN_EXTERN_C
      * @return MAREA_IR_EXCEPT_SUCCESS, ERROR_NULL_POINTER when an argument is null, or ERROR_OUT_OF_MEMORY.
      */
     MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrLowerBlock(MAREA_IrContext * context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode);
+
+    /**
+     * @brief Lowers a call that carries an explicit type operand: a built-in call (size_of, align_of or
+     * convert with type arguments) or a static call on a written type (array<integer32>.filled(8, 0)). Any
+     * other call is not handled and is left to the generic path of MAREA_IrLowerExpression.
+     * @param context Context that owns the arena and sink. Must not be null.
+     * @param typed Typed CALL_EXPRESSION to lower. Must not be null.
+     * @param outHandled Receives true when the call is one of the two forms, also when a gap inside it raised a
+     * diagnostic, and false when the caller must lower the call itself. Must not be null.
+     * @param outNode Receives the lowered call, or null when nothing is produced. Must not be null.
+     * @return MAREA_IR_EXCEPT_SUCCESS, ERROR_NULL_POINTER when an argument is null, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrLowerTypeOperandCall(MAREA_IrContext * context, const MAREA_SemaTypedNode *typed, MAREA_Boolean *outHandled, MAREA_IrNode **outNode);
 
     /**
      * @brief Raises one ir error diagnostic, positioned at an AST node. The message is the text followed
