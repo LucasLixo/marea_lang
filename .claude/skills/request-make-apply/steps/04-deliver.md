@@ -6,15 +6,18 @@ Part of the [request-make-apply](../SKILL.md) skill. This file is a complete pro
 
 - Never dispatch the work to a later session.
 
-4. **Deliver by size**, from the worktree:
-   - Large: `generate-handoff`, then `dispatch-applies`.
-   - Medium: `generate-apply` writes `temp/_APPLY/<slug>.apply.md` plus its parts under
-     `temp/_APPLY/_PART/<slug>/`, and registers it in `temp/_LIST_APPLY.md`; open the index,
-     keep its `## Acceptance` and `## Verification` in mind, and run its parts in order per its
-     `## How to run` to carry it to a merged PR.
-   - Small: the direct pipeline (issue, branch, work with `generate-commit`, push, PR, merge,
-     close, branch cleanup), no apply file.
-   Never dispatch the work to a later session; generation and execution happen in this run.
+Deliver by size, from the worktree:
+
+- Large: `generate-handoff`, then `dispatch-applies`.
+- Medium: `generate-apply` writes `temp/_APPLY/<slug>.apply.md` plus its parts under
+  `temp/_APPLY/_PART/<slug>/`, and registers it in `temp/_LIST_APPLY.md`; open the index,
+  keep its `## Acceptance` and `## Verification` in mind, and run its parts in order per its
+  `## How to run` to carry it to a merged PR.
+- Small: the direct pipeline (issue through [generate-issue](../../generate-issue/SKILL.md), branch
+  `<label>/<n>`, work with `generate-commit`, audit, push, PR, merge, close, branch cleanup), no
+  apply file.
+
+Never dispatch the work to a later session; generation and execution happen in this run.
 
 ## Done when
 
