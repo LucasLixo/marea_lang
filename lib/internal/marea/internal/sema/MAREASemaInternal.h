@@ -138,6 +138,16 @@ MAREA_BEGIN_EXTERN_C
      */
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaVisit(MAREA_SemaContext * context, const MAREA_AstNode *node);
 
+    /**
+     * @brief Validates every attribute of a node: the ATTRIBUTE children of a declaration, field or macro
+     * statement, and the FILE_ATTRIBUTE children of a COMPILATION_UNIT. Checks the key, the value shape and
+     * the keys that exclude each other.
+     * @param context Context of the run. Must not be null.
+     * @param node Node that may own attributes. A node without attributes is accepted.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, or MAREA_SEMA_EXCEPT_ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckAttributes(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
 MAREA_END_EXTERN_C
 
 #endif /* MAREA_INTERNAL_SEMA_MAREASEMAINTERNAL_H */
