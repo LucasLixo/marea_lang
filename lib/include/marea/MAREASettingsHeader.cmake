@@ -36,7 +36,7 @@ endif()
 
 configure_file(
     "${CMAKE_CURRENT_LIST_DIR}/MAREASettingsHeader.h.in"
-    "${MAREA_FOLDER_CMAKE_BINARY_LIB_GENERATED}/marea/base/MAREASettingsHeader.h"
+    "${MAREA_FOLDER_CMAKE_BINARY_LIB_GENERATED}/marea/MAREASettingsHeader.h"
     @ONLY
 )
 
@@ -47,7 +47,7 @@ BasicForceIncludeHeader(
     VISIBILITY
     INTERFACE
     HEADER
-    "${MAREA_FOLDER_CMAKE_BINARY_LIB_GENERATED}/marea/base/MAREASettingsHeader.h"
+    "${MAREA_FOLDER_CMAKE_BINARY_LIB_GENERATED}/marea/MAREASettingsHeader.h"
 )
 
 # Unset
