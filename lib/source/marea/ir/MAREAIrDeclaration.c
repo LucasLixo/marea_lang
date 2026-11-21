@@ -59,6 +59,41 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_CreateNamed(MAREA_IrContext *context, M
     return MAREA_IR_EXCEPT_SUCCESS;
 }
 
+// INFO: lowers the expression right after the type child, when there is one, and appends it to node.
+// outComplete is false when that expression lowered to nothing; the caller then drops the declaration.
+static MAREA_IrExcept MAREA_CALL MAREA_G_AppendInitializer(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode *node, MAREA_Boolean *outComplete)
+{
+    *outComplete = MAREA_BOOLEAN_TRUE;
+
+    const MAREA_IntegerSize COUNT = MAREA_SemaTypedNodeGetChildCount(typed);
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); (index + MAREA_INTEGER_SIZE(1)) < COUNT; index = (index + MAREA_INTEGER_SIZE(1))) {
+        const MAREA_AstKind KIND = MAREA_IrTypedKind(MAREA_IrTypedChildAt(typed, index));
+
+        if ((KIND != MAREA_AST_KIND_NAMED_TYPE) && (KIND != MAREA_AST_KIND_FUNCTION_TYPE)) {
+            continue;
+        }
+
+        MAREA_IrNode *lowered = MAREA_NULLPTR;
+
+        MAREA_IrExcept result = MAREA_IrLowerExpression(context, MAREA_IrTypedChildAt(typed, (index + MAREA_INTEGER_SIZE(1))), &lowered);
+
+        if (result != MAREA_IR_EXCEPT_SUCCESS) {
+            return result;
+        }
+
+        if (lowered == MAREA_NULLPTR) {
+            *outComplete = MAREA_BOOLEAN_FALSE;
+
+            return MAREA_IR_EXCEPT_SUCCESS;
+        }
+
+        return MAREA_IrNodeAppendChild(context, node, lowered);
+    }
+
+    return MAREA_IR_EXCEPT_SUCCESS;
+}
+
 static MAREA_IrExcept MAREA_CALL MAREA_G_AppendNamed(MAREA_IrContext *context, MAREA_IrKind kind, const MAREA_SemaTypedNode *typed, MAREA_IrNode *parent)
 {
     MAREA_IrNode *node = MAREA_NULLPTR;
@@ -148,7 +183,28 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerEnum(MAREA_IrContext *context, con
                 continue;
             }
 
-            result = MAREA_G_AppendNamed(context, MAREA_IR_KIND_VARIANT_FIELD, field, variantNode);
+            MAREA_IrNode *fieldNode = MAREA_NULLPTR;
+
+            result = MAREA_G_CreateNamed(context, MAREA_IR_KIND_VARIANT_FIELD, field, MAREA_NULLPTR, MAREA_INTEGER_SIZE(0), &fieldNode);
+
+            if (result != MAREA_IR_EXCEPT_SUCCESS) {
+                return result;
+            }
+
+            MAREA_Boolean complete = MAREA_BOOLEAN_TRUE;
+
+            result = MAREA_G_AppendInitializer(context, field, fieldNode, &complete);
+
+            if (result != MAREA_IR_EXCEPT_SUCCESS) {
+                return result;
+            }
+
+            // INFO: a default value that cannot be lowered drops the whole enum, never a partial one.
+            if (complete == MAREA_BOOLEAN_FALSE) {
+                return MAREA_IR_EXCEPT_SUCCESS;
+            }
+
+            result = MAREA_IrNodeAppendChild(context, variantNode, fieldNode);
 
             if (result != MAREA_IR_EXCEPT_SUCCESS) {
                 return result;
@@ -169,10 +225,18 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerConstant(MAREA_IrContext *context,
 {
     MAREA_IrNode *node = MAREA_NULLPTR;
 
-    const MAREA_IrExcept created = MAREA_G_CreateNamed(context, MAREA_IR_KIND_CONSTANT_DECLARATION, typed, qualifier, qualifierLength, &node);
+    MAREA_IrExcept result = MAREA_G_CreateNamed(context, MAREA_IR_KIND_CONSTANT_DECLARATION, typed, qualifier, qualifierLength, &node);
 
-    if (created != MAREA_IR_EXCEPT_SUCCESS) {
-        return created;
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    MAREA_Boolean complete = MAREA_BOOLEAN_TRUE;
+
+    result = MAREA_G_AppendInitializer(context, typed, node, &complete);
+
+    if ((result != MAREA_IR_EXCEPT_SUCCESS) || (complete == MAREA_BOOLEAN_FALSE)) {
+        return result;
     }
 
     return MAREA_IrNodeAppendChild(context, parent, node);
