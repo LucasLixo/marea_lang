@@ -9,7 +9,6 @@
 
 namespace
 {
-    constexpr MAREA_Uinteger32 FORK_JOIN{ MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_FORK_JOIN };
     constexpr MAREA_Uinteger32 GENERIC{ MAREA_IR_DIAGNOSTIC_CODE_UNINSTANTIATED_GENERIC };
     constexpr MAREA_Uinteger32 MACRO{ MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_MACRO };
 
@@ -27,13 +26,13 @@ namespace
         { "basics/ownership.marea", {} },
         { "basics/primitive_types.marea", { GENERIC } },
         { "interop/c_library.marea", { MACRO } },
-        { "interop/gpu_handles.marea", { FORK_JOIN, GENERIC } },
+        { "interop/gpu_handles.marea", { GENERIC } },
         { "macros/builtin.marea", { MACRO } },
         { "main.marea", {} },
         { "memory/regions.marea", {} },
         { "namespaces/consumer.marea", {} },
         { "namespaces/library.marea", {} },
-        { "parallel/scaling.marea", { FORK_JOIN } },
+        { "parallel/scaling.marea", {} },
         { "types/collections.marea", {} },
         { "types/enum_methods.marea", {} },
         { "types/generics.marea", { GENERIC } },

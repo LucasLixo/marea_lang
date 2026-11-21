@@ -1071,6 +1071,64 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerSwitch(MAREA_IrContext *context, c
     return result;
 }
 
+// INFO: the place of the bound name among the children of a with statement (value, name, body) and of a partition statement (value, count, name, body).
+#define MAREA_G_WITH_NAME_INDEX      MAREA_INTEGER_SIZE(1)
+#define MAREA_G_PARTITION_NAME_INDEX MAREA_INTEGER_SIZE(2)
+
+// INFO: a with or partition statement keeps its children but the name. The name is the text of the node, as for a declaration, and MUTABLE is the one flag that stays.
+static MAREA_IrExcept MAREA_CALL MAREA_G_LowerBoundScope(MAREA_IrContext *context, MAREA_IrKind kind, const MAREA_SemaTypedNode *typed, MAREA_IntegerSize nameIndex, MAREA_IrNode **outNode)
+{
+    const MAREA_SemaTypedNode *nameTyped = MAREA_IrTypedChildAt(typed, nameIndex);
+
+    if (MAREA_IrTypedKind(nameTyped) != MAREA_AST_KIND_IDENTIFIER) {
+        return MAREA_IR_EXCEPT_SUCCESS;
+    }
+
+    MAREA_IrNode *node = MAREA_NULLPTR;
+
+    MAREA_IrExcept result = MAREA_IrNodeCreate(context, kind, MAREA_SemaTypedNodeGetAstNode(typed), &node);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    const MAREA_AstNode *nameAst = MAREA_SemaTypedNodeGetAstNode(nameTyped);
+
+    result = MAREA_IrNodeSetQualifiedText(context, node, MAREA_NULLPTR, MAREA_INTEGER_SIZE(0), MAREA_AstNodeGetText(nameAst), MAREA_AstNodeGetTextLength(nameAst));
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    node->flags = (node->flags & (MAREA_Uinteger32)MAREA_AST_FLAG_MUTABLE);
+
+    const MAREA_IntegerSize COUNT = MAREA_SemaTypedNodeGetChildCount(typed);
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < COUNT; index = (index + MAREA_INTEGER_SIZE(1))) {
+        if (index == nameIndex) {
+            continue;
+        }
+
+        MAREA_IrNode *lowered = MAREA_NULLPTR;
+
+        result = MAREA_G_LowerStatement(context, MAREA_IrTypedChildAt(typed, index), &lowered);
+
+        if ((result != MAREA_IR_EXCEPT_SUCCESS) || (lowered == MAREA_NULLPTR)) {
+            return result;
+        }
+
+        result = MAREA_IrNodeAppendChild(context, node, lowered);
+
+        if (result != MAREA_IR_EXCEPT_SUCCESS) {
+            return result;
+        }
+    }
+
+    *outNode = node;
+
+    return MAREA_IR_EXCEPT_SUCCESS;
+}
+
 static MAREA_IrExcept MAREA_CALL MAREA_G_LowerStatement(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode)
 {
     if (typed == MAREA_NULLPTR) {
@@ -1116,9 +1174,11 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerStatement(MAREA_IrContext *context
     case MAREA_AST_KIND_FOR_EACH_STATEMENT:
         return MAREA_G_LowerForEach(context, typed, outNode);
     case MAREA_AST_KIND_FORK_JOIN_BLOCK:
+        return MAREA_G_LowerKept(context, MAREA_IR_KIND_FORK_JOIN_BLOCK, typed, outNode);
     case MAREA_AST_KIND_PARTITION_STATEMENT:
+        return MAREA_G_LowerBoundScope(context, MAREA_IR_KIND_PARTITION_STATEMENT, typed, MAREA_G_PARTITION_NAME_INDEX, outNode);
     case MAREA_AST_KIND_WITH_STATEMENT:
-        return MAREA_IrRaise(context, MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_FORK_JOIN, MAREA_SemaTypedNodeGetAstNode(typed), "A fork_join, partition or with statement is not supported by the IR yet.", MAREA_NULLPTR, MAREA_INTEGER_SIZE(0));
+        return MAREA_G_LowerBoundScope(context, MAREA_IR_KIND_WITH_STATEMENT, typed, MAREA_G_WITH_NAME_INDEX, outNode);
     default:
         // INFO: any other kind is an expression; a Gap inside it raises its own diagnostic.
         return MAREA_IrLowerExpression(context, typed, outNode);

@@ -49,6 +49,9 @@ static const MAREA_Character8 *const MAREA_G_IrKindNames[] = {
     "VALUE_ENTRY",
     "QUALIFIED_NAME",
     "UNREACHABLE_STATEMENT",
+    "FORK_JOIN_BLOCK",
+    "PARTITION_STATEMENT",
+    "WITH_STATEMENT",
 };
 
 MAREA_STATIC_ASSERT((sizeof(MAREA_G_IrKindNames) / sizeof(MAREA_G_IrKindNames[0])) == MAREA_IR_KIND_COUNT, "MAREA_G_IrKindNames must have one entry per IR kind.");

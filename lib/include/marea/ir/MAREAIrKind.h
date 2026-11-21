@@ -12,7 +12,11 @@ MAREA_BEGIN_EXTERN_C
     /**
      * @brief Kind of an IR node. A kind keeps the name and the child layout of the AST kind it comes
      * from, except MODULE (the root) and UNREACHABLE_STATEMENT (the lowering of unreachable!()). The
-     * list ends with MAREA_IR_KIND_COUNT.
+     * parallel kinds come last, so no earlier value moves: FORK_JOIN_BLOCK (one BLOCK child; every worker
+     * started inside it ends before the node ends), PARTITION_STATEMENT (the text is the part name, the
+     * flag MUTABLE is kept; children are the value, the part count and the BLOCK body) and WITH_STATEMENT
+     * (the text is the bound name; children are the value and the BLOCK body). A spawn is no kind: it is a
+     * UNARY_EXPRESSION with the operator KEYWORD_SPAWN. The list ends with MAREA_IR_KIND_COUNT.
      */
     typedef enum MAREA_IrKind
     {
@@ -55,6 +59,9 @@ MAREA_BEGIN_EXTERN_C
         MAREA_IR_KIND_VALUE_ENTRY,
         MAREA_IR_KIND_QUALIFIED_NAME,
         MAREA_IR_KIND_UNREACHABLE_STATEMENT,
+        MAREA_IR_KIND_FORK_JOIN_BLOCK,
+        MAREA_IR_KIND_PARTITION_STATEMENT,
+        MAREA_IR_KIND_WITH_STATEMENT,
 
         MAREA_IR_KIND_COUNT
     } MAREA_IrKind;
