@@ -105,6 +105,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaScopeEnter(MAREA_SemaContext *context, con
     outMark->referenceCount = context->references.count;
     outMark->function = context->function;
     outMark->selfDepth = context->selfDepth;
+    outMark->forkDepth = context->forkDepth;
 
     const MAREA_SemaExcept BIND_RESULT = MAREA_SemaBindReferences(context, node);
 
@@ -116,6 +117,10 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaScopeEnter(MAREA_SemaContext *context, con
 
     if ((KIND == MAREA_AST_KIND_IMPLEMENTATION_DECLARATION) || (KIND == MAREA_AST_KIND_CONTRACT_DECLARATION)) {
         context->selfDepth += 1;
+    }
+
+    if (KIND == MAREA_AST_KIND_FORK_JOIN_BLOCK) {
+        context->forkDepth += 1;
     }
 
     if ((KIND != MAREA_AST_KIND_STRUCTURE_DECLARATION) && (KIND != MAREA_AST_KIND_TYPE_DECLARATION) && (KIND != MAREA_AST_KIND_FUNCTION_DECLARATION) && (KIND != MAREA_AST_KIND_IMPLEMENTATION_DECLARATION)) {
@@ -176,6 +181,7 @@ void MAREA_CALL MAREA_SemaScopeLeave(MAREA_SemaContext *context, MAREA_SemaScope
     context->references.count = mark.referenceCount;
     context->function = mark.function;
     context->selfDepth = mark.selfDepth;
+    context->forkDepth = mark.forkDepth;
 }
 
 static MAREA_IntegerSize MAREA_CALL MAREA_G_BuiltinArity(const MAREA_Character8 *text, MAREA_IntegerSize length)

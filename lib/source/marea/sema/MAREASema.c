@@ -42,6 +42,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaContextCreate(MAREA_Arena *arena, MAREA_Di
     context->function = MAREA_NULLPTR;
     context->selfDepth = 0;
     context->instantiationDepth = 0;
+    context->forkDepth = 0;
 
     *outContext = context;
 
@@ -151,6 +152,8 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaVisit(MAREA_SemaContext *context, const MA
         result = MAREA_SemaCheckWhereClause(context, node);
     } else if (KIND == MAREA_AST_KIND_CALL_EXPRESSION) {
         result = MAREA_SemaCheckCall(context, node);
+    } else if ((KIND == MAREA_AST_KIND_UNARY_EXPRESSION) && (MAREA_AstNodeGetOperator(node) == MAREA_TOKEN_KIND_KEYWORD_SPAWN)) {
+        result = MAREA_SemaCheckSpawn(context, node);
     }
 
     const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(node);
@@ -195,6 +198,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckCompilationUnit(MAREA_SemaContext *co
     context->function = MAREA_NULLPTR;
     context->selfDepth = 0;
     context->instantiationDepth = 0;
+    context->forkDepth = 0;
 
     const MAREA_SemaExcept NAMES_RESULT = MAREA_SemaCheckNamespaceAndNames(context, root);
 
