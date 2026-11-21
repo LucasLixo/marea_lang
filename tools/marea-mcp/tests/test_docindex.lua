@@ -110,6 +110,16 @@ do
    print("test_docindex: get_snippet cap exceeded OK")
 end
 
+-- get_function_body: a name containing Lua pattern-magic characters (as any MCP caller's
+-- argument might) must never raise -- it is just another name not found, like any other.
+do
+   local ok, body, err = pcall(docindex.get_function_body, root, "sample.c", "%1back")
+   assert(ok, "a pattern-magic name must not raise: " .. tostring(body))
+   assert(body == nil)
+   assert(type(err) == "string" and #err > 0)
+   print("test_docindex: get_function_body pattern-magic name OK")
+end
+
 -- get_snippet: start_line past the end of the file is rejected, not silently clamped.
 do
    local ok, snippet, err = pcall(docindex.get_snippet, root, "sample.c", 50, 52)
