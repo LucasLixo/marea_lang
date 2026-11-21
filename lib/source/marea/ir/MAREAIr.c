@@ -33,6 +33,7 @@ MAREA_IrExcept MAREA_CALL MAREA_IrContextCreate(MAREA_Arena *arena, MAREA_Diagno
 
     context->arena = arena;
     context->sink = sink;
+    context->unit = MAREA_NULLPTR;
 
     *outContext = context;
 
@@ -120,6 +121,9 @@ MAREA_IrExcept MAREA_CALL MAREA_IrLowerCompilationUnit(MAREA_IrContext *context,
     if (MAREA_AstNodeGetKind(astRoot) != MAREA_AST_KIND_COMPILATION_UNIT) {
         return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
     }
+
+    // INFO: the root stays in the context so that a call can ask which names the unit binds.
+    context->unit = typedRoot;
 
     MAREA_IrNode *module = MAREA_NULLPTR;
 

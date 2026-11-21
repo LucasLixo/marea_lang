@@ -53,6 +53,8 @@ static const MAREA_Character8 *const MAREA_G_IrKindNames[] = {
     "PARTITION_STATEMENT",
     "WITH_STATEMENT",
     "FOR_EACH_STATEMENT",
+    "TYPE_NAME",
+    "BUILTIN_NAME",
 };
 
 MAREA_STATIC_ASSERT((sizeof(MAREA_G_IrKindNames) / sizeof(MAREA_G_IrKindNames[0])) == MAREA_IR_KIND_COUNT, "MAREA_G_IrKindNames must have one entry per IR kind.");
@@ -263,15 +265,9 @@ void MAREA_CALL MAREA_IrNodeSetTypeNameFromTyped(MAREA_IrNode *node, const MAREA
     node->typeNameLength = length;
 }
 
-MAREA_Boolean MAREA_CALL MAREA_IrAstTypeName(const MAREA_AstNode *type, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength)
+MAREA_Boolean MAREA_CALL MAREA_IrAstQualifiedNameSpan(const MAREA_AstNode *name, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength)
 {
-    if ((type == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(type) != MAREA_AST_KIND_NAMED_TYPE)) {
-        return MAREA_BOOLEAN_FALSE;
-    }
-
-    const MAREA_AstNode *name = MAREA_NULLPTR;
-
-    if ((MAREA_AstNodeGetChildAt(type, MAREA_INTEGER_SIZE(0), &name) != MAREA_AST_EXCEPT_SUCCESS) || (MAREA_AstNodeGetKind(name) != MAREA_AST_KIND_QUALIFIED_NAME)) {
+    if ((name == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(name) != MAREA_AST_KIND_QUALIFIED_NAME)) {
         return MAREA_BOOLEAN_FALSE;
     }
 
@@ -296,6 +292,21 @@ MAREA_Boolean MAREA_CALL MAREA_IrAstTypeName(const MAREA_AstNode *type, const MA
     *outLength = (MAREA_IntegerSize)((end + MAREA_AstNodeGetTextLength(last)) - start);
 
     return MAREA_BOOLEAN_TRUE;
+}
+
+MAREA_Boolean MAREA_CALL MAREA_IrAstTypeName(const MAREA_AstNode *type, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength)
+{
+    if ((type == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(type) != MAREA_AST_KIND_NAMED_TYPE)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_AstNode *name = MAREA_NULLPTR;
+
+    if (MAREA_AstNodeGetChildAt(type, MAREA_INTEGER_SIZE(0), &name) != MAREA_AST_EXCEPT_SUCCESS) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    return MAREA_IrAstQualifiedNameSpan(name, outText, outLength);
 }
 
 void MAREA_CALL MAREA_IrNodeSetTypeNameFromAst(MAREA_IrNode *node, const MAREA_AstNode *type)

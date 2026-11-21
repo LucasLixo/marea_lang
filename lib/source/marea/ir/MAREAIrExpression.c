@@ -81,6 +81,15 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerCall(MAREA_IrContext *context, con
         return MAREA_IR_EXCEPT_SUCCESS;
     }
 
+    // INFO: a built-in call and a static call on a written type carry their type as an operand, so they lower here.
+    MAREA_Boolean handled = MAREA_BOOLEAN_FALSE;
+
+    const MAREA_IrExcept operand = MAREA_IrLowerTypeOperandCall(context, typed, &handled, outNode);
+
+    if ((operand != MAREA_IR_EXCEPT_SUCCESS) || (handled == MAREA_BOOLEAN_TRUE)) {
+        return operand;
+    }
+
     // INFO: a generic callee, or explicit type arguments, ask for an instantiation that no pass performs.
     if ((MAREA_IrTypedKind(callee) == MAREA_AST_KIND_GENERIC_NAME) || (MAREA_IrTypedFindChild(typed, MAREA_AST_KIND_TYPE_ARGUMENTS) != MAREA_NULLPTR)) {
         return MAREA_G_RaiseGeneric(context, typed, "A call that needs a generic instantiation is not supported by the IR yet.");
