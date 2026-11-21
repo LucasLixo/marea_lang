@@ -212,8 +212,31 @@ static MAREA_SemaImportResult MAREA_CALL MAREA_G_Resolve(const MAREA_SemaContext
     return result;
 }
 
+static MAREA_Boolean MAREA_CALL MAREA_G_IsPlainName(const MAREA_AstNode *qualifiedName)
+{
+    const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(qualifiedName);
+
+    if (COUNT == 0) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    for (MAREA_IntegerSize index = 0; index < COUNT; ++index) {
+        const MAREA_AstNode *segment = MAREA_G_ChildAt(qualifiedName, index);
+
+        if ((segment == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(segment) != MAREA_AST_KIND_IDENTIFIER)) {
+            return MAREA_BOOLEAN_FALSE;
+        }
+    }
+
+    return MAREA_BOOLEAN_TRUE;
+}
+
 static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckNamespacePath(MAREA_SemaContext *context, const MAREA_AstNode *root, const MAREA_AstNode *qualifiedName)
 {
+    if (MAREA_G_IsPlainName(qualifiedName) == MAREA_BOOLEAN_FALSE) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
     const MAREA_Character8 *file = MAREA_AstNodeGetPosition(root).file;
 
     if ((file == MAREA_NULLPTR) || (file[0] == '\0')) {
@@ -285,7 +308,7 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckImport(MAREA_SemaContext *contex
 
     const MAREA_IntegerSize SEGMENT_COUNT = MAREA_AstNodeGetChildCount(qualifiedName);
 
-    if (SEGMENT_COUNT == 0) {
+    if (MAREA_G_IsPlainName(qualifiedName) == MAREA_BOOLEAN_FALSE) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 

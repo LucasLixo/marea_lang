@@ -98,8 +98,12 @@ static MAREA_Boolean MAREA_CALL MAREA_G_SingleName(const MAREA_AstNode *type, co
     return MAREA_BOOLEAN_TRUE;
 }
 
-static const MAREA_AstNode *MAREA_CALL MAREA_G_ReturnType(const MAREA_AstNode *function)
+const MAREA_AstNode *MAREA_CALL MAREA_SemaReturnType(const MAREA_AstNode *function)
 {
+    if (function == MAREA_NULLPTR) {
+        return MAREA_NULLPTR;
+    }
+
     const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(function);
 
     MAREA_Boolean afterParameters = MAREA_BOOLEAN_FALSE;
@@ -348,7 +352,7 @@ static void MAREA_CALL MAREA_G_Render(const MAREA_AstNode *type, const MAREA_Cha
         }
 
         MAREA_G_Append(buffer, position, "):", MAREA_INTEGER_SIZE(2));
-        MAREA_G_Render(MAREA_G_ReturnType(type), selfName, selfLength, buffer, position);
+        MAREA_G_Render(MAREA_SemaReturnType(type), selfName, selfLength, buffer, position);
 
         return;
     }
@@ -437,7 +441,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_SignatureMatches(const MAREA_AstNode *co
         }
     }
 
-    return MAREA_G_SameType(MAREA_G_ReturnType(contractFunction), MAREA_G_ReturnType(function), selfName, selfLength);
+    return MAREA_G_SameType(MAREA_SemaReturnType(contractFunction), MAREA_SemaReturnType(function), selfName, selfLength);
 }
 
 static MAREA_Boolean MAREA_CALL MAREA_G_HasImplementation(const MAREA_SemaContext *context, const MAREA_AstNode *contractFunction, const MAREA_Character8 *typeName, MAREA_IntegerSize typeLength)
