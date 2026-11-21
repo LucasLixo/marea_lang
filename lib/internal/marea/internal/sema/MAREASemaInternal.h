@@ -38,6 +38,7 @@ MAREA_BEGIN_EXTERN_C
     typedef struct MAREA_SemaName
     {
         const MAREA_Character8 *text;
+        const MAREA_AstNode *declaration;
         MAREA_IntegerSize length;
         MAREA_SemaNameKind kind;
     } MAREA_SemaName;
@@ -59,7 +60,18 @@ MAREA_BEGIN_EXTERN_C
         MAREA_DiagnosticSink *sink;
         MAREA_SemaImportResolver *resolver;
         MAREA_SemaNameTable names;
+        MAREA_SemaNameTable generics;
+        MAREA_Uinteger32 selfDepth;
     };
+
+    /**
+     * @brief Saved size of the scope stacks of a context, so a scope can be left.
+     */
+    typedef struct MAREA_SemaScopeMark
+    {
+        MAREA_IntegerSize genericCount;
+        MAREA_Uinteger32 selfDepth;
+    } MAREA_SemaScopeMark;
 
     /**
      * @brief Adds a diagnostic with the severity ERROR to the sink of the context.
@@ -97,9 +109,10 @@ MAREA_BEGIN_EXTERN_C
      * @param text Text of the name, not copied.
      * @param length Length of text in bytes.
      * @param kind What the name stands for.
+     * @param declaration Declaration node of the name, or null for an import.
      * @return MAREA_SEMA_EXCEPT_SUCCESS, or MAREA_SEMA_EXCEPT_ERROR_OUT_OF_MEMORY when the arena cannot grow.
      */
-    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaNameTableAdd(MAREA_SemaContext * context, const MAREA_Character8 *text, MAREA_IntegerSize length, MAREA_SemaNameKind kind);
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaNameTableAdd(MAREA_SemaContext * context, const MAREA_Character8 *text, MAREA_IntegerSize length, MAREA_SemaNameKind kind, const MAREA_AstNode *declaration);
 
     /**
      * @brief Reads the name of a top-level declaration: the first IDENTIFIER child.
@@ -147,6 +160,42 @@ MAREA_BEGIN_EXTERN_C
      * @return MAREA_SEMA_EXCEPT_SUCCESS, or MAREA_SEMA_EXCEPT_ERROR_OUT_OF_MEMORY.
      */
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckAttributes(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
+     * @brief Enters the scope a node opens: the generic parameters of a structure, type alias, function or
+     * implementation, and the Self type of an implementation or a contract.
+     * @param context Context of the run. Must not be null.
+     * @param node Node about to be visited. Must not be null.
+     * @param outMark Receives the mark to hand to MAREA_SemaScopeLeave. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaScopeEnter(MAREA_SemaContext * context, const MAREA_AstNode *node, MAREA_SemaScopeMark *outMark);
+
+    /**
+     * @brief Leaves the scope that MAREA_SemaScopeEnter entered.
+     * @param context Context of the run. Must not be null.
+     * @param mark Mark that MAREA_SemaScopeEnter returned.
+     */
+    void MAREA_CALL MAREA_SemaScopeLeave(MAREA_SemaContext * context, MAREA_SemaScopeMark mark);
+
+    /**
+     * @brief Resolves the name of a NAMED_TYPE node: a built-in type, Self, a generic parameter in scope,
+     * a type of the file, an import, or a name the import resolver knows. Reports UNKNOWN_TYPE on the node
+     * when none matches. A node whose name holds an ERROR_NODE is skipped.
+     * @param context Context of the run. Must not be null.
+     * @param node NAMED_TYPE node. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckNamedType(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
+     * @brief Checks the declarations of a compilation unit that need the whole file: a member name that two
+     * implementation blocks of one concrete type both declare is DUPLICATE_MEMBER.
+     * @param context Context of the run. Must not be null.
+     * @param root COMPILATION_UNIT node. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckDeclarations(MAREA_SemaContext * context, const MAREA_AstNode *root);
 
 MAREA_END_EXTERN_C
 
