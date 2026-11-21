@@ -258,3 +258,117 @@ void MAREA_CALL MAREA_IrNodeSetTypeNameFromTyped(MAREA_IrNode *node, const MAREA
     node->typeName = text;
     node->typeNameLength = length;
 }
+
+MAREA_Boolean MAREA_CALL MAREA_IrAstTypeName(const MAREA_AstNode *type, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength)
+{
+    if ((type == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(type) != MAREA_AST_KIND_NAMED_TYPE)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_AstNode *name = MAREA_NULLPTR;
+
+    if ((MAREA_AstNodeGetChildAt(type, MAREA_INTEGER_SIZE(0), &name) != MAREA_AST_EXCEPT_SUCCESS) || (MAREA_AstNodeGetKind(name) != MAREA_AST_KIND_QUALIFIED_NAME)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(name);
+
+    const MAREA_AstNode *first = MAREA_NULLPTR;
+    const MAREA_AstNode *last = MAREA_NULLPTR;
+
+    if ((COUNT == MAREA_INTEGER_SIZE(0)) || (MAREA_AstNodeGetChildAt(name, MAREA_INTEGER_SIZE(0), &first) != MAREA_AST_EXCEPT_SUCCESS) || (MAREA_AstNodeGetChildAt(name, (COUNT - MAREA_INTEGER_SIZE(1)), &last) != MAREA_AST_EXCEPT_SUCCESS)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_Character8 *start = MAREA_AstNodeGetText(first);
+    const MAREA_Character8 *end = MAREA_AstNodeGetText(last);
+
+    if ((start == MAREA_NULLPTR) || (end == MAREA_NULLPTR)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    // INFO: the segments of a dotted name are contiguous in the source, so one span covers all of them.
+    *outText = start;
+    *outLength = (MAREA_IntegerSize)((end + MAREA_AstNodeGetTextLength(last)) - start);
+
+    return MAREA_BOOLEAN_TRUE;
+}
+
+void MAREA_CALL MAREA_IrNodeSetTypeNameFromAst(MAREA_IrNode *node, const MAREA_AstNode *type)
+{
+    if (node == MAREA_NULLPTR) {
+        return;
+    }
+
+    const MAREA_Character8 *text = MAREA_NULLPTR;
+    MAREA_IntegerSize length = MAREA_INTEGER_SIZE(0);
+
+    if (MAREA_IrAstTypeName(type, &text, &length) == MAREA_BOOLEAN_TRUE) {
+        node->typeName = text;
+        node->typeNameLength = length;
+    }
+}
+
+MAREA_IrExcept MAREA_CALL MAREA_IrNodeSetQualifiedText(MAREA_IrContext *context, MAREA_IrNode *node, const MAREA_Character8 *qualifier, MAREA_IntegerSize qualifierLength, const MAREA_Character8 *name, MAREA_IntegerSize nameLength)
+{
+    if ((context == MAREA_NULLPTR) || (node == MAREA_NULLPTR) || (name == MAREA_NULLPTR)) {
+        return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    if (qualifier == MAREA_NULLPTR) {
+        node->text = name;
+        node->textLength = (MAREA_Uinteger32)nameLength;
+
+        return MAREA_IR_EXCEPT_SUCCESS;
+    }
+
+    MAREA_Null memory = MAREA_NULLPTR;
+
+    if (MAREA_ArenaAllocate(context->arena, (qualifierLength + MAREA_INTEGER_SIZE(1) + nameLength), MAREA_INTEGER_SIZE(1), &memory) != MAREA_ARENA_EXCEPT_SUCCESS) {
+        return MAREA_IR_EXCEPT_ERROR_OUT_OF_MEMORY;
+    }
+
+    MAREA_Character8 *joined = memory;
+
+    memcpy(joined, qualifier, qualifierLength);
+
+    joined[qualifierLength] = '.';
+
+    memcpy((joined + qualifierLength + MAREA_INTEGER_SIZE(1)), name, nameLength);
+
+    node->text = joined;
+    node->textLength = (MAREA_Uinteger32)(qualifierLength + MAREA_INTEGER_SIZE(1) + nameLength);
+
+    return MAREA_IR_EXCEPT_SUCCESS;
+}
+
+const MAREA_SemaTypedNode *MAREA_CALL MAREA_IrTypedChildAt(const MAREA_SemaTypedNode *typed, MAREA_IntegerSize index)
+{
+    const MAREA_SemaTypedNode *child = MAREA_NULLPTR;
+
+    if (MAREA_SemaTypedNodeGetChildAt(typed, index, &child) != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) {
+        return MAREA_NULLPTR;
+    }
+
+    return child;
+}
+
+const MAREA_SemaTypedNode *MAREA_CALL MAREA_IrTypedFindChild(const MAREA_SemaTypedNode *typed, MAREA_AstKind kind)
+{
+    const MAREA_IntegerSize COUNT = MAREA_SemaTypedNodeGetChildCount(typed);
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < COUNT; index = (index + MAREA_INTEGER_SIZE(1))) {
+        const MAREA_SemaTypedNode *child = MAREA_IrTypedChildAt(typed, index);
+
+        if ((child != MAREA_NULLPTR) && (MAREA_IrTypedKind(child) == kind)) {
+            return child;
+        }
+    }
+
+    return MAREA_NULLPTR;
+}
+
+MAREA_AstKind MAREA_CALL MAREA_IrTypedKind(const MAREA_SemaTypedNode *typed)
+{
+    return MAREA_AstNodeGetKind(MAREA_SemaTypedNodeGetAstNode(typed));
+}
