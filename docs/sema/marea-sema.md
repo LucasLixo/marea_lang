@@ -2,8 +2,9 @@
 
 The `sema` stage checks the tree of the `parse` stage. It reads a public tree and writes diagnostics.
 It has no global state, never prints and never reads the disk: the caller gives it an arena, a
-diagnostic sink and an import resolver. It makes no typed tree. The shape of that hand-off is decided
-when the `ir` stage is built.
+diagnostic sink and an import resolver. `MAREA_SemaCheckCompilationUnit` itself returns no artifact
+beyond diagnostics; a separate, additive API builds the typed shadow tree the `ir` stage will consume
+- see [Typed AST hand-off](#typed-ast-hand-off).
 
 ## Use
 
@@ -112,11 +113,56 @@ mutable`. Any other expression is rejected. This is a simple first rule.
 **Entry point.** In the namespace `main`, `function main` has exactly the parameter `arguments:
 array<string>` with no word, and the result `integer32`. Sema never requires a `main`.
 
+## Typed AST hand-off
+
+`MAREA_SemaBuildTypedAst` (`marea/sema/MAREASemaTypedAst.h`) turns a compilation unit `sema` already
+checked into a typed shadow tree: one `MAREA_SemaTypedNode` per original `MAREA_AstNode`, same order
+and child count. It is purely additive - `MAREA_SemaCheckCompilationUnit`'s signature and behavior do
+not change, and it never duplicates logic shared with the checker: a new, standalone inference path
+resolves a call result's return type, kept fully independent from the existing `MAREA_SemaInferType`
+so that function's already-shipped assignment fallback behavior is untouched.
+
+```c
+const MAREA_SemaTypedNode *root;
+
+MAREA_SemaCheckCompilationUnit(sema, unit);                 /* must report zero errors first */
+MAREA_SemaBuildTypedAst(sema, unit, &root);
+```
+
+`MAREA_SemaBuildTypedAst` returns `MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NOT_CHECKED` when `unit` was not
+the last tree checked on `sema`, or when `MAREA_DiagnosticSinkGetErrorCount` on
+`MAREA_SemaContextGetDiagnostics(sema)` reports an error - the hand-off only exists for a unit sema
+already accepted. Otherwise it returns `MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS`,
+`ERROR_NULL_POINTER` for a null argument, or `ERROR_OUT_OF_MEMORY` when the arena cannot grow.
+
+**Type class.** `MAREA_SemaTypeClass` is the same enum the checker already uses internally, moved to
+this public header: `PRIMITIVE`, `COPY_BUILTIN`, `MOVE_BUILTIN`, `GENERIC` (an unbound generic
+parameter), `USER` (a structure or enum of this compilation, `MAREA_SemaTypedNodeGetTypeDeclaration`
+gives its declaration) and `EXTERNAL` (a name the import resolver reported as `EXTERNAL` or that no
+local rule knows; `MAREA_SemaTypedNodeGetTypeName` gives its text). A node whose type could not be
+inferred keeps the neutral default `PRIMITIVE` with no declaration or name, the same best-effort
+fallback `MAREA_SemaInferType` already uses for the checker.
+
+**Ownership mode.** `MAREA_SemaOwnershipMode` names how a typed node carries its value, following the
+same rules "Ownership" above already states: `VALUE` (a primitive, a `vector`/`pointer`/`slice`/
+`owned`/`task` core type is a different case below, an enum or a `#[value]` type), `BORROW` (a
+read-only parameter, a `for each` variable, a `partition` part or a `with` name), `MUTABLE_BORROW` (a
+`mutable` parameter), `MOVE` (an `owned<T>` or `task<T>` parameter or value), `COPY` (a `copy x`
+expression). A node this cannot classify defaults to `VALUE`.
+
+**Call results.** A non-generic call expression's typed node carries the callee's real, unsubstituted
+return type: `USER`, `EXTERNAL` or a built-in class, exactly as the function declares it. Generic-
+result substitution is not performed: when the return type names an unbound generic parameter (for
+example `Pair<T>.first(): T` called without `ir`-level instantiation), the typed node is tagged
+`GENERIC` and the raw, unsubstituted type name is kept - never a guess, never a crash. Resolving the
+real, instantiated result type is deferred to when the `ir` stage needs one for real.
+
 ## Gaps
 
 - `TYPE_MISMATCH` (3011) checks a literal against a primitive type only, never another expression. The use of an undeclared name in an expression is not checked.
   `UNDECLARED_NAME` is raised for a `where` clause only.
 - The contract check only sees arguments whose type is cheap to know. Other arguments are not checked.
 - `destroy`, `operator` and `export` are checked for shape only.
-- The type of a call result, of a library type and of a generic result is not tracked, so a
-  missing `copy` or `move` there is not reported.
+- The type of a call result is closed for non-generic calls via the typed-AST hand-off; generic-
+  result substitution still open. The type of a library type is not tracked, so a missing `copy` or
+  `move` there is not reported.

@@ -13,6 +13,7 @@
     #include "marea/parse/MAREAAstKind.h"
     #include "marea/sema/MAREASema.h"
     #include "marea/sema/MAREASemaImportResolver.h"
+    #include "marea/sema/MAREASemaTypedAst.h"
 
 MAREA_BEGIN_EXTERN_C
 
@@ -91,17 +92,30 @@ MAREA_BEGIN_EXTERN_C
     } MAREA_SemaScopeMark;
 
     /**
-     * @brief How the checks treat a type.
+     * @brief Body of the opaque typed shadow node. Opened internally, not publicly, so the
+     * builder (MAREASemaTypedAst.c) and the ownership classifier (MAREASemaTypedAstOwnership.c)
+     * can both read and fill it; the public header keeps the type fully opaque.
      */
-    typedef enum MAREA_SemaTypeClass
+    struct MAREA_SemaTypedNode
     {
-        MAREA_SEMA_TYPE_CLASS_PRIMITIVE = MAREA_UINTEGER_8(0),
-        MAREA_SEMA_TYPE_CLASS_COPY_BUILTIN = MAREA_UINTEGER_8(1),
-        MAREA_SEMA_TYPE_CLASS_MOVE_BUILTIN = MAREA_UINTEGER_8(2),
-        MAREA_SEMA_TYPE_CLASS_GENERIC = MAREA_UINTEGER_8(3),
-        MAREA_SEMA_TYPE_CLASS_USER = MAREA_UINTEGER_8(4),
-        MAREA_SEMA_TYPE_CLASS_EXTERNAL = MAREA_UINTEGER_8(5),
-    } MAREA_SemaTypeClass;
+        const MAREA_AstNode *astNode;
+        const MAREA_AstNode *typeDeclaration;
+        const MAREA_Character8 *typeName;
+        MAREA_SemaTypedNode **children;
+        MAREA_IntegerSize typeNameLength;
+        MAREA_IntegerSize childCount;
+        MAREA_SemaTypeClass typeClass;
+        MAREA_SemaOwnershipMode ownershipMode;
+    };
+
+    /**
+     * @brief Computes the ownership mode of a typed node already carrying its resolved type class
+     * and declaration: by value, by a read-only or a write borrow, or by a move or a copy keyword.
+     * @param context Context the node was built with. Must not be null.
+     * @param built Typed node already filled with its type class and declaration. Must not be null.
+     * @return The ownership mode. Never fails: a node this cannot classify defaults to VALUE.
+     */
+    MAREA_NODISCARD MAREA_SemaOwnershipMode MAREA_CALL MAREA_SemaTypedAstClassifyOwnership(MAREA_SemaContext * context, const MAREA_SemaTypedNode *built);
 
     /**
      * @brief Adds a diagnostic with the severity ERROR to the sink of the context.
