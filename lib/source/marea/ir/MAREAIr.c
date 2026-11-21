@@ -33,6 +33,7 @@ MAREA_IrExcept MAREA_CALL MAREA_IrContextCreate(MAREA_Arena *arena, MAREA_Diagno
 
     context->arena = arena;
     context->sink = sink;
+    context->unit = MAREA_NULLPTR;
 
     *outContext = context;
 
@@ -101,25 +102,9 @@ MAREA_IrExcept MAREA_CALL MAREA_IrRaise(MAREA_IrContext *context, MAREA_IrDiagno
     return MAREA_IR_EXCEPT_SUCCESS;
 }
 
-MAREA_IrExcept MAREA_CALL MAREA_IrLowerCompilationUnit(MAREA_IrContext *context, const MAREA_SemaTypedNode *typedRoot, const MAREA_IrNode **outModule)
+static MAREA_IrExcept MAREA_CALL MAREA_G_LowerUnitDeclarations(MAREA_IrContext *context, const MAREA_SemaTypedNode *typedRoot, const MAREA_IrNode **outModule)
 {
-    if (context == MAREA_NULLPTR) {
-        return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
-    }
-
-    if (typedRoot == MAREA_NULLPTR) {
-        return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
-    }
-
-    if (outModule == MAREA_NULLPTR) {
-        return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
-    }
-
     const MAREA_AstNode *astRoot = MAREA_SemaTypedNodeGetAstNode(typedRoot);
-
-    if (MAREA_AstNodeGetKind(astRoot) != MAREA_AST_KIND_COMPILATION_UNIT) {
-        return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
-    }
 
     MAREA_IrNode *module = MAREA_NULLPTR;
 
@@ -142,4 +127,32 @@ MAREA_IrExcept MAREA_CALL MAREA_IrLowerCompilationUnit(MAREA_IrContext *context,
     *outModule = module;
 
     return MAREA_IR_EXCEPT_SUCCESS;
+}
+
+MAREA_IrExcept MAREA_CALL MAREA_IrLowerCompilationUnit(MAREA_IrContext *context, const MAREA_SemaTypedNode *typedRoot, const MAREA_IrNode **outModule)
+{
+    if (context == MAREA_NULLPTR) {
+        return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    if (typedRoot == MAREA_NULLPTR) {
+        return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    if (outModule == MAREA_NULLPTR) {
+        return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    if (MAREA_AstNodeGetKind(MAREA_SemaTypedNodeGetAstNode(typedRoot)) != MAREA_AST_KIND_COMPILATION_UNIT) {
+        return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    // INFO: the root stays in the context only while the unit is lowered, so that a call can ask which names the unit binds.
+    context->unit = typedRoot;
+
+    const MAREA_IrExcept result = MAREA_G_LowerUnitDeclarations(context, typedRoot, outModule);
+
+    context->unit = MAREA_NULLPTR;
+
+    return result;
 }

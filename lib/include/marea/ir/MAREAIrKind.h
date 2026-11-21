@@ -19,7 +19,11 @@ MAREA_BEGIN_EXTERN_C
      * UNARY_EXPRESSION with the operator KEYWORD_SPAWN. FOR_EACH_STATEMENT comes after them (the text is the
      * name of the value variable, the flag MUTABLE is kept when the loop is written with mutable; children are
      * the optional key as an IDENTIFIER, the collection and the BLOCK body, so a loop with a key has three
-     * children and one without has two). The list ends with MAREA_IR_KIND_COUNT.
+     * children and one without has two). TYPE_NAME and BUILTIN_NAME come last: a TYPE_NAME is a written type that
+     * is an operand (the text is the name, kept whole when dotted; the children are its type arguments, each a
+     * TYPE_NAME or an INTEGER_LITERAL), and a BUILTIN_NAME is the callee of a built-in call with explicit type
+     * arguments (the text is the name; the children are the type arguments, each a TYPE_NAME or an
+     * INTEGER_LITERAL). The list ends with MAREA_IR_KIND_COUNT.
      */
     typedef enum MAREA_IrKind
     {
@@ -66,6 +70,8 @@ MAREA_BEGIN_EXTERN_C
         MAREA_IR_KIND_PARTITION_STATEMENT,
         MAREA_IR_KIND_WITH_STATEMENT,
         MAREA_IR_KIND_FOR_EACH_STATEMENT,
+        MAREA_IR_KIND_TYPE_NAME,
+        MAREA_IR_KIND_BUILTIN_NAME,
 
         MAREA_IR_KIND_COUNT
     } MAREA_IrKind;

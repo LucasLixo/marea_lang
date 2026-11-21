@@ -62,13 +62,15 @@ The type name is the head name of the written type, with no type arguments (`arr
 `FIELD_DECLARATION`, `VARIANT_FIELD`, `PARAMETER`, `LOCAL_DECLARATION` and `FUNCTION_DECLARATION`
 (its return type), read from the AST type child; on a struct `LITERAL_VALUE`, from its type child;
 and on a non-generic `CALL_EXPRESSION`, from the type name the typed tree carries for the call result,
-when it has one.
+when it has one. A `CALL_EXPRESSION` of a built-in or of a static call on a written type (see Type operands)
+follows the same rule, and a `TYPE_NAME` or a `BUILTIN_NAME` has no type name: it holds its name as text.
 
 ## Kinds and what is erased
 
 The kind set keeps the name and the child layout of the AST kind it comes from, except `MODULE` (the
-root), `UNREACHABLE_STATEMENT`, and the name of `PARTITION_STATEMENT`, `WITH_STATEMENT` and `FOR_EACH_STATEMENT`,
-which is the text of the node (see Fork-join lowering and For-each lowering). The kinds are: `MODULE`, `CONSTANT_DECLARATION`,
+root), `UNREACHABLE_STATEMENT`, `TYPE_NAME` and `BUILTIN_NAME`, and the name of `PARTITION_STATEMENT`, `WITH_STATEMENT`
+and `FOR_EACH_STATEMENT`, which is the text of the node (see Fork-join lowering, For-each lowering and Type
+operands). The kinds are: `MODULE`, `CONSTANT_DECLARATION`,
 `STRUCTURE_DECLARATION`, `FIELD_DECLARATION`, `ENUM_DECLARATION`, `VARIANT_DECLARATION`,
 `VARIANT_FIELD`, `FUNCTION_DECLARATION`, `PARAMETER_LIST`, `PARAMETER`, `BLOCK`, `LOCAL_DECLARATION`,
 `ASSIGNMENT`, `EXPRESSION_STATEMENT`, `IF_STATEMENT`, `ELSEIF_CLAUSE`, `ELSE_CLAUSE`,
@@ -76,14 +78,16 @@ which is the text of the node (see Fork-join lowering and For-each lowering). Th
 `IDENTIFIER`, `INTEGER_LITERAL`, `FLOAT_LITERAL`, `STRING_LITERAL`, `BOOLEAN_LITERAL`,
 `BINARY_EXPRESSION`, `UNARY_EXPRESSION`, `MEMBER_ACCESS`, `INDEX_ACCESS`, `CALL_EXPRESSION`,
 `ARGUMENT_LIST`, `LITERAL_VALUE`, `FIELD_ENTRY`, `INDEX_ENTRY`, `VALUE_ENTRY`, `QUALIFIED_NAME`,
-`UNREACHABLE_STATEMENT`, `FORK_JOIN_BLOCK`, `PARTITION_STATEMENT`, `WITH_STATEMENT` and `FOR_EACH_STATEMENT`. The
-last four come after every older kind, so no value of an older kind moved.
+`UNREACHABLE_STATEMENT`, `FORK_JOIN_BLOCK`, `PARTITION_STATEMENT`, `WITH_STATEMENT`, `FOR_EACH_STATEMENT`,
+`TYPE_NAME` and `BUILTIN_NAME`. The last six come after every older kind, so no value of an older kind moved.
 
 The module keeps its declarations in source order. The typing is erased before the IR, so these make
 no node:
 
 - `namespace`, `import`, file attributes, attributes, type aliases and `contract` declarations.
-- Type nodes (`NAMED_TYPE`, `FUNCTION_TYPE`) and `TYPE_ARGUMENTS`. Only the type name above survives.
+- Type nodes (`NAMED_TYPE`, `FUNCTION_TYPE`) and `TYPE_ARGUMENTS`. Only the type name above survives, with one
+  exception: a type that is the operand of a call keeps its name and its type arguments as a `TYPE_NAME` (see Type
+  operands).
 - Parenthesized expressions: the inner expression is lowered in place.
 - `unsafe` blocks: the plain `BLOCK` inside is lowered.
 - Nodes that the parser could not build (`ERROR_NODE`).
@@ -236,6 +240,57 @@ UNARY_EXPRESSION op=KEYWORD_SPAWN            -- child: the call; the one form of
   block, and a `continue` that targets a for-range loop still gets the step in front of it.
 - A gap inside any child drops the declaration whole and is reported once, as everywhere else.
 
+## Type operands
+
+Two forms of call have a type as an operand, and the IR cannot erase it: `size_of<T>()` has no other input, and
+`array<integer32>.filled(8, 0)` names the type whose function it calls. The IR holds the written type, as a name and
+a tree of its type arguments, and nothing else. It adds no type system, no check and no runtime call: it does not
+look up the type, does not compute a size and does not choose a conversion. Each backend does that.
+
+```
+CALL_EXPRESSION                              -- a built-in call: size_of<Light>(), convert<integer64>(count)
+  BUILTIN_NAME "convert"                     -- the text is the name; the children are the type arguments
+    TYPE_NAME "integer64"
+  ARGUMENT_LIST
+    IDENTIFIER "count"
+
+CALL_EXPRESSION                              -- a static call on a written type: array<float32, 16>.filled(0.0)
+  MEMBER_ACCESS
+    TYPE_NAME "array"                        -- the text is the name; the children are the type arguments
+      TYPE_NAME "float32"
+      INTEGER_LITERAL "16"
+    IDENTIFIER "filled"
+  ARGUMENT_LIST
+    FLOAT_LITERAL "0.0"
+```
+
+- `TYPE_NAME` is a written type. Its text is the name, kept whole when dotted (`collections.array`), as a type
+  name is elsewhere. Its children are its type arguments, in the order written. Each is a `TYPE_NAME` or, for a
+  value parameter such as the `16` of `array<float32, 16>`, an `INTEGER_LITERAL`. A type with no argument has no
+  child. The node has no type name and no flag.
+- `BUILTIN_NAME` is the callee of a built-in call. Its text is the name and its children are the type arguments,
+  each a `TYPE_NAME` or an `INTEGER_LITERAL`. The IR knows three built-ins: `size_of`, `align_of` and `convert`.
+  The IR holds no result type for it: a backend knows the built-in by its name.
+- Both forms keep the layout of every call: the callee first, the `ARGUMENT_LIST` last. A backend finds a built-in
+  call by a `BUILTIN_NAME` callee, and a static call by a `MEMBER_ACCESS` callee whose first child is a `TYPE_NAME`.
+  Two kinds, and not one, because the type argument belongs to the function in the first form and to the type in
+  the second, and a backend must not tell them apart by where the node stands.
+- A call is a built-in call when its callee is the bare name `size_of`, `align_of` or `convert`, it names type
+  arguments, and the unit binds no name of its own with that spelling. A function declared in the unit, an import
+  of that last segment, or an import alias with that name is a user function, so its call stays a user generic. A
+  call of the same name with no type argument is a plain call, as before. A qualified callee
+  (`array.convert<integer32>(1)`) is not a built-in.
+- A call is a static call on a written type when its callee is a `MEMBER_ACCESS` on a type with type arguments
+  (`array<integer32>.filled`) and the call itself names no type argument. A type that the unit declares with
+  generic parameters, as a structure or a type alias, is a user generic and keeps raising 4004: its declaration
+  is left out of the module, so the call would point at nothing. Any other head, a built-in type such as `vector`
+  or a type of another namespace such as `array`, lowers. A head with a dot is a type of another namespace.
+- A type argument that is a function type is not lowered, because a `TYPE_NAME` cannot hold its parameters and its
+  result. It raises 4004 once, and the declaration that holds it is left out, as for any gap.
+- A gap in an argument of the call, or in a type argument, drops the declaration whole and is reported once.
+- The nodes take their position from what they were written from: the `TYPE_NAME` from the written type, the
+  `BUILTIN_NAME` from the callee name.
+
 ## Text dump
 
 `MAREA_IrModuleDump` writes the tree as stable text into the arena, one node per line, in the same
@@ -266,7 +321,8 @@ Lowering the same unit twice gives byte-identical text.
 
 ## Constructs the IR cannot lower
 
-Two constructs raise an error diagnostic and make no node. The declaration that holds the gap is left
+Two constructs raise an error diagnostic and make no node: a generic (except the calls of Type operands) and a macro
+other than a statement `unreachable!()`. The declaration that holds the gap is left
 out of the module whole, never in part: a gap in a function body drops that function, a gap in a
 variant default drops the enum, a gap in a constant initializer drops the constant. Lowering then
 continues with the next declaration, so the other declarations stay in the module. A gap inside a
@@ -276,17 +332,17 @@ declaration is reported once: lowering of that declaration stops at the first on
 
 `tests/source/ir/MAREAIrExamples.cpp` lowers all 23 programs under `examples/` through `lex`, `parse`,
 `sema` and `ir`. Each one checks with zero errors, lowers to a `MODULE`, dumps as text and raises
-exactly the codes in its row. The 16 programs not listed raise none.
+exactly the codes in its row. The 20 programs not listed raise none.
 
 | Program | Codes |
 |---|---|
-| `attributes/layout.marea` | 4004 |
-| `basics/blocks.marea` | 4004 |
-| `basics/primitive_types.marea` | 4004 |
 | `interop/c_library.marea` | 4005 |
-| `interop/gpu_handles.marea` | 4004 |
 | `macros/builtin.marea` | 4005 |
 | `types/generics.marea` | 4004 |
+
+The programs `attributes/layout.marea`, `basics/blocks.marea`, `basics/primitive_types.marea` and
+`interop/gpu_handles.marea` raised 4004 for a built-in call or a static call on a written type. They raise none
+now (see Type operands).
 
 ## Diagnostics
 
@@ -295,7 +351,7 @@ exactly the codes in its row. The 16 programs not listed raise none.
 | 4001 | `UNSUPPORTED_FORK_JOIN` | no longer raised: `fork_join`, `partition`, `with` and `spawn` are lowered. The code and its name stay in the public header, so a value is never reused. |
 | 4002 | `UNSUPPORTED_SWITCH` | no longer raised: a `switch` statement is lowered. The code and its name stay in the public header, so a value is never reused. |
 | 4003 | `UNSUPPORTED_FOR_EACH` | no longer raised: a `for each` statement is lowered. The code and its name stay in the public header, so a value is never reused. |
-| 4004 | `UNINSTANTIATED_GENERIC` | a generic function, structure or `implementation`; a call with explicit type arguments (`identity<integer32>(5)`); a call whose result type is an unbound generic; a `GENERIC_NAME` outside a call |
+| 4004 | `UNINSTANTIATED_GENERIC` | a generic function, structure or `implementation`; a call with explicit type arguments that is not a built-in call (`identity<integer32>(5)`); a call whose result type is an unbound generic; a `GENERIC_NAME` that is not the receiver of a call, or whose head is a generic type of the unit; a function type as the type argument of a built-in or a static call. `size_of<T>()`, `align_of<T>()`, `convert<T>(x)` and `array<integer32>.filled(8, 0)` raise nothing. |
 | 4005 | `UNSUPPORTED_MACRO` | `print!("hi");`, a module-level `static_assert!(true);`, a macro call inside an expression. `unreachable!();` as a statement is lowered and raises nothing. |
 
 The message of 4005 and of 4004 on a declaration names the macro or the declaration in single quotes.
@@ -330,19 +386,29 @@ Each diagnostic carries the position of the construct that raised it.
   scrutinee. A backend must infer it from the scrutinee.
 - A call to a function that was left out of the module still lowers to a plain name that points at
   nothing.
-- Built-ins with explicit type arguments (`size_of<T>()`, `align_of<T>()`, `convert<T>(x)`) and a
-  type-qualified static call (`array<integer32>.filled(8, 0)`) are not user generics, but raise 4004,
-  because the IR erases type arguments and a call that keeps only its name would be wrong. They need an
-  IR form or a diagnostic code of their own.
+- A `TYPE_NAME` is a written name, not a resolved type. The IR does not say whether `Light` in `size_of<Light>()` is
+  a structure, a built-in or a generic parameter, and does not check that a built-in gets the number of type
+  arguments it needs. A backend must look the name up and reject what it cannot handle.
+- The built-ins are a fixed list in the IR: `size_of`, `align_of` and `convert`. A new built-in is a change of the
+  IR. The unit is checked for a function or an import with the same name, but not for a parameter or a local, and
+  the IR cannot see what another file declares: an imported function that shares a built-in name is taken as the
+  built-in when the import does not bind that name.
+- A function type as a type argument of a built-in or of a static call is not lowered and raises 4004, because a
+  `TYPE_NAME` has no place for its parameters and its result. A `GENERIC_NAME` that is not the receiver of a call
+  (`array<integer32>.LIMIT`) also raises 4004.
+- A static call on a generic type of another namespace lowers, but a call of a generic function of another
+  namespace with explicit type arguments (`other.maximum<integer32>(1, 2)`) still raises 4004: only the three
+  built-ins have a call form with a type argument on the function.
 - The hidden loop variable of a for-range loop has no type name (sema gives none for a range bound). A
   backend must infer it from the first bound.
 - `LOCAL_DECLARATION` never carries the `MUTABLE` flag, except the hidden loop variable of a for-range loop: the
   AST has no write-target flag for a local.
 - The sema typed tree gives a type name only for a call result, a struct literal and a few expression
   shapes, so the type name of a declaration is the head name written in the source. A type argument,
-  and any `FUNCTION_TYPE`, is lost.
+  and any `FUNCTION_TYPE`, is lost on a declaration; only the operand of a built-in or of a static call keeps its
+  type arguments.
 - There is no linking between modules: an imported name stays a plain name.
-- The tree builder and the dump are recursive. A very deep tree needs a large stack; no test goes
-  deeper than the example programs.
+- The tree builder and the dump are recursive, and so is the lowering of a nested type argument. A very deep tree
+  needs a large stack; no test goes deeper than the example programs.
 - `MAREA_IrLowerCompilationUnit` reports a root that is not a `COMPILATION_UNIT` with
   `MAREA_IR_EXCEPT_ERROR_NULL_POINTER`, because the except set has no other fitting value.
