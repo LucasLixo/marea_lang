@@ -39,6 +39,9 @@ target_include_directories(marea_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/incl
 
 target_link_libraries(marea_tests PRIVATE marea::include GTest::gtest_main)
 
+# INFO: tests may include internal headers (see the cpp-testing skill).
+target_include_directories(marea_tests PRIVATE "${MAREA_FOLDER_LIB_INTERNAL}")
+
 target_compile_definitions(marea_tests PRIVATE "MAREA_TESTS_EXAMPLES_DIRECTORY=\"${MAREA_FOLDER_EXAMPLES}\"")
 
 if(TARGET Marea-Base)
@@ -55,12 +58,6 @@ endif()
 
 if(TARGET Marea-Sema)
     target_link_libraries(marea_tests PRIVATE marea::sema)
-
-    # INFO: only this one test file may include the internal sema header (see the cpp-testing skill, issue #28).
-    set_source_files_properties(
-        "${CMAKE_CURRENT_SOURCE_DIR}/source/sema/MAREASemaInternal.cpp"
-        PROPERTIES INCLUDE_DIRECTORIES "${MAREA_FOLDER_LIB_INTERNAL}"
-    )
 endif()
 
 if(TARGET Marea-Ir)
