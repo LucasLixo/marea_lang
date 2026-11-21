@@ -10,8 +10,7 @@ endif()
 set_property(GLOBAL PROPERTY MareaLibGuard ON)
 unset(TEMP_GUARD_SET)
 
-include("${MAREA_FOLDER_CMAKE_SETTINGS}/ConfigureLibTargets.cmake")
-ConfigureLibTargets()
-
-include("${MAREA_FOLDER_CMAKE_SETTINGS}/ConfigureLibPrecompiledHeaders.cmake")
-ConfigureLibPrecompiledHeaders()
+# Include and internal come first: the stage libraries in source link them
+add_subdirectory("${MAREA_FOLDER_LIB_INCLUDE}" "${CMAKE_CURRENT_BINARY_DIR}/Include")
+add_subdirectory("${MAREA_FOLDER_LIB_INTERNAL}" "${CMAKE_CURRENT_BINARY_DIR}/Internal")
+add_subdirectory("${MAREA_FOLDER_LIB_SOURCE}" "${CMAKE_CURRENT_BINARY_DIR}/Source")
