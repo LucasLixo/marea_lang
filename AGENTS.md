@@ -5,9 +5,10 @@ description: Global policy for agents working in the Marea Lang repository - sco
 
 # Marea Lang
 
-A statically-typed programming language of its own, in C11, on a modern CMake setup, with struct, enum, and
+A statically-typed programming language of its own, in C11, on a modern CMake setup, with structure, enum, and
 explicit function types checked once at compile/parse time and fully erased before code generation, compiled to
-native code or to C11 (no VM, no bytecode, no JIT), with arena memory and static ownership/borrow rules, and one C
+bytecode for a reference interpreter or to C11 from one IR (no JIT), with scoped memory and static ownership/borrow
+rules, and one C
 macro that registers a function for the language runtime, with no external generator and no hand-written glue on any side. The
 project is independent: no tie to any other engine, language, or repository, with its own name, license, and
 structure.
@@ -20,12 +21,17 @@ The rule that shapes every decision here:
 
 - **The compiler core is C11**, written from scratch - no legacy tree to reorganize, no inherited
   source to attribute.
-- **The compilation target is native code (LLVM or an own backend) or a transpile to C11** built with clang or
-  gcc. There is no VM, no bytecode and no JIT, so one execution path exists and no second one can diverge from it.
-- **Memory is arena-based with static ownership and borrow rules.** Primitives and structs pass by value. Parallel
+- **One IR, two backends.** A bytecode backend with a small reference interpreter (portable, embedding)
+  and a C11 backend built with clang or gcc (maximum performance). Both must give the same observable behavior,
+  and a parity test runs every example through both. There is no JIT. The language has no standard library; only
+  the namespace `c` is reserved. A host can replace a library or runtime function from C (never `c`), and
+  reloads modules itself through a small C module API; hot reload is not a language feature.
+- **Memory is scoped (regions) with static ownership and borrow rules.** Every non-primitive value has one owner. A
+  primitive or a `#[value]` type passes by value; any other type is a read-only borrow, or a write borrow with
+  `mutable`. A reference lives only for one call and is never stored or returned. Parallel
   code uses structured fork-join or a native thread pool, and the type system guarantees ownership and immutability
   across threads.
-- **Typing is compile/parse-time only.** `struct`, `enum`, and explicit function types are checked statically and
+- **Typing is compile/parse-time only.** `structure`, `enum`, and explicit function types are checked statically and
   then fully erased before code generation - zero cost at runtime.
 - **One binding declaration, two consumers.** A single C registration macro exposes a function to the language
   runtime; there is no external binding generator and no per-language glue written by hand.
