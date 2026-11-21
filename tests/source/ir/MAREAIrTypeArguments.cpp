@@ -5,6 +5,8 @@
 
 #include "tests/MAREAIrHelpers.hpp"
 
+#include "marea/internal/ir/MAREAIrInternal.h"
+
 namespace
 {
     const MAREA_Uinteger32 GENERIC{ MAREA_IR_DIAGNOSTIC_CODE_UNINSTANTIATED_GENERIC };
@@ -337,6 +339,33 @@ TEST(MAREAIrTypeArguments, GapInABuiltinArgumentDropsTheDeclaration)
     EXPECT_EQ(MAREA_codesOf(SOURCE), (Codes{ GENERIC, GENERIC })) << "The generic function and the generic call inside the built-in call must each raise once.";
 
     EXPECT_EQ(MAREA_namesOf(SOURCE), "keep") << "The function that holds the gap must be dropped.";
+}
+
+TEST(MAREAIrTypeArguments, UnitIsForgottenWhenTheLoweringEnds)
+{
+    GTEST_COUT << "Validating the context keeps no pointer to a unit after its lowering ends, so a later expression is judged alone." << std::endl;
+
+    MAREA_IrFixture first(RESOLVE_EXTERNAL);
+
+    ASSERT_EQ(first.MAREA_lower("namespace main; function convert(value: integer32): integer32 return value; end"), MAREA_IR_EXCEPT_SUCCESS) << "The first unit must lower.";
+
+    MAREA_IrFixture second(RESOLVE_EXTERNAL);
+
+    ASSERT_EQ(second.sema.MAREA_sema("namespace main; constant VALUE: integer32 = convert<integer32>(5);", "main.marea"), MAREA_SEMA_EXCEPT_SUCCESS) << "The second unit must pass sema.";
+
+    const MAREA_SemaTypedNode *root{ nullptr };
+
+    ASSERT_EQ(MAREA_SemaBuildTypedAst(second.sema.context, second.sema.parser.root, &root), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "The typed tree must build.";
+
+    const MAREA_SemaTypedNode *call{ MAREA_IrTypedFindChild(MAREA_IrTypedChildAt(root, MAREA_SemaTypedNodeGetChildCount(root) - 1), MAREA_AST_KIND_CALL_EXPRESSION) };
+
+    ASSERT_NE(call, nullptr) << "The constant must hold the call.";
+
+    MAREA_IrNode *lowered{ nullptr };
+
+    ASSERT_EQ(MAREA_IrLowerExpression(first.context, call, &lowered), MAREA_IR_EXCEPT_SUCCESS) << "The call must lower.";
+
+    ASSERT_NE(lowered, nullptr) << "The call must be a built-in call, because no unit is being lowered.";
 }
 
 TEST(MAREAIrTypeArguments, BuiltinCallsRaiseNothingAndKeepTheirDeclaration)

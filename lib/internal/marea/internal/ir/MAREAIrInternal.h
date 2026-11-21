@@ -21,7 +21,8 @@ MAREA_BEGIN_EXTERN_C
 
     /**
      * @brief Body of the opaque ir context: the arena and the sink it was created with, and the typed root
-     * of the unit that is being lowered, which tells whether the unit binds a name of its own.
+     * of the unit that is being lowered, which tells whether the unit binds a name of its own. The root is null
+     * when no unit is being lowered.
      */
     struct MAREA_IrContext
     {
