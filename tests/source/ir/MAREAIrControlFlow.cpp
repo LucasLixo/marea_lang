@@ -270,6 +270,28 @@ TEST(MAREAIrControlFlow, SwitchArmWithAnUnsupportedStatementDropsTheFunction)
     EXPECT_EQ(fixture.MAREA_irCodes(), std::vector<MAREA_Uinteger32>{ MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_MACRO }) << "The macro in the arm must raise its own code once.";
 }
 
+TEST(MAREAIrControlFlow, SwitchDefaultArmBeforeTheCasesStillEndsTheChain)
+{
+    GTEST_COUT << "Validating a default arm written before the cases becomes the else of the chain, after every case." << std::endl;
+
+    EXPECT_EQ(MAREA_lowerBody("", "a: integer32", "switch a default then return; case 1 then break; case 2 then continue; end"), "(BLOCK (BLOCK (LOCAL_DECLARATION $switch (IDENTIFIER a)) (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch) (INTEGER_LITERAL 1)) (BLOCK (BREAK_STATEMENT)) (ELSEIF_CLAUSE (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch) (INTEGER_LITERAL 2)) (BLOCK (CONTINUE_STATEMENT))) (ELSE_CLAUSE (BLOCK (RETURN_STATEMENT))))))") << "The default must come last in the chain, whatever its place in the source.";
+}
+
+TEST(MAREAIrControlFlow, SwitchWithAGapInACaseValueOrTheDefaultDropsTheFunction)
+{
+    GTEST_COUT << "Validating a gap in a case value, and a gap in the default arm, each drop the function and raise one diagnostic." << std::endl;
+
+    for (const char *body : { "switch a case print!(\"hi\") then return; end", "switch a case 1 then return; default then print!(\"hi\"); end" }) {
+        MAREA_IrFixture fixture;
+
+        ASSERT_EQ(fixture.MAREA_lower(std::string("namespace main; function keep() end function lose(a: integer32) ") + body + " end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+
+        EXPECT_EQ(MAREA_IrNodeGetChildCount(fixture.module), 1U) << "Only the lowerable function must remain: " << body;
+
+        EXPECT_EQ(fixture.MAREA_irCodes(), std::vector<MAREA_Uinteger32>{ MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_MACRO }) << "The gap must raise its own code once: " << body;
+    }
+}
+
 TEST(MAREAIrControlFlow, ForEachBecomesItsOwnKindWithTheNameAsText)
 {
     GTEST_COUT << "Validating a for-each loop lowers to one FOR_EACH_STATEMENT with the value name as text, the collection and the body." << std::endl;
