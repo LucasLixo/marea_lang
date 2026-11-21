@@ -22,7 +22,7 @@ MAREA_SemaCheckCompilationUnit(sema, root);   /* once per file, dependencies fir
 `MAREA_SemaCheckCompilationUnit` returns an error only for a null argument or an out of memory. A rule
 violation is a diagnostic in the sink. A size that does not fit in `MAREA_IntegerSize` (a diagnostic
 message, or the growth of a name table) is also an out of memory: nothing is allocated or copied.
-Every sema diagnostic is an error, in the range 3001-3024.
+Every sema diagnostic is an error, in the range 3001-3025.
 The lexer file name decides the path rule, so call `MAREA_LexContextSetFileName` with a project
 relative path with forward slashes and the `.marea` extension before the lex step.
 
@@ -95,6 +95,20 @@ of the `fork_join`.
 **Control flow.** A function with a return type ends every path with `return value;`, through `if`,
 `elseif`, `else`, scope blocks and `switch`. A loop is never an ending path. `unreachable!()` and
 `compile_error!()` end a path. A `switch` over an enum names every variant or has a `default`.
+
+**Switch arms.** A `switch` has at most one `default` arm, and no `case` value appears twice. Each second
+and later `default` arm is rejected with `DUPLICATE_SWITCH_ARM` (3025), and so is each `case` value that
+appeared before, in one list (`case 1, 1`) or across arms. The first use is never reported, and each repeat
+is one diagnostic, at the repeated item. Two values are the same when they are built from the same literals,
+names and unary operators with the same text (`1` and `1`, `-1` and `-1`, `"a"` and `"a"`, `a.LIMIT` and
+`a.LIMIT`). Over an enum a bare and a qualified name of one variant (`red`, `Color.red`) are the same
+variant, as in the coverage check. Two broken (`ERROR_NODE`) values are never compared. The check runs for
+every scrutinee type, and it does not replace `NON_EXHAUSTIVE_SWITCH`: a `switch` over an enum with a repeat
+and a missing variant raises both. The rule follows the grammar (`switch_statement` has one optional
+`default_arm`) and the arms of a `switch` do not fall through, so a repeated value is an arm that never runs
+and a second `default` is an arm that the IR would drop. The place of the `default` is not checked: the
+grammar puts it last, but the parser accepts it anywhere and the IR lowers it as the last test, so a
+`default` before a `case` raises nothing here.
 
 **Entry point.** In the namespace `main`, `function main` has exactly the parameter `arguments:
 array<string>` with no word, and the result `integer32`. Sema never requires a `main`.
@@ -171,6 +185,7 @@ real, instantiated result type is deferred to when the `ir` stage needs one for 
 | 3022 | `MISSING_RETURN` | `if a then return 1; end` as the whole body of a function with a return type |
 | 3023 | `INVALID_MAIN_SIGNATURE` | `function main(): integer32` in the namespace `main` |
 | 3024 | `INVALID_PARALLEL_JUMP` | `continue;`, `break;` or `return;` in a `partition` body when no loop of the body is the target |
+| 3025 | `DUPLICATE_SWITCH_ARM` | a second `default` arm in a `switch`, or `case 1 then ... case 1 then ...`, `case 1, 1 then ...`, `case Color.red` twice |
 
 ## Gaps
 
@@ -184,5 +199,13 @@ real, instantiated result type is deferred to when the `ir` stage needs one for 
 - A `break`, `continue` or `return` that stands directly in a `fork_join` block, outside every `partition` body
   (also around a `spawn`), is accepted with no diagnostic. The grammar does not say whether leaving a
   `fork_join` this way joins the started workers first, so the form is left as it was.
+- A `default` arm that is not the last arm of a `switch` is accepted. The grammar (`switch_statement`) puts the
+  `default_arm` last, but the parser accepts it anywhere, and sema leaves the form as it is: the place of an
+  arm is a syntax rule, so it belongs to the parser, and the IR lowers a `default` that comes first as the last
+  test.
+- `DUPLICATE_SWITCH_ARM` compares the text of a value, not its number: `1` and `0x1`, or `1.0` and `1.00`, are
+  taken for different values. A constant that is named in one arm and written as its literal in another is not
+  matched either, and a name of an enum is matched by the variant name only, so `Color.red` and `Other.red`
+  count as one. A case value that is a call or another computed expression is never compared.
 - A `break` or `continue` that is not inside any loop is not reported.
 - A `with` statement is not an ending path for `MISSING_RETURN`, even when its body returns.
