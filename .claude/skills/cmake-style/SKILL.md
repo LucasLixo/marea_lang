@@ -10,7 +10,7 @@ globs: "**/CMakeLists.txt,**/*.cmake"
 
 ## Context and Objective
 
-The build is small and stays small: a root `CMakeLists.txt` and `tests/CMakeLists.txt`. Match what they do. Governing rules: the project [AGENTS.md](../../../AGENTS.md) (it wins over this file); the design record is `temp/OBJETIVO.md` (objectives 4, 11, 37 and decision 38), which `temp/` keeps out of git. Build commands are `mise` tasks when a matching task exists (`config:cmake`, `build:marea`); never hand-roll the configure line.
+The root `CMakeLists.txt` only wires the build; each responsibility lives in its own file under `cmake/`: `cmake/functions/` (`Basic.cmake` with `BasicParseArguments`, `BasicSet` and friends, `FindExecutable.cmake`) and `cmake/settings/` (one `Configure<Name>.cmake` macro per concern: folders, policies, compiler ID, build type, options, mise tools, third-party checks, library targets, precompiled header). Match what they do. Governing rules: the project [AGENTS.md](../../../AGENTS.md) (it wins over this file); the design record is `temp/OBJETIVO.md` (objectives 4, 11, 37 and decision 38), which `temp/` keeps out of git. Build commands are `mise` tasks when a matching task exists (`config:cmake`, `build:marea`); never hand-roll the configure line.
 
 A section marked "planned" describes work that is not in the repository yet. Do not invent its files; write them only when the work is requested, and then update the section.
 
@@ -39,7 +39,9 @@ An upstream option of a third-party project keeps the spelling that project defi
 - Global defaults of the language come from CMake options and not from a `marea.toml`: `MAREA_DEFAULT_SIMD`, `MAREA_DEFAULT_INLINE` and `CMAKE_BUILD_TYPE` (planned, not in the repository yet; objective 37).
 - `MAREA_OPTION_SHARED_LIBS` selects a shared build, OFF by default (see `## Targets and linkage`; planned, not in the repository yet).
 
-Declare an option in the root `CMakeLists.txt`, near the top, in one block. Move the block to a module only when the repository has a `cmake/` folder.
+Declare an option in `cmake/settings/ConfigureOptions.cmake`, in its one block. A folder path is defined once in `cmake/settings/ConfigureFolders.cmake` as `MAREA_FOLDER_*`; read that variable and never rebuild the path from `CMAKE_SOURCE_DIR`. `ConfigureMiseTools` checks that every tool of `mise.toml` [tools] provides its executables; a new tool there needs an entry in that file.
+
+Every file under `cmake/` starts with a guard that fails when it is included twice, and a settings file exposes one macro named like the file.
 
 ## Keyword arguments
 
