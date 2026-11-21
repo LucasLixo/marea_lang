@@ -12,7 +12,7 @@ unset(TEMP_GUARD_SET)
 
 # Macro
 macro(ConfigureBuildType)
-    basicparsearguments(
+    BasicParseArguments(
         ConfigureBuildType
         PARAM
         ""

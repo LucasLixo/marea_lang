@@ -12,7 +12,7 @@ unset(TEMP_GUARD_SET)
 
 # Prepare and get executable
 function(FindExecutable)
-    basicparsearguments(
+    BasicParseArguments(
         FindExecutable
         PARAM
         "REQUIRED"
