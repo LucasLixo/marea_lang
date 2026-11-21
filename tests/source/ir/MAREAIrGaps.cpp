@@ -287,3 +287,11 @@ TEST(MAREAIrGaps, ExamplesRaiseTheGapsTheyContain)
         EXPECT_NE(std::find(CODES.begin(), CODES.end(), code), CODES.end()) << "The example " << file << " must raise code " << code << ".";
     }
 }
+
+TEST(MAREAIrGaps, RemainingCodesKeepTheirNumbers)
+{
+    GTEST_COUT << "Validating that the two codes still raised keep the numbers 4004 and 4005 after 4001 to 4003 were retired." << std::endl;
+
+    EXPECT_EQ(GENERIC, MAREA_UINTEGER_32(4004)) << "UNINSTANTIATED_GENERIC must stay 4004.";
+    EXPECT_EQ(MACRO, MAREA_UINTEGER_32(4005)) << "UNSUPPORTED_MACRO must stay 4005.";
+}
