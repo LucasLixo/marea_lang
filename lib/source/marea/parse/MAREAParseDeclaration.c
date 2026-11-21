@@ -35,24 +35,11 @@ MAREA_Boolean MAREA_CALL MAREA_ParseIsDeclarationStart(MAREA_TokenKind kind)
     }
 }
 
-static void MAREA_CALL MAREA_G_AdoptAttributes(MAREA_ParseState *state, MAREA_AstNode *node, const MAREA_AstNode *holder)
-{
-    const MAREA_IntegerSize count = MAREA_AstNodeGetChildCount(holder);
-
-    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < count; index = (index + MAREA_INTEGER_SIZE(1))) {
-        const MAREA_AstNode *attribute = MAREA_NULLPTR;
-
-        if (MAREA_AstNodeGetChildAt(holder, index, &attribute) == MAREA_AST_EXCEPT_SUCCESS) {
-            MAREA_ParseNodeAdd(state, node, (MAREA_AstNode *)attribute);
-        }
-    }
-}
-
 static MAREA_AstNode *MAREA_CALL MAREA_G_ParseConstant(MAREA_ParseState *state, MAREA_AstNode *holder)
 {
     MAREA_AstNode *declaration = MAREA_ParseNodeBegin(state, MAREA_AST_KIND_CONSTANT_DECLARATION);
 
-    MAREA_G_AdoptAttributes(state, declaration, holder);
+    MAREA_ParseAdoptAttributes(state, declaration, holder);
 
     MAREA_IGNORE(MAREA_ParseAdvance(state));
 
@@ -87,7 +74,7 @@ static MAREA_AstNode *MAREA_CALL MAREA_G_ParseTypeDeclaration(MAREA_ParseState *
 {
     MAREA_AstNode *declaration = MAREA_ParseNodeBegin(state, MAREA_AST_KIND_TYPE_DECLARATION);
 
-    MAREA_G_AdoptAttributes(state, declaration, holder);
+    MAREA_ParseAdoptAttributes(state, declaration, holder);
 
     MAREA_IGNORE(MAREA_ParseAdvance(state));
 
@@ -108,18 +95,6 @@ static MAREA_AstNode *MAREA_CALL MAREA_G_ParseTypeDeclaration(MAREA_ParseState *
     return declaration;
 }
 
-// INFO: A member loop must move on every pass, so a bad member is marked, skipped to a safe token and then forced forward.
-static void MAREA_CALL MAREA_G_SkipBadMember(MAREA_ParseState *state, MAREA_IntegerSize before, MAREA_AstNode *parent)
-{
-    MAREA_ParseNodeAdd(state, parent, MAREA_ParseErrorNode(state));
-
-    MAREA_ParseSynchronize(state);
-
-    if (state->index == before) {
-        MAREA_IGNORE(MAREA_ParseAdvance(state));
-    }
-}
-
 static MAREA_AstNode *MAREA_CALL MAREA_G_ParseField(MAREA_ParseState *state)
 {
     MAREA_AstNode *holder = MAREA_ParseNodeBegin(state, MAREA_AST_KIND_BLOCK);
@@ -128,7 +103,7 @@ static MAREA_AstNode *MAREA_CALL MAREA_G_ParseField(MAREA_ParseState *state)
 
     MAREA_AstNode *field = MAREA_ParseNodeBegin(state, MAREA_AST_KIND_FIELD_DECLARATION);
 
-    MAREA_G_AdoptAttributes(state, field, holder);
+    MAREA_ParseAdoptAttributes(state, field, holder);
 
     MAREA_ParseNodeAdd(state, field, MAREA_ParseIdentifier(state, "expected a field name"));
 
@@ -147,7 +122,7 @@ static MAREA_AstNode *MAREA_CALL MAREA_G_ParseStructure(MAREA_ParseState *state,
 {
     MAREA_AstNode *declaration = MAREA_ParseNodeBegin(state, MAREA_AST_KIND_STRUCTURE_DECLARATION);
 
-    MAREA_G_AdoptAttributes(state, declaration, holder);
+    MAREA_ParseAdoptAttributes(state, declaration, holder);
 
     MAREA_IGNORE(MAREA_ParseAdvance(state));
 
@@ -171,7 +146,7 @@ static MAREA_AstNode *MAREA_CALL MAREA_G_ParseStructure(MAREA_ParseState *state,
         } else {
             MAREA_ParseReport(state, MAREA_PARSE_DIAGNOSTIC_CODE_EXPECTED_TOKEN, MAREA_ParsePeekToken(state, MAREA_INTEGER_SIZE(0)), "expected a field or 'end'");
 
-            MAREA_G_SkipBadMember(state, before, declaration);
+            MAREA_ParseSkipBadMember(state, before, declaration);
         }
 
         if (state->index == before) {
@@ -190,7 +165,7 @@ static MAREA_AstNode *MAREA_CALL MAREA_G_ParseOpaque(MAREA_ParseState *state, MA
 {
     MAREA_AstNode *declaration = MAREA_ParseNodeBegin(state, MAREA_AST_KIND_OPAQUE_DECLARATION);
 
-    MAREA_G_AdoptAttributes(state, declaration, holder);
+    MAREA_ParseAdoptAttributes(state, declaration, holder);
 
     MAREA_IGNORE(MAREA_ParseAdvance(state));
 
@@ -255,7 +230,7 @@ static MAREA_AstNode *MAREA_CALL MAREA_G_ParseEnum(MAREA_ParseState *state, MARE
 {
     MAREA_AstNode *declaration = MAREA_ParseNodeBegin(state, MAREA_AST_KIND_ENUM_DECLARATION);
 
-    MAREA_G_AdoptAttributes(state, declaration, holder);
+    MAREA_ParseAdoptAttributes(state, declaration, holder);
 
     MAREA_IGNORE(MAREA_ParseAdvance(state));
 
@@ -275,7 +250,7 @@ static MAREA_AstNode *MAREA_CALL MAREA_G_ParseEnum(MAREA_ParseState *state, MARE
         } else {
             MAREA_ParseReport(state, MAREA_PARSE_DIAGNOSTIC_CODE_EXPECTED_TOKEN, MAREA_ParsePeekToken(state, MAREA_INTEGER_SIZE(0)), "expected a variant or 'end'");
 
-            MAREA_G_SkipBadMember(state, before, declaration);
+            MAREA_ParseSkipBadMember(state, before, declaration);
         }
 
         if (state->index == before) {
@@ -315,7 +290,7 @@ static MAREA_AstNode *MAREA_CALL MAREA_G_ParseContract(MAREA_ParseState *state, 
 {
     MAREA_AstNode *declaration = MAREA_ParseNodeBegin(state, MAREA_AST_KIND_CONTRACT_DECLARATION);
 
-    MAREA_G_AdoptAttributes(state, declaration, holder);
+    MAREA_ParseAdoptAttributes(state, declaration, holder);
 
     MAREA_IGNORE(MAREA_ParseAdvance(state));
 
@@ -335,7 +310,7 @@ static MAREA_AstNode *MAREA_CALL MAREA_G_ParseContract(MAREA_ParseState *state, 
         } else {
             MAREA_ParseReport(state, MAREA_PARSE_DIAGNOSTIC_CODE_EXPECTED_TOKEN, MAREA_ParsePeekToken(state, MAREA_INTEGER_SIZE(0)), "expected a function or 'end'");
 
-            MAREA_G_SkipBadMember(state, before, declaration);
+            MAREA_ParseSkipBadMember(state, before, declaration);
         }
 
         if (state->index == before) {
@@ -354,7 +329,7 @@ static MAREA_AstNode *MAREA_CALL MAREA_G_ParseFunction(MAREA_ParseState *state, 
 {
     MAREA_AstNode *declaration = MAREA_ParseNodeBegin(state, MAREA_AST_KIND_FUNCTION_DECLARATION);
 
-    MAREA_G_AdoptAttributes(state, declaration, holder);
+    MAREA_ParseAdoptAttributes(state, declaration, holder);
 
     MAREA_IGNORE(MAREA_ParseAdvance(state));
 
@@ -374,7 +349,7 @@ static MAREA_AstNode *MAREA_CALL MAREA_G_ParseFunction(MAREA_ParseState *state, 
         MAREA_ParseNodeAdd(state, declaration, MAREA_ParseWhereClause(state));
     }
 
-    MAREA_ParseNodeAdd(state, declaration, MAREA_ParseBlock(state));
+    MAREA_ParseNodeAdd(state, declaration, MAREA_ParseBlock(state, MAREA_BOOLEAN_FALSE));
 
     MAREA_ParseExpectEnd(state, "expected 'end' to close the function");
 
@@ -387,7 +362,7 @@ static MAREA_AstNode *MAREA_CALL MAREA_G_ParseImplementation(MAREA_ParseState *s
 {
     MAREA_AstNode *declaration = MAREA_ParseNodeBegin(state, MAREA_AST_KIND_IMPLEMENTATION_DECLARATION);
 
-    MAREA_G_AdoptAttributes(state, declaration, holder);
+    MAREA_ParseAdoptAttributes(state, declaration, holder);
 
     MAREA_IGNORE(MAREA_ParseAdvance(state));
 
@@ -419,7 +394,7 @@ static MAREA_AstNode *MAREA_CALL MAREA_G_ParseImplementation(MAREA_ParseState *s
         } else {
             MAREA_ParseReport(state, MAREA_PARSE_DIAGNOSTIC_CODE_EXPECTED_DECLARATION, MAREA_ParsePeekToken(state, MAREA_INTEGER_SIZE(0)), "expected a function, a constant or 'end'");
 
-            MAREA_G_SkipBadMember(state, before, declaration);
+            MAREA_ParseSkipBadMember(state, before, declaration);
         }
 
         if (state->index == before) {

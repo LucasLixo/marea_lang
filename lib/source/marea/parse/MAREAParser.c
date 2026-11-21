@@ -226,6 +226,22 @@ static void MAREA_CALL MAREA_G_ParseTopLevelItem(MAREA_ParseState *state, MAREA_
         return;
     }
 
+    if ((kind == MAREA_TOKEN_KIND_IDENTIFIER) && (MAREA_ParsePeekKind(state, MAREA_INTEGER_SIZE(1)) == MAREA_TOKEN_KIND_BANG) && (MAREA_ParsePeekKind(state, MAREA_INTEGER_SIZE(2)) == MAREA_TOKEN_KIND_LEFT_PAREN)) {
+        MAREA_AstNode *statement = MAREA_ParseNodeBegin(state, MAREA_AST_KIND_MACRO_STATEMENT);
+
+        MAREA_ParseAdoptAttributes(state, statement, holder);
+
+        MAREA_ParseNodeAdd(state, statement, MAREA_ParseExpression(state));
+
+        MAREA_IGNORE(MAREA_ParseExpect(state, MAREA_TOKEN_KIND_SEMICOLON, "expected ';' after the macro call"));
+
+        MAREA_ParseNodeEnd(state, statement);
+
+        MAREA_ParseNodeAdd(state, root, statement);
+
+        return;
+    }
+
     MAREA_AstNode *errorNode = MAREA_ParseErrorNode(state);
 
     if ((kind == MAREA_TOKEN_KIND_KEYWORD_END) || (kind == MAREA_TOKEN_KIND_KEYWORD_CASE) || (kind == MAREA_TOKEN_KIND_KEYWORD_DEFAULT) || (kind == MAREA_TOKEN_KIND_KEYWORD_ELSEIF) || (kind == MAREA_TOKEN_KIND_KEYWORD_ELSE)) {
