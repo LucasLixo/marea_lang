@@ -137,7 +137,7 @@ endfunction()
 
 # Set NAME to VALUE, also in the parent scope when given, and log it: BasicSet(NAME <var> VALUE <value> [PARENT_SCOPE])
 macro(BasicSet)
-    basicparsearguments(
+    BasicParseArguments(
         BasicSet
         PARAM
         "PARENT_SCOPE"
@@ -168,7 +168,7 @@ endmacro()
 
 # Execute function
 function(BasicExecuteCommand)
-    basicparsearguments(
+    BasicParseArguments(
         BasicExecuteCommand
         PARAM
         ""
@@ -207,7 +207,7 @@ endfunction()
 
 # Resolve a target's private Case-Case directory under the build root without changing its target name: BasicGetDirectoryTarget(OUTPUT <variable> TARGET <target>)
 macro(BasicGetDirectoryTarget)
-    basicparsearguments(
+    BasicParseArguments(
         BasicGetDirectoryTarget
         PARAM
         ""
@@ -225,7 +225,7 @@ macro(BasicGetDirectoryTarget)
 
     string(REGEX REPLACE "([A-Z]+)([A-Z][a-z])" "\\1-\\2" TEMP_DIRECTORY_NAME "${PARAM_TARGET}")
     string(REGEX REPLACE "([a-z0-9])([A-Z])" "\\1-\\2" TEMP_DIRECTORY_NAME "${TEMP_DIRECTORY_NAME}")
-    basicset(NAME ${PARAM_OUTPUT} VALUE "${MAREA_FOLDER_CMAKE_BINARY}/${TEMP_DIRECTORY_NAME}")
+    BasicSet(NAME ${PARAM_OUTPUT} VALUE "${MAREA_FOLDER_CMAKE_BINARY}/${TEMP_DIRECTORY_NAME}")
 
     # Unset
     unset(PARAM_OUTPUT)
@@ -235,7 +235,7 @@ endmacro()
 
 # Set every artifact output property to its target-private Case-Case directory: BasicSetTargetOutputDirectory(TARGET <target>)
 macro(BasicSetTargetOutputDirectory)
-    basicparsearguments(
+    BasicParseArguments(
         BasicSetTargetOutputDirectory
         PARAM
         ""
@@ -250,7 +250,7 @@ macro(BasicSetTargetOutputDirectory)
     )
 
     set(TEMP_OUTPUT_TARGET "${PARAM_TARGET}")
-    basicgetdirectorytarget(OUTPUT TEMP_TARGET_OUTPUT_DIRECTORY TARGET "${PARAM_TARGET}")
+    BasicGetDirectoryTarget(OUTPUT TEMP_TARGET_OUTPUT_DIRECTORY TARGET "${PARAM_TARGET}")
     set_target_properties(
         ${TEMP_OUTPUT_TARGET}
         PROPERTIES
@@ -267,7 +267,7 @@ endmacro()
 
 # Create a target-private generated directory: BasicGetDirectoryGenerate(OUTPUT <variable> TARGET <target> [SUFFIX <path>])
 macro(BasicGetDirectoryGenerate)
-    basicparsearguments(
+    BasicParseArguments(
         BasicGetDirectoryGenerate
         PARAM
         ""
@@ -286,7 +286,7 @@ macro(BasicGetDirectoryGenerate)
 
     set(TEMP_GENERATED_OUTPUT "${PARAM_OUTPUT}")
     set(TEMP_GENERATED_SUFFIX "${PARAM_SUFFIX}")
-    basicgetdirectorytarget(OUTPUT TEMP_TARGET_DIRECTORY TARGET "${PARAM_TARGET}")
+    BasicGetDirectoryTarget(OUTPUT TEMP_TARGET_DIRECTORY TARGET "${PARAM_TARGET}")
     set(${TEMP_GENERATED_OUTPUT} "${TEMP_TARGET_DIRECTORY}/Generated${TEMP_GENERATED_SUFFIX}")
 
     if(NOT EXISTS "${${TEMP_GENERATED_OUTPUT}}")
@@ -304,7 +304,7 @@ endmacro()
 
 # Function to force include header for entire target
 macro(BasicForceIncludeHeader)
-    basicparsearguments(
+    BasicParseArguments(
         BasicForceIncludeHeader
         PARAM
         ""
