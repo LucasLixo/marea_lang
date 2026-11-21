@@ -2,7 +2,7 @@
 name: cpp-testing
 mode: agent
 effort: medium
-description: Marea Lang GoogleTest conventions - tests live in tests/source/ and mirror the public header path (tests/source/marea/MAREAVersion.cpp), start with "tests/dependencies.hpp", and use the GTEST_COUT macro it defines. Tests use only the public accessor API of opaque structs, with one narrow exception for a defect that the public API cannot reach. TDD is mandatory, so no symbol ships without a test. Use when writing or changing any test under tests/, or before implementing a C/C++ symbol.
+description: Marea Lang GoogleTest conventions - tests live in tests/source/ and mirror the public header path (tests/source/marea/MAREAVersion.cpp), start with "tests/dependencies.hpp", and use the GTEST_COUT macro it defines. Tests prefer the public accessor API of opaque structs and may also use the internal API (internal headers under lib/internal/) when the public API cannot reach the behavior or a defect. TDD is mandatory, so no symbol ships without a test. Use when writing or changing any test under tests/, or before implementing a C/C++ symbol.
 globs: tests/**/*.cpp, tests/**/*.hpp
 argument-hint: <module or symbol under test>
 ---
@@ -43,10 +43,11 @@ Add another direct include only when the symbol under test is unavailable throug
 
 ### Tests and opaque structs
 
-[AGENTS.md](../../../AGENTS.md) says a public header holds opaque structs with accessor functions. A test is a consumer of the public API, so it follows that rule:
+[AGENTS.md](../../../AGENTS.md) says a public header holds opaque structs with accessor functions. A test is first a consumer of the public API, so the public API is the default:
 
-- Create, read and change an opaque struct only through its public functions (`MAREA_DiagnosticSinkCreate`, `MAREA_DiagnosticSinkGetCount`, ...). Never include an internal header (`lib/internal/`) to see inside a struct, never cast to a private layout and never read a field.
-- **Exception, internal header.** A test file may include an internal header (`lib/internal/`) only where a defect cannot be reached through the public API, for example an arithmetic overflow on a size that no public caller can make large. The test file records that reason in its single allowed comment block (this is the one place besides the copyright header where a comment is allowed, ASCII, one line per `//`). The file's `tests/CMakeLists.txt` entry adds the internal include directory for that one source file only (`set_source_files_properties`), never for the whole `marea_tests` target, so no other test can reach it. Use it for no other reason: the public API stays the rule. Recorded by the user decision of issue #28 (`tests/source/sema/MAREASemaInternal.cpp`).
+- Prefer the public functions (`MAREA_DiagnosticSinkCreate`, `MAREA_DiagnosticSinkGetCount`, ...) to create, read and change an opaque struct. Use them whenever they can reach the behavior under test.
+- **Internal API allowed.** A test may include an internal header (`lib/internal/`) and call internal functions where the public API cannot reach the behavior or a defect, for example an arithmetic overflow on a size that no public caller can make large, or a helper with no public entry point. `marea_tests` has the internal include directory for this. A test that does so adds one line `//` after the copyright header that says why the public API is not enough (ASCII). Never cast to a private layout to read a field when an internal accessor exists.
+  Decision of the user (issue #28, widened afterwards): see `tests/source/sema/MAREASemaInternal.cpp`.
 - Every accessor is tested through the observable result of the call, so a test also proves the accessor is enough for a real consumer. If a test cannot reach a value without opening the struct, the API is missing an accessor: add it test-first, or open the struct only with the reason recorded, as AGENTS.md requires.
 - Test the error path of each function that returns an `Except` enum (a null pointer, out of range, out of memory) as well as the success path.
 - A struct that is opened to the public (fields visible) may be checked field by field, only where its header says it is open.
@@ -88,7 +89,7 @@ EXPECT_STREQ(version, MAREA_VERSION) << "MAREA_GetVersion must return the MAREA_
 
 ### No comments
 
-No `//` or `/* */` anywhere, except the two-line copyright header at the top of the file (AGENTS.md requires it) and the reason comment of an internal-header test (see "Tests and opaque structs"). Use `GTEST_COUT` for output - at least one emission per `TEST` block:
+No `//` or `/* */` anywhere, except the two-line copyright header at the top of the file (AGENTS.md requires it) and the one-line reason comment of a test that uses the internal API (see "Tests and opaque structs"). Use `GTEST_COUT` for output - at least one emission per `TEST` block:
 
 ```cpp
 GTEST_COUT << "Validating MAREA_GetVersion returns a positive value." << std::endl;
@@ -125,5 +126,5 @@ MAREA_IGNORE(MAREA_DiagnosticSinkAdd(sink, code, severity, position, "message"))
 ## Validation
 
 - The new `TEST` is discovered and passes; the rest of `ctest` stays green.
-- The test touches an opaque struct only through its public functions.
+- The test touches an opaque struct through its public functions, or states in one line why it uses the internal API.
 - Every assertion has a `<<` message, every `TEST` emits `GTEST_COUT`, and the file has no comments besides the copyright header.
