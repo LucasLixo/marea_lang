@@ -56,8 +56,7 @@ CMAKE_EXPORT_COMPILE_COMMANDS = "ON"
 # Mode
 MAREA_BUILD_MODE = "Debug"
 
-# No [tasks."test:*"] yet - there is no tests/ tree in the repository yet.
-# Add those once that scaffolding exists.
+# [tasks."test:marea"] below builds marea_tests and runs it through ctest.
 
 [tasks."dev:ascii-check"]
 description = "Check every tracked text file for non-ASCII bytes (AGENTS.md's ASCII-only rule) - wraps tools/marea-ascii-check."
@@ -103,6 +102,18 @@ flag "--config <config>" help="Build configuration" default="{{env.MAREA_BUILD_M
 '''
 depends = ["config:cmake --config {{ usage.config }}"]
 run = 'cmake --build "cmake-build-{{ usage.config | lower }}" --target marea --parallel {{vars.PARALLEL}}'
+dir = "{{config_root}}"
+
+[tasks."test:marea"]
+description = "Build the marea_tests target (default Debug) and run it through ctest. Override: mise run test:marea -- --config Release"
+usage = '''
+flag "--config <config>" help="Build configuration" default="{{env.MAREA_BUILD_MODE}}"
+'''
+depends = ["config:cmake --config {{ usage.config }}"]
+run = [
+    'cmake --build "cmake-build-{{ usage.config | lower }}" --target marea_tests --parallel {{vars.PARALLEL}}',
+    'ctest --test-dir "cmake-build-{{ usage.config | lower }}" --output-on-failure',
+]
 dir = "{{config_root}}"
 
 [tasks."format:cpp-sources"]
