@@ -316,8 +316,9 @@ literal_entry       = identifier, "=", expression
                     | "[", expression, "]", "=", expression
                     | expression ;
 
-(* A built-in macro. The name is reserved. The user cannot declare one. *)
-macro_call          = identifier, "!", "(", [ argument_list ], ")" ;
+(* A built-in macro. The name is reserved. The user cannot declare one. The word "namespace" is *)
+(* the one keyword that may name a macro, for the built-in namespace!(). See note 12. *)
+macro_call          = ( identifier | "namespace" ), "!", "(", [ argument_list ], ")" ;
 
 
 (* ======================================= Notes ===================================== *)
@@ -348,3 +349,6 @@ macro_call          = identifier, "!", "(", [ argument_list ], ")" ;
 (*    checker gives an error. A new value (a call, a literal) needs no word: it has no       *)
 (*    other owner yet.                                                                      *)
 (* 11. A switch arm starts with "case" or "default", so an arm needs no "end" of its own.     *)
+(* 12. Macro name. A reserved word is never an identifier, but the built-in macro namespace!()  *)
+(*    gives the place of the call and shares its name with the keyword. The "!" and "(" after  *)
+(*    it tell the two apart, so "macro_call" lists "namespace" as the one exception.           *)
