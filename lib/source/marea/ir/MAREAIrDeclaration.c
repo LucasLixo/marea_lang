@@ -26,6 +26,16 @@ static MAREA_Boolean MAREA_CALL MAREA_G_HasChildOfKind(const MAREA_SemaTypedNode
     return (MAREA_IrTypedFindChild(typed, kind) != MAREA_NULLPTR) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
+// INFO: raises UNINSTANTIATED_GENERIC for a declaration, naming it when it has an IDENTIFIER.
+static MAREA_IrExcept MAREA_CALL MAREA_G_RaiseGenericDeclaration(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, const MAREA_Character8 *message)
+{
+    const MAREA_SemaTypedNode *name = MAREA_IrTypedFindChild(typed, MAREA_AST_KIND_IDENTIFIER);
+
+    const MAREA_AstNode *nameAst = MAREA_SemaTypedNodeGetAstNode(name);
+
+    return MAREA_IrRaise(context, MAREA_IR_DIAGNOSTIC_CODE_UNINSTANTIATED_GENERIC, MAREA_SemaTypedNodeGetAstNode(typed), message, MAREA_AstNodeGetText(nameAst), MAREA_AstNodeGetTextLength(nameAst));
+}
+
 // INFO: creates a node of a kind and names it after the IDENTIFIER child of the typed node.
 MAREA_IrExcept MAREA_CALL MAREA_IrCreateNamed(MAREA_IrContext *context, MAREA_IrKind kind, const MAREA_SemaTypedNode *typed, const MAREA_Character8 *qualifier, MAREA_IntegerSize qualifierLength, MAREA_IrNode **outNode)
 {
@@ -109,9 +119,8 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_AppendNamed(MAREA_IrContext *context, M
 
 static MAREA_IrExcept MAREA_CALL MAREA_G_LowerStructure(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode *parent)
 {
-    // INFO: a generic structure is a Gap, raised by the part that owns the Gap diagnostics.
     if (MAREA_G_HasChildOfKind(typed, MAREA_AST_KIND_GENERIC_PARAMETERS) == MAREA_BOOLEAN_TRUE) {
-        return MAREA_IR_EXCEPT_SUCCESS;
+        return MAREA_G_RaiseGenericDeclaration(context, typed, "A generic structure is not instantiated by the IR yet:");
     }
 
     MAREA_IrNode *node = MAREA_NULLPTR;
@@ -244,9 +253,8 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerConstant(MAREA_IrContext *context,
 
 static MAREA_IrExcept MAREA_CALL MAREA_G_LowerFunction(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, const MAREA_Character8 *qualifier, MAREA_IntegerSize qualifierLength, MAREA_IrNode *parent)
 {
-    // INFO: a generic function is a Gap, raised by the part that owns the Gap diagnostics.
     if (MAREA_G_HasChildOfKind(typed, MAREA_AST_KIND_GENERIC_PARAMETERS) == MAREA_BOOLEAN_TRUE) {
-        return MAREA_IR_EXCEPT_SUCCESS;
+        return MAREA_G_RaiseGenericDeclaration(context, typed, "A generic function is not instantiated by the IR yet:");
     }
 
     MAREA_IrNode *node = MAREA_NULLPTR;
@@ -321,7 +329,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerFunction(MAREA_IrContext *context,
 static MAREA_IrExcept MAREA_CALL MAREA_G_LowerImplementation(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode *parent)
 {
     if (MAREA_G_HasChildOfKind(typed, MAREA_AST_KIND_GENERIC_PARAMETERS) == MAREA_BOOLEAN_TRUE) {
-        return MAREA_IR_EXCEPT_SUCCESS;
+        return MAREA_G_RaiseGenericDeclaration(context, typed, "A generic implementation is not instantiated by the IR yet.");
     }
 
     const MAREA_SemaTypedNode *typeNode = MAREA_IrTypedFindChild(typed, MAREA_AST_KIND_NAMED_TYPE);
@@ -375,6 +383,14 @@ MAREA_IrExcept MAREA_CALL MAREA_IrLowerDeclaration(MAREA_IrContext *context, con
         return MAREA_G_LowerFunction(context, typed, qualifier, qualifierLength, parent);
     case MAREA_AST_KIND_IMPLEMENTATION_DECLARATION:
         return MAREA_G_LowerImplementation(context, typed, parent);
+    case MAREA_AST_KIND_MACRO_STATEMENT:
+    {
+        const MAREA_SemaTypedNode *name = MAREA_IrTypedFindChild(MAREA_IrTypedFindChild(typed, MAREA_AST_KIND_MACRO_CALL), MAREA_AST_KIND_IDENTIFIER);
+
+        const MAREA_AstNode *nameAst = MAREA_SemaTypedNodeGetAstNode(name);
+
+        return MAREA_IrRaise(context, MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_MACRO, MAREA_SemaTypedNodeGetAstNode(typed), "A macro at module level is not supported by the IR yet:", MAREA_AstNodeGetText(nameAst), MAREA_AstNodeGetTextLength(nameAst));
+    }
     default:
         // INFO: namespace, import, file attribute, type alias, contract and error nodes make no IR node.
         return MAREA_IR_EXCEPT_SUCCESS;

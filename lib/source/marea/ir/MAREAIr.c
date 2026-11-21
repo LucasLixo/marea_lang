@@ -3,6 +3,12 @@
 
 #include "marea/internal/ir/MAREAIrInternal.h"
 
+#include <string.h>
+
+#if !defined(MAREA_IR_MESSAGE_CAPACITY)
+    #define MAREA_IR_MESSAGE_CAPACITY MAREA_INTEGER_SIZE(160)
+#endif
+
 MAREA_IrExcept MAREA_CALL MAREA_IrContextCreate(MAREA_Arena *arena, MAREA_DiagnosticSink *sink, MAREA_IrContext **outContext)
 {
     if (arena == MAREA_NULLPTR) {
@@ -49,6 +55,46 @@ MAREA_DiagnosticSink *MAREA_CALL MAREA_IrContextGetDiagnostics(const MAREA_IrCon
     }
 
     return context->sink;
+}
+
+MAREA_IrExcept MAREA_CALL MAREA_IrRaise(MAREA_IrContext *context, MAREA_IrDiagnosticCode code, const MAREA_AstNode *at, const MAREA_Character8 *message, const MAREA_Character8 *name, MAREA_IntegerSize nameLength)
+{
+    if ((context == MAREA_NULLPTR) || (message == MAREA_NULLPTR)) {
+        return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    MAREA_Character8 buffer[MAREA_IR_MESSAGE_CAPACITY];
+
+    MAREA_IntegerSize length = strlen(message);
+
+    if (length > (MAREA_IR_MESSAGE_CAPACITY - MAREA_INTEGER_SIZE(1))) {
+        length = (MAREA_IR_MESSAGE_CAPACITY - MAREA_INTEGER_SIZE(1));
+    }
+
+    memcpy(buffer, message, length);
+
+    // INFO: the name is added as 'name' and cut when it does not fit; the message always ends with a NUL.
+    if ((name != MAREA_NULLPTR) && ((length + MAREA_INTEGER_SIZE(4)) < MAREA_IR_MESSAGE_CAPACITY)) {
+        MAREA_IntegerSize room = (MAREA_IR_MESSAGE_CAPACITY - length - MAREA_INTEGER_SIZE(4));
+
+        if (nameLength < room) {
+            room = nameLength;
+        }
+
+        buffer[length] = ' ';
+        buffer[(length + MAREA_INTEGER_SIZE(1))] = '\'';
+        memcpy((buffer + length + MAREA_INTEGER_SIZE(2)), name, room);
+        buffer[(length + MAREA_INTEGER_SIZE(2) + room)] = '\'';
+        length = (length + MAREA_INTEGER_SIZE(3) + room);
+    }
+
+    buffer[length] = '\0';
+
+    if (MAREA_DiagnosticSinkAdd(context->sink, (MAREA_Uinteger32)code, MAREA_DIAGNOSTIC_SEVERITY_ERROR, MAREA_AstNodeGetPosition(at), buffer) != MAREA_DIAGNOSTIC_EXCEPT_SUCCESS) {
+        return MAREA_IR_EXCEPT_ERROR_OUT_OF_MEMORY;
+    }
+
+    return MAREA_IR_EXCEPT_SUCCESS;
 }
 
 MAREA_IrExcept MAREA_CALL MAREA_IrLowerCompilationUnit(MAREA_IrContext *context, const MAREA_SemaTypedNode *typedRoot, const MAREA_IrNode **outModule)

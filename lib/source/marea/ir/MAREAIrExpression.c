@@ -69,13 +69,27 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerWithChildren(MAREA_IrContext *cont
     return result;
 }
 
+static MAREA_IrExcept MAREA_CALL MAREA_G_RaiseGeneric(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, const MAREA_Character8 *message)
+{
+    return MAREA_IrRaise(context, MAREA_IR_DIAGNOSTIC_CODE_UNINSTANTIATED_GENERIC, MAREA_SemaTypedNodeGetAstNode(typed), message, MAREA_NULLPTR, MAREA_INTEGER_SIZE(0));
+}
+
 static MAREA_IrExcept MAREA_CALL MAREA_G_LowerCall(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode)
 {
     const MAREA_SemaTypedNode *callee = MAREA_IrTypedChildAt(typed, MAREA_INTEGER_SIZE(0));
 
-    // INFO: a generic callee is a Gap, raised by the part that owns the Gap diagnostics.
-    if ((callee == MAREA_NULLPTR) || (MAREA_IrTypedKind(callee) == MAREA_AST_KIND_GENERIC_NAME)) {
+    if (callee == MAREA_NULLPTR) {
         return MAREA_IR_EXCEPT_SUCCESS;
+    }
+
+    // INFO: a generic callee, or explicit type arguments, ask for an instantiation that no pass performs.
+    if ((MAREA_IrTypedKind(callee) == MAREA_AST_KIND_GENERIC_NAME) || (MAREA_IrTypedFindChild(typed, MAREA_AST_KIND_TYPE_ARGUMENTS) != MAREA_NULLPTR)) {
+        return MAREA_G_RaiseGeneric(context, typed, "A call that needs a generic instantiation is not supported by the IR yet.");
+    }
+
+    // INFO: an unbound generic result type names no concrete type, so the call cannot carry one.
+    if (MAREA_SemaTypedNodeGetTypeClass(typed) == MAREA_SEMA_TYPE_CLASS_GENERIC) {
+        return MAREA_G_RaiseGeneric(context, typed, "A call with an unbound generic result type is not supported by the IR yet.");
     }
 
     MAREA_IrNode *node = MAREA_NULLPTR;
@@ -86,10 +100,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerCall(MAREA_IrContext *context, con
         return result;
     }
 
-    // INFO: an unbound generic result type names no concrete type, so no type name is carried over.
-    if (MAREA_SemaTypedNodeGetTypeClass(typed) != MAREA_SEMA_TYPE_CLASS_GENERIC) {
-        MAREA_IrNodeSetTypeNameFromTyped(node, typed);
-    }
+    MAREA_IrNodeSetTypeNameFromTyped(node, typed);
 
     *outNode = node;
 
@@ -188,9 +199,8 @@ MAREA_IrExcept MAREA_CALL MAREA_IrLowerExpression(MAREA_IrContext *context, cons
     case MAREA_AST_KIND_BINARY_EXPRESSION:
         return MAREA_G_LowerWithChildren(context, MAREA_IR_KIND_BINARY_EXPRESSION, typed, outNode);
     case MAREA_AST_KIND_UNARY_EXPRESSION:
-        // INFO: spawn is a Gap, raised by the part that owns the Gap diagnostics.
         if (MAREA_AstNodeGetOperator(MAREA_SemaTypedNodeGetAstNode(typed)) == MAREA_TOKEN_KIND_KEYWORD_SPAWN) {
-            return MAREA_IR_EXCEPT_SUCCESS;
+            return MAREA_IrRaise(context, MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_FORK_JOIN, MAREA_SemaTypedNodeGetAstNode(typed), "A spawn expression is not supported by the IR yet.", MAREA_NULLPTR, MAREA_INTEGER_SIZE(0));
         }
 
         return MAREA_G_LowerWithChildren(context, MAREA_IR_KIND_UNARY_EXPRESSION, typed, outNode);
@@ -210,6 +220,10 @@ MAREA_IrExcept MAREA_CALL MAREA_IrLowerExpression(MAREA_IrContext *context, cons
         return MAREA_G_LowerWithChildren(context, MAREA_IR_KIND_INDEX_ENTRY, typed, outNode);
     case MAREA_AST_KIND_VALUE_ENTRY:
         return MAREA_G_LowerWithChildren(context, MAREA_IR_KIND_VALUE_ENTRY, typed, outNode);
+    case MAREA_AST_KIND_GENERIC_NAME:
+        return MAREA_G_RaiseGeneric(context, typed, "A generic name is not supported by the IR yet.");
+    case MAREA_AST_KIND_MACRO_CALL:
+        return MAREA_IrRaise(context, MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_MACRO, MAREA_SemaTypedNodeGetAstNode(typed), "A macro call inside an expression is not supported by the IR yet.", MAREA_NULLPTR, MAREA_INTEGER_SIZE(0));
     default:
         return MAREA_IR_EXCEPT_SUCCESS;
     }
