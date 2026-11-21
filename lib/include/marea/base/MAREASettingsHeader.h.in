@@ -1,0 +1,30 @@
+// Copyright (c) 2026 Paulo Lucas Alves Franca
+// Licensed under the MIT License. See LICENSE.txt for full terms.
+
+#if !defined(MAREA_INCLUDE_BASE_MAREASETTINGSHEADER_H)
+    #define MAREA_INCLUDE_BASE_MAREASETTINGSHEADER_H
+
+    #cmakedefine SETTING_USE_SHORT_LIFE_BLOCK // NOLINT
+
+    #cmakedefine SETTING_USE_STRUCTS_PACKED // NOLINT
+
+    #cmakedefine SETTING_BUILD_DEBUG // NOLINT
+
+    #define MAREA_TITLE "@MAREA_METADATA_title@" // NOLINT
+
+    #define MAREA_LABEL "@MAREA_METADATA_label@" // NOLINT
+
+    #define MAREA_PACKAGE "@MAREA_METADATA_package@" // NOLINT
+
+    #define MAREA_VERSION_MAJOR @MAREA_METADATA_version_major@ // NOLINT
+
+    #define MAREA_VERSION_MINOR @MAREA_METADATA_version_minor@ // NOLINT
+
+    #define MAREA_VERSION_PATCH @MAREA_METADATA_version_patch@ // NOLINT
+
+    #define MAREA_VERSION_BUILD @MAREA_METADATA_version_build@ // NOLINT
+
+    #define MAREA_VERSION \
+        "@MAREA_METADATA_version_major@.@MAREA_METADATA_version_minor@.@MAREA_METADATA_version_patch@.@MAREA_METADATA_version_build@" // NOLINT
+
+#endif /* MAREA_INCLUDE_BASE_MAREASETTINGSHEADER_H */
