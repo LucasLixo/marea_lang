@@ -108,6 +108,12 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaVisit(MAREA_SemaContext *context, const MA
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
+    const MAREA_SemaExcept ATTRIBUTES_RESULT = MAREA_SemaCheckAttributes(context, node);
+
+    if (ATTRIBUTES_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+        return ATTRIBUTES_RESULT;
+    }
+
     const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(node);
 
     for (MAREA_IntegerSize index = 0; index < COUNT; ++index) {

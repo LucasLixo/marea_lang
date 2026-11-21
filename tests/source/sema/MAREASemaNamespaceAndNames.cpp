@@ -5,7 +5,8 @@
 
 #include "tests/MAREASemaHelpers.hpp"
 
-namespace {
+namespace
+{
     constexpr MAREA_Uinteger32 PATH_MISMATCH{ MAREA_SEMA_DIAGNOSTIC_CODE_NAMESPACE_PATH_MISMATCH };
     constexpr MAREA_Uinteger32 UNRESOLVED{ MAREA_SEMA_DIAGNOSTIC_CODE_UNRESOLVED_IMPORT };
     constexpr MAREA_Uinteger32 ALREADY_DECLARED{ MAREA_SEMA_DIAGNOSTIC_CODE_NAME_ALREADY_DECLARED };
@@ -32,7 +33,7 @@ namespace {
             return MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
         };
     }
-}
+} // namespace
 
 TEST(MAREASemaNamespaceAndNames, NamespaceMatchesPath)
 {
