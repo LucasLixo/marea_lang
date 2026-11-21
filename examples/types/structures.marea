@@ -1,0 +1,47 @@
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Step 7: structure and enum. A structure holds only fields. Its functions go in an
+-- "implementation" block (see methods.marea).
+-- A field is owned by its structure. An enum is always passed by value, like a primitive.
+
+namespace types.structures;
+
+#[public, value]
+structure Point
+    x: float64;
+    y: float64;
+end
+
+#[public]
+enum ShapeKind
+    Circle;
+    Rectangle;
+end
+
+#[public]
+structure Shape
+    kind: ShapeKind;
+    center: Point;
+    width: float64;
+    height: float64;
+end
+
+#[public]
+function area(shape: Shape): float64
+    if shape.kind == ShapeKind.Circle then
+        local radius: float64 = shape.width / 2.0;
+        return 3.14159265358979 * radius * radius;
+    end
+    return shape.width * shape.height;
+end
+
+#[public]
+function make_square(side: float64): Shape
+    return Shape{
+        kind = ShapeKind.Rectangle,
+        center = Point{ x = 0.0, y = 0.0 },
+        width = side,
+        height = side,
+    };
+end

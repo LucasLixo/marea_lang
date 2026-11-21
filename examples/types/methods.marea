@@ -1,0 +1,87 @@
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Step 7b: functions of a structure, in "implementation" blocks.
+-- Rules:
+--   1. A structure holds only data: fields. Its functions go in "implementation Name ... end",
+--      after the structure in the file (a name is declared before use).
+--   2. A type can have many implementation blocks, to group functions by purpose. A function
+--      name exists once per type: the same name in two blocks is an error.
+--   3. An implementation is in the same file as its type. A file cannot add functions to a
+--      type of another namespace. (Open point: allow this with an import, as an extension.)
+--   4. A function whose first parameter is named "self" is a method: point.length().
+--      A function without "self" is a static function: Vector2.origin().
+--   5. "self" follows the rules of any parameter (see basics/ownership.marea): no word is a
+--      read-only borrow, "mutable" is a write borrow, and a #[value] type is a copy.
+--   6. The call is only a normal function call with a different spelling. Dispatch is static.
+--      There is no virtual table, no inheritance and no hidden field. The layout of the
+--      structure (layout, align, pack) does not change because of its functions.
+--   7. Attributes work as everywhere: #[public], #[inline = force], #[simd = false]. An attribute
+--      on the implementation line is the default for all its functions, and the attribute of
+--      one function wins. A function without #[public] is private to the file.
+--   8. A callback is a field with a function type. It is data, so it is not a method.
+--   9. #[operator = name] lets a method give meaning to an operator on the structure. The names:
+--      add sub mul div rem negate (+ - * / % unary -), equal (== and !=), less (< <= > >=).
+--      The signature is checked, for example add must be (self, other: Vector2): Vector2.
+--      There is no operator that is not tied to a named method, so a reader can always find it.
+-- The same rules work for enum (see enum_methods.marea).
+
+namespace types.methods;
+
+import c.math.sqrt as square_root;
+
+#[public, value]
+structure Vector2
+    x: float64;
+    y: float64;
+end
+
+-- First block: construction and measure.
+#[public]
+implementation Vector2
+    function origin(): Vector2
+        return Vector2{ x = 0.0, y = 0.0 };
+    end
+
+    #[inline = force]
+    function length_squared(self: Vector2): float64
+        return self.x * self.x + self.y * self.y;
+    end
+
+    function length(self: Vector2): float64
+        return square_root(self.length_squared());
+    end
+end
+
+-- Second block: change the value.
+#[public]
+implementation Vector2
+    function scale(self: mutable Vector2, factor: float64)
+        self.x *= factor;
+        self.y *= factor;
+    end
+end
+
+-- Third block: the operators.
+#[public]
+implementation Vector2
+    #[operator = add]
+    function add(self: Vector2, other: Vector2): Vector2
+        return Vector2{ x = self.x + other.x, y = self.y + other.y };
+    end
+
+    #[operator = mul]
+    function multiply(self: Vector2, factor: float64): Vector2
+        return Vector2{ x = self.x * factor, y = self.y * factor };
+    end
+end
+
+#[public]
+function show_methods(): float64
+    local point: Vector2 = Vector2{ x = 3.0, y = 4.0 };
+    point.scale(2.0);
+    local doubled: Vector2 = point + point;      -- uses add
+    local halved: Vector2 = point * 0.5;         -- uses multiply
+    local start: Vector2 = Vector2.origin();
+    return point.length() + start.length();
+end

@@ -1,0 +1,41 @@
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Step 9: attributes with a key and a value.
+--   inline = force | never | auto     (an enum key: one member)
+--   build  = debug | release           (an enum key: one member) build this symbol in this mode,
+--                                      whatever the project mode
+-- A file attribute #![key = value] comes right after the namespace and sets the value for the
+-- whole file. A symbol attribute is closer, so it wins over the file, and the file wins over
+-- the project (marea.toml).
+
+namespace attributes.inline_and_build;
+
+#![inline = auto]
+
+#[private, inline = force]
+function square(value: integer32): integer32
+    return value * value;
+end
+
+#[private, inline = never]
+function slow_path(value: integer32): integer32
+    return value + 1;
+end
+
+-- Always built without optimization, so a debugger shows every variable. Useful for a check.
+#[public, build = debug]
+function inspect(value: integer32): integer32
+    local squared: integer32 = square(value);
+    return squared;
+end
+
+-- Always built with optimization, even in a debug project.
+#[public, build = release]
+function hot_loop(limit: integer32): integer32
+    local total: integer32 = 0;
+    for index in 0 .. limit do
+        total += slow_path(index);
+    end
+    return total;
+end

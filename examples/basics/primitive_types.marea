@@ -1,0 +1,39 @@
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Step 1: primitive types, literals, constants and conversion.
+-- Every type has a fixed width and a full name. No abbreviation and no C type (int, char).
+-- There is no dynamic type and no nil. Every variable has one type, always written.
+-- Every statement ends with ";". A body ends with "end", and no ";" follows that "end".
+
+namespace basics.primitive_types;
+
+constant MAX_LEVEL: integer32 = 99;
+constant EPSILON: float64 = 0.000001;
+
+#[public]
+function show_primitives()
+    local flag: boolean = true;
+    local small: integer8 = -128;
+    local medium: integer16 = 30000;
+    local normal: integer32 = 1_000_000;
+    local large: integer64 = 9_000_000_000;
+    local byte: unsigned8 = 255;
+    local mask: unsigned32 = 0xFF00FF00;
+    local bits: unsigned8 = 0b1010_0101;
+    local single: float32 = 1.5;
+    local double: float64 = 3.14159265358979;
+    local text: string = "tab:\t quote:\" end";
+end
+
+-- A literal takes the type of its target. A value outside the range is a compile error:
+--   local too_big: unsigned8 = 256;        -- error
+-- A conversion between types is always written, and it is checked.
+-- This function has a return type, so every path ends with "return value;".
+#[public]
+function convert_values(count: integer32): float64
+    local wide: integer64 = convert<integer64>(count);
+    local ratio: float64 = convert<float64>(wide);
+    local narrow: integer8 = convert<integer8>(count);   -- stops with an error if count > 127
+    return ratio;
+end

@@ -1,0 +1,27 @@
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Step 10: the SIMD switch. vector<T, N> is a type of the language core, with intrinsic functions. "simd" is not an enum key, so it takes true or false.
+-- The default is global: [defaults] simd in marea.toml.
+-- The closest one wins: symbol, then file, then project.
+-- With simd = false, a vector operation becomes a scalar loop with the same result.
+
+namespace attributes.simd;
+
+#![simd = true]
+
+#[public]
+function dot_product(left: vector<float32, 4>, right: vector<float32, 4>): float32
+    local product: vector<float32, 4> = left * right;
+    return product.sum();   -- sum is an intrinsic of vector<T, N>
+end
+
+-- A reference version for a test: it must give the same result as the SIMD version.
+#[public, simd = false]
+function dot_product_reference(left: vector<float32, 4>, right: vector<float32, 4>): float32
+    local total: float32 = 0.0;
+    for index in 0 .. 3 do
+        total += left[index] * right[index];
+    end
+    return total;
+end

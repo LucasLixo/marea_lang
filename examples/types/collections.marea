@@ -1,0 +1,30 @@
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Step 7a: collections. Each one has its types fixed when it is created.
+
+namespace types.collections;
+
+import collections.array;
+import collections.table;
+
+#[public]
+function show_collections(): integer32
+    -- array<T>: elements of one type. An element of a primitive type is copied out.
+    local values: array<float32> = array<float32>{ 1.0, 2.0, 3.0 };
+    local first: float32 = values[0];
+
+    -- array<T, N>: the size is part of the type.
+    local fixed: array<float32, 4> = array<float32, 4>{ 0.0, 0.0, 0.0, 0.0 };
+
+    -- table<K, V>: a key type and a value type. A mixed table does not exist;
+    -- use a structure when the fields have different types.
+    local scores: table<string, integer32> = table<string, integer32>{ ["ana"] = 10, ["leo"] = 7 };
+    scores["mia"] = 9;
+    local ana: integer32 = scores["ana"];
+    local count: integer32 = table.length(scores);
+
+    -- vector<T, N>: N values in one SIMD register.
+    local direction: vector<float32, 4> = vector<float32, 4>{ 1.0, 0.0, 0.0, 0.0 };
+    return count;
+end

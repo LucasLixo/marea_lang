@@ -1,0 +1,94 @@
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Step 2: operators. Both sides of a binary operator must have the same type.
+-- Precedence, from the strongest to the weakest:
+--   1. **                      power (right to left), stronger than the unary operators
+--   2. unary  -  ~  not        so -base ** 2 is -(base ** 2)
+--   3. *  /  %                 multiply, divide, remainder
+--   4. +  -                    add, subtract
+--   5. <<  >>                  shift
+--   6. &                       bit and
+--   7. ^                       bit exclusive or
+--   8. |                       bit or
+--   9. ==  !=  <  <=  >  >=    comparison. It does not chain: a < b < c is an error.
+--  10. and                     short circuit, left to right
+--  11. or                      short circuit, left to right
+-- "a or b and c" is accepted, and the checker gives a warning. Write (a or b) and c, or
+-- a or (b and c), to say what you mean.
+-- A bit operator is stronger than a comparison, so value & mask == 0 is (value & mask) == 0.
+-- "not" is the only negation. "!" is only in "!=" and after the name of a built-in macro.
+-- A parenthesis "( )" groups with any depth and changes the order.
+-- Overflow: a plain operator (+ - * ** and unary -) STOPS with an error on overflow, in debug
+-- and in release alike, so the two builds have the same meaning. Two explicit families exist:
+--   +%  -%  *%     wrap around (modulo 2^N)
+--   +|  -|  *|     saturate at the limit of the type
+-- Division by zero is an error for integers. For floats it follows IEEE 754 (infinity, NaN).
+
+namespace basics.operators;
+
+#[public]
+function arithmetic(left: integer32, right: integer32): integer32
+    local sum: integer32 = left + right;
+    local difference: integer32 = left - right;
+    local product: integer32 = left * right;
+    local quotient: integer32 = left / right;     -- integer division for integers
+    local remainder: integer32 = left % right;    -- the sign follows the left side
+    local negative: integer32 = -left;
+    local power: integer32 = left ** 2;
+    local negative_power: integer32 = -left ** 2;     -- -(left ** 2)
+    return sum + difference + product + quotient + remainder + negative + power + negative_power;
+end
+
+#[public]
+function float_arithmetic(left: float64, right: float64): float64
+    local quotient: float64 = left / right;
+    local power: float64 = left ** 0.5;
+    local remainder: float64 = left % right;
+    return quotient + power + remainder;
+end
+
+-- Wrap around and saturate, written on purpose.
+#[public]
+function limits(value: unsigned8): unsigned8
+    local wrapped: unsigned8 = value +% 200;       -- 100 +% 200 = 44
+    local saturated: unsigned8 = value +| 200;     -- 100 +| 200 = 255
+    local clamped: unsigned8 = value -| 200;       -- 100 -| 200 = 0
+    return wrapped ^ saturated ^ clamped;
+end
+
+-- A compound assignment is one instruction: name op= value.
+#[public]
+function compound(start: integer32): integer32
+    local value: integer32 = start;
+    value += 2;
+    value -= 1;
+    value *= 3;
+    value /= 2;
+    value %= 5;
+    value **= 2;
+    return value;
+end
+
+#[public]
+function bits(value: unsigned32): unsigned32
+    local inverted: unsigned32 = ~value;
+    local shifted_left: unsigned32 = value << 4;
+    local shifted_right: unsigned32 = value >> 4;
+    local masked: unsigned32 = value & 0xFF;
+    local combined: unsigned32 = value | 0x100;
+    local toggled: unsigned32 = value ^ 0xFFFF;
+    return inverted + shifted_left + shifted_right + masked + combined + toggled;
+end
+
+#[public]
+function comparison(left: integer32, right: integer32): boolean
+    local equal: boolean = left == right;
+    local different: boolean = left != right;
+    local bigger: boolean = left > right;
+    local inside: boolean = left >= 0 and right <= 100;
+    local outside: boolean = not inside or left == 0;
+    local grouped: boolean = (left > 0 or right > 0) and not (left == right);
+    local masked: boolean = (left & 0xFF) == 0;
+    return equal or different or bigger or outside or grouped or masked;
+end
