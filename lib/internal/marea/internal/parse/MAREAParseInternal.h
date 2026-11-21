@@ -7,10 +7,13 @@
     #include "marea/base/MAREACTypes.h"
     #include "marea/base/MAREAMacros.h"
     #include "marea/base/MAREAArena.h"
+    #include "marea/base/MAREADiagnostic.h"
     #include "marea/base/MAREASourcePosition.h"
+    #include "marea/lex/MAREAToken.h"
     #include "marea/lex/MAREATokenKind.h"
     #include "marea/parse/MAREAAst.h"
     #include "marea/parse/MAREAAstKind.h"
+    #include "marea/parse/MAREAParser.h"
 
 MAREA_BEGIN_EXTERN_C
 
@@ -64,6 +67,152 @@ MAREA_BEGIN_EXTERN_C
      * @param flags New flags word.
      */
     MAREA_EXTERN_DECL void MAREA_CALL MAREA_AstNodeSetFlags(MAREA_AstNode * node, MAREA_Uinteger32 flags);
+
+    /**
+     * @brief Sets the length of the position of a node so the node ends at endOffset. Ignored when node
+     * is null or endOffset is not past the start of the node.
+     * @param node Node to change.
+     * @param endOffset Byte offset one past the last byte of the node.
+     */
+    MAREA_EXTERN_DECL void MAREA_CALL MAREA_AstNodeSetEnd(MAREA_AstNode * node, MAREA_Uinteger32 endOffset);
+
+    #if !defined(MAREA_PARSE_DEPTH_LIMIT)
+        #define MAREA_PARSE_DEPTH_LIMIT MAREA_UINTEGER_32(256)
+    #endif
+
+    struct MAREA_ParseContext
+    {
+        MAREA_Arena *arena;
+        MAREA_DiagnosticSink *sink;
+    };
+
+    /**
+     * @brief Cursor and bookkeeping of one parse run. The token list is read only through the public lex
+     * accessors. While halfGreater is true, the current token is a SHIFT_RIGHT whose first angle bracket
+     * was already consumed, so it reads as a GREATER one byte later.
+     */
+    typedef struct MAREA_ParseState
+    {
+        MAREA_ParseContext *context;
+        const MAREA_TokenList *list;
+        MAREA_IntegerSize count;
+        MAREA_IntegerSize index;
+        MAREA_Uinteger32 lastEnd;
+        MAREA_Uinteger32 lastErrorOffset;
+        MAREA_Uinteger32 depth;
+        MAREA_Boolean halfGreater;
+        MAREA_Boolean hasError;
+        MAREA_Boolean outOfMemory;
+    } MAREA_ParseState;
+
+    /**
+     * @brief Returns the token that is ahead tokens past the current one, or the END_OF_FILE token when
+     * that is past the end. Never null.
+     */
+    const MAREA_Token *MAREA_CALL MAREA_ParsePeekToken(const MAREA_ParseState *state, MAREA_IntegerSize ahead);
+
+    /**
+     * @brief Returns the kind of the token ahead tokens past the current one. At ahead 0 a half consumed
+     * SHIFT_RIGHT reads as GREATER.
+     */
+    MAREA_TokenKind MAREA_CALL MAREA_ParsePeekKind(const MAREA_ParseState *state, MAREA_IntegerSize ahead);
+
+    /**
+     * @brief Tells whether the current token has the given kind.
+     */
+    MAREA_Boolean MAREA_CALL MAREA_ParseAt(const MAREA_ParseState *state, MAREA_TokenKind kind);
+
+    /**
+     * @brief Consumes the current token and returns it. At END_OF_FILE nothing is consumed.
+     */
+    const MAREA_Token *MAREA_CALL MAREA_ParseAdvance(MAREA_ParseState * state);
+
+    /**
+     * @brief Consumes the current token when it has the given kind. Returns whether it did.
+     */
+    MAREA_Boolean MAREA_CALL MAREA_ParseAccept(MAREA_ParseState * state, MAREA_TokenKind kind);
+
+    /**
+     * @brief Consumes a token of the given kind, or reports EXPECTED_TOKEN with message at the current
+     * token and consumes nothing. Returns whether the token was there.
+     */
+    MAREA_Boolean MAREA_CALL MAREA_ParseExpect(MAREA_ParseState * state, MAREA_TokenKind kind, const MAREA_Character8 *message);
+
+    /**
+     * @brief Consumes one closing angle bracket. A SHIFT_RIGHT token is split: the first call consumes its
+     * first bracket, the second call the token. Reports EXPECTED_TOKEN with message when there is none.
+     */
+    MAREA_Boolean MAREA_CALL MAREA_ParseExpectGreater(MAREA_ParseState * state, const MAREA_Character8 *message);
+
+    /**
+     * @brief Adds one parse diagnostic at the position of token. Two errors at the same offset in a row
+     * give one diagnostic, so a recovery cannot flood the sink.
+     */
+    void MAREA_CALL MAREA_ParseReport(MAREA_ParseState * state, MAREA_ParseDiagnosticCode code, const MAREA_Token *token, const MAREA_Character8 *message);
+
+    /**
+     * @brief Enters one nesting level. At the depth limit it reports RECURSION_TOO_DEEP and returns false;
+     * the caller must then not call MAREA_ParseLeave.
+     */
+    MAREA_Boolean MAREA_CALL MAREA_ParseEnter(MAREA_ParseState * state);
+
+    /**
+     * @brief Leaves a nesting level entered with MAREA_ParseEnter.
+     */
+    void MAREA_CALL MAREA_ParseLeave(MAREA_ParseState * state);
+
+    /**
+     * @brief Tells whether kind starts a top level item or a statement, so recovery stops before it.
+     */
+    MAREA_Boolean MAREA_CALL MAREA_ParseIsSynchronizationKind(MAREA_TokenKind kind);
+
+    /**
+     * @brief Skips tokens up to a synchronisation point: a semicolon (consumed), or end, case, default,
+     * elseif, else, a keyword that starts a statement or an item, or the end of file (not consumed).
+     */
+    void MAREA_CALL MAREA_ParseSynchronize(MAREA_ParseState * state);
+
+    /**
+     * @brief Creates a node positioned at the current token, without text. Null after an out of memory.
+     */
+    MAREA_AstNode *MAREA_CALL MAREA_ParseNodeBegin(MAREA_ParseState * state, MAREA_AstKind kind);
+
+    /**
+     * @brief Creates a node positioned at token, with the text of token. Null after an out of memory.
+     */
+    MAREA_AstNode *MAREA_CALL MAREA_ParseNodeFromToken(MAREA_ParseState * state, MAREA_AstKind kind, const MAREA_Token *token);
+
+    /**
+     * @brief Sets the length of the position of node so it ends at the last consumed token. Null safe.
+     */
+    void MAREA_CALL MAREA_ParseNodeEnd(const MAREA_ParseState *state, MAREA_AstNode *node);
+
+    /**
+     * @brief Appends child to parent. Null safe on both: a null child (after an out of memory) is dropped.
+     */
+    void MAREA_CALL MAREA_ParseNodeAdd(MAREA_ParseState * state, MAREA_AstNode * parent, MAREA_AstNode * child);
+
+    /**
+     * @brief Creates an ERROR_NODE positioned at the current token, without consuming it.
+     */
+    MAREA_AstNode *MAREA_CALL MAREA_ParseErrorNode(MAREA_ParseState * state);
+
+    /**
+     * @brief Parses an identifier into an IDENTIFIER node, or reports EXPECTED_TOKEN with message and
+     * returns an ERROR_NODE without consuming.
+     */
+    MAREA_AstNode *MAREA_CALL MAREA_ParseIdentifier(MAREA_ParseState * state, const MAREA_Character8 *message);
+
+    /**
+     * @brief Parses qualified_name into a QUALIFIED_NAME node whose children are IDENTIFIER nodes.
+     */
+    MAREA_AstNode *MAREA_CALL MAREA_ParseQualifiedName(MAREA_ParseState * state);
+
+    /**
+     * @brief Parses zero or more attribute lists of the given opener (HASH_BRACKET or HASH_BANG_BRACKET) and
+     * appends each as an ATTRIBUTE or FILE_ATTRIBUTE child of holder.
+     */
+    void MAREA_CALL MAREA_ParseAttributes(MAREA_ParseState * state, MAREA_AstNode * holder, MAREA_TokenKind opener);
 
 MAREA_END_EXTERN_C
 
