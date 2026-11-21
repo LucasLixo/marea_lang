@@ -82,7 +82,6 @@ MAREA_SemaOwnershipMode MAREA_CALL MAREA_SemaTypedAstClassifyOwnership(MAREA_Sem
         return MAREA_SEMA_OWNERSHIP_MODE_MOVE;
     }
 
-    // INFO: every other expression (including one this builder could not infer a type for)
-    // defaults to VALUE, same as MAREA_SemaInferType's own best-effort fallback.
+    // INFO: every other expression defaults to VALUE, same as MAREA_SemaInferType's fallback.
     return MAREA_SEMA_OWNERSHIP_MODE_VALUE;
 }
