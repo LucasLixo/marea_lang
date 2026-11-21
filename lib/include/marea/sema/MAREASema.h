@@ -1,0 +1,107 @@
+// Copyright (c) 2026 Paulo Lucas Alves Franca
+// Licensed under the MIT License. See LICENSE.txt for full terms.
+
+#if !defined(MAREA_INCLUDE_SEMA_MAREASEMA_H)
+    #define MAREA_INCLUDE_SEMA_MAREASEMA_H
+
+    #include "marea/base/MAREACTypes.h"
+    #include "marea/base/MAREAMacros.h"
+    #include "marea/base/MAREAArena.h"
+    #include "marea/base/MAREADiagnostic.h"
+    #include "marea/parse/MAREAAst.h"
+    #include "marea/sema/MAREASemaImportResolver.h"
+
+MAREA_BEGIN_EXTERN_C
+
+    /**
+     * @brief Result of a sema operation. A rule violation is not an exception: it is a diagnostic.
+     */
+    typedef enum MAREA_SemaExcept
+    {
+        MAREA_SEMA_EXCEPT_SUCCESS = MAREA_UINTEGER_8(0),
+        MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER = MAREA_UINTEGER_8(1),
+        MAREA_SEMA_EXCEPT_ERROR_OUT_OF_MEMORY = MAREA_UINTEGER_8(2),
+    } MAREA_SemaExcept;
+
+    /**
+     * @brief Diagnostic code emitted by sema, in the 3000-3999 range reserved for this stage. Every code is
+     * an error.
+     */
+    typedef enum MAREA_SemaDiagnosticCode
+    {
+        MAREA_SEMA_DIAGNOSTIC_CODE_UNRESOLVED_IMPORT = MAREA_UINTEGER_32(3001),
+        MAREA_SEMA_DIAGNOSTIC_CODE_NAMESPACE_PATH_MISMATCH = MAREA_UINTEGER_32(3002),
+        MAREA_SEMA_DIAGNOSTIC_CODE_NAME_ALREADY_DECLARED = MAREA_UINTEGER_32(3003),
+        MAREA_SEMA_DIAGNOSTIC_CODE_UNDECLARED_NAME = MAREA_UINTEGER_32(3004),
+        MAREA_SEMA_DIAGNOSTIC_CODE_UNKNOWN_ATTRIBUTE_KEY = MAREA_UINTEGER_32(3005),
+        MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_ATTRIBUTE_VALUE = MAREA_UINTEGER_32(3006),
+        MAREA_SEMA_DIAGNOSTIC_CODE_CONFLICTING_ATTRIBUTES = MAREA_UINTEGER_32(3007),
+        MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_ALIGNMENT = MAREA_UINTEGER_32(3008),
+        MAREA_SEMA_DIAGNOSTIC_CODE_UNKNOWN_TYPE = MAREA_UINTEGER_32(3009),
+        MAREA_SEMA_DIAGNOSTIC_CODE_ARGUMENT_COUNT_MISMATCH = MAREA_UINTEGER_32(3010),
+        MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH = MAREA_UINTEGER_32(3011),
+        MAREA_SEMA_DIAGNOSTIC_CODE_DUPLICATE_MEMBER = MAREA_UINTEGER_32(3012),
+        MAREA_SEMA_DIAGNOSTIC_CODE_CONTRACT_NOT_SATISFIED = MAREA_UINTEGER_32(3013),
+        MAREA_SEMA_DIAGNOSTIC_CODE_GENERIC_ARGUMENT_MISMATCH = MAREA_UINTEGER_32(3014),
+        MAREA_SEMA_DIAGNOSTIC_CODE_INSTANTIATION_TOO_DEEP = MAREA_UINTEGER_32(3015),
+        MAREA_SEMA_DIAGNOSTIC_CODE_ASSIGNMENT_NEEDS_COPY_OR_MOVE = MAREA_UINTEGER_32(3016),
+        MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_BORROW = MAREA_UINTEGER_32(3017),
+        MAREA_SEMA_DIAGNOSTIC_CODE_REFERENCE_ESCAPES_SCOPE = MAREA_UINTEGER_32(3018),
+        MAREA_SEMA_DIAGNOSTIC_CODE_EXCLUSIVE_BORROW_CONFLICT = MAREA_UINTEGER_32(3019),
+        MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_SPAWN_ARGUMENT = MAREA_UINTEGER_32(3020),
+        MAREA_SEMA_DIAGNOSTIC_CODE_NON_EXHAUSTIVE_SWITCH = MAREA_UINTEGER_32(3021),
+        MAREA_SEMA_DIAGNOSTIC_CODE_MISSING_RETURN = MAREA_UINTEGER_32(3022),
+        MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_MAIN_SIGNATURE = MAREA_UINTEGER_32(3023),
+    } MAREA_SemaDiagnosticCode;
+
+    /**
+     * @brief Opaque context that drives MAREA_SemaCheckCompilationUnit: the arena, diagnostic sink and
+     * import resolver it uses. Never prints, never touches global state, never reads the disk.
+     */
+    typedef struct MAREA_SemaContext MAREA_SemaContext;
+
+    /**
+     * @brief Creates a sema context.
+     * @param arena Arena for the working data of the checks. Must not be null.
+     * @param sink Diagnostic sink that diagnostics are appended to. Must not be null.
+     * @param resolver Import resolver that answers every import. Must not be null.
+     * @param outContext Receives the context. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER when an argument is null, or
+     * MAREA_SEMA_EXCEPT_ERROR_OUT_OF_MEMORY when the arena cannot grow.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaContextCreate(MAREA_Arena * arena, MAREA_DiagnosticSink * sink, MAREA_SemaImportResolver * resolver, MAREA_SemaContext * *outContext);
+
+    /**
+     * @brief Returns the arena the context was created with.
+     * @param context Context to query. Null returns null.
+     * @return The arena, or null when context is null.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Arena *MAREA_CALL MAREA_SemaContextGetArena(const MAREA_SemaContext *context);
+
+    /**
+     * @brief Returns the diagnostic sink the context was created with.
+     * @param context Context to query. Null returns null.
+     * @return The sink, or null when context is null.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_DiagnosticSink *MAREA_CALL MAREA_SemaContextGetDiagnostics(const MAREA_SemaContext *context);
+
+    /**
+     * @brief Returns the import resolver the context was created with.
+     * @param context Context to query. Null returns null.
+     * @return The resolver, or null when context is null.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaImportResolver *MAREA_CALL MAREA_SemaContextGetImportResolver(const MAREA_SemaContext *context);
+
+    /**
+     * @brief Checks one compilation unit. Every violation is reported to the sink. An ERROR_NODE left by
+     * the parser is skipped: no diagnostic is positioned under it.
+     * @param context Context that owns the arena, sink and resolver. Must not be null.
+     * @param root COMPILATION_UNIT node from MAREA_ParseCompilationUnit. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER when an argument is null, or
+     * MAREA_SEMA_EXCEPT_ERROR_OUT_OF_MEMORY when the arena cannot grow.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckCompilationUnit(MAREA_SemaContext * context, const MAREA_AstNode *root);
+
+MAREA_END_EXTERN_C
+
+#endif /* MAREA_INCLUDE_SEMA_MAREASEMA_H */

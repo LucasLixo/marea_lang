@@ -15,7 +15,7 @@ macro(ConfigureOptions)
     option(MAREA_OPTION_TARGET_TESTS "Build the GoogleTest suite under tests/" ON)
     option(
         MAREA_OPTION_SHARED_LIBS
-        "Build Marea-Base, Marea-Lex and Marea-Parse as shared libraries instead of static"
+        "Build Marea-Base, Marea-Lex, Marea-Parse and Marea-Sema as shared libraries instead of static"
         OFF
     )
     option(MAREA_OPTION_PRECOMPILE_HEADER "Precompile the most basic headers in every library target" ON)
@@ -32,6 +32,13 @@ macro(ConfigureOptions)
         "Build the Marea-Parse library"
         ON
         "MAREA_OPTION_TARGET_LEX"
+        OFF
+    )
+    cmake_dependent_option(
+        MAREA_OPTION_TARGET_SEMA
+        "Build the Marea-Sema library"
+        ON
+        "MAREA_OPTION_TARGET_PARSE"
         OFF
     )
 endmacro()
