@@ -6,7 +6,7 @@
 
     #include <gtest/gtest.h>
 
-    #include "marea/MAREAVersion.h"
+    #include "marea/MAREA.h"
 
     #define GTEST_COUT std::cerr << "[ INFO     ] "
 

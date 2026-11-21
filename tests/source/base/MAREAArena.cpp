@@ -1,7 +1,5 @@
 #include "tests/dependencies.hpp"
 
-#include "marea/base/MAREAArena.h"
-
 #include <cstdint>
 #include <cstring>
 
