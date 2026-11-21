@@ -202,7 +202,18 @@ TEST(MAREASemaParallel, JumpInANestedPartitionIsRejectedOnce)
 {
     GTEST_COUT << "Validating the nearest partition body is the barrier of a jump." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf("function f(values: array<float32>, a: boolean) fork_join partition values into 2 as outer do while a do fork_join partition values into 2 as inner do continue; end end end end end end end"), Codes{ INVALID_JUMP }) << "The inner body must be rejected for a continue that targets a loop of the outer body.";
+    EXPECT_EQ(MAREA_codesOf("function f(values: array<float32>, a: boolean) fork_join partition values into 2 as outer do while a do fork_join partition values into 2 as inner do continue; end end end end end end"), Codes{ INVALID_JUMP }) << "The inner body must be rejected for a continue that targets a loop of the outer body.";
+}
+
+TEST(MAREASemaParallel, NestedPartitionRestoresTheStateOfTheOuterBody)
+{
+    GTEST_COUT << "Validating the loop count and the partition count come back after a nested partition ends." << std::endl;
+
+    EXPECT_TRUE(MAREA_codesOf("function f(values: array<float32>, a: boolean) fork_join partition values into 2 as outer do while a do fork_join partition values into 2 as inner do end end break; end end end end").empty()) << "A break in a loop of the outer body after the inner partition must raise nothing.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(values: array<float32>) fork_join partition values into 2 as outer do fork_join partition values into 2 as inner do end end return; end end end"), Codes{ INVALID_JUMP }) << "A return in the outer body after the inner partition must still raise INVALID_PARALLEL_JUMP.";
+
+    EXPECT_TRUE(MAREA_codesOf("function f(values: array<float32>, a: boolean) fork_join partition values into 2 as part do while a do while a do end break; end end end end").empty()) << "A break after an inner loop of the body must raise nothing.";
 }
 
 TEST(MAREASemaParallel, LoopInsideAPartitionBodyIsAccepted)
