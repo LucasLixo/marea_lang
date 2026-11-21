@@ -133,6 +133,16 @@ local function rebuild(chars)
    return table.concat(chars)
 end
 
+--- Escapes every Lua pattern-magic character in `text`, so it can be interpolated into a
+-- pattern and matched literally. Needed because a symbol NAME can come straight from an MCP
+-- tool call's arguments -- never guaranteed to be a clean C identifier -- and a raw "%1" or an
+-- unbalanced "(" in it would otherwise reach `string.find` as part of the pattern itself.
+-- @param text string: Text to interpolate literally.
+-- @return string: `text` with every magic character escaped.
+local function escape_pattern(text)
+   return (text:gsub("[%(%)%.%%%+%-%*%?%[%]%^%$]", "%%%0"))
+end
+
 -- ---------------------------------------------------------------------------
 -- The five declaration shapes, with position tracking
 -- ---------------------------------------------------------------------------
@@ -186,7 +196,7 @@ local function scan_declarations(text)
                local idx = seg_start
                local function record_enumerator(from, to, end_pos)
                   local segment = working:sub(from, to)
-                  local ident_start, ident_end, ident = segment:find("(" .. IDENT_PATTERN .. ")")
+                  local ident_start, _, ident = segment:find("(" .. IDENT_PATTERN .. ")")
                   if ident then
                      record(ident, "enumerator", from + ident_start - 1, end_pos)
                   end
@@ -439,7 +449,7 @@ function docindex.get_function_body(root, file, name)
    local raw = read_raw(root, file)
    local stripped = scanner.strip(raw)
 
-   local pattern = "MAREA_CALL%s*%*?%s*" .. name .. "%f[^%w_]%s*%("
+   local pattern = "MAREA_CALL%s*%*?%s*" .. escape_pattern(name) .. "%f[^%w_]%s*%("
    local start, open_paren = stripped:find(pattern)
    if not start then
       return nil, "docindex: function '" .. name .. "' not found in " .. file
