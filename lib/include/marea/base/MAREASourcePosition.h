@@ -4,8 +4,8 @@
 #if !defined(MAREA_INCLUDE_BASE_MAREASOURCEPOSITION_H)
     #define MAREA_INCLUDE_BASE_MAREASOURCEPOSITION_H
 
-    #include "marea/MAREACTypes.h"
-    #include "marea/MAREAMacros.h"
+    #include "marea/base/MAREACTypes.h"
+    #include "marea/base/MAREAMacros.h"
 
 MAREA_BEGIN_EXTERN_C
 
