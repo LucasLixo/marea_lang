@@ -31,8 +31,7 @@ MAREA_BEGIN_EXTERN_C
     };
 
     /**
-     * @brief Creates a node in the arena. Internal to the parse stage. It is declared exported only so
-     * the dump test can build a tree by hand; no other consumer may call it.
+     * @brief Creates a node in the arena. Internal to the parse stage.
      * @param arena Arena that owns the node. Must not be null.
      * @param kind Kind of the new node.
      * @param position Position of the node.
@@ -42,7 +41,7 @@ MAREA_BEGIN_EXTERN_C
      * @return MAREA_AST_EXCEPT_SUCCESS, MAREA_AST_EXCEPT_ERROR_NULL_POINTER when arena or outNode is null, or
      * MAREA_AST_EXCEPT_ERROR_OUT_OF_MEMORY when the arena cannot grow.
      */
-    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_AstExcept MAREA_CALL MAREA_AstNodeCreate(MAREA_Arena * arena, MAREA_AstKind kind, MAREA_SourcePosition position, const MAREA_Character8 *text, MAREA_IntegerSize textLength, MAREA_AstNode **outNode);
+    MAREA_NODISCARD MAREA_AstExcept MAREA_CALL MAREA_AstNodeCreate(MAREA_Arena * arena, MAREA_AstKind kind, MAREA_SourcePosition position, const MAREA_Character8 *text, MAREA_IntegerSize textLength, MAREA_AstNode **outNode);
 
     /**
      * @brief Appends a child to a node. The child array doubles in the arena.
@@ -52,21 +51,21 @@ MAREA_BEGIN_EXTERN_C
      * @return MAREA_AST_EXCEPT_SUCCESS, MAREA_AST_EXCEPT_ERROR_NULL_POINTER when an argument is null, or
      * MAREA_AST_EXCEPT_ERROR_OUT_OF_MEMORY when the arena cannot grow.
      */
-    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_AstExcept MAREA_CALL MAREA_AstNodeAppendChild(MAREA_Arena * arena, MAREA_AstNode * parent, MAREA_AstNode * child);
+    MAREA_NODISCARD MAREA_AstExcept MAREA_CALL MAREA_AstNodeAppendChild(MAREA_Arena * arena, MAREA_AstNode * parent, MAREA_AstNode * child);
 
     /**
      * @brief Sets the operator of a node. A null node is ignored.
      * @param node Node to change.
      * @param operatorKind Operator token kind.
      */
-    MAREA_EXTERN_DECL void MAREA_CALL MAREA_AstNodeSetOperator(MAREA_AstNode * node, MAREA_TokenKind operatorKind);
+    void MAREA_CALL MAREA_AstNodeSetOperator(MAREA_AstNode * node, MAREA_TokenKind operatorKind);
 
     /**
      * @brief Sets the flags word of a node. A null node is ignored.
      * @param node Node to change.
      * @param flags New flags word.
      */
-    MAREA_EXTERN_DECL void MAREA_CALL MAREA_AstNodeSetFlags(MAREA_AstNode * node, MAREA_Uinteger32 flags);
+    void MAREA_CALL MAREA_AstNodeSetFlags(MAREA_AstNode * node, MAREA_Uinteger32 flags);
 
     /**
      * @brief Sets the length of the position of a node so the node ends at endOffset. Ignored when node
@@ -74,7 +73,7 @@ MAREA_BEGIN_EXTERN_C
      * @param node Node to change.
      * @param endOffset Byte offset one past the last byte of the node.
      */
-    MAREA_EXTERN_DECL void MAREA_CALL MAREA_AstNodeSetEnd(MAREA_AstNode * node, MAREA_Uinteger32 endOffset);
+    void MAREA_CALL MAREA_AstNodeSetEnd(MAREA_AstNode * node, MAREA_Uinteger32 endOffset);
 
     #if !defined(MAREA_PARSE_DEPTH_LIMIT)
         #define MAREA_PARSE_DEPTH_LIMIT MAREA_UINTEGER_32(256)

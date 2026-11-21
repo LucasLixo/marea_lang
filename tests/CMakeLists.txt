@@ -42,7 +42,7 @@ if(TARGET Marea-Lex)
 endif()
 
 if(TARGET Marea-Parse)
-    target_link_libraries(marea_tests PRIVATE marea::parse marea::internal)
+    target_link_libraries(marea_tests PRIVATE marea::parse)
 endif()
 
 gtest_discover_tests(marea_tests)
