@@ -1,8 +1,5 @@
 #include "tests/dependencies.hpp"
 
-#include "marea/base/MAREAArena.h"
-#include "marea/base/MAREADiagnostic.h"
-
 #include <cstring>
 #include <type_traits>
 

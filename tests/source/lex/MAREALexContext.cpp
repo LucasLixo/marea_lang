@@ -1,9 +1,5 @@
 #include "tests/dependencies.hpp"
 
-#include "marea/base/MAREAArena.h"
-#include "marea/base/MAREADiagnostic.h"
-#include "marea/lex/MAREALexer.h"
-
 TEST(MAREALexContext, CreateStoresArenaAndSink)
 {
     GTEST_COUT << "Validating MAREA_LexContextCreate stores the given arena and sink." << std::endl;

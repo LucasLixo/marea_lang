@@ -1,7 +1,5 @@
 #include "tests/dependencies.hpp"
 
-#include "marea/lex/MAREATokenKind.h"
-
 #include <cstring>
 #include <set>
 #include <string>

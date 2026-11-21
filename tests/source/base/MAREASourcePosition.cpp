@@ -1,7 +1,5 @@
 #include "tests/dependencies.hpp"
 
-#include "marea/base/MAREASourcePosition.h"
-
 #include <cstddef>
 
 TEST(MAREASourcePosition, FieldsKeepTheirOrder)
