@@ -80,6 +80,19 @@ MAREA_BEGIN_EXTERN_C
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_IrExcept MAREA_CALL MAREA_IrLowerCompilationUnit(MAREA_IrContext * context, const MAREA_SemaTypedNode *typedRoot, const MAREA_IrNode **outModule);
 
+    /**
+     * @brief Writes the tree under module as stable text, one node per line, into the arena. Each line is
+     * the kind name indented two spaces per depth, then the text in double quotes when present, then
+     * type=NAME when the node carries a type name, then op=OPERATOR, then flags=NUMBER when not zero.
+     * @param arena Arena that owns the text. Must not be null.
+     * @param module Root of the tree to write. Must not be null.
+     * @param outText Receives a NUL-terminated copy of the text. Must not be null.
+     * @param outLength Receives the length of the text without the NUL. Must not be null.
+     * @return MAREA_IR_EXCEPT_SUCCESS, MAREA_IR_EXCEPT_ERROR_NULL_POINTER when an argument is null, or
+     * MAREA_IR_EXCEPT_ERROR_OUT_OF_MEMORY when the arena cannot grow.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_IrExcept MAREA_CALL MAREA_IrModuleDump(MAREA_Arena * arena, const MAREA_IrNode *module, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength);
+
 MAREA_END_EXTERN_C
 
 #endif /* MAREA_INCLUDE_IR_MAREAIR_H */
