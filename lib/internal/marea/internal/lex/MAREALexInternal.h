@@ -106,6 +106,14 @@ void MAREA_CALL MAREA_LexCursorReportDiagnostic(const MAREA_LexCursor *cursor, M
 MAREA_LexExcept MAREA_CALL MAREA_LexTokenListAppend(MAREA_TokenList *list, MAREA_TokenKind kind, const MAREA_Character8 *text, MAREA_Uinteger32 length, MAREA_SourcePosition position);
 
 /**
+ * @brief Returns whether byte is an ASCII hexadecimal digit (0-9, a-f or A-F). Shared by the
+ * number and string scanners.
+ * @param byte Byte value to classify, as returned by MAREA_LexCursorPeek.
+ * @return MAREA_BOOLEAN_TRUE when byte is a hexadecimal digit, else MAREA_BOOLEAN_FALSE.
+ */
+MAREA_Boolean MAREA_CALL MAREA_LexIsHexDigit(MAREA_Sinteger32 byte);
+
+/**
  * @brief Scans a number literal (decimal, 0x hexadecimal or 0b binary, with an optional float
  * fraction and exponent on the decimal form) starting at the cursor's current digit, and appends
  * the resulting token to list. A 0x or 0b prefix with no valid digit reports
