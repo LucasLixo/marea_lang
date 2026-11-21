@@ -148,13 +148,21 @@ TEST(MAREAIrContext, KindNamesAreStable)
 
     EXPECT_STREQ(MAREA_IrKindGetName(MAREA_IR_KIND_WITH_STATEMENT), "WITH_STATEMENT") << "The with kind must be named.";
 
-    EXPECT_STREQ(MAREA_IrKindGetName(MAREA_IR_KIND_FOR_EACH_STATEMENT), "FOR_EACH_STATEMENT") << "The last kind must be FOR_EACH_STATEMENT.";
+    EXPECT_STREQ(MAREA_IrKindGetName(MAREA_IR_KIND_FOR_EACH_STATEMENT), "FOR_EACH_STATEMENT") << "The for-each kind must be named.";
+
+    EXPECT_STREQ(MAREA_IrKindGetName(MAREA_IR_KIND_TYPE_NAME), "TYPE_NAME") << "The type operand kind must be named.";
+
+    EXPECT_STREQ(MAREA_IrKindGetName(MAREA_IR_KIND_BUILTIN_NAME), "BUILTIN_NAME") << "The last kind must be BUILTIN_NAME.";
 
     EXPECT_EQ(static_cast<int>(MAREA_IR_KIND_FOR_EACH_STATEMENT), static_cast<int>(MAREA_IR_KIND_WITH_STATEMENT) + 1) << "FOR_EACH_STATEMENT must come after the parallel kinds, so no value moves.";
 
     EXPECT_EQ(static_cast<int>(MAREA_IR_KIND_FORK_JOIN_BLOCK), static_cast<int>(MAREA_IR_KIND_UNREACHABLE_STATEMENT) + 1) << "The new kinds must come after the old ones, so no value moves.";
 
-    EXPECT_EQ(static_cast<int>(MAREA_IR_KIND_COUNT), static_cast<int>(MAREA_IR_KIND_FOR_EACH_STATEMENT) + 1) << "FOR_EACH_STATEMENT must be the last kind before COUNT.";
+    EXPECT_EQ(static_cast<int>(MAREA_IR_KIND_TYPE_NAME), static_cast<int>(MAREA_IR_KIND_FOR_EACH_STATEMENT) + 1) << "TYPE_NAME must come after the for-each kind, so no value moves.";
+
+    EXPECT_EQ(static_cast<int>(MAREA_IR_KIND_BUILTIN_NAME), static_cast<int>(MAREA_IR_KIND_TYPE_NAME) + 1) << "BUILTIN_NAME must follow TYPE_NAME.";
+
+    EXPECT_EQ(static_cast<int>(MAREA_IR_KIND_COUNT), static_cast<int>(MAREA_IR_KIND_BUILTIN_NAME) + 1) << "BUILTIN_NAME must be the last kind before COUNT.";
 
     EXPECT_STREQ(MAREA_IrKindGetName(MAREA_IR_KIND_COUNT), "UNKNOWN") << "COUNT must be unknown.";
 
