@@ -124,6 +124,27 @@ TEST(MAREAIrControlFlow, ForRangeWithLiteralBoundsKeepsBoth)
     EXPECT_EQ(MAREA_lowerBody("", "", "for index in 0 .. 3 do end"), "(BLOCK (BLOCK (LOCAL_DECLARATION index flags=1 (INTEGER_LITERAL 0)) (WHILE_STATEMENT (BINARY_EXPRESSION op=LESS_EQUAL (IDENTIFIER index) (INTEGER_LITERAL 3)) (BLOCK (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER index) (INTEGER_LITERAL 1))))))") << "An empty body must still carry the increment.";
 }
 
+TEST(MAREAIrControlFlow, ForRangeContinueRunsTheIncrementFirst)
+{
+    GTEST_COUT << "Validating a continue in a for-range body is preceded by the increment, so the loop still ends." << std::endl;
+
+    EXPECT_EQ(MAREA_lowerBody("", "a: boolean", "for index in 0 .. 3 do if a then continue; end end"), "(BLOCK (BLOCK (LOCAL_DECLARATION index flags=1 (INTEGER_LITERAL 0)) (WHILE_STATEMENT (BINARY_EXPRESSION op=LESS_EQUAL (IDENTIFIER index) (INTEGER_LITERAL 3)) (BLOCK (IF_STATEMENT (IDENTIFIER a) (BLOCK (BLOCK (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER index) (INTEGER_LITERAL 1)) (CONTINUE_STATEMENT)))) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER index) (INTEGER_LITERAL 1))))))") << "Every continue that targets the for-range loop must run the increment first.";
+}
+
+TEST(MAREAIrControlFlow, ForRangeContinueOfAnInnerWhileIsLeftAlone)
+{
+    GTEST_COUT << "Validating a continue that targets an inner while loop gets no increment of the outer for-range loop." << std::endl;
+
+    EXPECT_EQ(MAREA_lowerBody("", "a: boolean", "for index in 0 .. 3 do while a do continue; end end"), "(BLOCK (BLOCK (LOCAL_DECLARATION index flags=1 (INTEGER_LITERAL 0)) (WHILE_STATEMENT (BINARY_EXPRESSION op=LESS_EQUAL (IDENTIFIER index) (INTEGER_LITERAL 3)) (BLOCK (WHILE_STATEMENT (IDENTIFIER a) (BLOCK (CONTINUE_STATEMENT))) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER index) (INTEGER_LITERAL 1))))))") << "A continue of an inner loop must stay as it is.";
+}
+
+TEST(MAREAIrControlFlow, ForRangeContinueOfNestedForRangeLoopsUsesEachOwnIncrement)
+{
+    GTEST_COUT << "Validating each continue in nested for-range loops runs the increment of its own loop only." << std::endl;
+
+    EXPECT_EQ(MAREA_lowerBody("", "", "for outer in 0 .. 1 do for inner in 0 .. 2 do continue; end continue; end"), "(BLOCK (BLOCK (LOCAL_DECLARATION outer flags=1 (INTEGER_LITERAL 0)) (WHILE_STATEMENT (BINARY_EXPRESSION op=LESS_EQUAL (IDENTIFIER outer) (INTEGER_LITERAL 1)) (BLOCK (BLOCK (LOCAL_DECLARATION inner flags=1 (INTEGER_LITERAL 0)) (WHILE_STATEMENT (BINARY_EXPRESSION op=LESS_EQUAL (IDENTIFIER inner) (INTEGER_LITERAL 2)) (BLOCK (BLOCK (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER inner) (INTEGER_LITERAL 1)) (CONTINUE_STATEMENT)) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER inner) (INTEGER_LITERAL 1))))) (BLOCK (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER outer) (INTEGER_LITERAL 1)) (CONTINUE_STATEMENT)) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER outer) (INTEGER_LITERAL 1))))))") << "Each loop must increment its own variable before its own continue.";
+}
+
 TEST(MAREAIrControlFlow, ForRangeIncrementTextIsOne)
 {
     GTEST_COUT << "Validating the synthetic increment of a for-range loop is the integer literal 1." << std::endl;
