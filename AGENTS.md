@@ -5,34 +5,51 @@ description: Global policy for agents working in the Marea Lang repository - sco
 
 # Marea Lang
 
-A statically-typed programming language of its own, in C11, on a modern CMake setup, with structure, enum, and
-explicit function types checked once at compile/parse time and fully erased before code generation, compiled to
-bytecode for a reference interpreter or to C11 from one IR (no JIT), with scoped memory and static ownership/borrow
-rules, and one C
-macro that registers a function for the language runtime and Rust alike, with no external generator and no hand-written glue on any side. The
-project is independent: no tie to any other engine, language, or repository, with its own name, license, and
+A statically-typed, high-performance scripting language of its own, for general use together with C. It is written in
+C11 on a modern CMake setup, with Teal-like syntax, explicit fixed-width types, `structure`, `enum` and explicit
+function types checked once at compile time and fully erased before code generation, compiled from one IR to bytecode
+for a reference interpreter or to C11, with scoped memory and static ownership rules, and one C macro that registers
+a function for the language runtime and Rust alike, with no external generator and no hand-written glue on any side.
+The project is independent: no tie to any other engine, language, or repository, with its own name, license, and
 structure.
 
 Comments and session chat according to the ASD-STE100 standard.
 
 ## Language boundary
 
-The rule that shapes every decision here:
+The rules that shape every decision here. The syntax is in [the grammar](docs/grammar/marea.ebnf) and the example
+programs are in [examples](examples).
 
 - **The compiler core is C11**, written from scratch - no legacy tree to reorganize, no inherited
   source to attribute.
-- **One IR, two backends.** A bytecode backend with a small reference interpreter (portable, embedding)
-  and a C11 backend built with clang or gcc (maximum performance). Both must give the same observable behavior,
-  and a parity test runs every example through both. There is no JIT. The language has no standard library; only
-  the namespace `c` is reserved. A host can replace a library or runtime function from C (never `c`), and
-  reloads modules itself through a small C module API; hot reload is not a language feature.
-- **Memory is scoped (regions) with static ownership and borrow rules.** Every non-primitive value has one owner. A
-  primitive or a `#[value]` type passes by value; any other type is a read-only borrow, or a write borrow with
-  `mutable`. A reference lives only for one call and is never stored or returned. Parallel
-  code uses structured fork-join or a native thread pool, and the type system guarantees ownership and immutability
-  across threads.
-- **Typing is compile/parse-time only.** `structure`, `enum`, and explicit function types are checked statically and
-  then fully erased before code generation - zero cost at runtime.
+- **The compiler is modular, one library per stage:** `lex`, `parse`, `sema`, `ir`, `bytecode`, `vm`, `cgen`. Each
+  stage works alone, reads and writes public serializable data (tokens, AST, typed AST, IR text, bytecode), and a
+  stage never includes a later one. A stage has no global state and never prints: it takes an explicit context (an
+  arena that the caller owns and a diagnostic sink) and returns diagnostics. `sema` never reads the disk: the caller
+  gives it an import resolver. There is no own driver: a small set of CMake functions (`marea_add_library`,
+  `marea_add_executable`) calls `marea-cc` (C11 for the machine code of the processor) and `marea-bc` (bytecode).
+- **Libraries are static by default;** a shared build is an explicit CMake option. A public header holds opaque
+  structs with accessor functions. A struct is opened to the public only where it is needed, with the reason recorded.
+- **One IR, two backends.** A bytecode backend with a small reference interpreter (portable, embedding) and a C11
+  backend built with clang or gcc (maximum performance). Both must give the same observable behavior, and a parity
+  test runs every example through both. There is no JIT. Hot reload is not a language feature: the host reloads
+  modules through a small C module API (load, unload, interface hash, find by name).
+- **No standard library.** The language core has primitives, `string` literals, `structure`, `enum`, function types,
+  `vector<T, N>`, `pointer<T>`, `owned<T>`, `slice<T>` and `task<T>`. Every other type (array, table, handle, arena,
+  text, io) is a library written in C or in the language. Only the namespace `c` is reserved, and `c.*` is a literal
+  border with C that the language never replaces. A host can replace a library or runtime function from C.
+- **Memory is scoped (regions) with static ownership rules.** Every non-primitive value has one owner. A primitive or
+  a `#[value]` type passes by value; any other type is a read-only borrow, or a write borrow with `mutable`. A
+  reference lives only for one call and is never stored or returned, so there is no lifetime analysis. Data goes up to
+  the caller with `return value;`, and `copy x` or `move x` says what an assignment does. Parallel code uses
+  structured `fork_join`, and the type system guarantees ownership and immutability across threads.
+- **Typing is compile-time only.** There is no dynamic type and no `nil`. Every type has a fixed width and a full
+  name (`integer32`, `function`, `structure`): no abbreviation. The case follows Rust: PascalCase for types,
+  snake_case for functions, variables and namespaces, SCREAMING_SNAKE_CASE for constants.
+- **Syntax rules.** Every statement ends with `;`. Every body ends with an explicit `end`, and curly braces are only
+  for literals. A function with a return type ends every path with `return value;`. `switch` replaces `match`.
+  Attributes `#[key = value]` carry visibility, inline, build, simd, layout and more; the key of an enum takes a
+  member, and any other key takes `true` or `false`. Macros are only the built-in ones, never written by a user.
 - **One binding declaration, two consumers.** A single C registration macro exposes a function to the language
   runtime and to Rust; there is no external binding generator and no per-language glue written by hand.
 - **C++ exists only for tests** (GoogleTest, see [cpp-testing](.claude/skills/cpp-testing/SKILL.md)). Production
