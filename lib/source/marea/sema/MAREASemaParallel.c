@@ -157,3 +157,36 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckSpawn(MAREA_SemaContext *context, con
 
     return MAREA_SEMA_EXCEPT_SUCCESS;
 }
+
+MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckJump(MAREA_SemaContext *context, const MAREA_AstNode *node)
+{
+    if ((context == MAREA_NULLPTR) || (node == MAREA_NULLPTR)) {
+        return MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    if (context->partitionDepth == 0) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    switch (MAREA_AstNodeGetKind(node)) {
+    case MAREA_AST_KIND_RETURN_STATEMENT:
+        MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_PARALLEL_JUMP, MAREA_AstNodeGetPosition(node), "a return cannot leave the body of a partition");
+        break;
+    case MAREA_AST_KIND_BREAK_STATEMENT:
+        if (context->loopDepth == 0) {
+            MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_PARALLEL_JUMP, MAREA_AstNodeGetPosition(node), "a break cannot leave the body of a partition");
+        }
+
+        break;
+    case MAREA_AST_KIND_CONTINUE_STATEMENT:
+        if (context->loopDepth == 0) {
+            MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_PARALLEL_JUMP, MAREA_AstNodeGetPosition(node), "a continue cannot leave the body of a partition");
+        }
+
+        break;
+    default:
+        break;
+    }
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
