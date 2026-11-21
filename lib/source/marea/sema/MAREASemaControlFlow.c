@@ -314,18 +314,16 @@ static MAREA_Boolean MAREA_CALL MAREA_G_ValueSeenBefore(const MAREA_AstNode *sta
             continue;
         }
 
-        const MAREA_IntegerSize
-END
-= (index == armIndex) ? valueIndex : (MAREA_AstNodeGetChildCount(arm) - 1);
+        const MAREA_IntegerSize LIMIT = (index == armIndex) ? valueIndex : (MAREA_AstNodeGetChildCount(arm) - 1);
 
-for (MAREA_IntegerSize earlier = 0; earlier < END; ++earlier) {
-    if (MAREA_G_SameCase(MAREA_SemaChildAt(arm, earlier), value, isEnum) == MAREA_BOOLEAN_TRUE) {
-        return MAREA_BOOLEAN_TRUE;
+        for (MAREA_IntegerSize earlier = 0; earlier < LIMIT; ++earlier) {
+            if (MAREA_G_SameCase(MAREA_SemaChildAt(arm, earlier), value, isEnum) == MAREA_BOOLEAN_TRUE) {
+                return MAREA_BOOLEAN_TRUE;
+            }
+        }
     }
-}
-}
 
-return MAREA_BOOLEAN_FALSE;
+    return MAREA_BOOLEAN_FALSE;
 }
 
 static void MAREA_CALL MAREA_G_CheckDuplicateArms(MAREA_SemaContext *context, const MAREA_AstNode *statement, MAREA_Boolean isEnum)
