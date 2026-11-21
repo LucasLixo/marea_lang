@@ -13,7 +13,6 @@ namespace
         return EXTERNAL ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
     } };
 
-    // INFO: the source is a namespace, the prefix declarations, then function run with the signature and the body.
     std::string MAREA_sourceOf(const std::string &prefix, const std::string &signature, const std::string &body)
     {
         return "namespace main; import collections.array; import concurrency.task; import arenas.arena; " + prefix + " function run(" + signature + ") " + body + " end";
@@ -102,10 +101,9 @@ TEST(MAREAIrParallel, SpawnResultAsAnArgumentStaysInTheCall)
     GTEST_COUT << "Validating a spawn inside a call argument, as in tasks.append(spawn f(part)), lowers in place." << std::endl;
 
     const std::string
-RENDERED
-{ MAREA_lowerBody("function work(a: integer32): integer32 return a; end", "tasks: mutable array<task<integer32>>", "fork_join tasks.append(spawn work(1)); end") };
+        rendered{ MAREA_lowerBody("function work(a: integer32): integer32 return a; end", "tasks: mutable array<task<integer32>>", "fork_join tasks.append(spawn work(1)); end") };
 
-EXPECT_EQ(RENDERED, "(BLOCK (FORK_JOIN_BLOCK (BLOCK (EXPRESSION_STATEMENT (CALL_EXPRESSION (MEMBER_ACCESS (IDENTIFIER tasks) (IDENTIFIER append)) (ARGUMENT_LIST (UNARY_EXPRESSION op=KEYWORD_SPAWN (CALL_EXPRESSION :integer32 (IDENTIFIER work) (ARGUMENT_LIST (INTEGER_LITERAL 1))))))))))") << "The spawn must stay an argument.";
+    EXPECT_EQ(rendered, "(BLOCK (FORK_JOIN_BLOCK (BLOCK (EXPRESSION_STATEMENT (CALL_EXPRESSION (MEMBER_ACCESS (IDENTIFIER tasks) (IDENTIFIER append)) (ARGUMENT_LIST (UNARY_EXPRESSION op=KEYWORD_SPAWN (CALL_EXPRESSION :integer32 (IDENTIFIER work) (ARGUMENT_LIST (INTEGER_LITERAL 1))))))))))") << "The spawn must stay an argument.";
 }
 
 TEST(MAREAIrParallel, PartitionKeepsNameValueCountAndBody)
@@ -120,12 +118,9 @@ TEST(MAREAIrParallel, PartitionMutableKeepsTheMutableFlag)
     GTEST_COUT << "Validating a mutable partition carries the MUTABLE flag on its node." << std::endl;
 
     const std::string
-RENDERED
-{ MAREA_lowerBody(WORK, "values: mutable array<float32>", "fork_join partition mutable values into 4 as part do spawn scale(part, 2.0); end end") };
+        rendered{ MAREA_lowerBody(WORK, "values: mutable array<float32>", "fork_join partition mutable values into 4 as part do spawn scale(part, 2.0); end end") };
 
-EXPECT_NE(RENDERED.find("(PARTITION_STATEMENT part flags=1 (IDENTIFIER values) (INTEGER_LITERAL 4) (BLOCK"), std::string::npos) << "The flag must sit on the partition node: " <<
-RENDERED
-;
+    EXPECT_NE(rendered.find("(PARTITION_STATEMENT part flags=1 (IDENTIFIER values) (INTEGER_LITERAL 4) (BLOCK"), std::string::npos) << "The flag must sit on the partition node: " << rendered;
 }
 
 TEST(MAREAIrParallel, PartitionCountIsAnyLoweredExpression)
@@ -133,12 +128,9 @@ TEST(MAREAIrParallel, PartitionCountIsAnyLoweredExpression)
     GTEST_COUT << "Validating the part count of a partition is lowered like any expression, a constant name here." << std::endl;
 
     const std::string
-RENDERED
-{ MAREA_lowerBody("constant WORKERS: integer32 = 4; " + WORK, "values: array<float32>", "fork_join partition values into WORKERS as part do spawn work(part); end end") };
+        rendered{ MAREA_lowerBody("constant WORKERS: integer32 = 4; " + WORK, "values: array<float32>", "fork_join partition values into WORKERS as part do spawn work(part); end end") };
 
-EXPECT_NE(RENDERED.find("(PARTITION_STATEMENT part (IDENTIFIER values) (IDENTIFIER WORKERS) (BLOCK"), std::string::npos) << "The count must be an IDENTIFIER child: " <<
-RENDERED
-;
+    EXPECT_NE(rendered.find("(PARTITION_STATEMENT part (IDENTIFIER values) (IDENTIFIER WORKERS) (BLOCK"), std::string::npos) << "The count must be an IDENTIFIER child: " << rendered;
 }
 
 TEST(MAREAIrParallel, WithKeepsNameValueAndBody)
@@ -153,10 +145,9 @@ TEST(MAREAIrParallel, WithValueIsALoweredCallAndTheBodyKeepsItsStatements)
     GTEST_COUT << "Validating the value of a with statement may be a call and its body keeps its statements." << std::endl;
 
     const std::string
-RENDERED
-{ MAREA_lowerBody("function open_buffer(a: integer32): integer32 return a; end function use(a: integer32) end", "", "with open_buffer(1) as buffer do use(buffer); end") };
+        rendered{ MAREA_lowerBody("function open_buffer(a: integer32): integer32 return a; end function use(a: integer32) end", "", "with open_buffer(1) as buffer do use(buffer); end") };
 
-EXPECT_EQ(RENDERED, "(BLOCK (WITH_STATEMENT buffer (CALL_EXPRESSION :integer32 (IDENTIFIER open_buffer) (ARGUMENT_LIST (INTEGER_LITERAL 1))) (BLOCK (EXPRESSION_STATEMENT (CALL_EXPRESSION (IDENTIFIER use) (ARGUMENT_LIST (IDENTIFIER buffer)))))))") << "The with must lower its value and its body.";
+    EXPECT_EQ(rendered, "(BLOCK (WITH_STATEMENT buffer (CALL_EXPRESSION :integer32 (IDENTIFIER open_buffer) (ARGUMENT_LIST (INTEGER_LITERAL 1))) (BLOCK (EXPRESSION_STATEMENT (CALL_EXPRESSION (IDENTIFIER use) (ARGUMENT_LIST (IDENTIFIER buffer)))))))") << "The with must lower its value and its body.";
 }
 
 TEST(MAREAIrParallel, ForkJoinNestsInsideWithAndWithInsideForkJoin)
@@ -171,12 +162,9 @@ TEST(MAREAIrParallel, ContinueInsideWithTargetsTheEnclosingForRangeAndGetsItsSte
     GTEST_COUT << "Validating a continue inside a with body inside a for-range loop still runs the step of the loop first." << std::endl;
 
     const std::string
-RENDERED
-{ MAREA_lowerBody("", "scratch: mutable arena, a: boolean", "for index in 0 .. 3 do with scratch as inner do if a then continue; end end end") };
+        rendered{ MAREA_lowerBody("", "scratch: mutable arena, a: boolean", "for index in 0 .. 3 do with scratch as inner do if a then continue; end end end") };
 
-EXPECT_NE(RENDERED.find("(WITH_STATEMENT inner (IDENTIFIER scratch) (BLOCK (IF_STATEMENT (IDENTIFIER a) (BLOCK (BLOCK (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER index) (IDENTIFIER $last)) (BLOCK (BREAK_STATEMENT))) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER index) (INTEGER_LITERAL 1)) (CONTINUE_STATEMENT))))))"), std::string::npos) << "The continue must carry the step: " <<
-RENDERED
-;
+    EXPECT_NE(rendered.find("(WITH_STATEMENT inner (IDENTIFIER scratch) (BLOCK (IF_STATEMENT (IDENTIFIER a) (BLOCK (BLOCK (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER index) (IDENTIFIER $last)) (BLOCK (BREAK_STATEMENT))) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER index) (INTEGER_LITERAL 1)) (CONTINUE_STATEMENT))))))"), std::string::npos) << "The continue must carry the step: " << rendered;
 }
 
 TEST(MAREAIrParallel, ForkJoinRaisesNothingAndKeepsItsFunction)
@@ -284,10 +272,9 @@ TEST(MAREAIrParallel, ScalingExampleKeepsItsThreeParallelFunctions)
     EXPECT_EQ(names, " WORKER_COUNT scale_slice sum_slice scale_all sum_all") << "The constant and the four functions must stay in source order.";
 
     const std::string
-RENDERED
-{ MAREA_irRender(fixture.module) };
+        rendered{ MAREA_irRender(fixture.module) };
 
-EXPECT_NE(RENDERED.find("(PARTITION_STATEMENT part flags=1 (IDENTIFIER values) (IDENTIFIER WORKER_COUNT)"), std::string::npos) << "The mutable partition of scale_all must be present.";
+    EXPECT_NE(rendered.find("(PARTITION_STATEMENT part flags=1 (IDENTIFIER values) (IDENTIFIER WORKER_COUNT)"), std::string::npos) << "The mutable partition of scale_all must be present.";
 
-EXPECT_NE(RENDERED.find("(PARTITION_STATEMENT part (IDENTIFIER values) (IDENTIFIER WORKER_COUNT)"), std::string::npos) << "The read-only partition of sum_all must be present.";
+    EXPECT_NE(rendered.find("(PARTITION_STATEMENT part (IDENTIFIER values) (IDENTIFIER WORKER_COUNT)"), std::string::npos) << "The read-only partition of sum_all must be present.";
 }
