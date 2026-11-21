@@ -32,8 +32,8 @@ actually resolved.
 
 ### Final report
 
-A table (apply, handoff, issue, PR, merge state, bump applied), the final `metadata.yaml` on every
-branch this round touched, every verification's result with real counts (what passed, failed, or
+A table (apply, handoff, issue, PR, merge state, bump applied, when `metadata.yaml` exists), the final `metadata.yaml` on every
+branch this round touched (when it exists), every verification's result with real counts (what passed, failed, or
 did not run), every deviation, each touched handoff's row completion (`x` of `y`), and a proposed
 next round. Then **stop and wait** - never start another round on your own.
 

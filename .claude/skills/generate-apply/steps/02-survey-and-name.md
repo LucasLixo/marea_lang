@@ -11,7 +11,7 @@ Part of the [generate-apply](../SKILL.md) skill. This file is a complete prompt 
 
 ### Naming
 
-`temp/_APPLY/<slug>.apply.md`, where the slug is lowercase kebab-case ASCII, 3 to 6 words, named after **what the task is** and specific enough to tell it apart from every sibling: `port-audio-device-to-rust`, `cover-opaque-struct-fields`, `document-marea-audio-open` - not `audio-work`, `refactor`, `apply-2`.
+`temp/_APPLY/<slug>.apply.md`, where the slug is lowercase kebab-case ASCII, 3 to 6 words, named after **what the task is** and specific enough to tell it apart from every sibling: `add-lexer-token-kinds`, `cover-diagnostic-sink-accessors`, `document-arena-api` - not `lexer-work`, `refactor`, `apply-2`.
 
 Never a timestamp, never a number. On a collision that is genuinely a different task, sharpen the slug rather than appending a digit.
 

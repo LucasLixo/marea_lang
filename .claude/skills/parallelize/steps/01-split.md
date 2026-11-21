@@ -8,9 +8,9 @@ Part of the [parallelize](../SKILL.md) skill. This file is a complete prompt for
 
 Run `mise trust`, then `git pull --rebase`, and resolve what it reports first (dirty tree or worktree that refuses: `git fetch` plus `git merge --ff-only origin/<branch>`).
 
-Read `AGENTS.md` and the skills the request touches (`.agents/skills/`), then verify the real
+Read `AGENTS.md` and the skills the request touches (`.claude/skills/`), then verify the real
 state: `git status`, `git branch --show-current`, `git worktree list`. The tree may already carry
-drift that is nobody's doing this run (a dirty submodule pointer, generated docs); `git status` at
+drift that is nobody's doing this run (a dirty submodule pointer, a build output); `git status` at
 the start is your baseline for what NOT to stage or revert.
 
 ### Split

@@ -5,7 +5,7 @@ Part of the [dispatch-applies](../SKILL.md) skill. This file is a complete promp
 ## Rules for this step
 
 - Never merge before every worker of the round has reported.
-- Never push to `main` and never trigger `.github/workflows/release.yml`.
+- Never push to `main`. Never trigger a release workflow if one is ever added.
 - Anything that is not an obvious parallel addition: stop and ask the user.
 
 Never merge a PR before every worker of this round has reported - a later report might change how
@@ -14,10 +14,10 @@ then the rest; within one handoff, by dependency order. One PR at a time:
 
 1. `git fetch`. If the PR's branch has fallen behind its own base branch, update it first: on the
    PR's branch, `git merge <base of that PR>` and resolve.
-2. `metadata.yaml` conflict: take the base branch's value and reapply only this PR's own bump -
+2. `metadata.yaml` conflict (only when the file exists): take the base branch's value and reapply only this PR's own bump -
    `major` bump => major+1, minor=0, patch=0; `minor` => minor+1, patch=0; `patch` => patch+1;
    `build` = the base's build plus this PR's own commit count. A conflict in any OTHER file that is
-   an obvious parallel addition (a mod/feature/package list, an allowlist, an include list) - keep
+   an obvious parallel addition (a source list, an allowlist, an include list, a list of tests) - keep
    BOTH additions. Anything else: **stop and ask the user**, do not guess at someone else's intent.
 3. Before merging the NEXT PR, run the minimum verification the just-merged PR's own files call
    for (its apply's `## Verification` section is the source of truth - do not invent a heavier

@@ -3,7 +3,30 @@
 
 cmake_minimum_required(VERSION 3.20)
 
+get_property(TEMP_GUARD_SET GLOBAL PROPERTY MareaRootGuard SET)
+if(TEMP_GUARD_SET)
+    message(FATAL_ERROR "The root CMakeLists.txt was included twice")
+endif()
+set_property(GLOBAL PROPERTY MareaRootGuard ON)
+unset(TEMP_GUARD_SET)
+
+# Policies before the project, so every later file sees them
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/settings/ConfigurePolicies.cmake" NO_POLICY_SCOPE)
+
+# CMake built-in modules used by the root project
 include(CMakeDependentOption)
+
+# Bootstrap folders let the root load the functions and the folder settings
+set(MAREA_FOLDER "${CMAKE_CURRENT_SOURCE_DIR}" CACHE PATH "Path to the Marea current source directory")
+set(MAREA_FOLDER_CMAKE "${MAREA_FOLDER}/cmake" CACHE PATH "Path to the custom CMake modules directory")
+set(MAREA_FOLDER_CMAKE_FUNCTIONS "${MAREA_FOLDER_CMAKE}/functions" CACHE PATH "Path to the custom CMake functions")
+
+# Functions and macros, Basic first: the others parse their arguments with it
+include("${MAREA_FOLDER_CMAKE_FUNCTIONS}/Basic.cmake")
+include("${MAREA_FOLDER_CMAKE_FUNCTIONS}/FindExecutable.cmake")
+
+include("${MAREA_FOLDER_CMAKE}/settings/ConfigureFolders.cmake")
+configurefolders()
 
 project(marea_lang C CXX)
 
@@ -16,29 +39,27 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-add_library(marea STATIC lib/source/marea/MAREAVersion.c)
+include("${MAREA_FOLDER_CMAKE_SETTINGS}/ConfigureCompilerID.cmake")
+configurecompilerid()
 
-target_include_directories(marea PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/lib/include")
+include("${MAREA_FOLDER_CMAKE_SETTINGS}/ConfigureBuildType.cmake")
+configurebuildtype(CURRENT MAREA_MODE_BUILD_CURRENT AVAILABLE MAREA_MODE_BUILD_AVAILABLE)
 
-option(MAREA_OPTION_TARGET_TESTS "Build the GoogleTest suite under tests/" ON)
-option(MAREA_OPTION_SHARED_LIBS "Build marea_base and marea_lex as shared libraries instead of static" OFF)
-option(MAREA_OPTION_PRECOMPILE_HEADER "Precompile the most basic headers in every library target" ON)
-option(MAREA_OPTION_TARGET_BASE "Build the marea_base library" ON)
-cmake_dependent_option(
-    MAREA_OPTION_TARGET_LEX
-    "Build the marea_lex library"
-    ON
-    "MAREA_OPTION_TARGET_BASE"
-    OFF
-)
+include("${MAREA_FOLDER_CMAKE_SETTINGS}/ConfigureOptions.cmake")
+configureoptions()
 
-if(MAREA_OPTION_TARGET_TESTS AND NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/GoogleTest/CMakeLists.txt")
-    message(FATAL_ERROR "3rdparty/GoogleTest is missing - run: mise run setup:git-modules")
-endif()
+# After the options, whose values decide which tools are required
+include("${MAREA_FOLDER_CMAKE_SETTINGS}/ConfigureMiseTools.cmake")
+configuremisetools()
 
-add_subdirectory(lib)
+include("${MAREA_FOLDER_CMAKE_SETTINGS}/ConfigureThirdpartyProjects.cmake")
+configurethirdpartyprojects()
+
+add_subdirectory("${MAREA_FOLDER_LIB}" "${MAREA_FOLDER_CMAKE_BINARY}/Marea-Lib")
 
 if(MAREA_OPTION_TARGET_TESTS)
     enable_testing()
-    add_subdirectory(tests)
+    add_subdirectory("${MAREA_FOLDER_TESTS}" "${MAREA_FOLDER_CMAKE_BINARY}/Marea-Tests")
+else()
+    message(STATUS "Not add targets of: ${MAREA_FOLDER_TESTS}")
 endif()

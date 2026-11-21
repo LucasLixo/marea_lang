@@ -9,7 +9,7 @@ Per task, choose the cheapest isolation that is safe:
   write sets are what keep it safe, so state the owned files in the prompt and forbid touching
   anything else.
 - **Git worktree** (`isolation: "worktree"`): use it when two parallel tasks must edit the same
-  file or overlapping areas, when a task runs a build or test that rewrites generated files, when
+  file or overlapping areas, when a task runs a build or test in the same build directory as another task (`cmake-build-*`), when
   a task is risky or exploratory and its result may be discarded, or when the working tree is
   dirty with drift the task could trip over. A worktree task's result is a branch you merge back
   in Step 5.

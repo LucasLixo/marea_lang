@@ -6,7 +6,7 @@ Part of the [generate-issue](../SKILL.md) skill. This file is a complete prompt 
 
 - `--body` is plain Markdown with real newlines. English. At least one label.
 
-Load the template `.github/ISSUE_TEMPLATE/<primary-label>.md` (fallback: `marea/.github/ISSUE_TEMPLATE/<primary-label>.md`). Replace every placeholder (`<!-- ... -->`) with real details. Then run `gh issue create --title "..." --body "<populated>" --label "<primary-label>"`.
+Load the template `.github/ISSUE_TEMPLATE/<primary-label>.md`. Replace every placeholder (`<!-- ... -->`) with real details. Then run `gh issue create --title "..." --body "<populated>" --label "<primary-label>"`.
 
 ## Done when
 

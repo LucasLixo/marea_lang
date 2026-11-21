@@ -9,9 +9,9 @@ Legend: `[ ]` pending  `[x]` done  `[-]` cancelled
 
 | | Apply | Description | Mode | Effort | Label | Issue |
 | - | ----- | ----------- | ---- | ------ | ----- | ----- |
-| [x] | `_APPLY/cleanup-stale-fixtures.apply.md` | Delete unused test fixtures left behind by a prior refactor | edit | low | refactor | #255 |
-| [ ] | `_APPLY/port-audio-device-to-rust.apply.md` | Move the audio device handle into lib/rust | edit | high | feature | |
-| [-] | `_APPLY/add-vtable-backend.apply.md` | Backend vtable (cancelled: single backend, premature) | edit | medium | feature | |
+| [x] | `_APPLY/cleanup-stale-test-helpers.apply.md` | Delete unused test helpers left behind by a prior refactor | edit | low | refactor | #255 |
+| [ ] | `_APPLY/add-lexer-token-kinds.apply.md` | Add the token kinds of the grammar to the lexer | edit | high | feature | |
+| [-] | `_APPLY/add-bytecode-jit.apply.md` | JIT backend (cancelled: the language has no JIT) | edit | medium | feature | |
 ```
 
 `Description` is one short line, the same substance as the apply's `description:` field. `Mode`,
