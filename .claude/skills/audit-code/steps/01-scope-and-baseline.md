@@ -1,4 +1,4 @@
-# Step 1 of 8 - Stage 0 - Scope and baseline
+# Step 1 of 6 - Stage 0 - Scope and baseline
 
 Part of the [audit-code](../SKILL.md) skill. This file is a complete prompt for this step alone: do what it says, check "Done when", then open the next step.
 
@@ -11,17 +11,19 @@ Part of the [audit-code](../SKILL.md) skill. This file is a complete prompt for 
 | File | Skill (stage 1) |
 | --- | --- |
 | `.c` / `.h` under `lib/` | [c-style](../../c-style/SKILL.md) |
-| `.rs` under `lib/rust/` | [rust-style](../../rust-style/SKILL.md) |
+| `.rs` (no Rust crate exists yet) | [rust-style](../../rust-style/SKILL.md) |
 | `CMakeLists.txt` / `*.cmake` | [cmake-style](../../cmake-style/SKILL.md) |
-| `mise.toml` | [mise-style](../../mise-style/SKILL.md) |
 | anything under `tests/` | [cpp-testing](../../cpp-testing/SKILL.md) |
+| scripts under `tools/` (`.lua`, `.sh`, `.ps1`), `mise.toml` | no style skill: stage 1 only checks the ASCII rule and the copyright header; stage 3 reads them |
 
-A file with no matching skill skips stage 1 and the report says so.
+A file with no matching skill skips the style part of stage 1 and the report says so.
 
 1. Resolve the argument list (or the branch diff), drop `3rdparty/`, generated files and `docs/`, and map every file to its skill with the table above.
-2. Record the tests covering each file: C/C++ under `tests/source/<module>/`; Rust under the mirror `lib/rust/tests/<same path as the source under lib/rust/marea/>.rs`, the file the source's `#[path] mod tests;` points at.
-3. A Rust source with an inline `mod tests {` or other test code under `#[cfg(test)]` is a conformance finding, except under `lib/rust/build/` and except the seams the `rust-style` section [Where tests live](../../rust-style/SKILL.md#where-tests-live) lists as allowed (logging seams, host gates, the crate root's two declarations, modules with no test module). Those seams are not findings; do not restate the list here.
-4. Run the covering tests first and record the baseline (`mise run test:rust-crate` for Rust, `mise run test:engine-cpp` for C/C++). A red baseline stops the audit and is reported, never "fixed" blindly.
+2. Record the tests covering each file: C tests are GoogleTest files under `tests/source/<module>/`; the tests of a `tools/` script are the `test_*.lua` files under that tool's `tests/` folder, when it has one.
+3. Run the covering tests first and record the baseline:
+   - C and tests: `mise run build:marea`, then build the test target with `cmake --build cmake-build-debug --target marea_tests` (the mise task builds only the `marea` target), then `ctest --test-dir cmake-build-debug --output-on-failure`. Use the folder of the configuration you built (`cmake-build-<config>`).
+   - Tools: `lua tools/marea-ascii-check/tests/run.lua` for the ASCII checker. A tool with no tests has no baseline: say so.
+4. A red baseline stops the audit and is reported, never "fixed" blindly.
 
 ## Done when
 

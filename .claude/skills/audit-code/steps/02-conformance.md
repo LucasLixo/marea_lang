@@ -1,4 +1,4 @@
-# Step 2 of 8 - Stage 1 - Conformance
+# Step 2 of 6 - Stage 1 - Conformance
 
 Part of the [audit-code](../SKILL.md) skill. This file is a complete prompt for this step alone: do what it says, check "Done when", then open the next step.
 
@@ -13,4 +13,4 @@ Read each file against its skill and list every violation with `file:line`. Fix 
 - Every violation is listed with `file:line`.
 - The mechanical ones are fixed and the judgement ones are reported.
 
-Next: [steps/03-permission-map-sync.md](03-permission-map-sync.md)
+Next: [steps/03-minimal-code.md](03-minimal-code.md)
