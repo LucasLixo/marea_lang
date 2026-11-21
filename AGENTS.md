@@ -126,9 +126,8 @@ only when the user or a rule names them:
 - `generate-apply` - one self-contained APPLY under `temp/_APPLY/` that a cold session executes end to end.
 - `generate-handoff` - a set of APPLYs plus the dependency graph that lets them run in parallel.
 - `dispatch-applies` - several existing applies at once, one agent worktree each, this session orchestrating.
-- `request-make-apply` - `<submodule path>` then `<request text>`: a generated apply executed at once in a
-  worktree of the submodule; leaves it at the tip of `develop`/`main`/`master` and commits the pointer bump in the
-  parent.
+- `request-make-apply` - `<request text>`: sizes the request, then delivers it at once in an isolated git worktree of
+  this repository, carried to a merged PR in the same run.
 - `parallelize` - free text => tasks => dependency waves dispatched to subagents, in a git worktree only when
   write sets could collide.
 - `reconcile-temp-logs` - prunes finished applies and merged log entries, backing them up first; never removes
