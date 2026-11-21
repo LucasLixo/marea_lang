@@ -7,6 +7,10 @@
 
 namespace
 {
+    const MAREA_ResolveCallback RESOLVE_EXTERNAL{ [](const std::string &text, const MAREA_AstNode **) {
+        return (text.compare(0, 12, "collections.") == 0) ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
+    } };
+
     std::string MAREA_dumpOf(MAREA_IrFixture &fixture)
     {
         const MAREA_Character8 *text{ nullptr };
@@ -165,4 +169,26 @@ TEST(MAREAIrDump, NullArgumentsAreRejected)
     EXPECT_EQ(MAREA_IrModuleDump(arena, fixture.module, nullptr, &length), MAREA_IR_EXCEPT_ERROR_NULL_POINTER) << "A null text pointer must be rejected.";
 
     EXPECT_EQ(MAREA_IrModuleDump(arena, fixture.module, &text, nullptr), MAREA_IR_EXCEPT_ERROR_NULL_POINTER) << "A null length pointer must be rejected.";
+}
+
+TEST(MAREAIrDump, ForEachDumpsItsNameFlagAndChildren)
+{
+    GTEST_COUT << "Validating the dump of a mutable for-each loop with a key shows the value name, the flag and the three children." << std::endl;
+
+    MAREA_IrFixture fixture(RESOLVE_EXTERNAL);
+
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; import collections.array; function run(values: mutable array<integer32>) for each key, value in mutable values do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+
+    EXPECT_EQ(MAREA_dumpOf(fixture), MAREA_lines({
+                                         "MODULE",
+                                         "  FUNCTION_DECLARATION \"run\"",
+                                         "    PARAMETER_LIST",
+                                         "      PARAMETER \"values\" type=array flags=1",
+                                         "    BLOCK",
+                                         "      FOR_EACH_STATEMENT \"value\" flags=1",
+                                         "        IDENTIFIER \"key\"",
+                                         "        IDENTIFIER \"values\"",
+                                         "        BLOCK",
+                                     }))
+        << "The dump must show the name as text and the MUTABLE flag on the loop.";
 }
