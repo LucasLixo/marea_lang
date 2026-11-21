@@ -28,7 +28,7 @@ namespace
 
     const std::string COMPARABLE{ "contract Comparable function less(self: Self, other: Self): boolean; end " };
 
-    const std::string MAXIMUM{ "function maximum<Item>(left: Item, right: Item): Item where Item: Comparable return left; end " };
+    const std::string MAXIMUM{ "function maximum<Item>(left: Item, right: Item): Item where Item: Comparable return copy left; end " };
 
     std::string MAREA_nest(int levels)
     {
@@ -46,7 +46,7 @@ TEST(MAREASemaGenericsAndContracts, TypeParametersResolve)
 {
     GTEST_COUT << "Validating generic structures and functions with type parameters raise nothing." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("structure Pair<First, Second> first: First; second: Second; end function same<Item>(a: Item): Item return a; end").empty()) << "Type parameters must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("structure Pair<First, Second> first: First; second: Second; end function same<Item>(a: Item): Item return copy a; end").empty()) << "Type parameters must raise nothing.";
 }
 
 TEST(MAREASemaGenericsAndContracts, ValueGenericSizesAVector)
