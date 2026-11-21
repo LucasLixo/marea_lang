@@ -107,7 +107,9 @@ TEST(MAREAParserRecovery, LongFlatChainsDoNotCrash)
 
     MAREA_ParseFixture chainFixture;
 
-    EXPECT_NE(chainFixture.MAREA_expression(chain).find("binary:PLUS"), std::string::npos) << "The chain must parse.";
+    ASSERT_EQ(chainFixture.MAREA_parse("namespace main; constant x: integer32 = " + chain + ";"), MAREA_PARSE_EXCEPT_SUCCESS) << "The chain must parse.";
+
+    EXPECT_NE(chainFixture.MAREA_dump().find("BINARY_EXPRESSION op=PLUS"), std::string::npos) << "The chain must dump.";
 
     EXPECT_TRUE(chainFixture.MAREA_codes().empty()) << "A long chain must give no diagnostic.";
 
