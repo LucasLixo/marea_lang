@@ -46,6 +46,11 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsByValue(const MAREA_SemaContext *conte
     case MAREA_SEMA_TYPE_CLASS_COPY_BUILTIN:
         return MAREA_BOOLEAN_TRUE;
     case MAREA_SEMA_TYPE_CLASS_USER:
+        // INFO: an enum is a plain integer, so it is always passed by value.
+        if (MAREA_AstNodeGetKind(declaration) == MAREA_AST_KIND_ENUM_DECLARATION) {
+            return MAREA_BOOLEAN_TRUE;
+        }
+
         return MAREA_SemaAttributeIsOn(context->root, declaration, "value");
     case MAREA_SEMA_TYPE_CLASS_EXTERNAL:
         return unknownIsValue;
@@ -220,7 +225,7 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckParameter(MAREA_SemaContext *con
 
     const MAREA_SemaTypeClass CLASS = MAREA_SemaClassifyType(context, MAREA_G_ChildAt(parameter, 1), &declaration, &name, &length);
 
-    const MAREA_Boolean ALREADY_BORROWED = ((CLASS == MAREA_SEMA_TYPE_CLASS_GENERIC) || (CLASS == MAREA_SEMA_TYPE_CLASS_MOVE_BUILTIN) || ((CLASS == MAREA_SEMA_TYPE_CLASS_USER) && (MAREA_SemaAttributeIsOn(context->root, declaration, "value") == MAREA_BOOLEAN_FALSE))) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+    const MAREA_Boolean ALREADY_BORROWED = ((CLASS == MAREA_SEMA_TYPE_CLASS_GENERIC) || (CLASS == MAREA_SEMA_TYPE_CLASS_MOVE_BUILTIN) || ((CLASS == MAREA_SEMA_TYPE_CLASS_USER) && (MAREA_AstNodeGetKind(declaration) != MAREA_AST_KIND_ENUM_DECLARATION) && (MAREA_SemaAttributeIsOn(context->root, declaration, "value") == MAREA_BOOLEAN_FALSE))) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 
     if (ALREADY_BORROWED == MAREA_BOOLEAN_FALSE) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
@@ -289,7 +294,15 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckOwnership(MAREA_SemaContext *context,
         return MAREA_G_CheckCopyOrMove(context, node, MAREA_SemaInferType(context, target), value);
     }
     case MAREA_AST_KIND_LOCAL_DECLARATION:
+    {
+        const MAREA_SemaExcept LITERAL_RESULT = MAREA_SemaCheckLiteralFit(context, MAREA_G_ChildAt(node, 1), MAREA_G_ChildAt(node, 2));
+
+        if (LITERAL_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return LITERAL_RESULT;
+        }
+
         return MAREA_G_CheckCopyOrMove(context, node, MAREA_G_IsType(MAREA_G_ChildAt(node, 1)) == MAREA_BOOLEAN_TRUE ? MAREA_G_ChildAt(node, 1) : MAREA_NULLPTR, MAREA_G_ChildAt(node, 2));
+    }
     default:
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }

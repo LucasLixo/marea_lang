@@ -161,6 +161,22 @@ static MAREA_Boolean MAREA_CALL MAREA_G_SwitchTerminates(const MAREA_SemaContext
     return ((hasDefault == MAREA_BOOLEAN_TRUE) || (CLASS != MAREA_G_SCRUTINEE_CLASS_OTHER)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
+static MAREA_Boolean MAREA_CALL MAREA_G_MacroDiverges(const MAREA_AstNode *statement)
+{
+    const MAREA_AstNode *call = MAREA_G_LastChild(statement);
+
+    const MAREA_AstNode *name = ((call != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(call) == MAREA_AST_KIND_MACRO_CALL)) ? MAREA_G_ChildAt(call, 0) : MAREA_NULLPTR;
+
+    if (name == MAREA_NULLPTR) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_IntegerSize LENGTH = MAREA_AstNodeGetTextLength(name);
+
+    // INFO: unreachable!() and compile_error!() never give control back, so they end a path like a return.
+    return (((LENGTH == 11) && (memcmp(MAREA_AstNodeGetText(name), "unreachable", 11) == 0)) || ((LENGTH == 13) && (memcmp(MAREA_AstNodeGetText(name), "compile_error", 13) == 0))) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
 static MAREA_Boolean MAREA_CALL MAREA_G_Terminates(const MAREA_SemaContext *context, const MAREA_AstNode *statement)
 {
     // INFO: a statement that the parser could not build is given the benefit of the doubt, so no diagnostic lands on it.
@@ -171,6 +187,8 @@ static MAREA_Boolean MAREA_CALL MAREA_G_Terminates(const MAREA_SemaContext *cont
     switch (MAREA_AstNodeGetKind(statement)) {
     case MAREA_AST_KIND_RETURN_STATEMENT:
         return (MAREA_AstNodeGetChildCount(statement) > 0) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+    case MAREA_AST_KIND_MACRO_STATEMENT:
+        return MAREA_G_MacroDiverges(statement);
     case MAREA_AST_KIND_IF_STATEMENT:
         return MAREA_G_IfTerminates(context, statement);
     case MAREA_AST_KIND_SWITCH_STATEMENT:
