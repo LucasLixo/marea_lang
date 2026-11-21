@@ -1,0 +1,3 @@
+[mcp_servers.marea_docs]
+command = "lua"
+args = ["./tools/marea-mcp/main.lua"]

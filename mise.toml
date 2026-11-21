@@ -73,6 +73,11 @@ flag "--out <path>" help="JSON output path" default="tmp/catalog.json"
 run = 'lua ./tools/marea-api-catalog/main.lua catalog --out {{ usage.out }}'
 dir = "{{config_root}}"
 
+[tasks."dev:mcp-docs"]
+description = "Run the marea-mcp stdio server for a manual smoke test - wraps tools/marea-mcp. Pipe a JSON-RPC line in by hand; MCP clients (Claude Code, Codex) launch this directly via .mcp.json / .codex/config.toml, not through mise."
+run = 'lua ./tools/marea-mcp/main.lua'
+dir = "{{config_root}}"
+
 [tasks."setup:git-modules"]
 description = "Initialize every Git submodule this repository pins (including nested ones), at the commit it is pinned to - wraps tools/GetGitModules.sh. A no-op until the repository actually vendors a submodule."
 run = "bash ./tools/GetGitModules.sh"
