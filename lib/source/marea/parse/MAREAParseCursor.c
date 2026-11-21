@@ -251,3 +251,28 @@ MAREA_AstNode *MAREA_CALL MAREA_ParseErrorNode(MAREA_ParseState *state)
 {
     return MAREA_ParseNodeBegin(state, MAREA_AST_KIND_ERROR_NODE);
 }
+
+void MAREA_CALL MAREA_ParseAdoptAttributes(MAREA_ParseState *state, MAREA_AstNode *node, const MAREA_AstNode *holder)
+{
+    const MAREA_IntegerSize count = MAREA_AstNodeGetChildCount(holder);
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < count; index = (index + MAREA_INTEGER_SIZE(1))) {
+        const MAREA_AstNode *attribute = MAREA_NULLPTR;
+
+        if (MAREA_AstNodeGetChildAt(holder, index, &attribute) == MAREA_AST_EXCEPT_SUCCESS) {
+            MAREA_ParseNodeAdd(state, node, (MAREA_AstNode *)attribute);
+        }
+    }
+}
+
+// INFO: A member loop must move on every pass, so a bad member is marked, skipped to a safe token and then forced forward.
+void MAREA_CALL MAREA_ParseSkipBadMember(MAREA_ParseState *state, MAREA_IntegerSize before, MAREA_AstNode *parent)
+{
+    MAREA_ParseNodeAdd(state, parent, MAREA_ParseErrorNode(state));
+
+    MAREA_ParseSynchronize(state);
+
+    if (state->index == before) {
+        MAREA_IGNORE(MAREA_ParseAdvance(state));
+    }
+}

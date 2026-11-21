@@ -258,10 +258,27 @@ MAREA_BEGIN_EXTERN_C
     MAREA_AstNode *MAREA_CALL MAREA_ParseExpression(MAREA_ParseState * state);
 
     /**
-     * @brief Parses a block: statements up to end, elseif, else, case, default or the end of file. The
-     * terminator is not consumed.
+     * @brief Parses a block: statements up to end, the end of file, or the start of a top level
+     * declaration. When stopAtBranches is true it also stops before elseif, else, case and default;
+     * otherwise those words are reported as UNEXPECTED_TOKEN and skipped. The terminator is not consumed.
      */
-    MAREA_AstNode *MAREA_CALL MAREA_ParseBlock(MAREA_ParseState * state);
+    MAREA_AstNode *MAREA_CALL MAREA_ParseBlock(MAREA_ParseState * state, MAREA_Boolean stopAtBranches);
+
+    /**
+     * @brief Parses one statement. Returns an ERROR_NODE without consuming when none starts here.
+     */
+    MAREA_AstNode *MAREA_CALL MAREA_ParseStatement(MAREA_ParseState * state);
+
+    /**
+     * @brief Moves the children of holder, the attributes parsed before an item, to the front of node.
+     */
+    void MAREA_CALL MAREA_ParseAdoptAttributes(MAREA_ParseState * state, MAREA_AstNode * node, const MAREA_AstNode *holder);
+
+    /**
+     * @brief Marks a bad member of a block with an ERROR_NODE under parent, skips to a safe token and
+     * moves one token on when nothing was consumed since before. Keeps member loops from stalling.
+     */
+    void MAREA_CALL MAREA_ParseSkipBadMember(MAREA_ParseState * state, MAREA_IntegerSize before, MAREA_AstNode * parent);
 
     /**
      * @brief Tells whether kind starts a top level declaration that MAREA_ParseDeclaration handles.
