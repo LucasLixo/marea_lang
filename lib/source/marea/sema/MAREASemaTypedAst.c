@@ -73,8 +73,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_TypedAstIsType(const MAREA_AstNode *node
     return ((KIND == MAREA_AST_KIND_NAMED_TYPE) || (KIND == MAREA_AST_KIND_FUNCTION_TYPE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
-// INFO: a separate, standalone inference path for the typed tree only - MAREA_SemaInferType stays
-// untouched so its already-shipped assignment fallback behavior never changes.
+// INFO: a standalone inference path for the typed tree only; MAREA_SemaInferType stays untouched.
 static const MAREA_AstNode *MAREA_CALL MAREA_G_InferTypedResultType(MAREA_SemaContext *context, const MAREA_AstNode *expression)
 {
     if (expression == MAREA_NULLPTR) {
@@ -192,8 +191,7 @@ static void MAREA_CALL MAREA_G_TypedAstLeaveFunctionGenerics(MAREA_SemaContext *
     context->generics.count = savedCount;
 }
 
-// INFO: the callee's return type is read raw from its declaration, never substituted: a generic
-// result stays tagged GENERIC with the unbound type kept, per the apply's D5 scope decision.
+// INFO: the callee's return type is read raw, never substituted, per the apply's D5 decision.
 static void MAREA_CALL MAREA_G_TypedAstClassifyCall(MAREA_SemaContext *context, MAREA_SemaTypedNode *built, const MAREA_AstNode *node)
 {
     const MAREA_AstNode *callee = MAREA_SemaChildAt(node, 0);
@@ -288,8 +286,7 @@ static MAREA_SemaTypedAstExcept MAREA_CALL MAREA_G_TypedAstBuildNode(MAREA_SemaC
     built->typeClass = MAREA_SEMA_TYPE_CLASS_PRIMITIVE;
     built->ownershipMode = MAREA_SEMA_OWNERSHIP_MODE_VALUE;
 
-    // INFO: the checker's own scope stack is replayed read-only, so a local or a generic parameter
-    // is in context exactly as it was the first time sema visited this node.
+    // INFO: the checker's scope stack is replayed read-only, matching the first sema visit.
     MAREA_SemaScopeMark mark = { 0 };
 
     if (MAREA_SemaScopeEnter(context, node, &mark) == MAREA_SEMA_EXCEPT_ERROR_OUT_OF_MEMORY) {
