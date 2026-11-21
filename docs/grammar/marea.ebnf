@@ -48,16 +48,19 @@ boolean_literal     = "true" | "false" ;
 (* There is no nil. Every value has one fixed type. *)
 
 (* Reserved words. A reserved word is never an identifier. *)
-keyword             = "and" | "as" | "break" | "constant" | "continue" | "contract" | "do"
-                    | "each" | "else" | "elseif" | "end" | "enum" | "false" | "for"
-                    | "fork_join" | "function" | "if" | "implementation" | "import" | "in"
-                    | "local" | "match" | "mutable" | "namespace" | "not" | "opaque" | "or"
-                    | "reference" | "return" | "spawn" | "structure" | "then" | "true"
-                    | "type" | "unsafe" | "where" | "while" ;
+keyword             = "and" | "as" | "break" | "case" | "constant" | "continue" | "contract"
+                    | "copy" | "default" | "do" | "each" | "else" | "elseif" | "end" | "enum" | "false"
+                    | "for" | "fork_join" | "function" | "if" | "implementation" | "import"
+                    | "in" | "into" | "local" | "move" | "mutable" | "namespace"
+                    | "not" | "opaque" | "or" | "partition" | "reference" | "return" | "spawn"
+                    | "structure" | "switch" | "then" | "true" | "type" | "unsafe" | "where"
+                    | "while" | "with" ;
 
 (* Names that are predeclared but are not reserved: the primitive types (boolean, integer8 ... *)
-(* integer64, unsigned8 ... unsigned64, float32, float64, string), the type constructors (array, *)
-(* table, vector, slice, owned, handle, pointer), and the names Self and self. *)
+(* integer64, unsigned8 ... unsigned64, float32, float64, string), the core type constructors *)
+(* vector and pointer, and the names Self and self. The language has no standard library: array, *)
+(* table, slice, task, arenas and text are libraries written in C or in Marea, and they are *)
+(* imported like any namespace. The namespace "c" is the only reserved one. *)
 (* "public" and "private" are words of the attribute list only. *)
 
 (* Operators and separators. *)
@@ -82,7 +85,7 @@ compilation_unit    = namespace_declaration,
                       { top_level_item } ;
 
 (* The name must be the folder path of the file, relative to the project root, plus the file *)
-(* name without extension, joined by ".". The compiler checks it. The names "c" and "std" are *)
+(* name without extension, joined by ".". The compiler checks it. The name "c" is *)
 (* reserved as the first part of a namespace. *)
 namespace_declaration = "namespace", qualified_name, ";" ;
 
@@ -148,7 +151,11 @@ function_declaration = "function", identifier, [ generic_parameters ],
                        block,
                        "end" ;
 parameter_list      = parameter, { ",", parameter } ;
-parameter           = identifier, ":", type ;
+(* A parameter is a reference that lives only for the call. A primitive and a "#[value]" type *)
+(* are passed by value. Any other type is a read-only borrow. "mutable" is a write borrow, *)
+(* and it is exclusive. "reference" forces a borrow of a type that is passed by value. *)
+(* A reference can not be stored in a field or returned. See note 9. *)
+parameter           = identifier, ":", [ "reference" | "mutable" ], type ;
 
 generic_parameters  = "<", generic_parameter, { ",", generic_parameter }, ">" ;
 generic_parameter   = identifier
@@ -161,9 +168,8 @@ constraint          = identifier, ":", qualified_name, { ",", qualified_name } ;
 
 (* ===================================== 5. Types ==================================== *)
 
-(* "mutable" and "reference" are written in this order: mutable reference Point. *)
-(* "mutable" alone is for a slice: mutable slice<float32>. The checker rejects other uses. *)
-type                = [ "mutable" ], [ "reference" ], ( named_type | function_type ) ;
+(* A type has no borrow word. "reference" and "mutable" are only in a parameter. *)
+type                = named_type | function_type ;
 named_type          = qualified_name, [ type_arguments ] ;
 function_type       = "function", "(", [ parameter_list ], ")", [ ":", type ] ;
 type_arguments      = "<", type_argument, { ",", type_argument }, ">" ;
@@ -181,14 +187,15 @@ statement           = local_declaration
                     | while_statement
                     | for_range_statement
                     | for_each_statement
-                    | match_statement
+                    | switch_statement
+                    | with_statement
+                    | partition_statement
                     | return_statement
                     | break_statement
                     | continue_statement
                     | scope_block
                     | unsafe_block
                     | fork_join_block
-                    | spawn_statement
                     | macro_statement ;
 
 local_declaration   = "local", identifier, ":", type, [ "=", expression ], ";" ;
@@ -198,8 +205,8 @@ assignment          = postfix_expression, assignment_operator, expression, ";" ;
 assignment_operator = "=" | "+=" | "-=" | "*=" | "/=" | "%=" | "**="
                     | "<<=" | ">>=" | "&=" | "|=" | "^=" ;
 
-(* A call that is used as a statement. The checker rejects a value that is not a call. *)
-expression_statement = postfix_expression, ";" ;
+(* A call or a spawn used as a statement. The checker rejects any other value. *)
+expression_statement = expression, ";" ;
 
 if_statement        = "if", expression, "then", block,
                       { "elseif", expression, "then", block },
@@ -215,9 +222,21 @@ for_range_statement = "for", identifier, "in", expression, "..", expression, "do
 for_each_statement  = "for", "each", identifier, [ ",", identifier ], "in", [ "mutable" ],
                       expression, "do", block, "end" ;
 
-(* The checker requires that every variant is handled. *)
-match_statement     = "match", expression, { match_arm }, "end" ;
-match_arm           = qualified_name, "then", block ;
+(* On an enum the checker requires that every variant is handled, or a default. An arm does not *)
+(* fall through. A case lists one or more values, or enum variants, separated by commas. *)
+switch_statement    = "switch", expression, { switch_arm }, [ default_arm ], "end" ;
+switch_arm          = "case", expression, { ",", expression }, "then", block ;
+default_arm         = "default", "then", block ;
+
+(* A scoped resource: the value is open inside the block and closed at its "end". The name is *)
+(* a reference that can not leave the block. Example: with texture.map() as pixels do ... end *)
+with_statement      = "with", expression, "as", identifier, "do", block, "end" ;
+
+(* Only inside a fork_join block. Cuts the value in disjoint parts and runs the body once for *)
+(* each part. "part" is a reference that can not leave the body. "mutable" gives each body *)
+(* exclusive write access to its part. *)
+partition_statement = "partition", [ "mutable" ], expression, "into", expression,
+                      "as", identifier, "do", block, "end" ;
 
 return_statement    = "return", [ expression ], ";" ;
 break_statement     = "break", ";" ;
@@ -229,10 +248,9 @@ scope_block         = "do", block, "end" ;
 (* A block where a raw pointer and an unchecked conversion are allowed. *)
 unsafe_block        = "unsafe", block, "end" ;
 
-(* Structured fork-join. All spawned work ends before the "end". OPEN: the word is "fork_join" *)
-(* because "parallel" is the name of a folder and of a library (see note 4). *)
+(* Structured fork-join. All spawned work ends before the "end". The word is "fork_join" *)
+(* because "parallel" can stay the name of a folder and of a library (see note 4). *)
 fork_join_block     = "fork_join", block, "end" ;
-spawn_statement     = "spawn", postfix_expression, ";" ;
 
 (* A call of a built-in macro as a statement. The user cannot declare macros. *)
 macro_statement     = macro_call, ";" ;
@@ -241,6 +259,7 @@ macro_statement     = macro_call, ";" ;
 (* ================================== 7. Expressions ================================= *)
 
 (* From the weakest to the strongest operator. See objective 29. *)
+(* "a or b and c" is accepted, and the checker gives a warning: write the parenthesis. *)
 
 expression          = or_expression ;
 or_expression       = and_expression, { "or", and_expression } ;
@@ -256,14 +275,19 @@ bit_and_expression  = shift_expression, { "&", shift_expression } ;
 shift_expression    = additive_expression, { ( "<<" | ">>" ), additive_expression } ;
 additive_expression = multiplicative_expression,
                       { ( "+" | "-" | "+%" | "-%" | "+|" | "-|" ), multiplicative_expression } ;
-multiplicative_expression = power_expression,
-                      { ( "*" | "/" | "%" | "*%" | "*|" ), power_expression } ;
+multiplicative_expression = unary_expression,
+                      { ( "*" | "/" | "%" | "*%" | "*|" ), unary_expression } ;
 
-(* The power is right to left: a ** b ** c is a ** (b ** c). The unary operators are stronger *)
-(* than "**", so -a ** 2 is (-a) ** 2. OPEN: see note 5. *)
-power_expression    = unary_expression, [ "**", power_expression ] ;
+(* The power is stronger than the unary operators, as in mathematics: -a ** 2 is -(a ** 2). *)
+(* The power is right to left: a ** b ** c is a ** (b ** c). The right side may be unary: *)
+(* 2 ** -1. *)
+
+(* "copy" makes a second owner. "move" gives the value to a new owner, and the old name ends. *)
+(* "spawn" starts one worker, only inside fork_join, and gives a task<T> of its result. *)
 unary_expression    = ( "-" | "~" | "not" ), unary_expression
-                    | postfix_expression ;
+                    | ( "copy" | "move" | "spawn" ), postfix_expression
+                    | power_expression ;
+power_expression    = postfix_expression, [ "**", unary_expression ] ;
 
 postfix_expression  = primary_expression, { member_access | index_access | call_suffix } ;
 member_access       = ".", identifier ;
@@ -278,7 +302,12 @@ primary_expression  = integer_literal
                     | "(", expression, ")"
                     | macro_call
                     | literal_value
+                    | generic_name
                     | identifier ;
+
+(* A type name with arguments used as a value, to reach a function of the type: *)
+(* array<float32>.filled(0.0). The checker rejects a use without a following "." or "(". *)
+generic_name        = qualified_name, type_arguments ;
 
 (* A value with a type and a body: Point{ x = 1.0 }, table<string, integer32>{ ["a"] = 1 }, *)
 (* array<float32>{ 1.0, 2.0 }, vector<float32, 4>{ 1.0, 0.0, 0.0, 0.0 }. *)
@@ -299,13 +328,23 @@ macro_call          = identifier, "!", "(", [ argument_list ], ")" ;
 (*    ">>" in two ">" tokens: array<array<float32>>.                                         *)
 (* 3. Literal and "{". A "{" after a type name starts a literal. The "{" never starts a      *)
 (*    block, so "if a then" cannot be mistaken for a literal.                                *)
-(* 4. OPEN, "parallel": the grammar uses "fork_join" for the block, so "parallel" can stay   *)
-(*    a namespace name (parallel.scaling, std.parallel).                                     *)
-(* 5. OPEN, power and unary: many languages make "**" stronger than the unary minus. The    *)
-(*    table of objective 29 puts the unary operators first. Decide before the parser.        *)
-(* 6. OPEN, names "string" and "table": they are a type and also a library namespace        *)
-(*    (std.string, std.table). The grammar accepts both. The resolver needs a rule.          *)
-(* 7. Out of this grammar by design: the checker rules (ownership, arena, contracts, match   *)
+(* 4. "parallel" stays a namespace name. The block word is "fork_join" (decided).             *)
+(* 5. Power and unary: the power is stronger, so -a ** 2 is -(a ** 2) (decided).            *)
+(* 6. A local name is a type or a namespace, never both. A clash is an error, and "as"      *)
+(*    resolves it (decided).                                                              *)
+(* 7. Out of this grammar by design: the checker rules (ownership, arena, contracts, switch  *)
 (*    coverage, attribute keys and values, the match of the namespace with the path).        *)
 (* 8. Not in version 0: block comments, #[when(...)], derive, user macros, string            *)
 (*    interpolation, a character literal, a lambda.                                          *)
+(* 9. Return and references. A function with a return type ends every path with an explicit   *)
+(*    "return value;". The last expression is NOT a return value. "return;" leaves a function *)
+(*    that has no return type. A function type without ": Type" is the type of such a       *)
+(*    function, and its result can not be used as a value. A reference exists only as a    *)
+(*    parameter, a "for each" variable, a "partition" part or a "with" name. It lives for   *)
+(*    that scope. It is never stored in a field and never returned. Data goes up by "return *)
+(*    value;", which moves the owner to the scope of the caller.                            *)
+(* 10. Assignment. "=" copies a primitive and a "#[value]" type. For any other type, when the *)
+(*    right side is a name, a field or an element, it must be "copy x" or "move x", or the   *)
+(*    checker gives an error. A new value (a call, a literal) needs no word: it has no       *)
+(*    other owner yet.                                                                      *)
+(* 11. A switch arm starts with "case" or "default", so an arm needs no "end" of its own.     *)
