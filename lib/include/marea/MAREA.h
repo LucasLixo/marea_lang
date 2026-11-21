@@ -4,12 +4,11 @@
 #if !defined(MAREA_INCLUDE_MAREA_H)
     #define MAREA_INCLUDE_MAREA_H
 
-    #include "marea/MAREAVersion.h"
-
     #include "marea/base/MAREAArena.h"
     #include "marea/base/MAREACTypes.h"
     #include "marea/base/MAREADiagnostic.h"
     #include "marea/base/MAREAMacros.h"
+    #include "marea/base/MAREASettingsHeader.h"
     #include "marea/base/MAREASourcePosition.h"
 
     #include "marea/lex/MAREALexer.h"

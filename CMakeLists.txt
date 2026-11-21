@@ -24,11 +24,20 @@ set(MAREA_FOLDER_CMAKE_FUNCTIONS "${MAREA_FOLDER_CMAKE}/functions" CACHE PATH "P
 # Functions and macros, Basic first: the others parse their arguments with it
 include("${MAREA_FOLDER_CMAKE_FUNCTIONS}/Basic.cmake")
 include("${MAREA_FOLDER_CMAKE_FUNCTIONS}/FindExecutable.cmake")
+include("${MAREA_FOLDER_CMAKE_FUNCTIONS}/YamlParser.cmake")
 
 include("${MAREA_FOLDER_CMAKE}/settings/ConfigureFolders.cmake")
 configurefolders()
 
-project(marea_lang C CXX)
+# Project metadata and version (major.minor.patch.build) come from metadata.yaml, not a hand-written header.
+YamlParser(FILE "${MAREA_FOLDER}/metadata.yaml" PREFIX "MAREA_METADATA")
+
+project(
+    marea_lang
+    VERSION
+        "${MAREA_METADATA_version_major}.${MAREA_METADATA_version_minor}.${MAREA_METADATA_version_patch}.${MAREA_METADATA_version_build}"
+    LANGUAGES C CXX
+)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)

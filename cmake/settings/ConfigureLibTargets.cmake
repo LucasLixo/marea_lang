@@ -18,10 +18,6 @@ macro(ConfigureLibTargets)
         set(MAREA_LIBRARY_TYPE STATIC)
     endif()
 
-    message(STATUS "Add target: marea")
-    add_library(marea STATIC "${MAREA_FOLDER_LIB_SOURCE}/marea/MAREAVersion.c")
-    target_link_libraries(marea PUBLIC marea::include PRIVATE marea::internal)
-
     if(MAREA_OPTION_TARGET_BASE)
         message(STATUS "Add target: marea_base")
 
@@ -31,6 +27,17 @@ macro(ConfigureLibTargets)
         add_library(marea::base ALIAS marea_base)
 
         target_link_libraries(marea_base PUBLIC marea::include PRIVATE marea::internal)
+        target_include_directories(marea_base PUBLIC "${MAREA_FOLDER_CMAKE_BINARY_LIB_GENERATED}")
+
+        # Force-included (PUBLIC, so every consumer gets it too) instead of a manual #include in every source file
+        BasicForceIncludeHeader(
+            TARGET
+            marea_base
+            VISIBILITY
+            PUBLIC
+            HEADER
+            "${MAREA_FOLDER_CMAKE_BINARY_LIB_GENERATED}/marea/base/MAREASettingsHeader.h"
+        )
 
         target_compile_options(marea_base PRIVATE "$<$<C_COMPILER_ID:Clang,AppleClang,GNU>:-Wall;-Wextra;-Wpedantic>")
 

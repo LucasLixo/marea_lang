@@ -24,9 +24,15 @@ macro(ConfigureFolders)
     set(MAREA_FOLDER_TOOLS "${MAREA_FOLDER}/tools" CACHE PATH "Source directory for the build-time tools")
 
     # Derived from MAREA_FOLDER and not cached, so a build directory never keeps a stale path
-    basicset(NAME MAREA_FOLDER_LIB_INCLUDE VALUE "${MAREA_FOLDER_LIB}/include")
-    basicset(NAME MAREA_FOLDER_LIB_INTERNAL VALUE "${MAREA_FOLDER_LIB}/internal")
-    basicset(NAME MAREA_FOLDER_LIB_SOURCE VALUE "${MAREA_FOLDER_LIB}/source")
-    basicset(NAME MAREA_FOLDER_3RDPARTY_GOOGLE_TEST VALUE "${MAREA_FOLDER_3RDPARTY}/GoogleTest")
-    basicset(NAME MAREA_FOLDER_CMAKE_BINARY_3RDPARTY_GOOGLE_TEST VALUE "${MAREA_FOLDER_CMAKE_BINARY}/GoogleTest")
+    BasicSet(NAME MAREA_FOLDER_LIB_INCLUDE VALUE "${MAREA_FOLDER_LIB}/include")
+    BasicSet(NAME MAREA_FOLDER_LIB_INTERNAL VALUE "${MAREA_FOLDER_LIB}/internal")
+    BasicSet(NAME MAREA_FOLDER_LIB_SOURCE VALUE "${MAREA_FOLDER_LIB}/source")
+    BasicSet(
+        NAME
+        MAREA_FOLDER_CMAKE_BINARY_LIB_GENERATED
+        VALUE
+        "${MAREA_FOLDER_CMAKE_BINARY}/Marea-Lib/Generated/include"
+    )
+    BasicSet(NAME MAREA_FOLDER_3RDPARTY_GOOGLE_TEST VALUE "${MAREA_FOLDER_3RDPARTY}/GoogleTest")
+    BasicSet(NAME MAREA_FOLDER_CMAKE_BINARY_3RDPARTY_GOOGLE_TEST VALUE "${MAREA_FOLDER_CMAKE_BINARY}/GoogleTest")
 endmacro()
