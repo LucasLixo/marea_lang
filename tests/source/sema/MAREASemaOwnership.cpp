@@ -181,5 +181,5 @@ TEST(MAREASemaOwnership, ErrorNodeInPlaceOfAssignmentOrReturnIsSkipped)
 
     EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(a: mutable Shape) a = ; end").empty()) << "A broken assignment must raise no sema diagnostic.";
 
-    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(a: Shape): Shape return ; end").empty()) << "A broken return must raise no sema diagnostic.";
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(a: Shape): Shape return + ; end").empty()) << "A broken return must raise no sema diagnostic.";
 }

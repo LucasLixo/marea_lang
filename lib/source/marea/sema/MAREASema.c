@@ -140,6 +140,10 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaVisit(MAREA_SemaContext *context, const MA
         result = MAREA_SemaCheckOwnership(context, node);
     }
 
+    if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
+        result = MAREA_SemaCheckControlFlow(context, node);
+    }
+
     if (result != MAREA_SEMA_EXCEPT_SUCCESS) {
         // INFO: an out-of-memory result from the ownership check ends the visit of this node.
     } else if (KIND == MAREA_AST_KIND_NAMED_TYPE) {
@@ -210,6 +214,12 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckCompilationUnit(MAREA_SemaContext *co
 
     if (DECLARATIONS_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
         return DECLARATIONS_RESULT;
+    }
+
+    const MAREA_SemaExcept ENTRY_RESULT = MAREA_SemaCheckEntryPoint(context, root);
+
+    if (ENTRY_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+        return ENTRY_RESULT;
     }
 
     return MAREA_SemaVisit(context, root);
