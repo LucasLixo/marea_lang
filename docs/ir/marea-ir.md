@@ -54,7 +54,7 @@ buffer must outlive the tree. The one exception is the name of an `implementatio
 joined as `Type.name` and copied into the arena.
 
 Flags reuse the AST flag bits. `MAREA_AST_FLAG_MUTABLE` is kept on a `PARAMETER`, on a `PARTITION_STATEMENT`,
-on the hidden loop variable of a for-range loop and on some hidden and loop locals of a for-each loop (see below). A
+on a `FOR_EACH_STATEMENT` and on the hidden loop variable of a for-range loop. A
 node made by the named-node path (declarations, fields, parameters, locals) drops every flag but `MUTABLE`.
 
 The type name is the head name of the written type, with no type arguments (`array<integer32>` gives
@@ -67,8 +67,8 @@ when it has one.
 ## Kinds and what is erased
 
 The kind set keeps the name and the child layout of the AST kind it comes from, except `MODULE` (the
-root), `UNREACHABLE_STATEMENT`, and the name of `PARTITION_STATEMENT` and `WITH_STATEMENT`, which is the text of
-the node (see Fork-join lowering). The kinds are: `MODULE`, `CONSTANT_DECLARATION`,
+root), `UNREACHABLE_STATEMENT`, and the name of `PARTITION_STATEMENT`, `WITH_STATEMENT` and `FOR_EACH_STATEMENT`,
+which is the text of the node (see Fork-join lowering and For-each lowering). The kinds are: `MODULE`, `CONSTANT_DECLARATION`,
 `STRUCTURE_DECLARATION`, `FIELD_DECLARATION`, `ENUM_DECLARATION`, `VARIANT_DECLARATION`,
 `VARIANT_FIELD`, `FUNCTION_DECLARATION`, `PARAMETER_LIST`, `PARAMETER`, `BLOCK`, `LOCAL_DECLARATION`,
 `ASSIGNMENT`, `EXPRESSION_STATEMENT`, `IF_STATEMENT`, `ELSEIF_CLAUSE`, `ELSE_CLAUSE`,
@@ -76,8 +76,8 @@ the node (see Fork-join lowering). The kinds are: `MODULE`, `CONSTANT_DECLARATIO
 `IDENTIFIER`, `INTEGER_LITERAL`, `FLOAT_LITERAL`, `STRING_LITERAL`, `BOOLEAN_LITERAL`,
 `BINARY_EXPRESSION`, `UNARY_EXPRESSION`, `MEMBER_ACCESS`, `INDEX_ACCESS`, `CALL_EXPRESSION`,
 `ARGUMENT_LIST`, `LITERAL_VALUE`, `FIELD_ENTRY`, `INDEX_ENTRY`, `VALUE_ENTRY`, `QUALIFIED_NAME`,
-`UNREACHABLE_STATEMENT`, `FORK_JOIN_BLOCK`, `PARTITION_STATEMENT` and `WITH_STATEMENT`. The last three come
-after every older kind, so no value of an older kind moved.
+`UNREACHABLE_STATEMENT`, `FORK_JOIN_BLOCK`, `PARTITION_STATEMENT`, `WITH_STATEMENT` and `FOR_EACH_STATEMENT`. The
+last four come after every older kind, so no value of an older kind moved.
 
 The module keeps its declarations in source order. The typing is erased before the IR, so these make
 no node:
@@ -128,8 +128,8 @@ than `last` runs zero times, because the condition fails at once.
 
 A `continue` that targets the loop would skip the step at the end of the body. So each such
 `continue` becomes `BLOCK(step, CONTINUE_STATEMENT)`, where the step is the same `IF_STATEMENT` and
-`ASSIGNMENT` pair. A `continue` inside a nested `while` or for-range loop targets that loop and stays as
-it is (the nested for-range loop adds its own step and its own `$last`).
+`ASSIGNMENT` pair. A `continue` inside a nested `while`, `FOR_EACH_STATEMENT` or for-range loop targets that
+loop and stays as it is (the nested for-range loop adds its own step and its own `$last`).
 
 ## Switch desugaring
 
@@ -168,46 +168,38 @@ tests run in source order and the first one that holds runs its block.
   own `BLOCK` and its own `$switch`, so two never mix.
 - A gap inside the scrutinee, a case value or an arm drops the declaration whole, as everywhere else.
 
-## For-each desugaring
+## For-each lowering
 
-`for each key, value in collection do body end` has no IR kind of its own. The key is optional. It lowers to:
+`for each key, value in collection do body end` keeps its shape in the IR, in one kind, `FOR_EACH_STATEMENT`. The
+key is optional. It lowers to:
 
 ```
-BLOCK
-  LOCAL_DECLARATION "$each"                  -- child: collection (flags MUTABLE when written with mutable)
-  LOCAL_DECLARATION "$count"                 -- child: CALL_EXPRESSION, children IDENTIFIER "$length", ARGUMENT_LIST(IDENTIFIER "$each")
-  LOCAL_DECLARATION "$index" (flags MUTABLE) -- child: INTEGER_LITERAL "0"
-  WHILE_STATEMENT
-    BINARY_EXPRESSION op=LESS                -- children: IDENTIFIER "$index", IDENTIFIER "$count"
-    BLOCK                                    -- one pass
-      LOCAL_DECLARATION "key"                -- only with two names; child: IDENTIFIER "$index"
-      LOCAL_DECLARATION "value"              -- child: INDEX_ACCESS(IDENTIFIER "$each", IDENTIFIER "$index")
-      BLOCK                                  -- the lowered body
-      ASSIGNMENT op=PLUS_EQUAL               -- the step: children IDENTIFIER "$index", INTEGER_LITERAL "1"
+FOR_EACH_STATEMENT "value" (flags MUTABLE)   -- the text is the name of the value variable
+  IDENTIFIER "key"                           -- only with two names, always the first child
+  <collection>                               -- the lowered collection expression
+  BLOCK                                      -- the lowered body, always the last child
 ```
 
-The collection is lowered once, into `$each`, and its length once, into `$count`; the loop never evaluates
-either again. The names `$each`, `$count`, `$index` and `$length` cannot be source identifiers, so they never
-clash with a user name. A nested for-each has its own `BLOCK` and its own hidden locals, so two never mix.
-The one name of a loop with one name is the value. With two names the first is the key and the second is the
-value.
+A loop with one name has two children and a loop with two names has three, so a backend reads the body as the
+last child, the collection as the one before it and the key as an optional first child. The one name of a loop
+with one name is the value. With two names the first is the key and the second is the value.
 
-- The collection is a borrow in the language, not a copy, and so is the loop variable. In a loop written with
-  `mutable`, `$each` and the value local carry `MUTABLE`, as a write-borrow `PARAMETER` does. The key never
-  does. The value local with `MUTABLE` is a write borrow of the element, not a mutable copy: a backend tells it
-  from the loop variable of a for-range loop by its initializer, an `INDEX_ACCESS` of `$each`. `$index` carries
-  `MUTABLE` because the step writes it, as the variable of a for-range loop does. No other node carries a flag.
-- `$length` is a call to a hidden name that no declaration has. It stands for the number of elements of
-  `$each`, and a backend resolves it from the type of the collection. No node in the IR names that type.
-- The loop ends at `$index < $count`, so the step needs no leave at the bound: `$index` never passes `$count`.
-  A collection with no element runs zero times.
-- A `continue` that targets the loop would skip the step at the end of the pass. So each such `continue`
-  becomes `BLOCK(step, CONTINUE_STATEMENT)`, with the same step as above, also inside a nested `if` or
-  `switch` arm. A `break` stays as it is. A `continue` in a nested `while`, for-range or for-each loop targets
-  that loop and is left alone. The body keeps its own `BLOCK`, so a local of the body never shares a scope with
-  the loop variables.
-- The hidden locals take their position from the `for` statement. The key and the value local take the
-  position of their name. The hidden locals and the loop variables have no type name.
+- The node says that every element of the collection is visited once, in the order the collection defines. How
+  a backend walks it, and what the key is (a position for an array or a slice, a key for a table), follows the
+  type of the collection, which the backend knows and the IR does not name. So the IR holds no hidden local, no
+  hidden call and no step.
+- The collection is evaluated once, by the node, before the first pass. It is a borrow in the language, not a
+  copy, and so is the value variable.
+- The flag `MUTABLE` is kept on the node when the source wrote `mutable`: the body then has write access to
+  each element. It is the one flag the node keeps. No local carries it for the loop, so on a
+  `LOCAL_DECLARATION` it only marks the hidden loop variable of a for-range loop.
+- The names are the text of the node (the value) and the text of the `IDENTIFIER` child (the key), not locals,
+  because they declare names and do not read them; the key is a child because a node has one text. Neither
+  variable has a type name, because sema types no loop variable.
+- A `continue` or `break` in the body targets the `FOR_EACH_STATEMENT`, so it stays as it is. The node is a
+  loop, so a `continue` of an enclosing for-range loop still gets its step, and the walk that puts the step
+  there stops at a nested `FOR_EACH_STATEMENT`, as it stops at a nested `while`.
+- The node takes its position from the `for` statement and the key takes the position of its name.
 - A gap in the collection drops the declaration and is reported once, and the body is not lowered after it. A
   gap in the body drops the declaration whole, as everywhere else.
 
@@ -241,7 +233,7 @@ UNARY_EXPRESSION op=KEYWORD_SPAWN            -- child: the call; the one form of
   one; a `LOCAL_DECLARATION` and a `PARAMETER` work the same way. So a backend never mistakes the binder for the
   value. The part name and the `with` name have no type name, because sema types neither.
 - A `continue` or `break` inside the body of a `with` that targets an enclosing loop is lowered as in any other
-  block, and a `continue` that targets a for-range or for-each loop still gets the step in front of it.
+  block, and a `continue` that targets a for-range loop still gets the step in front of it.
 - A gap inside any child drops the declaration whole and is reported once, as everywhere else.
 
 ## Text dump
@@ -322,14 +314,12 @@ Each diagnostic carries the position of the construct that raised it.
 - Sema accepts a `continue` or `break` that stands inside the body of a `partition` and targets a loop outside
   the `fork_join`. The IR lowers it as in any other block. A parallel body cannot meaningfully leave to a loop,
   so this is a defect of an earlier stage, not fixed here.
-- A for-each loop reads its collection by position: `$each[$index]` and `$length($each)`. Sema gives no type for
-  the collection, so the IR cannot tell an array or a slice from a collection that is not walked by position,
-  such as a table with a key. A backend must infer the type of `$each`, `$count`, the loop variables and the
-  result of `$length` from the collection, and must reject, or handle in its own way, a collection that has no
-  position. With two names the key is always the position. A dedicated IR kind for the loop would let each
-  backend choose how to walk the collection; it needs a public header change and was not taken.
-- The hidden `$each`, `$count` and `$index` locals have no type name, like the for-range `$last`. The value local
-  of a for-each loop has none either, because sema types no loop variable.
+- A `FOR_EACH_STATEMENT` does not say what kind of collection it walks, or what the key is for it. Sema gives
+  no type for the collection, so a backend must find the type itself, and must reject, or handle in its own
+  way, a collection it cannot walk. The IR does not check that a loop with a key walks a collection that has
+  one.
+- The two loop variables of a `FOR_EACH_STATEMENT` have no type name, like the for-range `$last`, because sema
+  types no loop variable. A backend must infer them from the collection.
 - A `switch` with no `default` lowers to an if chain with no else, also when the cases cover every variant
   of an enum. A function that ends with such a `switch` and returns in every arm has no `RETURN_STATEMENT`
   after the chain, so a backend that checks that every path returns must treat the missing branch as
@@ -346,8 +336,8 @@ Each diagnostic carries the position of the construct that raised it.
   IR form or a diagnostic code of their own.
 - The hidden loop variable of a for-range loop has no type name (sema gives none for a range bound). A
   backend must infer it from the first bound.
-- `LOCAL_DECLARATION` never carries the `MUTABLE` flag, except the hidden loop variable: the AST has no
-  write-target flag for a local.
+- `LOCAL_DECLARATION` never carries the `MUTABLE` flag, except the hidden loop variable of a for-range loop: the
+  AST has no write-target flag for a local.
 - The sema typed tree gives a type name only for a call result, a struct literal and a few expression
   shapes, so the type name of a declaration is the head name written in the source. A type argument,
   and any `FUNCTION_TYPE`, is lost.

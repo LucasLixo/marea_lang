@@ -16,28 +16,15 @@ static const MAREA_Character8 MAREA_G_BoundName[] = "$last";
 // INFO: the name of the hidden local that holds the scrutinee of a switch; the dollar sign cannot start a source identifier.
 static const MAREA_Character8 MAREA_G_SwitchName[] = "$switch";
 
-// INFO: the names of the hidden locals of a for each loop; the dollar sign cannot start a source identifier.
-static const MAREA_Character8 MAREA_G_CollectionName[] = "$each";
-static const MAREA_Character8 MAREA_G_CountName[] = "$count";
-static const MAREA_Character8 MAREA_G_IndexName[] = "$index";
-
-// INFO: the name of the hidden call that gives the number of elements of the collection; a backend resolves it from the type of the collection.
-static const MAREA_Character8 MAREA_G_LengthName[] = "$length";
-
-// INFO: the text of the first value of the hidden index of a for each loop.
-static const MAREA_Character8 MAREA_G_StartText[] = "0";
-
 // INFO: the place of the bound name among the children of a with statement (value, name, body) and of a partition statement (value, count, name, body).
 static const MAREA_IntegerSize MAREA_G_WithNameIndex = MAREA_INTEGER_SIZE(1);
 static const MAREA_IntegerSize MAREA_G_PartitionNameIndex = MAREA_INTEGER_SIZE(2);
 
-// INFO: how a loop that lowers to a while goes to its next pass: the name it adds one to, and whether it first leaves at its bound.
+// INFO: how a for-range loop goes to its next pass: the loop it comes from and the name it adds one to.
 typedef struct MAREA_G_Step
 {
     const MAREA_AstNode *loopAst;
     const MAREA_AstNode *nameAst;
-    const MAREA_Character8 *nameText;
-    MAREA_Boolean leaveAtBound;
 } MAREA_G_Step;
 
 // INFO: a child that lowers to nothing makes the whole parent lower to nothing, so no partial tree is produced.
@@ -192,7 +179,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_AppendLeave(MAREA_IrContext *context, M
     }
 
     if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_G_CreateReference(context, step->nameAst, step->nameText, &nameReference);
+        result = MAREA_G_CreateReference(context, step->nameAst, MAREA_NULLPTR, &nameReference);
     }
 
     if (result == MAREA_IR_EXCEPT_SUCCESS) {
@@ -229,7 +216,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_AppendIncrement(MAREA_IrContext *contex
     MAREA_IrExcept result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_ASSIGNMENT, step->loopAst, &increment);
 
     if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_G_CreateReference(context, step->nameAst, step->nameText, &incrementReference);
+        result = MAREA_G_CreateReference(context, step->nameAst, MAREA_NULLPTR, &incrementReference);
     }
 
     if (result == MAREA_IR_EXCEPT_SUCCESS) {
@@ -261,28 +248,26 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_AppendIncrement(MAREA_IrContext *contex
     return MAREA_IR_EXCEPT_SUCCESS;
 }
 
-// INFO: appends the step of a loop to node: the leave at the bound when the loop has one, then the increment.
+// INFO: appends the step of a for-range loop to node: the leave at the bound, then the increment.
 static MAREA_IrExcept MAREA_CALL MAREA_G_AppendStep(MAREA_IrContext *context, MAREA_IrNode *node, const MAREA_G_Step *step)
 {
-    if (step->leaveAtBound == MAREA_BOOLEAN_TRUE) {
-        const MAREA_IrExcept result = MAREA_G_AppendLeave(context, node, step);
+    const MAREA_IrExcept result = MAREA_G_AppendLeave(context, node, step);
 
-        if (result != MAREA_IR_EXCEPT_SUCCESS) {
-            return result;
-        }
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
     }
 
     return MAREA_G_AppendIncrement(context, node, step);
 }
 
 // INFO: a continue skips the step at the end of the body, so each continue that targets this loop becomes BLOCK(step, continue).
-// A nested while stops the walk, because a continue inside it targets that loop. A nested for-range or for each is a while by now, so it stops it too.
+// A nested while or for each stops the walk, because a continue inside it targets that loop. A nested for-range is a while by now, so it stops it too.
 static MAREA_IrExcept MAREA_CALL MAREA_G_PrefixContinues(MAREA_IrContext *context, MAREA_IrNode *node, const MAREA_G_Step *step)
 {
     for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < node->childCount; index = (index + MAREA_INTEGER_SIZE(1))) {
         MAREA_IrNode *child = node->children[index];
 
-        if (child->kind == MAREA_IR_KIND_WHILE_STATEMENT) {
+        if ((child->kind == MAREA_IR_KIND_WHILE_STATEMENT) || (child->kind == MAREA_IR_KIND_FOR_EACH_STATEMENT)) {
             continue;
         }
 
@@ -364,7 +349,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerForRange(MAREA_IrContext *context,
         return MAREA_IR_EXCEPT_SUCCESS;
     }
 
-    const MAREA_G_Step STEP = { .loopAst = forAst, .nameAst = nameAst, .nameText = MAREA_NULLPTR, .leaveAtBound = MAREA_BOOLEAN_TRUE };
+    const MAREA_G_Step STEP = { .loopAst = forAst, .nameAst = nameAst };
 
     MAREA_IrNode *outer = MAREA_NULLPTR;
     MAREA_IrNode *local = MAREA_NULLPTR;
@@ -448,355 +433,6 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerForRange(MAREA_IrContext *context,
 
     if (result == MAREA_IR_EXCEPT_SUCCESS) {
         result = MAREA_IrNodeAppendChild(context, outer, bound);
-    }
-
-    if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_IrNodeAppendChild(context, outer, loop);
-    }
-
-    if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        *outNode = outer;
-    }
-
-    return result;
-}
-
-// INFO: builds a hidden node of a kind that stands for no source token, so it keeps only the position of the AST node and takes the given text and flags.
-static MAREA_IrExcept MAREA_CALL MAREA_G_CreateHidden(MAREA_IrContext *context, MAREA_IrKind kind, const MAREA_AstNode *ast, const MAREA_Character8 *text, MAREA_Uinteger32 flags, MAREA_IrNode **outNode)
-{
-    MAREA_IrNode *node = MAREA_NULLPTR;
-
-    const MAREA_IrExcept result = MAREA_IrNodeCreate(context, kind, ast, &node);
-
-    if (result != MAREA_IR_EXCEPT_SUCCESS) {
-        return result;
-    }
-
-    MAREA_G_KeepOnlyPosition(node);
-
-    if (text != MAREA_NULLPTR) {
-        node->text = text;
-        node->textLength = (MAREA_Uinteger32)strlen(text);
-    }
-
-    node->flags = flags;
-
-    *outNode = node;
-
-    return MAREA_IR_EXCEPT_SUCCESS;
-}
-
-// INFO: builds a LOCAL_DECLARATION with the initializer as its only child. A null text keeps the name of the AST identifier; a hidden name replaces it.
-static MAREA_IrExcept MAREA_CALL MAREA_G_CreateLocal(MAREA_IrContext *context, const MAREA_AstNode *ast, const MAREA_Character8 *text, MAREA_Uinteger32 flags, MAREA_IrNode *initializer, MAREA_IrNode **outLocal)
-{
-    MAREA_IrNode *local = MAREA_NULLPTR;
-
-    MAREA_IrExcept result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_LOCAL_DECLARATION, ast, &local);
-
-    if (result != MAREA_IR_EXCEPT_SUCCESS) {
-        return result;
-    }
-
-    if (text != MAREA_NULLPTR) {
-        MAREA_G_KeepOnlyPosition(local);
-        local->text = text;
-        local->textLength = (MAREA_Uinteger32)strlen(text);
-    }
-
-    local->flags = flags;
-
-    result = MAREA_IrNodeAppendChild(context, local, initializer);
-
-    if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        *outLocal = local;
-    }
-
-    return result;
-}
-
-// INFO: builds the call $length($each), the number of elements of the collection.
-static MAREA_IrExcept MAREA_CALL MAREA_G_CreateLength(MAREA_IrContext *context, const MAREA_AstNode *forAst, MAREA_IrNode **outCall)
-{
-    MAREA_IrNode *call = MAREA_NULLPTR;
-    MAREA_IrNode *callee = MAREA_NULLPTR;
-    MAREA_IrNode *arguments = MAREA_NULLPTR;
-    MAREA_IrNode *argument = MAREA_NULLPTR;
-
-    MAREA_IrExcept result = MAREA_G_CreateHidden(context, MAREA_IR_KIND_CALL_EXPRESSION, forAst, MAREA_NULLPTR, MAREA_UINTEGER_32(0), &call);
-
-    if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_G_CreateReference(context, forAst, MAREA_G_LengthName, &callee);
-    }
-
-    if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_G_CreateHidden(context, MAREA_IR_KIND_ARGUMENT_LIST, forAst, MAREA_NULLPTR, MAREA_UINTEGER_32(0), &arguments);
-    }
-
-    if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_G_CreateReference(context, forAst, MAREA_G_CollectionName, &argument);
-    }
-
-    if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_IrNodeAppendChild(context, arguments, argument);
-    }
-
-    if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_IrNodeAppendChild(context, call, callee);
-    }
-
-    if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_IrNodeAppendChild(context, call, arguments);
-    }
-
-    if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        *outCall = call;
-    }
-
-    return result;
-}
-
-// INFO: appends the three hidden locals of a for each loop to its scope: $each = collection, $count = $length($each), $index = 0.
-// INFO: the collection is a borrow, not a copy, so $each carries MUTABLE exactly when the loop is written with mutable.
-static MAREA_IrExcept MAREA_CALL MAREA_G_AppendForEachLocals(MAREA_IrContext *context, const MAREA_AstNode *forAst, MAREA_IrNode *collection, MAREA_Uinteger32 borrowFlags, MAREA_IrNode *outer)
-{
-    MAREA_IrNode *each = MAREA_NULLPTR;
-    MAREA_IrNode *length = MAREA_NULLPTR;
-    MAREA_IrNode *count = MAREA_NULLPTR;
-    MAREA_IrNode *start = MAREA_NULLPTR;
-    MAREA_IrNode *index = MAREA_NULLPTR;
-
-    MAREA_IrExcept result = MAREA_G_CreateLocal(context, forAst, MAREA_G_CollectionName, borrowFlags, collection, &each);
-
-    if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_G_CreateLength(context, forAst, &length);
-    }
-
-    if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_G_CreateLocal(context, forAst, MAREA_G_CountName, MAREA_UINTEGER_32(0), length, &count);
-    }
-
-    if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_G_CreateHidden(context, MAREA_IR_KIND_INTEGER_LITERAL, forAst, MAREA_G_StartText, MAREA_UINTEGER_32(0), &start);
-    }
-
-    // INFO: the index is written by the step, so it is a write target, as the variable of a for-range loop is.
-    if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_G_CreateLocal(context, forAst, MAREA_G_IndexName, (MAREA_Uinteger32)MAREA_AST_FLAG_MUTABLE, start, &index);
-    }
-
-    MAREA_IrNode *locals[] = { each, count, index };
-
-    for (MAREA_IntegerSize position = MAREA_INTEGER_SIZE(0); (result == MAREA_IR_EXCEPT_SUCCESS) && (position < MAREA_ARRAY_SIZE(locals)); position = (position + MAREA_INTEGER_SIZE(1))) {
-        result = MAREA_IrNodeAppendChild(context, outer, locals[position]);
-    }
-
-    return result;
-}
-
-// INFO: builds the test $index < $count.
-static MAREA_IrExcept MAREA_CALL MAREA_G_CreateForEachCondition(MAREA_IrContext *context, const MAREA_AstNode *forAst, MAREA_IrNode **outCondition)
-{
-    MAREA_IrNode *condition = MAREA_NULLPTR;
-    MAREA_IrNode *index = MAREA_NULLPTR;
-    MAREA_IrNode *count = MAREA_NULLPTR;
-
-    MAREA_IrExcept result = MAREA_G_CreateHidden(context, MAREA_IR_KIND_BINARY_EXPRESSION, forAst, MAREA_NULLPTR, MAREA_UINTEGER_32(0), &condition);
-
-    if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_G_CreateReference(context, forAst, MAREA_G_IndexName, &index);
-    }
-
-    if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_G_CreateReference(context, forAst, MAREA_G_CountName, &count);
-    }
-
-    if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        condition->operatorKind = MAREA_TOKEN_KIND_LESS;
-        result = MAREA_IrNodeAppendChild(context, condition, index);
-    }
-
-    if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_IrNodeAppendChild(context, condition, count);
-    }
-
-    if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        *outCondition = condition;
-    }
-
-    return result;
-}
-
-// INFO: builds the initializer of an element local. A key reads $index and a value reads $each[$index].
-static MAREA_IrExcept MAREA_CALL MAREA_G_CreateElementSource(MAREA_IrContext *context, const MAREA_AstNode *forAst, MAREA_Boolean isValue, MAREA_IrNode **outSource)
-{
-    MAREA_IrNode *index = MAREA_NULLPTR;
-
-    MAREA_IrExcept result = MAREA_G_CreateReference(context, forAst, MAREA_G_IndexName, &index);
-
-    if ((result != MAREA_IR_EXCEPT_SUCCESS) || (isValue == MAREA_BOOLEAN_FALSE)) {
-        *outSource = index;
-
-        return result;
-    }
-
-    MAREA_IrNode *access = MAREA_NULLPTR;
-    MAREA_IrNode *each = MAREA_NULLPTR;
-
-    result = MAREA_G_CreateHidden(context, MAREA_IR_KIND_INDEX_ACCESS, forAst, MAREA_NULLPTR, MAREA_UINTEGER_32(0), &access);
-
-    if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_G_CreateReference(context, forAst, MAREA_G_CollectionName, &each);
-    }
-
-    if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_IrNodeAppendChild(context, access, each);
-    }
-
-    if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_IrNodeAppendChild(context, access, index);
-    }
-
-    if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        *outSource = access;
-    }
-
-    return result;
-}
-
-// INFO: appends the locals of the loop variables to a pass: the key, when written, set to $index, then the value, set to $each[$index].
-// INFO: the value is a borrow of the element, not a copy, so it carries MUTABLE exactly when the loop is written with mutable. The key is never written.
-static MAREA_IrExcept MAREA_CALL MAREA_G_AppendElementLocals(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IntegerSize nameCount, MAREA_Uinteger32 borrowFlags, MAREA_IrNode *pass)
-{
-    const MAREA_AstNode *forAst = MAREA_SemaTypedNodeGetAstNode(typed);
-
-    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < nameCount; index = (index + MAREA_INTEGER_SIZE(1))) {
-        const MAREA_Boolean IS_VALUE = ((index + MAREA_INTEGER_SIZE(1)) == nameCount) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
-
-        MAREA_IrNode *source = MAREA_NULLPTR;
-        MAREA_IrNode *local = MAREA_NULLPTR;
-
-        MAREA_IrExcept result = MAREA_G_CreateElementSource(context, forAst, IS_VALUE, &source);
-
-        if (result == MAREA_IR_EXCEPT_SUCCESS) {
-            result = MAREA_G_CreateLocal(context, MAREA_SemaTypedNodeGetAstNode(MAREA_IrTypedChildAt(typed, index)), MAREA_NULLPTR, ((IS_VALUE == MAREA_BOOLEAN_TRUE) ? borrowFlags : MAREA_UINTEGER_32(0)), source, &local);
-        }
-
-        if (result == MAREA_IR_EXCEPT_SUCCESS) {
-            result = MAREA_IrNodeAppendChild(context, pass, local);
-        }
-
-        if (result != MAREA_IR_EXCEPT_SUCCESS) {
-            return result;
-        }
-    }
-
-    return MAREA_IR_EXCEPT_SUCCESS;
-}
-
-// INFO: builds the BLOCK of one pass of a for each loop: the loop variables, the lowered body, then the step.
-static MAREA_IrExcept MAREA_CALL MAREA_G_CreateForEachPass(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IntegerSize nameCount, MAREA_Uinteger32 borrowFlags, MAREA_IrNode *body, MAREA_IrNode **outPass)
-{
-    const MAREA_AstNode *forAst = MAREA_SemaTypedNodeGetAstNode(typed);
-
-    const MAREA_G_Step STEP = { .loopAst = forAst, .nameAst = forAst, .nameText = MAREA_G_IndexName, .leaveAtBound = MAREA_BOOLEAN_FALSE };
-
-    MAREA_IrNode *pass = MAREA_NULLPTR;
-
-    MAREA_IrExcept result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_BLOCK, forAst, &pass);
-
-    if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        MAREA_G_KeepOnlyPosition(pass);
-        result = MAREA_G_AppendElementLocals(context, typed, nameCount, borrowFlags, pass);
-    }
-
-    if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_G_PrefixContinues(context, body, &STEP);
-    }
-
-    if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_IrNodeAppendChild(context, pass, body);
-    }
-
-    if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_G_AppendStep(context, pass, &STEP);
-    }
-
-    if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        *outPass = pass;
-    }
-
-    return result;
-}
-
-// INFO: for each key, value in collection do body end becomes BLOCK(LOCAL $each = collection, LOCAL $count = $length($each), LOCAL $index = 0, WHILE $index < $count: BLOCK(LOCAL key = $index, LOCAL value = $each[$index], body, $index += 1)).
-// INFO: the collection and its length are evaluated once. Sema gives no type for the collection, so the loop reads it by position: a backend infers the type of every hidden local and resolves $length from the collection.
-static MAREA_IrExcept MAREA_CALL MAREA_G_LowerForEach(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode)
-{
-    const MAREA_AstNode *forAst = MAREA_SemaTypedNodeGetAstNode(typed);
-
-    const MAREA_IntegerSize COUNT = MAREA_SemaTypedNodeGetChildCount(typed);
-
-    // INFO: the children are one or two names, the collection and the body, in that order.
-    if ((COUNT < MAREA_INTEGER_SIZE(3)) || (COUNT > MAREA_INTEGER_SIZE(4))) {
-        return MAREA_IR_EXCEPT_SUCCESS;
-    }
-
-    const MAREA_IntegerSize NAME_COUNT = (COUNT - MAREA_INTEGER_SIZE(2));
-
-    const MAREA_SemaTypedNode *bodyTyped = MAREA_IrTypedChildAt(typed, (COUNT - MAREA_INTEGER_SIZE(1)));
-
-    const MAREA_Uinteger32 BORROW_FLAGS = (MAREA_AstNodeGetFlags(forAst) & (MAREA_Uinteger32)MAREA_AST_FLAG_MUTABLE);
-
-    MAREA_IrNode *collection = MAREA_NULLPTR;
-    MAREA_IrNode *body = MAREA_NULLPTR;
-
-    MAREA_IrExcept result = MAREA_IrLowerExpression(context, MAREA_IrTypedChildAt(typed, NAME_COUNT), &collection);
-
-    if (result != MAREA_IR_EXCEPT_SUCCESS) {
-        return result;
-    }
-
-    // INFO: a gap in the collection is reported once, so the body is not lowered after it.
-    if ((result != MAREA_IR_EXCEPT_SUCCESS) || (collection == MAREA_NULLPTR)) {
-        return result;
-    }
-
-    result = MAREA_IrLowerBlock(context, bodyTyped, &body);
-
-    if ((result != MAREA_IR_EXCEPT_SUCCESS) || (body == MAREA_NULLPTR)) {
-        return result;
-    }
-
-    MAREA_IrNode *outer = MAREA_NULLPTR;
-    MAREA_IrNode *loop = MAREA_NULLPTR;
-    MAREA_IrNode *condition = MAREA_NULLPTR;
-    MAREA_IrNode *pass = MAREA_NULLPTR;
-
-    result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_BLOCK, forAst, &outer);
-
-    if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        MAREA_G_KeepOnlyPosition(outer);
-        result = MAREA_G_AppendForEachLocals(context, forAst, collection, BORROW_FLAGS, outer);
-    }
-
-    if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_G_CreateHidden(context, MAREA_IR_KIND_WHILE_STATEMENT, forAst, MAREA_NULLPTR, MAREA_UINTEGER_32(0), &loop);
-    }
-
-    if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_G_CreateForEachCondition(context, forAst, &condition);
-    }
-
-    if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_G_CreateForEachPass(context, typed, NAME_COUNT, BORROW_FLAGS, body, &pass);
-    }
-
-    if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_IrNodeAppendChild(context, loop, condition);
-    }
-
-    if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_IrNodeAppendChild(context, loop, pass);
     }
 
     if (result == MAREA_IR_EXCEPT_SUCCESS) {
@@ -1075,7 +711,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerSwitch(MAREA_IrContext *context, c
     return result;
 }
 
-// INFO: a with or partition statement keeps its children but the name. The name is the text of the node, as for a declaration, and MUTABLE is the one flag that stays.
+// INFO: a with, partition or for each statement keeps its children but the value name. The name is the text of the node, as for a declaration, and MUTABLE is the one flag that stays.
 static MAREA_IrExcept MAREA_CALL MAREA_G_LowerBoundScope(MAREA_IrContext *context, MAREA_IrKind kind, const MAREA_SemaTypedNode *typed, MAREA_IntegerSize nameIndex, MAREA_IrNode **outNode)
 {
     const MAREA_SemaTypedNode *nameTyped = MAREA_IrTypedChildAt(typed, nameIndex);
@@ -1127,6 +763,20 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerBoundScope(MAREA_IrContext *contex
     *outNode = node;
 
     return MAREA_IR_EXCEPT_SUCCESS;
+}
+
+// INFO: for each key, value in collection do body end becomes FOR_EACH_STATEMENT "value" (children: IDENTIFIER key when written, collection, BLOCK body), with MUTABLE kept.
+// INFO: the node walks the collection, so a backend chooses how from its type. A gap in the collection is reported once, and the body is not lowered after it.
+static MAREA_IrExcept MAREA_CALL MAREA_G_LowerForEach(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode)
+{
+    const MAREA_IntegerSize COUNT = MAREA_SemaTypedNodeGetChildCount(typed);
+
+    // INFO: the children are one or two names, the collection and the body, in that order; the value name is the third from the end.
+    if ((COUNT < MAREA_INTEGER_SIZE(3)) || (COUNT > MAREA_INTEGER_SIZE(4))) {
+        return MAREA_IR_EXCEPT_SUCCESS;
+    }
+
+    return MAREA_G_LowerBoundScope(context, MAREA_IR_KIND_FOR_EACH_STATEMENT, typed, (COUNT - MAREA_INTEGER_SIZE(3)), outNode);
 }
 
 static MAREA_IrExcept MAREA_CALL MAREA_G_LowerStatement(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode)
