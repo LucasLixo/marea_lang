@@ -13,6 +13,9 @@ static const MAREA_Character8 MAREA_G_IncrementText[] = "1";
 // INFO: the name of the hidden local that holds the last value of a for-range loop; the dollar sign cannot start a source identifier.
 static const MAREA_Character8 MAREA_G_BoundName[] = "$last";
 
+// INFO: the name of the hidden local that holds the scrutinee of a switch; the dollar sign cannot start a source identifier.
+static const MAREA_Character8 MAREA_G_SwitchName[] = "$switch";
+
 // INFO: a child that lowers to nothing makes the whole parent lower to nothing, so no partial tree is produced.
 static MAREA_IrExcept MAREA_CALL MAREA_G_LowerChildrenInto(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode *node, MAREA_Boolean *outComplete)
 {
@@ -384,6 +387,279 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerForRange(MAREA_IrContext *context,
     return result;
 }
 
+// INFO: a synthetic node keeps only the position of the AST node it stands for, so its text and flags are cleared.
+static void MAREA_CALL MAREA_G_KeepOnlyPosition(MAREA_IrNode *node)
+{
+    node->text = MAREA_NULLPTR;
+    node->textLength = MAREA_UINTEGER_32(0);
+    node->flags = MAREA_UINTEGER_32(0);
+}
+
+// INFO: builds the test of one case value: $switch == value, positioned at the value.
+static MAREA_IrExcept MAREA_CALL MAREA_G_CreateComparison(MAREA_IrContext *context, const MAREA_AstNode *switchAst, const MAREA_SemaTypedNode *valueTyped, MAREA_IrNode **outComparison)
+{
+    const MAREA_AstNode *valueAst = MAREA_SemaTypedNodeGetAstNode(valueTyped);
+
+    MAREA_IrNode *value = MAREA_NULLPTR;
+    MAREA_IrNode *comparison = MAREA_NULLPTR;
+    MAREA_IrNode *reference = MAREA_NULLPTR;
+
+    *outComparison = MAREA_NULLPTR;
+
+    MAREA_IrExcept result = MAREA_IrLowerExpression(context, valueTyped, &value);
+
+    if ((result != MAREA_IR_EXCEPT_SUCCESS) || (value == MAREA_NULLPTR)) {
+        return result;
+    }
+
+    result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_BINARY_EXPRESSION, valueAst, &comparison);
+
+    if (result == MAREA_IR_EXCEPT_SUCCESS) {
+        result = MAREA_G_CreateReference(context, switchAst, MAREA_G_SwitchName, &reference);
+    }
+
+    if (result == MAREA_IR_EXCEPT_SUCCESS) {
+        MAREA_G_KeepOnlyPosition(comparison);
+        comparison->operatorKind = MAREA_TOKEN_KIND_EQUAL_EQUAL;
+        result = MAREA_IrNodeAppendChild(context, comparison, reference);
+    }
+
+    if (result == MAREA_IR_EXCEPT_SUCCESS) {
+        result = MAREA_IrNodeAppendChild(context, comparison, value);
+    }
+
+    if (result == MAREA_IR_EXCEPT_SUCCESS) {
+        *outComparison = comparison;
+    }
+
+    return result;
+}
+
+// INFO: joins the tests of every value of a case with or, grouped to the left. All children of the arm but the last are values.
+static MAREA_IrExcept MAREA_CALL MAREA_G_CreateCondition(MAREA_IrContext *context, const MAREA_SemaTypedNode *armTyped, const MAREA_AstNode *switchAst, MAREA_IrNode **outCondition)
+{
+    const MAREA_IntegerSize COUNT = MAREA_SemaTypedNodeGetChildCount(armTyped);
+
+    MAREA_IrNode *condition = MAREA_NULLPTR;
+
+    *outCondition = MAREA_NULLPTR;
+
+    // INFO: the loop stops before the last child, which is the body; the form (index + 1) < COUNT cannot underflow on an empty arm.
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); (index + MAREA_INTEGER_SIZE(1)) < COUNT; index = (index + MAREA_INTEGER_SIZE(1))) {
+        const MAREA_SemaTypedNode *valueTyped = MAREA_IrTypedChildAt(armTyped, index);
+
+        MAREA_IrNode *comparison = MAREA_NULLPTR;
+
+        MAREA_IrExcept result = MAREA_G_CreateComparison(context, switchAst, valueTyped, &comparison);
+
+        if ((result != MAREA_IR_EXCEPT_SUCCESS) || (comparison == MAREA_NULLPTR)) {
+            return result;
+        }
+
+        if (condition == MAREA_NULLPTR) {
+            condition = comparison;
+
+            continue;
+        }
+
+        MAREA_IrNode *joined = MAREA_NULLPTR;
+
+        result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_BINARY_EXPRESSION, MAREA_SemaTypedNodeGetAstNode(valueTyped), &joined);
+
+        if (result == MAREA_IR_EXCEPT_SUCCESS) {
+            MAREA_G_KeepOnlyPosition(joined);
+            joined->operatorKind = MAREA_TOKEN_KIND_KEYWORD_OR;
+            result = MAREA_IrNodeAppendChild(context, joined, condition);
+        }
+
+        if (result == MAREA_IR_EXCEPT_SUCCESS) {
+            result = MAREA_IrNodeAppendChild(context, joined, comparison);
+        }
+
+        if (result != MAREA_IR_EXCEPT_SUCCESS) {
+            return result;
+        }
+
+        condition = joined;
+    }
+
+    *outCondition = condition;
+
+    return MAREA_IR_EXCEPT_SUCCESS;
+}
+
+// INFO: lowers the BLOCK of an arm, which is its last child. A null body means a gap inside it, already reported.
+static MAREA_IrExcept MAREA_CALL MAREA_G_LowerArmBody(MAREA_IrContext *context, const MAREA_SemaTypedNode *armTyped, MAREA_IrNode **outBody)
+{
+    *outBody = MAREA_NULLPTR;
+
+    const MAREA_IntegerSize COUNT = MAREA_SemaTypedNodeGetChildCount(armTyped);
+
+    if (COUNT == MAREA_INTEGER_SIZE(0)) {
+        return MAREA_IR_EXCEPT_SUCCESS;
+    }
+
+    return MAREA_IrLowerBlock(context, MAREA_IrTypedChildAt(armTyped, (COUNT - MAREA_INTEGER_SIZE(1))), outBody);
+}
+
+// INFO: one case becomes an IF_STATEMENT, or an ELSEIF_CLAUSE of the chain that already started; condition then body.
+static MAREA_IrExcept MAREA_CALL MAREA_G_AppendCase(MAREA_IrContext *context, const MAREA_SemaTypedNode *armTyped, const MAREA_AstNode *switchAst, MAREA_IrNode **chain, MAREA_Boolean *outComplete)
+{
+    MAREA_IrNode *condition = MAREA_NULLPTR;
+    MAREA_IrNode *body = MAREA_NULLPTR;
+    MAREA_IrNode *clause = MAREA_NULLPTR;
+
+    *outComplete = MAREA_BOOLEAN_FALSE;
+
+    MAREA_IrExcept result = MAREA_G_CreateCondition(context, armTyped, switchAst, &condition);
+
+    if ((result != MAREA_IR_EXCEPT_SUCCESS) || (condition == MAREA_NULLPTR)) {
+        return result;
+    }
+
+    result = MAREA_G_LowerArmBody(context, armTyped, &body);
+
+    if ((result != MAREA_IR_EXCEPT_SUCCESS) || (body == MAREA_NULLPTR)) {
+        return result;
+    }
+
+    const MAREA_IrKind KIND = (*chain == MAREA_NULLPTR) ? MAREA_IR_KIND_IF_STATEMENT : MAREA_IR_KIND_ELSEIF_CLAUSE;
+
+    result = MAREA_IrNodeCreate(context, KIND, MAREA_SemaTypedNodeGetAstNode(armTyped), &clause);
+
+    if (result == MAREA_IR_EXCEPT_SUCCESS) {
+        result = MAREA_IrNodeAppendChild(context, clause, condition);
+    }
+
+    if (result == MAREA_IR_EXCEPT_SUCCESS) {
+        result = MAREA_IrNodeAppendChild(context, clause, body);
+    }
+
+    if ((result == MAREA_IR_EXCEPT_SUCCESS) && (*chain != MAREA_NULLPTR)) {
+        result = MAREA_IrNodeAppendChild(context, *chain, clause);
+    }
+
+    if (result == MAREA_IR_EXCEPT_SUCCESS) {
+        *chain = (*chain == MAREA_NULLPTR) ? clause : *chain;
+        *outComplete = MAREA_BOOLEAN_TRUE;
+    }
+
+    return result;
+}
+
+// INFO: the default arm is the ELSE_CLAUSE of the chain, or, when there is no case, its block runs after the hidden local.
+static MAREA_IrExcept MAREA_CALL MAREA_G_AppendDefault(MAREA_IrContext *context, const MAREA_AstNode *defaultAst, MAREA_IrNode *defaultBody, MAREA_IrNode *chain, MAREA_IrNode *outer)
+{
+    if (chain == MAREA_NULLPTR) {
+        return MAREA_IrNodeAppendChild(context, outer, defaultBody);
+    }
+
+    MAREA_IrNode *clause = MAREA_NULLPTR;
+
+    MAREA_IrExcept result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_ELSE_CLAUSE, defaultAst, &clause);
+
+    if (result == MAREA_IR_EXCEPT_SUCCESS) {
+        result = MAREA_IrNodeAppendChild(context, clause, defaultBody);
+    }
+
+    if (result == MAREA_IR_EXCEPT_SUCCESS) {
+        result = MAREA_IrNodeAppendChild(context, chain, clause);
+    }
+
+    return result;
+}
+
+// INFO: creates the BLOCK that scopes a switch, holding the hidden local $switch set to the scrutinee, which is evaluated once.
+static MAREA_IrExcept MAREA_CALL MAREA_G_CreateSwitchScope(MAREA_IrContext *context, const MAREA_AstNode *switchAst, MAREA_IrNode *scrutinee, MAREA_IrNode **outScope)
+{
+    MAREA_IrNode *outer = MAREA_NULLPTR;
+    MAREA_IrNode *local = MAREA_NULLPTR;
+
+    MAREA_IrExcept result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_BLOCK, switchAst, &outer);
+
+    if (result == MAREA_IR_EXCEPT_SUCCESS) {
+        result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_LOCAL_DECLARATION, switchAst, &local);
+    }
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    local->text = MAREA_G_SwitchName;
+    local->textLength = (MAREA_Uinteger32)strlen(MAREA_G_SwitchName);
+
+    result = MAREA_IrNodeAppendChild(context, local, scrutinee);
+
+    if (result == MAREA_IR_EXCEPT_SUCCESS) {
+        result = MAREA_IrNodeAppendChild(context, outer, local);
+    }
+
+    if (result == MAREA_IR_EXCEPT_SUCCESS) {
+        *outScope = outer;
+    }
+
+    return result;
+}
+
+// INFO: switch value case a then A case b, c then B default then C end becomes BLOCK(LOCAL $switch = value, IF $switch == a: A, ELSEIF $switch == b or $switch == c: B, ELSE: C).
+// INFO: an arm does not fall through, so the chain is exact; a break or continue in an arm targets the enclosing loop, as it does in an if.
+static MAREA_IrExcept MAREA_CALL MAREA_G_LowerSwitch(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode)
+{
+    const MAREA_AstNode *switchAst = MAREA_SemaTypedNodeGetAstNode(typed);
+
+    const MAREA_IntegerSize COUNT = MAREA_SemaTypedNodeGetChildCount(typed);
+
+    MAREA_IrNode *scrutinee = MAREA_NULLPTR;
+    MAREA_IrNode *outer = MAREA_NULLPTR;
+    MAREA_IrNode *chain = MAREA_NULLPTR;
+    MAREA_IrNode *defaultBody = MAREA_NULLPTR;
+    const MAREA_AstNode *defaultAst = MAREA_NULLPTR;
+
+    if (COUNT == MAREA_INTEGER_SIZE(0)) {
+        return MAREA_IR_EXCEPT_SUCCESS;
+    }
+
+    MAREA_IrExcept result = MAREA_IrLowerExpression(context, MAREA_IrTypedChildAt(typed, MAREA_INTEGER_SIZE(0)), &scrutinee);
+
+    if ((result != MAREA_IR_EXCEPT_SUCCESS) || (scrutinee == MAREA_NULLPTR)) {
+        return result;
+    }
+
+    result = MAREA_G_CreateSwitchScope(context, switchAst, scrutinee, &outer);
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(1); (result == MAREA_IR_EXCEPT_SUCCESS) && (index < COUNT); index = (index + MAREA_INTEGER_SIZE(1))) {
+        const MAREA_SemaTypedNode *armTyped = MAREA_IrTypedChildAt(typed, index);
+
+        MAREA_Boolean complete = MAREA_BOOLEAN_TRUE;
+
+        if (MAREA_IrTypedKind(armTyped) == MAREA_AST_KIND_DEFAULT_ARM) {
+            defaultAst = MAREA_SemaTypedNodeGetAstNode(armTyped);
+            result = MAREA_G_LowerArmBody(context, armTyped, &defaultBody);
+            complete = (defaultBody != MAREA_NULLPTR) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+        } else {
+            result = MAREA_G_AppendCase(context, armTyped, switchAst, &chain, &complete);
+        }
+
+        if ((result == MAREA_IR_EXCEPT_SUCCESS) && (complete == MAREA_BOOLEAN_FALSE)) {
+            return MAREA_IR_EXCEPT_SUCCESS;
+        }
+    }
+
+    if ((result == MAREA_IR_EXCEPT_SUCCESS) && (defaultBody != MAREA_NULLPTR)) {
+        result = MAREA_G_AppendDefault(context, defaultAst, defaultBody, chain, outer);
+    }
+
+    if ((result == MAREA_IR_EXCEPT_SUCCESS) && (chain != MAREA_NULLPTR)) {
+        result = MAREA_IrNodeAppendChild(context, outer, chain);
+    }
+
+    if (result == MAREA_IR_EXCEPT_SUCCESS) {
+        *outNode = outer;
+    }
+
+    return result;
+}
+
 static MAREA_IrExcept MAREA_CALL MAREA_G_LowerStatement(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode)
 {
     if (typed == MAREA_NULLPTR) {
@@ -425,7 +701,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerStatement(MAREA_IrContext *context
     case MAREA_AST_KIND_FOR_RANGE_STATEMENT:
         return MAREA_G_LowerForRange(context, typed, outNode);
     case MAREA_AST_KIND_SWITCH_STATEMENT:
-        return MAREA_IrRaise(context, MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_SWITCH, MAREA_SemaTypedNodeGetAstNode(typed), "A switch statement is not supported by the IR yet.", MAREA_NULLPTR, MAREA_INTEGER_SIZE(0));
+        return MAREA_G_LowerSwitch(context, typed, outNode);
     case MAREA_AST_KIND_FOR_EACH_STATEMENT:
         return MAREA_IrRaise(context, MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_FOR_EACH, MAREA_SemaTypedNodeGetAstNode(typed), "A for each statement is not supported by the IR yet.", MAREA_NULLPTR, MAREA_INTEGER_SIZE(0));
     case MAREA_AST_KIND_FORK_JOIN_BLOCK:

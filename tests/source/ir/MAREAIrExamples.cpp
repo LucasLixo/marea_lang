@@ -10,7 +10,6 @@
 namespace
 {
     constexpr MAREA_Uinteger32 FORK_JOIN{ MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_FORK_JOIN };
-    constexpr MAREA_Uinteger32 SWITCH{ MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_SWITCH };
     constexpr MAREA_Uinteger32 FOR_EACH{ MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_FOR_EACH };
     constexpr MAREA_Uinteger32 GENERIC{ MAREA_IR_DIAGNOSTIC_CODE_UNINSTANTIATED_GENERIC };
     constexpr MAREA_Uinteger32 MACRO{ MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_MACRO };
@@ -23,7 +22,7 @@ namespace
         { "attributes/simd.marea", {} },
         { "attributes/visibility.marea", {} },
         { "basics/blocks.marea", { GENERIC } },
-        { "basics/control_flow.marea", { SWITCH, FOR_EACH } },
+        { "basics/control_flow.marea", { FOR_EACH } },
         { "basics/functions.marea", {} },
         { "basics/operators.marea", {} },
         { "basics/ownership.marea", {} },
@@ -37,7 +36,7 @@ namespace
         { "namespaces/library.marea", {} },
         { "parallel/scaling.marea", { FORK_JOIN, FOR_EACH } },
         { "types/collections.marea", {} },
-        { "types/enum_methods.marea", { SWITCH } },
+        { "types/enum_methods.marea", {} },
         { "types/generics.marea", { GENERIC } },
         { "types/methods.marea", {} },
         { "types/structures.marea", {} },
@@ -155,5 +154,31 @@ TEST(MAREAIrExamples, LoweringTwiceGivesTheSameDump)
         }
 
         EXPECT_EQ(dumps[0], dumps[1]) << "The dump of " << file.relativePath << " must be stable.";
+    }
+}
+
+TEST(MAREAIrExamples, FunctionsWithASwitchStayInTheModule)
+{
+    GTEST_COUT << "Validating the functions that hold a switch in the examples are lowered and no longer left out." << std::endl;
+
+    const std::vector<std::pair<std::string, std::string>> EXPECTED_NAMES{
+        { "basics/control_flow.marea", "day_kind" },
+        { "types/enum_methods.marea", "Planet.name" },
+    };
+
+    const MAREA_IrExampleSet EXAMPLES;
+
+    for (const auto &[file, name] : EXPECTED_NAMES) {
+        MAREA_IrFixture fixture(EXAMPLES.MAREA_resolver());
+
+        ASSERT_EQ(fixture.MAREA_lower(MAREA_irReadExample(file), file), MAREA_IR_EXCEPT_SUCCESS) << "The example " << file << " must lower.";
+
+        bool found{ false };
+
+        for (MAREA_IntegerSize index{ 0 }; index < MAREA_IrNodeGetChildCount(fixture.module); ++index) {
+            found = (found || (MAREA_irText(MAREA_irChild(fixture.module, index)) == name));
+        }
+
+        EXPECT_TRUE(found) << "The example " << file << " must keep the function " << name << ".";
     }
 }

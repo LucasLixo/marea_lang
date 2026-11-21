@@ -8,7 +8,6 @@
 namespace
 {
     const MAREA_Uinteger32 FORK_JOIN{ MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_FORK_JOIN };
-    const MAREA_Uinteger32 SWITCH{ MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_SWITCH };
     const MAREA_Uinteger32 FOR_EACH{ MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_FOR_EACH };
     const MAREA_Uinteger32 GENERIC{ MAREA_IR_DIAGNOSTIC_CODE_UNINSTANTIATED_GENERIC };
     const MAREA_Uinteger32 MACRO{ MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_MACRO };
@@ -50,15 +49,15 @@ namespace
     using Codes = std::vector<MAREA_Uinteger32>;
 } // namespace
 
-TEST(MAREAIrGaps, SwitchRaisesItsDiagnosticAndDropsTheFunction)
+TEST(MAREAIrGaps, SwitchRaisesNothingAndKeepsTheFunction)
 {
-    GTEST_COUT << "Validating a switch statement raises 4002 and its function is left out." << std::endl;
+    GTEST_COUT << "Validating a switch statement is lowered: it raises no ir diagnostic and its function stays in the module." << std::endl;
 
     const std::string SOURCE{ "namespace main; function keep() end function lose(a: integer32) switch a case 1 then return; default then return; end end" };
 
-    EXPECT_EQ(MAREA_irCodesOf(SOURCE), Codes{ SWITCH }) << "A switch must raise UNSUPPORTED_SWITCH once.";
+    EXPECT_EQ(MAREA_irCodesOf(SOURCE), Codes{}) << "A switch must raise no ir diagnostic.";
 
-    EXPECT_EQ(MAREA_functionNamesOf(SOURCE), "keep") << "Only the function without the gap must remain.";
+    EXPECT_EQ(MAREA_functionNamesOf(SOURCE), "keep lose") << "Both functions must remain, the one with the switch included.";
 }
 
 TEST(MAREAIrGaps, PlainIfRaisesNothing)
@@ -259,23 +258,23 @@ TEST(MAREAIrGaps, OnlyTheGapDeclarationIsDropped)
 {
     GTEST_COUT << "Validating lowering continues with the next declaration after a gap." << std::endl;
 
-    EXPECT_EQ(MAREA_functionNamesOf("namespace main; function a() end function b(x: integer32) switch x case 1 then return; default then return; end end function c() end"), "a c") << "The declarations around the gap must remain.";
+    EXPECT_EQ(MAREA_functionNamesOf("namespace main; function a() end function b() print!(\"hi\"); end function c() end"), "a c") << "The declarations around the gap must remain.";
 }
 
 TEST(MAREAIrGaps, EachGapDiagnosticIsRaisedOnce)
 {
     GTEST_COUT << "Validating two gap functions raise two diagnostics, one each." << std::endl;
 
-    const Codes CODES{ MAREA_irCodesOf("namespace main; function a(x: integer32) switch x case 1 then return; default then return; end end function b(y: integer32) switch y case 1 then return; default then return; end end") };
+    const Codes CODES{ MAREA_irCodesOf("namespace main; function a() print!(\"a\"); end function b() print!(\"b\"); end") };
 
-    EXPECT_EQ(CODES, (Codes{ SWITCH, SWITCH })) << "Each dropped function must report its own gap once.";
+    EXPECT_EQ(CODES, (Codes{ MACRO, MACRO })) << "Each dropped function must report its own gap once.";
 }
 
 TEST(MAREAIrGaps, ExamplesWithGapsOnlyRaiseGapDiagnostics)
 {
     GTEST_COUT << "Validating the examples that hold gap constructs lower without a crash and raise only ir diagnostics." << std::endl;
 
-    const std::vector<std::string> FILES{ "parallel/scaling.marea", "basics/control_flow.marea", "types/enum_methods.marea", "types/generics.marea", "macros/builtin.marea", "attributes/layout.marea" };
+    const std::vector<std::string> FILES{ "parallel/scaling.marea", "basics/control_flow.marea", "types/generics.marea", "macros/builtin.marea", "attributes/layout.marea" };
 
     const MAREA_IrExampleSet EXAMPLES;
 
@@ -309,7 +308,6 @@ TEST(MAREAIrGaps, ExamplesRaiseTheGapsTheyContain)
     const std::vector<std::pair<std::string, MAREA_Uinteger32>> EXPECTED{
         { "parallel/scaling.marea", FORK_JOIN },
         { "basics/control_flow.marea", FOR_EACH },
-        { "types/enum_methods.marea", SWITCH },
         { "types/generics.marea", GENERIC },
         { "macros/builtin.marea", MACRO },
     };
