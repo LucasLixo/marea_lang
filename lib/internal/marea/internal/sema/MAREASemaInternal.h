@@ -76,6 +76,8 @@ MAREA_BEGIN_EXTERN_C
         MAREA_Uinteger32 selfDepth;
         MAREA_Uinteger32 instantiationDepth;
         MAREA_Uinteger32 forkDepth;
+        MAREA_Uinteger32 partitionDepth;
+        MAREA_Uinteger32 loopDepth;
     };
 
     /**
@@ -89,6 +91,8 @@ MAREA_BEGIN_EXTERN_C
         MAREA_IntegerSize referenceCount;
         MAREA_Uinteger32 selfDepth;
         MAREA_Uinteger32 forkDepth;
+        MAREA_Uinteger32 partitionDepth;
+        MAREA_Uinteger32 loopDepth;
     } MAREA_SemaScopeMark;
 
     /**
@@ -396,6 +400,16 @@ MAREA_BEGIN_EXTERN_C
      * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
      */
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckSpawn(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
+     * @brief Checks a break, a continue or a return inside the body of a partition: the body of a worker ends
+     * only at its own "end", so a jump that leaves it is rejected. A break or a continue that targets a loop
+     * inside the body is accepted. A jump outside every partition body is not checked here.
+     * @param context Context of the run. Must not be null.
+     * @param node BREAK_STATEMENT, CONTINUE_STATEMENT or RETURN_STATEMENT node. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, or ERROR_NULL_POINTER on a null argument.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckJump(MAREA_SemaContext * context, const MAREA_AstNode *node);
 
     /**
      * @brief Finds the return type of a function or contract function: the first type after the parameter list.
