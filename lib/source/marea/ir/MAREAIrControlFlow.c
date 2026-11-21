@@ -101,7 +101,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerMacroStatement(MAREA_IrContext *co
     const MAREA_IntegerSize LENGTH = strlen("unreachable");
 
     if ((MAREA_AstNodeGetTextLength(nameAst) != LENGTH) || (memcmp(MAREA_AstNodeGetText(nameAst), "unreachable", LENGTH) != 0)) {
-        return MAREA_IR_EXCEPT_SUCCESS;
+        return MAREA_IrRaise(context, MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_MACRO, MAREA_SemaTypedNodeGetAstNode(typed), "Macro is not supported by the IR yet:", MAREA_AstNodeGetText(nameAst), MAREA_AstNodeGetTextLength(nameAst));
     }
 
     return MAREA_IrNodeCreate(context, MAREA_IR_KIND_UNREACHABLE_STATEMENT, MAREA_SemaTypedNodeGetAstNode(typed), outNode);
@@ -296,8 +296,16 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerStatement(MAREA_IrContext *context
         return MAREA_G_LowerMacroStatement(context, typed, outNode);
     case MAREA_AST_KIND_FOR_RANGE_STATEMENT:
         return MAREA_G_LowerForRange(context, typed, outNode);
+    case MAREA_AST_KIND_SWITCH_STATEMENT:
+        return MAREA_IrRaise(context, MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_SWITCH, MAREA_SemaTypedNodeGetAstNode(typed), "A switch statement is not supported by the IR yet.", MAREA_NULLPTR, MAREA_INTEGER_SIZE(0));
+    case MAREA_AST_KIND_FOR_EACH_STATEMENT:
+        return MAREA_IrRaise(context, MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_FOR_EACH, MAREA_SemaTypedNodeGetAstNode(typed), "A for each statement is not supported by the IR yet.", MAREA_NULLPTR, MAREA_INTEGER_SIZE(0));
+    case MAREA_AST_KIND_FORK_JOIN_BLOCK:
+    case MAREA_AST_KIND_PARTITION_STATEMENT:
+    case MAREA_AST_KIND_WITH_STATEMENT:
+        return MAREA_IrRaise(context, MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_FORK_JOIN, MAREA_SemaTypedNodeGetAstNode(typed), "A fork_join, partition or with statement is not supported by the IR yet.", MAREA_NULLPTR, MAREA_INTEGER_SIZE(0));
     default:
-        // INFO: any other kind is an expression, or a Gap construct that lowers to nothing here.
+        // INFO: any other kind is an expression; a Gap inside it raises its own diagnostic.
         return MAREA_IrLowerExpression(context, typed, outNode);
     }
 }

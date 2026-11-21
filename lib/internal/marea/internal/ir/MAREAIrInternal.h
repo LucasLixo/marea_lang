@@ -184,6 +184,20 @@ MAREA_BEGIN_EXTERN_C
      */
     MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrLowerBlock(MAREA_IrContext * context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode);
 
+    /**
+     * @brief Raises one ir error diagnostic, positioned at an AST node. The message is the text followed
+     * by the name in single quotes when a name is given. A long message is cut to fit.
+     * @param context Context that owns the sink. Must not be null.
+     * @param code Diagnostic code, in the 4000-4999 range.
+     * @param at AST node that gives the position. Null gives a zeroed position.
+     * @param message Short English text that names the construct. Must not be null.
+     * @param name Name text to append, or null for none.
+     * @param nameLength Byte length of name.
+     * @return MAREA_IR_EXCEPT_SUCCESS, ERROR_NULL_POINTER when context or message is null, or
+     * ERROR_OUT_OF_MEMORY when the sink cannot grow.
+     */
+    MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrRaise(MAREA_IrContext * context, MAREA_IrDiagnosticCode code, const MAREA_AstNode *at, const MAREA_Character8 *message, const MAREA_Character8 *name, MAREA_IntegerSize nameLength);
+
 MAREA_END_EXTERN_C
 
 #endif /* MAREA_INTERNAL_IR_MAREAIRINTERNAL_H */
