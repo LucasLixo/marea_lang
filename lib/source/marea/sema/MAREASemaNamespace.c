@@ -136,7 +136,16 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaTableAppend(MAREA_SemaContext *context, MA
     }
 
     if (table->count == table->capacity) {
+        // ERROR: a capacity or byte size that does not fit in MAREA_IntegerSize would allocate a small block and then copy past it.
+        if (table->capacity > (MAREA_INTEGER_SIZE_MAXIMUM / MAREA_INTEGER_SIZE(2))) {
+            return MAREA_SEMA_EXCEPT_ERROR_OUT_OF_MEMORY;
+        }
+
         const MAREA_IntegerSize NEW_CAPACITY = (table->capacity == 0) ? MAREA_INTEGER_SIZE(16) : (table->capacity * MAREA_INTEGER_SIZE(2));
+
+        if (NEW_CAPACITY > (MAREA_INTEGER_SIZE_MAXIMUM / sizeof(MAREA_SemaName))) {
+            return MAREA_SEMA_EXCEPT_ERROR_OUT_OF_MEMORY;
+        }
 
         MAREA_Null memory = MAREA_NULLPTR;
 
