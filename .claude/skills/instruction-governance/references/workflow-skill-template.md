@@ -1,11 +1,11 @@
 # Workflow skill template
 
-The shape of a skill written in parts. The rules are in "Workflow skills" of [instruction-governance](../SKILL.md); `mise run test:skill-check` checks them.
+The shape of a skill written in parts. The rules are in "Workflow skills" of [instruction-governance](../SKILL.md). No task checks them: use the manual checks of its "Validation" section.
 
 ## Folder
 
 ```
-.agents/skills/<name>/
+.claude/skills/<name>/
   SKILL.md
   steps/
     01-<first-step>.md
