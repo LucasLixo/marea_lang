@@ -16,5 +16,6 @@
 
     #include "marea/parse/MAREAAst.h"
     #include "marea/parse/MAREAAstKind.h"
+    #include "marea/parse/MAREAParser.h"
 
 #endif

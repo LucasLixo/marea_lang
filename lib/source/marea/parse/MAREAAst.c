@@ -178,3 +178,10 @@ void MAREA_CALL MAREA_AstNodeSetFlags(MAREA_AstNode *node, MAREA_Uinteger32 flag
         node->flags = flags;
     }
 }
+
+void MAREA_CALL MAREA_AstNodeSetEnd(MAREA_AstNode *node, MAREA_Uinteger32 endOffset)
+{
+    if ((node != MAREA_NULLPTR) && (endOffset > node->position.offset)) {
+        node->position.length = (endOffset - node->position.offset);
+    }
+}
