@@ -102,20 +102,31 @@ Other shapes:
 ```
 BLOCK
   LOCAL_DECLARATION "name" (flags MUTABLE)   -- child: first
+  LOCAL_DECLARATION "$last"                  -- child: last
   WHILE_STATEMENT
-    BINARY_EXPRESSION op=LESS_EQUAL          -- children: IDENTIFIER name, last
-    BLOCK                                    -- the lowered body, then the increment
+    BINARY_EXPRESSION op=LESS_EQUAL          -- children: IDENTIFIER name, IDENTIFIER "$last"
+    BLOCK                                    -- the lowered body, then the step
       ...
-      ASSIGNMENT op=PLUS_EQUAL               -- children: IDENTIFIER name, INTEGER_LITERAL "1"
+      IF_STATEMENT                           -- the step, part 1: leave at the last value
+        BINARY_EXPRESSION op=EQUAL_EQUAL     -- children: IDENTIFIER name, IDENTIFIER "$last"
+        BLOCK
+          BREAK_STATEMENT
+      ASSIGNMENT op=PLUS_EQUAL               -- the step, part 2: children IDENTIFIER name, INTEGER_LITERAL "1"
 ```
 
 The bound is inclusive (`<=`), because the grammar says a range includes both ends. The hidden loop
-variable has no type name.
+variable and `$last` have no type name. The `last` expression is lowered once, into `$last`, which is set
+before the loop; the loop never evaluates it again. The name `$last` cannot be a source identifier,
+so it never clashes with a user name. The hidden local carries no flag.
 
-A `continue` that targets the loop would skip the increment at the end of the body. So each such
-`continue` becomes `BLOCK(ASSIGNMENT index += 1, CONTINUE_STATEMENT)`. A `continue` inside a nested
-`while` or for-range loop targets that loop and stays as it is (the nested for-range loop adds its own
-increment).
+The step leaves the loop at the last value before it adds one. So the increment never runs past `last`,
+and a loop whose `last` is the maximum of its integer type still ends. A range with `first` greater
+than `last` runs zero times, because the condition fails at once.
+
+A `continue` that targets the loop would skip the step at the end of the body. So each such
+`continue` becomes `BLOCK(step, CONTINUE_STATEMENT)`, where the step is the same `IF_STATEMENT` and
+`ASSIGNMENT` pair. A `continue` inside a nested `while` or for-range loop targets that loop and stays as
+it is (the nested for-range loop adds its own step and its own `$last`).
 
 ## Text dump
 
@@ -196,8 +207,6 @@ Each diagnostic carries the position of the construct that raised it.
   type-qualified static call (`array<integer32>.filled(8, 0)`) are not user generics, but raise 4004,
   because the IR erases type arguments and a call that keeps only its name would be wrong. They need an
   IR form or a diagnostic code of their own.
-- The desugared loop evaluates `last` again on every iteration, and `index <= last` never ends when
-  `last` is the maximum of its integer type.
 - The hidden loop variable of a for-range loop has no type name (sema gives none for a range bound). A
   backend must infer it from the first bound.
 - `LOCAL_DECLARATION` never carries the `MUTABLE` flag, except the hidden loop variable: the AST has no
