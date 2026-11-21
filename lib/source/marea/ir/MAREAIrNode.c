@@ -9,7 +9,7 @@
     #define MAREA_IR_CHILD_INITIAL_CAPACITY MAREA_INTEGER_SIZE(4)
 #endif
 
-static const MAREA_Character8 *const MAREA_G_IrKindNames[] = {
+static const MAREA_Character8 *const MAREA_G_IR_KIND_NAMES[] = {
     "MODULE",
     "CONSTANT_DECLARATION",
     "STRUCTURE_DECLARATION",
@@ -57,7 +57,7 @@ static const MAREA_Character8 *const MAREA_G_IrKindNames[] = {
     "BUILTIN_NAME",
 };
 
-MAREA_STATIC_ASSERT((sizeof(MAREA_G_IrKindNames) / sizeof(MAREA_G_IrKindNames[0])) == MAREA_IR_KIND_COUNT, "MAREA_G_IrKindNames must have one entry per IR kind.");
+MAREA_STATIC_ASSERT((sizeof(MAREA_G_IR_KIND_NAMES) / sizeof(MAREA_G_IR_KIND_NAMES[0])) == MAREA_IR_KIND_COUNT, "MAREA_G_IR_KIND_NAMES must have one entry per IR kind.");
 
 const MAREA_Character8 *MAREA_CALL MAREA_IrKindGetName(MAREA_IrKind kind)
 {
@@ -65,7 +65,7 @@ const MAREA_Character8 *MAREA_CALL MAREA_IrKindGetName(MAREA_IrKind kind)
         return "UNKNOWN";
     }
 
-    return MAREA_G_IrKindNames[kind];
+    return MAREA_G_IR_KIND_NAMES[kind];
 }
 
 MAREA_IrKind MAREA_CALL MAREA_IrNodeGetKind(const MAREA_IrNode *node)
