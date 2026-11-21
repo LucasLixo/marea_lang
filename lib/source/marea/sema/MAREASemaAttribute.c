@@ -53,17 +53,6 @@ static const MAREA_G_AttributeRule MAREA_G_RULES[MAREA_G_RULE_COUNT] = {
     { .key = "export", .members = MAREA_NULLPTR, .shape = MAREA_G_ATTRIBUTE_SHAPE_OPTIONAL_NAME },
 };
 
-static const MAREA_AstNode *MAREA_CALL MAREA_G_ChildAt(const MAREA_AstNode *node, MAREA_IntegerSize index)
-{
-    const MAREA_AstNode *child = MAREA_NULLPTR;
-
-    if (MAREA_AstNodeGetChildAt(node, index, &child) != MAREA_AST_EXCEPT_SUCCESS) {
-        return MAREA_NULLPTR;
-    }
-
-    return child;
-}
-
 static MAREA_Boolean MAREA_CALL MAREA_G_TextIs(const MAREA_AstNode *node, const MAREA_Character8 *text)
 {
     const MAREA_IntegerSize LENGTH = strlen(text);
@@ -128,7 +117,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_ParseInteger(const MAREA_AstNode *node, 
 
 static MAREA_SemaExcept MAREA_CALL MAREA_G_ReportValue(MAREA_SemaContext *context, MAREA_SemaDiagnosticCode code, const MAREA_AstNode *item, const MAREA_Character8 *prefix)
 {
-    const MAREA_AstNode *key = MAREA_G_ChildAt(item, 0);
+    const MAREA_AstNode *key = MAREA_SemaChildAt(item, 0);
 
     return MAREA_SemaReportNamed(context, code, MAREA_AstNodeGetPosition(item), prefix, MAREA_AstNodeGetText(key), MAREA_AstNodeGetTextLength(key));
 }
@@ -140,7 +129,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsSingleName(const MAREA_AstNode *value)
 
 static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckValue(MAREA_SemaContext *context, const MAREA_G_AttributeRule *rule, const MAREA_AstNode *item)
 {
-    const MAREA_AstNode *value = MAREA_G_ChildAt(item, 1);
+    const MAREA_AstNode *value = MAREA_SemaChildAt(item, 1);
 
     if ((value != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(value) == MAREA_AST_KIND_ERROR_NODE)) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
@@ -156,7 +145,7 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckValue(MAREA_SemaContext *context
         break;
     case MAREA_G_ATTRIBUTE_SHAPE_MEMBER:
         if ((value != MAREA_NULLPTR) && (MAREA_G_IsSingleName(value) == MAREA_BOOLEAN_TRUE)) {
-            const MAREA_AstNode *member = MAREA_G_ChildAt(value, 0);
+            const MAREA_AstNode *member = MAREA_SemaChildAt(value, 0);
 
             for (const MAREA_Character8 *const *candidate = rule->members; *candidate != MAREA_NULLPTR; ++candidate) {
                 if ((member != MAREA_NULLPTR) && (MAREA_G_TextIs(member, *candidate) == MAREA_BOOLEAN_TRUE)) {
@@ -199,7 +188,7 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckValue(MAREA_SemaContext *context
 
 static MAREA_Boolean MAREA_CALL MAREA_G_IsOn(const MAREA_AstNode *item)
 {
-    const MAREA_AstNode *value = MAREA_G_ChildAt(item, 1);
+    const MAREA_AstNode *value = MAREA_SemaChildAt(item, 1);
 
     return ((value != MAREA_NULLPTR) && (MAREA_G_TextIs(value, "false") == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_FALSE : MAREA_BOOLEAN_TRUE;
 }
@@ -215,7 +204,7 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckGroup(MAREA_SemaContext *context
     const MAREA_IntegerSize LIST_COUNT = MAREA_AstNodeGetChildCount(owner);
 
     for (MAREA_IntegerSize listIndex = 0; listIndex < LIST_COUNT; ++listIndex) {
-        const MAREA_AstNode *list = MAREA_G_ChildAt(owner, listIndex);
+        const MAREA_AstNode *list = MAREA_SemaChildAt(owner, listIndex);
 
         if ((list == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(list) != listKind)) {
             continue;
@@ -224,13 +213,13 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckGroup(MAREA_SemaContext *context
         const MAREA_IntegerSize ITEM_COUNT = MAREA_AstNodeGetChildCount(list);
 
         for (MAREA_IntegerSize itemIndex = 0; itemIndex < ITEM_COUNT; ++itemIndex) {
-            const MAREA_AstNode *item = MAREA_G_ChildAt(list, itemIndex);
+            const MAREA_AstNode *item = MAREA_SemaChildAt(list, itemIndex);
 
             if ((item == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(item) != MAREA_AST_KIND_ATTRIBUTE_ITEM)) {
                 continue;
             }
 
-            const MAREA_AstNode *key = MAREA_G_ChildAt(item, 0);
+            const MAREA_AstNode *key = MAREA_SemaChildAt(item, 0);
 
             if ((key == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(key) != MAREA_AST_KIND_IDENTIFIER)) {
                 continue;
@@ -301,7 +290,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_FindOn(const MAREA_AstNode *owner, MAREA
     const MAREA_IntegerSize LIST_COUNT = MAREA_AstNodeGetChildCount(owner);
 
     for (MAREA_IntegerSize listIndex = 0; listIndex < LIST_COUNT; ++listIndex) {
-        const MAREA_AstNode *list = MAREA_G_ChildAt(owner, listIndex);
+        const MAREA_AstNode *list = MAREA_SemaChildAt(owner, listIndex);
 
         if ((list == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(list) != listKind)) {
             continue;
@@ -310,9 +299,9 @@ static MAREA_Boolean MAREA_CALL MAREA_G_FindOn(const MAREA_AstNode *owner, MAREA
         const MAREA_IntegerSize ITEM_COUNT = MAREA_AstNodeGetChildCount(list);
 
         for (MAREA_IntegerSize itemIndex = 0; itemIndex < ITEM_COUNT; ++itemIndex) {
-            const MAREA_AstNode *item = MAREA_G_ChildAt(list, itemIndex);
+            const MAREA_AstNode *item = MAREA_SemaChildAt(list, itemIndex);
 
-            const MAREA_AstNode *itemKey = (item == MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_G_ChildAt(item, 0);
+            const MAREA_AstNode *itemKey = (item == MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_SemaChildAt(item, 0);
 
             if ((itemKey != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(itemKey) == MAREA_AST_KIND_IDENTIFIER) && (MAREA_G_TextIs(itemKey, key) == MAREA_BOOLEAN_TRUE)) {
                 *outOn = MAREA_G_IsOn(item);
