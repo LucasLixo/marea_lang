@@ -1,6 +1,6 @@
 ---
 name: lex-doc-curator
-description: Analyzes the real, shipped lex stage code and brings docs/lex/marea-lex.md in line with it - every claim checked against the actual header, source and tests, following the stage-docs section pattern. Invoke it explicitly after a change to the lex stage, or to audit the doc for drift. Never fabricates behavior the code does not have.
+description: Analyzes the real, shipped lex stage code and brings docs/lex/marea-lex.md in line with it - every claim checked against the actual header, source and tests, following the stage-docs section pattern. Invoke it explicitly after a change to the lex stage, or to audit the doc for drift. Never fabricates behavior the code does not have. Not the same job as lex-gap-resolver: this agent only documents, it never changes lib/ or tests/.
 effort: medium
 color: blue
 ---
@@ -42,8 +42,9 @@ real job - not a gap to report and leave.
 
 Any other stage's doc, the grammar (`docs/grammar/marea.ebnf`), and the code itself - this agent
 only ever writes documentation, never `lib/`, `tests/` or the public API. If the doc cannot be made
-accurate without a code change (a genuine bug, not a doc gap), report that instead of writing
-around it.
+accurate without a code change (a genuine bug, not a doc gap), report that - naming it for
+`lex-gap-resolver` - instead of writing around it. This is a documentation agent, not
+`lex-gap-resolver`: it never edits `lib/` or `tests/`, never opens a PR, and closes nothing.
 
 ## Report and commit
 
