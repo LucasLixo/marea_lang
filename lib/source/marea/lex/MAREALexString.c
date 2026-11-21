@@ -3,13 +3,6 @@
 
 #include "marea/internal/lex/MAREALexInternal.h"
 
-#include <stdio.h>
-
-static MAREA_Boolean MAREA_CALL MAREA_G_LexStringIsHexDigit(MAREA_Sinteger32 byte)
-{
-    return (((byte >= '0') && (byte <= '9')) || ((byte >= 'a') && (byte <= 'f')) || ((byte >= 'A') && (byte <= 'F'))) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
-}
-
 static MAREA_Boolean MAREA_CALL MAREA_G_LexStringIsBadByte(MAREA_Sinteger32 byte)
 {
     return ((byte >= 0x80) || ((byte < 0x20) && (byte != '\t')) || (byte == 0x7F)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
@@ -73,7 +66,7 @@ MAREA_LexExcept MAREA_CALL MAREA_LexScanString(MAREA_LexCursor *cursor, MAREA_To
                 const MAREA_Sinteger32 FIRST_HEX = MAREA_LexCursorPeek(cursor, MAREA_INTEGER_SIZE(0));
                 const MAREA_Sinteger32 SECOND_HEX = MAREA_LexCursorPeek(cursor, MAREA_INTEGER_SIZE(1));
 
-                if (MAREA_G_LexStringIsHexDigit(FIRST_HEX) && MAREA_G_LexStringIsHexDigit(SECOND_HEX)) {
+                if (MAREA_LexIsHexDigit(FIRST_HEX) && MAREA_LexIsHexDigit(SECOND_HEX)) {
                     MAREA_LexCursorAdvance(cursor);
                     MAREA_LexCursorAdvance(cursor);
 
@@ -87,13 +80,9 @@ MAREA_LexExcept MAREA_CALL MAREA_LexScanString(MAREA_LexCursor *cursor, MAREA_To
                 continue;
             }
 
-            char buffer[64];
-
-            MAREA_IGNORE(snprintf(buffer, sizeof(buffer), "invalid escape sequence"));
-
             const MAREA_SourcePosition POSITION = MAREA_LexCursorMakePosition(cursor, START_OFFSET, START_LINE, START_COLUMN);
 
-            MAREA_LexCursorReportDiagnostic(cursor, MAREA_LEX_DIAGNOSTIC_CODE_INVALID_ESCAPE, POSITION, buffer);
+            MAREA_LexCursorReportDiagnostic(cursor, MAREA_LEX_DIAGNOSTIC_CODE_INVALID_ESCAPE, POSITION, "invalid escape sequence");
 
             MAREA_LexCursorAdvance(cursor);
 
