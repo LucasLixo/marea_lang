@@ -5,18 +5,6 @@
 
 #include <string.h>
 
-struct MAREA_SemaTypedNode
-{
-    const MAREA_AstNode *astNode;
-    const MAREA_AstNode *typeDeclaration;
-    const MAREA_Character8 *typeName;
-    MAREA_SemaTypedNode **children;
-    MAREA_IntegerSize typeNameLength;
-    MAREA_IntegerSize childCount;
-    MAREA_SemaTypeClass typeClass;
-    MAREA_SemaOwnershipMode ownershipMode;
-};
-
 static MAREA_Boolean MAREA_CALL MAREA_G_TypedAstWasChecked(const MAREA_SemaContext *context, const MAREA_AstNode *root)
 {
     if (context->root != root) {
@@ -309,6 +297,8 @@ static MAREA_SemaTypedAstExcept MAREA_CALL MAREA_G_TypedAstBuildNode(MAREA_SemaC
     }
 
     MAREA_G_TypedAstClassify(context, built);
+
+    built->ownershipMode = MAREA_SemaTypedAstClassifyOwnership(context, built);
 
     MAREA_SemaTypedAstExcept result = MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
 

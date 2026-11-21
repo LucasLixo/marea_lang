@@ -284,3 +284,102 @@ TEST(MAREASemaTypedAst, GenericCallResultIsTaggedGenericWithoutSubstitution)
 
     EXPECT_EQ(std::string(outText, outLength), "Item") << "The raw, unsubstituted generic parameter name must be kept.";
 }
+
+TEST(MAREASemaTypedAst, PrimitiveIdentifierOwnershipIsValue)
+{
+    GTEST_COUT << "Validating a primitive by-value identifier has ownership mode VALUE." << std::endl;
+
+    MAREA_SemaFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; function f(n: integer32): integer32 return n; end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
+
+    const MAREA_SemaTypedNode *outRoot{ nullptr };
+
+    ASSERT_EQ(MAREA_SemaBuildTypedAst(fixture.context, fixture.parser.root, &outRoot), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "A checked root with zero errors must build.";
+
+    const MAREA_SemaTypedNode *returnStatement{ MAREA_findTypedNodeByKind(outRoot, MAREA_AST_KIND_RETURN_STATEMENT) };
+
+    ASSERT_NE(returnStatement, nullptr) << "The typed tree must carry a RETURN_STATEMENT node.";
+
+    const MAREA_SemaTypedNode *returned{ nullptr };
+
+    ASSERT_EQ(MAREA_SemaTypedNodeGetChildAt(returnStatement, 0, &returned), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "The returned expression must be reachable.";
+
+    EXPECT_EQ(MAREA_SemaTypedNodeGetOwnershipMode(returned), MAREA_SEMA_OWNERSHIP_MODE_VALUE) << "A primitive identifier must carry ownership mode VALUE.";
+}
+
+TEST(MAREASemaTypedAst, ReadOnlyBorrowParameterOwnershipIsBorrow)
+{
+    GTEST_COUT << "Validating a read-only structure parameter has ownership mode BORROW." << std::endl;
+
+    MAREA_SemaFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; structure Shape x: float32; end function f(s: Shape) end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
+
+    const MAREA_SemaTypedNode *outRoot{ nullptr };
+
+    ASSERT_EQ(MAREA_SemaBuildTypedAst(fixture.context, fixture.parser.root, &outRoot), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "A checked root with zero errors must build.";
+
+    const MAREA_SemaTypedNode *parameter{ MAREA_findTypedNodeByKind(outRoot, MAREA_AST_KIND_PARAMETER) };
+
+    ASSERT_NE(parameter, nullptr) << "The typed tree must carry the parameter node.";
+
+    EXPECT_EQ(MAREA_SemaTypedNodeGetOwnershipMode(parameter), MAREA_SEMA_OWNERSHIP_MODE_BORROW) << "A read-only structure parameter must carry ownership mode BORROW.";
+}
+
+TEST(MAREASemaTypedAst, MutableBorrowParameterOwnershipIsMutableBorrow)
+{
+    GTEST_COUT << "Validating a mutable structure parameter has ownership mode MUTABLE_BORROW." << std::endl;
+
+    MAREA_SemaFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; structure Shape x: float32; end function f(s: mutable Shape) end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
+
+    const MAREA_SemaTypedNode *outRoot{ nullptr };
+
+    ASSERT_EQ(MAREA_SemaBuildTypedAst(fixture.context, fixture.parser.root, &outRoot), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "A checked root with zero errors must build.";
+
+    const MAREA_SemaTypedNode *parameter{ MAREA_findTypedNodeByKind(outRoot, MAREA_AST_KIND_PARAMETER) };
+
+    ASSERT_NE(parameter, nullptr) << "The typed tree must carry the parameter node.";
+
+    EXPECT_EQ(MAREA_SemaTypedNodeGetOwnershipMode(parameter), MAREA_SEMA_OWNERSHIP_MODE_MUTABLE_BORROW) << "A mutable structure parameter must carry ownership mode MUTABLE_BORROW.";
+}
+
+TEST(MAREASemaTypedAst, OwnedParameterOwnershipIsMove)
+{
+    GTEST_COUT << "Validating an owned<T> parameter has ownership mode MOVE." << std::endl;
+
+    MAREA_SemaFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; structure Shape x: float32; end function f(o: owned<Shape>) end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
+
+    const MAREA_SemaTypedNode *outRoot{ nullptr };
+
+    ASSERT_EQ(MAREA_SemaBuildTypedAst(fixture.context, fixture.parser.root, &outRoot), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "A checked root with zero errors must build.";
+
+    const MAREA_SemaTypedNode *parameter{ MAREA_findTypedNodeByKind(outRoot, MAREA_AST_KIND_PARAMETER) };
+
+    ASSERT_NE(parameter, nullptr) << "The typed tree must carry the parameter node.";
+
+    EXPECT_EQ(MAREA_SemaTypedNodeGetOwnershipMode(parameter), MAREA_SEMA_OWNERSHIP_MODE_MOVE) << "An owned<T> parameter must carry ownership mode MOVE.";
+}
+
+TEST(MAREASemaTypedAst, CopyExpressionOwnershipIsCopy)
+{
+    GTEST_COUT << "Validating a copy expression has ownership mode COPY." << std::endl;
+
+    MAREA_SemaFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; structure Shape x: float32; end function f(s: Shape): Shape return copy s; end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
+
+    const MAREA_SemaTypedNode *outRoot{ nullptr };
+
+    ASSERT_EQ(MAREA_SemaBuildTypedAst(fixture.context, fixture.parser.root, &outRoot), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "A checked root with zero errors must build.";
+
+    const MAREA_SemaTypedNode *copyExpression{ MAREA_findTypedNodeByKind(outRoot, MAREA_AST_KIND_UNARY_EXPRESSION) };
+
+    ASSERT_NE(copyExpression, nullptr) << "The typed tree must carry the copy expression node.";
+
+    EXPECT_EQ(MAREA_SemaTypedNodeGetOwnershipMode(copyExpression), MAREA_SEMA_OWNERSHIP_MODE_COPY) << "A copy expression must carry ownership mode COPY.";
+}
