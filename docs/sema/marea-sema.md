@@ -78,7 +78,8 @@ nor be the value of a field. A new local of the same name ends the reference.
 
 **Spawn.** In `fork_join`, each argument of `spawn f(...)` is a `partition` part, a literal, a file
 constant, or a name that is not a `mutable` parameter and not the source of an active `partition
-mutable`. Any other expression is rejected. This is a simple first rule.
+mutable`, or a field access (`a.b`, nested too) whose base meets the same rule. Any other expression
+(a call, an index, a computed value) is rejected. This is a simple first rule.
 
 **Control flow.** A function with a return type ends every path with `return value;`, through `if`,
 `elseif`, `else`, scope blocks and `switch`. A loop is never an ending path. `unreachable!()` and
