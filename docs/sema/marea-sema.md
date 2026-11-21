@@ -20,7 +20,9 @@ MAREA_SemaCheckCompilationUnit(sema, root);   /* once per file, dependencies fir
 ```
 
 `MAREA_SemaCheckCompilationUnit` returns an error only for a null argument or an out of memory. A rule
-violation is a diagnostic in the sink. Every sema diagnostic is an error, in the range 3001-3023.
+violation is a diagnostic in the sink. A size that does not fit in `MAREA_IntegerSize` (a diagnostic
+message, or the growth of a name table) is also an out of memory: nothing is allocated or copied.
+Every sema diagnostic is an error, in the range 3001-3023.
 The lexer file name decides the path rule, so call `MAREA_LexContextSetFileName` with a project
 relative path with forward slashes and the `.marea` extension before the lex step.
 
