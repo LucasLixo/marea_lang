@@ -28,7 +28,7 @@ MAREA_IrLowerCompilationUnit(ir, typed, &module);
 a typed root whose AST node is not a `COMPILATION_UNIT`, and `MAREA_IR_EXCEPT_ERROR_OUT_OF_MEMORY`
 when the arena cannot grow. A construct that cannot be lowered is not an error code: it is a
 diagnostic in the sink, and the call still returns `MAREA_IR_EXCEPT_SUCCESS`. Every ir diagnostic is
-an error, in the range 4001-4005 (the codes 4002 and 4003 are no longer raised, see Diagnostics). The tree stays
+an error, in the range 4001-4005 (the codes 4001, 4002 and 4003 are no longer raised, see Diagnostics). The tree stays
 valid for the lifetime of the arena.
 
 ## Node model
@@ -53,8 +53,8 @@ A node never owns its text or type name: both point into the source buffer of th
 buffer must outlive the tree. The one exception is the name of an `implementation` member, which is
 joined as `Type.name` and copied into the arena.
 
-Flags reuse the AST flag bits. `MAREA_AST_FLAG_MUTABLE` is kept on a `PARAMETER`, on the hidden
-loop variable of a for-range loop and on some hidden and loop locals of a for-each loop (see below). A
+Flags reuse the AST flag bits. `MAREA_AST_FLAG_MUTABLE` is kept on a `PARAMETER`, on a `PARTITION_STATEMENT`,
+on the hidden loop variable of a for-range loop and on some hidden and loop locals of a for-each loop (see below). A
 node made by the named-node path (declarations, fields, parameters, locals) drops every flag but `MUTABLE`.
 
 The type name is the head name of the written type, with no type arguments (`array<integer32>` gives
@@ -67,15 +67,17 @@ when it has one.
 ## Kinds and what is erased
 
 The kind set keeps the name and the child layout of the AST kind it comes from, except `MODULE` (the
-root) and `UNREACHABLE_STATEMENT`. The kinds are: `MODULE`, `CONSTANT_DECLARATION`,
+root), `UNREACHABLE_STATEMENT`, and the name of `PARTITION_STATEMENT` and `WITH_STATEMENT`, which is the text of
+the node (see Fork-join lowering). The kinds are: `MODULE`, `CONSTANT_DECLARATION`,
 `STRUCTURE_DECLARATION`, `FIELD_DECLARATION`, `ENUM_DECLARATION`, `VARIANT_DECLARATION`,
 `VARIANT_FIELD`, `FUNCTION_DECLARATION`, `PARAMETER_LIST`, `PARAMETER`, `BLOCK`, `LOCAL_DECLARATION`,
 `ASSIGNMENT`, `EXPRESSION_STATEMENT`, `IF_STATEMENT`, `ELSEIF_CLAUSE`, `ELSE_CLAUSE`,
 `WHILE_STATEMENT`, `RETURN_STATEMENT`, `BREAK_STATEMENT`, `CONTINUE_STATEMENT`, `SCOPE_BLOCK`,
 `IDENTIFIER`, `INTEGER_LITERAL`, `FLOAT_LITERAL`, `STRING_LITERAL`, `BOOLEAN_LITERAL`,
 `BINARY_EXPRESSION`, `UNARY_EXPRESSION`, `MEMBER_ACCESS`, `INDEX_ACCESS`, `CALL_EXPRESSION`,
-`ARGUMENT_LIST`, `LITERAL_VALUE`, `FIELD_ENTRY`, `INDEX_ENTRY`, `VALUE_ENTRY`, `QUALIFIED_NAME` and
-`UNREACHABLE_STATEMENT`.
+`ARGUMENT_LIST`, `LITERAL_VALUE`, `FIELD_ENTRY`, `INDEX_ENTRY`, `VALUE_ENTRY`, `QUALIFIED_NAME`,
+`UNREACHABLE_STATEMENT`, `FORK_JOIN_BLOCK`, `PARTITION_STATEMENT` and `WITH_STATEMENT`. The last three come
+after every older kind, so no value of an older kind moved.
 
 The module keeps its declarations in source order. The typing is erased before the IR, so these make
 no node:
@@ -209,6 +211,39 @@ value.
 - A gap in the collection drops the declaration and is reported once, and the body is not lowered after it. A
   gap in the body drops the declaration whole, as everywhere else.
 
+## Fork-join lowering
+
+`fork_join`, `partition`, `with` and `spawn` keep their shape in the IR. Three kinds hold what no existing
+kind can say: where the join is, that the parts are disjoint, and where a scoped value closes. The IR has no
+thread model, no runtime call and no scheduler. Each node says what must hold, and each backend chooses how.
+
+```
+FORK_JOIN_BLOCK                              -- one child: BLOCK
+PARTITION_STATEMENT "part" (flags MUTABLE)   -- children: the value, the part count, BLOCK
+WITH_STATEMENT "name"                        -- children: the value, BLOCK
+UNARY_EXPRESSION op=KEYWORD_SPAWN            -- child: the call; the one form of spawn, no kind of its own
+```
+
+- `FORK_JOIN_BLOCK` is the join point. Every worker that a `spawn` starts inside the block ends before the node
+  ends. A task kept in a local that the function declared before the block is read only after the node.
+- `PARTITION_STATEMENT` cuts the value in disjoint parts, as many as the second child says, and runs the body
+  once for each part. The text of the node is the name of the part, which the body reads as an `IDENTIFIER`. The
+  flag `MUTABLE` is kept when the source wrote `mutable`: each body then has exclusive write access to its
+  part. The count is an expression, lowered like any other, so a constant stays an `IDENTIFIER`. The IR does not
+  say how many threads run, or in which order the parts run.
+- `WITH_STATEMENT` opens the value before the body and closes it at the end of the body. The text of the node
+  is the name that the body reads. The name cannot leave the block, which sema checks.
+- `spawn` is a `UNARY_EXPRESSION` with the operator `KEYWORD_SPAWN`, as `copy` and `move` keep their operator.
+  It has no kind of its own, because the operator already tells it from every other unary form. It starts one
+  worker and gives a `task<T>`, so it may be a statement, the initializer of a local or an argument of a call.
+  Sema accepts a spawn only inside a `fork_join`; the IR does not check it again.
+- The name is the text of the node, not an `IDENTIFIER` child, because it declares a name and does not read
+  one; a `LOCAL_DECLARATION` and a `PARAMETER` work the same way. So a backend never mistakes the binder for the
+  value. The part name and the `with` name have no type name, because sema types neither.
+- A `continue` or `break` inside the body of a `with` that targets an enclosing loop is lowered as in any other
+  block, and a `continue` that targets a for-range or for-each loop still gets the step in front of it.
+- A gap inside any child drops the declaration whole and is reported once, as everywhere else.
+
 ## Text dump
 
 `MAREA_IrModuleDump` writes the tree as stable text into the arena, one node per line, in the same
@@ -239,7 +274,7 @@ Lowering the same unit twice gives byte-identical text.
 
 ## Constructs the IR cannot lower
 
-Three constructs raise an error diagnostic and make no node. The declaration that holds the gap is left
+Two constructs raise an error diagnostic and make no node. The declaration that holds the gap is left
 out of the module whole, never in part: a gap in a function body drops that function, a gap in a
 variant default drops the enum, a gap in a constant initializer drops the constant. Lowering then
 continues with the next declaration, so the other declarations stay in the module. A gap inside a
@@ -249,7 +284,7 @@ declaration is reported once: lowering of that declaration stops at the first on
 
 `tests/source/ir/MAREAIrExamples.cpp` lowers all 23 programs under `examples/` through `lex`, `parse`,
 `sema` and `ir`. Each one checks with zero errors, lowers to a `MODULE`, dumps as text and raises
-exactly the codes in its row. The 15 programs not listed raise none.
+exactly the codes in its row. The 16 programs not listed raise none.
 
 | Program | Codes |
 |---|---|
@@ -257,16 +292,15 @@ exactly the codes in its row. The 15 programs not listed raise none.
 | `basics/blocks.marea` | 4004 |
 | `basics/primitive_types.marea` | 4004 |
 | `interop/c_library.marea` | 4005 |
-| `interop/gpu_handles.marea` | 4001, 4004 |
+| `interop/gpu_handles.marea` | 4004 |
 | `macros/builtin.marea` | 4005 |
-| `parallel/scaling.marea` | 4001 |
 | `types/generics.marea` | 4004 |
 
 ## Diagnostics
 
 | Code | Name | Example |
 |---|---|---|
-| 4001 | `UNSUPPORTED_FORK_JOIN` | a `fork_join` block, a `partition` or `with` statement, or a `spawn` expression |
+| 4001 | `UNSUPPORTED_FORK_JOIN` | no longer raised: `fork_join`, `partition`, `with` and `spawn` are lowered. The code and its name stay in the public header, so a value is never reused. |
 | 4002 | `UNSUPPORTED_SWITCH` | no longer raised: a `switch` statement is lowered. The code and its name stay in the public header, so a value is never reused. |
 | 4003 | `UNSUPPORTED_FOR_EACH` | no longer raised: a `for each` statement is lowered. The code and its name stay in the public header, so a value is never reused. |
 | 4004 | `UNINSTANTIATED_GENERIC` | a generic function, structure or `implementation`; a call with explicit type arguments (`identity<integer32>(5)`); a call whose result type is an unbound generic; a `GENERIC_NAME` outside a call |
@@ -277,9 +311,17 @@ Each diagnostic carries the position of the construct that raised it.
 
 ## Gaps
 
-- The three constructs above are not lowered: `fork_join` (with `partition`, `with` and `spawn`),
-  generics, and every macro other than a statement `unreachable!()`. The matching
-  declaration is left out of the module, and only its first gap is reported.
+- The two constructs above are not lowered: generics, and every macro other than a statement
+  `unreachable!()`. The matching declaration is left out of the module, and only its first gap is reported.
+- A `FORK_JOIN_BLOCK` says that the workers end before the node ends, and a `PARTITION_STATEMENT` says that the
+  parts are disjoint, but the IR holds nothing else about them: no part count check (a count of zero or less
+  is not rejected), no type for the part, and no link from a `spawn` to the `FORK_JOIN_BLOCK` that owns it. A
+  backend must find that block itself, by walking up. How the parts are cut, in which order, and on how many
+  threads, is a choice of the backend; the bytecode VM and the C11 backend only have to give the same
+  observable result.
+- Sema accepts a `continue` or `break` that stands inside the body of a `partition` and targets a loop outside
+  the `fork_join`. The IR lowers it as in any other block. A parallel body cannot meaningfully leave to a loop,
+  so this is a defect of an earlier stage, not fixed here.
 - A for-each loop reads its collection by position: `$each[$index]` and `$length($each)`. Sema gives no type for
   the collection, so the IR cannot tell an array or a slice from a collection that is not walked by position,
   such as a table with a key. A backend must infer the type of `$each`, `$count`, the loop variables and the
