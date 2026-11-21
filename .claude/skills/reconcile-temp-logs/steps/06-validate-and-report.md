@@ -2,7 +2,7 @@
 
 Part of the [reconcile-temp-logs](../SKILL.md) skill. This file is a complete prompt for this step alone: do what it says, check "Done when", then open the next step.
 
-- Verify the backup file with `lua tools/marea-ascii-check/main.lua temp/_LOG_APPLY_{DATE}_{TIME}.md`.
+- Verify the backup file with `lua tools/marea-ascii-check/main.lua temp/_LOG_APPLY_{DATE}_{TIME}.md` (`temp/` is untracked, so `mise run dev:ascii-check` does not cover it).
 - Every removed error entry has a verbatim copy in the backup and recorded evidence.
 - Every kept error entry is classified still open, large gap in flight, or unverified.
 - Append this run to the two logs under a `### reconcile-temp-logs (no apply, commit <short hash>)`

@@ -2,7 +2,7 @@
 name: dispatch-applies
 mode: edit
 effort: high
-description: Use when the user asks to run several existing applies at once, one per argument, each isolated in its own agent worktree while this session only orchestrates, merges every PR in turn, reconciles metadata.yaml and closes out a finished handoff. Run it only when the user or a rule names it.
+description: Use when the user asks to run several existing applies at once, one per argument, each isolated in its own agent worktree while this session only orchestrates, merges every PR in turn, reconciles metadata.yaml when it exists and closes out a finished handoff. Run it only when the user or a rule names it.
 argument-hint: "<apply-slug> [<apply-slug> ...]"
 ---
 
@@ -12,7 +12,7 @@ argument-hint: "<apply-slug> [<apply-slug> ...]"
 
 **Run this in edit mode.** Never enter plan mode. Execute the actions below immediately - do not
 read this as documentation, do not ask for confirmation except where a rule below says to stop and
-ask. Effort stays at `high`: a wrong merge or a mis-reconciled `metadata.yaml` is expensive to
+ask. Effort stays at `high`: a wrong merge or a mis-reconciled version file is expensive to
 undo once pushed, the same reasoning [generate-handoff](../generate-handoff/SKILL.md) gives
 for a wrong decomposition.
 
@@ -36,12 +36,12 @@ Workers get the code audit through their apply's own open-pr part ([audit-code](
   the round.
 - Nothing reaches `<base>` until the handoff it belongs to is fully done, or, for a standalone
   apply, until its own PR is ready per its own Pipeline.
-- **Never push to `main`, and never trigger `.github/workflows/release.yml`** (push to `main` or
-  `workflow_dispatch`) - it cuts a real GitHub release from whatever build is green.
+- **Never push to `main`.** The repository has no release workflow today; if one is added under
+  `.github/workflows/`, never trigger it from here.
 - Commits are made by workers through the `generate-commit` skill
   ([SKILL.md](../generate-commit/SKILL.md)), never a hand-written `git commit`. The
-  orchestrator only merges: it resolves merge conflicts and reconciles `metadata.yaml`, and does
-  not otherwise edit the code an apply produced.
+  orchestrator only merges: it resolves merge conflicts and, when `metadata.yaml` exists,
+  reconciles it, and does not otherwise edit the code an apply produced.
 - Never stage what was already dirty before you touched anything (see Startup).
 - This skill never invents a plan inline - dispatching and deciding what to build are different
   jobs, and an apply is by definition a plan already settled.

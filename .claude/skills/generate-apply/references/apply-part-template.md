@@ -79,7 +79,8 @@ one part per gated, ordered unit, never past about 80 lines. The common shapes:
 1. `01-setup.md`:
    ```
    1. `mise trust`, then `git pull --rebase` on `<base>` (dirty tree: `git fetch` plus
-      `git merge --ff-only origin/<base>`).
+      `git merge --ff-only origin/<base>`). `git submodule status` must show GoogleTest
+      initialized; if it does not, run `mise run setup:git-modules`.
    2. Open the issue with [generate-issue](../../generate-issue/SKILL.md), steps 1 to 3 only:
       populate `.github/ISSUE_TEMPLATE/<label>.md`, run `gh issue create`, write the report under
       `temp/_ISSUE/`. Record `<n>` in the index file's `issue:` field and in `../../../_LIST_APPLY.md`.
@@ -90,7 +91,8 @@ one part per gated, ordered unit, never past about 80 lines. The common shapes:
    not once at the end.
 3. `03-open-pr.md`:
    ```
-   1. Run [audit-code](../../audit-code/SKILL.md) over the files this apply changed and commit its
+   1. Run the checks of the index's `## Verification` once more on the final tree, run
+      [audit-code](../../audit-code/SKILL.md) over the files this apply changed and commit its
       changes through `generate-commit`.
    2. `git push -u origin <label>/<n>`.
    3. `gh pr create --base <base> --head <label>/<n> --title "<title>" --body "Resolves #<n>"`.
@@ -148,8 +150,8 @@ surrounding rules meet:
 - **Branch in place, not a worktree.** The report `generate-issue` writes suggests
   `git worktree add`; the apply's parts stay in the same tree with `git switch`. A part borrows
   only the issue creation from that command, not its command sheet.
-- **`git rebase` is denied** in `.claude/settings.json`. `git pull --rebase` is a different command
-  and is allowed; never emit a bare `git rebase`.
+- **A bare `git rebase` is not on the allow list** of `.claude/settings.json`. `git pull --rebase` is
+  a different command; never emit a bare `git rebase`.
 - **A handoff batch's target is the root branch, never `<base>` itself.** Every `gh pr create
   --base`, and the branch-point of every `git branch <label>/<n> ...`, is `<root-branch>` - only
   the handoff-closeout action of the last part ever touches `<base>` directly, and only once, for

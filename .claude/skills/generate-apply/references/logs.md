@@ -1,6 +1,6 @@
 # temp/_LOG_APPLY_SUCCESS.md and temp/_LOG_APPLY_ERROR.md
 
-The prose siblings of the list above, created the first time any apply needs one. Anything that
+The two outcome logs that [AGENTS.md](../../../../AGENTS.md) ("Reporting the outcome of any task") requires for every task, and the prose siblings of the apply list ([list-apply.md](list-apply.md)). Create each file the first time a task needs it; `temp/` is ignored by git, so a log is never committed. Anything that
 does not fit a table cell - why a split happened, what a real file survey found that the plan
 missed, an environment quirk, a verification command that had to change - goes into one of these
 two, never inline in the list, split by what kind of thing it is:
