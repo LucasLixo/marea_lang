@@ -206,10 +206,7 @@ MAREA_IrExcept MAREA_CALL MAREA_IrLowerExpression(MAREA_IrContext *context, cons
     case MAREA_AST_KIND_BINARY_EXPRESSION:
         return MAREA_G_LowerWithChildren(context, MAREA_IR_KIND_BINARY_EXPRESSION, typed, outNode);
     case MAREA_AST_KIND_UNARY_EXPRESSION:
-        if (MAREA_AstNodeGetOperator(MAREA_SemaTypedNodeGetAstNode(typed)) == MAREA_TOKEN_KIND_KEYWORD_SPAWN) {
-            return MAREA_IrRaise(context, MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_FORK_JOIN, MAREA_SemaTypedNodeGetAstNode(typed), "A spawn expression is not supported by the IR yet.", MAREA_NULLPTR, MAREA_INTEGER_SIZE(0));
-        }
-
+        // INFO: spawn, copy and move keep their operator on a UNARY_EXPRESSION; spawn needs no kind of its own.
         return MAREA_G_LowerWithChildren(context, MAREA_IR_KIND_UNARY_EXPRESSION, typed, outNode);
     case MAREA_AST_KIND_MEMBER_ACCESS:
         return MAREA_G_LowerWithChildren(context, MAREA_IR_KIND_MEMBER_ACCESS, typed, outNode);

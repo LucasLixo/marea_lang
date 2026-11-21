@@ -7,7 +7,6 @@
 
 namespace
 {
-    const MAREA_Uinteger32 FORK_JOIN{ MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_FORK_JOIN };
     const MAREA_Uinteger32 GENERIC{ MAREA_IR_DIAGNOSTIC_CODE_UNINSTANTIATED_GENERIC };
     const MAREA_Uinteger32 MACRO{ MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_MACRO };
 
@@ -84,42 +83,9 @@ TEST(MAREAIrGaps, ForRangeRaisesNothing)
     EXPECT_EQ(MAREA_irCodesOf("namespace main; function run() for index in 0 .. 3 do end end"), Codes{}) << "A for range must raise no ir diagnostic.";
 }
 
-TEST(MAREAIrGaps, ForkJoinRaisesItsDiagnostic)
-{
-    GTEST_COUT << "Validating a fork_join block raises 4001." << std::endl;
-
-    EXPECT_EQ(MAREA_irCodesOf("namespace main; function run() fork_join end end"), Codes{ FORK_JOIN }) << "A fork_join must raise UNSUPPORTED_FORK_JOIN.";
-}
-
-TEST(MAREAIrGaps, SpawnRaisesItsDiagnosticInsideAnExpression)
-{
-    GTEST_COUT << "Validating a spawn expression raises 4001 once and the function is left out." << std::endl;
-
-    const std::string SOURCE{ "namespace main; function work(a: integer32): integer32 return a; end function run() fork_join local task: integer32 = spawn work(1); end end" };
-
-    const Codes CODES{ MAREA_irCodesOf(SOURCE) };
-
-    ASSERT_FALSE(CODES.empty()) << "A fork_join with a spawn must raise.";
-
-    for (MAREA_Uinteger32 code : CODES) {
-        EXPECT_EQ(code, FORK_JOIN) << "Only UNSUPPORTED_FORK_JOIN may be raised.";
-    }
-}
-
-TEST(MAREAIrGaps, WithAndPartitionRaiseTheForkJoinDiagnostic)
-{
-    GTEST_COUT << "Validating a with statement raises 4001." << std::endl;
-
-    const Codes CODES{ MAREA_irCodesOf("namespace main; import arenas.arena; function run(scratch: mutable arena) with scratch as local_arena do end end") };
-
-    for (MAREA_Uinteger32 code : CODES) {
-        EXPECT_EQ(code, FORK_JOIN) << "A with statement must raise UNSUPPORTED_FORK_JOIN.";
-    }
-}
-
 TEST(MAREAIrGaps, CallWithoutGenericsRaisesNothing)
 {
-    GTEST_COUT << "Validating a plain call and a plain spawn-free body, the neighbors of the fork_join gap, raise nothing." << std::endl;
+    GTEST_COUT << "Validating a plain call raises nothing." << std::endl;
 
     EXPECT_EQ(MAREA_irCodesOf("namespace main; function twice(a: integer32): integer32 return a + a; end function run(): integer32 return twice(2); end"), Codes{}) << "A plain call must raise no ir diagnostic.";
 }
@@ -305,7 +271,6 @@ TEST(MAREAIrGaps, ExamplesRaiseTheGapsTheyContain)
     GTEST_COUT << "Validating the examples raise the gap codes of the constructs they hold, and only those." << std::endl;
 
     const std::vector<std::pair<std::string, MAREA_Uinteger32>> EXPECTED{
-        { "parallel/scaling.marea", FORK_JOIN },
         { "types/generics.marea", GENERIC },
         { "macros/builtin.marea", MACRO },
     };

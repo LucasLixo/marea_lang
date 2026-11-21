@@ -140,7 +140,17 @@ TEST(MAREAIrContext, KindNamesAreStable)
 
     EXPECT_STREQ(MAREA_IrKindGetName(MAREA_IR_KIND_MODULE), "MODULE") << "The first kind must be MODULE.";
 
-    EXPECT_STREQ(MAREA_IrKindGetName(MAREA_IR_KIND_UNREACHABLE_STATEMENT), "UNREACHABLE_STATEMENT") << "The last kind must be UNREACHABLE_STATEMENT.";
+    EXPECT_STREQ(MAREA_IrKindGetName(MAREA_IR_KIND_UNREACHABLE_STATEMENT), "UNREACHABLE_STATEMENT") << "The kind before the parallel ones must stay UNREACHABLE_STATEMENT.";
+
+    EXPECT_STREQ(MAREA_IrKindGetName(MAREA_IR_KIND_FORK_JOIN_BLOCK), "FORK_JOIN_BLOCK") << "The fork_join kind must be named.";
+
+    EXPECT_STREQ(MAREA_IrKindGetName(MAREA_IR_KIND_PARTITION_STATEMENT), "PARTITION_STATEMENT") << "The partition kind must be named.";
+
+    EXPECT_STREQ(MAREA_IrKindGetName(MAREA_IR_KIND_WITH_STATEMENT), "WITH_STATEMENT") << "The last kind must be WITH_STATEMENT.";
+
+    EXPECT_EQ(static_cast<int>(MAREA_IR_KIND_FORK_JOIN_BLOCK), static_cast<int>(MAREA_IR_KIND_UNREACHABLE_STATEMENT) + 1) << "The new kinds must come after the old ones, so no value moves.";
+
+    EXPECT_EQ(static_cast<int>(MAREA_IR_KIND_COUNT), static_cast<int>(MAREA_IR_KIND_WITH_STATEMENT) + 1) << "WITH_STATEMENT must be the last kind before COUNT.";
 
     EXPECT_STREQ(MAREA_IrKindGetName(MAREA_IR_KIND_COUNT), "UNKNOWN") << "COUNT must be unknown.";
 
