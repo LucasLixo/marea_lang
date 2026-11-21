@@ -5,3 +5,5 @@ indent: 4
 line_length: 120
 list_expansion: favour-inlining
 unsafe: false
+definitions:
+    - cmake/functions

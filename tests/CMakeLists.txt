@@ -21,7 +21,7 @@ add_executable(marea_tests ${MAREA_TESTS_SOURCES})
 
 target_include_directories(marea_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include" "${CMAKE_CURRENT_SOURCE_DIR}")
 
-target_link_libraries(marea_tests PRIVATE marea GTest::gtest_main)
+target_link_libraries(marea_tests PRIVATE GTest::gtest_main)
 
 target_compile_definitions(marea_tests PRIVATE "MAREA_TESTS_EXAMPLES_DIRECTORY=\"${MAREA_FOLDER_EXAMPLES}\"")
 
