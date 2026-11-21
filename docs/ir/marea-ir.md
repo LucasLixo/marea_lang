@@ -28,7 +28,7 @@ MAREA_IrLowerCompilationUnit(ir, typed, &module);
 a typed root whose AST node is not a `COMPILATION_UNIT`, and `MAREA_IR_EXCEPT_ERROR_OUT_OF_MEMORY`
 when the arena cannot grow. A construct that cannot be lowered is not an error code: it is a
 diagnostic in the sink, and the call still returns `MAREA_IR_EXCEPT_SUCCESS`. Every ir diagnostic is
-an error, in the range 4001-4005 (the code 4002 is no longer raised, see Diagnostics). The tree stays
+an error, in the range 4001-4005 (the codes 4002 and 4003 are no longer raised, see Diagnostics). The tree stays
 valid for the lifetime of the arena.
 
 ## Node model
@@ -53,9 +53,9 @@ A node never owns its text or type name: both point into the source buffer of th
 buffer must outlive the tree. The one exception is the name of an `implementation` member, which is
 joined as `Type.name` and copied into the arena.
 
-Flags reuse the AST flag bits. `MAREA_AST_FLAG_MUTABLE` is kept on a `PARAMETER` and on the hidden
-loop variable of a for-range loop (see below). A node made by the named-node path (declarations,
-fields, parameters, locals) drops every flag but `MUTABLE`.
+Flags reuse the AST flag bits. `MAREA_AST_FLAG_MUTABLE` is kept on a `PARAMETER`, on the hidden
+loop variable of a for-range loop and on some hidden and loop locals of a for-each loop (see below). A
+node made by the named-node path (declarations, fields, parameters, locals) drops every flag but `MUTABLE`.
 
 The type name is the head name of the written type, with no type arguments (`array<integer32>` gives
 `array`; a dotted name is kept whole). A `FUNCTION_TYPE` gives none. It is set on: `CONSTANT_DECLARATION`,
@@ -166,6 +166,49 @@ tests run in source order and the first one that holds runs its block.
   own `BLOCK` and its own `$switch`, so two never mix.
 - A gap inside the scrutinee, a case value or an arm drops the declaration whole, as everywhere else.
 
+## For-each desugaring
+
+`for each key, value in collection do body end` has no IR kind of its own. The key is optional. It lowers to:
+
+```
+BLOCK
+  LOCAL_DECLARATION "$each"                  -- child: collection (flags MUTABLE when written with mutable)
+  LOCAL_DECLARATION "$count"                 -- child: CALL_EXPRESSION, children IDENTIFIER "$length", ARGUMENT_LIST(IDENTIFIER "$each")
+  LOCAL_DECLARATION "$index" (flags MUTABLE) -- child: INTEGER_LITERAL "0"
+  WHILE_STATEMENT
+    BINARY_EXPRESSION op=LESS                -- children: IDENTIFIER "$index", IDENTIFIER "$count"
+    BLOCK                                    -- one pass
+      LOCAL_DECLARATION "key"                -- only with two names; child: IDENTIFIER "$index"
+      LOCAL_DECLARATION "value"              -- child: INDEX_ACCESS(IDENTIFIER "$each", IDENTIFIER "$index")
+      BLOCK                                  -- the lowered body
+      ASSIGNMENT op=PLUS_EQUAL               -- the step: children IDENTIFIER "$index", INTEGER_LITERAL "1"
+```
+
+The collection is lowered once, into `$each`, and its length once, into `$count`; the loop never evaluates
+either again. The names `$each`, `$count`, `$index` and `$length` cannot be source identifiers, so they never
+clash with a user name. A nested for-each has its own `BLOCK` and its own hidden locals, so two never mix.
+The one name of a loop with one name is the value. With two names the first is the key and the second is the
+value.
+
+- The collection is a borrow in the language, not a copy, and so is the loop variable. In a loop written with
+  `mutable`, `$each` and the value local carry `MUTABLE`, as a write-borrow `PARAMETER` does. The key never
+  does. The value local with `MUTABLE` is a write borrow of the element, not a mutable copy: a backend tells it
+  from the loop variable of a for-range loop by its initializer, an `INDEX_ACCESS` of `$each`. `$index` carries
+  `MUTABLE` because the step writes it, as the variable of a for-range loop does. No other node carries a flag.
+- `$length` is a call to a hidden name that no declaration has. It stands for the number of elements of
+  `$each`, and a backend resolves it from the type of the collection. No node in the IR names that type.
+- The loop ends at `$index < $count`, so the step needs no leave at the bound: `$index` never passes `$count`.
+  A collection with no element runs zero times.
+- A `continue` that targets the loop would skip the step at the end of the pass. So each such `continue`
+  becomes `BLOCK(step, CONTINUE_STATEMENT)`, with the same step as above, also inside a nested `if` or
+  `switch` arm. A `break` stays as it is. A `continue` in a nested `while`, for-range or for-each loop targets
+  that loop and is left alone. The body keeps its own `BLOCK`, so a local of the body never shares a scope with
+  the loop variables.
+- The hidden locals take their position from the `for` statement. The key and the value local take the
+  position of their name. The hidden locals and the loop variables have no type name.
+- A gap in the collection drops the declaration and is reported once, and the body is not lowered after it. A
+  gap in the body drops the declaration whole, as everywhere else.
+
 ## Text dump
 
 `MAREA_IrModuleDump` writes the tree as stable text into the arena, one node per line, in the same
@@ -196,7 +239,7 @@ Lowering the same unit twice gives byte-identical text.
 
 ## Constructs the IR cannot lower
 
-Four constructs raise an error diagnostic and make no node. The declaration that holds the gap is left
+Three constructs raise an error diagnostic and make no node. The declaration that holds the gap is left
 out of the module whole, never in part: a gap in a function body drops that function, a gap in a
 variant default drops the enum, a gap in a constant initializer drops the constant. Lowering then
 continues with the next declaration, so the other declarations stay in the module. A gap inside a
@@ -206,18 +249,17 @@ declaration is reported once: lowering of that declaration stops at the first on
 
 `tests/source/ir/MAREAIrExamples.cpp` lowers all 23 programs under `examples/` through `lex`, `parse`,
 `sema` and `ir`. Each one checks with zero errors, lowers to a `MODULE`, dumps as text and raises
-exactly the codes in its row. The 14 programs not listed raise none.
+exactly the codes in its row. The 15 programs not listed raise none.
 
 | Program | Codes |
 |---|---|
 | `attributes/layout.marea` | 4004 |
 | `basics/blocks.marea` | 4004 |
-| `basics/control_flow.marea` | 4003 |
 | `basics/primitive_types.marea` | 4004 |
 | `interop/c_library.marea` | 4005 |
 | `interop/gpu_handles.marea` | 4001, 4004 |
 | `macros/builtin.marea` | 4005 |
-| `parallel/scaling.marea` | 4001, 4003 |
+| `parallel/scaling.marea` | 4001 |
 | `types/generics.marea` | 4004 |
 
 ## Diagnostics
@@ -226,7 +268,7 @@ exactly the codes in its row. The 14 programs not listed raise none.
 |---|---|---|
 | 4001 | `UNSUPPORTED_FORK_JOIN` | a `fork_join` block, a `partition` or `with` statement, or a `spawn` expression |
 | 4002 | `UNSUPPORTED_SWITCH` | no longer raised: a `switch` statement is lowered. The code and its name stay in the public header, so a value is never reused. |
-| 4003 | `UNSUPPORTED_FOR_EACH` | `for each value in values do end` |
+| 4003 | `UNSUPPORTED_FOR_EACH` | no longer raised: a `for each` statement is lowered. The code and its name stay in the public header, so a value is never reused. |
 | 4004 | `UNINSTANTIATED_GENERIC` | a generic function, structure or `implementation`; a call with explicit type arguments (`identity<integer32>(5)`); a call whose result type is an unbound generic; a `GENERIC_NAME` outside a call |
 | 4005 | `UNSUPPORTED_MACRO` | `print!("hi");`, a module-level `static_assert!(true);`, a macro call inside an expression. `unreachable!();` as a statement is lowered and raises nothing. |
 
@@ -235,9 +277,17 @@ Each diagnostic carries the position of the construct that raised it.
 
 ## Gaps
 
-- The four constructs above are not lowered: `fork_join` (with `partition`, `with` and `spawn`),
-  `for each`, generics, and every macro other than a statement `unreachable!()`. The matching
+- The three constructs above are not lowered: `fork_join` (with `partition`, `with` and `spawn`),
+  generics, and every macro other than a statement `unreachable!()`. The matching
   declaration is left out of the module, and only its first gap is reported.
+- A for-each loop reads its collection by position: `$each[$index]` and `$length($each)`. Sema gives no type for
+  the collection, so the IR cannot tell an array or a slice from a collection that is not walked by position,
+  such as a table with a key. A backend must infer the type of `$each`, `$count`, the loop variables and the
+  result of `$length` from the collection, and must reject, or handle in its own way, a collection that has no
+  position. With two names the key is always the position. A dedicated IR kind for the loop would let each
+  backend choose how to walk the collection; it needs a public header change and was not taken.
+- The hidden `$each`, `$count` and `$index` locals have no type name, like the for-range `$last`. The value local
+  of a for-each loop has none either, because sema types no loop variable.
 - A `switch` with no `default` lowers to an if chain with no else, also when the cases cover every variant
   of an enum. A function that ends with such a `switch` and returns in every arm has no `RETURN_STATEMENT`
   after the chain, so a backend that checks that every path returns must treat the missing branch as
