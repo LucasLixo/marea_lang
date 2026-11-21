@@ -5,22 +5,11 @@
 
 #include <string.h>
 
-static const MAREA_AstNode *MAREA_CALL MAREA_G_ChildAt(const MAREA_AstNode *node, MAREA_IntegerSize index)
-{
-    const MAREA_AstNode *child = MAREA_NULLPTR;
-
-    if (MAREA_AstNodeGetChildAt(node, index, &child) != MAREA_AST_EXCEPT_SUCCESS) {
-        return MAREA_NULLPTR;
-    }
-
-    return child;
-}
-
 static const MAREA_AstNode *MAREA_CALL MAREA_G_LastChild(const MAREA_AstNode *node)
 {
     const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(node);
 
-    return (COUNT == 0) ? MAREA_NULLPTR : MAREA_G_ChildAt(node, (COUNT - 1));
+    return (COUNT == 0) ? MAREA_NULLPTR : MAREA_SemaChildAt(node, (COUNT - 1));
 }
 
 static MAREA_Boolean MAREA_CALL MAREA_G_IsError(const MAREA_AstNode *node)
@@ -75,7 +64,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_HasError(const MAREA_AstNode *node)
     }
 
     for (MAREA_IntegerSize index = 0; index < MAREA_AstNodeGetChildCount(node); ++index) {
-        if (MAREA_G_HasError(MAREA_G_ChildAt(node, index)) == MAREA_BOOLEAN_TRUE) {
+        if (MAREA_G_HasError(MAREA_SemaChildAt(node, index)) == MAREA_BOOLEAN_TRUE) {
             return MAREA_BOOLEAN_TRUE;
         }
     }
@@ -90,7 +79,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_BlockTerminates(const MAREA_SemaContext 
     }
 
     for (MAREA_IntegerSize index = 0; index < MAREA_AstNodeGetChildCount(block); ++index) {
-        if (MAREA_G_Terminates(context, MAREA_G_ChildAt(block, index)) == MAREA_BOOLEAN_TRUE) {
+        if (MAREA_G_Terminates(context, MAREA_SemaChildAt(block, index)) == MAREA_BOOLEAN_TRUE) {
             return MAREA_BOOLEAN_TRUE;
         }
     }
@@ -103,7 +92,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IfTerminates(const MAREA_SemaContext *co
     MAREA_Boolean hasElse = MAREA_BOOLEAN_FALSE;
 
     for (MAREA_IntegerSize index = 0; index < MAREA_AstNodeGetChildCount(statement); ++index) {
-        const MAREA_AstNode *child = MAREA_G_ChildAt(statement, index);
+        const MAREA_AstNode *child = MAREA_SemaChildAt(statement, index);
 
         if (MAREA_G_IsError(child) == MAREA_BOOLEAN_TRUE) {
             return MAREA_BOOLEAN_TRUE;
@@ -124,7 +113,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IfTerminates(const MAREA_SemaContext *co
         if (KIND == MAREA_AST_KIND_ELSE_CLAUSE) {
             hasElse = MAREA_BOOLEAN_TRUE;
 
-            if (MAREA_G_BlockTerminates(context, MAREA_G_ChildAt(child, 0)) == MAREA_BOOLEAN_FALSE) {
+            if (MAREA_G_BlockTerminates(context, MAREA_SemaChildAt(child, 0)) == MAREA_BOOLEAN_FALSE) {
                 return MAREA_BOOLEAN_FALSE;
             }
         }
@@ -138,12 +127,12 @@ static MAREA_Boolean MAREA_CALL MAREA_G_SwitchTerminates(const MAREA_SemaContext
 {
     const MAREA_AstNode *enumeration = MAREA_NULLPTR;
 
-    const MAREA_G_ScrutineeClass CLASS = MAREA_G_ClassifyScrutinee(context, MAREA_G_ChildAt(statement, 0), &enumeration);
+    const MAREA_G_ScrutineeClass CLASS = MAREA_G_ClassifyScrutinee(context, MAREA_SemaChildAt(statement, 0), &enumeration);
 
     MAREA_Boolean hasDefault = MAREA_BOOLEAN_FALSE;
 
     for (MAREA_IntegerSize index = 1; index < MAREA_AstNodeGetChildCount(statement); ++index) {
-        const MAREA_AstNode *arm = MAREA_G_ChildAt(statement, index);
+        const MAREA_AstNode *arm = MAREA_SemaChildAt(statement, index);
 
         if (MAREA_G_IsError(arm) == MAREA_BOOLEAN_TRUE) {
             return MAREA_BOOLEAN_TRUE;
@@ -165,7 +154,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_MacroDiverges(const MAREA_AstNode *state
 {
     const MAREA_AstNode *call = MAREA_G_LastChild(statement);
 
-    const MAREA_AstNode *name = ((call != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(call) == MAREA_AST_KIND_MACRO_CALL)) ? MAREA_G_ChildAt(call, 0) : MAREA_NULLPTR;
+    const MAREA_AstNode *name = ((call != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(call) == MAREA_AST_KIND_MACRO_CALL)) ? MAREA_SemaChildAt(call, 0) : MAREA_NULLPTR;
 
     if (name == MAREA_NULLPTR) {
         return MAREA_BOOLEAN_FALSE;
@@ -196,7 +185,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_Terminates(const MAREA_SemaContext *cont
     case MAREA_AST_KIND_SCOPE_BLOCK:
     case MAREA_AST_KIND_UNSAFE_BLOCK:
     case MAREA_AST_KIND_FORK_JOIN_BLOCK:
-        return MAREA_G_BlockTerminates(context, MAREA_G_ChildAt(statement, 0));
+        return MAREA_G_BlockTerminates(context, MAREA_SemaChildAt(statement, 0));
     default:
         return MAREA_BOOLEAN_FALSE;
     }
@@ -238,7 +227,7 @@ static const MAREA_AstNode *MAREA_CALL MAREA_G_CaseName(const MAREA_AstNode *val
     }
 
     if (KIND == MAREA_AST_KIND_MEMBER_ACCESS) {
-        return MAREA_G_ChildAt(value, 1);
+        return MAREA_SemaChildAt(value, 1);
     }
 
     return MAREA_NULLPTR;
@@ -247,14 +236,14 @@ static const MAREA_AstNode *MAREA_CALL MAREA_G_CaseName(const MAREA_AstNode *val
 static MAREA_Boolean MAREA_CALL MAREA_G_IsCovered(const MAREA_AstNode *statement, const MAREA_AstNode *variant)
 {
     for (MAREA_IntegerSize index = 1; index < MAREA_AstNodeGetChildCount(statement); ++index) {
-        const MAREA_AstNode *arm = MAREA_G_ChildAt(statement, index);
+        const MAREA_AstNode *arm = MAREA_SemaChildAt(statement, index);
 
         if ((MAREA_G_IsError(arm) == MAREA_BOOLEAN_TRUE) || (MAREA_AstNodeGetKind(arm) != MAREA_AST_KIND_SWITCH_ARM)) {
             continue;
         }
 
         for (MAREA_IntegerSize valueIndex = 0; valueIndex < (MAREA_AstNodeGetChildCount(arm) - 1); ++valueIndex) {
-            const MAREA_AstNode *name = MAREA_G_CaseName(MAREA_G_ChildAt(arm, valueIndex));
+            const MAREA_AstNode *name = MAREA_G_CaseName(MAREA_SemaChildAt(arm, valueIndex));
 
             if ((name != MAREA_NULLPTR) && (MAREA_AstNodeGetTextLength(name) == MAREA_AstNodeGetTextLength(variant)) && (memcmp(MAREA_AstNodeGetText(name), MAREA_AstNodeGetText(variant), MAREA_AstNodeGetTextLength(variant)) == 0)) {
                 return MAREA_BOOLEAN_TRUE;
@@ -269,12 +258,12 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckSwitch(MAREA_SemaContext *contex
 {
     const MAREA_AstNode *enumeration = MAREA_NULLPTR;
 
-    if (MAREA_G_ClassifyScrutinee(context, MAREA_G_ChildAt(statement, 0), &enumeration) != MAREA_G_SCRUTINEE_CLASS_ENUM) {
+    if (MAREA_G_ClassifyScrutinee(context, MAREA_SemaChildAt(statement, 0), &enumeration) != MAREA_G_SCRUTINEE_CLASS_ENUM) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
     for (MAREA_IntegerSize index = 1; index < MAREA_AstNodeGetChildCount(statement); ++index) {
-        const MAREA_AstNode *arm = MAREA_G_ChildAt(statement, index);
+        const MAREA_AstNode *arm = MAREA_SemaChildAt(statement, index);
 
         if (MAREA_G_IsError(arm) == MAREA_BOOLEAN_TRUE) {
             return MAREA_SEMA_EXCEPT_SUCCESS;
@@ -286,9 +275,9 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckSwitch(MAREA_SemaContext *contex
     }
 
     for (MAREA_IntegerSize index = 0; index < MAREA_AstNodeGetChildCount(enumeration); ++index) {
-        const MAREA_AstNode *variant = MAREA_G_ChildAt(enumeration, index);
+        const MAREA_AstNode *variant = MAREA_SemaChildAt(enumeration, index);
 
-        const MAREA_AstNode *name = ((variant != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(variant) == MAREA_AST_KIND_VARIANT_DECLARATION)) ? MAREA_G_ChildAt(variant, 0) : MAREA_NULLPTR;
+        const MAREA_AstNode *name = ((variant != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(variant) == MAREA_AST_KIND_VARIANT_DECLARATION)) ? MAREA_SemaChildAt(variant, 0) : MAREA_NULLPTR;
 
         if ((MAREA_G_IsError(name) == MAREA_BOOLEAN_TRUE) || (MAREA_G_IsCovered(statement, name) == MAREA_BOOLEAN_TRUE)) {
             continue;

@@ -5,17 +5,6 @@
 
 #include <string.h>
 
-static const MAREA_AstNode *MAREA_CALL MAREA_G_ChildAt(const MAREA_AstNode *node, MAREA_IntegerSize index)
-{
-    const MAREA_AstNode *child = MAREA_NULLPTR;
-
-    if (MAREA_AstNodeGetChildAt(node, index, &child) != MAREA_AST_EXCEPT_SUCCESS) {
-        return MAREA_NULLPTR;
-    }
-
-    return child;
-}
-
 static MAREA_Boolean MAREA_CALL MAREA_G_SameText(const MAREA_AstNode *node, const MAREA_Character8 *text, MAREA_IntegerSize length)
 {
     return ((MAREA_AstNodeGetTextLength(node) == length) && (memcmp(MAREA_AstNodeGetText(node), text, length) == 0)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
@@ -63,7 +52,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsWriteBorrowParameter(const MAREA_SemaC
     const MAREA_AstNode *parameters = MAREA_NULLPTR;
 
     for (MAREA_IntegerSize index = 0; ((context->function != MAREA_NULLPTR) && (index < MAREA_AstNodeGetChildCount(context->function))); ++index) {
-        const MAREA_AstNode *child = MAREA_G_ChildAt(context->function, index);
+        const MAREA_AstNode *child = MAREA_SemaChildAt(context->function, index);
 
         if ((child != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(child) == MAREA_AST_KIND_PARAMETER_LIST)) {
             parameters = child;
@@ -71,9 +60,9 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsWriteBorrowParameter(const MAREA_SemaC
     }
 
     for (MAREA_IntegerSize index = 0; ((parameters != MAREA_NULLPTR) && (index < MAREA_AstNodeGetChildCount(parameters))); ++index) {
-        const MAREA_AstNode *parameter = MAREA_G_ChildAt(parameters, index);
+        const MAREA_AstNode *parameter = MAREA_SemaChildAt(parameters, index);
 
-        const MAREA_AstNode *parameterName = (parameter == MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_G_ChildAt(parameter, 0);
+        const MAREA_AstNode *parameterName = (parameter == MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_SemaChildAt(parameter, 0);
 
         if ((parameterName == MAREA_NULLPTR) || (MAREA_G_SameText(name, MAREA_AstNodeGetText(parameterName), MAREA_AstNodeGetTextLength(parameterName)) == MAREA_BOOLEAN_FALSE)) {
             continue;
@@ -81,7 +70,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsWriteBorrowParameter(const MAREA_SemaC
 
         const MAREA_SemaName *local = MAREA_G_FindLocal(context, name);
 
-        const MAREA_Boolean SHADOWED = ((local != MAREA_NULLPTR) && (local->declaration != MAREA_G_ChildAt(parameter, 1))) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+        const MAREA_Boolean SHADOWED = ((local != MAREA_NULLPTR) && (local->declaration != MAREA_SemaChildAt(parameter, 1))) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 
         return ((SHADOWED == MAREA_BOOLEAN_FALSE) && ((MAREA_AstNodeGetFlags(parameter) & MAREA_AST_FLAG_MUTABLE) != 0)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
     }
@@ -98,7 +87,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsMutablePartitionSource(const MAREA_Sem
             continue;
         }
 
-        const MAREA_AstNode *source = MAREA_G_ChildAt(partition, 0);
+        const MAREA_AstNode *source = MAREA_SemaChildAt(partition, 0);
 
         if ((source != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(source) == MAREA_AST_KIND_IDENTIFIER) && (MAREA_G_SameText(name, MAREA_AstNodeGetText(source), MAREA_AstNodeGetTextLength(source)) == MAREA_BOOLEAN_TRUE)) {
             return MAREA_BOOLEAN_TRUE;
@@ -137,20 +126,20 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckSpawn(MAREA_SemaContext *context, con
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
-    const MAREA_AstNode *call = MAREA_G_ChildAt(node, 0);
+    const MAREA_AstNode *call = MAREA_SemaChildAt(node, 0);
 
     if ((call == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(call) != MAREA_AST_KIND_CALL_EXPRESSION)) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
-    const MAREA_AstNode *arguments = MAREA_G_ChildAt(call, (MAREA_AstNodeGetChildCount(call) - 1));
+    const MAREA_AstNode *arguments = MAREA_SemaChildAt(call, (MAREA_AstNodeGetChildCount(call) - 1));
 
     if ((arguments == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(arguments) != MAREA_AST_KIND_ARGUMENT_LIST)) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
     for (MAREA_IntegerSize index = 0; index < MAREA_AstNodeGetChildCount(arguments); ++index) {
-        const MAREA_AstNode *argument = MAREA_G_ChildAt(arguments, index);
+        const MAREA_AstNode *argument = MAREA_SemaChildAt(arguments, index);
 
         if ((argument == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(argument) == MAREA_AST_KIND_ERROR_NODE) || (MAREA_G_IsValidArgument(context, argument) == MAREA_BOOLEAN_TRUE)) {
             continue;

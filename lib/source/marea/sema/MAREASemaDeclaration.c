@@ -5,17 +5,6 @@
 
 #include <string.h>
 
-static const MAREA_AstNode *MAREA_CALL MAREA_G_ChildAt(const MAREA_AstNode *node, MAREA_IntegerSize index)
-{
-    const MAREA_AstNode *child = MAREA_NULLPTR;
-
-    if (MAREA_AstNodeGetChildAt(node, index, &child) != MAREA_AST_EXCEPT_SUCCESS) {
-        return MAREA_NULLPTR;
-    }
-
-    return child;
-}
-
 static MAREA_Boolean MAREA_CALL MAREA_G_TypeEquals(const MAREA_AstNode *left, const MAREA_AstNode *right)
 {
     if ((left == MAREA_NULLPTR) || (right == MAREA_NULLPTR)) {
@@ -43,7 +32,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_TypeEquals(const MAREA_AstNode *left, co
     }
 
     for (MAREA_IntegerSize index = 0; index < COUNT; ++index) {
-        if (MAREA_G_TypeEquals(MAREA_G_ChildAt(left, index), MAREA_G_ChildAt(right, index)) == MAREA_BOOLEAN_FALSE) {
+        if (MAREA_G_TypeEquals(MAREA_SemaChildAt(left, index), MAREA_SemaChildAt(right, index)) == MAREA_BOOLEAN_FALSE) {
             return MAREA_BOOLEAN_FALSE;
         }
     }
@@ -56,7 +45,7 @@ static const MAREA_AstNode *MAREA_CALL MAREA_G_ImplementedType(const MAREA_AstNo
     const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(implementation);
 
     for (MAREA_IntegerSize index = 0; index < COUNT; ++index) {
-        const MAREA_AstNode *child = MAREA_G_ChildAt(implementation, index);
+        const MAREA_AstNode *child = MAREA_SemaChildAt(implementation, index);
 
         if ((child != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(child) == MAREA_AST_KIND_NAMED_TYPE)) {
             return child;
@@ -88,7 +77,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_HasMember(const MAREA_AstNode *implement
 
         MAREA_IntegerSize length = 0;
 
-        if ((MAREA_G_MemberName(MAREA_G_ChildAt(implementation, index), &text, &length) == MAREA_BOOLEAN_TRUE) && (length == nameLength) && (memcmp(text, name, length) == 0)) {
+        if ((MAREA_G_MemberName(MAREA_SemaChildAt(implementation, index), &text, &length) == MAREA_BOOLEAN_TRUE) && (length == nameLength) && (memcmp(text, name, length) == 0)) {
             return MAREA_BOOLEAN_TRUE;
         }
     }
@@ -105,7 +94,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckDeclarations(MAREA_SemaContext *conte
     const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(root);
 
     for (MAREA_IntegerSize current = 0; current < COUNT; ++current) {
-        const MAREA_AstNode *implementation = MAREA_G_ChildAt(root, current);
+        const MAREA_AstNode *implementation = MAREA_SemaChildAt(root, current);
 
         if ((implementation == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(implementation) != MAREA_AST_KIND_IMPLEMENTATION_DECLARATION)) {
             continue;
@@ -116,7 +105,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckDeclarations(MAREA_SemaContext *conte
         const MAREA_IntegerSize MEMBER_COUNT = MAREA_AstNodeGetChildCount(implementation);
 
         for (MAREA_IntegerSize memberIndex = 0; memberIndex < MEMBER_COUNT; ++memberIndex) {
-            const MAREA_AstNode *member = MAREA_G_ChildAt(implementation, memberIndex);
+            const MAREA_AstNode *member = MAREA_SemaChildAt(implementation, memberIndex);
 
             const MAREA_Character8 *name = MAREA_NULLPTR;
 
@@ -129,7 +118,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckDeclarations(MAREA_SemaContext *conte
             MAREA_Boolean duplicate = MAREA_G_HasMember(implementation, memberIndex, name, nameLength);
 
             for (MAREA_IntegerSize earlier = 0; ((earlier < current) && (duplicate == MAREA_BOOLEAN_FALSE)); ++earlier) {
-                const MAREA_AstNode *other = MAREA_G_ChildAt(root, earlier);
+                const MAREA_AstNode *other = MAREA_SemaChildAt(root, earlier);
 
                 if ((other == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(other) != MAREA_AST_KIND_IMPLEMENTATION_DECLARATION)) {
                     continue;

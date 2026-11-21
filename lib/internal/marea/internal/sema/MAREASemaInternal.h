@@ -16,6 +16,9 @@
 
 MAREA_BEGIN_EXTERN_C
 
+    /**
+     * @brief Body of the opaque import resolver: the resolve function and the user data it gets.
+     */
     struct MAREA_SemaImportResolver
     {
         MAREA_SemaImportResolveFunction resolve;
@@ -54,6 +57,10 @@ MAREA_BEGIN_EXTERN_C
         MAREA_IntegerSize capacity;
     } MAREA_SemaNameTable;
 
+    /**
+     * @brief Body of the opaque sema context: the caller services, the name tables and the scope state of
+     * the visit in progress.
+     */
     struct MAREA_SemaContext
     {
         MAREA_Arena *arena;
@@ -116,6 +123,24 @@ MAREA_BEGIN_EXTERN_C
      * @return MAREA_SEMA_EXCEPT_SUCCESS, or MAREA_SEMA_EXCEPT_ERROR_OUT_OF_MEMORY when the arena cannot grow.
      */
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaReportNamed(MAREA_SemaContext * context, MAREA_SemaDiagnosticCode code, MAREA_SourcePosition position, const MAREA_Character8 *prefix, const MAREA_Character8 *name, MAREA_IntegerSize nameLength);
+
+    /**
+     * @brief Reads one child of a node without an out parameter.
+     * @param node Node to read. Null returns null.
+     * @param index Index of the child.
+     * @return The child, or null when node is null or index is out of range.
+     */
+    MAREA_NODISCARD const MAREA_AstNode *MAREA_CALL MAREA_SemaChildAt(const MAREA_AstNode *node, MAREA_IntegerSize index);
+
+    /**
+     * @brief Compares two texts that are not NUL terminated.
+     * @param left Text on the left. Must not be null when leftLength is not 0.
+     * @param leftLength Length of left in bytes.
+     * @param right Text on the right. Must not be null when rightLength is not 0.
+     * @param rightLength Length of right in bytes.
+     * @return True when both texts have the same length and the same bytes.
+     */
+    MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_SemaTextEquals(const MAREA_Character8 *left, MAREA_IntegerSize leftLength, const MAREA_Character8 *right, MAREA_IntegerSize rightLength);
 
     /**
      * @brief Looks a name up in the name table of the context.
