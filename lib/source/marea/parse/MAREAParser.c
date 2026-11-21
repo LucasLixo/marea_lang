@@ -220,6 +220,12 @@ static void MAREA_CALL MAREA_G_ParseTopLevelItem(MAREA_ParseState *state, MAREA_
         return;
     }
 
+    if (MAREA_ParseIsDeclarationStart(kind) == MAREA_BOOLEAN_TRUE) {
+        MAREA_ParseNodeAdd(state, root, MAREA_ParseDeclaration(state, holder));
+
+        return;
+    }
+
     MAREA_AstNode *errorNode = MAREA_ParseErrorNode(state);
 
     if ((kind == MAREA_TOKEN_KIND_KEYWORD_END) || (kind == MAREA_TOKEN_KIND_KEYWORD_CASE) || (kind == MAREA_TOKEN_KIND_KEYWORD_DEFAULT) || (kind == MAREA_TOKEN_KIND_KEYWORD_ELSEIF) || (kind == MAREA_TOKEN_KIND_KEYWORD_ELSE)) {

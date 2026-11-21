@@ -6,8 +6,22 @@
 
     #include "tests/MAREALexHelpers.hpp"
 
+    #include <initializer_list>
+    #include <sstream>
     #include <string>
     #include <vector>
+
+inline std::string MAREA_lines(std::initializer_list<const char *> lines)
+{
+    std::string result;
+
+    for (const char *line : lines) {
+        result += line;
+        result += "\n";
+    }
+
+    return result;
+}
 
 struct MAREA_ParseFixture
 {
@@ -41,6 +55,19 @@ struct MAREA_ParseFixture
         MAREA_IGNORE(MAREA_AstDump(lexer.arena, root, &text, &length));
 
         return std::string(text, length);
+    }
+
+    std::string MAREA_itemsDump() const
+    {
+        const std::string PREFIX{ MAREA_lines({ "COMPILATION_UNIT", "  NAMESPACE_DECLARATION", "    QUALIFIED_NAME", "      IDENTIFIER \"main\"" }) };
+
+        const std::string FULL{ MAREA_dump() };
+
+        if (FULL.compare(0, PREFIX.size(), PREFIX) != 0) {
+            return FULL;
+        }
+
+        return FULL.substr(PREFIX.size());
     }
 
     std::vector<MAREA_Uinteger32> MAREA_codes() const
