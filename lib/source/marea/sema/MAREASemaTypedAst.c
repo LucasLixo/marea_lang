@@ -3,6 +3,8 @@
 
 #include "marea/internal/sema/MAREASemaInternal.h"
 
+#include <string.h>
+
 struct MAREA_SemaTypedNode
 {
     const MAREA_AstNode *astNode;
@@ -28,6 +30,257 @@ static MAREA_Boolean MAREA_CALL MAREA_G_TypedAstWasChecked(const MAREA_SemaConte
     return MAREA_BOOLEAN_TRUE;
 }
 
+static MAREA_Boolean MAREA_CALL MAREA_G_TypedAstTextIs(const MAREA_Character8 *text, MAREA_IntegerSize length, const MAREA_Character8 *expected)
+{
+    return MAREA_SemaTextEquals(text, length, expected, strlen(expected));
+}
+
+static const MAREA_AstNode *MAREA_CALL MAREA_G_TypedAstFindChild(const MAREA_AstNode *node, MAREA_AstKind kind)
+{
+    const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(node);
+
+    for (MAREA_IntegerSize index = 0; index < COUNT; ++index) {
+        const MAREA_AstNode *child = MAREA_SemaChildAt(node, index);
+
+        if ((child != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(child) == kind)) {
+            return child;
+        }
+    }
+
+    return MAREA_NULLPTR;
+}
+
+static MAREA_Boolean MAREA_CALL MAREA_G_TypedAstSingleName(const MAREA_AstNode *type, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength)
+{
+    if ((type == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(type) != MAREA_AST_KIND_NAMED_TYPE)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_AstNode *name = MAREA_SemaChildAt(type, 0);
+
+    if ((name == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(name) != MAREA_AST_KIND_QUALIFIED_NAME) || (MAREA_AstNodeGetChildCount(name) != 1)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_AstNode *segment = MAREA_SemaChildAt(name, 0);
+
+    if ((segment == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(segment) != MAREA_AST_KIND_IDENTIFIER)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    *outText = MAREA_AstNodeGetText(segment);
+    *outLength = MAREA_AstNodeGetTextLength(segment);
+
+    return MAREA_BOOLEAN_TRUE;
+}
+
+static MAREA_Boolean MAREA_CALL MAREA_G_TypedAstIsType(const MAREA_AstNode *node)
+{
+    if (node == MAREA_NULLPTR) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_AstKind KIND = MAREA_AstNodeGetKind(node);
+
+    return ((KIND == MAREA_AST_KIND_NAMED_TYPE) || (KIND == MAREA_AST_KIND_FUNCTION_TYPE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
+// INFO: a separate, standalone inference path for the typed tree only - MAREA_SemaInferType stays
+// untouched so its already-shipped assignment fallback behavior never changes.
+static const MAREA_AstNode *MAREA_CALL MAREA_G_InferTypedResultType(MAREA_SemaContext *context, const MAREA_AstNode *expression)
+{
+    if (expression == MAREA_NULLPTR) {
+        return MAREA_NULLPTR;
+    }
+
+    const MAREA_AstKind KIND = MAREA_AstNodeGetKind(expression);
+
+    if (KIND == MAREA_AST_KIND_PARENTHESIZED_EXPRESSION) {
+        return MAREA_G_InferTypedResultType(context, MAREA_SemaChildAt(expression, 0));
+    }
+
+    if (KIND == MAREA_AST_KIND_LITERAL_VALUE) {
+        const MAREA_AstNode *type = MAREA_SemaChildAt(expression, 0);
+
+        return (MAREA_G_TypedAstIsType(type) == MAREA_BOOLEAN_TRUE) ? type : MAREA_NULLPTR;
+    }
+
+    if (KIND == MAREA_AST_KIND_MEMBER_ACCESS) {
+        const MAREA_AstNode *base = MAREA_G_InferTypedResultType(context, MAREA_SemaChildAt(expression, 0));
+
+        const MAREA_AstNode *member = MAREA_SemaChildAt(expression, 1);
+
+        const MAREA_AstNode *declaration = MAREA_NULLPTR;
+
+        const MAREA_Character8 *name = MAREA_NULLPTR;
+
+        MAREA_IntegerSize nameLength = 0;
+
+        if ((base == MAREA_NULLPTR) || (member == MAREA_NULLPTR) || (MAREA_SemaClassifyType(context, base, &declaration, &name, &nameLength) != MAREA_SEMA_TYPE_CLASS_USER) || (MAREA_AstNodeGetKind(declaration) != MAREA_AST_KIND_STRUCTURE_DECLARATION)) {
+            return MAREA_NULLPTR;
+        }
+
+        const MAREA_IntegerSize FIELD_COUNT = MAREA_AstNodeGetChildCount(declaration);
+
+        for (MAREA_IntegerSize index = 0; index < FIELD_COUNT; ++index) {
+            const MAREA_AstNode *field = MAREA_SemaChildAt(declaration, index);
+
+            const MAREA_AstNode *fieldName = ((field != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(field) == MAREA_AST_KIND_FIELD_DECLARATION)) ? MAREA_G_TypedAstFindChild(field, MAREA_AST_KIND_IDENTIFIER) : MAREA_NULLPTR;
+
+            if ((fieldName != MAREA_NULLPTR) && (MAREA_SemaTextEquals(MAREA_AstNodeGetText(fieldName), MAREA_AstNodeGetTextLength(fieldName), MAREA_AstNodeGetText(member), MAREA_AstNodeGetTextLength(member)) == MAREA_BOOLEAN_TRUE)) {
+                const MAREA_AstNode *type = MAREA_SemaChildAt(field, (MAREA_AstNodeGetChildCount(field) - 1));
+
+                return (MAREA_G_TypedAstIsType(type) == MAREA_BOOLEAN_TRUE) ? type : MAREA_NULLPTR;
+            }
+        }
+
+        return MAREA_NULLPTR;
+    }
+
+    if (KIND == MAREA_AST_KIND_INDEX_ACCESS) {
+        const MAREA_AstNode *base = MAREA_G_InferTypedResultType(context, MAREA_SemaChildAt(expression, 0));
+
+        const MAREA_Character8 *name = MAREA_NULLPTR;
+
+        MAREA_IntegerSize nameLength = 0;
+
+        if ((MAREA_G_TypedAstSingleName(base, &name, &nameLength) == MAREA_BOOLEAN_FALSE) || ((MAREA_G_TypedAstTextIs(name, nameLength, "array") == MAREA_BOOLEAN_FALSE) && (MAREA_G_TypedAstTextIs(name, nameLength, "slice") == MAREA_BOOLEAN_FALSE) && (MAREA_G_TypedAstTextIs(name, nameLength, "vector") == MAREA_BOOLEAN_FALSE) && (MAREA_G_TypedAstTextIs(name, nameLength, "pointer") == MAREA_BOOLEAN_FALSE))) {
+            return MAREA_NULLPTR;
+        }
+
+        const MAREA_AstNode *arguments = MAREA_G_TypedAstFindChild(base, MAREA_AST_KIND_TYPE_ARGUMENTS);
+
+        const MAREA_AstNode *element = (arguments == MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_SemaChildAt(arguments, 0);
+
+        return (MAREA_G_TypedAstIsType(element) == MAREA_BOOLEAN_TRUE) ? element : MAREA_NULLPTR;
+    }
+
+    if (KIND != MAREA_AST_KIND_IDENTIFIER) {
+        return MAREA_NULLPTR;
+    }
+
+    for (MAREA_IntegerSize index = context->locals.count; index > 0; --index) {
+        const MAREA_SemaName *local = &context->locals.entries[(index - 1)];
+
+        if (MAREA_SemaTextEquals(local->text, local->length, MAREA_AstNodeGetText(expression), MAREA_AstNodeGetTextLength(expression)) == MAREA_BOOLEAN_TRUE) {
+            return local->declaration;
+        }
+    }
+
+    return MAREA_NULLPTR;
+}
+
+static MAREA_SemaTypedAstExcept MAREA_CALL MAREA_G_TypedAstEnterFunctionGenerics(MAREA_SemaContext *context, const MAREA_AstNode *function, MAREA_IntegerSize *outSavedCount)
+{
+    *outSavedCount = context->generics.count;
+
+    const MAREA_AstNode *parameters = (function == MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_G_TypedAstFindChild(function, MAREA_AST_KIND_GENERIC_PARAMETERS);
+
+    if (parameters == MAREA_NULLPTR) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(parameters);
+
+    for (MAREA_IntegerSize index = 0; index < COUNT; ++index) {
+        const MAREA_AstNode *parameter = MAREA_SemaChildAt(parameters, index);
+
+        const MAREA_AstNode *name = (parameter == MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_SemaChildAt(parameter, 0);
+
+        if ((name == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(name) != MAREA_AST_KIND_IDENTIFIER)) {
+            continue;
+        }
+
+        if (MAREA_SemaTableAppend(context, &context->generics, (MAREA_SemaName){ .text = MAREA_AstNodeGetText(name), .declaration = MAREA_NULLPTR, .length = MAREA_AstNodeGetTextLength(name), .kind = MAREA_SEMA_NAME_KIND_DECLARATION }) != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_OUT_OF_MEMORY;
+        }
+    }
+
+    return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+}
+
+static void MAREA_CALL MAREA_G_TypedAstLeaveFunctionGenerics(MAREA_SemaContext *context, MAREA_IntegerSize savedCount)
+{
+    context->generics.count = savedCount;
+}
+
+// INFO: the callee's return type is read raw from its declaration, never substituted: a generic
+// result stays tagged GENERIC with the unbound type kept, per the apply's D5 scope decision.
+static void MAREA_CALL MAREA_G_TypedAstClassifyCall(MAREA_SemaContext *context, MAREA_SemaTypedNode *built, const MAREA_AstNode *node)
+{
+    const MAREA_AstNode *callee = MAREA_SemaChildAt(node, 0);
+
+    if ((callee == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(callee) != MAREA_AST_KIND_IDENTIFIER)) {
+        return;
+    }
+
+    const MAREA_SemaName *entry = MAREA_SemaNameTableFind(context, MAREA_AstNodeGetText(callee), MAREA_AstNodeGetTextLength(callee));
+
+    if ((entry == MAREA_NULLPTR) || (entry->kind != MAREA_SEMA_NAME_KIND_DECLARATION) || (entry->declaration == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(entry->declaration) != MAREA_AST_KIND_FUNCTION_DECLARATION)) {
+        return;
+    }
+
+    const MAREA_AstNode *returnType = MAREA_SemaReturnType(entry->declaration);
+
+    if (returnType == MAREA_NULLPTR) {
+        return;
+    }
+
+    MAREA_IntegerSize savedGenericCount = 0;
+
+    if (MAREA_G_TypedAstEnterFunctionGenerics(context, entry->declaration, &savedGenericCount) != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) {
+        return;
+    }
+
+    const MAREA_AstNode *declaration = MAREA_NULLPTR;
+
+    const MAREA_Character8 *name = MAREA_NULLPTR;
+
+    MAREA_IntegerSize length = 0;
+
+    built->typeClass = MAREA_SemaClassifyType(context, returnType, &declaration, &name, &length);
+    built->typeDeclaration = declaration;
+    built->typeName = name;
+    built->typeNameLength = length;
+
+    MAREA_G_TypedAstLeaveFunctionGenerics(context, savedGenericCount);
+}
+
+static void MAREA_CALL MAREA_G_TypedAstClassify(MAREA_SemaContext *context, MAREA_SemaTypedNode *built)
+{
+    const MAREA_AstKind KIND = MAREA_AstNodeGetKind(built->astNode);
+
+    if ((KIND == MAREA_AST_KIND_STRUCTURE_DECLARATION) || (KIND == MAREA_AST_KIND_ENUM_DECLARATION) || (KIND == MAREA_AST_KIND_OPAQUE_DECLARATION)) {
+        built->typeClass = MAREA_SEMA_TYPE_CLASS_USER;
+        built->typeDeclaration = built->astNode;
+
+        return;
+    }
+
+    if (KIND == MAREA_AST_KIND_CALL_EXPRESSION) {
+        MAREA_G_TypedAstClassifyCall(context, built, built->astNode);
+
+        return;
+    }
+
+    const MAREA_AstNode *type = MAREA_G_InferTypedResultType(context, built->astNode);
+
+    if (type == MAREA_NULLPTR) {
+        return;
+    }
+
+    const MAREA_AstNode *declaration = MAREA_NULLPTR;
+
+    const MAREA_Character8 *name = MAREA_NULLPTR;
+
+    MAREA_IntegerSize length = 0;
+
+    built->typeClass = MAREA_SemaClassifyType(context, type, &declaration, &name, &length);
+    built->typeDeclaration = declaration;
+    built->typeName = name;
+    built->typeNameLength = length;
+}
+
 static MAREA_SemaTypedAstExcept MAREA_CALL MAREA_G_TypedAstBuildNode(MAREA_SemaContext *context, const MAREA_AstNode *node, MAREA_SemaTypedNode **outNode)
 {
     MAREA_Null memory = MAREA_NULLPTR;
@@ -47,16 +300,30 @@ static MAREA_SemaTypedAstExcept MAREA_CALL MAREA_G_TypedAstBuildNode(MAREA_SemaC
     built->typeClass = MAREA_SEMA_TYPE_CLASS_PRIMITIVE;
     built->ownershipMode = MAREA_SEMA_OWNERSHIP_MODE_VALUE;
 
+    // INFO: the checker's own scope stack is replayed read-only, so a local or a generic parameter
+    // is in context exactly as it was the first time sema visited this node.
+    MAREA_SemaScopeMark mark = { 0 };
+
+    if (MAREA_SemaScopeEnter(context, node, &mark) == MAREA_SEMA_EXCEPT_ERROR_OUT_OF_MEMORY) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_OUT_OF_MEMORY;
+    }
+
+    MAREA_G_TypedAstClassify(context, built);
+
+    MAREA_SemaTypedAstExcept result = MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+
     if (built->childCount > 0) {
         MAREA_Null childrenMemory = MAREA_NULLPTR;
 
         if (MAREA_ArenaAllocate(context->arena, (built->childCount * sizeof(MAREA_SemaTypedNode *)), MAREA_ALIGNOF(MAREA_SemaTypedNode *), &childrenMemory) != MAREA_ARENA_EXCEPT_SUCCESS) {
+            MAREA_SemaScopeLeave(context, mark);
+
             return MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_OUT_OF_MEMORY;
         }
 
         built->children = childrenMemory;
 
-        for (MAREA_IntegerSize index = 0; index < built->childCount; ++index) {
+        for (MAREA_IntegerSize index = 0; ((index < built->childCount) && (result == MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS)); ++index) {
             const MAREA_AstNode *child = MAREA_NULLPTR;
 
             if (MAREA_AstNodeGetChildAt(node, index, &child) != MAREA_AST_EXCEPT_SUCCESS) {
@@ -67,14 +334,21 @@ static MAREA_SemaTypedAstExcept MAREA_CALL MAREA_G_TypedAstBuildNode(MAREA_SemaC
 
             MAREA_SemaTypedNode *typedChild = MAREA_NULLPTR;
 
-            const MAREA_SemaTypedAstExcept CHILD_RESULT = MAREA_G_TypedAstBuildNode(context, child, &typedChild);
-
-            if (CHILD_RESULT != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) {
-                return CHILD_RESULT;
-            }
+            result = MAREA_G_TypedAstBuildNode(context, child, &typedChild);
 
             built->children[index] = typedChild;
         }
+    }
+
+    MAREA_SemaScopeLeave(context, mark);
+
+    // INFO: a local is recorded after the scope of its own node ends, mirroring MAREA_SemaVisit.
+    if ((result == MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) && (MAREA_AstNodeGetKind(node) == MAREA_AST_KIND_LOCAL_DECLARATION) && (MAREA_SemaDeclareLocal(context, node) == MAREA_SEMA_EXCEPT_ERROR_OUT_OF_MEMORY)) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_OUT_OF_MEMORY;
+    }
+
+    if (result != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) {
+        return result;
     }
 
     *outNode = built;
