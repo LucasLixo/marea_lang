@@ -62,6 +62,7 @@ MAREA_BEGIN_EXTERN_C
         MAREA_SemaNameTable names;
         MAREA_SemaNameTable generics;
         MAREA_SemaNameTable locals;
+        MAREA_SemaNameTable references;
         const MAREA_AstNode *root;
         const MAREA_AstNode *function;
         MAREA_Uinteger32 selfDepth;
@@ -76,8 +77,22 @@ MAREA_BEGIN_EXTERN_C
         const MAREA_AstNode *function;
         MAREA_IntegerSize genericCount;
         MAREA_IntegerSize localCount;
+        MAREA_IntegerSize referenceCount;
         MAREA_Uinteger32 selfDepth;
     } MAREA_SemaScopeMark;
+
+    /**
+     * @brief How the checks treat a type.
+     */
+    typedef enum MAREA_SemaTypeClass
+    {
+        MAREA_SEMA_TYPE_CLASS_PRIMITIVE = MAREA_UINTEGER_8(0),
+        MAREA_SEMA_TYPE_CLASS_COPY_BUILTIN = MAREA_UINTEGER_8(1),
+        MAREA_SEMA_TYPE_CLASS_MOVE_BUILTIN = MAREA_UINTEGER_8(2),
+        MAREA_SEMA_TYPE_CLASS_GENERIC = MAREA_UINTEGER_8(3),
+        MAREA_SEMA_TYPE_CLASS_USER = MAREA_UINTEGER_8(4),
+        MAREA_SEMA_TYPE_CLASS_EXTERNAL = MAREA_UINTEGER_8(5),
+    } MAREA_SemaTypeClass;
 
     /**
      * @brief Adds a diagnostic with the severity ERROR to the sink of the context.
@@ -272,6 +287,64 @@ MAREA_BEGIN_EXTERN_C
      * @return True when the name is a generic parameter in scope.
      */
     MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_SemaIsGenericInScope(const MAREA_SemaContext *context, const MAREA_Character8 *text, MAREA_IntegerSize length);
+
+    /**
+     * @brief Sorts a type node: a primitive, a built-in that is copied or moved, a generic parameter in scope,
+     * a user type of the file (aliases are followed), or a type that sema cannot see (a library type).
+     * @param context Context of the run. Must not be null.
+     * @param type NAMED_TYPE or FUNCTION_TYPE node. May be null, which gives EXTERNAL.
+     * @param outDeclaration Receives the declaration of a USER type, or null. Must not be null.
+     * @param outName Receives the name of the type when it is a single name. Must not be null.
+     * @param outLength Receives the length of the name. Must not be null.
+     * @return The class of the type.
+     */
+    MAREA_NODISCARD MAREA_SemaTypeClass MAREA_CALL MAREA_SemaClassifyType(const MAREA_SemaContext *context, const MAREA_AstNode *type, const MAREA_AstNode **outDeclaration, const MAREA_Character8 **outName, MAREA_IntegerSize *outLength);
+
+    /**
+     * @brief Finds the declared type of an expression when it is cheap to know: a local or parameter, a
+     * struct literal, a field of a known structure, or an element of an array, slice, vector or pointer.
+     * @param context Context of the run. Must not be null.
+     * @param expression Expression node. May be null.
+     * @return A type node, or null when the type is unknown.
+     */
+    MAREA_NODISCARD const MAREA_AstNode *MAREA_CALL MAREA_SemaInferType(const MAREA_SemaContext *context, const MAREA_AstNode *expression);
+
+    /**
+     * @brief Records the references a node binds: the borrow parameters of a function, the variables of a
+     * for each statement, the part of a partition and the name of a with statement.
+     * @param context Context of the run. Must not be null.
+     * @param node Node about to be visited. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaBindReferences(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
+     * @brief Tells whether a name is a reference that cannot leave its scope.
+     * @param context Context of the run. Must not be null.
+     * @param text Text of the name, not NUL terminated.
+     * @param length Length of text in bytes.
+     * @return True when the closest binding of the name is a reference.
+     */
+    MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_SemaIsReference(const MAREA_SemaContext *context, const MAREA_Character8 *text, MAREA_IntegerSize length);
+
+    /**
+     * @brief Checks the ownership rules of one node: the reference word on a parameter, the copy and move
+     * rule of an assignment or local initializer, and a reference that is returned or stored in a field.
+     * @param context Context of the run. Must not be null.
+     * @param node Node about to be visited. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckOwnership(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
+     * @brief Checks that a call does not pass one name twice when one of the parameters is a write borrow.
+     * @param context Context of the run. Must not be null.
+     * @param call CALL_EXPRESSION node. Must not be null.
+     * @param parameters PARAMETER_LIST of the callee. Must not be null.
+     * @param arguments ARGUMENT_LIST of the call. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckBorrowArguments(MAREA_SemaContext * context, const MAREA_AstNode *call, const MAREA_AstNode *parameters, const MAREA_AstNode *arguments);
 
 MAREA_END_EXTERN_C
 

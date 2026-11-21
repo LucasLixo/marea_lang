@@ -102,8 +102,15 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaScopeEnter(MAREA_SemaContext *context, con
 
     outMark->genericCount = context->generics.count;
     outMark->localCount = context->locals.count;
+    outMark->referenceCount = context->references.count;
     outMark->function = context->function;
     outMark->selfDepth = context->selfDepth;
+
+    const MAREA_SemaExcept BIND_RESULT = MAREA_SemaBindReferences(context, node);
+
+    if (BIND_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+        return BIND_RESULT;
+    }
 
     const MAREA_AstKind KIND = MAREA_AstNodeGetKind(node);
 
@@ -166,6 +173,7 @@ void MAREA_CALL MAREA_SemaScopeLeave(MAREA_SemaContext *context, MAREA_SemaScope
 {
     context->generics.count = mark.genericCount;
     context->locals.count = mark.localCount;
+    context->references.count = mark.referenceCount;
     context->function = mark.function;
     context->selfDepth = mark.selfDepth;
 }

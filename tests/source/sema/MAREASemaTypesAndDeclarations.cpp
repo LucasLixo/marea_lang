@@ -155,7 +155,7 @@ TEST(MAREASemaTypesAndDeclarations, SelfResolvesInsideAnImplementation)
 {
     GTEST_COUT << "Validating Self resolves in an implementation and a contract and nowhere else." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("structure P x: float32; end implementation P function same(other: Self): Self return other; end end").empty()) << "Self must resolve in an implementation.";
+    EXPECT_TRUE(MAREA_codesOf("structure P x: float32; end implementation P function same(other: Self): Self return copy other; end end").empty()) << "Self must resolve in an implementation.";
 
     EXPECT_TRUE(MAREA_codesOf("contract Same function same(other: Self): Self; end").empty()) << "Self must resolve in a contract.";
 
@@ -166,9 +166,9 @@ TEST(MAREASemaTypesAndDeclarations, GenericParameterScopeEnds)
 {
     GTEST_COUT << "Validating a generic parameter is visible only inside its declaration." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("function first<Item>(a: Item): Item return a; end").empty()) << "A function generic parameter must be in scope.";
+    EXPECT_TRUE(MAREA_codesOf("function first<Item>(a: Item): Item return copy a; end").empty()) << "A function generic parameter must be in scope.";
 
-    EXPECT_EQ(MAREA_codesOf("function first<Item>(a: Item): Item return a; end function other(a: Item) end"), Codes{ UNKNOWN_TYPE }) << "The generic parameter must not leak out.";
+    EXPECT_EQ(MAREA_codesOf("function first<Item>(a: Item): Item return copy a; end function other(a: Item) end"), Codes{ UNKNOWN_TYPE }) << "The generic parameter must not leak out.";
 
     EXPECT_TRUE(MAREA_codesOf("structure Box<Item> inner: Item; end implementation<Item> Box<Item> function get(self: Box<Item>): Item return self.inner; end end").empty()) << "An implementation generic parameter must be in scope.";
 }
