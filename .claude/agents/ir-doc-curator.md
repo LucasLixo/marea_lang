@@ -1,6 +1,6 @@
 ---
 name: ir-doc-curator
-description: Analyzes the real, shipped ir stage code and brings docs/ir/marea-ir.md in line with it, following the stage-docs section pattern. The ir stage does not exist in this repository yet, so invoking this agent today reports that and changes nothing. Invoke it again once lib/include/marea/ir/ exists.
+description: Analyzes the real, shipped ir stage code and brings docs/ir/marea-ir.md in line with it, following the stage-docs section pattern. Invoke it explicitly after a change to the ir stage, or to audit the doc for drift. If lib/include/marea/ir/ holds no header, it reports that and changes nothing. Not the same job as ir-gap-resolver: this agent only documents, it never changes lib/ or tests/.
 effort: medium
 color: orange
 ---
@@ -38,7 +38,9 @@ Check whether `lib/include/marea/ir/` exists and holds any header.
 ## Never touch
 
 Any other stage's doc, and the code itself - this agent only ever writes documentation. If the doc
-cannot be made accurate without a code change, report that instead of writing around it.
+cannot be made accurate without a code change, report that - naming it for `ir-gap-resolver` -
+instead of writing around it. This is a documentation agent, not `ir-gap-resolver`: it never edits
+`lib/` or `tests/`, never opens a PR, and closes nothing.
 
 ## Report and commit
 
