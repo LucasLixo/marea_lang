@@ -8,17 +8,17 @@
 static MAREA_IrExcept MAREA_CALL MAREA_G_LowerStatement(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode);
 
 // INFO: the text of the synthetic increment of a for-range loop.
-static const MAREA_Character8 MAREA_G_IncrementText[] = "1";
+static const MAREA_Character8 MAREA_G_INCREMENT_TEXT[] = "1";
 
 // INFO: the name of the hidden local that holds the last value of a for-range loop; the dollar sign cannot start a source identifier.
-static const MAREA_Character8 MAREA_G_BoundName[] = "$last";
+static const MAREA_Character8 MAREA_G_BOUND_NAME[] = "$last";
 
 // INFO: the name of the hidden local that holds the scrutinee of a switch; the dollar sign cannot start a source identifier.
-static const MAREA_Character8 MAREA_G_SwitchName[] = "$switch";
+static const MAREA_Character8 MAREA_G_SWITCH_NAME[] = "$switch";
 
 // INFO: the place of the bound name among the children of a with statement (value, name, body) and of a partition statement (value, count, name, body).
-static const MAREA_IntegerSize MAREA_G_WithNameIndex = MAREA_INTEGER_SIZE(1);
-static const MAREA_IntegerSize MAREA_G_PartitionNameIndex = MAREA_INTEGER_SIZE(2);
+static const MAREA_IntegerSize MAREA_G_WITH_NAME_INDEX = MAREA_INTEGER_SIZE(1);
+static const MAREA_IntegerSize MAREA_G_PARTITION_NAME_INDEX = MAREA_INTEGER_SIZE(2);
 
 // INFO: how a for-range loop goes to its next pass: the loop it comes from and the name it adds one to.
 typedef struct MAREA_G_Step
@@ -183,7 +183,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_AppendLeave(MAREA_IrContext *context, M
     }
 
     if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_G_CreateReference(context, step->loopAst, MAREA_G_BoundName, &boundReference);
+        result = MAREA_G_CreateReference(context, step->loopAst, MAREA_G_BOUND_NAME, &boundReference);
     }
 
     if (result != MAREA_IR_EXCEPT_SUCCESS) {
@@ -231,8 +231,8 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_AppendIncrement(MAREA_IrContext *contex
     MAREA_G_KeepOnlyPosition(one);
 
     increment->operatorKind = MAREA_TOKEN_KIND_PLUS_EQUAL;
-    one->text = MAREA_G_IncrementText;
-    one->textLength = (MAREA_Uinteger32)strlen(MAREA_G_IncrementText);
+    one->text = MAREA_G_INCREMENT_TEXT;
+    one->textLength = (MAREA_Uinteger32)strlen(MAREA_G_INCREMENT_TEXT);
 
     MAREA_IrNode *parents[] = { increment, increment, node };
     MAREA_IrNode *children[] = { incrementReference, one, increment };
@@ -385,8 +385,8 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerForRange(MAREA_IrContext *context,
         return result;
     }
 
-    bound->text = MAREA_G_BoundName;
-    bound->textLength = (MAREA_Uinteger32)strlen(MAREA_G_BoundName);
+    bound->text = MAREA_G_BOUND_NAME;
+    bound->textLength = (MAREA_Uinteger32)strlen(MAREA_G_BOUND_NAME);
 
     // INFO: the loop local is written by the increment, so it is a write target; the hidden bound is never written.
     local->flags = (MAREA_Uinteger32)MAREA_AST_FLAG_MUTABLE;
@@ -404,7 +404,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerForRange(MAREA_IrContext *context,
     }
 
     if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_G_CreateReference(context, forAst, MAREA_G_BoundName, &boundReference);
+        result = MAREA_G_CreateReference(context, forAst, MAREA_G_BOUND_NAME, &boundReference);
     }
 
     if (result == MAREA_IR_EXCEPT_SUCCESS) {
@@ -466,7 +466,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_CreateComparison(MAREA_IrContext *conte
     result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_BINARY_EXPRESSION, valueAst, &comparison);
 
     if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_G_CreateReference(context, switchAst, MAREA_G_SwitchName, &reference);
+        result = MAREA_G_CreateReference(context, switchAst, MAREA_G_SWITCH_NAME, &reference);
     }
 
     if (result == MAREA_IR_EXCEPT_SUCCESS) {
@@ -636,8 +636,8 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_CreateSwitchScope(MAREA_IrContext *cont
         return result;
     }
 
-    local->text = MAREA_G_SwitchName;
-    local->textLength = (MAREA_Uinteger32)strlen(MAREA_G_SwitchName);
+    local->text = MAREA_G_SWITCH_NAME;
+    local->textLength = (MAREA_Uinteger32)strlen(MAREA_G_SWITCH_NAME);
 
     result = MAREA_IrNodeAppendChild(context, local, scrutinee);
 
@@ -826,9 +826,9 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerStatement(MAREA_IrContext *context
     case MAREA_AST_KIND_FORK_JOIN_BLOCK:
         return MAREA_G_LowerKept(context, MAREA_IR_KIND_FORK_JOIN_BLOCK, typed, outNode);
     case MAREA_AST_KIND_PARTITION_STATEMENT:
-        return MAREA_G_LowerBoundScope(context, MAREA_IR_KIND_PARTITION_STATEMENT, typed, MAREA_G_PartitionNameIndex, outNode);
+        return MAREA_G_LowerBoundScope(context, MAREA_IR_KIND_PARTITION_STATEMENT, typed, MAREA_G_PARTITION_NAME_INDEX, outNode);
     case MAREA_AST_KIND_WITH_STATEMENT:
-        return MAREA_G_LowerBoundScope(context, MAREA_IR_KIND_WITH_STATEMENT, typed, MAREA_G_WithNameIndex, outNode);
+        return MAREA_G_LowerBoundScope(context, MAREA_IR_KIND_WITH_STATEMENT, typed, MAREA_G_WITH_NAME_INDEX, outNode);
     default:
         // INFO: any other kind is an expression; a Gap inside it raises its own diagnostic.
         return MAREA_IrLowerExpression(context, typed, outNode);
