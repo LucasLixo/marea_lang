@@ -9,11 +9,11 @@ include(GoogleTest)
 
 file(GLOB_RECURSE MAREA_TESTS_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/source/*.cpp")
 
-if(NOT TARGET marea_base)
+if(NOT TARGET Marea-Base)
     list(FILTER MAREA_TESTS_SOURCES EXCLUDE REGEX "/source/base/")
 endif()
 
-if(NOT TARGET marea_lex)
+if(NOT TARGET Marea-Lex)
     list(FILTER MAREA_TESTS_SOURCES EXCLUDE REGEX "/source/lex/")
 endif()
 
@@ -25,11 +25,11 @@ target_link_libraries(marea_tests PRIVATE marea::include GTest::gtest_main)
 
 target_compile_definitions(marea_tests PRIVATE "MAREA_TESTS_EXAMPLES_DIRECTORY=\"${MAREA_FOLDER_EXAMPLES}\"")
 
-if(TARGET marea_base)
+if(TARGET Marea-Base)
     target_link_libraries(marea_tests PRIVATE marea::base)
 endif()
 
-if(TARGET marea_lex)
+if(TARGET Marea-Lex)
     target_link_libraries(marea_tests PRIVATE marea::lex)
 endif()
 

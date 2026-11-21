@@ -98,12 +98,12 @@ run = 'cmake -S "." -B "cmake-build-{{ usage.config | lower }}" -DCMAKE_BUILD_TY
 dir = "{{config_root}}"
 
 [tasks."build:marea"]
-description = "Build the marea_base static library target (default Debug). Override: mise run build:marea -- --config Release"
+description = "Build the Marea-Base static library target (default Debug). Override: mise run build:marea -- --config Release"
 usage = '''
 flag "--config <config>" help="Build configuration" default="{{env.MAREA_BUILD_MODE}}"
 '''
 depends = ["config:cmake --config {{ usage.config }}"]
-run = 'cmake --build "cmake-build-{{ usage.config | lower }}" --target marea_base --parallel {{vars.PARALLEL}}'
+run = 'cmake --build "cmake-build-{{ usage.config | lower }}" --target Marea-Base --parallel {{vars.PARALLEL}}'
 dir = "{{config_root}}"
 
 [tasks."test:marea"]

@@ -13,12 +13,12 @@ unset(TEMP_GUARD_SET)
 # Every MAREA_OPTION_* of the project, declared in one block
 macro(ConfigureOptions)
     option(MAREA_OPTION_TARGET_TESTS "Build the GoogleTest suite under tests/" ON)
-    option(MAREA_OPTION_SHARED_LIBS "Build marea_base and marea_lex as shared libraries instead of static" OFF)
+    option(MAREA_OPTION_SHARED_LIBS "Build Marea-Base and Marea-Lex as shared libraries instead of static" OFF)
     option(MAREA_OPTION_PRECOMPILE_HEADER "Precompile the most basic headers in every library target" ON)
-    option(MAREA_OPTION_TARGET_BASE "Build the marea_base library" ON)
+    option(MAREA_OPTION_TARGET_BASE "Build the Marea-Base library" ON)
     cmake_dependent_option(
         MAREA_OPTION_TARGET_LEX
-        "Build the marea_lex library"
+        "Build the Marea-Lex library"
         ON
         "MAREA_OPTION_TARGET_BASE"
         OFF
