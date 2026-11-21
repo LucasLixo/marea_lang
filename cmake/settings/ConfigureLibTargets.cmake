@@ -20,7 +20,7 @@ macro(ConfigureLibTargets)
 
     message(STATUS "Add target: marea")
     add_library(marea STATIC "${MAREA_FOLDER_LIB_SOURCE}/marea/MAREAVersion.c")
-    target_include_directories(marea PUBLIC "${MAREA_FOLDER_LIB_INCLUDE}")
+    target_link_libraries(marea PUBLIC marea::include PRIVATE marea::internal)
 
     if(MAREA_OPTION_TARGET_BASE)
         message(STATUS "Add target: marea_base")
@@ -30,11 +30,7 @@ macro(ConfigureLibTargets)
         add_library(marea_base ${MAREA_LIBRARY_TYPE} ${MAREA_BASE_SOURCES})
         add_library(marea::base ALIAS marea_base)
 
-        target_include_directories(
-            marea_base
-            PUBLIC "${MAREA_FOLDER_LIB_INCLUDE}"
-            PRIVATE "${MAREA_FOLDER_LIB_INTERNAL}"
-        )
+        target_link_libraries(marea_base PUBLIC marea::include PRIVATE marea::internal)
 
         target_compile_options(marea_base PRIVATE "$<$<C_COMPILER_ID:Clang,AppleClang,GNU>:-Wall;-Wextra;-Wpedantic>")
 
@@ -52,11 +48,7 @@ macro(ConfigureLibTargets)
         add_library(marea_lex ${MAREA_LIBRARY_TYPE} ${MAREA_LEX_SOURCES})
         add_library(marea::lex ALIAS marea_lex)
 
-        target_include_directories(
-            marea_lex
-            PUBLIC "${MAREA_FOLDER_LIB_INCLUDE}"
-            PRIVATE "${MAREA_FOLDER_LIB_INTERNAL}"
-        )
+        target_link_libraries(marea_lex PUBLIC marea::include PRIVATE marea::internal)
 
         target_compile_options(marea_lex PRIVATE "$<$<C_COMPILER_ID:Clang,AppleClang,GNU>:-Wall;-Wextra;-Wpedantic>")
 
