@@ -106,12 +106,6 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerMacroStatement(MAREA_IrContext *co
     return MAREA_IrNodeCreate(context, MAREA_IR_KIND_UNREACHABLE_STATEMENT, MAREA_SemaTypedNodeGetAstNode(typed), outNode);
 }
 
-// INFO: a node that points at the loop variable, made from its IDENTIFIER so it keeps the name and position.
-static MAREA_IrExcept MAREA_CALL MAREA_G_CreateLoopReference(MAREA_IrContext *context, const MAREA_AstNode *name, MAREA_IrNode **outNode)
-{
-    return MAREA_IrNodeCreate(context, MAREA_IR_KIND_IDENTIFIER, name, outNode);
-}
-
 // INFO: for name in first .. last do body end becomes BLOCK(LOCAL name = first, WHILE name <= last: body, name += 1).
 static MAREA_IrExcept MAREA_CALL MAREA_G_LowerForRange(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode)
 {
@@ -193,6 +187,8 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerForRange(MAREA_IrContext *context,
 
     // INFO: the hidden local is written by the increment, so it is a write target.
     local->flags = (MAREA_Uinteger32)MAREA_AST_FLAG_MUTABLE;
+
+    // INFO: a range includes both ends (docs/grammar/marea.ebnf), so the bound is <=, not <.
     condition->operatorKind = MAREA_TOKEN_KIND_LESS_EQUAL;
     increment->operatorKind = MAREA_TOKEN_KIND_PLUS_EQUAL;
     one->text = MAREA_G_IncrementText;
@@ -201,7 +197,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerForRange(MAREA_IrContext *context,
     result = MAREA_IrNodeAppendChild(context, local, first);
 
     if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_G_CreateLoopReference(context, nameAst, &reference);
+        result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_IDENTIFIER, nameAst, &reference);
     }
 
     if (result == MAREA_IR_EXCEPT_SUCCESS) {
@@ -215,7 +211,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerForRange(MAREA_IrContext *context,
     reference = MAREA_NULLPTR;
 
     if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_G_CreateLoopReference(context, nameAst, &reference);
+        result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_IDENTIFIER, nameAst, &reference);
     }
 
     if (result == MAREA_IR_EXCEPT_SUCCESS) {
