@@ -139,6 +139,16 @@ MAREA_BEGIN_EXTERN_C
      */
     MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrLowerDeclaration(MAREA_IrContext * context, const MAREA_SemaTypedNode *typed, const MAREA_Character8 *qualifier, MAREA_IntegerSize qualifierLength, MAREA_IrNode *parent);
 
+    /**
+     * @brief Lowers one typed expression and its subtree. A parenthesized expression lowers to its
+     * inner expression. An unsupported construct, or an operand that lowers to nothing, gives no node.
+     * @param context Context that owns the arena and sink. Must not be null.
+     * @param typed Typed expression to lower. Must not be null.
+     * @param outNode Receives the lowered node, or null when nothing is produced. Must not be null.
+     * @return MAREA_IR_EXCEPT_SUCCESS, ERROR_NULL_POINTER when an argument is null, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrLowerExpression(MAREA_IrContext * context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode);
+
 MAREA_END_EXTERN_C
 
 #endif /* MAREA_INTERNAL_IR_MAREAIRINTERNAL_H */
