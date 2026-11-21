@@ -388,6 +388,26 @@ MAREA_LexExcept MAREA_CALL MAREA_LexTokenize(MAREA_LexContext *context, const MA
             continue;
         }
 
+        if ((CURRENT >= '0') && (CURRENT <= '9')) {
+            const MAREA_LexExcept numberResult = MAREA_LexScanNumber(&cursor, list);
+
+            if (numberResult != MAREA_LEX_EXCEPT_SUCCESS) {
+                return numberResult;
+            }
+
+            continue;
+        }
+
+        if (CURRENT == '"') {
+            const MAREA_LexExcept stringResult = MAREA_LexScanString(&cursor, list);
+
+            if (stringResult != MAREA_LEX_EXCEPT_SUCCESS) {
+                return stringResult;
+            }
+
+            continue;
+        }
+
         MAREA_TokenKind symbolKind;
         MAREA_IntegerSize symbolLength = MAREA_INTEGER_SIZE(0);
 
@@ -415,8 +435,6 @@ MAREA_LexExcept MAREA_CALL MAREA_LexTokenize(MAREA_LexContext *context, const MA
             continue;
         }
 
-        // TODO(#1): digits and quotes are treated as unknown bytes until the number and string
-        // scanners land.
         MAREA_LexCursorAdvance(&cursor);
 
         const MAREA_SourcePosition BAD_BYTE_POSITION = MAREA_LexCursorMakePosition(&cursor, START_OFFSET, START_LINE, START_COLUMN);

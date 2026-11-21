@@ -191,7 +191,7 @@ TEST(MAREALexerOperators, AdjacentOperatorsSplitGreedy)
 
     ASSERT_EQ(fourthFixture.MAREA_lex("x=-1"), MAREA_LEX_EXCEPT_SUCCESS) << "Lexing must succeed.";
 
-    EXPECT_EQ(fourthFixture.MAREA_kinds(), (std::vector<MAREA_TokenKind>{ MAREA_TOKEN_KIND_IDENTIFIER, MAREA_TOKEN_KIND_EQUAL, MAREA_TOKEN_KIND_MINUS, MAREA_TOKEN_KIND_ERROR, MAREA_TOKEN_KIND_END_OF_FILE })) << "'x=-1' must split into IDENTIFIER, EQUAL, MINUS; the digit is an unknown byte until the number scanner lands.";
+    EXPECT_EQ(fourthFixture.MAREA_kinds(), (std::vector<MAREA_TokenKind>{ MAREA_TOKEN_KIND_IDENTIFIER, MAREA_TOKEN_KIND_EQUAL, MAREA_TOKEN_KIND_MINUS, MAREA_TOKEN_KIND_INTEGER_LITERAL, MAREA_TOKEN_KIND_END_OF_FILE })) << "'x=-1' must split into IDENTIFIER, EQUAL, MINUS, INTEGER_LITERAL.";
 }
 
 TEST(MAREALexerOperators, DotDotVersusDot)
