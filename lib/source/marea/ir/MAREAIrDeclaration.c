@@ -27,7 +27,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_HasChildOfKind(const MAREA_SemaTypedNode
 }
 
 // INFO: creates a node of a kind and names it after the IDENTIFIER child of the typed node.
-static MAREA_IrExcept MAREA_CALL MAREA_G_CreateNamed(MAREA_IrContext *context, MAREA_IrKind kind, const MAREA_SemaTypedNode *typed, const MAREA_Character8 *qualifier, MAREA_IntegerSize qualifierLength, MAREA_IrNode **outNode)
+MAREA_IrExcept MAREA_CALL MAREA_IrCreateNamed(MAREA_IrContext *context, MAREA_IrKind kind, const MAREA_SemaTypedNode *typed, const MAREA_Character8 *qualifier, MAREA_IntegerSize qualifierLength, MAREA_IrNode **outNode)
 {
     MAREA_IrNode *node = MAREA_NULLPTR;
 
@@ -61,7 +61,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_CreateNamed(MAREA_IrContext *context, M
 
 // INFO: lowers the expression right after the type child, when there is one, and appends it to node.
 // outComplete is false when that expression lowered to nothing; the caller then drops the declaration.
-static MAREA_IrExcept MAREA_CALL MAREA_G_AppendInitializer(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode *node, MAREA_Boolean *outComplete)
+MAREA_IrExcept MAREA_CALL MAREA_IrAppendInitializer(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode *node, MAREA_Boolean *outComplete)
 {
     *outComplete = MAREA_BOOLEAN_TRUE;
 
@@ -98,7 +98,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_AppendNamed(MAREA_IrContext *context, M
 {
     MAREA_IrNode *node = MAREA_NULLPTR;
 
-    const MAREA_IrExcept created = MAREA_G_CreateNamed(context, kind, typed, MAREA_NULLPTR, MAREA_INTEGER_SIZE(0), &node);
+    const MAREA_IrExcept created = MAREA_IrCreateNamed(context, kind, typed, MAREA_NULLPTR, MAREA_INTEGER_SIZE(0), &node);
 
     if (created != MAREA_IR_EXCEPT_SUCCESS) {
         return created;
@@ -116,7 +116,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerStructure(MAREA_IrContext *context
 
     MAREA_IrNode *node = MAREA_NULLPTR;
 
-    MAREA_IrExcept result = MAREA_G_CreateNamed(context, MAREA_IR_KIND_STRUCTURE_DECLARATION, typed, MAREA_NULLPTR, MAREA_INTEGER_SIZE(0), &node);
+    MAREA_IrExcept result = MAREA_IrCreateNamed(context, MAREA_IR_KIND_STRUCTURE_DECLARATION, typed, MAREA_NULLPTR, MAREA_INTEGER_SIZE(0), &node);
 
     if (result != MAREA_IR_EXCEPT_SUCCESS) {
         return result;
@@ -151,7 +151,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerEnum(MAREA_IrContext *context, con
 {
     MAREA_IrNode *node = MAREA_NULLPTR;
 
-    MAREA_IrExcept result = MAREA_G_CreateNamed(context, MAREA_IR_KIND_ENUM_DECLARATION, typed, MAREA_NULLPTR, MAREA_INTEGER_SIZE(0), &node);
+    MAREA_IrExcept result = MAREA_IrCreateNamed(context, MAREA_IR_KIND_ENUM_DECLARATION, typed, MAREA_NULLPTR, MAREA_INTEGER_SIZE(0), &node);
 
     if (result != MAREA_IR_EXCEPT_SUCCESS) {
         return result;
@@ -168,7 +168,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerEnum(MAREA_IrContext *context, con
 
         MAREA_IrNode *variantNode = MAREA_NULLPTR;
 
-        result = MAREA_G_CreateNamed(context, MAREA_IR_KIND_VARIANT_DECLARATION, variant, MAREA_NULLPTR, MAREA_INTEGER_SIZE(0), &variantNode);
+        result = MAREA_IrCreateNamed(context, MAREA_IR_KIND_VARIANT_DECLARATION, variant, MAREA_NULLPTR, MAREA_INTEGER_SIZE(0), &variantNode);
 
         if (result != MAREA_IR_EXCEPT_SUCCESS) {
             return result;
@@ -185,7 +185,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerEnum(MAREA_IrContext *context, con
 
             MAREA_IrNode *fieldNode = MAREA_NULLPTR;
 
-            result = MAREA_G_CreateNamed(context, MAREA_IR_KIND_VARIANT_FIELD, field, MAREA_NULLPTR, MAREA_INTEGER_SIZE(0), &fieldNode);
+            result = MAREA_IrCreateNamed(context, MAREA_IR_KIND_VARIANT_FIELD, field, MAREA_NULLPTR, MAREA_INTEGER_SIZE(0), &fieldNode);
 
             if (result != MAREA_IR_EXCEPT_SUCCESS) {
                 return result;
@@ -193,7 +193,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerEnum(MAREA_IrContext *context, con
 
             MAREA_Boolean complete = MAREA_BOOLEAN_TRUE;
 
-            result = MAREA_G_AppendInitializer(context, field, fieldNode, &complete);
+            result = MAREA_IrAppendInitializer(context, field, fieldNode, &complete);
 
             if (result != MAREA_IR_EXCEPT_SUCCESS) {
                 return result;
@@ -225,7 +225,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerConstant(MAREA_IrContext *context,
 {
     MAREA_IrNode *node = MAREA_NULLPTR;
 
-    MAREA_IrExcept result = MAREA_G_CreateNamed(context, MAREA_IR_KIND_CONSTANT_DECLARATION, typed, qualifier, qualifierLength, &node);
+    MAREA_IrExcept result = MAREA_IrCreateNamed(context, MAREA_IR_KIND_CONSTANT_DECLARATION, typed, qualifier, qualifierLength, &node);
 
     if (result != MAREA_IR_EXCEPT_SUCCESS) {
         return result;
@@ -233,7 +233,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerConstant(MAREA_IrContext *context,
 
     MAREA_Boolean complete = MAREA_BOOLEAN_TRUE;
 
-    result = MAREA_G_AppendInitializer(context, typed, node, &complete);
+    result = MAREA_IrAppendInitializer(context, typed, node, &complete);
 
     if ((result != MAREA_IR_EXCEPT_SUCCESS) || (complete == MAREA_BOOLEAN_FALSE)) {
         return result;
@@ -251,7 +251,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerFunction(MAREA_IrContext *context,
 
     MAREA_IrNode *node = MAREA_NULLPTR;
 
-    MAREA_IrExcept result = MAREA_G_CreateNamed(context, MAREA_IR_KIND_FUNCTION_DECLARATION, typed, qualifier, qualifierLength, &node);
+    MAREA_IrExcept result = MAREA_IrCreateNamed(context, MAREA_IR_KIND_FUNCTION_DECLARATION, typed, qualifier, qualifierLength, &node);
 
     if (result != MAREA_IR_EXCEPT_SUCCESS) {
         return result;
@@ -291,16 +291,20 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerFunction(MAREA_IrContext *context,
         }
     }
 
-    // INFO: the body is an empty BLOCK for now; the control-flow lowering fills it in.
     const MAREA_SemaTypedNode *body = MAREA_IrTypedFindChild(typed, MAREA_AST_KIND_BLOCK);
 
     if (body != MAREA_NULLPTR) {
         MAREA_IrNode *blockNode = MAREA_NULLPTR;
 
-        result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_BLOCK, MAREA_SemaTypedNodeGetAstNode(body), &blockNode);
+        result = MAREA_IrLowerBlock(context, body, &blockNode);
 
         if (result != MAREA_IR_EXCEPT_SUCCESS) {
             return result;
+        }
+
+        // INFO: a body that cannot be lowered drops the whole function, never a partial one.
+        if (blockNode == MAREA_NULLPTR) {
+            return MAREA_IR_EXCEPT_SUCCESS;
         }
 
         result = MAREA_IrNodeAppendChild(context, node, blockNode);

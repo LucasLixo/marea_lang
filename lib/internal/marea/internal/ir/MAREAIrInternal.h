@@ -149,6 +149,41 @@ MAREA_BEGIN_EXTERN_C
      */
     MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrLowerExpression(MAREA_IrContext * context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode);
 
+    /**
+     * @brief Creates a node of a kind and names it after the IDENTIFIER child of a typed node, qualified
+     * as qualifier.name when a qualifier is given. The type name is read off the first type child, and
+     * only the MUTABLE flag survives.
+     * @param context Context that owns the arena. Must not be null.
+     * @param kind Kind of the new node.
+     * @param typed Typed node to read the name and type from. Must not be null.
+     * @param qualifier Qualifier text, or null for none.
+     * @param qualifierLength Byte length of qualifier.
+     * @param outNode Receives the new node. Must not be null.
+     * @return MAREA_IR_EXCEPT_SUCCESS, ERROR_NULL_POINTER when an argument is null, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrCreateNamed(MAREA_IrContext * context, MAREA_IrKind kind, const MAREA_SemaTypedNode *typed, const MAREA_Character8 *qualifier, MAREA_IntegerSize qualifierLength, MAREA_IrNode **outNode);
+
+    /**
+     * @brief Lowers the expression right after the type child of a typed node, when there is one, and
+     * appends it to node.
+     * @param context Context that owns the arena. Must not be null.
+     * @param typed Typed node that holds the type and the initializer. Must not be null.
+     * @param node Node that receives the lowered initializer. Must not be null.
+     * @param outComplete Receives false when the initializer lowered to nothing. Must not be null.
+     * @return MAREA_IR_EXCEPT_SUCCESS, ERROR_NULL_POINTER when an argument is null, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrAppendInitializer(MAREA_IrContext * context, const MAREA_SemaTypedNode *typed, MAREA_IrNode *node, MAREA_Boolean *outComplete);
+
+    /**
+     * @brief Lowers one typed BLOCK and its statements. A statement that cannot be lowered makes the
+     * whole block lower to nothing, so no partial body appears.
+     * @param context Context that owns the arena and sink. Must not be null.
+     * @param typed Typed BLOCK node. Must not be null.
+     * @param outNode Receives the BLOCK node, or null when nothing is produced. Must not be null.
+     * @return MAREA_IR_EXCEPT_SUCCESS, ERROR_NULL_POINTER when an argument is null, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrLowerBlock(MAREA_IrContext * context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode);
+
 MAREA_END_EXTERN_C
 
 #endif /* MAREA_INTERNAL_IR_MAREAIRINTERNAL_H */

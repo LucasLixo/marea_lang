@@ -151,3 +151,61 @@ TEST(MAREAIrExpressions, ConstantKeepsItsInitializer)
 
     EXPECT_EQ(MAREA_irRender(MAREA_irChild(fixture.module, 0)), "(CONSTANT_DECLARATION LIMIT :integer32 (INTEGER_LITERAL 10))") << "The initializer must be the only child.";
 }
+
+namespace
+{
+    const MAREA_IrNode *MAREA_findFunction(const MAREA_IrNode *module, const std::string &name)
+    {
+        for (MAREA_IntegerSize index{ 0 }; index < MAREA_IrNodeGetChildCount(module); ++index) {
+            const MAREA_IrNode *declaration{ MAREA_irChild(module, index) };
+
+            if ((MAREA_IrNodeGetKind(declaration) == MAREA_IR_KIND_FUNCTION_DECLARATION) && (MAREA_irText(declaration) == name)) {
+                return declaration;
+            }
+        }
+
+        return nullptr;
+    }
+} // namespace
+
+TEST(MAREAIrExpressions, StructuresExampleKeepsItsStructLiteralShape)
+{
+    GTEST_COUT << "Validating the struct literals of examples/types/structures.marea keep their FIELD_ENTRY shape." << std::endl;
+
+    MAREA_IrFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_lower(MAREA_irReadExample("types/structures.marea"), "types/structures.marea"), MAREA_IR_EXCEPT_SUCCESS) << "The example must lower.";
+
+    const MAREA_IrNode *function{ MAREA_findFunction(fixture.module, "make_square") };
+
+    ASSERT_NE(function, nullptr) << "The function make_square must be lowered.";
+
+    EXPECT_EQ(MAREA_irRender(function), "(FUNCTION_DECLARATION make_square :Shape (PARAMETER_LIST (PARAMETER side :float64)) (BLOCK (RETURN_STATEMENT (LITERAL_VALUE :Shape (FIELD_ENTRY kind (MEMBER_ACCESS (IDENTIFIER ShapeKind) (IDENTIFIER Rectangle))) (FIELD_ENTRY center (LITERAL_VALUE :Point (FIELD_ENTRY x (FLOAT_LITERAL 0.0)) (FIELD_ENTRY y (FLOAT_LITERAL 0.0)))) (FIELD_ENTRY width (IDENTIFIER side)) (FIELD_ENTRY height (IDENTIFIER side))))))") << "The nested struct literal must keep its shape.";
+}
+
+TEST(MAREAIrExpressions, OperatorsExampleKeepsItsOperatorShapes)
+{
+    GTEST_COUT << "Validating examples/basics/operators.marea keeps its operators and the precedence of -left ** 2." << std::endl;
+
+    MAREA_IrFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_lower(MAREA_irReadExample("basics/operators.marea"), "basics/operators.marea"), MAREA_IR_EXCEPT_SUCCESS) << "The example must lower.";
+
+    const MAREA_IrNode *arithmetic{ MAREA_findFunction(fixture.module, "arithmetic") };
+
+    ASSERT_NE(arithmetic, nullptr) << "The function arithmetic must be lowered.";
+
+    const std::string
+RENDERED
+{ MAREA_irRender(arithmetic) };
+
+EXPECT_NE(RENDERED.find("(LOCAL_DECLARATION negative_power :integer32 (UNARY_EXPRESSION op=MINUS (BINARY_EXPRESSION op=STAR_STAR (IDENTIFIER left) (INTEGER_LITERAL 2))))"), std::string::npos) << "-left ** 2 must keep the negation outside the power: " <<
+RENDERED
+;
+
+const MAREA_IrNode *comparison{ MAREA_findFunction(fixture.module, "comparison") };
+
+ASSERT_NE(comparison, nullptr) << "The function comparison must be lowered.";
+
+EXPECT_NE(MAREA_irRender(comparison).find("(LOCAL_DECLARATION grouped :boolean (BINARY_EXPRESSION op=KEYWORD_AND (BINARY_EXPRESSION op=KEYWORD_OR"), std::string::npos) << "The parentheses of a grouped condition must be elided but keep their shape.";
+}
