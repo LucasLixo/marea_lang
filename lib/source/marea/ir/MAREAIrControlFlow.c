@@ -27,6 +27,10 @@ static const MAREA_Character8 MAREA_G_LengthName[] = "$length";
 // INFO: the text of the first value of the hidden index of a for each loop.
 static const MAREA_Character8 MAREA_G_StartText[] = "0";
 
+// INFO: the place of the bound name among the children of a with statement (value, name, body) and of a partition statement (value, count, name, body).
+static const MAREA_IntegerSize MAREA_G_WithNameIndex = MAREA_INTEGER_SIZE(1);
+static const MAREA_IntegerSize MAREA_G_PartitionNameIndex = MAREA_INTEGER_SIZE(2);
+
 // INFO: how a loop that lowers to a while goes to its next pass: the name it adds one to, and whether it first leaves at its bound.
 typedef struct MAREA_G_Step
 {
@@ -1071,10 +1075,6 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerSwitch(MAREA_IrContext *context, c
     return result;
 }
 
-// INFO: the place of the bound name among the children of a with statement (value, name, body) and of a partition statement (value, count, name, body).
-#define MAREA_G_WITH_NAME_INDEX      MAREA_INTEGER_SIZE(1)
-#define MAREA_G_PARTITION_NAME_INDEX MAREA_INTEGER_SIZE(2)
-
 // INFO: a with or partition statement keeps its children but the name. The name is the text of the node, as for a declaration, and MUTABLE is the one flag that stays.
 static MAREA_IrExcept MAREA_CALL MAREA_G_LowerBoundScope(MAREA_IrContext *context, MAREA_IrKind kind, const MAREA_SemaTypedNode *typed, MAREA_IntegerSize nameIndex, MAREA_IrNode **outNode)
 {
@@ -1176,9 +1176,9 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerStatement(MAREA_IrContext *context
     case MAREA_AST_KIND_FORK_JOIN_BLOCK:
         return MAREA_G_LowerKept(context, MAREA_IR_KIND_FORK_JOIN_BLOCK, typed, outNode);
     case MAREA_AST_KIND_PARTITION_STATEMENT:
-        return MAREA_G_LowerBoundScope(context, MAREA_IR_KIND_PARTITION_STATEMENT, typed, MAREA_G_PARTITION_NAME_INDEX, outNode);
+        return MAREA_G_LowerBoundScope(context, MAREA_IR_KIND_PARTITION_STATEMENT, typed, MAREA_G_PartitionNameIndex, outNode);
     case MAREA_AST_KIND_WITH_STATEMENT:
-        return MAREA_G_LowerBoundScope(context, MAREA_IR_KIND_WITH_STATEMENT, typed, MAREA_G_WITH_NAME_INDEX, outNode);
+        return MAREA_G_LowerBoundScope(context, MAREA_IR_KIND_WITH_STATEMENT, typed, MAREA_G_WithNameIndex, outNode);
     default:
         // INFO: any other kind is an expression; a Gap inside it raises its own diagnostic.
         return MAREA_IrLowerExpression(context, typed, outNode);
