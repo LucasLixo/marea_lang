@@ -67,6 +67,7 @@ MAREA_BEGIN_EXTERN_C
         const MAREA_AstNode *function;
         MAREA_Uinteger32 selfDepth;
         MAREA_Uinteger32 instantiationDepth;
+        MAREA_Uinteger32 forkDepth;
     };
 
     /**
@@ -79,6 +80,7 @@ MAREA_BEGIN_EXTERN_C
         MAREA_IntegerSize localCount;
         MAREA_IntegerSize referenceCount;
         MAREA_Uinteger32 selfDepth;
+        MAREA_Uinteger32 forkDepth;
     } MAREA_SemaScopeMark;
 
     /**
@@ -345,6 +347,16 @@ MAREA_BEGIN_EXTERN_C
      * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
      */
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckBorrowArguments(MAREA_SemaContext * context, const MAREA_AstNode *call, const MAREA_AstNode *parameters, const MAREA_AstNode *arguments);
+
+    /**
+     * @brief Checks the arguments of a spawn inside a fork_join block: each must be a part of a partition, a
+     * literal, a constant, or a name that is neither a write borrow nor the source of an active mutable
+     * partition. A spawn outside a fork_join block is not checked here.
+     * @param context Context of the run. Must not be null.
+     * @param node UNARY_EXPRESSION node whose operator is spawn. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckSpawn(MAREA_SemaContext * context, const MAREA_AstNode *node);
 
 MAREA_END_EXTERN_C
 
