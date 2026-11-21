@@ -79,6 +79,16 @@ MAREA_IrExcept MAREA_CALL MAREA_IrLowerCompilationUnit(MAREA_IrContext *context,
         return created;
     }
 
+    const MAREA_IntegerSize COUNT = MAREA_SemaTypedNodeGetChildCount(typedRoot);
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < COUNT; index = (index + MAREA_INTEGER_SIZE(1))) {
+        const MAREA_IrExcept lowered = MAREA_IrLowerDeclaration(context, MAREA_IrTypedChildAt(typedRoot, index), MAREA_NULLPTR, MAREA_INTEGER_SIZE(0), module);
+
+        if (lowered != MAREA_IR_EXCEPT_SUCCESS) {
+            return lowered;
+        }
+    }
+
     *outModule = module;
 
     return MAREA_IR_EXCEPT_SUCCESS;
