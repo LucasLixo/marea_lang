@@ -3,7 +3,7 @@
 
 cmake_minimum_required(VERSION 3.20)
 
-add_subdirectory("${CMAKE_SOURCE_DIR}/3rdparty/GoogleTest" "${CMAKE_BINARY_DIR}/GoogleTest" EXCLUDE_FROM_ALL)
+add_subdirectory("${MAREA_FOLDER_3RDPARTY_GOOGLE_TEST}" "${MAREA_FOLDER_CMAKE_BINARY_3RDPARTY_GOOGLE_TEST}" EXCLUDE_FROM_ALL)
 
 include(GoogleTest)
 
@@ -23,7 +23,7 @@ target_include_directories(marea_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/incl
 
 target_link_libraries(marea_tests PRIVATE marea GTest::gtest_main)
 
-target_compile_definitions(marea_tests PRIVATE "MAREA_TESTS_EXAMPLES_DIRECTORY=\"${CMAKE_SOURCE_DIR}/examples\"")
+target_compile_definitions(marea_tests PRIVATE "MAREA_TESTS_EXAMPLES_DIRECTORY=\"${MAREA_FOLDER_EXAMPLES}\"")
 
 if(TARGET marea_base)
     target_link_libraries(marea_tests PRIVATE marea::base)
