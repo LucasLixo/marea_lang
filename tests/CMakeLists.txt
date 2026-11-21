@@ -51,6 +51,12 @@ endif()
 
 if(TARGET Marea-Sema)
     target_link_libraries(marea_tests PRIVATE marea::sema)
+
+    # INFO: only this one test file may include the internal sema header (see the cpp-testing skill, issue #28).
+    set_source_files_properties(
+        "${CMAKE_CURRENT_SOURCE_DIR}/source/sema/MAREASemaInternal.cpp"
+        PROPERTIES INCLUDE_DIRECTORIES "${MAREA_FOLDER_LIB_INTERNAL}"
+    )
 endif()
 
 gtest_discover_tests(marea_tests)
