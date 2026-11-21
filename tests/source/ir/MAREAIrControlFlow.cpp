@@ -213,16 +213,12 @@ TEST(MAREAIrControlFlow, SimdExampleDesugarsItsForRangeLoop)
 
         found = true;
 
-        const std::string
-RENDERED
-{ MAREA_irRender(declaration) };
+        const std::string rendered{ MAREA_irRender(declaration) };
 
-EXPECT_NE(RENDERED.find("(LOCAL_DECLARATION index flags=1 (INTEGER_LITERAL 0)) (WHILE_STATEMENT (BINARY_EXPRESSION op=LESS_EQUAL (IDENTIFIER index) (INTEGER_LITERAL 3))"), std::string::npos) << "The loop must be desugared: " <<
-RENDERED
-;
-}
+        EXPECT_NE(rendered.find("(LOCAL_DECLARATION index flags=1 (INTEGER_LITERAL 0)) (WHILE_STATEMENT (BINARY_EXPRESSION op=LESS_EQUAL (IDENTIFIER index) (INTEGER_LITERAL 3))"), std::string::npos) << "The loop must be desugared: " << rendered;
+    }
 
-EXPECT_TRUE(found) << "The function dot_product_reference must be lowered.";
+    EXPECT_TRUE(found) << "The function dot_product_reference must be lowered.";
 }
 
 TEST(MAREAIrControlFlow, ControlFlowExampleKeepsItsIfAndWhileShapes)
