@@ -14,6 +14,8 @@ namespace
 
     constexpr MAREA_Uinteger32 INVALID_SPAWN{ MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_SPAWN_ARGUMENT };
 
+    constexpr MAREA_Uinteger32 INVALID_JUMP{ MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_PARALLEL_JUMP };
+
     const std::string HEAD{ "constant WORKERS: integer32 = 4; function work(part: mutable slice<float32>, factor: float32) end " };
 
     Codes MAREA_codesOf(const std::string &body)
@@ -140,4 +142,107 @@ TEST(MAREASemaParallel, ScalingExampleSpawnsPass)
     for (MAREA_Uinteger32 code : fixture.MAREA_semaCodes()) {
         EXPECT_NE(code, INVALID_SPAWN) << "No spawn argument of the example may be rejected.";
     }
+}
+
+TEST(MAREASemaParallel, JumpCodeIsPinned)
+{
+    GTEST_COUT << "Validating the diagnostic code of a jump out of a partition body." << std::endl;
+
+    EXPECT_EQ(INVALID_JUMP, 3024U) << "INVALID_PARALLEL_JUMP must be 3024.";
+}
+
+TEST(MAREASemaParallel, ContinueOutOfAPartitionBodyIsRejected)
+{
+    GTEST_COUT << "Validating a continue in a partition body that targets a loop outside the fork_join is rejected." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("function f(values: array<float32>, a: boolean) while a do fork_join partition values into 2 as part do if a then continue; end end end end end"), Codes{ INVALID_JUMP }) << "A continue to a while loop must raise INVALID_PARALLEL_JUMP.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(values: array<float32>) for i in 0 .. 3 do fork_join partition values into 2 as part do continue; end end end end"), Codes{ INVALID_JUMP }) << "A continue to a for-range loop must raise INVALID_PARALLEL_JUMP.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(values: array<float32>, others: array<float32>) for each other in others do fork_join partition values into 2 as part do continue; end end end end"), Codes{ INVALID_JUMP }) << "A continue to a for each loop must raise INVALID_PARALLEL_JUMP.";
+}
+
+TEST(MAREASemaParallel, BreakOutOfAPartitionBodyIsRejected)
+{
+    GTEST_COUT << "Validating a break in a partition body that targets a loop outside the fork_join is rejected." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("function f(values: array<float32>, a: boolean) while a do fork_join partition values into 2 as part do break; end end end end"), Codes{ INVALID_JUMP }) << "A break to a while loop must raise INVALID_PARALLEL_JUMP.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(values: array<float32>) for i in 0 .. 3 do fork_join partition mutable values into 2 as part do break; end end end end"), Codes{ INVALID_JUMP }) << "A break of a mutable partition must raise INVALID_PARALLEL_JUMP.";
+}
+
+TEST(MAREASemaParallel, ReturnInAPartitionBodyIsRejected)
+{
+    GTEST_COUT << "Validating a return in a partition body is rejected, with or without a value." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("function f(values: array<float32>) fork_join partition values into 2 as part do return; end end end"), Codes{ INVALID_JUMP }) << "A return with no value must raise INVALID_PARALLEL_JUMP.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(values: array<float32>): integer32 fork_join partition values into 2 as part do return 1; end end return 0; end"), Codes{ INVALID_JUMP }) << "A return with a value must raise INVALID_PARALLEL_JUMP.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(values: array<float32>, a: boolean) fork_join partition values into 2 as part do while a do return; end end end end"), Codes{ INVALID_JUMP }) << "A return inside a loop of the body must raise INVALID_PARALLEL_JUMP.";
+}
+
+TEST(MAREASemaParallel, JumpThroughAWithOrSwitchInABodyIsRejected)
+{
+    GTEST_COUT << "Validating a jump that leaves a partition body through a with, an if or a switch is rejected." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("function f(values: array<float32>, a: boolean) while a do fork_join partition values into 2 as part do with values as view do break; end end end end end"), Codes{ INVALID_JUMP }) << "A break through a with must raise INVALID_PARALLEL_JUMP.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(values: array<float32>, a: integer32) while true do fork_join partition values into 2 as part do switch a case 1 then continue; default then end end end end end"), Codes{ INVALID_JUMP }) << "A continue in a switch arm must raise INVALID_PARALLEL_JUMP.";
+}
+
+TEST(MAREASemaParallel, EveryJumpOfABodyIsReported)
+{
+    GTEST_COUT << "Validating each jump that leaves a partition body is reported once." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("function f(values: array<float32>, a: boolean) while a do fork_join partition values into 2 as part do if a then break; end continue; return; end end end end"), (Codes{ INVALID_JUMP, INVALID_JUMP, INVALID_JUMP })) << "Three jumps must raise three diagnostics.";
+}
+
+TEST(MAREASemaParallel, JumpInANestedPartitionIsRejectedOnce)
+{
+    GTEST_COUT << "Validating the nearest partition body is the barrier of a jump." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("function f(values: array<float32>, a: boolean) fork_join partition values into 2 as outer do while a do fork_join partition values into 2 as inner do continue; end end end end end end end"), Codes{ INVALID_JUMP }) << "The inner body must be rejected for a continue that targets a loop of the outer body.";
+}
+
+TEST(MAREASemaParallel, LoopInsideAPartitionBodyIsAccepted)
+{
+    GTEST_COUT << "Validating a loop that lives inside a partition body can use break and continue." << std::endl;
+
+    EXPECT_TRUE(MAREA_codesOf("function f(values: array<float32>, a: boolean) fork_join partition values into 2 as part do while a do if a then break; end continue; end end end end").empty()) << "A while loop of the body must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("function f(values: array<float32>) fork_join partition values into 2 as part do for i in 0 .. 3 do continue; end end end end").empty()) << "A for-range loop of the body must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("function f(values: array<float32>, others: array<float32>) fork_join partition values into 2 as part do for each other in others do break; end end end end").empty()) << "A for each loop of the body must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("function f(values: array<float32>, a: boolean) fork_join partition values into 2 as part do while a do with values as view do break; end end end end end").empty()) << "A break through a with inside a loop of the body must raise nothing.";
+}
+
+TEST(MAREASemaParallel, LoopOutsideAPartitionBodyIsStillChecked)
+{
+    GTEST_COUT << "Validating the barrier is lifted after the partition body ends." << std::endl;
+
+    EXPECT_TRUE(MAREA_codesOf("function f(values: array<float32>, a: boolean) fork_join partition values into 2 as part do end while a do break; end end end").empty()) << "A loop that follows the partition must raise nothing.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(values: array<float32>, a: boolean) while a do fork_join partition values into 2 as part do while a do break; end end end end end"), Codes{}) << "A loop inside the body of a loop must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("function f(values: array<float32>, a: boolean) fork_join partition values into 2 as one do end partition values into 2 as two do while a do break; end end end end").empty()) << "A second partition after a first one must still lift the barrier.";
+}
+
+TEST(MAREASemaParallel, JumpOutsideAnyPartitionBodyIsUnchanged)
+{
+    GTEST_COUT << "Validating a jump in a with, a loop or a plain function body raises nothing here." << std::endl;
+
+    EXPECT_TRUE(MAREA_codesOf("function f(values: array<float32>, a: boolean) while a do with values as view do continue; end end end").empty()) << "A continue through a with outside a partition must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("function f(values: array<float32>, a: boolean): integer32 with values as view do return 1; end return 0; end").empty()) << "A return inside a with outside a partition must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("function f(values: array<float32>, a: boolean) while a do if a then break; end end end").empty()) << "A break in a loop must raise nothing.";
+}
+
+TEST(MAREASemaParallel, JumpNextToABrokenStatementIsStillReported)
+{
+    GTEST_COUT << "Validating a jump that follows a broken statement in a partition body is reported once." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("function f(values: array<float32>, a: boolean) while a do fork_join partition values into 2 as part do 1 + ; continue; end end end end"), Codes{ INVALID_JUMP }) << "A broken sibling must not hide the jump, and the broken statement must raise no sema diagnostic.";
 }

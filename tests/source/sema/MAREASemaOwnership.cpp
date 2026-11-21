@@ -12,6 +12,7 @@ namespace
     constexpr MAREA_Uinteger32 NEEDS_WORD{ MAREA_SEMA_DIAGNOSTIC_CODE_ASSIGNMENT_NEEDS_COPY_OR_MOVE };
     constexpr MAREA_Uinteger32 ESCAPES{ MAREA_SEMA_DIAGNOSTIC_CODE_REFERENCE_ESCAPES_SCOPE };
     constexpr MAREA_Uinteger32 INVALID_BORROW{ MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_BORROW };
+    constexpr MAREA_Uinteger32 INVALID_JUMP{ MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_PARALLEL_JUMP };
     constexpr MAREA_Uinteger32 EXCLUSIVE{ MAREA_SEMA_DIAGNOSTIC_CODE_EXCLUSIVE_BORROW_CONFLICT };
 
     const std::string SHAPE{ "structure Shape x: float32; end structure Outer inner: Shape; end function make(): Shape return Shape{ x = 1.0 }; end " };
@@ -148,7 +149,9 @@ TEST(MAREASemaOwnership, PartitionAndWithNamesCannotEscape)
 {
     GTEST_COUT << "Validating a partition part and a with name cannot be returned." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(items: array<Shape>): Shape fork_join partition items into 4 as part do return part; end end return make(); end"), Codes{ ESCAPES }) << "A partition part must raise REFERENCE_ESCAPES_SCOPE.";
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(items: array<Shape>): Shape fork_join partition items into 4 as part do return part; end end return make(); end"), (Codes{ ESCAPES, INVALID_JUMP })) << "A partition part returned from its body must raise REFERENCE_ESCAPES_SCOPE and INVALID_PARALLEL_JUMP.";
+
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(items: array<Shape>) fork_join partition items into 4 as part do local o: Outer = Outer{ inner = part }; end end end"), Codes{ ESCAPES }) << "A partition part stored in a field must raise REFERENCE_ESCAPES_SCOPE only.";
 
     EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(items: array<Shape>): Shape with items as view do return view; end return make(); end"), Codes{ ESCAPES }) << "A with name must raise REFERENCE_ESCAPES_SCOPE.";
 }

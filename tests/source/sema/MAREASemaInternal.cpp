@@ -116,3 +116,14 @@ TEST(MAREASemaInternal, TableAppendRejectsADoublingThatOverflows)
 
     EXPECT_EQ(MAREA_SemaTableAppend(fixture.context, &table, entry), MAREA_SEMA_EXCEPT_ERROR_OUT_OF_MEMORY) << "A wrapped capacity must be rejected.";
 }
+
+TEST(MAREASemaInternal, CheckJumpRejectsANullArgument)
+{
+    GTEST_COUT << "Validating the jump check rejects a null context and a null node." << std::endl;
+
+    EXPECT_EQ(MAREA_SemaCheckJump(nullptr, nullptr), MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER) << "Two null arguments must be rejected.";
+
+    MAREA_SemaFixture fixture;
+
+    EXPECT_EQ(MAREA_SemaCheckJump(fixture.context, nullptr), MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER) << "A null node must be rejected.";
+}
