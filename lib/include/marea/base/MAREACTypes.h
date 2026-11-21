@@ -209,7 +209,7 @@ typedef float MAREA_Float32;
 typedef double MAREA_Float64;
 typedef long double MAREA_Float80;
 
-    #define MAREA_FLOAT_32(value)  (value##f)
+    #define MAREA_FLOAT_32(value)  ((MAREA_Float32)(value))
     #define MAREA_FLOAT_32_MAXIMUM FLT_MAX
     #define MAREA_FLOAT_32_MINIMUM (-FLT_MAX)
 
@@ -220,11 +220,11 @@ typedef long double MAREA_Float80;
         #define MAREA_FLOAT_32_EPSILON 1.1920928955078125e-07F
     #endif
 
-    #define MAREA_FLOAT_64(value)  (value)
+    #define MAREA_FLOAT_64(value)  ((MAREA_Float64)(value))
     #define MAREA_FLOAT_64_MAXIMUM DBL_MAX
     #define MAREA_FLOAT_64_MINIMUM (-DBL_MAX)
 
-    #define MAREA_FLOAT_80(value)  (value##L)
+    #define MAREA_FLOAT_80(value)  ((MAREA_Float80)(value##L))
     #define MAREA_FLOAT_80_MAXIMUM LDBL_MAX
     #define MAREA_FLOAT_80_MINIMUM (-LDBL_MAX)
 
