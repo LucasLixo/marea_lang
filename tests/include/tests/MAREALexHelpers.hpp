@@ -4,11 +4,6 @@
 #if !defined(MAREA_TESTS_MAREALEXHELPERS_HPP)
     #define MAREA_TESTS_MAREALEXHELPERS_HPP
 
-    #include "marea/base/MAREAArena.h"
-    #include "marea/base/MAREADiagnostic.h"
-    #include "marea/lex/MAREALexer.h"
-    #include "marea/lex/MAREAToken.h"
-
     #include <string>
     #include <vector>
 
