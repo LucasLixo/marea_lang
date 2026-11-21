@@ -214,6 +214,66 @@ MAREA_BEGIN_EXTERN_C
      */
     void MAREA_CALL MAREA_ParseAttributes(MAREA_ParseState * state, MAREA_AstNode * holder, MAREA_TokenKind opener);
 
+    /**
+     * @brief Parses a type: a named type or a function type. Reports EXPECTED_TYPE and returns an
+     * ERROR_NODE without consuming when none starts here.
+     */
+    MAREA_AstNode *MAREA_CALL MAREA_ParseType(MAREA_ParseState * state);
+
+    /**
+     * @brief Parses named_type into a NAMED_TYPE node: a qualified name and optional type arguments.
+     */
+    MAREA_AstNode *MAREA_CALL MAREA_ParseNamedType(MAREA_ParseState * state);
+
+    /**
+     * @brief Parses type_arguments into a TYPE_ARGUMENTS node. The current token must be a less than.
+     */
+    MAREA_AstNode *MAREA_CALL MAREA_ParseTypeArguments(MAREA_ParseState * state);
+
+    /**
+     * @brief Parses a parenthesized parameter list into a PARAMETER_LIST node. Always returns a node.
+     */
+    MAREA_AstNode *MAREA_CALL MAREA_ParseParameterList(MAREA_ParseState * state);
+
+    /**
+     * @brief Parses generic_parameters into a GENERIC_PARAMETERS node. The current token must be a less than.
+     */
+    MAREA_AstNode *MAREA_CALL MAREA_ParseGenericParameters(MAREA_ParseState * state);
+
+    /**
+     * @brief Parses where_clause into a WHERE_CLAUSE node. The current token must be where.
+     */
+    MAREA_AstNode *MAREA_CALL MAREA_ParseWhereClause(MAREA_ParseState * state);
+
+    /**
+     * @brief Parses an expression. Reports EXPECTED_EXPRESSION and returns an ERROR_NODE without
+     * consuming when none starts here.
+     */
+    MAREA_AstNode *MAREA_CALL MAREA_ParseExpression(MAREA_ParseState * state);
+
+    /**
+     * @brief Parses a block: statements up to end, elseif, else, case, default or the end of file. The
+     * terminator is not consumed.
+     */
+    MAREA_AstNode *MAREA_CALL MAREA_ParseBlock(MAREA_ParseState * state);
+
+    /**
+     * @brief Tells whether kind starts a top level declaration that MAREA_ParseDeclaration handles.
+     */
+    MAREA_Boolean MAREA_CALL MAREA_ParseIsDeclarationStart(MAREA_TokenKind kind);
+
+    /**
+     * @brief Parses one declaration whose keyword is the current token. The attributes already parsed wait
+     * in holder and become the leading children of the node.
+     */
+    MAREA_AstNode *MAREA_CALL MAREA_ParseDeclaration(MAREA_ParseState * state, MAREA_AstNode * holder);
+
+    /**
+     * @brief Consumes the end that closes a construct, or reports UNTERMINATED_BLOCK at the end of file or
+     * EXPECTED_TOKEN with message elsewhere.
+     */
+    void MAREA_CALL MAREA_ParseExpectEnd(MAREA_ParseState * state, const MAREA_Character8 *message);
+
 MAREA_END_EXTERN_C
 
 #endif /* MAREA_INTERNAL_PARSE_MAREAPARSEINTERNAL_H */
