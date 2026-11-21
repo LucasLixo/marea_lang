@@ -23,6 +23,8 @@ target_include_directories(marea_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/incl
 
 target_link_libraries(marea_tests PRIVATE marea GTest::gtest_main)
 
+target_compile_definitions(marea_tests PRIVATE "MAREA_TESTS_EXAMPLES_DIRECTORY=\"${CMAKE_SOURCE_DIR}/examples\"")
+
 if(TARGET marea_base)
     target_link_libraries(marea_tests PRIVATE marea::base)
 endif()
