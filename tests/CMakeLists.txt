@@ -3,7 +3,11 @@
 
 cmake_minimum_required(VERSION 3.20)
 
-add_subdirectory("${MAREA_FOLDER_3RDPARTY_GOOGLE_TEST}" "${MAREA_FOLDER_CMAKE_BINARY_3RDPARTY_GOOGLE_TEST}" EXCLUDE_FROM_ALL)
+add_subdirectory(
+    "${MAREA_FOLDER_3RDPARTY_GOOGLE_TEST}"
+    "${MAREA_FOLDER_CMAKE_BINARY_3RDPARTY_GOOGLE_TEST}"
+    EXCLUDE_FROM_ALL
+)
 
 include(GoogleTest)
 
@@ -15,6 +19,10 @@ endif()
 
 if(NOT TARGET Marea-Lex)
     list(FILTER MAREA_TESTS_SOURCES EXCLUDE REGEX "/source/lex/")
+endif()
+
+if(NOT TARGET Marea-Parse)
+    list(FILTER MAREA_TESTS_SOURCES EXCLUDE REGEX "/source/parse/")
 endif()
 
 add_executable(marea_tests ${MAREA_TESTS_SOURCES})
@@ -31,6 +39,10 @@ endif()
 
 if(TARGET Marea-Lex)
     target_link_libraries(marea_tests PRIVATE marea::lex)
+endif()
+
+if(TARGET Marea-Parse)
+    target_link_libraries(marea_tests PRIVATE marea::parse)
 endif()
 
 gtest_discover_tests(marea_tests)

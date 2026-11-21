@@ -1,0 +1,87 @@
+// Copyright (c) 2026 Paulo Lucas Alves Franca
+// Licensed under the MIT License. See LICENSE.txt for full terms.
+
+#include "marea/parse/MAREAAstKind.h"
+
+static const MAREA_Character8 *const MAREA_G_AstKindNames[] = {
+    "COMPILATION_UNIT",
+    "NAMESPACE_DECLARATION",
+    "IMPORT_DECLARATION",
+    "QUALIFIED_NAME",
+    "IDENTIFIER",
+    "INTEGER_LITERAL",
+    "FLOAT_LITERAL",
+    "STRING_LITERAL",
+    "BOOLEAN_LITERAL",
+    "ATTRIBUTE",
+    "FILE_ATTRIBUTE",
+    "ATTRIBUTE_ITEM",
+    "CONSTANT_DECLARATION",
+    "TYPE_DECLARATION",
+    "STRUCTURE_DECLARATION",
+    "FIELD_DECLARATION",
+    "OPAQUE_DECLARATION",
+    "ENUM_DECLARATION",
+    "VARIANT_DECLARATION",
+    "VARIANT_FIELD",
+    "CONTRACT_DECLARATION",
+    "CONTRACT_FUNCTION",
+    "IMPLEMENTATION_DECLARATION",
+    "FUNCTION_DECLARATION",
+    "PARAMETER_LIST",
+    "PARAMETER",
+    "GENERIC_PARAMETERS",
+    "GENERIC_PARAMETER",
+    "WHERE_CLAUSE",
+    "CONSTRAINT",
+    "NAMED_TYPE",
+    "FUNCTION_TYPE",
+    "TYPE_ARGUMENTS",
+    "BLOCK",
+    "LOCAL_DECLARATION",
+    "ASSIGNMENT",
+    "EXPRESSION_STATEMENT",
+    "IF_STATEMENT",
+    "ELSEIF_CLAUSE",
+    "ELSE_CLAUSE",
+    "WHILE_STATEMENT",
+    "FOR_RANGE_STATEMENT",
+    "FOR_EACH_STATEMENT",
+    "SWITCH_STATEMENT",
+    "SWITCH_ARM",
+    "DEFAULT_ARM",
+    "WITH_STATEMENT",
+    "PARTITION_STATEMENT",
+    "RETURN_STATEMENT",
+    "BREAK_STATEMENT",
+    "CONTINUE_STATEMENT",
+    "SCOPE_BLOCK",
+    "UNSAFE_BLOCK",
+    "FORK_JOIN_BLOCK",
+    "MACRO_STATEMENT",
+    "BINARY_EXPRESSION",
+    "UNARY_EXPRESSION",
+    "PARENTHESIZED_EXPRESSION",
+    "MEMBER_ACCESS",
+    "INDEX_ACCESS",
+    "CALL_EXPRESSION",
+    "ARGUMENT_LIST",
+    "GENERIC_NAME",
+    "LITERAL_VALUE",
+    "FIELD_ENTRY",
+    "INDEX_ENTRY",
+    "VALUE_ENTRY",
+    "MACRO_CALL",
+    "ERROR_NODE",
+};
+
+MAREA_STATIC_ASSERT((sizeof(MAREA_G_AstKindNames) / sizeof(MAREA_G_AstKindNames[0])) == MAREA_AST_KIND_COUNT, "MAREA_G_AstKindNames must have one entry per AST kind.");
+
+const MAREA_Character8 *MAREA_CALL MAREA_AstKindGetName(MAREA_AstKind kind)
+{
+    if (((MAREA_IntegerSize)kind) >= (MAREA_IntegerSize)MAREA_AST_KIND_COUNT) {
+        return "UNKNOWN";
+    }
+
+    return MAREA_G_AstKindNames[kind];
+}
