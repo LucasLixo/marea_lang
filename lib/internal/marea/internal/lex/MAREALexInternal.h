@@ -4,8 +4,8 @@
 #if !defined(MAREA_INTERNAL_LEX_MAREALEXINTERNAL_H)
     #define MAREA_INTERNAL_LEX_MAREALEXINTERNAL_H
 
-    #include "marea/MAREACTypes.h"
-    #include "marea/MAREAMacros.h"
+    #include "marea/base/MAREACTypes.h"
+    #include "marea/base/MAREAMacros.h"
     #include "marea/base/MAREAArena.h"
     #include "marea/base/MAREADiagnostic.h"
     #include "marea/base/MAREASourcePosition.h"
