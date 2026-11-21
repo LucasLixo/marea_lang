@@ -35,6 +35,8 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaContextCreate(MAREA_Arena *arena, MAREA_Di
     context->sink = sink;
     context->resolver = resolver;
     context->names = (MAREA_SemaNameTable){ 0 };
+    context->generics = (MAREA_SemaNameTable){ 0 };
+    context->selfDepth = 0;
 
     *outContext = context;
 
@@ -114,23 +116,35 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaVisit(MAREA_SemaContext *context, const MA
         return ATTRIBUTES_RESULT;
     }
 
+    MAREA_SemaScopeMark mark = { 0 };
+
+    const MAREA_SemaExcept SCOPE_RESULT = MAREA_SemaScopeEnter(context, node, &mark);
+
+    if (SCOPE_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+        return SCOPE_RESULT;
+    }
+
+    MAREA_SemaExcept result = MAREA_SEMA_EXCEPT_SUCCESS;
+
+    if (MAREA_AstNodeGetKind(node) == MAREA_AST_KIND_NAMED_TYPE) {
+        result = MAREA_SemaCheckNamedType(context, node);
+    }
+
     const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(node);
 
-    for (MAREA_IntegerSize index = 0; index < COUNT; ++index) {
+    for (MAREA_IntegerSize index = 0; ((index < COUNT) && (result == MAREA_SEMA_EXCEPT_SUCCESS)); ++index) {
         const MAREA_AstNode *child = MAREA_NULLPTR;
 
         if (MAREA_AstNodeGetChildAt(node, index, &child) != MAREA_AST_EXCEPT_SUCCESS) {
             continue;
         }
 
-        const MAREA_SemaExcept RESULT = MAREA_SemaVisit(context, child);
-
-        if (RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
-            return RESULT;
-        }
+        result = MAREA_SemaVisit(context, child);
     }
 
-    return MAREA_SEMA_EXCEPT_SUCCESS;
+    MAREA_SemaScopeLeave(context, mark);
+
+    return result;
 }
 
 MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckCompilationUnit(MAREA_SemaContext *context, const MAREA_AstNode *root)
@@ -144,11 +158,19 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckCompilationUnit(MAREA_SemaContext *co
     }
 
     context->names = (MAREA_SemaNameTable){ 0 };
+    context->generics = (MAREA_SemaNameTable){ 0 };
+    context->selfDepth = 0;
 
     const MAREA_SemaExcept NAMES_RESULT = MAREA_SemaCheckNamespaceAndNames(context, root);
 
     if (NAMES_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
         return NAMES_RESULT;
+    }
+
+    const MAREA_SemaExcept DECLARATIONS_RESULT = MAREA_SemaCheckDeclarations(context, root);
+
+    if (DECLARATIONS_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+        return DECLARATIONS_RESULT;
     }
 
     return MAREA_SemaVisit(context, root);
