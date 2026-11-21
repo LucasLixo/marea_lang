@@ -85,6 +85,11 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaReportNamed(MAREA_SemaContext *context, MA
 {
     const MAREA_IntegerSize PREFIX_LENGTH = strlen(prefix);
 
+    // ERROR: a total that does not fit in MAREA_IntegerSize would allocate a small block and then copy past it.
+    if (nameLength > (MAREA_INTEGER_SIZE_MAXIMUM - PREFIX_LENGTH - MAREA_INTEGER_SIZE(4))) {
+        return MAREA_SEMA_EXCEPT_ERROR_OUT_OF_MEMORY;
+    }
+
     MAREA_Null memory = MAREA_NULLPTR;
 
     if (MAREA_ArenaAllocate(context->arena, (PREFIX_LENGTH + nameLength + MAREA_INTEGER_SIZE(4)), MAREA_ALIGNOF(MAREA_Character8), &memory) != MAREA_ARENA_EXCEPT_SUCCESS) {
