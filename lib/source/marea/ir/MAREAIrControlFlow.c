@@ -106,6 +106,92 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerMacroStatement(MAREA_IrContext *co
     return MAREA_IrNodeCreate(context, MAREA_IR_KIND_UNREACHABLE_STATEMENT, MAREA_SemaTypedNodeGetAstNode(typed), outNode);
 }
 
+// INFO: builds the synthetic increment name += 1 of a for-range loop.
+static MAREA_IrExcept MAREA_CALL MAREA_G_CreateIncrement(MAREA_IrContext *context, const MAREA_AstNode *forAst, const MAREA_AstNode *nameAst, MAREA_IrNode **outIncrement)
+{
+    MAREA_IrNode *increment = MAREA_NULLPTR;
+    MAREA_IrNode *reference = MAREA_NULLPTR;
+    MAREA_IrNode *one = MAREA_NULLPTR;
+
+    MAREA_IrExcept result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_ASSIGNMENT, forAst, &increment);
+
+    if (result == MAREA_IR_EXCEPT_SUCCESS) {
+        result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_IDENTIFIER, nameAst, &reference);
+    }
+
+    if (result == MAREA_IR_EXCEPT_SUCCESS) {
+        result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_INTEGER_LITERAL, forAst, &one);
+    }
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    increment->operatorKind = MAREA_TOKEN_KIND_PLUS_EQUAL;
+    one->text = MAREA_G_IncrementText;
+    one->textLength = (MAREA_Uinteger32)strlen(MAREA_G_IncrementText);
+
+    result = MAREA_IrNodeAppendChild(context, increment, reference);
+
+    if (result == MAREA_IR_EXCEPT_SUCCESS) {
+        result = MAREA_IrNodeAppendChild(context, increment, one);
+    }
+
+    if (result == MAREA_IR_EXCEPT_SUCCESS) {
+        *outIncrement = increment;
+    }
+
+    return result;
+}
+
+// INFO: a continue skips the increment at the end of the body, so each continue that targets this loop becomes BLOCK(increment, continue).
+// A nested while stops the walk, because a continue inside it targets that loop. A nested for-range is a while by now, so it stops it too.
+static MAREA_IrExcept MAREA_CALL MAREA_G_PrefixContinues(MAREA_IrContext *context, MAREA_IrNode *node, const MAREA_AstNode *forAst, const MAREA_AstNode *nameAst)
+{
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < node->childCount; index = (index + MAREA_INTEGER_SIZE(1))) {
+        MAREA_IrNode *child = node->children[index];
+
+        if (child->kind == MAREA_IR_KIND_WHILE_STATEMENT) {
+            continue;
+        }
+
+        if (child->kind != MAREA_IR_KIND_CONTINUE_STATEMENT) {
+            const MAREA_IrExcept result = MAREA_G_PrefixContinues(context, child, forAst, nameAst);
+
+            if (result != MAREA_IR_EXCEPT_SUCCESS) {
+                return result;
+            }
+
+            continue;
+        }
+
+        MAREA_IrNode *wrapper = MAREA_NULLPTR;
+        MAREA_IrNode *increment = MAREA_NULLPTR;
+
+        MAREA_IrExcept result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_BLOCK, forAst, &wrapper);
+
+        if (result == MAREA_IR_EXCEPT_SUCCESS) {
+            result = MAREA_G_CreateIncrement(context, forAst, nameAst, &increment);
+        }
+
+        if (result == MAREA_IR_EXCEPT_SUCCESS) {
+            result = MAREA_IrNodeAppendChild(context, wrapper, increment);
+        }
+
+        if (result == MAREA_IR_EXCEPT_SUCCESS) {
+            result = MAREA_IrNodeAppendChild(context, wrapper, child);
+        }
+
+        if (result != MAREA_IR_EXCEPT_SUCCESS) {
+            return result;
+        }
+
+        node->children[index] = wrapper;
+    }
+
+    return MAREA_IR_EXCEPT_SUCCESS;
+}
+
 // INFO: for name in first .. last do body end becomes BLOCK(LOCAL name = first, WHILE name <= last: body, name += 1).
 static MAREA_IrExcept MAREA_CALL MAREA_G_LowerForRange(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode)
 {
@@ -157,7 +243,6 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerForRange(MAREA_IrContext *context,
     MAREA_IrNode *condition = MAREA_NULLPTR;
     MAREA_IrNode *increment = MAREA_NULLPTR;
     MAREA_IrNode *reference = MAREA_NULLPTR;
-    MAREA_IrNode *one = MAREA_NULLPTR;
 
     result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_BLOCK, forAst, &outer);
 
@@ -174,11 +259,11 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerForRange(MAREA_IrContext *context,
     }
 
     if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_ASSIGNMENT, forAst, &increment);
+        result = MAREA_G_PrefixContinues(context, body, forAst, nameAst);
     }
 
     if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_INTEGER_LITERAL, forAst, &one);
+        result = MAREA_G_CreateIncrement(context, forAst, nameAst, &increment);
     }
 
     if (result != MAREA_IR_EXCEPT_SUCCESS) {
@@ -190,10 +275,6 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerForRange(MAREA_IrContext *context,
 
     // INFO: a range includes both ends (docs/grammar/marea.ebnf), so the bound is <=, not <.
     condition->operatorKind = MAREA_TOKEN_KIND_LESS_EQUAL;
-    increment->operatorKind = MAREA_TOKEN_KIND_PLUS_EQUAL;
-    one->text = MAREA_G_IncrementText;
-    one->textLength = (MAREA_Uinteger32)strlen(MAREA_G_IncrementText);
-
     result = MAREA_IrNodeAppendChild(context, local, first);
 
     if (result == MAREA_IR_EXCEPT_SUCCESS) {
@@ -206,20 +287,6 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerForRange(MAREA_IrContext *context,
 
     if (result == MAREA_IR_EXCEPT_SUCCESS) {
         result = MAREA_IrNodeAppendChild(context, condition, last);
-    }
-
-    reference = MAREA_NULLPTR;
-
-    if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_IDENTIFIER, nameAst, &reference);
-    }
-
-    if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_IrNodeAppendChild(context, increment, reference);
-    }
-
-    if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_IrNodeAppendChild(context, increment, one);
     }
 
     if (result == MAREA_IR_EXCEPT_SUCCESS) {
