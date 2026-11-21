@@ -169,7 +169,13 @@ MAREA_DiagnosticSeverity MAREA_CALL MAREA_DiagnosticGetSeverity(const MAREA_Diag
 MAREA_SourcePosition MAREA_CALL MAREA_DiagnosticGetPosition(const MAREA_Diagnostic *diagnostic)
 {
     if (diagnostic == MAREA_NULLPTR) {
-        MAREA_SourcePosition zeroed = { MAREA_NULLPTR, MAREA_UINTEGER_32(0), MAREA_UINTEGER_32(0), MAREA_UINTEGER_32(0), MAREA_UINTEGER_32(0) };
+        MAREA_SourcePosition zeroed = {
+            .file = MAREA_NULLPTR,
+            .offset = MAREA_UINTEGER_32(0),
+            .line = MAREA_UINTEGER_32(0),
+            .column = MAREA_UINTEGER_32(0),
+            .length = MAREA_UINTEGER_32(0),
+        };
 
         return zeroed;
     }
