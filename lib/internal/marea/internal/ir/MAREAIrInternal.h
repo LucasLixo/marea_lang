@@ -12,6 +12,7 @@
     #include "marea/ir/MAREAIr.h"
     #include "marea/ir/MAREAIrKind.h"
     #include "marea/ir/MAREAIrNode.h"
+    #include "marea/lex/MAREATokenKind.h"
     #include "marea/parse/MAREAAst.h"
     #include "marea/parse/MAREAAstKind.h"
     #include "marea/sema/MAREASemaTypedAst.h"

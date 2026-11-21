@@ -59,7 +59,11 @@ MAREA_DiagnosticSink *MAREA_CALL MAREA_IrContextGetDiagnostics(const MAREA_IrCon
 
 MAREA_IrExcept MAREA_CALL MAREA_IrRaise(MAREA_IrContext *context, MAREA_IrDiagnosticCode code, const MAREA_AstNode *at, const MAREA_Character8 *message, const MAREA_Character8 *name, MAREA_IntegerSize nameLength)
 {
-    if ((context == MAREA_NULLPTR) || (message == MAREA_NULLPTR)) {
+    if (context == MAREA_NULLPTR) {
+        return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    if (message == MAREA_NULLPTR) {
         return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
     }
 

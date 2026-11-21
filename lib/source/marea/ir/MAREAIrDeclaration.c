@@ -36,9 +36,20 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_RaiseGenericDeclaration(MAREA_IrContext
     return MAREA_IrRaise(context, MAREA_IR_DIAGNOSTIC_CODE_UNINSTANTIATED_GENERIC, MAREA_SemaTypedNodeGetAstNode(typed), message, MAREA_AstNodeGetText(nameAst), MAREA_AstNodeGetTextLength(nameAst));
 }
 
-// INFO: creates a node of a kind and names it after the IDENTIFIER child of the typed node.
 MAREA_IrExcept MAREA_CALL MAREA_IrCreateNamed(MAREA_IrContext *context, MAREA_IrKind kind, const MAREA_SemaTypedNode *typed, const MAREA_Character8 *qualifier, MAREA_IntegerSize qualifierLength, MAREA_IrNode **outNode)
 {
+    if (context == MAREA_NULLPTR) {
+        return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    if (typed == MAREA_NULLPTR) {
+        return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    if (outNode == MAREA_NULLPTR) {
+        return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
+    }
+
     MAREA_IrNode *node = MAREA_NULLPTR;
 
     MAREA_IrExcept result = MAREA_IrNodeCreate(context, kind, MAREA_SemaTypedNodeGetAstNode(typed), &node);
@@ -69,10 +80,24 @@ MAREA_IrExcept MAREA_CALL MAREA_IrCreateNamed(MAREA_IrContext *context, MAREA_Ir
     return MAREA_IR_EXCEPT_SUCCESS;
 }
 
-// INFO: lowers the expression right after the type child, when there is one, and appends it to node.
-// outComplete is false when that expression lowered to nothing; the caller then drops the declaration.
 MAREA_IrExcept MAREA_CALL MAREA_IrAppendInitializer(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode *node, MAREA_Boolean *outComplete)
 {
+    if (context == MAREA_NULLPTR) {
+        return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    if (typed == MAREA_NULLPTR) {
+        return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    if (node == MAREA_NULLPTR) {
+        return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    if (outComplete == MAREA_NULLPTR) {
+        return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
+    }
+
     *outComplete = MAREA_BOOLEAN_TRUE;
 
     const MAREA_IntegerSize COUNT = MAREA_SemaTypedNodeGetChildCount(typed);
@@ -366,7 +391,15 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerImplementation(MAREA_IrContext *co
 
 MAREA_IrExcept MAREA_CALL MAREA_IrLowerDeclaration(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, const MAREA_Character8 *qualifier, MAREA_IntegerSize qualifierLength, MAREA_IrNode *parent)
 {
-    if ((context == MAREA_NULLPTR) || (typed == MAREA_NULLPTR) || (parent == MAREA_NULLPTR)) {
+    if (context == MAREA_NULLPTR) {
+        return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    if (typed == MAREA_NULLPTR) {
+        return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    if (parent == MAREA_NULLPTR) {
         return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
     }
 
