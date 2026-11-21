@@ -135,3 +135,14 @@ TEST(MAREASemaControlFlow, ErrorNodeInBodyIsSkipped)
 
     EXPECT_TRUE(MAREA_codesOf("function f(): integer32 ; ) end").empty()) << "A broken body must raise no sema diagnostic.";
 }
+
+TEST(MAREASemaControlFlow, DivergingMacroEndsAPath)
+{
+    GTEST_COUT << "Validating unreachable!() and compile_error!() end a path and other macros do not." << std::endl;
+
+    EXPECT_TRUE(MAREA_codesOf("function f(a: boolean): integer32 if a then return 1; end unreachable!(); end").empty()) << "unreachable must end a path.";
+
+    EXPECT_TRUE(MAREA_codesOf("function f(): integer32 compile_error!(\"no\"); end").empty()) << "compile_error must end a path.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(): integer32 print!(\"x\"); end"), Codes{ MISSING_RETURN }) << "A printing macro must not end a path.";
+}

@@ -221,3 +221,33 @@ TEST(MAREASemaGenericsAndContracts, ErrorNodeInWhereClauseIsSkipped)
 
     EXPECT_TRUE(MAREA_codesOf("function f<Item>(a: Item) where : Copyable end").empty()) << "A constraint without a parameter must raise no sema diagnostic.";
 }
+
+TEST(MAREASemaGenericsAndContracts, EnumIsCopyableAndBuiltInTypesMeetUserContracts)
+{
+    GTEST_COUT << "Validating an enum is Copyable and a built-in type is not searched for contract functions." << std::endl;
+
+    const std::string COPY{ "function copy_of<Item>(a: Item): Item where Item: Copyable return copy a; end " };
+
+    EXPECT_TRUE(MAREA_codesOf(COPY + "enum Color red; end function run(c: Color): Color return copy_of(c); end").empty()) << "An enum must be Copyable.";
+
+    EXPECT_TRUE(MAREA_codesOf(COMPARABLE + MAXIMUM + "function run(): integer32 return maximum<integer32>(4, 8); end").empty()) << "A primitive must not be searched for implementations.";
+}
+
+TEST(MAREASemaGenericsAndContracts, LiteralMustFitThePrimitiveType)
+{
+    GTEST_COUT << "Validating a literal that cannot have the primitive type is a type mismatch." << std::endl;
+
+    constexpr MAREA_Uinteger32 MISMATCH{ MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH };
+
+    EXPECT_EQ(MAREA_codesOf("function f(a: integer32) end function g() f(\"text\"); end"), Codes{ MISMATCH }) << "A string for an integer must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(a: string) end function g() f(true); end"), Codes{ MISMATCH }) << "A boolean for a string must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(a: integer32) end function g() f(1.5); end"), Codes{ MISMATCH }) << "A fraction for an integer must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf("function g() local x: boolean = 1; end"), Codes{ MISMATCH }) << "A number for a boolean must raise TYPE_MISMATCH.";
+
+    EXPECT_TRUE(MAREA_codesOf("function f(a: float32, b: string, c: boolean, d: integer32) end function g() f(1, \"x\", true, 2); local x: float64 = 2.5; end").empty()) << "Fitting literals must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("function f(a: pointer<integer32>) end function g() f(\"text\"); end").empty()) << "A non-primitive type must not be guessed.";
+}

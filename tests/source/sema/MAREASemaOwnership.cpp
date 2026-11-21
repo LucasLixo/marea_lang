@@ -183,3 +183,12 @@ TEST(MAREASemaOwnership, ErrorNodeInPlaceOfAssignmentOrReturnIsSkipped)
 
     EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(a: Shape): Shape return + ; end").empty()) << "A broken return must raise no sema diagnostic.";
 }
+
+TEST(MAREASemaOwnership, EnumsAreByValue)
+{
+    GTEST_COUT << "Validating an enum is copied by a plain equal sign and can be returned from a parameter." << std::endl;
+
+    EXPECT_TRUE(MAREA_codesOf("enum Color red; green; end function f(a: mutable Color, b: Color) a = b; end").empty()) << "An enum assignment must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("enum Color red; green; end function f(b: Color): Color return b; end").empty()) << "An enum parameter must be returnable.";
+}

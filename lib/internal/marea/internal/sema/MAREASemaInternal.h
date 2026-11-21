@@ -383,6 +383,17 @@ MAREA_BEGIN_EXTERN_C
      */
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckEntryPoint(MAREA_SemaContext * context, const MAREA_AstNode *root);
 
+    /**
+     * @brief Reports TYPE_MISMATCH when a literal cannot have a primitive type: a string for a number or a
+     * boolean, a boolean for anything but a boolean, a fraction for an integer. Any other pair is accepted,
+     * because sema does not type the other expressions.
+     * @param context Context of the run. Must not be null.
+     * @param type NAMED_TYPE or FUNCTION_TYPE node that the value must have. May be null.
+     * @param expression Expression node. May be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER when context is null, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckLiteralFit(MAREA_SemaContext * context, const MAREA_AstNode *type, const MAREA_AstNode *expression);
+
 MAREA_END_EXTERN_C
 
 #endif /* MAREA_INTERNAL_SEMA_MAREASEMAINTERNAL_H */
