@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Paulo Lucas Alves Franca
+// Licensed under the MIT License. See LICENSE.txt for full terms.
+
 #include "tests/dependencies.hpp"
 
 #include "tests/MAREALexHelpers.hpp"
@@ -206,6 +209,23 @@ TEST(MAREALexerNumbers, MalformedPrefixReportsDiagnostic)
         ASSERT_FALSE(CODES.empty()) << "'" << source << "' must report a diagnostic.";
 
         EXPECT_EQ(CODES[0], static_cast<MAREA_Uinteger32>(MAREA_LEX_DIAGNOSTIC_CODE_MALFORMED_NUMBER)) << "The diagnostic must be MALFORMED_NUMBER.";
+    }
+}
+
+TEST(MAREALexerNumbers, UnderscoreRightAfterPrefixIsMalformed)
+{
+    GTEST_COUT << "Validating a 0x or 0b prefix followed by an underscore reports MALFORMED_NUMBER, as the grammar needs a digit first." << std::endl;
+
+    const char *malformedSources[]{ "0x_1", "0b_1" };
+
+    for (const char *source : malformedSources) {
+        MAREA_LexFixture fixture;
+
+        ASSERT_EQ(fixture.MAREA_lex(source), MAREA_LEX_EXCEPT_SUCCESS) << "Lexing '" << source << "' must succeed.";
+
+        EXPECT_EQ(fixture.MAREA_kinds(), (std::vector<MAREA_TokenKind>{ MAREA_TOKEN_KIND_ERROR, MAREA_TOKEN_KIND_IDENTIFIER, MAREA_TOKEN_KIND_END_OF_FILE })) << "'" << source << "' must split into an ERROR prefix token and the identifier that follows.";
+
+        EXPECT_EQ(fixture.MAREA_diagnosticCodes(), (std::vector<MAREA_Uinteger32>{ static_cast<MAREA_Uinteger32>(MAREA_LEX_DIAGNOSTIC_CODE_MALFORMED_NUMBER) })) << "'" << source << "' must report exactly one MALFORMED_NUMBER diagnostic.";
     }
 }
 

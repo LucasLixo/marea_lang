@@ -3,8 +3,6 @@
 
 #include "marea/internal/lex/MAREALexInternal.h"
 
-#include <stdio.h>
-
 static MAREA_Boolean MAREA_CALL MAREA_G_LexIsDecimalDigit(MAREA_Sinteger32 byte)
 {
     return ((byte >= '0') && (byte <= '9')) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
@@ -50,18 +48,19 @@ static MAREA_LexExcept MAREA_CALL MAREA_G_LexScanPrefixedInteger(MAREA_LexCursor
     MAREA_LexCursorAdvance(cursor);
     MAREA_LexCursorAdvance(cursor);
 
+    MAREA_Boolean(MAREA_CALL * isDigit)(MAREA_Sinteger32) = isHex ? MAREA_LexIsHexDigit : MAREA_G_LexIsBinaryDigit;
+
     MAREA_IntegerSize digitCount = MAREA_INTEGER_SIZE(0);
 
-    MAREA_G_LexSkipDigitsAndUnderscores(cursor, isHex ? MAREA_LexIsHexDigit : MAREA_G_LexIsBinaryDigit, &digitCount);
+    // INFO: the grammar needs a digit right after the prefix, so an underscore there is not skipped.
+    if (isDigit(MAREA_LexCursorPeek(cursor, MAREA_INTEGER_SIZE(0)))) {
+        MAREA_G_LexSkipDigitsAndUnderscores(cursor, isDigit, &digitCount);
+    }
 
     const MAREA_SourcePosition POSITION = MAREA_LexCursorMakePosition(cursor, startOffset, startLine, startColumn);
 
     if (digitCount == MAREA_INTEGER_SIZE(0)) {
-        MAREA_Character8 buffer[96];
-
-        MAREA_IGNORE(snprintf(buffer, sizeof(buffer), "malformed %s integer literal prefix", isHex ? "hexadecimal" : "binary"));
-
-        MAREA_LexCursorReportDiagnostic(cursor, MAREA_LEX_DIAGNOSTIC_CODE_MALFORMED_NUMBER, POSITION, buffer);
+        MAREA_LexCursorReportDiagnostic(cursor, MAREA_LEX_DIAGNOSTIC_CODE_MALFORMED_NUMBER, POSITION, isHex ? "malformed hexadecimal integer literal prefix" : "malformed binary integer literal prefix");
 
         return MAREA_LexTokenListAppend(list, MAREA_TOKEN_KIND_ERROR, text, POSITION.length, POSITION);
     }

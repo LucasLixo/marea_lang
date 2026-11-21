@@ -10,17 +10,17 @@
     #define MAREA_ARENA_DEFAULT_CHUNK_SIZE MAREA_INTEGER_SIZE(65536)
 #endif
 
-typedef struct MAREA_ArenaChunk
+typedef struct MAREA_G_ArenaChunk
 {
-    struct MAREA_ArenaChunk *next;
+    struct MAREA_G_ArenaChunk *next;
     MAREA_Uinteger8 *buffer;
     MAREA_IntegerSize capacity;
     MAREA_IntegerSize used;
-} MAREA_ArenaChunk;
+} MAREA_G_ArenaChunk;
 
 typedef struct MAREA_Arena
 {
-    MAREA_ArenaChunk *head;
+    MAREA_G_ArenaChunk *head;
     MAREA_IntegerSize chunkSize;
 } MAREA_Arena;
 
@@ -29,9 +29,17 @@ static MAREA_Boolean MAREA_CALL MAREA_G_ArenaIsPowerOfTwo(MAREA_IntegerSize valu
     return (value != MAREA_INTEGER_SIZE(0)) && ((value & (value - MAREA_INTEGER_SIZE(1))) == MAREA_INTEGER_SIZE(0));
 }
 
-static MAREA_ArenaChunk *MAREA_CALL MAREA_G_ArenaChunkCreate(MAREA_IntegerSize capacity)
+static MAREA_IntegerSize MAREA_CALL MAREA_G_ArenaAlignedOffset(const MAREA_G_ArenaChunk *chunk, MAREA_IntegerSize alignment)
 {
-    MAREA_ArenaChunk *chunk = malloc(sizeof(MAREA_ArenaChunk));
+    const uintptr_t base = (uintptr_t)chunk->buffer;
+    const uintptr_t aligned = ((base + chunk->used) + (alignment - MAREA_INTEGER_SIZE(1))) & ~((uintptr_t)alignment - MAREA_INTEGER_SIZE(1));
+
+    return (MAREA_IntegerSize)(aligned - base);
+}
+
+static MAREA_G_ArenaChunk *MAREA_CALL MAREA_G_ArenaChunkCreate(MAREA_IntegerSize capacity)
+{
+    MAREA_G_ArenaChunk *chunk = malloc(sizeof(MAREA_G_ArenaChunk));
 
     if (chunk == MAREA_NULLPTR) {
         return MAREA_NULLPTR;
@@ -87,10 +95,10 @@ void MAREA_CALL MAREA_ArenaDestroy(MAREA_Arena *arena)
         return;
     }
 
-    MAREA_ArenaChunk *chunk = arena->head;
+    MAREA_G_ArenaChunk *chunk = arena->head;
 
     while (chunk != MAREA_NULLPTR) {
-        MAREA_ArenaChunk *next = chunk->next;
+        MAREA_G_ArenaChunk *next = chunk->next;
 
         free(chunk->buffer);
         free(chunk);
@@ -111,23 +119,16 @@ MAREA_ArenaExcept MAREA_CALL MAREA_ArenaAllocate(MAREA_Arena *arena, MAREA_Integ
         return MAREA_ARENA_EXCEPT_ERROR_INVALID_ARGUMENT;
     }
 
-    MAREA_ArenaChunk *head = arena->head;
+    MAREA_G_ArenaChunk *head = arena->head;
 
-    const uintptr_t base = (uintptr_t)head->buffer;
-    const uintptr_t current = base + head->used;
-    const uintptr_t aligned = (current + (alignment - MAREA_INTEGER_SIZE(1))) & ~((uintptr_t)alignment - MAREA_INTEGER_SIZE(1));
-    const MAREA_IntegerSize offset = (MAREA_IntegerSize)(aligned - base);
+    const MAREA_IntegerSize offset = MAREA_G_ArenaAlignedOffset(head, alignment);
 
     if ((offset <= head->capacity) && ((head->capacity - offset) >= size)) {
         head->used = offset + size;
 
-        *outMemory = (MAREA_Null)aligned;
+        *outMemory = (head->buffer + offset);
 
         return MAREA_ARENA_EXCEPT_SUCCESS;
-    }
-
-    if (size > (MAREA_INTEGER_SIZE_MAXIMUM - alignment)) {
-        return MAREA_ARENA_EXCEPT_ERROR_OUT_OF_MEMORY;
     }
 
     const MAREA_IntegerSize baseCapacity = (size > arena->chunkSize) ? size : arena->chunkSize;
@@ -136,7 +137,7 @@ MAREA_ArenaExcept MAREA_CALL MAREA_ArenaAllocate(MAREA_Arena *arena, MAREA_Integ
         return MAREA_ARENA_EXCEPT_ERROR_OUT_OF_MEMORY;
     }
 
-    MAREA_ArenaChunk *newChunk = MAREA_G_ArenaChunkCreate(baseCapacity + alignment);
+    MAREA_G_ArenaChunk *newChunk = MAREA_G_ArenaChunkCreate(baseCapacity + alignment);
 
     if (newChunk == MAREA_NULLPTR) {
         return MAREA_ARENA_EXCEPT_ERROR_OUT_OF_MEMORY;
@@ -145,13 +146,11 @@ MAREA_ArenaExcept MAREA_CALL MAREA_ArenaAllocate(MAREA_Arena *arena, MAREA_Integ
     newChunk->next = arena->head;
     arena->head = newChunk;
 
-    const uintptr_t newBase = (uintptr_t)newChunk->buffer;
-    const uintptr_t newAligned = (newBase + (alignment - MAREA_INTEGER_SIZE(1))) & ~((uintptr_t)alignment - MAREA_INTEGER_SIZE(1));
-    const MAREA_IntegerSize newOffset = (MAREA_IntegerSize)(newAligned - newBase);
+    const MAREA_IntegerSize newOffset = MAREA_G_ArenaAlignedOffset(newChunk, alignment);
 
     newChunk->used = newOffset + size;
 
-    *outMemory = (MAREA_Null)newAligned;
+    *outMemory = (newChunk->buffer + newOffset);
 
     return MAREA_ARENA_EXCEPT_SUCCESS;
 }
