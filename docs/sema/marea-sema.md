@@ -1,5 +1,7 @@
 # Marea sema stage
 
+## Contract
+
 The `sema` stage checks the tree of the `parse` stage. It reads a public tree and writes diagnostics.
 It has no global state, never prints and never reads the disk: the caller gives it an arena, a
 diagnostic sink and an import resolver. `MAREA_SemaCheckCompilationUnit` itself returns no artifact
@@ -43,34 +45,6 @@ top-level symbol `c` there. Both answers `NOT_FOUND` is `UNRESOLVED_IMPORT`. A n
 `EXTERNAL` namespace is opaque: it meets every contract, takes any arguments and gives no diagnostic.
 The local name of an import is its alias, or its last segment. A type name that no local rule knows
 is given to the resolver as a last step.
-
-## Diagnostics
-
-| Code | Name | Example |
-|---|---|---|
-| 3001 | `UNRESOLVED_IMPORT` | `import a.b.c;` when the resolver finds neither `a.b.c` nor a public `c` in `a.b` |
-| 3002 | `NAMESPACE_PATH_MISMATCH` | `namespace a.b.c;` in the file `a/b.marea` |
-| 3003 | `NAME_ALREADY_DECLARED` | `structure Item end function Item() end`, or an import and a declaration of one local name |
-| 3004 | `UNDECLARED_NAME` | `where Item: Missing`, or a constraint on a name that is not a generic parameter |
-| 3005 | `UNKNOWN_ATTRIBUTE_KEY` | `#[frobnicate = true]` |
-| 3006 | `INVALID_ATTRIBUTE_VALUE` | `#[inline = maybe]`, `#[build = 1]`, `#[simd = force]` |
-| 3007 | `CONFLICTING_ATTRIBUTES` | `#[public, private]`, `#[pack = 1, align = 16]`, a key given twice |
-| 3008 | `INVALID_ALIGNMENT` | `#[align = 15]` |
-| 3009 | `UNKNOWN_TYPE` | `a: Missing;` in a structure |
-| 3010 | `ARGUMENT_COUNT_MISMATCH` | `add(1)` when `add` takes two parameters |
-| 3011 | `TYPE_MISMATCH` | `f("text")` when the parameter is `integer32`, `local x: boolean = 1;` |
-| 3012 | `DUPLICATE_MEMBER` | two `implementation` blocks of one type that both declare `area` |
-| 3013 | `CONTRACT_NOT_SATISFIED` | `maximum(a, b)` when the type of `a` has no `less` for `where Item: Comparable` |
-| 3014 | `GENERIC_ARGUMENT_MISMATCH` | `Pair<integer32>` when `Pair` has two parameters, `Box<4>` |
-| 3015 | `INSTANTIATION_TOO_DEEP` | a type argument nested 65 levels |
-| 3016 | `ASSIGNMENT_NEEDS_COPY_OR_MOVE` | `a = b;` when the type is not a primitive or a `#[value]` type |
-| 3017 | `INVALID_BORROW` | `s: reference Shape` when `Shape` is already a borrow |
-| 3018 | `REFERENCE_ESCAPES_SCOPE` | `return s;` when `s` is a borrow parameter |
-| 3019 | `EXCLUSIVE_BORROW_CONFLICT` | `take(s, s)` when one parameter is `mutable` |
-| 3020 | `INVALID_SPAWN_ARGUMENT` | `spawn g(m)` in `fork_join` when `m` is a `mutable` parameter |
-| 3021 | `NON_EXHAUSTIVE_SWITCH` | a `switch` over an enum that misses a variant and has no `default` |
-| 3022 | `MISSING_RETURN` | `if a then return 1; end` as the whole body of a function with a return type |
-| 3023 | `INVALID_MAIN_SIGNATURE` | `function main(): integer32` in the namespace `main` |
 
 ## Rules
 
@@ -156,6 +130,34 @@ result substitution is not performed: when the return type names an unbound gene
 example `Pair<T>.first(): T` called without `ir`-level instantiation), the typed node is tagged
 `GENERIC` and the raw, unsubstituted type name is kept - never a guess, never a crash. Resolving the
 real, instantiated result type is deferred to when the `ir` stage needs one for real.
+
+## Diagnostics
+
+| Code | Name | Example |
+|---|---|---|
+| 3001 | `UNRESOLVED_IMPORT` | `import a.b.c;` when the resolver finds neither `a.b.c` nor a public `c` in `a.b` |
+| 3002 | `NAMESPACE_PATH_MISMATCH` | `namespace a.b.c;` in the file `a/b.marea` |
+| 3003 | `NAME_ALREADY_DECLARED` | `structure Item end function Item() end`, or an import and a declaration of one local name |
+| 3004 | `UNDECLARED_NAME` | `where Item: Missing`, or a constraint on a name that is not a generic parameter |
+| 3005 | `UNKNOWN_ATTRIBUTE_KEY` | `#[frobnicate = true]` |
+| 3006 | `INVALID_ATTRIBUTE_VALUE` | `#[inline = maybe]`, `#[build = 1]`, `#[simd = force]` |
+| 3007 | `CONFLICTING_ATTRIBUTES` | `#[public, private]`, `#[pack = 1, align = 16]`, a key given twice |
+| 3008 | `INVALID_ALIGNMENT` | `#[align = 15]` |
+| 3009 | `UNKNOWN_TYPE` | `a: Missing;` in a structure |
+| 3010 | `ARGUMENT_COUNT_MISMATCH` | `add(1)` when `add` takes two parameters |
+| 3011 | `TYPE_MISMATCH` | `f("text")` when the parameter is `integer32`, `local x: boolean = 1;` |
+| 3012 | `DUPLICATE_MEMBER` | two `implementation` blocks of one type that both declare `area` |
+| 3013 | `CONTRACT_NOT_SATISFIED` | `maximum(a, b)` when the type of `a` has no `less` for `where Item: Comparable` |
+| 3014 | `GENERIC_ARGUMENT_MISMATCH` | `Pair<integer32>` when `Pair` has two parameters, `Box<4>` |
+| 3015 | `INSTANTIATION_TOO_DEEP` | a type argument nested 65 levels |
+| 3016 | `ASSIGNMENT_NEEDS_COPY_OR_MOVE` | `a = b;` when the type is not a primitive or a `#[value]` type |
+| 3017 | `INVALID_BORROW` | `s: reference Shape` when `Shape` is already a borrow |
+| 3018 | `REFERENCE_ESCAPES_SCOPE` | `return s;` when `s` is a borrow parameter |
+| 3019 | `EXCLUSIVE_BORROW_CONFLICT` | `take(s, s)` when one parameter is `mutable` |
+| 3020 | `INVALID_SPAWN_ARGUMENT` | `spawn g(m)` in `fork_join` when `m` is a `mutable` parameter |
+| 3021 | `NON_EXHAUSTIVE_SWITCH` | a `switch` over an enum that misses a variant and has no `default` |
+| 3022 | `MISSING_RETURN` | `if a then return 1; end` as the whole body of a function with a return type |
+| 3023 | `INVALID_MAIN_SIGNATURE` | `function main(): integer32` in the namespace `main` |
 
 ## Gaps
 

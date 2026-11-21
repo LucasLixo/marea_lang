@@ -24,7 +24,10 @@ The owner of each subject is listed in [the canonical document map](references/c
 - `CLAUDE.md` and the entries of `.github/skills/` are symlinks. Edit the target (`AGENTS.md`, `.claude/skills/<name>/`), never the link, and when a skill is added or removed, add or remove its `.github/skills/` link in the same change.
 - Use relative Markdown links between documents. English, ASCII only.
 - Frontmatter: skills carry `name`, `mode`, `effort`, `description`, plus `globs` and `argument-hint` where meaningful; a workflow skill always carries `mode`, `effort` and `argument-hint`, and its `description` starts with "Use when"; a step file under `steps/` carries no frontmatter, has a "Done when" list and names the next step; an `AGENTS.md` carries only `name` and `description`.
-- Instructions never tell an agent to author tutorial or report `.md` files.
+- Instructions never tell an agent to author tutorial or report `.md` files. This does not reach a
+  canonical, continuously-maintained reference such as a [stage-docs](../stage-docs/SKILL.md) file:
+  the rule bans the one-off artifact generated once and left to rot, not the designated doc that
+  "Docs are part of the change" ([AGENTS.md](../../../AGENTS.md)) already requires to stay current.
 - A skill whose work is a sequence of actions is written in parts, as a workflow skill (see "Workflow skills" below). Never write a long ordered procedure as one block of prose.
 
 ## Workflow skills
