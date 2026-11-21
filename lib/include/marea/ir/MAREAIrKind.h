@@ -1,0 +1,71 @@
+// Copyright (c) 2026 Paulo Lucas Alves Franca
+// Licensed under the MIT License. See LICENSE.txt for full terms.
+
+#if !defined(MAREA_INCLUDE_IR_MAREAIRKIND_H)
+    #define MAREA_INCLUDE_IR_MAREAIRKIND_H
+
+    #include "marea/base/MAREACTypes.h"
+    #include "marea/base/MAREAMacros.h"
+
+MAREA_BEGIN_EXTERN_C
+
+    /**
+     * @brief Kind of an IR node. A kind keeps the name and the child layout of the AST kind it comes
+     * from, except MODULE (the root) and UNREACHABLE_STATEMENT (the lowering of unreachable!()). The
+     * list ends with MAREA_IR_KIND_COUNT.
+     */
+    typedef enum MAREA_IrKind
+    {
+        MAREA_IR_KIND_MODULE,
+        MAREA_IR_KIND_CONSTANT_DECLARATION,
+        MAREA_IR_KIND_STRUCTURE_DECLARATION,
+        MAREA_IR_KIND_FIELD_DECLARATION,
+        MAREA_IR_KIND_ENUM_DECLARATION,
+        MAREA_IR_KIND_VARIANT_DECLARATION,
+        MAREA_IR_KIND_VARIANT_FIELD,
+        MAREA_IR_KIND_FUNCTION_DECLARATION,
+        MAREA_IR_KIND_PARAMETER_LIST,
+        MAREA_IR_KIND_PARAMETER,
+        MAREA_IR_KIND_BLOCK,
+        MAREA_IR_KIND_LOCAL_DECLARATION,
+        MAREA_IR_KIND_ASSIGNMENT,
+        MAREA_IR_KIND_EXPRESSION_STATEMENT,
+        MAREA_IR_KIND_IF_STATEMENT,
+        MAREA_IR_KIND_ELSEIF_CLAUSE,
+        MAREA_IR_KIND_ELSE_CLAUSE,
+        MAREA_IR_KIND_WHILE_STATEMENT,
+        MAREA_IR_KIND_RETURN_STATEMENT,
+        MAREA_IR_KIND_BREAK_STATEMENT,
+        MAREA_IR_KIND_CONTINUE_STATEMENT,
+        MAREA_IR_KIND_SCOPE_BLOCK,
+        MAREA_IR_KIND_IDENTIFIER,
+        MAREA_IR_KIND_INTEGER_LITERAL,
+        MAREA_IR_KIND_FLOAT_LITERAL,
+        MAREA_IR_KIND_STRING_LITERAL,
+        MAREA_IR_KIND_BOOLEAN_LITERAL,
+        MAREA_IR_KIND_BINARY_EXPRESSION,
+        MAREA_IR_KIND_UNARY_EXPRESSION,
+        MAREA_IR_KIND_MEMBER_ACCESS,
+        MAREA_IR_KIND_INDEX_ACCESS,
+        MAREA_IR_KIND_CALL_EXPRESSION,
+        MAREA_IR_KIND_ARGUMENT_LIST,
+        MAREA_IR_KIND_LITERAL_VALUE,
+        MAREA_IR_KIND_FIELD_ENTRY,
+        MAREA_IR_KIND_INDEX_ENTRY,
+        MAREA_IR_KIND_VALUE_ENTRY,
+        MAREA_IR_KIND_QUALIFIED_NAME,
+        MAREA_IR_KIND_UNREACHABLE_STATEMENT,
+
+        MAREA_IR_KIND_COUNT
+    } MAREA_IrKind;
+
+    /**
+     * @brief Returns the stable upper-case name of an IR kind, for example "MODULE".
+     * @param kind Kind to name.
+     * @return The name, or "UNKNOWN" when kind is out of range.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_Character8 *MAREA_CALL MAREA_IrKindGetName(MAREA_IrKind kind);
+
+MAREA_END_EXTERN_C
+
+#endif /* MAREA_INCLUDE_IR_MAREAIRKIND_H */

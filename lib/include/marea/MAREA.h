@@ -21,4 +21,8 @@
     #include "marea/sema/MAREASema.h"
     #include "marea/sema/MAREASemaImportResolver.h"
 
+    #include "marea/ir/MAREAIr.h"
+    #include "marea/ir/MAREAIrKind.h"
+    #include "marea/ir/MAREAIrNode.h"
+
 #endif
