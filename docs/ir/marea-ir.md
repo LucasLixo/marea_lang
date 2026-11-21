@@ -112,6 +112,11 @@ BLOCK
 The bound is inclusive (`<=`), because the grammar says a range includes both ends. The hidden loop
 variable has no type name.
 
+A `continue` that targets the loop would skip the increment at the end of the body. So each such
+`continue` becomes `BLOCK(ASSIGNMENT index += 1, CONTINUE_STATEMENT)`. A `continue` inside a nested
+`while` or for-range loop targets that loop and stays as it is (the nested for-range loop adds its own
+increment).
+
 ## Text dump
 
 `MAREA_IrModuleDump` writes the tree as stable text into the arena, one node per line, in the same
@@ -191,8 +196,6 @@ Each diagnostic carries the position of the construct that raised it.
   type-qualified static call (`array<integer32>.filled(8, 0)`) are not user generics, but raise 4004,
   because the IR erases type arguments and a call that keeps only its name would be wrong. They need an
   IR form or a diagnostic code of their own.
-- A `continue` in the body of a for-range loop skips the synthetic `index += 1`, so such a loop never
-  ends. No test covers it.
 - The desugared loop evaluates `last` again on every iteration, and `index <= last` never ends when
   `last` is the maximum of its integer type.
 - The hidden loop variable of a for-range loop has no type name (sema gives none for a range bound). A
