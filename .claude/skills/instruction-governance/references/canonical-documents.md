@@ -29,3 +29,4 @@ Link map of every canonical agent-instruction document and the one subject each 
 | [reconcile-temp-logs](../../reconcile-temp-logs/SKILL.md) | Verified reconciliation of apply files and temp logs |
 | [request-make-apply](../../request-make-apply/SKILL.md) | Sizing a request (large, medium, small) and delivering it in an isolated worktree of this repository |
 | [rust-style](../../rust-style/SKILL.md) | Rust binding crate conventions (no Rust code exists yet) |
+| [stage-docs](../../stage-docs/SKILL.md) | The one reference doc per compiler stage under `docs/`: its fixed section pattern and how `## Gaps` relates to the outcome logs |

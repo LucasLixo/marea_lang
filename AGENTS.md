@@ -114,6 +114,7 @@ file keeps only the global policy.
 | `CMakeLists.txt` / `*.cmake` | `cmake-style` |
 | Tests under `tests/` (GoogleTest, C++) | `cpp-testing` |
 | Adding a 3rdparty library (licenses included) | `add-dependency` |
+| `docs/<stage>/*.md` | `stage-docs` |
 | Committing | `generate-commit` |
 | Editing `AGENTS.md` or skills | `instruction-governance` |
 

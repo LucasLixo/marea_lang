@@ -1,4 +1,6 @@
-# Marea AST and the parse stage
+# Marea parse stage
+
+## Contract
 
 The `parse` stage turns the token list of the `lex` stage into a syntax tree. It reads public data
 (tokens) and writes public data (a tree and diagnostics). It has no global state, never prints and
@@ -149,6 +151,21 @@ operators on its left: `-a ** 2` is `-(a ** 2)`, and the right side may be unary
 - **Macro name.** `name!(` is a macro call. The word `namespace` may also name a macro
   (`namespace!()`), the one keyword exception that the grammar lists in `macro_call`.
 
+## Recovery
+
+- A bad top level token gives an `ERROR_NODE` child of the root, and the parser skips to a `;`
+  (consumed) or to a safe word: `end`, `case`, `default`, `elseif`, `else`, a keyword that starts an
+  item or a statement, or `#[`.
+- A bad member of a structure, enum, contract or implementation, and a bad arm of a switch, is
+  treated the same way. Every loop of the parser moves at least one token on each pass.
+- A missing `;`, `then`, `do` or closing bracket is reported and nothing is skipped, so the next
+  construct is parsed normally.
+- A block stops at `end`, at the end of the file, or at the start of a top level declaration, so an
+  unfinished body never hides the next function. `elseif`, `else`, `case` and `default` end the
+  block only inside an `if` or a `switch`; elsewhere they are reported and skipped.
+- Nesting is limited to 256 levels of expression, statement and type. Deeper input gives
+  `RECURSION_TOO_DEEP` and that construct is left unparsed.
+
 ## Diagnostics
 
 All are errors, from 2001 up. A diagnostic is not repeated at the same byte offset twice in a row.
@@ -165,22 +182,7 @@ All are errors, from 2001 up. A diagnostic is not repeated at the same byte offs
 | 2008 | `RECURSION_TOO_DEEP` | 300 nested parentheses, `if` blocks or type arguments |
 | 2009 | `UNTERMINATED_BLOCK` | a structure, function or other block that reaches the end of the file |
 
-## Recovery
-
-- A bad top level token gives an `ERROR_NODE` child of the root, and the parser skips to a `;`
-  (consumed) or to a safe word: `end`, `case`, `default`, `elseif`, `else`, a keyword that starts an
-  item or a statement, or `#[`.
-- A bad member of a structure, enum, contract or implementation, and a bad arm of a switch, is
-  treated the same way. Every loop of the parser moves at least one token on each pass.
-- A missing `;`, `then`, `do` or closing bracket is reported and nothing is skipped, so the next
-  construct is parsed normally.
-- A block stops at `end`, at the end of the file, or at the start of a top level declaration, so an
-  unfinished body never hides the next function. `elseif`, `else`, `case` and `default` end the
-  block only inside an `if` or a `switch`; elsewhere they are reported and skipped.
-- Nesting is limited to 256 levels of expression, statement and type. Deeper input gives
-  `RECURSION_TOO_DEEP` and that construct is left unparsed.
-
-## Known limits
+## Gaps
 
 - The parser is iterative for a chain of binary operators, but the text dump walks the tree
   recursively, so a left-deep tree of hundreds of thousands of operators needs a large stack.
