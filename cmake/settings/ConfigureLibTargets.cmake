@@ -27,17 +27,6 @@ macro(ConfigureLibTargets)
         add_library(marea::base ALIAS marea_base)
 
         target_link_libraries(marea_base PUBLIC marea::include PRIVATE marea::internal)
-        target_include_directories(marea_base PUBLIC "${MAREA_FOLDER_CMAKE_BINARY_LIB_GENERATED}")
-
-        # Force-included (PUBLIC, so every consumer gets it too) instead of a manual #include in every source file
-        BasicForceIncludeHeader(
-            TARGET
-            marea_base
-            VISIBILITY
-            PUBLIC
-            HEADER
-            "${MAREA_FOLDER_CMAKE_BINARY_LIB_GENERATED}/marea/base/MAREASettingsHeader.h"
-        )
 
         target_compile_options(marea_base PRIVATE "$<$<C_COMPILER_ID:Clang,AppleClang,GNU>:-Wall;-Wextra;-Wpedantic>")
 

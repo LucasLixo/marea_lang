@@ -41,6 +41,8 @@ An upstream option of a third-party project keeps the spelling that project defi
 
 Declare an option in `cmake/settings/ConfigureOptions.cmake`, in its one block. A folder path is defined once in `cmake/settings/ConfigureFolders.cmake` as `MAREA_FOLDER_*`; read that variable and never rebuild the path from `CMAKE_SOURCE_DIR`. `ConfigureMiseTools` checks that every tool of `mise.toml` [tools] provides its executables; a new tool there needs an entry in that file.
 
+The generated `MAREASettingsHeader.h` has its template and its generating script next to the public headers (`lib/include/marea/base/MAREASettingsHeader.h.in` and `.cmake`, included by `lib/include/CMakeLists.txt`); it reaches the compiler as a force-include on the command line (`BasicForceIncludeHeader`, INTERFACE on `marea::include`), never through an `#include` in a source or header.
+
 Every file under `cmake/` starts with a guard that fails when it is included twice, and a settings file exposes one macro named like the file.
 
 ## Keyword arguments
