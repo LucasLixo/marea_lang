@@ -13,6 +13,7 @@
     #include "marea/parse/MAREAAstKind.h"
     #include "marea/sema/MAREASema.h"
     #include "marea/sema/MAREASemaImportResolver.h"
+    #include "marea/sema/MAREASemaTypedAst.h"
 
 MAREA_BEGIN_EXTERN_C
 
@@ -89,19 +90,6 @@ MAREA_BEGIN_EXTERN_C
         MAREA_Uinteger32 selfDepth;
         MAREA_Uinteger32 forkDepth;
     } MAREA_SemaScopeMark;
-
-    /**
-     * @brief How the checks treat a type.
-     */
-    typedef enum MAREA_SemaTypeClass
-    {
-        MAREA_SEMA_TYPE_CLASS_PRIMITIVE = MAREA_UINTEGER_8(0),
-        MAREA_SEMA_TYPE_CLASS_COPY_BUILTIN = MAREA_UINTEGER_8(1),
-        MAREA_SEMA_TYPE_CLASS_MOVE_BUILTIN = MAREA_UINTEGER_8(2),
-        MAREA_SEMA_TYPE_CLASS_GENERIC = MAREA_UINTEGER_8(3),
-        MAREA_SEMA_TYPE_CLASS_USER = MAREA_UINTEGER_8(4),
-        MAREA_SEMA_TYPE_CLASS_EXTERNAL = MAREA_UINTEGER_8(5),
-    } MAREA_SemaTypeClass;
 
     /**
      * @brief Adds a diagnostic with the severity ERROR to the sink of the context.
