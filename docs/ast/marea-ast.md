@@ -146,8 +146,8 @@ operators on its left: `-a ** 2` is `-(a ** 2)`, and the right side may be unary
   an assignment operator follows, it is an `ASSIGNMENT`; a bare macro call is a `MACRO_STATEMENT`;
   anything else is an `EXPRESSION_STATEMENT`.
 - **`for`.** `for each` starts a `FOR_EACH_STATEMENT`, any other `for` a `FOR_RANGE_STATEMENT`.
-- **Macro name.** `name!(` is a macro call. The word `namespace` is also accepted as a macro name,
-  because `namespace!()` is a built-in macro that examples use; the grammar does not allow it.
+- **Macro name.** `name!(` is a macro call. The word `namespace` may also name a macro
+  (`namespace!()`), the one keyword exception that the grammar lists in `macro_call`.
 
 ## Diagnostics
 
