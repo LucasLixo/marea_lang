@@ -1,0 +1,18 @@
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Step 11: namespaces, the library side.
+-- The first statement of every file is its namespace. The default name is the folder path
+-- relative to the project root, plus the file name without extension, joined by dots.
+-- This file is examples/namespaces/library.marea, so its namespace is namespaces.library.
+-- The name is written in the file, and the compiler checks that it matches the path.
+
+namespace namespaces.library;
+
+#[public]
+function greet(name: string): string
+    return name;
+end
+
+#[public]
+constant LIBRARY_NAME: string = "library";

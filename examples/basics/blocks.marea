@@ -1,0 +1,26 @@
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Step 4: blocks. "do ... end" alone makes a scope without a function.
+-- A name declared inside a block ends at its "end". The curly braces are only for literals.
+-- Data that a scope owns is freed when the scope ends, in the reverse order of its creation.
+
+namespace basics.blocks;
+
+import collections.array;
+
+#[public]
+function show_blocks(): integer32
+    local result: integer32 = 1;
+    do
+        local temporary: integer32 = 10;
+        result += temporary;
+    end
+    -- temporary does not exist here
+    do
+        -- The array belongs to this block. It is freed at the "end". There is no free call.
+        local scratch: array<integer32> = array<integer32>.filled(8, 0);
+        result += scratch[0];
+    end
+    return result;
+end

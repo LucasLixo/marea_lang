@@ -1,0 +1,71 @@
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Step 3: control flow. One instruction per line. Every block ends with "end".
+-- The condition of "if" and "while" has no parenthesis. "then" and "do" end the condition.
+
+namespace basics.control_flow;
+
+import collections.array;
+
+#[public]
+function classify(score: integer32): string
+    if score >= 90 then
+        return "high";
+    elseif score >= 50 then
+        return "medium";
+    else
+        return "low";
+    end
+end
+
+#[public]
+function count_up(limit: integer32): integer32
+    local total: integer32 = 0;
+    local index: integer32 = 0;
+    while index < limit do
+        total += index;
+        index += 1;
+    end
+    return total;
+end
+
+-- A range "first .. last" includes both ends.
+#[public]
+function sum_range(first: integer32, last: integer32): integer32
+    local total: integer32 = 0;
+    for index in first .. last do
+        total += index;
+    end
+    return total;
+end
+
+-- "switch" works on an integer or an enum. One "case" can list many values. There is no
+-- fall through. "default" runs when no case matches.
+#[public]
+function day_kind(day: integer32): string
+    switch day
+        case 6, 7 then
+            return "weekend";
+        case 1, 2, 3, 4, 5 then
+            return "weekday";
+        default then
+            return "invalid";
+    end
+end
+
+-- "values" is a read-only borrow. The loop variable is a read-only borrow of one element.
+#[public]
+function sum_array(values: array<integer32>): integer32
+    local total: integer32 = 0;
+    for each value in values do
+        if value < 0 then
+            continue;
+        end
+        if value > 1000 then
+            break;
+        end
+        total += value;
+    end
+    return total;
+end
