@@ -10,7 +10,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_LexIsDecimalDigit(MAREA_Sinteger32 byte)
     return ((byte >= '0') && (byte <= '9')) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
-static MAREA_Boolean MAREA_CALL MAREA_G_LexIsHexDigit(MAREA_Sinteger32 byte)
+MAREA_Boolean MAREA_CALL MAREA_LexIsHexDigit(MAREA_Sinteger32 byte)
 {
     return (MAREA_G_LexIsDecimalDigit(byte) || ((byte >= 'a') && (byte <= 'f')) || ((byte >= 'A') && (byte <= 'F'))) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
@@ -52,12 +52,12 @@ static MAREA_LexExcept MAREA_CALL MAREA_G_LexScanPrefixedInteger(MAREA_LexCursor
 
     MAREA_IntegerSize digitCount = MAREA_INTEGER_SIZE(0);
 
-    MAREA_G_LexSkipDigitsAndUnderscores(cursor, isHex ? MAREA_G_LexIsHexDigit : MAREA_G_LexIsBinaryDigit, &digitCount);
+    MAREA_G_LexSkipDigitsAndUnderscores(cursor, isHex ? MAREA_LexIsHexDigit : MAREA_G_LexIsBinaryDigit, &digitCount);
 
     const MAREA_SourcePosition POSITION = MAREA_LexCursorMakePosition(cursor, startOffset, startLine, startColumn);
 
     if (digitCount == MAREA_INTEGER_SIZE(0)) {
-        char buffer[96];
+        MAREA_Character8 buffer[96];
 
         MAREA_IGNORE(snprintf(buffer, sizeof(buffer), "malformed %s integer literal prefix", isHex ? "hexadecimal" : "binary"));
 
