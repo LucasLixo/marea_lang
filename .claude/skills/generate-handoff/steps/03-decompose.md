@@ -12,11 +12,11 @@ Each apply is one focused session of work. Size them by that, not by file count.
 
 **Split** when any of these holds:
 
-- the pieces carry **different `metadata.yaml` bumps** - one PR must not claim to be both a patch and a major
+- the pieces carry **different version bumps** (when the repository tracks `metadata.yaml`) - one PR must not claim to be both a patch and a major
 - one piece is a **decision gate** whose outcome changes whether the next is worth doing
 - together they would produce a diff nobody can review as a unit
 
-**Group** when a reviewer would want to see the pieces land together - an engine symbol and its only consumer, a function and the test that covers it. A change always travels with its test and its doc; splitting those apart is never the right cut.
+**Group** when a reviewer would want to see the pieces land together - a library symbol and its only consumer, a function and the test that covers it. A change always travels with its test and its doc; splitting those apart is never the right cut.
 
 ### Dependencies
 

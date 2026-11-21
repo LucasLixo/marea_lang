@@ -15,15 +15,15 @@ One global file, one `##` section per handoff. Created on the first run and **ed
 ```md
 # Handoff list
 
-## Port the audio device to Rust
+## Add the lexer stage
 
 Legend: `[ ]` pending  `[x]` done  `[-]` cancelled
 
 | | Apply | Description | Depends on | Issue |
 | - | ----- | ----------- | ---------- | ----- |
-| [ ] | `_APPLY/port-audio-device-to-rust.apply.md` | Device handle into lib/rust | - | |
-| [ ] | `_APPLY/cover-device-enumeration.apply.md` | GoogleTest for device enumeration | - | |
-| [ ] | `_APPLY/document-marea-audio-open.apply.md` | docs/functions/ entry for the new signature | port-audio-device-to-rust | |
+| [ ] | `_APPLY/add-lexer-token-kinds.apply.md` | Token kinds and the token type in lib/include/marea/lex | - | |
+| [ ] | `_APPLY/cover-diagnostic-sink-accessors.apply.md` | GoogleTest for the diagnostic sink accessors | - | |
+| [ ] | `_APPLY/add-lexer-scan-function.apply.md` | The scan function that fills a token list | add-lexer-token-kinds | |
 ```
 
 `Depends on` holds apply slugs without the `.apply.md` suffix, `-` when there are none. There is deliberately **no second identifier scheme** - the slug is the name everywhere, so nothing has to be kept in step with anything.
@@ -37,16 +37,16 @@ One global file, one `##` section per handoff, titled identically to its `_LIST_
 ```md
 # Handoff log
 
-## Port the audio device to Rust
+## Add the lexer stage
 
-Goal: move device ownership out of C into lib/rust with the C ABI unchanged.
+Goal: add the lex stage with its token kinds, diagnostics and tests, following the grammar in docs/grammar/marea.ebnf.
 
 Root issue: TBD
 Root branch: TBD
 
 Parallel waves:
-- wave 1: `port-audio-device-to-rust`, `cover-device-enumeration`
-- wave 2: `document-marea-audio-open`
+- wave 1: `add-lexer-token-kinds`, `cover-diagnostic-sink-accessors`
+- wave 2: `add-lexer-scan-function`
 ```
 
 The goal, why the decomposition looks the way it does, what is deliberately out of scope, any reference pattern or shared verification recipe every apply in the handoff follows, and the `Parallel waves` summary all go here at write time - write the `Root issue`/`Root branch` lines as shown, literally `TBD`. `TBD` means absent: the first batch to execute replaces both values during its first-batch setup, per step 0 of `generate-apply`'s handoff-batch pipeline, and every later batch reads them from here. Recompute `Parallel waves` whenever an edge in the matching `_LIST_HANDOFF.md` table changes.

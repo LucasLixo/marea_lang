@@ -16,8 +16,7 @@ waves of at most 3 tasks. Each task is read-only (no source edit, no log edit, n
 3. Report evidence (command and real result) and classify the entry as exactly one of:
    - **resolved** - the described error no longer exists.
    - **small gap** - it exists and fits a few commits on the current branch.
-   - **large gap** - it exists and needs many modifications across distinct APIs, or work in a
-     submodule that this repository does not own.
+   - **large gap** - it exists and needs many modifications across distinct APIs.
    - **still open** - it exists and waits on a decision, an unavailable tool, or cannot be verified.
 
 ## Done when

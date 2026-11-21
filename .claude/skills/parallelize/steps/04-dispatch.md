@@ -27,7 +27,7 @@ Every subagent prompt is complete on its own and carries:
    its wave so it knows what is being edited beside it.
 3. For a task with `needs:`, the relevant results of those tasks pasted in (paths, signatures,
    decisions) - not "see the earlier agent".
-4. Absolute paths to `AGENTS.md` and the skills that apply, and the rule that the repository's
+4. Absolute paths to `AGENTS.md` and the skills that apply (under `.claude/skills/`), and the rule that the repository's
    conventions (TDD where it is mandatory, ASCII only, the file copyright header, language style
    skills) govern its work.
 5. Do not push, do not edit `temp/` (several agents at once would corrupt it). Commit only if this

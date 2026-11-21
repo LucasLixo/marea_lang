@@ -26,9 +26,6 @@ git branch <label>/<issue-number> [develop|current]
 # Creates a separate physical directory (worktree) to work on your new branch without changing or disturbing your current directory.
 git worktree add "../<label>-<issue-number>" <label>/<issue-number>
 
-# Opens the newly created worktree folder directly in VSCodium (the open-source version of VS Code) while navigating to it.
-cdcodium "../<label>-<issue-number>"
-
 # Pushes the local branch to the remote repository (GitHub) for the first time and links it so future pushes require only git push.
 git push -u origin <label>/<issue-number>
 

@@ -17,11 +17,10 @@ for a task with no apply file yet.
 #### Startup
 
 1. `mise trust`, then `git pull --rebase`, and resolve what it reports first. If the tree is dirty
-   (pre-existing drift such as a dirty submodule pointer or a generated doc that drifts on every
-   build) and the pull refuses, use `git fetch` plus `git merge --ff-only origin/<branch>`
-   instead. A bare `git rebase` is denied in `.claude/settings.json`.
+   (pre-existing drift such as a dirty submodule pointer or a build output) and the pull refuses, use `git fetch` plus `git merge --ff-only origin/<branch>`
+   instead. A bare `git rebase` is not on the allow list of `.claude/settings.json`.
 2. `git status` is your baseline for what NOT to `git add`.
-3. Read `AGENTS.md`/`CLAUDE.md`, the skills each named apply cites, `temp/_LIST_APPLY.md`,
+3. Read `AGENTS.md`, the skills each named apply cites, `temp/_LIST_APPLY.md`,
    `temp/_LIST_HANDOFF.md`, `temp/_LOG_HANDOFF.md`, and, for every apply's slug, its existing
    entries (if any) in `temp/_LOG_APPLY_SUCCESS.md`/`temp/_LOG_APPLY_ERROR.md`.
 4. Verify the **real** state before choosing anything - do not trust memory or an earlier report:

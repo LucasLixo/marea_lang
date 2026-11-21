@@ -10,7 +10,7 @@ argument-hint: "[optional path or scope to restrict the commits to]"
 
 ## Context and Objective
 
-Group the working-tree changes by theme and create the commits locally. This skill is the only way to commit in this repository (see `AGENTS.md`): never a hand-written `git commit`, from the main session or from a subagent. The attribution policy (trailers, footers) is whatever the repository `AGENTS.md` says; this skill adds no rule of its own about it.
+Group the working-tree changes by theme and create the commits locally. This skill is the only way to commit in this repository (see `AGENTS.md`): never a hand-written `git commit`, from the main session or from a subagent. The attribution policy (trailers, footers) is whatever the repository `AGENTS.md` and the system prompt of the session say; this skill adds no rule of its own about it.
 
 Run in edit mode, never in plan mode. Read nothing beyond the `git` output named below - the diffs are the whole input. Effort stays at `medium`: grouping themes and choosing the `metadata.yaml` bump need judgement, the rest is mechanical.
 
@@ -21,7 +21,7 @@ Run in edit mode, never in plan mode. Read nothing beyond the `git` output named
 - Never stage what was already dirty and unrelated to the request.
 - Messages: ASCII only, English, never the `type: description` format. A full sentence (or a few), first letter capitalized, describing what changed and why rather than what the file is.
 - When the issue number `N` is set, close every message with ` #N` (no trailing period before it); never invent a number.
-- Attribution follows the repository `AGENTS.md`; do not add or strip trailers on your own initiative.
+- Attribution follows the repository `AGENTS.md` and the session instructions; do not add or strip trailers on your own initiative.
 
 ## Grouping
 
@@ -31,10 +31,10 @@ Stage with `git add <specific-path>`; `git add .` only when every remaining file
 
 ## Versioning
 
-When the repository tracks `metadata.yaml` (`version: major.minor.patch.build`), keeping it in step is part of this skill: edit it as a normal file, staged into the commit it describes.
+No `metadata.yaml` exists yet, so today this section does not apply and versioning is skipped. [AGENTS.md](../../../AGENTS.md) ("Versioning") says to create it, with a `build` field, before the first version bump; that creation is its own commit. Once the file exists (`version: major.minor.patch.build`), keeping it in step is part of this skill: edit it as a normal file, staged into the commit it describes.
 
 - **build**: `+1` on every committed change set, independent of the other fields - three commits bump it three times.
-- **major** breaks the public API (in the engine, under `lib/include/`), **minor** adds to it, **patch** leaves it byte-identical (a pure structural refactor is patch).
+- **major** breaks the public API (the public headers under `lib/include/`), **minor** adds to it, **patch** leaves it byte-identical (a pure structural refactor is patch).
 - Bump `major`/`minor`/`patch` at most once per run, on the commit that causes it, and say so in the report. When one change set mixes impacts, take the highest-impact one (major over minor over patch), consistent with the SemVer rule in `AGENTS.md`.
 - If the repository has no `metadata.yaml`, skip versioning entirely.
 
@@ -42,7 +42,7 @@ When the repository tracks `metadata.yaml` (`version: major.minor.patch.build`),
 
 1. `git status --porcelain=v1`, plus `git diff` on anything unclear - the message must describe the real change.
 2. `git branch --show-current` -> `N` is the first run of digits in it: `refactor/94` -> `94`, `tests-11` -> `11`, `feature/7-foo` -> `7`, `develop` -> unset.
-3. For each theme, in order: update `metadata.yaml` if the repository tracks it, `git add` the theme's paths (plus `metadata.yaml`), then commit.
+3. For each theme, in order: update `metadata.yaml` if it exists, `git add` the theme's paths (plus `metadata.yaml` when it changed), then commit.
 4. Report `git log --oneline -<count>` and `git status` for whatever was deliberately left uncommitted.
 
 ## Commit command form
@@ -50,12 +50,12 @@ When the repository tracks `metadata.yaml` (`version: major.minor.patch.build`),
 Pass the message through a quoted heredoc: `<<'EOF'` stops the shell from expanding `$`, backticks and `!`, so identifiers and apostrophes survive verbatim. The closing `EOF` and `)"` each stay on their own line; a blank line separates subject from body.
 
 ```bash
-git add lib/source/marea/base/MAREA_Lexer.c lib/include/marea/base/MAREA_Lexer.h metadata.yaml
+git add lib/include/marea/base/MAREADiagnostic.h tests/source/marea/base/MAREADiagnostic.cpp
 git commit -m "$(cat <<'EOF'
-Extract token classification into a dedicated function and expose it in the header #94
+Add an accessor for the severity of a diagnostic and cover it with a test #94
 
-The lexer inlined the classification switch in two places, so a new token kind had to
-be added twice. The shared function keeps both call sites in step.
+A consumer of the opaque diagnostic could not read the severity without opening the
+struct. The accessor keeps the struct closed and the test proves it is enough.
 EOF
 )"
 ```
@@ -65,7 +65,7 @@ This is POSIX shell (Linux, macOS, Windows through Git Bash or WSL). Only when c
 ## Validation
 
 - Every commit has one theme, ends with ` #N` when `N` is set, and is ASCII.
-- `metadata.yaml` build went up by exactly one per commit; major/minor/patch moved at most once, to the highest impact.
+- When `metadata.yaml` exists: build went up by exactly one per commit, and major/minor/patch moved at most once, to the highest impact.
 - Nothing was pushed; `git status` shows only what was left out on purpose.
 
 ## References
