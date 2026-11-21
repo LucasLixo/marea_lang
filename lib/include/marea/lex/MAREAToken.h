@@ -4,8 +4,8 @@
 #if !defined(MAREA_INCLUDE_LEX_MAREATOKEN_H)
     #define MAREA_INCLUDE_LEX_MAREATOKEN_H
 
-    #include "marea/MAREACTypes.h"
-    #include "marea/MAREAMacros.h"
+    #include "marea/base/MAREACTypes.h"
+    #include "marea/base/MAREAMacros.h"
     #include "marea/base/MAREASourcePosition.h"
     #include "marea/lex/MAREATokenKind.h"
 

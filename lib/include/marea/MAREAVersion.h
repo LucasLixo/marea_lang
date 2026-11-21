@@ -4,8 +4,8 @@
 #if !defined(MAREA_INCLUDE_MAREAVERSION_H)
     #define MAREA_INCLUDE_MAREAVERSION_H
 
-    #include "marea/MAREACTypes.h"
-    #include "marea/MAREAMacros.h"
+    #include "marea/base/MAREACTypes.h"
+    #include "marea/base/MAREAMacros.h"
 
     #define MAREA_VERSION_MAJOR 0
     #define MAREA_VERSION_MINOR 1
