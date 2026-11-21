@@ -27,13 +27,11 @@ MAREA_BEGIN_EXTERN_C
 
     /**
      * @brief Diagnostic code emitted by ir, in the 4000-4999 range reserved for this stage. Every code is
-     * an error.
+     * an error. The codes 4001 to 4003 were retired when fork_join, switch and for each became lowered
+     * constructs. They have no name and are never reused.
      */
     typedef enum MAREA_IrDiagnosticCode
     {
-        MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_FORK_JOIN = MAREA_UINTEGER_32(4001),
-        MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_SWITCH = MAREA_UINTEGER_32(4002),
-        MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_FOR_EACH = MAREA_UINTEGER_32(4003),
         MAREA_IR_DIAGNOSTIC_CODE_UNINSTANTIATED_GENERIC = MAREA_UINTEGER_32(4004),
         MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_MACRO = MAREA_UINTEGER_32(4005),
     } MAREA_IrDiagnosticCode;
