@@ -55,4 +55,24 @@ macro(ConfigureLibTargets)
             target_compile_definitions(Marea-Lex PRIVATE MAREA_ENABLE_EXPORT INTERFACE MAREA_ENABLE_IMPORT)
         endif()
     endif()
+
+    if(MAREA_OPTION_TARGET_PARSE)
+        message(STATUS "Add target: Marea-Parse")
+
+        file(GLOB MAREA_PARSE_SOURCES CONFIGURE_DEPENDS "${MAREA_FOLDER_LIB_SOURCE}/marea/parse/*.c")
+
+        add_library(Marea-Parse ${MAREA_LIBRARY_TYPE} ${MAREA_PARSE_SOURCES})
+        add_library(marea::parse ALIAS Marea-Parse)
+
+        target_link_libraries(Marea-Parse PUBLIC marea::include PRIVATE marea::internal)
+
+        target_compile_options(Marea-Parse PRIVATE "$<$<C_COMPILER_ID:Clang,AppleClang,GNU>:-Wall;-Wextra;-Wpedantic>")
+
+        target_link_libraries(Marea-Parse PUBLIC marea::lex)
+
+        if(MAREA_OPTION_SHARED_LIBS)
+            set_target_properties(Marea-Parse PROPERTIES C_VISIBILITY_PRESET hidden)
+            target_compile_definitions(Marea-Parse PRIVATE MAREA_ENABLE_EXPORT INTERFACE MAREA_ENABLE_IMPORT)
+        endif()
+    endif()
 endmacro()
