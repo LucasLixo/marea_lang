@@ -74,7 +74,7 @@ MAREA_IrKind MAREA_CALL MAREA_IrNodeGetKind(const MAREA_IrNode *node)
 MAREA_SourcePosition MAREA_CALL MAREA_IrNodeGetPosition(const MAREA_IrNode *node)
 {
     if (node == MAREA_NULLPTR) {
-        const MAREA_SourcePosition empty = { MAREA_NULLPTR, MAREA_UINTEGER_32(0), MAREA_UINTEGER_32(0), MAREA_UINTEGER_32(0), MAREA_UINTEGER_32(0) };
+        const MAREA_SourcePosition empty = { .file = MAREA_NULLPTR, .offset = MAREA_UINTEGER_32(0), .line = MAREA_UINTEGER_32(0), .column = MAREA_UINTEGER_32(0), .length = MAREA_UINTEGER_32(0) };
 
         return empty;
     }
@@ -311,7 +311,15 @@ void MAREA_CALL MAREA_IrNodeSetTypeNameFromAst(MAREA_IrNode *node, const MAREA_A
 
 MAREA_IrExcept MAREA_CALL MAREA_IrNodeSetQualifiedText(MAREA_IrContext *context, MAREA_IrNode *node, const MAREA_Character8 *qualifier, MAREA_IntegerSize qualifierLength, const MAREA_Character8 *name, MAREA_IntegerSize nameLength)
 {
-    if ((context == MAREA_NULLPTR) || (node == MAREA_NULLPTR) || (name == MAREA_NULLPTR)) {
+    if (context == MAREA_NULLPTR) {
+        return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    if (node == MAREA_NULLPTR) {
+        return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    if (name == MAREA_NULLPTR) {
         return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
     }
 

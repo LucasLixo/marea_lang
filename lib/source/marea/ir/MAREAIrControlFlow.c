@@ -10,8 +10,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerStatement(MAREA_IrContext *context
 // INFO: the text of the synthetic increment of a for-range loop.
 static const MAREA_Character8 MAREA_G_IncrementText[] = "1";
 
-// INFO: lowers one child as a statement or, when it is no statement, as an expression. A child that
-// lowers to nothing makes the whole parent lower to nothing, so no partial tree is produced.
+// INFO: a child that lowers to nothing makes the whole parent lower to nothing, so no partial tree is produced.
 static MAREA_IrExcept MAREA_CALL MAREA_G_LowerChildrenInto(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode *node, MAREA_Boolean *outComplete)
 {
     *outComplete = MAREA_BOOLEAN_TRUE;
@@ -113,9 +112,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_CreateLoopReference(MAREA_IrContext *co
     return MAREA_IrNodeCreate(context, MAREA_IR_KIND_IDENTIFIER, name, outNode);
 }
 
-// INFO: for name in first .. last do body end becomes
-//   BLOCK( LOCAL name = first;  WHILE name <= last: body, name += 1 )
-// A range includes both ends (docs/grammar/marea.ebnf), so the bound is <=, not <.
+// INFO: for name in first .. last do body end becomes BLOCK(LOCAL name = first, WHILE name <= last: body, name += 1).
 static MAREA_IrExcept MAREA_CALL MAREA_G_LowerForRange(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode)
 {
     const MAREA_AstNode *forAst = MAREA_SemaTypedNodeGetAstNode(typed);
@@ -312,7 +309,15 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerStatement(MAREA_IrContext *context
 
 MAREA_IrExcept MAREA_CALL MAREA_IrLowerBlock(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode)
 {
-    if ((context == MAREA_NULLPTR) || (typed == MAREA_NULLPTR) || (outNode == MAREA_NULLPTR)) {
+    if (context == MAREA_NULLPTR) {
+        return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    if (typed == MAREA_NULLPTR) {
+        return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    if (outNode == MAREA_NULLPTR) {
         return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
     }
 

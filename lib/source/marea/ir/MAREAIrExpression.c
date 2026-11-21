@@ -9,8 +9,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsErasedChild(MAREA_AstKind kind)
     return ((kind == MAREA_AST_KIND_NAMED_TYPE) || (kind == MAREA_AST_KIND_FUNCTION_TYPE) || (kind == MAREA_AST_KIND_TYPE_ARGUMENTS)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
-// INFO: lowers every kept child of typed and appends it to node. A child that lowers to nothing makes
-// the whole parent lower to nothing, so no partial tree is produced.
+// INFO: a child that lowers to nothing makes the whole parent lower to nothing, so no partial tree is produced.
 static MAREA_IrExcept MAREA_CALL MAREA_G_LowerChildren(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode *node, MAREA_Boolean *outComplete)
 {
     *outComplete = MAREA_BOOLEAN_TRUE;
@@ -174,7 +173,15 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerFieldEntry(MAREA_IrContext *contex
 
 MAREA_IrExcept MAREA_CALL MAREA_IrLowerExpression(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode)
 {
-    if ((context == MAREA_NULLPTR) || (typed == MAREA_NULLPTR) || (outNode == MAREA_NULLPTR)) {
+    if (context == MAREA_NULLPTR) {
+        return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    if (typed == MAREA_NULLPTR) {
+        return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    if (outNode == MAREA_NULLPTR) {
         return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
     }
 
