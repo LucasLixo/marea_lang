@@ -10,7 +10,6 @@
 namespace
 {
     constexpr MAREA_Uinteger32 FORK_JOIN{ MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_FORK_JOIN };
-    constexpr MAREA_Uinteger32 FOR_EACH{ MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_FOR_EACH };
     constexpr MAREA_Uinteger32 GENERIC{ MAREA_IR_DIAGNOSTIC_CODE_UNINSTANTIATED_GENERIC };
     constexpr MAREA_Uinteger32 MACRO{ MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_MACRO };
 
@@ -22,7 +21,7 @@ namespace
         { "attributes/simd.marea", {} },
         { "attributes/visibility.marea", {} },
         { "basics/blocks.marea", { GENERIC } },
-        { "basics/control_flow.marea", { FOR_EACH } },
+        { "basics/control_flow.marea", {} },
         { "basics/functions.marea", {} },
         { "basics/operators.marea", {} },
         { "basics/ownership.marea", {} },
@@ -34,7 +33,7 @@ namespace
         { "memory/regions.marea", {} },
         { "namespaces/consumer.marea", {} },
         { "namespaces/library.marea", {} },
-        { "parallel/scaling.marea", { FORK_JOIN, FOR_EACH } },
+        { "parallel/scaling.marea", { FORK_JOIN } },
         { "types/collections.marea", {} },
         { "types/enum_methods.marea", {} },
         { "types/generics.marea", { GENERIC } },

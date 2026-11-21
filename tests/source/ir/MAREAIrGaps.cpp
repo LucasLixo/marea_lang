@@ -8,7 +8,6 @@
 namespace
 {
     const MAREA_Uinteger32 FORK_JOIN{ MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_FORK_JOIN };
-    const MAREA_Uinteger32 FOR_EACH{ MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_FOR_EACH };
     const MAREA_Uinteger32 GENERIC{ MAREA_IR_DIAGNOSTIC_CODE_UNINSTANTIATED_GENERIC };
     const MAREA_Uinteger32 MACRO{ MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_MACRO };
 
@@ -67,15 +66,15 @@ TEST(MAREAIrGaps, PlainIfRaisesNothing)
     EXPECT_EQ(MAREA_irCodesOf("namespace main; function run(a: integer32) if a == 1 then return; else return; end end"), Codes{}) << "An if must raise no ir diagnostic.";
 }
 
-TEST(MAREAIrGaps, ForEachRaisesItsDiagnostic)
+TEST(MAREAIrGaps, ForEachRaisesNothingAndKeepsTheFunction)
 {
-    GTEST_COUT << "Validating a for-each statement raises 4003." << std::endl;
+    GTEST_COUT << "Validating a for-each statement is lowered: it raises no ir diagnostic and its function stays in the module." << std::endl;
 
     const std::string SOURCE{ "namespace main; import collections.array; function run(values: array<integer32>) for each value in values do end end" };
 
-    EXPECT_EQ(MAREA_irCodesOf(SOURCE), Codes{ FOR_EACH }) << "A for each must raise UNSUPPORTED_FOR_EACH.";
+    EXPECT_EQ(MAREA_irCodesOf(SOURCE), Codes{}) << "A for each must raise no ir diagnostic.";
 
-    EXPECT_EQ(MAREA_functionNamesOf(SOURCE), "") << "The function must be left out.";
+    EXPECT_EQ(MAREA_functionNamesOf(SOURCE), "run") << "The function with the for each must remain.";
 }
 
 TEST(MAREAIrGaps, ForRangeRaisesNothing)
@@ -274,7 +273,7 @@ TEST(MAREAIrGaps, ExamplesWithGapsOnlyRaiseGapDiagnostics)
 {
     GTEST_COUT << "Validating the examples that hold gap constructs lower without a crash and raise only ir diagnostics." << std::endl;
 
-    const std::vector<std::string> FILES{ "parallel/scaling.marea", "basics/control_flow.marea", "types/generics.marea", "macros/builtin.marea", "attributes/layout.marea" };
+    const std::vector<std::string> FILES{ "parallel/scaling.marea", "types/generics.marea", "macros/builtin.marea", "attributes/layout.marea" };
 
     const MAREA_IrExampleSet EXAMPLES;
 
@@ -307,7 +306,6 @@ TEST(MAREAIrGaps, ExamplesRaiseTheGapsTheyContain)
 
     const std::vector<std::pair<std::string, MAREA_Uinteger32>> EXPECTED{
         { "parallel/scaling.marea", FORK_JOIN },
-        { "basics/control_flow.marea", FOR_EACH },
         { "types/generics.marea", GENERIC },
         { "macros/builtin.marea", MACRO },
     };

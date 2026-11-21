@@ -270,6 +270,191 @@ TEST(MAREAIrControlFlow, SwitchArmWithAnUnsupportedStatementDropsTheFunction)
     EXPECT_EQ(fixture.MAREA_irCodes(), std::vector<MAREA_Uinteger32>{ MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_MACRO }) << "The macro in the arm must raise its own code once.";
 }
 
+TEST(MAREAIrControlFlow, ForEachBecomesAHiddenCollectionALengthAndAnIndexedWhile)
+{
+    GTEST_COUT << "Validating a for-each loop desugars to a hidden collection, a hidden length, a hidden index and a while over the index." << std::endl;
+
+    EXPECT_EQ(MAREA_lowerBody("import collections.array;", "values: array<integer32>", "local total: integer32 = 0; for each value in values do total += value; end"), "(BLOCK (LOCAL_DECLARATION total :integer32 (INTEGER_LITERAL 0)) (BLOCK (LOCAL_DECLARATION $each (IDENTIFIER values)) (LOCAL_DECLARATION $count (CALL_EXPRESSION (IDENTIFIER $length) (ARGUMENT_LIST (IDENTIFIER $each)))) (LOCAL_DECLARATION $index flags=1 (INTEGER_LITERAL 0)) (WHILE_STATEMENT (BINARY_EXPRESSION op=LESS (IDENTIFIER $index) (IDENTIFIER $count)) (BLOCK (LOCAL_DECLARATION value (INDEX_ACCESS (IDENTIFIER $each) (IDENTIFIER $index))) (BLOCK (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER total) (IDENTIFIER value))) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER $index) (INTEGER_LITERAL 1))))))") << "The loop must keep the shape of its desugaring.";
+}
+
+TEST(MAREAIrControlFlow, ForEachWithAnEmptyBodyStillAdvancesTheIndex)
+{
+    GTEST_COUT << "Validating a for-each loop with an empty body keeps an empty block and the increment of the index." << std::endl;
+
+    EXPECT_EQ(MAREA_lowerBody("import collections.array;", "values: array<integer32>", "for each value in values do end"), "(BLOCK (BLOCK (LOCAL_DECLARATION $each (IDENTIFIER values)) (LOCAL_DECLARATION $count (CALL_EXPRESSION (IDENTIFIER $length) (ARGUMENT_LIST (IDENTIFIER $each)))) (LOCAL_DECLARATION $index flags=1 (INTEGER_LITERAL 0)) (WHILE_STATEMENT (BINARY_EXPRESSION op=LESS (IDENTIFIER $index) (IDENTIFIER $count)) (BLOCK (LOCAL_DECLARATION value (INDEX_ACCESS (IDENTIFIER $each) (IDENTIFIER $index))) (BLOCK) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER $index) (INTEGER_LITERAL 1))))))") << "An empty body must still advance the index, or the loop would never end.";
+}
+
+TEST(MAREAIrControlFlow, ForEachWithKeyAndValueBindsTheKeyToTheIndex)
+{
+    GTEST_COUT << "Validating the key of a for-each loop with two names is a local set to the hidden index, before the value." << std::endl;
+
+    const std::string rendered{ MAREA_lowerBody("import collections.array;", "values: array<integer32>", "for each key, value in values do end") };
+
+    EXPECT_NE(rendered.find("(BLOCK (LOCAL_DECLARATION key (IDENTIFIER $index)) (LOCAL_DECLARATION value (INDEX_ACCESS (IDENTIFIER $each) (IDENTIFIER $index))) (BLOCK) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER $index) (INTEGER_LITERAL 1)))"), std::string::npos) << "The key must come first and read the index: " << rendered;
+}
+
+TEST(MAREAIrControlFlow, ForEachMutableMarksTheHiddenCollectionAndTheElementOnly)
+{
+    GTEST_COUT << "Validating a for-each loop over a mutable collection sets MUTABLE on the hidden collection and the element, and on no other node it makes." << std::endl;
+
+    EXPECT_EQ(MAREA_lowerBody("import collections.array;", "values: mutable array<integer32>", "for each key, value in mutable values do value += 1; end"), "(BLOCK (BLOCK (LOCAL_DECLARATION $each flags=1 (IDENTIFIER values)) (LOCAL_DECLARATION $count (CALL_EXPRESSION (IDENTIFIER $length) (ARGUMENT_LIST (IDENTIFIER $each)))) (LOCAL_DECLARATION $index flags=1 (INTEGER_LITERAL 0)) (WHILE_STATEMENT (BINARY_EXPRESSION op=LESS (IDENTIFIER $index) (IDENTIFIER $count)) (BLOCK (LOCAL_DECLARATION key (IDENTIFIER $index)) (LOCAL_DECLARATION value flags=1 (INDEX_ACCESS (IDENTIFIER $each) (IDENTIFIER $index))) (BLOCK (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER value) (INTEGER_LITERAL 1))) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER $index) (INTEGER_LITERAL 1))))))") << "Only the collection and the element may carry MUTABLE; the key and every synthetic node must not.";
+}
+
+TEST(MAREAIrControlFlow, ForEachEvaluatesTheCollectionOnce)
+{
+    GTEST_COUT << "Validating a for-each loop evaluates a call in its collection once, into the hidden collection before the loop." << std::endl;
+
+    const std::string rendered{ MAREA_lowerBody("import collections.array; function source(): array<integer32> return source(); end", "", "for each value in source() do end") };
+
+    EXPECT_NE(rendered.find("(LOCAL_DECLARATION $each (CALL_EXPRESSION"), std::string::npos) << "The call must sit in the hidden collection: " << rendered;
+
+    EXPECT_EQ(rendered.find("(IDENTIFIER source)", rendered.find("(WHILE_STATEMENT")), std::string::npos) << "The loop must not call the collection again: " << rendered;
+}
+
+TEST(MAREAIrControlFlow, ForEachContinueRunsTheStepFirst)
+{
+    GTEST_COUT << "Validating a continue in a for-each body is preceded by the increment of the index, and a break stays as it is." << std::endl;
+
+    const std::string rendered{ MAREA_lowerBody("import collections.array;", "values: array<integer32>, a: boolean", "for each value in values do if a then continue; end if a then break; end end") };
+
+    EXPECT_NE(rendered.find("(IF_STATEMENT (IDENTIFIER a) (BLOCK (BLOCK (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER $index) (INTEGER_LITERAL 1)) (CONTINUE_STATEMENT))))"), std::string::npos) << "The continue must run the step first: " << rendered;
+
+    EXPECT_NE(rendered.find("(IF_STATEMENT (IDENTIFIER a) (BLOCK (BREAK_STATEMENT)))"), std::string::npos) << "The break must stay as it is: " << rendered;
+}
+
+TEST(MAREAIrControlFlow, ForEachContinueOfAnInnerWhileIsLeftAlone)
+{
+    GTEST_COUT << "Validating a continue that targets a while loop inside a for-each body gets no increment of the for-each loop." << std::endl;
+
+    const std::string rendered{ MAREA_lowerBody("import collections.array;", "values: array<integer32>, a: boolean", "for each value in values do while a do continue; end end") };
+
+    EXPECT_NE(rendered.find("(BLOCK (WHILE_STATEMENT (IDENTIFIER a) (BLOCK (CONTINUE_STATEMENT)))) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER $index) (INTEGER_LITERAL 1))"), std::string::npos) << "A continue of an inner loop must stay as it is: " << rendered;
+}
+
+TEST(MAREAIrControlFlow, ForEachNestedInAForEachKeepsItsOwnHiddenLocals)
+{
+    GTEST_COUT << "Validating a for-each loop nested in another gets its own scope and hidden locals, and each continue runs its own step." << std::endl;
+
+    EXPECT_EQ(MAREA_lowerBody("import collections.array;", "rows: array<array<integer32>>", "for each row in rows do for each cell in row do continue; end continue; end"), "(BLOCK (BLOCK (LOCAL_DECLARATION $each (IDENTIFIER rows)) (LOCAL_DECLARATION $count (CALL_EXPRESSION (IDENTIFIER $length) (ARGUMENT_LIST (IDENTIFIER $each)))) (LOCAL_DECLARATION $index flags=1 (INTEGER_LITERAL 0)) (WHILE_STATEMENT (BINARY_EXPRESSION op=LESS (IDENTIFIER $index) (IDENTIFIER $count)) (BLOCK (LOCAL_DECLARATION row (INDEX_ACCESS (IDENTIFIER $each) (IDENTIFIER $index))) (BLOCK (BLOCK (LOCAL_DECLARATION $each (IDENTIFIER row)) (LOCAL_DECLARATION $count (CALL_EXPRESSION (IDENTIFIER $length) (ARGUMENT_LIST (IDENTIFIER $each)))) (LOCAL_DECLARATION $index flags=1 (INTEGER_LITERAL 0)) (WHILE_STATEMENT (BINARY_EXPRESSION op=LESS (IDENTIFIER $index) (IDENTIFIER $count)) (BLOCK (LOCAL_DECLARATION cell (INDEX_ACCESS (IDENTIFIER $each) (IDENTIFIER $index))) (BLOCK (BLOCK (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER $index) (INTEGER_LITERAL 1)) (CONTINUE_STATEMENT))) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER $index) (INTEGER_LITERAL 1))))) (BLOCK (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER $index) (INTEGER_LITERAL 1)) (CONTINUE_STATEMENT))) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER $index) (INTEGER_LITERAL 1))))))") << "Each loop must read and step its own hidden index.";
+}
+
+TEST(MAREAIrControlFlow, ForEachContinueInsideAForRangeBodyUsesTheStepOfTheForEachOnly)
+{
+    GTEST_COUT << "Validating a continue inside a for-each nested in a for-range loop gets the for-each step, and not the for-range step." << std::endl;
+
+    const std::string rendered{ MAREA_lowerBody("import collections.array;", "values: array<integer32>", "for index in 0 .. 3 do for each value in values do continue; end end") };
+
+    EXPECT_NE(rendered.find("(BLOCK (BLOCK (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER $index) (INTEGER_LITERAL 1)) (CONTINUE_STATEMENT)))"), std::string::npos) << "The continue must run the for-each step: " << rendered;
+
+    EXPECT_EQ(rendered.find("(CONTINUE_STATEMENT)", rendered.find("(CONTINUE_STATEMENT)") + 1), std::string::npos) << "The loop must hold a single continue: " << rendered;
+
+    EXPECT_EQ(rendered.find("(IDENTIFIER index) (IDENTIFIER $last)) (BLOCK (BREAK_STATEMENT))) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER index) (INTEGER_LITERAL 1)) (CONTINUE_STATEMENT)"), std::string::npos) << "The continue must not carry the for-range step: " << rendered;
+}
+
+TEST(MAREAIrControlFlow, ForEachSyntheticNodesTakeTheirPositionFromTheLoop)
+{
+    GTEST_COUT << "Validating the hidden locals sit at the position of the for statement and the element local at its name." << std::endl;
+
+    MAREA_IrFixture fixture(RESOLVE_EXTERNAL);
+
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; import collections.array; function run(values: array<integer32>) for each value in values do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+
+    const MAREA_IrNode *scope{ MAREA_irChild(MAREA_irChild(MAREA_irChild(fixture.module, 0), 1), 0) };
+
+    ASSERT_EQ(MAREA_IrNodeGetKind(scope), MAREA_IR_KIND_BLOCK) << "The loop must sit in its own scope.";
+
+    const MAREA_SourcePosition LOOP{ MAREA_IrNodeGetPosition(scope) };
+
+    for (MAREA_IntegerSize index{ 0 }; index < 3; ++index) {
+        EXPECT_EQ(MAREA_IrNodeGetPosition(MAREA_irChild(scope, index)).column, LOOP.column) << "The hidden local " << index << " must sit at the for statement.";
+    }
+
+    const MAREA_IrNode *element{ MAREA_irChild(MAREA_irChild(MAREA_irChild(scope, 3), 1), 0) };
+
+    EXPECT_EQ(MAREA_irText(element), "value") << "The element local must carry the loop variable name.";
+
+    EXPECT_GT(MAREA_IrNodeGetPosition(element).column, LOOP.column) << "The element local must sit at its name, after the for keyword.";
+}
+
+TEST(MAREAIrControlFlow, ForEachWithAnUnsupportedStatementDropsTheFunction)
+{
+    GTEST_COUT << "Validating a gap inside a for-each body still drops the whole function and raises its diagnostic once." << std::endl;
+
+    MAREA_IrFixture fixture(RESOLVE_EXTERNAL);
+
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; import collections.array; function keep() end function lose(values: array<integer32>) for each value in values do print!(\"hi\"); end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+
+    ASSERT_EQ(MAREA_IrNodeGetChildCount(fixture.module), 1U) << "Only the lowerable function must remain.";
+
+    EXPECT_EQ(fixture.MAREA_irCodes(), std::vector<MAREA_Uinteger32>{ MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_MACRO }) << "The macro in the body must raise its own code once.";
+}
+
+TEST(MAREAIrControlFlow, ForEachWithAGapInTheCollectionDropsTheFunction)
+{
+    GTEST_COUT << "Validating a gap inside the collection expression drops the function and raises its own diagnostic once." << std::endl;
+
+    MAREA_IrFixture fixture(RESOLVE_EXTERNAL);
+
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; import collections.array; function identity<Item>(value: Item): Item where Item: Copyable return copy value; end function lose(values: array<integer32>) for each value in identity(values) do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+
+    ASSERT_EQ(MAREA_IrNodeGetChildCount(fixture.module), 0U) << "Neither function may remain.";
+
+    EXPECT_EQ(fixture.MAREA_irCodes(), (std::vector<MAREA_Uinteger32>{ MAREA_IR_DIAGNOSTIC_CODE_UNINSTANTIATED_GENERIC, MAREA_IR_DIAGNOSTIC_CODE_UNINSTANTIATED_GENERIC })) << "The generic function and its call must each raise 4004 once, and for each must raise nothing.";
+}
+
+TEST(MAREAIrControlFlow, ForEachMutableContinueWrapperCarriesNoFlag)
+{
+    GTEST_COUT << "Validating the block that holds the step before a continue in a mutable for-each loop carries no MUTABLE flag." << std::endl;
+
+    const std::string rendered{ MAREA_lowerBody("import collections.array;", "values: mutable array<integer32>, a: boolean", "for each value in mutable values do if a then continue; end end") };
+
+    EXPECT_NE(rendered.find("(IF_STATEMENT (IDENTIFIER a) (BLOCK (BLOCK (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER $index) (INTEGER_LITERAL 1)) (CONTINUE_STATEMENT))))"), std::string::npos) << "The wrapper of the continue must carry no flag: " << rendered;
+}
+
+TEST(MAREAIrControlFlow, ForEachWithAGapInTheCollectionDoesNotLowerItsBody)
+{
+    GTEST_COUT << "Validating a for-each loop whose collection holds a gap reports that gap only, and not the gap of its body." << std::endl;
+
+    MAREA_IrFixture fixture(RESOLVE_EXTERNAL);
+
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; import collections.array; function identity<Item>(value: Item): Item where Item: Copyable return copy value; end function lose(values: array<integer32>) for each value in identity(values) do print!(\"hi\"); end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+
+    EXPECT_EQ(fixture.MAREA_irCodes(), (std::vector<MAREA_Uinteger32>{ MAREA_IR_DIAGNOSTIC_CODE_UNINSTANTIATED_GENERIC, MAREA_IR_DIAGNOSTIC_CODE_UNINSTANTIATED_GENERIC })) << "Only the gaps of the collection may be reported.";
+}
+
+TEST(MAREAIrControlFlow, ForEachExamplesLowerTheirLoops)
+{
+    GTEST_COUT << "Validating sum_array of basics/control_flow.marea and the two worker functions of parallel/scaling.marea are lowered with their for-each loops." << std::endl;
+
+    const MAREA_IrExampleSet EXAMPLES;
+
+    const std::vector<std::pair<std::string, std::string>> LOOPS{
+        { "basics/control_flow.marea", "sum_array" },
+        { "parallel/scaling.marea", "scale_slice" },
+        { "parallel/scaling.marea", "sum_slice" },
+    };
+
+    for (const auto &[file, name] : LOOPS) {
+        MAREA_IrFixture fixture(EXAMPLES.MAREA_resolver());
+
+        ASSERT_EQ(fixture.MAREA_lower(MAREA_irReadExample(file), file), MAREA_IR_EXCEPT_SUCCESS) << "The example " << file << " must lower.";
+
+        bool found{ false };
+
+        for (MAREA_IntegerSize index{ 0 }; index < MAREA_IrNodeGetChildCount(fixture.module); ++index) {
+            if (MAREA_irText(MAREA_irChild(fixture.module, index)) != name) {
+                continue;
+            }
+
+            found = true;
+
+            EXPECT_NE(MAREA_irRender(MAREA_irChild(fixture.module, index)).find("(LOCAL_DECLARATION $each "), std::string::npos) << "The function " << name << " must hold the desugared for each.";
+        }
+
+        EXPECT_TRUE(found) << "The function " << name << " of " << file << " must be lowered.";
+    }
+}
+
 TEST(MAREAIrControlFlow, BodyWithAnUnsupportedStatementDropsTheFunction)
 {
     GTEST_COUT << "Validating a function whose body holds a construct that cannot be lowered yet is left out as a whole." << std::endl;
