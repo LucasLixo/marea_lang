@@ -216,6 +216,29 @@ TEST(MAREAIrGaps, MacroOtherThanUnreachableRaisesItsDiagnostic)
     EXPECT_GT(MAREA_DiagnosticGetPosition(diagnostic).line, 0U) << "The diagnostic must carry a position.";
 }
 
+TEST(MAREAIrGaps, LongNameIsCutAndKeepsItsClosingQuote)
+{
+    GTEST_COUT << "Validating a diagnostic that names a very long declaration is cut to fit and still closes its quote." << std::endl;
+
+    for (const std::size_t SIZE : { 10U, 100U, 119U, 120U, 121U, 159U, 400U }) {
+        MAREA_IrFixture fixture;
+
+        ASSERT_EQ(fixture.MAREA_lower("namespace main; structure " + std::string(SIZE, 'a') + "<Item> value: Item; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower for a name of " << SIZE << " bytes.";
+
+        const MAREA_Diagnostic *diagnostic{ nullptr };
+
+        ASSERT_EQ(MAREA_DiagnosticSinkGetAt(fixture.sema.parser.lexer.sink, MAREA_DiagnosticSinkGetCount(fixture.sema.parser.lexer.sink) - 1, &diagnostic), MAREA_DIAGNOSTIC_EXCEPT_SUCCESS) << "The diagnostic must exist.";
+
+        const std::string MESSAGE{ MAREA_DiagnosticGetMessage(diagnostic) };
+
+        EXPECT_LT(MESSAGE.size(), 160U) << "The message must fit its buffer for a name of " << SIZE << " bytes.";
+
+        EXPECT_EQ(MESSAGE.back(), '\'') << "The name must keep its closing quote for a name of " << SIZE << " bytes.";
+
+        EXPECT_NE(MESSAGE.find(" 'a"), std::string::npos) << "The name must open after the message text for a name of " << SIZE << " bytes.";
+    }
+}
+
 TEST(MAREAIrGaps, UnreachableMacroRaisesNothing)
 {
     GTEST_COUT << "Validating unreachable!(), the neighbor of the macro gap, raises nothing." << std::endl;
