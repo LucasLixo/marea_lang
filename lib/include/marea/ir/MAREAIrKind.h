@@ -16,7 +16,10 @@ MAREA_BEGIN_EXTERN_C
      * started inside it ends before the node ends), PARTITION_STATEMENT (the text is the part name, the
      * flag MUTABLE is kept; children are the value, the part count and the BLOCK body) and WITH_STATEMENT
      * (the text is the bound name; children are the value and the BLOCK body). A spawn is no kind: it is a
-     * UNARY_EXPRESSION with the operator KEYWORD_SPAWN. The list ends with MAREA_IR_KIND_COUNT.
+     * UNARY_EXPRESSION with the operator KEYWORD_SPAWN. FOR_EACH_STATEMENT comes after them (the text is the
+     * name of the value variable, the flag MUTABLE is kept when the loop is written with mutable; children are
+     * the optional key as an IDENTIFIER, the collection and the BLOCK body, so a loop with a key has three
+     * children and one without has two). The list ends with MAREA_IR_KIND_COUNT.
      */
     typedef enum MAREA_IrKind
     {
@@ -62,6 +65,7 @@ MAREA_BEGIN_EXTERN_C
         MAREA_IR_KIND_FORK_JOIN_BLOCK,
         MAREA_IR_KIND_PARTITION_STATEMENT,
         MAREA_IR_KIND_WITH_STATEMENT,
+        MAREA_IR_KIND_FOR_EACH_STATEMENT,
 
         MAREA_IR_KIND_COUNT
     } MAREA_IrKind;
