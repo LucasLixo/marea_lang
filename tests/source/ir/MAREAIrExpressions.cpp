@@ -195,17 +195,13 @@ TEST(MAREAIrExpressions, OperatorsExampleKeepsItsOperatorShapes)
 
     ASSERT_NE(arithmetic, nullptr) << "The function arithmetic must be lowered.";
 
-    const std::string
-RENDERED
-{ MAREA_irRender(arithmetic) };
+    const std::string rendered{ MAREA_irRender(arithmetic) };
 
-EXPECT_NE(RENDERED.find("(LOCAL_DECLARATION negative_power :integer32 (UNARY_EXPRESSION op=MINUS (BINARY_EXPRESSION op=STAR_STAR (IDENTIFIER left) (INTEGER_LITERAL 2))))"), std::string::npos) << "-left ** 2 must keep the negation outside the power: " <<
-RENDERED
-;
+    EXPECT_NE(rendered.find("(LOCAL_DECLARATION negative_power :integer32 (UNARY_EXPRESSION op=MINUS (BINARY_EXPRESSION op=STAR_STAR (IDENTIFIER left) (INTEGER_LITERAL 2))))"), std::string::npos) << "-left ** 2 must keep the negation outside the power: " << rendered;
 
-const MAREA_IrNode *comparison{ MAREA_findFunction(fixture.module, "comparison") };
+    const MAREA_IrNode *comparison{ MAREA_findFunction(fixture.module, "comparison") };
 
-ASSERT_NE(comparison, nullptr) << "The function comparison must be lowered.";
+    ASSERT_NE(comparison, nullptr) << "The function comparison must be lowered.";
 
-EXPECT_NE(MAREA_irRender(comparison).find("(LOCAL_DECLARATION grouped :boolean (BINARY_EXPRESSION op=KEYWORD_AND (BINARY_EXPRESSION op=KEYWORD_OR"), std::string::npos) << "The parentheses of a grouped condition must be elided but keep their shape.";
+    EXPECT_NE(MAREA_irRender(comparison).find("(LOCAL_DECLARATION grouped :boolean (BINARY_EXPRESSION op=KEYWORD_AND (BINARY_EXPRESSION op=KEYWORD_OR"), std::string::npos) << "The parentheses of a grouped condition must be elided but keep their shape.";
 }
