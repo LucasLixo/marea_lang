@@ -177,6 +177,25 @@ TEST(MAREALexerStrings, BackslashAtEndOfFile)
     EXPECT_EQ(CODES[0], static_cast<MAREA_Uinteger32>(MAREA_LEX_DIAGNOSTIC_CODE_UNTERMINATED_STRING)) << "The diagnostic must be UNTERMINATED_STRING.";
 }
 
+TEST(MAREALexerStrings, BackslashBeforeLineEndStopsTheString)
+{
+    GTEST_COUT << "Validating a backslash before a line end reports the bad escape and still ends the string at the line end." << std::endl;
+
+    MAREA_LexFixture lineFeedFixture;
+
+    ASSERT_EQ(lineFeedFixture.MAREA_lex("\"abc\\\nx"), MAREA_LEX_EXCEPT_SUCCESS) << "Lexing must succeed.";
+
+    EXPECT_EQ(lineFeedFixture.MAREA_kinds(), (std::vector<MAREA_TokenKind>{ MAREA_TOKEN_KIND_ERROR, MAREA_TOKEN_KIND_IDENTIFIER, MAREA_TOKEN_KIND_END_OF_FILE })) << "The string must end at the line feed, and lexing must resume with the next line's identifier.";
+
+    EXPECT_EQ(lineFeedFixture.MAREA_diagnosticCodes(), (std::vector<MAREA_Uinteger32>{ static_cast<MAREA_Uinteger32>(MAREA_LEX_DIAGNOSTIC_CODE_INVALID_ESCAPE), static_cast<MAREA_Uinteger32>(MAREA_LEX_DIAGNOSTIC_CODE_UNTERMINATED_STRING) })) << "The source must report INVALID_ESCAPE, then UNTERMINATED_STRING.";
+
+    MAREA_LexFixture carriageReturnFixture;
+
+    ASSERT_EQ(carriageReturnFixture.MAREA_lex("\"abc\\\r\nx"), MAREA_LEX_EXCEPT_SUCCESS) << "Lexing must succeed.";
+
+    EXPECT_EQ(carriageReturnFixture.MAREA_kinds(), (std::vector<MAREA_TokenKind>{ MAREA_TOKEN_KIND_ERROR, MAREA_TOKEN_KIND_IDENTIFIER, MAREA_TOKEN_KIND_END_OF_FILE })) << "The string must end at the carriage return, and lexing must resume with the next line's identifier.";
+}
+
 TEST(MAREALexerStrings, StringTokenPositions)
 {
     GTEST_COUT << "Validating a string token's offset and length cover exactly its quotes and content." << std::endl;
