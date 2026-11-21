@@ -261,7 +261,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_AppendStep(MAREA_IrContext *context, MA
 }
 
 // INFO: a continue skips the step at the end of the body, so each continue that targets this loop becomes BLOCK(step, continue).
-// A nested while or for each stops the walk, because a continue inside it targets that loop. A nested for-range is a while by now, so it stops it too.
+// INFO: a nested while or for each stops the walk, because a continue inside it targets that loop. A nested for-range is a while by now, so it stops it too.
 static MAREA_IrExcept MAREA_CALL MAREA_G_PrefixContinues(MAREA_IrContext *context, MAREA_IrNode *node, const MAREA_G_Step *step)
 {
     for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < node->childCount; index = (index + MAREA_INTEGER_SIZE(1))) {
