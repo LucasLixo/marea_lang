@@ -85,6 +85,24 @@ TEST(MAREASemaParallel, OtherExpressionsAreRejected)
     EXPECT_EQ(MAREA_codesOf("function g(a: integer32) end function f(values: array<float32>) fork_join partition values into 4 as part do spawn g(1 + 2); end end end"), Codes{ INVALID_SPAWN }) << "A computed argument must raise INVALID_SPAWN_ARGUMENT.";
 }
 
+TEST(MAREASemaParallel, FieldOfASafeNameIsAValidArgument)
+{
+    GTEST_COUT << "Validating a field of a name that is safe to spawn over is accepted." << std::endl;
+
+    EXPECT_TRUE(MAREA_codesOf("function g(a: float32) end function f(p: array<float32>, values: array<float32>) fork_join partition values into 4 as part do spawn g(p.size); end end end").empty()) << "A field of a read-only parameter must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("function g(a: float32) end function f(p: array<float32>, values: array<float32>) fork_join partition values into 4 as part do spawn g(p.a.b); end end end").empty()) << "A nested field of a read-only parameter must raise nothing.";
+}
+
+TEST(MAREASemaParallel, FieldOfAnUnsafeNameIsRejected)
+{
+    GTEST_COUT << "Validating a field of a write borrow or of a mutable partition source is still rejected." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("function g(a: float32) end function f(m: mutable array<float32>, values: array<float32>) fork_join partition values into 4 as part do spawn g(m.size); end end end"), Codes{ INVALID_SPAWN }) << "A field of a write borrow must raise INVALID_SPAWN_ARGUMENT.";
+
+    EXPECT_EQ(MAREA_codesOf("function g(a: float32) end function f(values: mutable array<float32>) fork_join partition mutable values into 4 as part do spawn g(values.size); end end end"), Codes{ INVALID_SPAWN }) << "A field of a mutable partition source must raise INVALID_SPAWN_ARGUMENT.";
+}
+
 TEST(MAREASemaParallel, SpawnOutsideForkJoinIsNotChecked)
 {
     GTEST_COUT << "Validating a spawn outside a fork_join block raises no spawn diagnostic." << std::endl;

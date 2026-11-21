@@ -111,6 +111,13 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsValidArgument(const MAREA_SemaContext 
         }
 
         return ((MAREA_G_IsWriteBorrowParameter(context, argument) == MAREA_BOOLEAN_TRUE) || (MAREA_G_IsMutablePartitionSource(context, argument) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_FALSE : MAREA_BOOLEAN_TRUE;
+    case MAREA_AST_KIND_MEMBER_ACCESS:
+    {
+        // INFO: a field is as safe to share as the value it is read from.
+        const MAREA_AstNode *base = MAREA_SemaChildAt(argument, 0);
+
+        return ((base != MAREA_NULLPTR) && (MAREA_G_IsValidArgument(context, base) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+    }
     default:
         return MAREA_BOOLEAN_FALSE;
     }

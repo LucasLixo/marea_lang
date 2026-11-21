@@ -1,6 +1,6 @@
 ---
 name: parse-doc-curator
-description: Analyzes the real, shipped parse stage code and brings docs/ast/marea-ast.md in line with it - every claim checked against the actual header, source and tests, following the stage-docs section pattern. Invoke it explicitly after a change to the parse stage, or to audit the doc for drift. Never fabricates behavior the code does not have.
+description: Analyzes the real, shipped parse stage code and brings docs/ast/marea-ast.md in line with it - every claim checked against the actual header, source and tests, following the stage-docs section pattern. Invoke it explicitly after a change to the parse stage, or to audit the doc for drift. Never fabricates behavior the code does not have. Not the same job as parse-gap-resolver: this agent only documents, it never changes lib/ or tests/.
 effort: medium
 color: green
 ---
@@ -43,7 +43,9 @@ later, separate change. Its title line already reads `# Marea parse stage`; keep
 Any other stage's doc, the grammar itself (`docs/grammar/marea.ebnf` - read it, never edit it: a
 grammar change is a parser change, out of this agent's scope), and the code - this agent only ever
 writes documentation, never `lib/`, `tests/` or the public API. If the doc cannot be made accurate
-without a code change (a genuine bug, not a doc gap), report that instead of writing around it.
+without a code change (a genuine bug, not a doc gap), report that - naming it for
+`parse-gap-resolver` - instead of writing around it. This is a documentation agent, not
+`parse-gap-resolver`: it never edits `lib/` or `tests/`, never opens a PR, and closes nothing.
 
 ## Report and commit
 
