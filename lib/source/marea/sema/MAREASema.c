@@ -3,6 +3,8 @@
 
 #include "marea/internal/sema/MAREASemaInternal.h"
 
+#include <string.h>
+
 MAREA_SemaExcept MAREA_CALL MAREA_SemaContextCreate(MAREA_Arena *arena, MAREA_DiagnosticSink *sink, MAREA_SemaImportResolver *resolver, MAREA_SemaContext **outContext)
 {
     if (arena == MAREA_NULLPTR) {
@@ -32,6 +34,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaContextCreate(MAREA_Arena *arena, MAREA_Di
     context->arena = arena;
     context->sink = sink;
     context->resolver = resolver;
+    context->names = (MAREA_SemaNameTable){ 0 };
 
     *outContext = context;
 
@@ -63,6 +66,35 @@ MAREA_SemaImportResolver *MAREA_CALL MAREA_SemaContextGetImportResolver(const MA
     }
 
     return context->resolver;
+}
+
+void MAREA_CALL MAREA_SemaReport(MAREA_SemaContext *context, MAREA_SemaDiagnosticCode code, MAREA_SourcePosition position, const MAREA_Character8 *message)
+{
+    MAREA_IGNORE(MAREA_DiagnosticSinkAdd(context->sink, (MAREA_Uinteger32)code, MAREA_DIAGNOSTIC_SEVERITY_ERROR, position, message));
+}
+
+MAREA_SemaExcept MAREA_CALL MAREA_SemaReportNamed(MAREA_SemaContext *context, MAREA_SemaDiagnosticCode code, MAREA_SourcePosition position, const MAREA_Character8 *prefix, const MAREA_Character8 *name, MAREA_IntegerSize nameLength)
+{
+    const MAREA_IntegerSize PREFIX_LENGTH = strlen(prefix);
+
+    MAREA_Null memory = MAREA_NULLPTR;
+
+    if (MAREA_ArenaAllocate(context->arena, (PREFIX_LENGTH + nameLength + MAREA_INTEGER_SIZE(4)), MAREA_ALIGNOF(MAREA_Character8), &memory) != MAREA_ARENA_EXCEPT_SUCCESS) {
+        return MAREA_SEMA_EXCEPT_ERROR_OUT_OF_MEMORY;
+    }
+
+    MAREA_Character8 *message = memory;
+
+    memcpy(message, prefix, PREFIX_LENGTH);
+    message[PREFIX_LENGTH] = ' ';
+    message[(PREFIX_LENGTH + MAREA_INTEGER_SIZE(1))] = '\'';
+    memcpy((message + PREFIX_LENGTH + MAREA_INTEGER_SIZE(2)), name, nameLength);
+    message[(PREFIX_LENGTH + nameLength + MAREA_INTEGER_SIZE(2))] = '\'';
+    message[(PREFIX_LENGTH + nameLength + MAREA_INTEGER_SIZE(3))] = '\0';
+
+    MAREA_SemaReport(context, code, position, message);
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
 }
 
 MAREA_SemaExcept MAREA_CALL MAREA_SemaVisit(MAREA_SemaContext *context, const MAREA_AstNode *node)
@@ -103,6 +135,14 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckCompilationUnit(MAREA_SemaContext *co
 
     if (root == MAREA_NULLPTR) {
         return MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    context->names = (MAREA_SemaNameTable){ 0 };
+
+    const MAREA_SemaExcept NAMES_RESULT = MAREA_SemaCheckNamespaceAndNames(context, root);
+
+    if (NAMES_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+        return NAMES_RESULT;
     }
 
     return MAREA_SemaVisit(context, root);
