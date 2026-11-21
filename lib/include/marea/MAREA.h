@@ -14,4 +14,8 @@
     #include "marea/lex/MAREAToken.h"
     #include "marea/lex/MAREATokenKind.h"
 
+    #include "marea/parse/MAREAAst.h"
+    #include "marea/parse/MAREAAstKind.h"
+    #include "marea/parse/MAREAParser.h"
+
 #endif
