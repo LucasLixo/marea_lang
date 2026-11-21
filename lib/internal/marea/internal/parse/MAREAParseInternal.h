@@ -178,6 +178,12 @@ MAREA_BEGIN_EXTERN_C
     MAREA_AstNode *MAREA_CALL MAREA_ParseNodeBegin(MAREA_ParseState * state, MAREA_AstKind kind);
 
     /**
+     * @brief Creates a node that starts at position, without text. Used for a node that begins at its
+     * first operand. Null after an out of memory.
+     */
+    MAREA_AstNode *MAREA_CALL MAREA_ParseNodeBeginAt(MAREA_ParseState * state, MAREA_AstKind kind, MAREA_SourcePosition position);
+
+    /**
      * @brief Creates a node positioned at token, with the text of token. Null after an out of memory.
      */
     MAREA_AstNode *MAREA_CALL MAREA_ParseNodeFromToken(MAREA_ParseState * state, MAREA_AstKind kind, const MAREA_Token *token);

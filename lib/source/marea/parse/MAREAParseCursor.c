@@ -205,6 +205,19 @@ MAREA_AstNode *MAREA_CALL MAREA_ParseNodeBegin(MAREA_ParseState *state, MAREA_As
     return node;
 }
 
+MAREA_AstNode *MAREA_CALL MAREA_ParseNodeBeginAt(MAREA_ParseState *state, MAREA_AstKind kind, MAREA_SourcePosition position)
+{
+    MAREA_AstNode *node = MAREA_NULLPTR;
+
+    if (MAREA_AstNodeCreate(state->context->arena, kind, position, MAREA_NULLPTR, MAREA_INTEGER_SIZE(0), &node) != MAREA_AST_EXCEPT_SUCCESS) {
+        state->outOfMemory = MAREA_BOOLEAN_TRUE;
+
+        return MAREA_NULLPTR;
+    }
+
+    return node;
+}
+
 MAREA_AstNode *MAREA_CALL MAREA_ParseNodeFromToken(MAREA_ParseState *state, MAREA_AstKind kind, const MAREA_Token *token)
 {
     MAREA_AstNode *node = MAREA_NULLPTR;
