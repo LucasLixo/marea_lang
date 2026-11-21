@@ -50,9 +50,14 @@ static MAREA_LexExcept MAREA_CALL MAREA_G_LexScanPrefixedInteger(MAREA_LexCursor
     MAREA_LexCursorAdvance(cursor);
     MAREA_LexCursorAdvance(cursor);
 
+    MAREA_Boolean(MAREA_CALL * isDigit)(MAREA_Sinteger32) = isHex ? MAREA_LexIsHexDigit : MAREA_G_LexIsBinaryDigit;
+
     MAREA_IntegerSize digitCount = MAREA_INTEGER_SIZE(0);
 
-    MAREA_G_LexSkipDigitsAndUnderscores(cursor, isHex ? MAREA_LexIsHexDigit : MAREA_G_LexIsBinaryDigit, &digitCount);
+    // INFO: the grammar needs a digit right after the prefix, so an underscore there is not skipped.
+    if (isDigit(MAREA_LexCursorPeek(cursor, MAREA_INTEGER_SIZE(0)))) {
+        MAREA_G_LexSkipDigitsAndUnderscores(cursor, isDigit, &digitCount);
+    }
 
     const MAREA_SourcePosition POSITION = MAREA_LexCursorMakePosition(cursor, startOffset, startLine, startColumn);
 
