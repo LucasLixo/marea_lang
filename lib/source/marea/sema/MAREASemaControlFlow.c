@@ -233,6 +233,11 @@ static const MAREA_AstNode *MAREA_CALL MAREA_G_CaseName(const MAREA_AstNode *val
     return MAREA_NULLPTR;
 }
 
+static MAREA_Boolean MAREA_CALL MAREA_G_SameText(const MAREA_AstNode *left, const MAREA_AstNode *right)
+{
+    return ((MAREA_AstNodeGetTextLength(left) == MAREA_AstNodeGetTextLength(right)) && (memcmp(MAREA_AstNodeGetText(left), MAREA_AstNodeGetText(right), MAREA_AstNodeGetTextLength(left)) == 0)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
 static MAREA_Boolean MAREA_CALL MAREA_G_IsCovered(const MAREA_AstNode *statement, const MAREA_AstNode *variant)
 {
     for (MAREA_IntegerSize index = 1; index < MAREA_AstNodeGetChildCount(statement); ++index) {
@@ -245,18 +250,13 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsCovered(const MAREA_AstNode *statement
         for (MAREA_IntegerSize valueIndex = 0; (valueIndex + 1) < MAREA_AstNodeGetChildCount(arm); ++valueIndex) {
             const MAREA_AstNode *name = MAREA_G_CaseName(MAREA_SemaChildAt(arm, valueIndex));
 
-            if ((name != MAREA_NULLPTR) && (MAREA_AstNodeGetTextLength(name) == MAREA_AstNodeGetTextLength(variant)) && (memcmp(MAREA_AstNodeGetText(name), MAREA_AstNodeGetText(variant), MAREA_AstNodeGetTextLength(variant)) == 0)) {
+            if ((name != MAREA_NULLPTR) && (MAREA_G_SameText(name, variant) == MAREA_BOOLEAN_TRUE)) {
                 return MAREA_BOOLEAN_TRUE;
             }
         }
     }
 
     return MAREA_BOOLEAN_FALSE;
-}
-
-static MAREA_Boolean MAREA_CALL MAREA_G_SameText(const MAREA_AstNode *left, const MAREA_AstNode *right)
-{
-    return ((MAREA_AstNodeGetTextLength(left) == MAREA_AstNodeGetTextLength(right)) && (memcmp(MAREA_AstNodeGetText(left), MAREA_AstNodeGetText(right), MAREA_AstNodeGetTextLength(left)) == 0)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
 // INFO: two case values are the same when they are built from the same literals, names and unary operators.
