@@ -13,9 +13,9 @@ namespace
     {
         std::vector<std::filesystem::path> result;
 
-        for (const std::filesystem::directory_entry &ENTRY : std::filesystem::recursive_directory_iterator(MAREA_TESTS_EXAMPLES_DIRECTORY)) {
-            if (ENTRY.is_regular_file() && (ENTRY.path().extension() == ".marea")) {
-                result.push_back(ENTRY.path());
+        for (const std::filesystem::directory_entry &entry : std::filesystem::recursive_directory_iterator(MAREA_TESTS_EXAMPLES_DIRECTORY)) {
+            if (entry.is_regular_file() && (entry.path().extension() == ".marea")) {
+                result.push_back(entry.path());
             }
         }
 

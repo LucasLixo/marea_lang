@@ -10,16 +10,16 @@ namespace
 {
 
     template <typename T, typename = void>
-    struct MareaIsComplete : std::false_type
+    struct MAREA_IsComplete : std::false_type
     {
     };
 
     template <typename T>
-    struct MareaIsComplete<T, std::void_t<decltype(sizeof(T))>> : std::true_type
+    struct MAREA_IsComplete<T, std::void_t<decltype(sizeof(T))>> : std::true_type
     {
     };
 
-    MAREA_SourcePosition MakePosition(MAREA_Uinteger32 offset)
+    MAREA_SourcePosition MAREA_MakePosition(MAREA_Uinteger32 offset)
     {
         return MAREA_SourcePosition{ "test.marea", offset, MAREA_UINTEGER_32(1), MAREA_UINTEGER_32(1), MAREA_UINTEGER_32(1) };
     }
@@ -74,9 +74,9 @@ TEST(MAREADiagnostic, SinkAddStoresFields)
 
     ASSERT_EQ(MAREA_DiagnosticSinkCreate(arena, &sink), MAREA_DIAGNOSTIC_EXCEPT_SUCCESS) << "MAREA_DiagnosticSinkCreate must succeed.";
 
-    const MAREA_SourcePosition position{ MakePosition(MAREA_UINTEGER_32(42)) };
+    const MAREA_SourcePosition POSITION{ MAREA_MakePosition(MAREA_UINTEGER_32(42)) };
 
-    ASSERT_EQ(MAREA_DiagnosticSinkAdd(sink, MAREA_UINTEGER_32(1001), MAREA_DIAGNOSTIC_SEVERITY_WARNING, position, "a message"), MAREA_DIAGNOSTIC_EXCEPT_SUCCESS) << "MAREA_DiagnosticSinkAdd must succeed.";
+    ASSERT_EQ(MAREA_DiagnosticSinkAdd(sink, MAREA_UINTEGER_32(1001), MAREA_DIAGNOSTIC_SEVERITY_WARNING, POSITION, "a message"), MAREA_DIAGNOSTIC_EXCEPT_SUCCESS) << "MAREA_DiagnosticSinkAdd must succeed.";
 
     ASSERT_EQ(MAREA_DiagnosticSinkGetCount(sink), MAREA_INTEGER_SIZE(1)) << "The sink must hold exactly one diagnostic.";
 
@@ -109,7 +109,7 @@ TEST(MAREADiagnostic, SinkAddCopiesMessage)
 
     char buffer[]{ "mutable message" };
 
-    ASSERT_EQ(MAREA_DiagnosticSinkAdd(sink, MAREA_UINTEGER_32(1), MAREA_DIAGNOSTIC_SEVERITY_ERROR, MakePosition(MAREA_UINTEGER_32(0)), buffer), MAREA_DIAGNOSTIC_EXCEPT_SUCCESS) << "MAREA_DiagnosticSinkAdd must succeed.";
+    ASSERT_EQ(MAREA_DiagnosticSinkAdd(sink, MAREA_UINTEGER_32(1), MAREA_DIAGNOSTIC_SEVERITY_ERROR, MAREA_MakePosition(MAREA_UINTEGER_32(0)), buffer), MAREA_DIAGNOSTIC_EXCEPT_SUCCESS) << "MAREA_DiagnosticSinkAdd must succeed.";
 
     std::memset(buffer, 'x', sizeof(buffer) - 1);
 
@@ -137,7 +137,7 @@ TEST(MAREADiagnostic, SinkAddGrowsPastInitialCapacity)
     constexpr int ADD_COUNT{ 300 };
 
     for (int index{ 0 }; index < ADD_COUNT; ++index) {
-        ASSERT_EQ(MAREA_DiagnosticSinkAdd(sink, static_cast<MAREA_Uinteger32>(index), MAREA_DIAGNOSTIC_SEVERITY_ERROR, MakePosition(static_cast<MAREA_Uinteger32>(index)), "growing"), MAREA_DIAGNOSTIC_EXCEPT_SUCCESS) << "MAREA_DiagnosticSinkAdd must succeed for add " << index << ".";
+        ASSERT_EQ(MAREA_DiagnosticSinkAdd(sink, static_cast<MAREA_Uinteger32>(index), MAREA_DIAGNOSTIC_SEVERITY_ERROR, MAREA_MakePosition(static_cast<MAREA_Uinteger32>(index)), "growing"), MAREA_DIAGNOSTIC_EXCEPT_SUCCESS) << "MAREA_DiagnosticSinkAdd must succeed for add " << index << ".";
     }
 
     ASSERT_EQ(MAREA_DiagnosticSinkGetCount(sink), static_cast<MAREA_IntegerSize>(ADD_COUNT)) << "The sink must hold every added diagnostic.";
@@ -157,7 +157,7 @@ TEST(MAREADiagnostic, SinkAddRejectsNullSink)
 {
     GTEST_COUT << "Validating MAREA_DiagnosticSinkAdd rejects a null sink." << std::endl;
 
-    EXPECT_EQ(MAREA_DiagnosticSinkAdd(nullptr, MAREA_UINTEGER_32(1), MAREA_DIAGNOSTIC_SEVERITY_ERROR, MakePosition(MAREA_UINTEGER_32(0)), "message"), MAREA_DIAGNOSTIC_EXCEPT_ERROR_NULL_POINTER) << "MAREA_DiagnosticSinkAdd must reject a null sink.";
+    EXPECT_EQ(MAREA_DiagnosticSinkAdd(nullptr, MAREA_UINTEGER_32(1), MAREA_DIAGNOSTIC_SEVERITY_ERROR, MAREA_MakePosition(MAREA_UINTEGER_32(0)), "message"), MAREA_DIAGNOSTIC_EXCEPT_ERROR_NULL_POINTER) << "MAREA_DiagnosticSinkAdd must reject a null sink.";
 }
 
 TEST(MAREADiagnostic, SinkAddRejectsNullMessage)
@@ -172,7 +172,7 @@ TEST(MAREADiagnostic, SinkAddRejectsNullMessage)
 
     ASSERT_EQ(MAREA_DiagnosticSinkCreate(arena, &sink), MAREA_DIAGNOSTIC_EXCEPT_SUCCESS) << "MAREA_DiagnosticSinkCreate must succeed.";
 
-    EXPECT_EQ(MAREA_DiagnosticSinkAdd(sink, MAREA_UINTEGER_32(1), MAREA_DIAGNOSTIC_SEVERITY_ERROR, MakePosition(MAREA_UINTEGER_32(0)), nullptr), MAREA_DIAGNOSTIC_EXCEPT_ERROR_NULL_POINTER) << "MAREA_DiagnosticSinkAdd must reject a null message.";
+    EXPECT_EQ(MAREA_DiagnosticSinkAdd(sink, MAREA_UINTEGER_32(1), MAREA_DIAGNOSTIC_SEVERITY_ERROR, MAREA_MakePosition(MAREA_UINTEGER_32(0)), nullptr), MAREA_DIAGNOSTIC_EXCEPT_ERROR_NULL_POINTER) << "MAREA_DiagnosticSinkAdd must reject a null message.";
 
     MAREA_ArenaDestroy(arena);
 }
@@ -189,11 +189,11 @@ TEST(MAREADiagnostic, SinkErrorCountIgnoresWarnings)
 
     ASSERT_EQ(MAREA_DiagnosticSinkCreate(arena, &sink), MAREA_DIAGNOSTIC_EXCEPT_SUCCESS) << "MAREA_DiagnosticSinkCreate must succeed.";
 
-    ASSERT_EQ(MAREA_DiagnosticSinkAdd(sink, MAREA_UINTEGER_32(1), MAREA_DIAGNOSTIC_SEVERITY_ERROR, MakePosition(MAREA_UINTEGER_32(0)), "error"), MAREA_DIAGNOSTIC_EXCEPT_SUCCESS) << "MAREA_DiagnosticSinkAdd must succeed.";
+    ASSERT_EQ(MAREA_DiagnosticSinkAdd(sink, MAREA_UINTEGER_32(1), MAREA_DIAGNOSTIC_SEVERITY_ERROR, MAREA_MakePosition(MAREA_UINTEGER_32(0)), "error"), MAREA_DIAGNOSTIC_EXCEPT_SUCCESS) << "MAREA_DiagnosticSinkAdd must succeed.";
 
-    ASSERT_EQ(MAREA_DiagnosticSinkAdd(sink, MAREA_UINTEGER_32(2), MAREA_DIAGNOSTIC_SEVERITY_WARNING, MakePosition(MAREA_UINTEGER_32(0)), "warning"), MAREA_DIAGNOSTIC_EXCEPT_SUCCESS) << "MAREA_DiagnosticSinkAdd must succeed.";
+    ASSERT_EQ(MAREA_DiagnosticSinkAdd(sink, MAREA_UINTEGER_32(2), MAREA_DIAGNOSTIC_SEVERITY_WARNING, MAREA_MakePosition(MAREA_UINTEGER_32(0)), "warning"), MAREA_DIAGNOSTIC_EXCEPT_SUCCESS) << "MAREA_DiagnosticSinkAdd must succeed.";
 
-    ASSERT_EQ(MAREA_DiagnosticSinkAdd(sink, MAREA_UINTEGER_32(3), MAREA_DIAGNOSTIC_SEVERITY_WARNING, MakePosition(MAREA_UINTEGER_32(0)), "warning"), MAREA_DIAGNOSTIC_EXCEPT_SUCCESS) << "MAREA_DiagnosticSinkAdd must succeed.";
+    ASSERT_EQ(MAREA_DiagnosticSinkAdd(sink, MAREA_UINTEGER_32(3), MAREA_DIAGNOSTIC_SEVERITY_WARNING, MAREA_MakePosition(MAREA_UINTEGER_32(0)), "warning"), MAREA_DIAGNOSTIC_EXCEPT_SUCCESS) << "MAREA_DiagnosticSinkAdd must succeed.";
 
     EXPECT_EQ(MAREA_DiagnosticSinkGetCount(sink), MAREA_INTEGER_SIZE(3)) << "The sink must hold every added diagnostic.";
 
@@ -242,9 +242,9 @@ TEST(MAREADiagnostic, TypesAreOpaque)
 {
     GTEST_COUT << "Validating MAREA_Arena, MAREA_Diagnostic and MAREA_DiagnosticSink stay opaque to callers." << std::endl;
 
-    EXPECT_FALSE(MareaIsComplete<MAREA_Arena>::value) << "MAREA_Arena must not be a complete type outside its implementation.";
+    EXPECT_FALSE(MAREA_IsComplete<MAREA_Arena>::value) << "MAREA_Arena must not be a complete type outside its implementation.";
 
-    EXPECT_FALSE(MareaIsComplete<MAREA_Diagnostic>::value) << "MAREA_Diagnostic must not be a complete type outside its implementation.";
+    EXPECT_FALSE(MAREA_IsComplete<MAREA_Diagnostic>::value) << "MAREA_Diagnostic must not be a complete type outside its implementation.";
 
-    EXPECT_FALSE(MareaIsComplete<MAREA_DiagnosticSink>::value) << "MAREA_DiagnosticSink must not be a complete type outside its implementation.";
+    EXPECT_FALSE(MAREA_IsComplete<MAREA_DiagnosticSink>::value) << "MAREA_DiagnosticSink must not be a complete type outside its implementation.";
 }
