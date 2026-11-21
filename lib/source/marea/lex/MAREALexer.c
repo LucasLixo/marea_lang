@@ -41,11 +41,11 @@ void MAREA_CALL MAREA_LexCursorAdvance(MAREA_LexCursor *cursor)
 MAREA_SourcePosition MAREA_CALL MAREA_LexCursorMakePosition(const MAREA_LexCursor *cursor, MAREA_IntegerSize startOffset, MAREA_Uinteger32 startLine, MAREA_Uinteger32 startColumn)
 {
     MAREA_SourcePosition position = {
-        MAREA_LexContextGetFileName(cursor->context),
-        (MAREA_Uinteger32)startOffset,
-        startLine,
-        startColumn,
-        (MAREA_Uinteger32)(cursor->offset - startOffset),
+        .file = MAREA_LexContextGetFileName(cursor->context),
+        .offset = (MAREA_Uinteger32)startOffset,
+        .line = startLine,
+        .column = startColumn,
+        .length = (MAREA_Uinteger32)(cursor->offset - startOffset),
     };
 
     return position;
@@ -130,7 +130,13 @@ MAREA_Uinteger32 MAREA_CALL MAREA_TokenGetLength(const MAREA_Token *token)
 MAREA_SourcePosition MAREA_CALL MAREA_TokenGetPosition(const MAREA_Token *token)
 {
     if (token == MAREA_NULLPTR) {
-        MAREA_SourcePosition zeroed = { MAREA_NULLPTR, MAREA_UINTEGER_32(0), MAREA_UINTEGER_32(0), MAREA_UINTEGER_32(0), MAREA_UINTEGER_32(0) };
+        MAREA_SourcePosition zeroed = {
+            .file = MAREA_NULLPTR,
+            .offset = MAREA_UINTEGER_32(0),
+            .line = MAREA_UINTEGER_32(0),
+            .column = MAREA_UINTEGER_32(0),
+            .length = MAREA_UINTEGER_32(0),
+        };
 
         return zeroed;
     }
@@ -246,62 +252,62 @@ typedef struct MAREA_G_LexSymbolRow
 } MAREA_G_LexSymbolRow;
 
 static const MAREA_G_LexSymbolRow MAREA_G_LexSymbolsLength3[] = {
-    { "**=", 3, MAREA_TOKEN_KIND_STAR_STAR_EQUAL },
-    { "<<=", 3, MAREA_TOKEN_KIND_SHIFT_LEFT_EQUAL },
-    { ">>=", 3, MAREA_TOKEN_KIND_SHIFT_RIGHT_EQUAL },
-    { "#![", 3, MAREA_TOKEN_KIND_HASH_BANG_BRACKET },
+    { .text = "**=", .length = 3, .kind = MAREA_TOKEN_KIND_STAR_STAR_EQUAL },
+    { .text = "<<=", .length = 3, .kind = MAREA_TOKEN_KIND_SHIFT_LEFT_EQUAL },
+    { .text = ">>=", .length = 3, .kind = MAREA_TOKEN_KIND_SHIFT_RIGHT_EQUAL },
+    { .text = "#![", .length = 3, .kind = MAREA_TOKEN_KIND_HASH_BANG_BRACKET },
 };
 
 static const MAREA_G_LexSymbolRow MAREA_G_LexSymbolsLength2[] = {
-    { "**", 2, MAREA_TOKEN_KIND_STAR_STAR },
-    { "+%", 2, MAREA_TOKEN_KIND_PLUS_PERCENT },
-    { "-%", 2, MAREA_TOKEN_KIND_MINUS_PERCENT },
-    { "*%", 2, MAREA_TOKEN_KIND_STAR_PERCENT },
-    { "+|", 2, MAREA_TOKEN_KIND_PLUS_PIPE },
-    { "-|", 2, MAREA_TOKEN_KIND_MINUS_PIPE },
-    { "*|", 2, MAREA_TOKEN_KIND_STAR_PIPE },
-    { "<<", 2, MAREA_TOKEN_KIND_SHIFT_LEFT },
-    { ">>", 2, MAREA_TOKEN_KIND_SHIFT_RIGHT },
-    { "==", 2, MAREA_TOKEN_KIND_EQUAL_EQUAL },
-    { "!=", 2, MAREA_TOKEN_KIND_BANG_EQUAL },
-    { "<=", 2, MAREA_TOKEN_KIND_LESS_EQUAL },
-    { ">=", 2, MAREA_TOKEN_KIND_GREATER_EQUAL },
-    { "+=", 2, MAREA_TOKEN_KIND_PLUS_EQUAL },
-    { "-=", 2, MAREA_TOKEN_KIND_MINUS_EQUAL },
-    { "*=", 2, MAREA_TOKEN_KIND_STAR_EQUAL },
-    { "/=", 2, MAREA_TOKEN_KIND_SLASH_EQUAL },
-    { "%=", 2, MAREA_TOKEN_KIND_PERCENT_EQUAL },
-    { "&=", 2, MAREA_TOKEN_KIND_AMPERSAND_EQUAL },
-    { "|=", 2, MAREA_TOKEN_KIND_PIPE_EQUAL },
-    { "^=", 2, MAREA_TOKEN_KIND_CARET_EQUAL },
-    { "..", 2, MAREA_TOKEN_KIND_DOT_DOT },
-    { "#[", 2, MAREA_TOKEN_KIND_HASH_BRACKET },
+    { .text = "**", .length = 2, .kind = MAREA_TOKEN_KIND_STAR_STAR },
+    { .text = "+%", .length = 2, .kind = MAREA_TOKEN_KIND_PLUS_PERCENT },
+    { .text = "-%", .length = 2, .kind = MAREA_TOKEN_KIND_MINUS_PERCENT },
+    { .text = "*%", .length = 2, .kind = MAREA_TOKEN_KIND_STAR_PERCENT },
+    { .text = "+|", .length = 2, .kind = MAREA_TOKEN_KIND_PLUS_PIPE },
+    { .text = "-|", .length = 2, .kind = MAREA_TOKEN_KIND_MINUS_PIPE },
+    { .text = "*|", .length = 2, .kind = MAREA_TOKEN_KIND_STAR_PIPE },
+    { .text = "<<", .length = 2, .kind = MAREA_TOKEN_KIND_SHIFT_LEFT },
+    { .text = ">>", .length = 2, .kind = MAREA_TOKEN_KIND_SHIFT_RIGHT },
+    { .text = "==", .length = 2, .kind = MAREA_TOKEN_KIND_EQUAL_EQUAL },
+    { .text = "!=", .length = 2, .kind = MAREA_TOKEN_KIND_BANG_EQUAL },
+    { .text = "<=", .length = 2, .kind = MAREA_TOKEN_KIND_LESS_EQUAL },
+    { .text = ">=", .length = 2, .kind = MAREA_TOKEN_KIND_GREATER_EQUAL },
+    { .text = "+=", .length = 2, .kind = MAREA_TOKEN_KIND_PLUS_EQUAL },
+    { .text = "-=", .length = 2, .kind = MAREA_TOKEN_KIND_MINUS_EQUAL },
+    { .text = "*=", .length = 2, .kind = MAREA_TOKEN_KIND_STAR_EQUAL },
+    { .text = "/=", .length = 2, .kind = MAREA_TOKEN_KIND_SLASH_EQUAL },
+    { .text = "%=", .length = 2, .kind = MAREA_TOKEN_KIND_PERCENT_EQUAL },
+    { .text = "&=", .length = 2, .kind = MAREA_TOKEN_KIND_AMPERSAND_EQUAL },
+    { .text = "|=", .length = 2, .kind = MAREA_TOKEN_KIND_PIPE_EQUAL },
+    { .text = "^=", .length = 2, .kind = MAREA_TOKEN_KIND_CARET_EQUAL },
+    { .text = "..", .length = 2, .kind = MAREA_TOKEN_KIND_DOT_DOT },
+    { .text = "#[", .length = 2, .kind = MAREA_TOKEN_KIND_HASH_BRACKET },
 };
 
 static const MAREA_G_LexSymbolRow MAREA_G_LexSymbolsLength1[] = {
-    { "+", 1, MAREA_TOKEN_KIND_PLUS },
-    { "-", 1, MAREA_TOKEN_KIND_MINUS },
-    { "*", 1, MAREA_TOKEN_KIND_STAR },
-    { "/", 1, MAREA_TOKEN_KIND_SLASH },
-    { "%", 1, MAREA_TOKEN_KIND_PERCENT },
-    { "~", 1, MAREA_TOKEN_KIND_TILDE },
-    { "&", 1, MAREA_TOKEN_KIND_AMPERSAND },
-    { "|", 1, MAREA_TOKEN_KIND_PIPE },
-    { "^", 1, MAREA_TOKEN_KIND_CARET },
-    { "<", 1, MAREA_TOKEN_KIND_LESS },
-    { ">", 1, MAREA_TOKEN_KIND_GREATER },
-    { "=", 1, MAREA_TOKEN_KIND_EQUAL },
-    { "(", 1, MAREA_TOKEN_KIND_LEFT_PAREN },
-    { ")", 1, MAREA_TOKEN_KIND_RIGHT_PAREN },
-    { "[", 1, MAREA_TOKEN_KIND_LEFT_BRACKET },
-    { "]", 1, MAREA_TOKEN_KIND_RIGHT_BRACKET },
-    { "{", 1, MAREA_TOKEN_KIND_LEFT_BRACE },
-    { "}", 1, MAREA_TOKEN_KIND_RIGHT_BRACE },
-    { ",", 1, MAREA_TOKEN_KIND_COMMA },
-    { ";", 1, MAREA_TOKEN_KIND_SEMICOLON },
-    { ":", 1, MAREA_TOKEN_KIND_COLON },
-    { ".", 1, MAREA_TOKEN_KIND_DOT },
-    { "!", 1, MAREA_TOKEN_KIND_BANG },
+    { .text = "+", .length = 1, .kind = MAREA_TOKEN_KIND_PLUS },
+    { .text = "-", .length = 1, .kind = MAREA_TOKEN_KIND_MINUS },
+    { .text = "*", .length = 1, .kind = MAREA_TOKEN_KIND_STAR },
+    { .text = "/", .length = 1, .kind = MAREA_TOKEN_KIND_SLASH },
+    { .text = "%", .length = 1, .kind = MAREA_TOKEN_KIND_PERCENT },
+    { .text = "~", .length = 1, .kind = MAREA_TOKEN_KIND_TILDE },
+    { .text = "&", .length = 1, .kind = MAREA_TOKEN_KIND_AMPERSAND },
+    { .text = "|", .length = 1, .kind = MAREA_TOKEN_KIND_PIPE },
+    { .text = "^", .length = 1, .kind = MAREA_TOKEN_KIND_CARET },
+    { .text = "<", .length = 1, .kind = MAREA_TOKEN_KIND_LESS },
+    { .text = ">", .length = 1, .kind = MAREA_TOKEN_KIND_GREATER },
+    { .text = "=", .length = 1, .kind = MAREA_TOKEN_KIND_EQUAL },
+    { .text = "(", .length = 1, .kind = MAREA_TOKEN_KIND_LEFT_PAREN },
+    { .text = ")", .length = 1, .kind = MAREA_TOKEN_KIND_RIGHT_PAREN },
+    { .text = "[", .length = 1, .kind = MAREA_TOKEN_KIND_LEFT_BRACKET },
+    { .text = "]", .length = 1, .kind = MAREA_TOKEN_KIND_RIGHT_BRACKET },
+    { .text = "{", .length = 1, .kind = MAREA_TOKEN_KIND_LEFT_BRACE },
+    { .text = "}", .length = 1, .kind = MAREA_TOKEN_KIND_RIGHT_BRACE },
+    { .text = ",", .length = 1, .kind = MAREA_TOKEN_KIND_COMMA },
+    { .text = ";", .length = 1, .kind = MAREA_TOKEN_KIND_SEMICOLON },
+    { .text = ":", .length = 1, .kind = MAREA_TOKEN_KIND_COLON },
+    { .text = ".", .length = 1, .kind = MAREA_TOKEN_KIND_DOT },
+    { .text = "!", .length = 1, .kind = MAREA_TOKEN_KIND_BANG },
 };
 
 static MAREA_Boolean MAREA_CALL MAREA_G_LexTryMatchSymbol(const MAREA_LexCursor *cursor, const MAREA_G_LexSymbolRow *table, MAREA_IntegerSize tableLength, MAREA_IntegerSize symbolLength, MAREA_TokenKind *outKind)
@@ -346,7 +352,14 @@ MAREA_LexExcept MAREA_CALL MAREA_LexTokenize(MAREA_LexContext *context, const MA
     list->count = MAREA_INTEGER_SIZE(0);
     list->capacity = MAREA_INTEGER_SIZE(0);
 
-    MAREA_LexCursor cursor = { context, source, length, MAREA_INTEGER_SIZE(0), MAREA_UINTEGER_32(1), MAREA_UINTEGER_32(1) };
+    MAREA_LexCursor cursor = {
+        .context = context,
+        .source = source,
+        .length = length,
+        .offset = MAREA_INTEGER_SIZE(0),
+        .line = MAREA_UINTEGER_32(1),
+        .column = MAREA_UINTEGER_32(1),
+    };
 
     while (!MAREA_LexCursorIsAtEnd(&cursor)) {
         const MAREA_Sinteger32 CURRENT = MAREA_LexCursorPeek(&cursor, MAREA_INTEGER_SIZE(0));

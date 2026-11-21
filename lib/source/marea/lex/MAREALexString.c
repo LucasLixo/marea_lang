@@ -84,7 +84,10 @@ MAREA_LexExcept MAREA_CALL MAREA_LexScanString(MAREA_LexCursor *cursor, MAREA_To
 
             MAREA_LexCursorReportDiagnostic(cursor, MAREA_LEX_DIAGNOSTIC_CODE_INVALID_ESCAPE, POSITION, "invalid escape sequence");
 
-            MAREA_LexCursorAdvance(cursor);
+            // INFO: a line end is not part of the escape, so the next loop turn ends the string at it.
+            if ((ESCAPE_CHARACTER != '\n') && (ESCAPE_CHARACTER != '\r')) {
+                MAREA_LexCursorAdvance(cursor);
+            }
 
             continue;
         }
