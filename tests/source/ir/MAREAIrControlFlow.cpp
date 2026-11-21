@@ -186,13 +186,97 @@ TEST(MAREAIrControlFlow, ForRangeIncrementTextIsOne)
     EXPECT_EQ(MAREA_irText(one), "1") << "The increment value must be 1.";
 }
 
+TEST(MAREAIrControlFlow, SwitchBecomesAHiddenLocalAndAnIfChain)
+{
+    GTEST_COUT << "Validating a switch with a case and a default lowers to a scope with a hidden local and an if with an else." << std::endl;
+
+    EXPECT_EQ(MAREA_lowerBody("", "a: integer32", "switch a case 1 then return; default then return; end"), "(BLOCK (BLOCK (LOCAL_DECLARATION $switch (IDENTIFIER a)) (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch) (INTEGER_LITERAL 1)) (BLOCK (RETURN_STATEMENT)) (ELSE_CLAUSE (BLOCK (RETURN_STATEMENT))))))") << "The switch must keep the shape of its desugaring.";
+}
+
+TEST(MAREAIrControlFlow, SwitchCasesAfterTheFirstBecomeElseifClauses)
+{
+    GTEST_COUT << "Validating each case after the first becomes an elseif clause and a switch without default has no else." << std::endl;
+
+    EXPECT_EQ(MAREA_lowerBody("", "a: integer32", "switch a case 1 then return; case 2 then return; end"), "(BLOCK (BLOCK (LOCAL_DECLARATION $switch (IDENTIFIER a)) (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch) (INTEGER_LITERAL 1)) (BLOCK (RETURN_STATEMENT)) (ELSEIF_CLAUSE (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch) (INTEGER_LITERAL 2)) (BLOCK (RETURN_STATEMENT))))))") << "A second case must be an elseif clause, and no default means no else.";
+}
+
+TEST(MAREAIrControlFlow, SwitchCaseWithManyValuesJoinsThemWithOr)
+{
+    GTEST_COUT << "Validating a case that lists three values joins the comparisons with or, grouped to the left." << std::endl;
+
+    EXPECT_EQ(MAREA_lowerBody("", "a: integer32", "switch a case 1, 2, 3 then return; end"), "(BLOCK (BLOCK (LOCAL_DECLARATION $switch (IDENTIFIER a)) (IF_STATEMENT (BINARY_EXPRESSION op=KEYWORD_OR (BINARY_EXPRESSION op=KEYWORD_OR (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch) (INTEGER_LITERAL 1)) (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch) (INTEGER_LITERAL 2))) (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch) (INTEGER_LITERAL 3))) (BLOCK (RETURN_STATEMENT)))))") << "Many values must become one condition with or.";
+}
+
+TEST(MAREAIrControlFlow, SwitchWithOnlyADefaultRunsItsBlockAfterTheHiddenLocal)
+{
+    GTEST_COUT << "Validating a switch with only a default keeps the scrutinee local and then the default block." << std::endl;
+
+    EXPECT_EQ(MAREA_lowerBody("", "a: integer32", "switch a default then return; end"), "(BLOCK (BLOCK (LOCAL_DECLARATION $switch (IDENTIFIER a)) (BLOCK (RETURN_STATEMENT))))") << "A default alone has no condition to test.";
+}
+
+TEST(MAREAIrControlFlow, SwitchWithoutArmsKeepsOnlyTheScrutinee)
+{
+    GTEST_COUT << "Validating a switch with no arm still evaluates its scrutinee once, into the hidden local." << std::endl;
+
+    EXPECT_EQ(MAREA_lowerBody("function ping(): integer32 return 1; end", "", "switch ping() end"), "(BLOCK (BLOCK (LOCAL_DECLARATION $switch (CALL_EXPRESSION :integer32 (IDENTIFIER ping) (ARGUMENT_LIST)))))") << "An empty switch must keep the call.";
+}
+
+TEST(MAREAIrControlFlow, SwitchEvaluatesTheScrutineeOnce)
+{
+    GTEST_COUT << "Validating a call as the scrutinee is evaluated once, into the hidden local, and never again per case." << std::endl;
+
+    const std::string rendered{ MAREA_lowerBody("function pick(): integer32 return 1; end", "", "switch pick() case 1 then return; case 2 then return; end") };
+
+    EXPECT_NE(rendered.find("(LOCAL_DECLARATION $switch (CALL_EXPRESSION"), std::string::npos) << "The call must sit in the hidden local: " << rendered;
+
+    EXPECT_EQ(rendered.find("(IDENTIFIER pick)", rendered.find("(IF_STATEMENT")), std::string::npos) << "The cases must not call the scrutinee again: " << rendered;
+}
+
+TEST(MAREAIrControlFlow, SwitchOnAnEnumComparesWithTheVariantAccess)
+{
+    GTEST_COUT << "Validating a switch on an enum compares the hidden local with the lowered variant access." << std::endl;
+
+    EXPECT_EQ(MAREA_lowerBody("enum Color red; green; end", "c: Color", "switch c case Color.red then return; case Color.green then return; end"), "(BLOCK (BLOCK (LOCAL_DECLARATION $switch (IDENTIFIER c)) (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch) (MEMBER_ACCESS (IDENTIFIER Color) (IDENTIFIER red))) (BLOCK (RETURN_STATEMENT)) (ELSEIF_CLAUSE (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch) (MEMBER_ACCESS (IDENTIFIER Color) (IDENTIFIER green))) (BLOCK (RETURN_STATEMENT))))))") << "A variant case must compare with the variant access.";
+}
+
+TEST(MAREAIrControlFlow, SwitchNestedInAnArmKeepsItsOwnHiddenLocal)
+{
+    GTEST_COUT << "Validating a switch nested in an arm gets its own scope and hidden local, so the two never mix." << std::endl;
+
+    EXPECT_EQ(MAREA_lowerBody("", "a: integer32, b: integer32", "switch a case 1 then switch b case 2 then return; end default then return; end"), "(BLOCK (BLOCK (LOCAL_DECLARATION $switch (IDENTIFIER a)) (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch) (INTEGER_LITERAL 1)) (BLOCK (BLOCK (LOCAL_DECLARATION $switch (IDENTIFIER b)) (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch) (INTEGER_LITERAL 2)) (BLOCK (RETURN_STATEMENT))))) (ELSE_CLAUSE (BLOCK (RETURN_STATEMENT))))))") << "The inner switch must sit in its own scope.";
+}
+
+TEST(MAREAIrControlFlow, SwitchArmBreakAndContinueTargetTheEnclosingLoop)
+{
+    GTEST_COUT << "Validating a break in a switch arm stays a break and a continue in an arm of a for-range body still runs the step first." << std::endl;
+
+    EXPECT_EQ(MAREA_lowerBody("", "a: integer32", "while true do switch a case 1 then break; default then continue; end end"), "(BLOCK (WHILE_STATEMENT (BOOLEAN_LITERAL true) (BLOCK (BLOCK (LOCAL_DECLARATION $switch (IDENTIFIER a)) (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch) (INTEGER_LITERAL 1)) (BLOCK (BREAK_STATEMENT)) (ELSE_CLAUSE (BLOCK (CONTINUE_STATEMENT))))))))") << "An arm must not swallow a break or a continue.";
+
+    const std::string rendered{ MAREA_lowerBody("", "a: integer32", "for index in 0 .. 3 do switch a case 1 then continue; end end") };
+
+    EXPECT_NE(rendered.find("(BLOCK (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER index) (IDENTIFIER $last)) (BLOCK (BREAK_STATEMENT))) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER index) (INTEGER_LITERAL 1)) (CONTINUE_STATEMENT))"), std::string::npos) << "The continue inside the arm must carry the step of the for-range loop: " << rendered;
+}
+
+TEST(MAREAIrControlFlow, SwitchArmWithAnUnsupportedStatementDropsTheFunction)
+{
+    GTEST_COUT << "Validating a gap inside a switch arm still drops the whole function and raises its diagnostic once." << std::endl;
+
+    MAREA_IrFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; function keep() end function lose(a: integer32) switch a case 1 then print!(\"hi\"); default then return; end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+
+    ASSERT_EQ(MAREA_IrNodeGetChildCount(fixture.module), 1U) << "Only the lowerable function must remain.";
+
+    EXPECT_EQ(fixture.MAREA_irCodes(), std::vector<MAREA_Uinteger32>{ MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_MACRO }) << "The macro in the arm must raise its own code once.";
+}
+
 TEST(MAREAIrControlFlow, BodyWithAnUnsupportedStatementDropsTheFunction)
 {
     GTEST_COUT << "Validating a function whose body holds a construct that cannot be lowered yet is left out as a whole." << std::endl;
 
     MAREA_IrFixture fixture;
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; function keep() end function lose(a: integer32) switch a case 1 then return; default then return; end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; function keep() end function lose() print!(\"hi\"); end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     ASSERT_EQ(MAREA_IrNodeGetChildCount(fixture.module), 1U) << "Only the lowerable function must remain.";
 
