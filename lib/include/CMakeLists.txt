@@ -24,4 +24,4 @@ target_include_directories(marea_include INTERFACE "$<BUILD_INTERFACE:${CMAKE_CU
 source_group("include" FILES ${MAREA_PUBLIC_HEADERS})
 
 # Generate the settings header from its template and force-include it into every consumer
-include("${CMAKE_CURRENT_SOURCE_DIR}/marea/base/MAREASettingsHeader.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/marea/MAREASettingsHeader.cmake")
