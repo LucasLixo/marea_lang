@@ -129,9 +129,11 @@ const MAREA_SemaName *MAREA_CALL MAREA_SemaNameTableFind(const MAREA_SemaContext
     return MAREA_NULLPTR;
 }
 
-MAREA_SemaExcept MAREA_CALL MAREA_SemaNameTableAdd(MAREA_SemaContext *context, const MAREA_Character8 *text, MAREA_IntegerSize length, MAREA_SemaNameKind kind, const MAREA_AstNode *declaration)
+MAREA_SemaExcept MAREA_CALL MAREA_SemaTableAppend(MAREA_SemaContext *context, MAREA_SemaNameTable *table, MAREA_SemaName entry)
 {
-    MAREA_SemaNameTable *table = &context->names;
+    if ((context == MAREA_NULLPTR) || (table == MAREA_NULLPTR)) {
+        return MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER;
+    }
 
     if (table->count == table->capacity) {
         const MAREA_IntegerSize NEW_CAPACITY = (table->capacity == 0) ? MAREA_INTEGER_SIZE(16) : (table->capacity * MAREA_INTEGER_SIZE(2));
@@ -152,10 +154,15 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaNameTableAdd(MAREA_SemaContext *context, c
         table->capacity = NEW_CAPACITY;
     }
 
-    table->entries[table->count] = (MAREA_SemaName){ .text = text, .declaration = declaration, .length = length, .kind = kind };
+    table->entries[table->count] = entry;
     table->count += 1;
 
     return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
+MAREA_SemaExcept MAREA_CALL MAREA_SemaNameTableAdd(MAREA_SemaContext *context, const MAREA_Character8 *text, MAREA_IntegerSize length, MAREA_SemaNameKind kind, const MAREA_AstNode *declaration)
+{
+    return MAREA_SemaTableAppend(context, &context->names, (MAREA_SemaName){ .text = text, .declaration = declaration, .length = length, .kind = kind });
 }
 
 static MAREA_SemaExcept MAREA_CALL MAREA_G_AddName(MAREA_SemaContext *context, MAREA_SourcePosition position, const MAREA_Character8 *text, MAREA_IntegerSize length, MAREA_SemaNameKind kind, const MAREA_AstNode *declaration)
@@ -169,47 +176,6 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_AddName(MAREA_SemaContext *context, M
     }
 
     return MAREA_SemaNameTableAdd(context, text, length, kind, declaration);
-}
-
-static MAREA_Boolean MAREA_CALL MAREA_G_AttributeIsOn(const MAREA_AstNode *declaration, const MAREA_Character8 *key)
-{
-    const MAREA_IntegerSize KEY_LENGTH = strlen(key);
-
-    const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(declaration);
-
-    for (MAREA_IntegerSize index = 0; index < COUNT; ++index) {
-        const MAREA_AstNode *attribute = MAREA_G_ChildAt(declaration, index);
-
-        if ((attribute == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(attribute) != MAREA_AST_KIND_ATTRIBUTE)) {
-            continue;
-        }
-
-        const MAREA_IntegerSize ITEM_COUNT = MAREA_AstNodeGetChildCount(attribute);
-
-        for (MAREA_IntegerSize itemIndex = 0; itemIndex < ITEM_COUNT; ++itemIndex) {
-            const MAREA_AstNode *item = MAREA_G_ChildAt(attribute, itemIndex);
-
-            if ((item == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(item) != MAREA_AST_KIND_ATTRIBUTE_ITEM)) {
-                continue;
-            }
-
-            const MAREA_AstNode *itemKey = MAREA_G_ChildAt(item, 0);
-
-            if ((itemKey == MAREA_NULLPTR) || (MAREA_G_TextEquals(MAREA_AstNodeGetText(itemKey), MAREA_AstNodeGetTextLength(itemKey), key, KEY_LENGTH) == MAREA_BOOLEAN_FALSE)) {
-                continue;
-            }
-
-            const MAREA_AstNode *value = MAREA_G_ChildAt(item, 1);
-
-            if ((value != MAREA_NULLPTR) && (MAREA_G_TextEquals(MAREA_AstNodeGetText(value), MAREA_AstNodeGetTextLength(value), "false", MAREA_INTEGER_SIZE(5)) == MAREA_BOOLEAN_TRUE)) {
-                return MAREA_BOOLEAN_FALSE;
-            }
-
-            return MAREA_BOOLEAN_TRUE;
-        }
-    }
-
-    return MAREA_BOOLEAN_FALSE;
 }
 
 static MAREA_Boolean MAREA_CALL MAREA_G_HasPublicSymbol(const MAREA_AstNode *root, const MAREA_Character8 *name, MAREA_IntegerSize nameLength)
@@ -227,7 +193,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_HasPublicSymbol(const MAREA_AstNode *roo
             continue;
         }
 
-        if ((MAREA_G_TextEquals(declarationName, declarationLength, name, nameLength) == MAREA_BOOLEAN_TRUE) && (MAREA_G_AttributeIsOn(declaration, "public") == MAREA_BOOLEAN_TRUE)) {
+        if ((MAREA_G_TextEquals(declarationName, declarationLength, name, nameLength) == MAREA_BOOLEAN_TRUE) && (MAREA_SemaAttributeIsOn(root, declaration, "public") == MAREA_BOOLEAN_TRUE)) {
             return MAREA_BOOLEAN_TRUE;
         }
     }

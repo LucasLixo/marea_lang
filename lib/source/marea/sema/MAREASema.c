@@ -36,7 +36,11 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaContextCreate(MAREA_Arena *arena, MAREA_Di
     context->resolver = resolver;
     context->names = (MAREA_SemaNameTable){ 0 };
     context->generics = (MAREA_SemaNameTable){ 0 };
+    context->locals = (MAREA_SemaNameTable){ 0 };
+    context->root = MAREA_NULLPTR;
+    context->function = MAREA_NULLPTR;
     context->selfDepth = 0;
+    context->instantiationDepth = 0;
 
     *outContext = context;
 
@@ -126,8 +130,20 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaVisit(MAREA_SemaContext *context, const MA
 
     MAREA_SemaExcept result = MAREA_SEMA_EXCEPT_SUCCESS;
 
-    if (MAREA_AstNodeGetKind(node) == MAREA_AST_KIND_NAMED_TYPE) {
+    const MAREA_AstKind KIND = MAREA_AstNodeGetKind(node);
+
+    MAREA_Boolean entered = MAREA_BOOLEAN_FALSE;
+
+    if (KIND == MAREA_AST_KIND_NAMED_TYPE) {
         result = MAREA_SemaCheckNamedType(context, node);
+
+        if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
+            result = MAREA_SemaInstantiationEnter(context, node, &entered);
+        }
+    } else if (KIND == MAREA_AST_KIND_WHERE_CLAUSE) {
+        result = MAREA_SemaCheckWhereClause(context, node);
+    } else if (KIND == MAREA_AST_KIND_CALL_EXPRESSION) {
+        result = MAREA_SemaCheckCall(context, node);
     }
 
     const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(node);
@@ -141,6 +157,12 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaVisit(MAREA_SemaContext *context, const MA
 
         result = MAREA_SemaVisit(context, child);
     }
+
+    if ((result == MAREA_SEMA_EXCEPT_SUCCESS) && (KIND == MAREA_AST_KIND_LOCAL_DECLARATION)) {
+        result = MAREA_SemaDeclareLocal(context, node);
+    }
+
+    MAREA_SemaInstantiationLeave(context, entered);
 
     MAREA_SemaScopeLeave(context, mark);
 
@@ -159,7 +181,11 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckCompilationUnit(MAREA_SemaContext *co
 
     context->names = (MAREA_SemaNameTable){ 0 };
     context->generics = (MAREA_SemaNameTable){ 0 };
+    context->locals = (MAREA_SemaNameTable){ 0 };
+    context->root = root;
+    context->function = MAREA_NULLPTR;
     context->selfDepth = 0;
+    context->instantiationDepth = 0;
 
     const MAREA_SemaExcept NAMES_RESULT = MAREA_SemaCheckNamespaceAndNames(context, root);
 
