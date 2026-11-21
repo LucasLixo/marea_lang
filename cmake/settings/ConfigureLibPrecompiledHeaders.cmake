@@ -13,7 +13,7 @@ unset(TEMP_GUARD_SET)
 # Precompiled header of every stage target (PRIVATE, as nothing links it), gated to C so C++ units never get it
 macro(ConfigureLibPrecompiledHeaders)
     if(MAREA_OPTION_PRECOMPILE_HEADER)
-        foreach(TEMP_STAGE_TARGET IN ITEMS Marea-Base Marea-Lex)
+        foreach(TEMP_STAGE_TARGET IN ITEMS Marea-Base Marea-Lex Marea-Parse)
             if(TARGET ${TEMP_STAGE_TARGET})
                 target_precompile_headers(
                     ${TEMP_STAGE_TARGET}
