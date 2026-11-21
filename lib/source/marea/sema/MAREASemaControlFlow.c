@@ -242,7 +242,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsCovered(const MAREA_AstNode *statement
             continue;
         }
 
-        for (MAREA_IntegerSize valueIndex = 0; valueIndex < (MAREA_AstNodeGetChildCount(arm) - 1); ++valueIndex) {
+        for (MAREA_IntegerSize valueIndex = 0; (valueIndex + 1) < MAREA_AstNodeGetChildCount(arm); ++valueIndex) {
             const MAREA_AstNode *name = MAREA_G_CaseName(MAREA_SemaChildAt(arm, valueIndex));
 
             if ((name != MAREA_NULLPTR) && (MAREA_AstNodeGetTextLength(name) == MAREA_AstNodeGetTextLength(variant)) && (memcmp(MAREA_AstNodeGetText(name), MAREA_AstNodeGetText(variant), MAREA_AstNodeGetTextLength(variant)) == 0)) {
