@@ -105,4 +105,27 @@ void MAREA_CALL MAREA_LexCursorReportDiagnostic(const MAREA_LexCursor *cursor, M
  */
 MAREA_LexExcept MAREA_CALL MAREA_LexTokenListAppend(MAREA_TokenList *list, MAREA_TokenKind kind, const MAREA_Character8 *text, MAREA_Uinteger32 length, MAREA_SourcePosition position);
 
+/**
+ * @brief Scans a number literal (decimal, 0x hexadecimal or 0b binary, with an optional float
+ * fraction and exponent on the decimal form) starting at the cursor's current digit, and appends
+ * the resulting token to list. A 0x or 0b prefix with no valid digit reports
+ * MAREA_LEX_DIAGNOSTIC_CODE_MALFORMED_NUMBER and appends an MAREA_TOKEN_KIND_ERROR token instead.
+ * @param cursor Cursor positioned at the first digit. Must not be null.
+ * @param list List to append the resulting token to. Must not be null.
+ * @return MAREA_LEX_EXCEPT_SUCCESS, or MAREA_LEX_EXCEPT_ERROR_OUT_OF_MEMORY when appending fails.
+ */
+MAREA_LexExcept MAREA_CALL MAREA_LexScanNumber(MAREA_LexCursor *cursor, MAREA_TokenList *list);
+
+/**
+ * @brief Scans a string literal starting at the cursor's opening quote, and appends the
+ * resulting token to list. A bad escape or a non-ASCII or control byte other than tab reports a
+ * diagnostic and the string continues; a string cut off by a line end, a trailing backslash or
+ * end of input reports MAREA_LEX_DIAGNOSTIC_CODE_UNTERMINATED_STRING and appends an
+ * MAREA_TOKEN_KIND_ERROR token instead of MAREA_TOKEN_KIND_STRING_LITERAL.
+ * @param cursor Cursor positioned at the opening quote. Must not be null.
+ * @param list List to append the resulting token to. Must not be null.
+ * @return MAREA_LEX_EXCEPT_SUCCESS, or MAREA_LEX_EXCEPT_ERROR_OUT_OF_MEMORY when appending fails.
+ */
+MAREA_LexExcept MAREA_CALL MAREA_LexScanString(MAREA_LexCursor *cursor, MAREA_TokenList *list);
+
 #endif /* MAREA_INTERNAL_LEX_MAREALEXINTERNAL_H */
