@@ -37,3 +37,27 @@ if(MAREA_OPTION_TARGET_BASE)
         target_compile_definitions(marea_base PRIVATE MAREA_ENABLE_EXPORT INTERFACE MAREA_ENABLE_IMPORT)
     endif()
 endif()
+
+if(MAREA_OPTION_TARGET_LEX)
+    message(STATUS "Add target: marea_lex")
+
+    file(GLOB MAREA_LEX_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/source/marea/lex/*.c")
+
+    add_library(marea_lex ${MAREA_LIBRARY_TYPE} ${MAREA_LEX_SOURCES})
+    add_library(marea::lex ALIAS marea_lex)
+
+    target_include_directories(
+        marea_lex
+        PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include"
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/internal"
+    )
+
+    target_compile_options(marea_lex PRIVATE "$<$<C_COMPILER_ID:Clang,AppleClang,GNU>:-Wall;-Wextra;-Wpedantic>")
+
+    target_link_libraries(marea_lex PUBLIC marea::base)
+
+    if(MAREA_OPTION_SHARED_LIBS)
+        set_target_properties(marea_lex PROPERTIES C_VISIBILITY_PRESET hidden)
+        target_compile_definitions(marea_lex PRIVATE MAREA_ENABLE_EXPORT INTERFACE MAREA_ENABLE_IMPORT)
+    endif()
+endif()
