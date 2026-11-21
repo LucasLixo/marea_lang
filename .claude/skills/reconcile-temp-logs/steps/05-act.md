@@ -17,10 +17,9 @@ Apply results serially unless stated otherwise.
   success log. Small fixes may run in parallel (at most 3) only when their write sets are disjoint;
   otherwise serialize them.
 - **large gap**: do not fix inline. Run
-  [request-make-apply](../../request-make-apply/SKILL.md) with `<submodule path>` BEFORE
-  `<request text>` (the path first, then the request text). Keep the entry until that workflow has
-  landed and the acceptance checks prove the error resolved; a later run then handles it as
-  **resolved**.
+  [request-make-apply](../../request-make-apply/SKILL.md) with the entry's own text as
+  `<request text>`. Keep the entry until that workflow has landed and the acceptance checks prove
+  the error resolved; a later run then handles it as **resolved**.
 - **still open** and unverified entries: leave untouched.
 
 ## Done when

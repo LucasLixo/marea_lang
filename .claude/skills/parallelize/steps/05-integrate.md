@@ -14,7 +14,7 @@ After each wave, before the next:
    only you merge). Resolve conflicts that are an obvious parallel addition (a list, an include, a
    registration) by keeping both sides; anything else: **stop and ask the user**, do not guess at
    intent.
-3. Re-run the cheapest verification that covers the merged result (the tests named in the reports,
+3. Re-run the cheapest verification that covers the merged result (the tests named in the reports, for instance `ctest --test-dir cmake-build-debug -R <suite>` after building `marea_tests`,
    not a full rebuild unless the repository's rules demand one). A combined tree can break in
    ways no single task did; if it does, fix the seam yourself or send a follow-up agent - do not
    start the next wave on a broken tree.

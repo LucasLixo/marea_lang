@@ -16,10 +16,10 @@ Create one GitHub issue from the matching issue template and record a report for
 
 - **Run in edit mode.** Never enter plan mode, and survey no code beyond what the template fields need - filling a template and calling `gh` carries almost no decision, which is why effort stays at `low`.
 - Execute the workflow immediately; ask for confirmation only where stated.
-- Startup, before anything else: `mise trust`, then `git pull --rebase` (dirty tree: `git fetch` plus `git merge --ff-only origin/<branch>`), as the repository `AGENTS.md` states.
+- Startup, before anything else: `mise trust`, then `git pull --rebase` (dirty tree: `git fetch` plus `git merge --ff-only origin/<branch>`). The default base branch is `develop`.
 - English. At least one label; the first is primary (`bug` `feature` `documentation` `refactor` `tests` `audit`).
 - `--body` is plain Markdown: real newlines and spaces, no URL-encoding.
-- Populate the matching template `.github/ISSUE_TEMPLATE/<primary-label>.md`, replacing every placeholder (`<!-- ... -->`) with real details. A repository without `.github/ISSUE_TEMPLATE` (the Creator, for one) falls back to the template of the engine checkout, `marea/.github/ISSUE_TEMPLATE/<primary-label>.md`.
+- Populate the matching template `.github/ISSUE_TEMPLATE/<primary-label>.md`, replacing every placeholder (`<!-- ... -->`) with real details. The templates are `audit`, `bug`, `documentation`, `feature`, `refactor` and `tests`; the issue goes to the GitHub repository of `origin` through `gh`.
 
 ## How to run
 

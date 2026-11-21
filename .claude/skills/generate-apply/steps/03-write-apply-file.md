@@ -42,11 +42,13 @@ from, and what already landed that this builds on.
 
 ## Conventions
 
-TDD first, no symbol ships without a test (`cpp-testing`). Docs mirror the symbol
-lifecycle (`doxygen-documentation`). Style per language (`c-style`, `rust-style`,
-`cmake-style`). Build and test with `mise run build:engine` /
-`mise run test:engine-cpp` (`engine-build`). ASCII only, verified with
-`lua tools/marea-ascii-check/main.lua <file>...`.
+TDD first, no symbol ships without a test (`cpp-testing`). Docs are part of the change
+(`AGENTS.md`). Style per language (`c-style`, `rust-style`, `cmake-style`). Configure and build
+with `mise run config:cmake` and `cmake --build cmake-build-debug --target marea marea_tests
+--parallel`, test with `ctest --test-dir cmake-build-debug --output-on-failure` (there is no
+`test:*` mise task). Format with `mise run format:cpp-sources` and check with
+`mise run format:check-sources`. ASCII only, verified with `mise run dev:ascii-check` (tracked
+files) or `lua tools/marea-ascii-check/main.lua <file>...`.
 
 ## Files
 
@@ -58,7 +60,7 @@ Observable conditions that make this done.
 
 ## Verification
 
-The commands that prove it, e.g. `mise run test:engine-cpp`.
+The commands that prove it, e.g. `ctest --test-dir cmake-build-debug --output-on-failure` after the build of `marea_tests`.
 
 ## Do not touch
 

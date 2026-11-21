@@ -8,7 +8,7 @@ Part of the [generate-issue](../SKILL.md) skill. This file is a complete prompt 
 
 Run `mise trust`, then `git pull --rebase` (dirty tree: `git fetch` plus `git merge --ff-only origin/<branch>`).
 
-Gather in one message: the issue title; the primary label; the template-specific fields (load the template first to derive them); the branch base (`develop` or current), recorded in the report.
+Gather in one message: the issue title; the primary label; the template-specific fields (load the template first to derive them); the branch base (`develop`, or the current branch), recorded in the report.
 
 ## Done when
 

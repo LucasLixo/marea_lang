@@ -7,7 +7,7 @@ Part of the [dispatch-applies](../SKILL.md) skill. This file is a complete promp
 - Run this step only when a handoff has every row `[x]` or `[-]`. Otherwise go to step 06.
 
 `<base>` may have moved while the handoff's root branch lived, so merge `<base>` into the root
-branch FIRST, resolving conflicts by the same rule as step 2 above (metadata.yaml: base's value
+branch FIRST, resolving conflicts by the same rule as step 2 above (metadata.yaml, when it exists: base's value
 plus every one of this handoff's own bumps in order, build = base's build plus the handoff's total
 non-merge commit count; obvious parallel additions keep both sides; anything else, stop and ask).
 Re-run the full verification recipe the handoff's own `_LOG_HANDOFF.md` section names (or, absent
