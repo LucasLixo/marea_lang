@@ -8,7 +8,6 @@
     #include "marea/base/MAREACTypes.h"
     #include "marea/base/MAREADiagnostic.h"
     #include "marea/base/MAREAMacros.h"
-    #include "marea/base/MAREASettingsHeader.h"
     #include "marea/base/MAREASourcePosition.h"
 
     #include "marea/lex/MAREALexer.h"

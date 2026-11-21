@@ -11,10 +11,7 @@ endif()
 set_property(GLOBAL PROPERTY MareaLibSourceGuard ON)
 unset(TEMP_GUARD_SET)
 
-# The generated settings header, the stage libraries and their precompiled header
-include("${MAREA_FOLDER_CMAKE_SETTINGS}/ConfigureLibSettingsHeader.cmake")
-ConfigureLibSettingsHeader()
-
+# The stage libraries and their precompiled header
 include("${MAREA_FOLDER_CMAKE_SETTINGS}/ConfigureLibTargets.cmake")
 ConfigureLibTargets()
 
