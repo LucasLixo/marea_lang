@@ -28,7 +28,8 @@ MAREA_IrLowerCompilationUnit(ir, typed, &module);
 a typed root whose AST node is not a `COMPILATION_UNIT`, and `MAREA_IR_EXCEPT_ERROR_OUT_OF_MEMORY`
 when the arena cannot grow. A construct that cannot be lowered is not an error code: it is a
 diagnostic in the sink, and the call still returns `MAREA_IR_EXCEPT_SUCCESS`. Every ir diagnostic is
-an error, in the range 4001-4005. The tree stays valid for the lifetime of the arena.
+an error, in the range 4001-4005 (the code 4002 is no longer raised, see Diagnostics). The tree stays
+valid for the lifetime of the arena.
 
 ## Node model
 
@@ -128,6 +129,43 @@ A `continue` that targets the loop would skip the step at the end of the body. S
 `ASSIGNMENT` pair. A `continue` inside a nested `while` or for-range loop targets that loop and stays as
 it is (the nested for-range loop adds its own step and its own `$last`).
 
+## Switch desugaring
+
+`switch value case a then A case b, c then B default then C end` has no IR kind of its own. It lowers to:
+
+```
+BLOCK
+  LOCAL_DECLARATION "$switch"                -- child: value
+  IF_STATEMENT                               -- the first case
+    BINARY_EXPRESSION op=EQUAL_EQUAL         -- children: IDENTIFIER "$switch", the lowered a
+    BLOCK                                    -- the lowered A
+    ELSEIF_CLAUSE                            -- each case after the first
+      BINARY_EXPRESSION op=KEYWORD_OR        -- two values: the two tests joined, grouped to the left
+        BINARY_EXPRESSION op=EQUAL_EQUAL     -- IDENTIFIER "$switch", the lowered b
+        BINARY_EXPRESSION op=EQUAL_EQUAL     -- IDENTIFIER "$switch", the lowered c
+      BLOCK                                  -- the lowered B
+    ELSE_CLAUSE                              -- the default arm
+      BLOCK                                  -- the lowered C
+```
+
+The scrutinee is lowered once, into `$switch`, which is set before the first test; no case evaluates it
+again. The name `$switch` cannot be a source identifier, so it never clashes with a user name, and the
+hidden local has no type name and no flag. An arm does not fall through, so an if chain is exact. The
+tests run in source order and the first one that holds runs its block.
+
+- A `default` arm is the `ELSE_CLAUSE`, wherever it stands among the arms. A `switch` with a `default` and
+  no `case` has no test: the lowered `default` block follows the hidden local. A `switch` with no arm keeps
+  only the hidden local, so its scrutinee is still evaluated.
+- A `switch` with no `default` has no `ELSE_CLAUSE`, also when sema has proved that its cases cover every
+  variant of an enum. Nothing in the IR says that the missing branch cannot run (see Gaps).
+- The scrutinee and each case value are lowered like any expression, so a case value that is an enum
+  variant stays a `MEMBER_ACCESS`. The synthetic nodes take only a position from the source: the comparison
+  is positioned at its case value, the `IF_STATEMENT` or `ELSEIF_CLAUSE` at its arm.
+- A `break` or `continue` in an arm targets the enclosing loop, as it does in an `if`. A `continue` that
+  targets a for-range loop still gets the step in front of it, also inside an arm. A nested `switch` has its
+  own `BLOCK` and its own `$switch`, so two never mix.
+- A gap inside the scrutinee, a case value or an arm drops the declaration whole, as everywhere else.
+
 ## Text dump
 
 `MAREA_IrModuleDump` writes the tree as stable text into the arena, one node per line, in the same
@@ -158,7 +196,7 @@ Lowering the same unit twice gives byte-identical text.
 
 ## Constructs the IR cannot lower
 
-Five constructs raise an error diagnostic and make no node. The declaration that holds the gap is left
+Four constructs raise an error diagnostic and make no node. The declaration that holds the gap is left
 out of the module whole, never in part: a gap in a function body drops that function, a gap in a
 variant default drops the enum, a gap in a constant initializer drops the constant. Lowering then
 continues with the next declaration, so the other declarations stay in the module. A gap inside a
@@ -168,19 +206,18 @@ declaration is reported once: lowering of that declaration stops at the first on
 
 `tests/source/ir/MAREAIrExamples.cpp` lowers all 23 programs under `examples/` through `lex`, `parse`,
 `sema` and `ir`. Each one checks with zero errors, lowers to a `MODULE`, dumps as text and raises
-exactly the codes in its row. The 13 programs not listed raise none.
+exactly the codes in its row. The 14 programs not listed raise none.
 
 | Program | Codes |
 |---|---|
 | `attributes/layout.marea` | 4004 |
 | `basics/blocks.marea` | 4004 |
-| `basics/control_flow.marea` | 4002, 4003 |
+| `basics/control_flow.marea` | 4003 |
 | `basics/primitive_types.marea` | 4004 |
 | `interop/c_library.marea` | 4005 |
 | `interop/gpu_handles.marea` | 4001, 4004 |
 | `macros/builtin.marea` | 4005 |
 | `parallel/scaling.marea` | 4001, 4003 |
-| `types/enum_methods.marea` | 4002 |
 | `types/generics.marea` | 4004 |
 
 ## Diagnostics
@@ -188,7 +225,7 @@ exactly the codes in its row. The 13 programs not listed raise none.
 | Code | Name | Example |
 |---|---|---|
 | 4001 | `UNSUPPORTED_FORK_JOIN` | a `fork_join` block, a `partition` or `with` statement, or a `spawn` expression |
-| 4002 | `UNSUPPORTED_SWITCH` | a `switch` statement |
+| 4002 | `UNSUPPORTED_SWITCH` | no longer raised: a `switch` statement is lowered. The code and its name stay in the public header, so a value is never reused. |
 | 4003 | `UNSUPPORTED_FOR_EACH` | `for each value in values do end` |
 | 4004 | `UNINSTANTIATED_GENERIC` | a generic function, structure or `implementation`; a call with explicit type arguments (`identity<integer32>(5)`); a call whose result type is an unbound generic; a `GENERIC_NAME` outside a call |
 | 4005 | `UNSUPPORTED_MACRO` | `print!("hi");`, a module-level `static_assert!(true);`, a macro call inside an expression. `unreachable!();` as a statement is lowered and raises nothing. |
@@ -198,9 +235,17 @@ Each diagnostic carries the position of the construct that raised it.
 
 ## Gaps
 
-- The five constructs above are not lowered: `fork_join` (with `partition`, `with` and `spawn`),
-  `switch`, `for each`, generics, and every macro other than a statement `unreachable!()`. The matching
+- The four constructs above are not lowered: `fork_join` (with `partition`, `with` and `spawn`),
+  `for each`, generics, and every macro other than a statement `unreachable!()`. The matching
   declaration is left out of the module, and only its first gap is reported.
+- A `switch` with no `default` lowers to an if chain with no else, also when the cases cover every variant
+  of an enum. A function that ends with such a `switch` and returns in every arm has no `RETURN_STATEMENT`
+  after the chain, so a backend that checks that every path returns must treat the missing branch as
+  unreachable. The IR does not mark it.
+- Sema accepts a `switch` with more than one `default` arm. The IR keeps the last one and drops the others,
+  without a diagnostic. A defect of an earlier stage, not fixed here.
+- The hidden `$switch` local has no type name, like the for-range `$last`: the IR does not copy one from the
+  scrutinee. A backend must infer it from the scrutinee.
 - A call to a function that was left out of the module still lowers to a plain name that points at
   nothing.
 - Built-ins with explicit type arguments (`size_of<T>()`, `align_of<T>()`, `convert<T>(x)`) and a
