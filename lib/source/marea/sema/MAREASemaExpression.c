@@ -116,17 +116,22 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaDeclareBinders(MAREA_SemaContext *context,
     }
 }
 
-static const MAREA_SemaName *MAREA_CALL MAREA_G_FindLocal(const MAREA_SemaContext *context, const MAREA_AstNode *name)
+const MAREA_SemaName *MAREA_CALL MAREA_SemaLocalFind(const MAREA_SemaContext *context, const MAREA_Character8 *text, MAREA_IntegerSize length)
 {
     for (MAREA_IntegerSize index = context->locals.count; index > 0; --index) {
         const MAREA_SemaName *local = &context->locals.entries[(index - 1)];
 
-        if (MAREA_SemaTextEquals(local->text, local->length, MAREA_AstNodeGetText(name), MAREA_AstNodeGetTextLength(name)) == MAREA_BOOLEAN_TRUE) {
+        if (MAREA_SemaTextEquals(local->text, local->length, text, length) == MAREA_BOOLEAN_TRUE) {
             return local;
         }
     }
 
     return MAREA_NULLPTR;
+}
+
+static const MAREA_SemaName *MAREA_CALL MAREA_G_FindLocal(const MAREA_SemaContext *context, const MAREA_AstNode *name)
+{
+    return MAREA_SemaLocalFind(context, MAREA_AstNodeGetText(name), MAREA_AstNodeGetTextLength(name));
 }
 
 static const MAREA_AstNode *MAREA_CALL MAREA_G_FindDeclaration(const MAREA_SemaContext *context, const MAREA_AstNode *name, MAREA_AstKind kind)
