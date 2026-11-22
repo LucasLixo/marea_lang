@@ -5,6 +5,12 @@
 
 #include "tests/MAREAIrHelpers.hpp"
 
+#include "marea/internal/ir/MAREAIrInternal.h"
+
+#if defined(__linux__)
+    #include <pthread.h>
+#endif
+
 namespace
 {
     const MAREA_ResolveCallback RESOLVE_EXTERNAL{ [](const std::string &text, const MAREA_AstNode **) {
@@ -192,3 +198,83 @@ TEST(MAREAIrDump, ForEachDumpsItsNameFlagAndChildren)
                                      }))
         << "The dump must show the name as text and the MUTABLE flag on the loop.";
 }
+
+#if defined(__linux__)
+namespace
+{
+    constexpr MAREA_IntegerSize DEEP_CHAIN_DEPTH{ 4000 };
+    constexpr std::size_t SMALL_STACK_BYTES{ 128U * 1024U };
+
+    struct MAREA_DeepDumpJob
+    {
+        MAREA_Arena *arena{ nullptr };
+        const MAREA_IrNode *root{ nullptr };
+        const MAREA_Character8 *text{ nullptr };
+        MAREA_IntegerSize length{ 0 };
+        MAREA_IrExcept result{ MAREA_IR_EXCEPT_ERROR_NULL_POINTER };
+    };
+
+    void *MAREA_deepDumpEntry(void *argument)
+    {
+        auto *job = static_cast<MAREA_DeepDumpJob *>(argument);
+
+        job->result = MAREA_IrModuleDump(job->arena, job->root, &job->text, &job->length);
+
+        return nullptr;
+    }
+} // namespace
+
+TEST(MAREAIrDump, DeepChainDumpsOnASmallStack)
+{
+    GTEST_COUT << "Validating a deep left-deep chain dumps on a stack too small for one call frame per level." << std::endl;
+
+    MAREA_IrFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_lower("namespace main;"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+
+    MAREA_IrNode *root{ nullptr };
+
+    ASSERT_EQ(MAREA_IrNodeCreate(fixture.context, MAREA_IR_KIND_MODULE, fixture.sema.parser.root, &root), MAREA_IR_EXCEPT_SUCCESS) << "The root must be created.";
+
+    MAREA_IrNode *parent{ root };
+
+    for (MAREA_IntegerSize level{ 0 }; level < DEEP_CHAIN_DEPTH; ++level) {
+        MAREA_IrNode *child{ nullptr };
+
+        ASSERT_EQ(MAREA_IrNodeCreate(fixture.context, MAREA_IR_KIND_BLOCK, fixture.sema.parser.root, &child), MAREA_IR_EXCEPT_SUCCESS) << "A chain node must be created.";
+
+        ASSERT_EQ(MAREA_IrNodeAppendChild(fixture.context, parent, child), MAREA_IR_EXCEPT_SUCCESS) << "A chain node must be appended.";
+
+        parent = child;
+    }
+
+    MAREA_DeepDumpJob job;
+
+    job.arena = fixture.sema.parser.lexer.arena;
+    job.root = root;
+
+    pthread_attr_t attributes;
+
+    ASSERT_EQ(pthread_attr_init(&attributes), 0) << "The thread attributes must initialize.";
+    ASSERT_EQ(pthread_attr_setstacksize(&attributes, SMALL_STACK_BYTES), 0) << "The small stack must be accepted.";
+
+    pthread_t thread;
+
+    ASSERT_EQ(pthread_create(&thread, &attributes, MAREA_deepDumpEntry, &job), 0) << "The dump thread must start.";
+    ASSERT_EQ(pthread_join(thread, nullptr), 0) << "The dump thread must finish.";
+
+    pthread_attr_destroy(&attributes);
+
+    ASSERT_EQ(job.result, MAREA_IR_EXCEPT_SUCCESS) << "The deep dump must succeed.";
+
+    const std::string TEXT(job.text, job.length);
+
+    EXPECT_EQ(static_cast<MAREA_IntegerSize>(std::count(TEXT.begin(), TEXT.end(), '\n')), (DEEP_CHAIN_DEPTH + 1)) << "The dump must have one line per node.";
+
+    const std::string LAST_LINE{ std::string(2U * DEEP_CHAIN_DEPTH, ' ') + "BLOCK\n" };
+
+    ASSERT_GE(TEXT.size(), LAST_LINE.size()) << "The dump must hold the deepest line.";
+
+    EXPECT_EQ(TEXT.substr(TEXT.size() - LAST_LINE.size()), LAST_LINE) << "The deepest line must be indented by two spaces per level.";
+}
+#endif
