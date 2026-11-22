@@ -85,27 +85,27 @@ void MAREA_CALL MAREA_SemaReport(MAREA_SemaContext *context, MAREA_SemaDiagnosti
 
 MAREA_SemaExcept MAREA_CALL MAREA_SemaReportNamed(MAREA_SemaContext *context, MAREA_SemaDiagnosticCode code, MAREA_SourcePosition position, const MAREA_Character8 *prefix, const MAREA_Character8 *name, MAREA_IntegerSize nameLength)
 {
-    const MAREA_IntegerSize PREFIX_LENGTH = strlen(prefix);
+    const MAREA_IntegerSize prefixLength = strlen(prefix);
 
     // ERROR: a total that does not fit in MAREA_IntegerSize would allocate a small block and then copy past it.
-    if (nameLength > (MAREA_INTEGER_SIZE_MAXIMUM - PREFIX_LENGTH - MAREA_INTEGER_SIZE(4))) {
+    if (nameLength > (MAREA_INTEGER_SIZE_MAXIMUM - prefixLength - MAREA_INTEGER_SIZE(4))) {
         return MAREA_SEMA_EXCEPT_ERROR_OUT_OF_MEMORY;
     }
 
     MAREA_Null memory = MAREA_NULLPTR;
 
-    if (MAREA_ArenaAllocate(context->arena, (PREFIX_LENGTH + nameLength + MAREA_INTEGER_SIZE(4)), MAREA_ALIGNOF(MAREA_Character8), &memory) != MAREA_ARENA_EXCEPT_SUCCESS) {
+    if (MAREA_ArenaAllocate(context->arena, (prefixLength + nameLength + MAREA_INTEGER_SIZE(4)), MAREA_ALIGNOF(MAREA_Character8), &memory) != MAREA_ARENA_EXCEPT_SUCCESS) {
         return MAREA_SEMA_EXCEPT_ERROR_OUT_OF_MEMORY;
     }
 
     MAREA_Character8 *message = memory;
 
-    memcpy(message, prefix, PREFIX_LENGTH);
-    message[PREFIX_LENGTH] = ' ';
-    message[(PREFIX_LENGTH + MAREA_INTEGER_SIZE(1))] = '\'';
-    memcpy((message + PREFIX_LENGTH + MAREA_INTEGER_SIZE(2)), name, nameLength);
-    message[(PREFIX_LENGTH + nameLength + MAREA_INTEGER_SIZE(2))] = '\'';
-    message[(PREFIX_LENGTH + nameLength + MAREA_INTEGER_SIZE(3))] = '\0';
+    memcpy(message, prefix, prefixLength);
+    message[prefixLength] = ' ';
+    message[(prefixLength + MAREA_INTEGER_SIZE(1))] = '\'';
+    memcpy((message + prefixLength + MAREA_INTEGER_SIZE(2)), name, nameLength);
+    message[(prefixLength + nameLength + MAREA_INTEGER_SIZE(2))] = '\'';
+    message[(prefixLength + nameLength + MAREA_INTEGER_SIZE(3))] = '\0';
 
     MAREA_SemaReport(context, code, position, message);
 
@@ -123,26 +123,26 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaVisit(MAREA_SemaContext *context, const MA
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
-    const MAREA_SemaExcept ATTRIBUTES_RESULT = MAREA_SemaCheckAttributes(context, node);
+    const MAREA_SemaExcept attributesResult = MAREA_SemaCheckAttributes(context, node);
 
-    if (ATTRIBUTES_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
-        return ATTRIBUTES_RESULT;
+    if (attributesResult != MAREA_SEMA_EXCEPT_SUCCESS) {
+        return attributesResult;
     }
 
     MAREA_SemaScopeMark mark = { 0 };
 
-    const MAREA_SemaExcept SCOPE_RESULT = MAREA_SemaScopeEnter(context, node, &mark);
+    const MAREA_SemaExcept scopeResult = MAREA_SemaScopeEnter(context, node, &mark);
 
-    if (SCOPE_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
-        return SCOPE_RESULT;
+    if (scopeResult != MAREA_SEMA_EXCEPT_SUCCESS) {
+        return scopeResult;
     }
 
     MAREA_SemaExcept result = MAREA_SEMA_EXCEPT_SUCCESS;
 
-    const MAREA_AstKind KIND = MAREA_AstNodeGetKind(node);
+    const MAREA_AstKind kind = MAREA_AstNodeGetKind(node);
 
     // INFO: a fork_join block is a jump barrier too, the same as a partition body, so a loop outside it is not a target of a break or continue that stands directly in the block, and MAREA_SemaScopeLeave restores the saved mark once this block ends.
-    if (KIND == MAREA_AST_KIND_FORK_JOIN_BLOCK) {
+    if (kind == MAREA_AST_KIND_FORK_JOIN_BLOCK) {
         context->loopDepth = 0;
     }
 
@@ -158,25 +158,25 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaVisit(MAREA_SemaContext *context, const MA
 
     if (result != MAREA_SEMA_EXCEPT_SUCCESS) {
         // INFO: an out-of-memory result from the ownership check ends the visit of this node.
-    } else if (KIND == MAREA_AST_KIND_NAMED_TYPE) {
+    } else if (kind == MAREA_AST_KIND_NAMED_TYPE) {
         result = MAREA_SemaCheckNamedType(context, node);
 
         if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
             result = MAREA_SemaInstantiationEnter(context, node, &entered);
         }
-    } else if (KIND == MAREA_AST_KIND_WHERE_CLAUSE) {
+    } else if (kind == MAREA_AST_KIND_WHERE_CLAUSE) {
         result = MAREA_SemaCheckWhereClause(context, node);
-    } else if (KIND == MAREA_AST_KIND_CALL_EXPRESSION) {
+    } else if (kind == MAREA_AST_KIND_CALL_EXPRESSION) {
         result = MAREA_SemaCheckCall(context, node);
-    } else if ((KIND == MAREA_AST_KIND_UNARY_EXPRESSION) && (MAREA_AstNodeGetOperator(node) == MAREA_TOKEN_KIND_KEYWORD_SPAWN)) {
+    } else if ((kind == MAREA_AST_KIND_UNARY_EXPRESSION) && (MAREA_AstNodeGetOperator(node) == MAREA_TOKEN_KIND_KEYWORD_SPAWN)) {
         result = MAREA_SemaCheckSpawn(context, node);
-    } else if ((KIND == MAREA_AST_KIND_BREAK_STATEMENT) || (KIND == MAREA_AST_KIND_CONTINUE_STATEMENT) || (KIND == MAREA_AST_KIND_RETURN_STATEMENT)) {
+    } else if ((kind == MAREA_AST_KIND_BREAK_STATEMENT) || (kind == MAREA_AST_KIND_CONTINUE_STATEMENT) || (kind == MAREA_AST_KIND_RETURN_STATEMENT)) {
         result = MAREA_SemaCheckJump(context, node);
     }
 
-    const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(node);
+    const MAREA_IntegerSize count = MAREA_AstNodeGetChildCount(node);
 
-    for (MAREA_IntegerSize index = 0; ((index < COUNT) && (result == MAREA_SEMA_EXCEPT_SUCCESS)); ++index) {
+    for (MAREA_IntegerSize index = 0; ((index < count) && (result == MAREA_SEMA_EXCEPT_SUCCESS)); ++index) {
         const MAREA_AstNode *child = MAREA_NULLPTR;
 
         if (MAREA_AstNodeGetChildAt(node, index, &child) != MAREA_AST_EXCEPT_SUCCESS) {
@@ -191,7 +191,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaVisit(MAREA_SemaContext *context, const MA
     MAREA_SemaScopeLeave(context, mark);
 
     // INFO: a local lives in the block that holds it, so it is recorded after the scope of its own node ends.
-    if ((result == MAREA_SEMA_EXCEPT_SUCCESS) && (KIND == MAREA_AST_KIND_LOCAL_DECLARATION)) {
+    if ((result == MAREA_SEMA_EXCEPT_SUCCESS) && (kind == MAREA_AST_KIND_LOCAL_DECLARATION)) {
         result = MAREA_SemaDeclareLocal(context, node);
     }
 
@@ -220,22 +220,22 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckCompilationUnit(MAREA_SemaContext *co
     context->partitionDepth = 0;
     context->loopDepth = 0;
 
-    const MAREA_SemaExcept NAMES_RESULT = MAREA_SemaCheckNamespaceAndNames(context, root);
+    const MAREA_SemaExcept namesResult = MAREA_SemaCheckNamespaceAndNames(context, root);
 
-    if (NAMES_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
-        return NAMES_RESULT;
+    if (namesResult != MAREA_SEMA_EXCEPT_SUCCESS) {
+        return namesResult;
     }
 
-    const MAREA_SemaExcept DECLARATIONS_RESULT = MAREA_SemaCheckDeclarations(context, root);
+    const MAREA_SemaExcept declarationsResult = MAREA_SemaCheckDeclarations(context, root);
 
-    if (DECLARATIONS_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
-        return DECLARATIONS_RESULT;
+    if (declarationsResult != MAREA_SEMA_EXCEPT_SUCCESS) {
+        return declarationsResult;
     }
 
-    const MAREA_SemaExcept ENTRY_RESULT = MAREA_SemaCheckEntryPoint(context, root);
+    const MAREA_SemaExcept entryResult = MAREA_SemaCheckEntryPoint(context, root);
 
-    if (ENTRY_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
-        return ENTRY_RESULT;
+    if (entryResult != MAREA_SEMA_EXCEPT_SUCCESS) {
+        return entryResult;
     }
 
     return MAREA_SemaVisit(context, root);
