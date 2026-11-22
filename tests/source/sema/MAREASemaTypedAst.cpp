@@ -82,6 +82,29 @@ TEST(MAREASemaTypedAst, CheckedWithErrorsIsRejected)
     EXPECT_EQ(MAREA_SemaBuildTypedAst(fixture.context, fixture.parser.root, &outRoot), MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NOT_CHECKED) << "A root checked with errors must be rejected.";
 }
 
+TEST(MAREASemaTypedAst, ImportMemberListIsCarriedIntoTheShadowTree)
+{
+    GTEST_COUT << "Validating an import with a member list keeps its IMPORT_MEMBER nodes in the shadow tree." << std::endl;
+
+    MAREA_SemaFixture fixture([](const std::string &, const MAREA_AstNode **) { return MAREA_SEMA_IMPORT_RESULT_EXTERNAL; });
+
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; import a.b { f as g, T };"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check.";
+
+    ASSERT_EQ(fixture.MAREA_errorCount(), MAREA_INTEGER_SIZE(0)) << "The source must raise no error.";
+
+    const MAREA_SemaTypedNode *outRoot{ nullptr };
+
+    ASSERT_EQ(MAREA_SemaBuildTypedAst(fixture.context, fixture.parser.root, &outRoot), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "A checked root with a member list must build.";
+
+    const MAREA_SemaTypedNode *import{ MAREA_findTypedNodeByKind(outRoot, MAREA_AST_KIND_IMPORT_DECLARATION) };
+
+    ASSERT_NE(import, nullptr) << "The import must be in the shadow tree.";
+
+    EXPECT_EQ(MAREA_SemaTypedNodeGetChildCount(import), MAREA_INTEGER_SIZE(3)) << "The import must keep its namespace and its two members.";
+
+    EXPECT_NE(MAREA_findTypedNodeByKind(import, MAREA_AST_KIND_IMPORT_MEMBER), nullptr) << "A member must be in the shadow tree.";
+}
+
 TEST(MAREASemaTypedAst, CheckedRootBuildsAMatchingShadowTree)
 {
     GTEST_COUT << "Validating a checked root with zero errors builds a 1 to 1 shadow tree." << std::endl;
