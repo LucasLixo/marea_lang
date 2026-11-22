@@ -154,7 +154,8 @@ is a primitive, at a call argument of a function of the file, a local initialize
 `return` value and a constant initializer: a conversion is always written, so two primitives are the same
 only by name (`integer32` does not fit `integer64`), a number literal fits any number type, a fraction literal
 any float type, and a structure fits no primitive. An alias of a primitive is the primitive. The mismatch is
-`TYPE_MISMATCH` (3011) on the expression. A name of an enum or of a library type is never compared.
+`TYPE_MISMATCH` (3011) on the expression. A name of an enum, of a library type or of a generic parameter, and an `owned`,
+`task` or `vector` value, are classified as their own shapes but are never compared.
 
 **Operands of a binary operator.** Every binary expression in a checked slot (the same slots as the names, and
 the initializer of a constant) has its two operands compared, whatever the declared type: `+`, `-`, `*`, `/`,
@@ -310,9 +311,10 @@ real, instantiated result type is deferred to when the `ir` stage needs one for 
 - Renaming on use inside one file (without an import) is not offered: a local declaration has its own name.
 - An alias compares equal to its original by text. Two aliases of same-named members of two different namespaces
   (`import a { T as X }; import b { T as Y };`) therefore compare equal in a contract signature.
-- `TYPE_MISMATCH` (3011) knows the type of an expression only in the shapes listed under "Expressions". It never
-  compares an enum, a library type, a generic parameter or a `owned`, `task` or `vector` value, and the result of
-  a generic call is unknown (see below).
+- `TYPE_MISMATCH` (3011) sorts the type of an expression into a fixed set of shapes: a literal, a primitive, a
+  structure, and, known but never compared, an enum, a library type, a generic parameter and an `owned`, `task` or
+  `vector` value. Still fully unknown: a `pointer`, a `slice`, a function type, the type of a field or a file
+  constant that is not a primitive, and the result of a generic call (see below).
 - A binary operator is not checked against what its operands may be (`a and b` with two integers raises nothing,
   as the two have the same name), and an operator that is declared for a structure is not compared.
 - `UNDECLARED_NAME` (3004) is not raised for the bare name that starts a member chain, for the header of a `for`,
