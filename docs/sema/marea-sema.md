@@ -68,6 +68,9 @@ table (`MAREA_SemaName`) holds it in `original` and `originalLength`, empty for 
 The IR lowers an alias to this text. A type written with an alias compares equal to the type
 written with the original in a contract signature, and so does a local `type Name = Other;` (a chain
 of aliases is followed up to 8 steps; an alias with generic parameters is not expanded).
+An import name also keeps its qualifier, the namespace it came from (`qualifier` and `qualifierLength`),
+and the comparison renders it with that namespace: `import a { T as X }; import b { T as Y };` make two
+types, while two aliases of one member of one namespace stay one type.
 
 The name `c` is the reserved namespace of C. An import alias named `c` (either form) or a `type`
 named `c` is `NAME_ALREADY_DECLARED` with the message `name is reserved: 'c'`; an alias that is
@@ -129,9 +132,12 @@ join of the spawned workers.
 **Switch arms.** A `switch` has at most one `default` arm, and no `case` value appears twice. Each second
 and later `default` arm is rejected with `DUPLICATE_SWITCH_ARM` (3025), and so is each `case` value that
 appeared before, in one list (`case 1, 1`) or across arms. The first use is never reported, and each repeat
-is one diagnostic, at the repeated item. Two values are the same when they are built from the same literals,
-names and unary operators with the same text (`1` and `1`, `-1` and `-1`, `"a"` and `"a"`, `a.LIMIT` and
-`a.LIMIT`). Over an enum a bare and a qualified name of one variant (`red`, `Color.red`) are the same
+is one diagnostic, at the repeated item. Two values are the same when they hold one value. Integer literals
+are compared by number in any base, with or without `_` separators (`1` and `0x1`, `5` and `0b101`, `-1` and
+`-0x1`). A name of a constant of the file stands for the value it is declared with, and a constant that is
+declared with another constant is followed (at most 16 steps, so a cycle ends), so `MAX` and `100` are the same
+when `constant MAX: integer32 = 100;`. A local or a parameter with the name of a constant hides it. Other
+literals, names and unary operators are compared by text (`"a"` and `"a"`, `a.LIMIT` and `a.LIMIT`). Over an enum a bare and a qualified name of one variant (`red`, `Color.red`) are the same
 variant, as in the coverage check. Two broken (`ERROR_NODE`) values are never compared. The check runs for
 every scrutinee type, and it does not replace `NON_EXHAUSTIVE_SWITCH`: a `switch` over an enum with a repeat
 and a missing variant raises both. The rule follows the grammar (`switch_statement` has one optional
@@ -154,7 +160,8 @@ is a primitive, at a call argument of a function of the file, a local initialize
 `return` value and a constant initializer: a conversion is always written, so two primitives are the same
 only by name (`integer32` does not fit `integer64`), a number literal fits any number type, a fraction literal
 any float type, and a structure fits no primitive. An alias of a primitive is the primitive. The mismatch is
-`TYPE_MISMATCH` (3011) on the expression. A name of an enum or of a library type is never compared.
+`TYPE_MISMATCH` (3011) on the expression. A name of an enum, of a library type or of a generic parameter, and an `owned`,
+`task` or `vector` value, are classified as their own shapes but are never compared.
 
 **Operands of a binary operator.** Every binary expression in a checked slot (the same slots as the names, and
 the initializer of a constant) has its two operands compared, whatever the declared type: `+`, `-`, `*`, `/`,
@@ -199,16 +206,20 @@ assignment). Allowed:
 Everything else is `TYPE_MISMATCH` (3011) on the call, once: a `string` or a `boolean` to a number or the other
 way, a structure to a primitive, a primitive to a structure, and a structure to a structure with another layout.
 
-Two structures have the same layout when every field has the same primitive type, by exact name, at the same
-place (an alias of a primitive is the primitive, the names of the fields do not count), they have the same
-alignment and, when both are `#[layout = c]`, the same size. Sema computes the alignment and the size by the rules
-of C: each field at the next multiple of its own alignment (the size of a primitive), `pack = N` caps that
-alignment, `align = N` raises the alignment of the structure, and the size is rounded up to the alignment. The
-layout may come from a file attribute. The pair is accepted, and the size check is a gap for the backend, when sema
-cannot decide it: a generic structure, a field that is not a fixed-width primitive (`string`, `pointer`, `vector`,
-a structure, an enum, a library type), a field with its own `align`, a `pack` or `align` value that is not an
-integer from 1 to 4294967296, and two structures whose size depends on the backend (a layout that is not `c`,
-and `auto` is the default). The alignment and the field types are still compared when only the size is open.
+Two structures have the same layout when every field has the same primitive type, by exact name, or a structure of
+the same layout (below), at the same place (an alias of a primitive is the primitive, the names of the fields do not
+count), the same field `align`, they have the same alignment and, when both are `#[layout = c]`, the same size.
+Sema computes the alignment and the size by the rules of C: each field at the next multiple of its own alignment
+(the size of a primitive, the alignment of a nested structure), `pack = N` caps that alignment, a field
+`align = N` raises the alignment of the field, `align = N` on the structure raises the alignment of the structure,
+and the size is rounded up to the alignment. The layout may come from a file attribute. A structure held by value
+is measured too, up to 8 levels deep, and only inside a `c` structure when it is `c` itself. Two `auto` structures
+(the default layout) with the same fields, `pack` and `align` have the same layout, because the backend gives the
+same input the same layout. A pair that sema cannot measure is a `TYPE_MISMATCH` (3011): a generic structure, a
+field that is not a fixed-width primitive or a structure of the file (`string`, `pointer`, `vector`, an enum, a
+library type), a `pack` or `align` value that is not an integer from 1 to 4294967296, an `auto` structure inside a
+`c` structure, a `c` structure against an `auto` one, a chain of structures deeper than 8 levels (or one that holds
+itself). A structure converted to itself needs no measure and is accepted.
 
 **Constants of an `implementation` block (decision of the user).** Inside an `implementation` block, a bare
 constant of that block shadows a top-level constant of the same name: the inner scope wins, and the name has the
@@ -266,12 +277,14 @@ read-only parameter, a `for each` variable, a `partition` part or a `with` name)
 `mutable` parameter), `MOVE` (an `owned<T>` or `task<T>` parameter or value), `COPY` (a `copy x`
 expression). A node this cannot classify defaults to `VALUE`.
 
-**Call results.** A non-generic call expression's typed node carries the callee's real, unsubstituted
-return type: `USER`, `EXTERNAL` or a built-in class, exactly as the function declares it. Generic-
-result substitution is not performed: when the return type names an unbound generic parameter (for
-example `Pair<T>.first(): T` called without `ir`-level instantiation), the typed node is tagged
-`GENERIC` and the raw, unsubstituted type name is kept - never a guess, never a crash. Resolving the
-real, instantiated result type is deferred to when the `ir` stage needs one for real.
+**Call results.** A call expression's typed node carries the type the call returns. A call of a function of the
+file carries the callee's declared return type: `USER`, `EXTERNAL` or a built-in class. A built-in `convert<T>(x)`
+(with no name `convert` bound in the unit) carries the type `T`, read in the scope of the caller. When the callee is
+generic and the call gives explicit type arguments, a return type that is one generic parameter (`Item`) is
+replaced by the type argument at the same place (`same<integer32>(5)` is `integer32`). When there are no type
+arguments, or the return type is a compound of a parameter (`array<Item>`), the typed node keeps the raw type: a
+bare parameter is tagged `GENERIC` with its name - never a guess, never a crash. Resolving a result from inferred
+type arguments is deferred to when the `ir` stage needs one for real.
 
 ## Diagnostics
 
@@ -307,11 +320,10 @@ real, instantiated result type is deferred to when the `ir` stage needs one for 
 ## Gaps
 
 - Renaming on use inside one file (without an import) is not offered: a local declaration has its own name.
-- An alias compares equal to its original by text. Two aliases of same-named members of two different namespaces
-  (`import a { T as X }; import b { T as Y };`) therefore compare equal in a contract signature.
-- `TYPE_MISMATCH` (3011) knows the type of an expression only in the shapes listed under "Expressions". It never
-  compares an enum, a library type, a generic parameter or a `owned`, `task` or `vector` value, and the result of
-  a generic call is unknown (see below).
+- `TYPE_MISMATCH` (3011) sorts the type of an expression into a fixed set of shapes: a literal, a primitive, a
+  structure, and, known but never compared, an enum, a library type, a generic parameter and an `owned`, `task` or
+  `vector` value. Still fully unknown: a `pointer`, a `slice`, a function type, the type of a field or a file
+  constant that is not a primitive, and the result of a generic call (see below).
 - A binary operator is not checked against what its operands may be (`a and b` with two integers raises nothing,
   as the two have the same name), and an operator that is declared for a structure is not compared.
 - `UNDECLARED_NAME` (3004) is not raised for the bare name that starts a member chain. The bare chain head is
@@ -322,19 +334,19 @@ real, instantiated result type is deferred to when the `ir` stage needs one for 
   an `ERROR_NODE` below it has no name check, because the parser may leave its tokens as an expression.
 - The contract check only sees arguments whose type is cheap to know. Other arguments are not checked.
 - `destroy`, `operator` and `export` are checked for shape only.
-- The type of a call result is closed for non-generic calls via the typed-AST hand-off; generic-
-  result substitution still open. The type of a library type is not tracked, so a missing `copy` or
-  `move` there is not reported.
-- `DUPLICATE_SWITCH_ARM` compares the text of a value, not its number: `1` and `0x1`, or `1.0` and `1.00`, are
-  taken for different values. A constant that is named in one arm and written as its literal in another is not
-  matched either, and a name of an enum is matched by the variant name only, so `Color.red` and `Other.red`
-  count as one. A case value that is a call or another computed expression is never compared.
-- `convert<T>(x)` between two structures is checked in sema only for the field types, the alignment and, for a `c`
-  layout, the size, as described under "Rules". Where sema cannot size a structure (the default `auto` layout, a
-  `string`, `pointer`, `vector`, structure or enum field, a generic structure, a field `align`), the pair is
-  accepted and the backend must check the size and the alignment of the two types before it emits the conversion.
-  A field pair of two primitives with the same width but another name (`integer32` and `float32`) is a mismatch
-  here, as the rule is by exact name; a looser rule is a later decision of the user. The numeric range of a
-  conversion (`convert<integer8>(count)` with `count` above 127) is a run-time stop, not a check of sema.
-- The typed-AST hand-off does not give a `convert<T>(x)` call the type `T` yet: its call classifier reads only a
-  function of the file, so the typed node of a conversion call has no type name.
+- The type of a library type is not tracked, so a missing `copy` or `move` there is not reported.
+- The typed-AST hand-off substitutes a generic result only for a bare parameter with explicit type arguments; a
+  result from inferred type arguments or a compound such as `array<Item>` keeps the raw type.
+- `DUPLICATE_SWITCH_ARM` compares a float by its text: `1.0` and `1.00` are taken for different values. A constant
+  that sema cannot read (imported, or declared with a computed expression) is compared by its name only, and a
+  case value that is a call or another computed expression is never compared.
+- `convert<T>(x)` between two structures is measured in sema, as described under "Rules", for primitive fields, a
+  field `align`, a structure held by value and two `auto` structures with the same fields. It is no longer accepted
+  when sema cannot measure the pair: a generic structure, a `string`, `pointer`, `vector`, enum or library field, an
+  `auto` structure inside a `c` structure, an `auto` against a `c` structure, and a chain deeper than 8 levels are
+  an explicit `TYPE_MISMATCH` (3011), not a silent accept. These are rejections, not real sizes: a generic
+  structure and a field of another type have no size in sema, and two `auto` structures are compared by their
+  fields, not by a size, on the assumption that the backend lays out equal input equally. A field pair of two
+  primitives with the same width but another name (`integer32` and `float32`) is a mismatch here, as the rule is
+  by exact name; a looser rule is a later decision of the user. The numeric range of a conversion
+  (`convert<integer8>(count)` with `count` above 127) is a run-time stop, not a check of sema.
