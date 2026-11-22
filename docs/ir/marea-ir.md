@@ -84,7 +84,8 @@ operands). The kinds are: `MODULE`, `CONSTANT_DECLARATION`,
 The module keeps its declarations in source order. The typing is erased before the IR, so these make
 no node:
 
-- `namespace`, `import`, file attributes, attributes, type aliases and `contract` declarations.
+- `namespace`, `import`, file attributes, attributes, type aliases and `contract` declarations. Their aliases are
+  lowered into the names that remain (see Aliases).
 - Type nodes (`NAMED_TYPE`, `FUNCTION_TYPE`) and `TYPE_ARGUMENTS`. Only the type name above survives, with one
   exception: a type that is the operand of a call keeps its name and its type arguments as a `TYPE_NAME` (see Type
   operands).
@@ -240,6 +241,34 @@ UNARY_EXPRESSION op=KEYWORD_SPAWN            -- child: the call; the one form of
   block, and a `continue` that targets a for-range loop still gets the step in front of it.
 - A gap inside any child drops the declaration whole and is reported once, as everywhere else.
 
+## Aliases
+
+The IR lowers every alias to the original name, so a backend sees no alias. `MAREA_IrLowerCompilationUnit` builds
+one alias table from the unit before it lowers a declaration:
+
+- A whole-path alias (`import a.b.c as d;`) stands for the last segment of its path (`c`).
+- A member alias (`import a.b { f as g, Color.red as Crimson };`) stands for the member path as written (`f`,
+  `Color.red`). A two-part path is joined with a dot in the arena. A member without `as` is not an alias.
+- A plain local type alias (`type Name = Other;`, no generic parameters, no type arguments) stands for the written
+  type name. A chain of type aliases is followed up to 8 steps; an import alias ends a chain. A generic alias is
+  not in the table and keeps raising 4004.
+
+The rules:
+
+- An `IDENTIFIER` that is read as a value (a call, a constant, a variant, a name in an expression) and is an import
+  alias lowers to an `IDENTIFIER` with the original text. The head of a member chain or of a `QUALIFIED_NAME`
+  expression is such a name (`lst.push` becomes `list.push`). The name after the dot, a field entry name and a
+  declaration name are never rewritten.
+- A written type name is the original in every place the IR keeps one: the type name of a field, a parameter, a
+  local, a constant, a function, a struct literal, a call result, the `TYPE_NAME` operand of a built-in or of a
+  static call, and the qualifier of the methods of an `implementation`. The head of a dotted type name that is a
+  namespace alias is replaced (`lst.Item` becomes `list.Item`).
+- A parameter or a local of the function that is lowered, with the name of an alias, hides the alias in that
+  whole function (see Gaps).
+- The built-in lookup (`size_of`, `align_of`, `convert`) counts the local names of a member list: an alias or a
+  member with the built-in name binds it, the original of an alias does not.
+- `import` and `type` declarations still make no node, so a dump holds no alias text.
+
 ## Type operands
 
 Two forms of call have a type as an operand, and the IR cannot erase it: `size_of<T>()` has no other input, and
@@ -277,9 +306,9 @@ CALL_EXPRESSION                              -- a static call on a written type:
   the second, and a backend must not tell them apart by where the node stands.
 - A call is a built-in call when its callee is the bare name `size_of`, `align_of` or `convert`, it names type
   arguments, and the unit binds no name of its own with that spelling. A function declared in the unit, an import
-  of that last segment, or an import alias with that name is a user function, so its call stays a user generic. A
-  call of the same name with no type argument is a plain call, as before. A qualified callee
-  (`array.convert<integer32>(1)`) is not a built-in.
+  of that last segment, an import alias, or a member of an import list (its alias, or its last segment) with that
+  name is a user function, so its call stays a user generic. A call of the same name with no type argument is a
+  plain call, as before. A qualified callee (`array.convert<integer32>(1)`) is not a built-in.
 - A call is a static call on a written type when its callee is a `MEMBER_ACCESS` on a type with type arguments
   (`array<integer32>.filled`) and the call itself names no type argument. A type that the unit declares with
   generic parameters, as a structure or a type alias, is a user generic and keeps raising 4004: its declaration
@@ -413,7 +442,15 @@ Each diagnostic carries the position of the construct that raised it.
   shapes, so the type name of a declaration is the head name written in the source. A type argument,
   and any `FUNCTION_TYPE`, is lost on a declaration; only the operand of a built-in or of a static call keeps its
   type arguments.
-- There is no linking between modules: an imported name stays a plain name.
+- There is no linking between modules: an imported name is lowered to its original name, but the IR does not look
+  at the namespace that holds it.
+- A parameter or a local hides an import alias in its whole function, also in the lines before its declaration,
+  because the check looks at every declaration of the function and not at the order. An alias used before a local
+  of the same name in a nested block therefore stays unrewritten there. Sema does not reject such a shadow.
+- Two members with the same original name in two namespaces keep the same lowered name; the IR does not add the
+  namespace. A backend that needs it must read the import itself.
+- A type alias is lowered only when its right side is one plain named type. An alias to a function type, or to a
+  type with type arguments, stays as written.
 - The tree builder and the dump are recursive, and so is the lowering of a nested type argument. A very deep tree
   needs a large stack; no test goes deeper than the example programs.
 - `MAREA_IrLowerCompilationUnit` reports a root that is not a `COMPILATION_UNIT` with
