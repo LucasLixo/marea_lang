@@ -87,10 +87,15 @@ mutable`, or a field access (`a.b`, nested too) whose base meets the same rule. 
 only at its own `end`. A `return`, a `break` or a `continue` in it that would leave the body is rejected
 with `INVALID_PARALLEL_JUMP` (3024), one diagnostic for each jump. A `break` or `continue` that targets a
 loop inside the body is accepted, also through `if`, `switch` and `with`. The nearest `partition` body
-counts: in a nested `partition`, the inner body is the barrier. A jump in a `with` body, in a loop or in a
-function body outside every `partition` body is not changed. The rule follows the grammar: `return` leaves
-the function (note 9), the body is run once for each part, and all spawned work ends before the `end`
-of the `fork_join`.
+counts: in a nested `partition`, the inner body is the barrier. The `fork_join` block itself is the same
+kind of barrier, one level up: a `return`, `break` or `continue` that stands directly in it, outside every
+`partition` body (also directly around a `spawn`), is rejected with `INVALID_PARALLEL_JUMP` (3024) too,
+unless a loop that is itself directly in the block catches the `break` or `continue` first - a loop outside
+the whole `fork_join` block is never a valid target. A jump in a `with` body, in a loop or in a function body
+outside every `fork_join` block is not changed. The rule follows the grammar: `return` leaves the function
+(note 9), the body is run once for each part, and all spawned work ends before the `end` of the `fork_join`
+- a jump that bypasses that `end`, from inside a `partition` body or directly in the block, would skip the
+join of the spawned workers.
 
 **Control flow.** A function with a return type ends every path with `return value;`, through `if`,
 `elseif`, `else`, scope blocks and `switch`. A loop is never an ending path. `unreachable!()` and
@@ -184,7 +189,7 @@ real, instantiated result type is deferred to when the `ir` stage needs one for 
 | 3021 | `NON_EXHAUSTIVE_SWITCH` | a `switch` over an enum that misses a variant and has no `default` |
 | 3022 | `MISSING_RETURN` | `if a then return 1; end` as the whole body of a function with a return type |
 | 3023 | `INVALID_MAIN_SIGNATURE` | `function main(): integer32` in the namespace `main` |
-| 3024 | `INVALID_PARALLEL_JUMP` | `continue;`, `break;` or `return;` in a `partition` body when no loop of the body is the target |
+| 3024 | `INVALID_PARALLEL_JUMP` | `continue;`, `break;` or `return;` in a `partition` body when no loop of the body is the target, or directly in a `fork_join` block, outside every `partition` body, when no loop of the block is the target |
 | 3025 | `DUPLICATE_SWITCH_ARM` | a second `default` arm in a `switch`, or `case 1 then ... case 1 then ...`, `case 1, 1 then ...`, `case Color.red` twice |
 
 ## Gaps
@@ -196,9 +201,6 @@ real, instantiated result type is deferred to when the `ir` stage needs one for 
 - The type of a call result is closed for non-generic calls via the typed-AST hand-off; generic-
   result substitution still open. The type of a library type is not tracked, so a missing `copy` or
   `move` there is not reported.
-- A `break`, `continue` or `return` that stands directly in a `fork_join` block, outside every `partition` body
-  (also around a `spawn`), is accepted with no diagnostic. The grammar does not say whether leaving a
-  `fork_join` this way joins the started workers first, so the form is left as it was.
 - A `default` arm that is not the last arm of a `switch` is accepted. The grammar (`switch_statement`) puts the
   `default_arm` last, but the parser accepts it anywhere, and sema leaves the form as it is: the place of an
   arm is a syntax rule, so it belongs to the parser, and the IR lowers a `default` that comes first as the last
