@@ -399,3 +399,176 @@ TEST(MAREASemaExpressions, ErrorNodeInAnExpressionIsSkipped)
         }
     }
 }
+
+TEST(MAREASemaExpressions, ConvertBetweenNumberPrimitivesIsAccepted)
+{
+    GTEST_COUT << "Validating convert takes any number primitive to any other number primitive, as Rust as does." << std::endl;
+
+    const std::string HEAD{ "function g(a: integer32, b: unsigned8, c: integer64, f: float32, d: float64) " };
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "local w: integer64 = convert<integer64>(a); local s: unsigned8 = convert<unsigned8>(c); local x: unsigned64 = convert<unsigned64>(b); local y: integer8 = convert<integer8>(b); end").empty()) << "An integer to an integer of any width and sign must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "local x: float64 = convert<float64>(a); local y: float32 = convert<float32>(b); local z: float32 = convert<float32>(c); end").empty()) << "An integer to a float must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "local x: integer32 = convert<integer32>(f); local y: unsigned64 = convert<unsigned64>(d); end").empty()) << "A float to an integer must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "local x: float64 = convert<float64>(f); local y: float32 = convert<float32>(d); end").empty()) << "A float to a float must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "local x: float64 = convert<float64>(1); local y: integer32 = convert<integer32>(2.5); local z: integer64 = convert<integer64>(a + 1); end").empty()) << "A number literal and a calculation are number operands.";
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "local x: integer32 = convert<integer32>(a); local s: string = convert<string>(\"t\"); local b2: boolean = convert<boolean>(true); end").empty()) << "The same type to itself must raise nothing.";
+}
+
+TEST(MAREASemaExpressions, ConvertOfAnythingElseIsATypeMismatch)
+{
+    GTEST_COUT << "Validating convert refuses a string, a boolean and a structure against a number, with TYPE_MISMATCH." << std::endl;
+
+    const std::string HEAD{ "structure Point x: float32; end function g(a: integer32, s: string, t: boolean, p: Point) " };
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "convert<integer32>(s); end"), Codes{ MISMATCH }) << "A string to a number must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "convert<string>(a); convert<float64>(t); convert<boolean>(a); end"), (Codes{ MISMATCH, MISMATCH, MISMATCH })) << "A number to a string, and a boolean against a number, must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "convert<integer32>(\"1\"); convert<float32>(true); convert<string>(1); convert<string>(1.5); end"), (Codes{ MISMATCH, MISMATCH, MISMATCH, MISMATCH })) << "A literal is typed like a name.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "convert<integer32>(p); end"), Codes{ MISMATCH }) << "A structure to a primitive must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "convert<Point>(a); convert<Point>(s); end"), (Codes{ MISMATCH, MISMATCH })) << "A primitive to a structure must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "local n: integer32 = convert<integer32>(s); end"), Codes{ MISMATCH }) << "A bad conversion must raise once and the result type must still fit the local.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "local n: integer32 = convert<integer32>(convert<string>(a)); end"), (Codes{ MISMATCH, MISMATCH })) << "The inner conversion is checked, and its result type string is still the operand of the outer one.";
+}
+
+TEST(MAREASemaExpressions, ConvertResultHasTheTypeOfTheTypeArgument)
+{
+    GTEST_COUT << "Validating the result of convert is T, so it feeds the other expression checks." << std::endl;
+
+    const std::string HEAD{ "function take(a: integer64) end function g(a: integer32, c: integer64, d: float64) " };
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "local n: integer32 = convert<integer64>(a); end"), Codes{ MISMATCH }) << "The result integer64 does not fit an integer32 local.";
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "local n: integer64 = convert<integer64>(a); take(convert<integer64>(a)); end").empty()) << "The result integer64 fits an integer64 local and parameter.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "take(convert<float64>(a)); end"), Codes{ MISMATCH }) << "The result float64 does not fit an integer64 parameter.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "local n: integer64 = convert<integer32>(c) + c; end"), Codes{ MISMATCH }) << "The result is an operand with its own type.";
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "local n: integer64 = convert<integer64>(a) + c; local m: float64 = d * convert<float64>(a); end").empty()) << "An operand of the same type as the result must raise nothing.";
+
+    EXPECT_EQ(MAREA_codesOf("function g(a: integer32): integer64 return convert<float64>(a); end"), Codes{ MISMATCH }) << "A return value is compared with the result type.";
+
+    EXPECT_EQ(MAREA_codesOf("constant LIMIT: integer32 = convert<integer64>(5);"), Codes{ MISMATCH }) << "The initializer of a constant is compared with the result type.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "local n: integer64 = 0; n += convert<integer32>(a); end"), Codes{ MISMATCH }) << "A compound assignment is compared with the result type.";
+}
+
+TEST(MAREASemaExpressions, ConvertOfAnUnknownTypeIsAccepted)
+{
+    GTEST_COUT << "Validating sema never guesses: an unknown operand, or a target it cannot sort, raises nothing." << std::endl;
+
+    EXPECT_TRUE(MAREA_codesOf("enum Color red; end function g(c: Color, a: integer32) local n: integer32 = convert<integer32>(c); local d: Color = convert<Color>(a); end").empty()) << "An enum is not decided.";
+
+    EXPECT_TRUE(MAREA_codesOf("function g<Item>(x: Item, a: integer32) local n: integer32 = convert<integer32>(x); local y: Item = convert<Item>(a); end").empty()) << "A generic parameter is not decided.";
+
+    EXPECT_TRUE(MAREA_codesOf("function g(a: integer32, v: pointer<integer32>) local n: integer32 = convert<integer32>(v); convert<pointer<integer32>>(a); end").empty()) << "A pointer is a type that sema does not sort.";
+
+    EXPECT_TRUE(MAREA_codesOf("function g(a: integer32) local n: integer32 = convert<integer32>(a.missing); local m: integer32 = convert<integer32>(lib.get(a)); end").empty()) << "An operand of unknown type must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("function g(a: integer32) local n: integer32 = convert<integer32, integer64>(a); local m: integer32 = convert<integer32>(a, a); local o: integer32 = convert<integer32>(); end").empty()) << "A call with not exactly one type argument and one argument is not checked here.";
+}
+
+TEST(MAREASemaExpressions, ConvertNamedByTheUnitIsNotTheBuiltIn)
+{
+    GTEST_COUT << "Validating a function or a local named convert is a plain call, as the IR reads it." << std::endl;
+
+    EXPECT_TRUE(MAREA_codesOf("function convert<Item>(a: string): Item return copy a; end function g(s: string) local n: integer32 = convert<integer32>(s); end").empty()) << "A function named convert in the unit is a user function.";
+
+    EXPECT_TRUE(MAREA_codesOf("function g(s: string, convert: function(text: string): integer32) local n: integer32 = convert<integer32>(s); end").empty()) << "A parameter named convert hides the built-in.";
+}
+
+TEST(MAREASemaExpressions, ConvertBetweenStructuresNeedsTheSameLayout)
+{
+    GTEST_COUT << "Validating a structure converts to a structure only when both have the same fields, size and alignment." << std::endl;
+
+    const std::string STRUCTURES{ "#[layout = c] structure A x: integer32; y: float32; end "
+                                  "#[layout = c] structure B left: integer32; right: float32; end "
+                                  "#[layout = c] structure Wide x: integer64; y: float32; end "
+                                  "#[layout = c] structure Short x: integer32; end "
+                                  "#[layout = c] structure Swapped x: float32; y: integer32; end " };
+
+    const std::string HEAD{ STRUCTURES + "function g(a: A, b: B, w: Wide, s: Short, p: Swapped) " };
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "local x: B = convert<B>(a); local y: A = convert<A>(b); local z: A = convert<A>(a); end").empty()) << "The same field types in the same order, and the same type to itself, must raise nothing.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "convert<A>(w); end"), Codes{ MISMATCH }) << "A structure of another size must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "convert<A>(s); convert<Short>(a); end"), (Codes{ MISMATCH, MISMATCH })) << "A structure with another field count must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "convert<A>(p); end"), Codes{ MISMATCH }) << "Fields of another type at the same place must raise TYPE_MISMATCH, although the size is the same.";
+
+    EXPECT_EQ(MAREA_codesOf(STRUCTURES + "function take(n: integer32) end function g(a: A) take(convert<B>(a)); end"), Codes{ MISMATCH }) << "The result type is the target structure, which is not a primitive.";
+}
+
+TEST(MAREASemaExpressions, ConvertBetweenStructuresComparesTheComputedSizeAndAlignment)
+{
+    GTEST_COUT << "Validating pack and align change the size and the alignment, and a layout sema cannot decide is accepted." << std::endl;
+
+    const std::string FIELDS{ "x: unsigned8; y: unsigned32; end " };
+
+    const std::string STRUCTURES{ "#[layout = c] structure Plain " + FIELDS + "#[layout = c, pack = 1] structure Packed " + FIELDS + "#[layout = c, align = 16] structure Aligned " + FIELDS + "#[layout = c] structure Other " + FIELDS + "structure AutoOne " + FIELDS + "structure AutoTwo " + FIELDS + "#[layout = c, pack = 1] structure PackedOther " + FIELDS };
+
+    const std::string HEAD{ STRUCTURES + "function g(a: Plain, b: Packed, c: Aligned, d: Other, e: AutoOne, f: AutoTwo, h: PackedOther) " };
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "convert<Packed>(a); end"), Codes{ MISMATCH }) << "Pack 1 gives 5 bytes against 8, so it must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "convert<Aligned>(a); convert<Plain>(c); end"), (Codes{ MISMATCH, MISMATCH })) << "Align 16 gives another alignment and size.";
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "local x: Other = convert<Other>(a); local y: PackedOther = convert<PackedOther>(b); end").empty()) << "Two structures with the same fields and the same pack and align must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "local x: AutoTwo = convert<AutoTwo>(e); local y: Plain = convert<Plain>(e); end").empty()) << "A structure with the default auto layout has a size that the backend chooses, so it is accepted.";
+}
+
+TEST(MAREASemaExpressions, ConvertBetweenStructuresAcceptsWhatSemaCannotDecide)
+{
+    GTEST_COUT << "Validating a field of a type that sema cannot size makes the check a gap for the backend, not a mismatch." << std::endl;
+
+    const std::string STRUCTURES{ "#[layout = c] structure Text name: string; end "
+                                  "#[layout = c] structure Other label: string; end "
+                                  "#[layout = c] structure Number x: integer32; end "
+                                  "#[layout = c] structure Nested inner: Number; end "
+                                  "#[layout = c] structure Holder<Item> value: Item; end "
+                                  "#[layout = c] structure Handle raw: pointer<integer32>; end "
+                                  "#[layout = c] structure Aligned #[align = 16] x: integer32; end "
+                                  "#[layout = c] structure Plain x: integer32; end " };
+
+    const std::string HEAD{ STRUCTURES + "function g(t: Text, n: Number, d: Nested, h: Handle, a: Aligned, p: Plain, v: Holder<integer32>) " };
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "local x: Other = convert<Other>(t); local y: Number = convert<Number>(t); end").empty()) << "A string field has no size in sema, so the pair is accepted, whatever the other fields are.";
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "local x: Number = convert<Number>(d); local y: Nested = convert<Nested>(n); end").empty()) << "A field of a structure type is not decided.";
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "local x: Number = convert<Number>(h); end").empty()) << "A pointer field is not decided.";
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "local x: Plain = convert<Plain>(a); local y: Aligned = convert<Aligned>(p); end").empty()) << "A field with its own align is not decided.";
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "local x: Number = convert<Number>(v); end").empty()) << "A generic structure is not decided.";
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "local x: Number = convert<Number>(a); end").empty()) << "A field with its own align is not decided against another type either.";
+}
+
+TEST(MAREASemaExpressions, ConvertBetweenStructuresFollowsAnAliasOfAPrimitive)
+{
+    GTEST_COUT << "Validating a field whose type is an alias of a primitive counts as that primitive." << std::endl;
+
+    const std::string STRUCTURES{ "type Meters = float32; "
+                                  "#[layout = c] structure Length value: Meters; end "
+                                  "#[layout = c] structure Raw value: float32; end "
+                                  "#[layout = c] structure Count value: integer32; end " };
+
+    const std::string HEAD{ STRUCTURES + "function g(l: Length, r: Raw, c: Count) " };
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "local x: Raw = convert<Raw>(l); local y: Length = convert<Length>(r); end").empty()) << "An alias of float32 is float32.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "convert<Count>(l); convert<Length>(c); end"), (Codes{ MISMATCH, MISMATCH })) << "An alias of float32 is not integer32.";
+}

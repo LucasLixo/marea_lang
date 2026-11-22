@@ -296,6 +296,48 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_SemaAttributeIsOn(const MAREA_AstNode *root, const MAREA_AstNode *declaration, const MAREA_Character8 *key);
 
     /**
+     * @brief Finds the ATTRIBUTE_ITEM of a key for a declaration. The attributes of the symbol win over the
+     * file attributes of the compilation unit that holds it.
+     * @param root COMPILATION_UNIT node that holds the declaration. May be null: only the symbol is read.
+     * @param declaration Declaration or field node. May be null.
+     * @param key Attribute key, for example "pack".
+     * @return The ATTRIBUTE_ITEM node, or null when no attribute has the key.
+     */
+    MAREA_NODISCARD const MAREA_AstNode *MAREA_CALL MAREA_SemaAttributeFind(const MAREA_AstNode *root, const MAREA_AstNode *declaration, const MAREA_Character8 *key);
+
+    /**
+     * @brief Reads the integer value of an ATTRIBUTE_ITEM, decimal or hexadecimal.
+     * @param item ATTRIBUTE_ITEM node. May be null.
+     * @param outValue Receives the value. Must not be null.
+     * @return True when the value is an integer literal that fits 64 bits.
+     */
+    MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_SemaAttributeReadInteger(const MAREA_AstNode *item, MAREA_Uinteger64 *outValue);
+
+    /**
+     * @brief What sema can say about the conversion of one structure to another.
+     */
+    typedef enum MAREA_SemaLayoutVerdict
+    {
+        MAREA_SEMA_LAYOUT_VERDICT_COMPATIBLE = MAREA_UINTEGER_8(0),
+        MAREA_SEMA_LAYOUT_VERDICT_INCOMPATIBLE = MAREA_UINTEGER_8(1),
+        MAREA_SEMA_LAYOUT_VERDICT_UNDECIDED = MAREA_UINTEGER_8(2),
+    } MAREA_SemaLayoutVerdict;
+
+    /**
+     * @brief Compares the layout of two structures of the file, field by field. Two structures are compatible
+     * when every field has the same primitive type at the same place, the alignment is equal, and, when both
+     * have the C layout, the size is equal. A structure with a generic parameter, a field that is not a
+     * primitive with a fixed width (a string, a pointer, a structure), a field with its own align or a value of
+     * pack or align that sema cannot read is undecided, and so is a pair whose size depends on the backend (a
+     * layout that is not C).
+     * @param context Context of the run. Must not be null.
+     * @param from STRUCTURE_DECLARATION node of the operand. May be null, which gives UNDECIDED.
+     * @param to STRUCTURE_DECLARATION node of the target. May be null, which gives UNDECIDED.
+     * @return The verdict. The same declaration on both sides is always compatible.
+     */
+    MAREA_NODISCARD MAREA_SemaLayoutVerdict MAREA_CALL MAREA_SemaCompareStructureLayout(const MAREA_SemaContext *context, const MAREA_AstNode *from, const MAREA_AstNode *to);
+
+    /**
      * @brief Checks a WHERE_CLAUSE: every constraint names a generic parameter in scope and known contracts.
      * @param context Context of the run. Must not be null.
      * @param node WHERE_CLAUSE node. Must not be null.

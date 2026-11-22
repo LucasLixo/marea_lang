@@ -119,7 +119,7 @@ program the parser accepts.
 **Expressions.** Sema gives an expression a type only when it is cheap to know, and never guesses. A
 literal has its own type. A name has the declared type of its local, parameter or file constant. A field, or an
 element of an `array`, `slice`, `vector` or `pointer`, has the type sema already reads for the ownership check
-(a primitive only). A `-`, `~`, `copy` or `move` keeps the type of its operand. `not`, `and`, `or` and a
+(a primitive only). A built-in `convert<T>(x)` has the type `T`. A `-`, `~`, `copy` or `move` keeps the type of its operand. `not`, `and`, `or` and a
 comparison give `boolean`. A shift gives the type of its left side. Any other binary operator, `**` too, gives the
 type of both sides when they are the same primitive, or when one side is a number literal and the other a
 primitive of its family; it gives no type when they differ. A call of a plain function of the file (not
@@ -156,6 +156,35 @@ no type. An operand of an unknown type is accepted.
 `|=` and `^=` need the same type on both sides, as `a = a + b` does, with the same literal rule as a binary
 operator. `<<=` and `>>=` follow the shift rule. A mismatch is `TYPE_MISMATCH` (3011) on the assignment, once.
 A side of an unknown type is accepted.
+
+**Conversion `convert<T>(x)` (decision of the user, by the rules of Rust).** A conversion is always written and
+never implicit. The call is the built-in when it names exactly one type argument and has exactly one argument and
+the unit binds no name `convert` of its own (a function, an import, a parameter or a local with that name makes
+it a plain call, as the IR reads it). Its result type is `T`, even when the conversion itself is rejected, so it
+feeds every other check of this section (a local, a parameter, a `return`, a constant, an operand, a compound
+assignment). Allowed:
+
+- a number primitive to a number primitive of any width and sign: integer to integer, integer to float, float to
+  integer and float to float (`integer8` to `unsigned64`, `float64` to `integer32`). A number literal and a
+  calculation of numbers are number operands. `boolean` and `string` are not numbers;
+- the same primitive to itself (`convert<string>(text)`, `convert<boolean>(flag)`);
+- a `structure` to another `structure` that has the same layout (below), and a structure to itself;
+- an operand or a target of a type sema does not know (an enum, a library type, a generic parameter, a `pointer`,
+  a field or a call that sema cannot type). An unknown type stays accepted.
+
+Everything else is `TYPE_MISMATCH` (3011) on the call, once: a `string` or a `boolean` to a number or the other
+way, a structure to a primitive, a primitive to a structure, and a structure to a structure with another layout.
+
+Two structures have the same layout when every field has the same primitive type, by exact name, at the same
+place (an alias of a primitive is the primitive, the names of the fields do not count), they have the same
+alignment and, when both are `#[layout = c]`, the same size. Sema computes the alignment and the size by the rules
+of C: each field at the next multiple of its own alignment (the size of a primitive), `pack = N` caps that
+alignment, `align = N` raises the alignment of the structure, and the size is rounded up to the alignment. The
+layout may come from a file attribute. The pair is accepted, and the size check is a gap for the backend, when sema
+cannot decide it: a generic structure, a field that is not a fixed-width primitive (`string`, `pointer`, `vector`,
+a structure, an enum, a library type), a field with its own `align`, a `pack` or `align` value that is not an
+integer from 1 to 4294967296, and two structures whose size depends on the backend (a layout that is not `c`,
+and `auto` is the default). The alignment and the field types are still compared when only the size is open.
 
 **Constants of an `implementation` block (decision of the user).** Inside an `implementation` block, a bare
 constant of that block shadows a top-level constant of the same name: the inner scope wins, and the name has the
@@ -234,7 +263,7 @@ real, instantiated result type is deferred to when the `ir` stage needs one for 
 | 3008 | `INVALID_ALIGNMENT` | `#[align = 15]` |
 | 3009 | `UNKNOWN_TYPE` | `a: Missing;` in a structure |
 | 3010 | `ARGUMENT_COUNT_MISMATCH` | `add(1)` when `add` takes two parameters |
-| 3011 | `TYPE_MISMATCH` | `f("text")` when the parameter is `integer32`, `local x: boolean = 1;`, `local n: integer32 = a < b;`, `f(s)` with a `string` name `s`, `return a + 1;` in a function that returns `boolean`, `a + b` with an `integer32` and a `float64` |
+| 3011 | `TYPE_MISMATCH` | `convert<integer32>(text)` with a `string` name, `convert<Point>(other)` for two structures with another layout, `f("text")` when the parameter is `integer32`, `local x: boolean = 1;`, `local n: integer32 = a < b;`, `f(s)` with a `string` name `s`, `return a + 1;` in a function that returns `boolean`, `a + b` with an `integer32` and a `float64` |
 | 3012 | `DUPLICATE_MEMBER` | two `implementation` blocks of one type that both declare `area` |
 | 3013 | `CONTRACT_NOT_SATISFIED` | `maximum(a, b)` when the type of `a` has no `less` for `where Item: Comparable` |
 | 3014 | `GENERIC_ARGUMENT_MISMATCH` | `Pair<integer32>` when `Pair` has two parameters, `Box<4>` |
@@ -271,3 +300,12 @@ real, instantiated result type is deferred to when the `ir` stage needs one for 
   taken for different values. A constant that is named in one arm and written as its literal in another is not
   matched either, and a name of an enum is matched by the variant name only, so `Color.red` and `Other.red`
   count as one. A case value that is a call or another computed expression is never compared.
+- `convert<T>(x)` between two structures is checked in sema only for the field types, the alignment and, for a `c`
+  layout, the size, as described under "Rules". Where sema cannot size a structure (the default `auto` layout, a
+  `string`, `pointer`, `vector`, structure or enum field, a generic structure, a field `align`), the pair is
+  accepted and the backend must check the size and the alignment of the two types before it emits the conversion.
+  A field pair of two primitives with the same width but another name (`integer32` and `float32`) is a mismatch
+  here, as the rule is by exact name; a looser rule is a later decision of the user. The numeric range of a
+  conversion (`convert<integer8>(count)` with `count` above 127) is a run-time stop, not a check of sema.
+- The typed-AST hand-off does not give a `convert<T>(x)` call the type `T` yet: its call classifier reads only a
+  function of the file, so the typed node of a conversion call has no type name.
