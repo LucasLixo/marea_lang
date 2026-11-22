@@ -170,6 +170,17 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD const MAREA_SemaName *MAREA_CALL MAREA_SemaNameTableFind(const MAREA_SemaContext *context, const MAREA_Character8 *text, MAREA_IntegerSize length);
 
     /**
+     * @brief Looks a name up in the locals of the scopes that are open, the innermost first. A parameter, a
+     * local and the name of a for, for each, partition or with statement are locals.
+     * @param context Context of the run. Must not be null.
+     * @param text Text of the name, not NUL terminated.
+     * @param length Length of text in bytes.
+     * @return The entry, or null when no open scope declares the name. The declaration of the entry is the
+     * type of the name, or null for the name of a statement.
+     */
+    MAREA_NODISCARD const MAREA_SemaName *MAREA_CALL MAREA_SemaLocalFind(const MAREA_SemaContext *context, const MAREA_Character8 *text, MAREA_IntegerSize length);
+
+    /**
      * @brief Appends a name to the name table of the context. It does not test for a clash.
      * @param context Context of the run. Must not be null.
      * @param text Text of the name, not copied.
@@ -437,15 +448,38 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckEntryPoint(MAREA_SemaContext * context, const MAREA_AstNode *root);
 
     /**
-     * @brief Reports TYPE_MISMATCH when a literal cannot have a primitive type: a string for a number or a
-     * boolean, a boolean for anything but a boolean, a fraction for an integer. Any other pair is accepted,
-     * because sema does not type the other expressions.
+     * @brief Reports TYPE_MISMATCH when the type that sema knows for an expression cannot be the primitive type
+     * the context expects: a literal, a name with a declared type, a field or an element of a known type, a unary
+     * or binary operator, or a call of a plain function of the file. Two primitives are the same only by name; a
+     * number literal fits any number type and a fraction literal any float type. An expression with an unknown
+     * type, and a type that is not a primitive, are accepted, because sema never guesses.
      * @param context Context of the run. Must not be null.
      * @param type NAMED_TYPE or FUNCTION_TYPE node that the value must have. May be null.
      * @param expression Expression node. May be null.
      * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER when context is null, or ERROR_OUT_OF_MEMORY.
      */
-    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckLiteralFit(MAREA_SemaContext * context, const MAREA_AstNode *type, const MAREA_AstNode *expression);
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressionFit(MAREA_SemaContext * context, const MAREA_AstNode *type, const MAREA_AstNode *expression);
+
+    /**
+     * @brief Checks the expressions of one statement: every bare name is declared (UNDECLARED_NAME), a plain
+     * assignment, a return value and the initializer of a constant fit the declared type (TYPE_MISMATCH). The
+     * expressions checked are the initializer of a local, the two sides of an assignment, an expression
+     * statement, the condition of an if, elseif and while, the value of a return and the value of a switch. A
+     * call argument is checked by MAREA_SemaCheckCall and a local initializer by MAREA_SemaCheckOwnership.
+     * @param context Context of the run. Must not be null.
+     * @param node Node about to be visited. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressions(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
+     * @brief Records the name of a for, for each, partition or with statement in the local scope with no type, so
+     * a local of an outer scope with the same name is hidden for the length of the statement.
+     * @param context Context of the run. Must not be null.
+     * @param node Node about to be visited. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaDeclareBinders(MAREA_SemaContext * context, const MAREA_AstNode *node);
 
 MAREA_END_EXTERN_C
 
