@@ -77,7 +77,7 @@ one that cuts a long name; built-ins with explicit type arguments (`size_of<T>()
 
 ## Never touch, regardless of which point you are closing
 
-- The ir diagnostic codes 4001-4005 or their meaning, unless the point you were asked to close is
+- The ir diagnostic codes 4004 and 4005 or their meaning, unless the point you were asked to close is
   to add a new one. Never repurpose an existing code.
 - The signature or behavior of any symbol declared under `lib/include/marea/ir/` without flagging
   it: per `audit-code`'s rule, a public API change is a major or minor bump and a question for the
