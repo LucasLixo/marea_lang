@@ -141,6 +141,11 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaVisit(MAREA_SemaContext *context, const MA
 
     const MAREA_AstKind KIND = MAREA_AstNodeGetKind(node);
 
+    // INFO: a fork_join block is a jump barrier too, the same as a partition body, so a loop outside it is not a target of a break or continue that stands directly in the block, and MAREA_SemaScopeLeave restores the saved mark once this block ends.
+    if (KIND == MAREA_AST_KIND_FORK_JOIN_BLOCK) {
+        context->loopDepth = 0;
+    }
+
     MAREA_Boolean entered = MAREA_BOOLEAN_FALSE;
 
     if (result == MAREA_SEMA_EXCEPT_SUCCESS) {

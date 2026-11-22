@@ -164,23 +164,26 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckJump(MAREA_SemaContext *context, cons
         return MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER;
     }
 
-    if (context->partitionDepth == 0) {
+    // INFO: a fork_join block is a join barrier too, so a jump directly in it, outside every partition body, must not leave it either, the same as a jump leaving a partition body.
+    if ((context->partitionDepth == 0) && (context->forkDepth == 0)) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
+    const MAREA_Boolean IN_PARTITION = (context->partitionDepth > 0) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+
     switch (MAREA_AstNodeGetKind(node)) {
     case MAREA_AST_KIND_RETURN_STATEMENT:
-        MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_PARALLEL_JUMP, MAREA_AstNodeGetPosition(node), "a return cannot leave the body of a partition");
+        MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_PARALLEL_JUMP, MAREA_AstNodeGetPosition(node), (IN_PARTITION == MAREA_BOOLEAN_TRUE) ? "a return cannot leave the body of a partition" : "a return cannot leave a fork_join block before its workers join");
         break;
     case MAREA_AST_KIND_BREAK_STATEMENT:
         if (context->loopDepth == 0) {
-            MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_PARALLEL_JUMP, MAREA_AstNodeGetPosition(node), "a break cannot leave the body of a partition");
+            MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_PARALLEL_JUMP, MAREA_AstNodeGetPosition(node), (IN_PARTITION == MAREA_BOOLEAN_TRUE) ? "a break cannot leave the body of a partition" : "a break cannot leave a fork_join block before its workers join");
         }
 
         break;
     case MAREA_AST_KIND_CONTINUE_STATEMENT:
         if (context->loopDepth == 0) {
-            MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_PARALLEL_JUMP, MAREA_AstNodeGetPosition(node), "a continue cannot leave the body of a partition");
+            MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_PARALLEL_JUMP, MAREA_AstNodeGetPosition(node), (IN_PARTITION == MAREA_BOOLEAN_TRUE) ? "a continue cannot leave the body of a partition" : "a continue cannot leave a fork_join block before its workers join");
         }
 
         break;
