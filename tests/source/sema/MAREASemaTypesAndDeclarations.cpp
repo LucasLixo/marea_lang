@@ -206,3 +206,57 @@ TEST(MAREASemaTypesAndDeclarations, ErrorNodeInPlaceOfFieldOrTypeIsSkipped)
 
     EXPECT_TRUE(MAREA_codesOf("function f(a: ) end").empty()) << "A broken parameter type must raise no sema diagnostic.";
 }
+
+TEST(MAREASemaTypesAndDeclarations, LocalTypeAliasDeclaredBeforeOrAfterItsTarget)
+{
+    GTEST_COUT << "Validating a local type alias resolves whether its target comes before or after it." << std::endl;
+
+    EXPECT_TRUE(MAREA_codesOf("structure Other x: float32; end type Name = Other; structure H a: Name; end").empty()) << "An alias after its target must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("type Name = Other; structure Other x: float32; end structure H a: Name; end").empty()) << "An alias before its target must raise nothing.";
+
+    EXPECT_EQ(MAREA_codesOf("type Name = Missing; structure H a: Name; end"), Codes{ UNKNOWN_TYPE }) << "An alias of a missing type must raise UNKNOWN_TYPE.";
+}
+
+TEST(MAREASemaTypesAndDeclarations, ChainOfTypeAliasesResolves)
+{
+    GTEST_COUT << "Validating a chain of two type aliases resolves to the type at its end." << std::endl;
+
+    EXPECT_TRUE(MAREA_codesOf("structure Point x: float32; end type Mid = Point; type Top = Mid; structure H a: Top; end").empty()) << "A chain of aliases must raise nothing.";
+}
+
+TEST(MAREASemaTypesAndDeclarations, AliasOfAPrimitiveIsThePrimitive)
+{
+    GTEST_COUT << "Validating an alias of a primitive meets a contract that only a primitive meets." << std::endl;
+
+    const std::string COPY{ "function copy_of<Item>(a: Item): Item where Item: Copyable return copy a; end " };
+
+    EXPECT_TRUE(MAREA_codesOf(COPY + "type Id = integer32; function run(a: Id): Id return copy_of<Id>(a); end").empty()) << "An alias of a primitive must be Copyable.";
+}
+
+TEST(MAREASemaTypesAndDeclarations, AliasTypeMatchesTheOriginalInAContractSignature)
+{
+    GTEST_COUT << "Validating a type written with a local alias or an import alias equals the original in a contract signature." << std::endl;
+
+    auto external = [](const std::string &, const MAREA_AstNode **) { return MAREA_SEMA_IMPORT_RESULT_EXTERNAL; };
+
+    const std::string BASE{ "contract Joiner function join(self: Self, other: Thing): boolean; end structure Score points: integer32; end function join_all<Item>(a: Item): Item where Item: Joiner return copy a; end " };
+
+    const std::string RUN{ "function run(a: Score): Score return join_all(a); end" };
+
+    const std::string LOCAL{ "type Thing = Other; structure Other end type Back = Thing; implementation Score function join(self: Score, other: Back): boolean return true; end end " };
+
+    EXPECT_TRUE(MAREA_codesOf(BASE + LOCAL + RUN, external).empty()) << "A local alias chain must equal the original.";
+
+    const std::string WHOLE{ "implementation Score function join(self: Score, other: Alias): boolean return true; end end " };
+
+    EXPECT_TRUE(MAREA_codesOf("import lib.Thing; import lib.Thing as Alias; " + BASE + WHOLE + RUN, external).empty()) << "A whole-path import alias must equal the original.";
+
+    const std::string MEMBER{ "implementation Score function join(self: Score, other: Alias): boolean return true; end end " };
+
+    EXPECT_TRUE(MAREA_codesOf("import lib.Thing; import lib { Thing as Alias }; " + BASE + MEMBER + RUN, external).empty()) << "A member alias must equal the original.";
+
+    const std::string WRONG{ "implementation Score function join(self: Score, other: Alias): boolean return true; end end " };
+
+    EXPECT_EQ(MAREA_codesOf("import lib.Thing; import lib { Other as Alias }; " + BASE + WRONG + RUN, external), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_CONTRACT_NOT_SATISFIED }) << "An alias of another type must still miss the contract.";
+}
