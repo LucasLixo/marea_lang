@@ -104,6 +104,12 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaScopeEnter(MAREA_SemaContext *context, con
         return BIND_RESULT;
     }
 
+    const MAREA_SemaExcept BINDER_RESULT = MAREA_SemaDeclareBinders(context, node);
+
+    if (BINDER_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+        return BINDER_RESULT;
+    }
+
     const MAREA_AstKind KIND = MAREA_AstNodeGetKind(node);
 
     if ((KIND == MAREA_AST_KIND_IMPLEMENTATION_DECLARATION) || (KIND == MAREA_AST_KIND_CONTRACT_DECLARATION)) {
