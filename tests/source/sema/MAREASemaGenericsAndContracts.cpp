@@ -211,6 +211,19 @@ TEST(MAREASemaGenericsAndContracts, DirectCallArgumentCountMustMatch)
     EXPECT_EQ(MAREA_codesOf("function add(a: integer32, b: integer32): integer32 return a; end function run(): integer32 return add(1); end"), Codes{ COUNT_MISMATCH }) << "A wrong count must raise ARGUMENT_COUNT_MISMATCH.";
 }
 
+TEST(MAREASemaGenericsAndContracts, CallOfALocalThatHidesAFunctionIsNotChecked)
+{
+    GTEST_COUT << "Validating a call through a local that hides a file function is not checked against that function." << std::endl;
+
+    EXPECT_TRUE(MAREA_codesOf("function f(count: integer32) end function g(f: function(text: string)) f(\"x\"); f(\"a\"); end").empty()) << "A parameter that hides a function must raise nothing for its own call.";
+
+    EXPECT_TRUE(MAREA_codesOf("function f(count: integer32) end function g(f: function(text: string, other: string), name: string) f(name, name); end").empty()) << "A name argument and a wrong count of the hidden function must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("function f(count: integer32) end function g(names: slice<string>) for each f in names do f(\"x\"); end end").empty()) << "A binder that hides a function must raise nothing for its own call.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(count: integer32) end function g() f(\"x\"); end"), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH }) << "A call of the function itself must still raise TYPE_MISMATCH.";
+}
+
 TEST(MAREASemaGenericsAndContracts, ErrorNodeInWhereClauseIsSkipped)
 {
     GTEST_COUT << "Validating a broken where clause raises no sema diagnostic." << std::endl;

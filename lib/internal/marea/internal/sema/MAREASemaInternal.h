@@ -170,6 +170,17 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD const MAREA_SemaName *MAREA_CALL MAREA_SemaNameTableFind(const MAREA_SemaContext *context, const MAREA_Character8 *text, MAREA_IntegerSize length);
 
     /**
+     * @brief Looks a name up in the locals of the scopes that are open, the innermost first. A parameter, a
+     * local and the name of a for, for each, partition or with statement are locals.
+     * @param context Context of the run. Must not be null.
+     * @param text Text of the name, not NUL terminated.
+     * @param length Length of text in bytes.
+     * @return The entry, or null when no open scope declares the name. The declaration of the entry is the
+     * type of the name, or null for the name of a statement.
+     */
+    MAREA_NODISCARD const MAREA_SemaName *MAREA_CALL MAREA_SemaLocalFind(const MAREA_SemaContext *context, const MAREA_Character8 *text, MAREA_IntegerSize length);
+
+    /**
      * @brief Appends a name to the name table of the context. It does not test for a clash.
      * @param context Context of the run. Must not be null.
      * @param text Text of the name, not copied.

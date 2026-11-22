@@ -783,7 +783,8 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckCall(MAREA_SemaContext *context, cons
 
     const MAREA_SemaName *entry = MAREA_SemaNameTableFind(context, calleeName, CALLEE_LENGTH);
 
-    if ((entry == MAREA_NULLPTR) || (entry->kind != MAREA_SEMA_NAME_KIND_DECLARATION) || (entry->declaration == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(entry->declaration) != MAREA_AST_KIND_FUNCTION_DECLARATION)) {
+    // INFO: a parameter, a local or a loop name of the same name hides the function, so the call is not a call of the function.
+    if ((entry == MAREA_NULLPTR) || (entry->kind != MAREA_SEMA_NAME_KIND_DECLARATION) || (entry->declaration == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(entry->declaration) != MAREA_AST_KIND_FUNCTION_DECLARATION) || (MAREA_SemaLocalFind(context, calleeName, CALLEE_LENGTH) != MAREA_NULLPTR)) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
