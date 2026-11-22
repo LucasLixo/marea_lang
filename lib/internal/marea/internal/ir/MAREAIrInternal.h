@@ -20,15 +20,32 @@
 MAREA_BEGIN_EXTERN_C
 
     /**
+     * @brief One alias of the unit: a local name and the original text it stands for. The texts point into the
+     * source, or into the arena for a joined path.
+     */
+    typedef struct MAREA_IrAlias
+    {
+        const MAREA_Character8 *local;
+        const MAREA_Character8 *original;
+        MAREA_IntegerSize localLength;
+        MAREA_IntegerSize originalLength;
+        MAREA_Boolean isImport;
+    } MAREA_IrAlias;
+
+    /**
      * @brief Body of the opaque ir context: the arena and the sink it was created with, and the typed root
      * of the unit that is being lowered, which tells whether the unit binds a name of its own. The root is null
-     * when no unit is being lowered.
+     * when no unit is being lowered. The alias table is built once per unit; function is the typed function that
+     * is being lowered, or null at module level.
      */
     struct MAREA_IrContext
     {
         MAREA_Arena *arena;
         MAREA_DiagnosticSink *sink;
         const MAREA_SemaTypedNode *unit;
+        const MAREA_SemaTypedNode *function;
+        MAREA_IrAlias *aliases;
+        MAREA_IntegerSize aliasCount;
     };
 
     /**
@@ -70,11 +87,14 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrNodeAppendChild(MAREA_IrContext * context, MAREA_IrNode * parent, MAREA_IrNode * child);
 
     /**
-     * @brief Sets the type name of a node, read off a typed node. A null node does nothing.
+     * @brief Sets the type name of a node, read off a typed node, with every alias lowered to its original. A
+     * null node does nothing.
+     * @param context Context that owns the arena and the alias table. Must not be null.
      * @param node Node to change.
      * @param typedNode Typed node whose type name is copied. Null leaves the node without a type name.
+     * @return MAREA_IR_EXCEPT_SUCCESS, ERROR_NULL_POINTER when context is null, or ERROR_OUT_OF_MEMORY.
      */
-    void MAREA_CALL MAREA_IrNodeSetTypeNameFromTyped(MAREA_IrNode * node, const MAREA_SemaTypedNode *typedNode);
+    MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrNodeSetTypeNameFromTyped(MAREA_IrContext * context, MAREA_IrNode * node, const MAREA_SemaTypedNode *typedNode);
 
     /**
      * @brief Reads the type name of an AST type node: the text span of the qualified name of a
@@ -99,11 +119,13 @@ MAREA_BEGIN_EXTERN_C
     /**
      * @brief Sets the type name of a node from an AST type node. A NAMED_TYPE gives the text of its
      * qualified name, a pointer into the source with no type arguments. Any other node leaves the
-     * node without a type name.
+     * node without a type name. Every alias is lowered to its original.
+     * @param context Context that owns the arena and the alias table. Must not be null.
      * @param node Node to change.
      * @param type AST type node. Null leaves the node without a type name.
+     * @return MAREA_IR_EXCEPT_SUCCESS, ERROR_NULL_POINTER when context is null, or ERROR_OUT_OF_MEMORY.
      */
-    void MAREA_CALL MAREA_IrNodeSetTypeNameFromAst(MAREA_IrNode * node, const MAREA_AstNode *type);
+    MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrNodeSetTypeNameFromAst(MAREA_IrContext * context, MAREA_IrNode * node, const MAREA_AstNode *type);
 
     /**
      * @brief Sets the text of a node to a name, qualified as qualifier.name when a qualifier is given.
@@ -224,6 +246,41 @@ MAREA_BEGIN_EXTERN_C
      * ERROR_OUT_OF_MEMORY when the sink cannot grow.
      */
     MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrRaise(MAREA_IrContext * context, MAREA_IrDiagnosticCode code, const MAREA_AstNode *at, const MAREA_Character8 *message, const MAREA_Character8 *name, MAREA_IntegerSize nameLength);
+
+    /**
+     * @brief Builds the alias table of a unit: every whole-path alias, every member alias and every plain
+     * `type Name = Other;` alias that the unit declares. Generic type aliases are left out.
+     * @param context Context that owns the arena. Must not be null.
+     * @param unit Typed COMPILATION_UNIT. Must not be null.
+     * @return MAREA_IR_EXCEPT_SUCCESS, ERROR_NULL_POINTER when an argument is null, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrAliasBuild(MAREA_IrContext * context, const MAREA_SemaTypedNode *unit);
+
+    /**
+     * @brief Looks up an identifier used as a value (a function, a constant, a variant or the head of a member
+     * chain). An import alias gives its original text, unless a parameter or a local of the enclosing function
+     * has the same name.
+     * @param context Context that holds the alias table. Must not be null.
+     * @param text Identifier text.
+     * @param length Byte length of text.
+     * @param outText Receives the original text. Must not be null.
+     * @param outLength Receives the byte length of outText. Must not be null.
+     * @return MAREA_BOOLEAN_TRUE when the identifier is an alias that applies, otherwise MAREA_BOOLEAN_FALSE.
+     */
+    MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_IrAliasValue(const MAREA_IrContext *context, const MAREA_Character8 *text, MAREA_IntegerSize length, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength);
+
+    /**
+     * @brief Lowers a written type name to its original: a chain of type aliases is followed up to 8 steps and
+     * ends at an import alias, and the head of a dotted name that is a namespace alias is replaced. A name that
+     * is no alias is returned unchanged.
+     * @param context Context that owns the arena and holds the alias table. Must not be null.
+     * @param text Type name text.
+     * @param length Byte length of text.
+     * @param outText Receives the lowered text. Must not be null.
+     * @param outLength Receives the byte length of outText. Must not be null.
+     * @return MAREA_IR_EXCEPT_SUCCESS or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrAliasType(MAREA_IrContext * context, const MAREA_Character8 *text, MAREA_IntegerSize length, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength);
 
 MAREA_END_EXTERN_C
 

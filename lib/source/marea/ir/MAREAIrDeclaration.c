@@ -73,7 +73,11 @@ MAREA_IrExcept MAREA_CALL MAREA_IrCreateNamed(MAREA_IrContext *context, MAREA_Ir
     // INFO: only the MUTABLE flag survives; the other AST flags are erased with the type system.
     node->flags = (node->flags & (MAREA_Uinteger32)MAREA_AST_FLAG_MUTABLE);
 
-    MAREA_IrNodeSetTypeNameFromAst(node, MAREA_G_FindTypeChild(typed));
+    result = MAREA_IrNodeSetTypeNameFromAst(context, node, MAREA_G_FindTypeChild(typed));
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
 
     *outNode = node;
 
@@ -276,7 +280,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerConstant(MAREA_IrContext *context,
     return MAREA_IrNodeAppendChild(context, parent, node);
 }
 
-static MAREA_IrExcept MAREA_CALL MAREA_G_LowerFunction(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, const MAREA_Character8 *qualifier, MAREA_IntegerSize qualifierLength, MAREA_IrNode *parent)
+static MAREA_IrExcept MAREA_CALL MAREA_G_LowerFunctionBody(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, const MAREA_Character8 *qualifier, MAREA_IntegerSize qualifierLength, MAREA_IrNode *parent)
 {
     if (MAREA_G_HasChildOfKind(typed, MAREA_AST_KIND_GENERIC_PARAMETERS) == MAREA_BOOLEAN_TRUE) {
         return MAREA_G_RaiseGenericDeclaration(context, typed, "A generic function is not instantiated by the IR yet:");
@@ -350,6 +354,18 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerFunction(MAREA_IrContext *context,
     return MAREA_IrNodeAppendChild(context, parent, node);
 }
 
+// INFO: the function stays in the context while it is lowered, so that a name it declares hides an alias.
+static MAREA_IrExcept MAREA_CALL MAREA_G_LowerFunction(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, const MAREA_Character8 *qualifier, MAREA_IntegerSize qualifierLength, MAREA_IrNode *parent)
+{
+    context->function = typed;
+
+    const MAREA_IrExcept result = MAREA_G_LowerFunctionBody(context, typed, qualifier, qualifierLength, parent);
+
+    context->function = MAREA_NULLPTR;
+
+    return result;
+}
+
 // INFO: an implementation block makes no node; its members are lowered as module-level nodes named Type.name.
 static MAREA_IrExcept MAREA_CALL MAREA_G_LowerImplementation(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode *parent)
 {
@@ -366,7 +382,12 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerImplementation(MAREA_IrContext *co
         return MAREA_IR_EXCEPT_SUCCESS;
     }
 
-    MAREA_IrExcept result = MAREA_IR_EXCEPT_SUCCESS;
+    // INFO: the methods are named after the original type, never after an alias of it.
+    MAREA_IrExcept result = MAREA_IrAliasType(context, qualifier, qualifierLength, &qualifier, &qualifierLength);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
 
     const MAREA_IntegerSize COUNT = MAREA_SemaTypedNodeGetChildCount(typed);
 
