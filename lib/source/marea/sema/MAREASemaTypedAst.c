@@ -191,12 +191,98 @@ static void MAREA_CALL MAREA_G_TypedAstLeaveFunctionGenerics(MAREA_SemaContext *
     context->generics.count = savedCount;
 }
 
-// INFO: the callee's return type is read raw, never substituted, per the apply's D5 decision.
+static void MAREA_CALL MAREA_G_TypedAstApplyType(MAREA_SemaContext *context, MAREA_SemaTypedNode *built, const MAREA_AstNode *type)
+{
+    const MAREA_AstNode *declaration = MAREA_NULLPTR;
+
+    const MAREA_Character8 *name = MAREA_NULLPTR;
+
+    MAREA_IntegerSize length = 0;
+
+    built->typeClass = MAREA_SemaClassifyType(context, type, &declaration, &name, &length);
+    built->typeDeclaration = declaration;
+    built->typeName = name;
+    built->typeNameLength = length;
+}
+
+static MAREA_Boolean MAREA_CALL MAREA_G_TypedAstNameIsBound(const MAREA_SemaContext *context, const MAREA_AstNode *name)
+{
+    for (MAREA_IntegerSize index = context->locals.count; index > 0; --index) {
+        const MAREA_SemaName *local = &context->locals.entries[(index - 1)];
+
+        if (MAREA_SemaTextEquals(local->text, local->length, MAREA_AstNodeGetText(name), MAREA_AstNodeGetTextLength(name)) == MAREA_BOOLEAN_TRUE) {
+            return MAREA_BOOLEAN_TRUE;
+        }
+    }
+
+    return (MAREA_SemaNameTableFind(context, MAREA_AstNodeGetText(name), MAREA_AstNodeGetTextLength(name)) != MAREA_NULLPTR) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
+// INFO: a built-in convert<T>(x) has one type argument and one argument and no name convert bound in the unit; its type is T.
+static const MAREA_AstNode *MAREA_CALL MAREA_G_TypedAstConvertTarget(const MAREA_SemaContext *context, const MAREA_AstNode *callee, const MAREA_AstNode *node)
+{
+    if ((MAREA_G_TypedAstTextIs(MAREA_AstNodeGetText(callee), MAREA_AstNodeGetTextLength(callee), "convert") == MAREA_BOOLEAN_FALSE) || (MAREA_G_TypedAstNameIsBound(context, callee) == MAREA_BOOLEAN_TRUE)) {
+        return MAREA_NULLPTR;
+    }
+
+    const MAREA_AstNode *typeArguments = MAREA_SemaChildAt(node, 1);
+
+    const MAREA_AstNode *arguments = MAREA_SemaChildAt(node, 2);
+
+    if ((typeArguments == MAREA_NULLPTR) || (arguments == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(typeArguments) != MAREA_AST_KIND_TYPE_ARGUMENTS) || (MAREA_AstNodeGetKind(arguments) != MAREA_AST_KIND_ARGUMENT_LIST) || (MAREA_AstNodeGetChildCount(typeArguments) != 1) || (MAREA_AstNodeGetChildCount(arguments) != 1)) {
+        return MAREA_NULLPTR;
+    }
+
+    const MAREA_AstNode *target = MAREA_SemaChildAt(typeArguments, 0);
+
+    return (MAREA_G_TypedAstIsType(target) == MAREA_BOOLEAN_TRUE) ? target : MAREA_NULLPTR;
+}
+
+// INFO: a result type that is one generic parameter of the callee is replaced by the explicit type argument at the same place; any other shape, and a call without type arguments, keeps the raw type.
+static const MAREA_AstNode *MAREA_CALL MAREA_G_TypedAstSubstituteResult(const MAREA_AstNode *function, const MAREA_AstNode *returnType, const MAREA_AstNode *node)
+{
+    const MAREA_AstNode *parameters = MAREA_G_TypedAstFindChild(function, MAREA_AST_KIND_GENERIC_PARAMETERS);
+
+    const MAREA_AstNode *typeArguments = MAREA_G_TypedAstFindChild(node, MAREA_AST_KIND_TYPE_ARGUMENTS);
+
+    const MAREA_Character8 *name = MAREA_NULLPTR;
+
+    MAREA_IntegerSize length = 0;
+
+    if ((parameters == MAREA_NULLPTR) || (typeArguments == MAREA_NULLPTR) || (MAREA_G_TypedAstSingleName(returnType, &name, &length) == MAREA_BOOLEAN_FALSE) || (MAREA_G_TypedAstFindChild(returnType, MAREA_AST_KIND_TYPE_ARGUMENTS) != MAREA_NULLPTR)) {
+        return returnType;
+    }
+
+    const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(parameters);
+
+    for (MAREA_IntegerSize index = 0; ((index < COUNT) && (index < MAREA_AstNodeGetChildCount(typeArguments))); ++index) {
+        const MAREA_AstNode *parameter = MAREA_SemaChildAt(parameters, index);
+
+        const MAREA_AstNode *identifier = (parameter == MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_SemaChildAt(parameter, 0);
+
+        const MAREA_AstNode *argument = MAREA_SemaChildAt(typeArguments, index);
+
+        if ((identifier != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(identifier) == MAREA_AST_KIND_IDENTIFIER) && (MAREA_G_TypedAstIsType(argument) == MAREA_BOOLEAN_TRUE) && (MAREA_SemaTextEquals(MAREA_AstNodeGetText(identifier), MAREA_AstNodeGetTextLength(identifier), name, length) == MAREA_BOOLEAN_TRUE)) {
+            return argument;
+        }
+    }
+
+    return returnType;
+}
+
 static void MAREA_CALL MAREA_G_TypedAstClassifyCall(MAREA_SemaContext *context, MAREA_SemaTypedNode *built, const MAREA_AstNode *node)
 {
     const MAREA_AstNode *callee = MAREA_SemaChildAt(node, 0);
 
     if ((callee == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(callee) != MAREA_AST_KIND_IDENTIFIER)) {
+        return;
+    }
+
+    const MAREA_AstNode *convertTarget = MAREA_G_TypedAstConvertTarget(context, callee, node);
+
+    if (convertTarget != MAREA_NULLPTR) {
+        MAREA_G_TypedAstApplyType(context, built, convertTarget);
+
         return;
     }
 
@@ -212,22 +298,22 @@ static void MAREA_CALL MAREA_G_TypedAstClassifyCall(MAREA_SemaContext *context, 
         return;
     }
 
+    // INFO: an explicit type argument replaces a bare generic result and is read in the scope of the caller.
+    const MAREA_AstNode *substituted = MAREA_G_TypedAstSubstituteResult(entry->declaration, returnType, node);
+
+    if (substituted != returnType) {
+        MAREA_G_TypedAstApplyType(context, built, substituted);
+
+        return;
+    }
+
     MAREA_IntegerSize savedGenericCount = 0;
 
     if (MAREA_G_TypedAstEnterFunctionGenerics(context, entry->declaration, &savedGenericCount) != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) {
         return;
     }
 
-    const MAREA_AstNode *declaration = MAREA_NULLPTR;
-
-    const MAREA_Character8 *name = MAREA_NULLPTR;
-
-    MAREA_IntegerSize length = 0;
-
-    built->typeClass = MAREA_SemaClassifyType(context, returnType, &declaration, &name, &length);
-    built->typeDeclaration = declaration;
-    built->typeName = name;
-    built->typeNameLength = length;
+    MAREA_G_TypedAstApplyType(context, built, returnType);
 
     MAREA_G_TypedAstLeaveFunctionGenerics(context, savedGenericCount);
 }
