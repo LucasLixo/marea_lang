@@ -146,3 +146,112 @@ TEST(MAREASemaInternal, ExpressionChecksRejectANullArgument)
 
     EXPECT_EQ(MAREA_SemaCheckExpressionFit(fixture.context, nullptr, nullptr), MAREA_SEMA_EXCEPT_SUCCESS) << "A null type and a null expression must be accepted.";
 }
+
+namespace
+{
+    // INFO: the nth structure declaration of the unit, in the order written.
+    const MAREA_AstNode *MAREA_structureAt(const MAREA_AstNode *root, MAREA_IntegerSize position)
+    {
+        MAREA_IntegerSize seen{ 0 };
+
+        for (MAREA_IntegerSize index = 0; index < MAREA_AstNodeGetChildCount(root); ++index) {
+            const MAREA_AstNode *child{ nullptr };
+
+            if ((MAREA_AstNodeGetChildAt(root, index, &child) == MAREA_AST_EXCEPT_SUCCESS) && (MAREA_AstNodeGetKind(child) == MAREA_AST_KIND_STRUCTURE_DECLARATION)) {
+                if (seen == position) {
+                    return child;
+                }
+
+                seen += 1;
+            }
+        }
+
+        return nullptr;
+    }
+
+    MAREA_SemaLayoutVerdict MAREA_verdictOf(const std::string &source, MAREA_IntegerSize from, MAREA_IntegerSize to)
+    {
+        MAREA_SemaFixture fixture;
+
+        EXPECT_EQ(fixture.MAREA_sema("namespace main; " + source), MAREA_SEMA_EXCEPT_SUCCESS) << source;
+
+        const MAREA_AstNode *fromNode{ MAREA_structureAt(fixture.parser.root, from) };
+
+        const MAREA_AstNode *toNode{ MAREA_structureAt(fixture.parser.root, to) };
+
+        EXPECT_NE(fromNode, nullptr) << source;
+
+        EXPECT_NE(toNode, nullptr) << source;
+
+        return MAREA_SemaCompareStructureLayout(fixture.context, fromNode, toNode);
+    }
+} // namespace
+
+TEST(MAREASemaInternal, CompareStructureLayoutGivesAVerdict)
+{
+    GTEST_COUT << "Validating MAREA_SemaCompareStructureLayout separates compatible, incompatible and undecided pairs." << std::endl;
+
+    const std::string C{ "#[layout = c] " };
+
+    EXPECT_EQ(MAREA_verdictOf(C + "structure A x: integer32; end " + C + "structure B y: integer32; end", 0, 1), MAREA_SEMA_LAYOUT_VERDICT_COMPATIBLE) << "The same fields in the C layout, under other names, are compatible.";
+
+    EXPECT_EQ(MAREA_verdictOf(C + "structure A x: integer32; end " + C + "structure B y: unsigned32; end", 0, 1), MAREA_SEMA_LAYOUT_VERDICT_INCOMPATIBLE) << "A field of another primitive name is incompatible.";
+
+    EXPECT_EQ(MAREA_verdictOf(C + "structure A x: integer32; end " + C + "structure B y: integer32; z: integer8; end", 0, 1), MAREA_SEMA_LAYOUT_VERDICT_INCOMPATIBLE) << "Another field count is incompatible.";
+
+    EXPECT_EQ(MAREA_verdictOf(C + "structure A x: unsigned8; y: unsigned32; end #[layout = c, pack = 1] structure B x: unsigned8; y: unsigned32; end", 0, 1), MAREA_SEMA_LAYOUT_VERDICT_INCOMPATIBLE) << "Pack 1 changes the alignment and the size.";
+
+    EXPECT_EQ(MAREA_verdictOf(C + "structure A x: unsigned8; end #[layout = c, align = 8] structure B x: unsigned8; end", 0, 1), MAREA_SEMA_LAYOUT_VERDICT_INCOMPATIBLE) << "Align 8 changes the alignment and the size.";
+
+    EXPECT_EQ(MAREA_verdictOf(C + "structure A x: unsigned8; y: unsigned16; z: unsigned8; end " + C + "structure B x: unsigned8; y: unsigned16; z: unsigned8; end", 0, 1), MAREA_SEMA_LAYOUT_VERDICT_COMPATIBLE) << "Padding is the same for the same fields.";
+
+    EXPECT_EQ(MAREA_verdictOf(C + "structure A x: unsigned8; end structure B x: unsigned8; end", 0, 1), MAREA_SEMA_LAYOUT_VERDICT_UNDECIDED) << "A layout that is not C leaves the size to the backend.";
+
+    EXPECT_EQ(MAREA_verdictOf("#![layout = c] structure A x: integer32; end structure B y: integer32; end", 0, 1), MAREA_SEMA_LAYOUT_VERDICT_COMPATIBLE) << "A file attribute gives the layout when the structure has none.";
+
+    EXPECT_EQ(MAREA_verdictOf(C + "structure A x: string; end " + C + "structure B x: integer32; end", 0, 1), MAREA_SEMA_LAYOUT_VERDICT_UNDECIDED) << "A string field has no width in sema.";
+
+    EXPECT_EQ(MAREA_verdictOf(C + "structure A x: integer32; end #[layout = c, align = 4294967297] structure B x: integer32; end", 0, 1), MAREA_SEMA_LAYOUT_VERDICT_UNDECIDED) << "An alignment that is too large to compute with is left to the backend.";
+
+    EXPECT_EQ(MAREA_verdictOf(C + "structure A x: integer32; end", 0, 0), MAREA_SEMA_LAYOUT_VERDICT_COMPATIBLE) << "The same declaration is compatible with itself.";
+}
+
+TEST(MAREASemaInternal, CompareStructureLayoutRejectsANullArgument)
+{
+    GTEST_COUT << "Validating MAREA_SemaCompareStructureLayout gives UNDECIDED for a null context or a null structure." << std::endl;
+
+    EXPECT_EQ(MAREA_SemaCompareStructureLayout(nullptr, nullptr, nullptr), MAREA_SEMA_LAYOUT_VERDICT_UNDECIDED) << "Three null arguments must give UNDECIDED.";
+
+    MAREA_SemaFixture fixture;
+
+    EXPECT_EQ(MAREA_SemaCompareStructureLayout(fixture.context, nullptr, nullptr), MAREA_SEMA_LAYOUT_VERDICT_UNDECIDED) << "Two null structures must give UNDECIDED.";
+}
+
+TEST(MAREASemaInternal, AttributeFindAndReadInteger)
+{
+    GTEST_COUT << "Validating MAREA_SemaAttributeFind lets the symbol win over the file and MAREA_SemaAttributeReadInteger reads decimal and hexadecimal." << std::endl;
+
+    MAREA_SemaFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; #![pack = 2] #[pack = 0x10] structure A x: integer32; end structure B y: integer32; end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The program must pass sema.";
+
+    const MAREA_AstNode *symbol{ MAREA_structureAt(fixture.parser.root, 0) };
+
+    const MAREA_AstNode *other{ MAREA_structureAt(fixture.parser.root, 1) };
+
+    MAREA_Uinteger64 value{ 0 };
+
+    ASSERT_TRUE(MAREA_SemaAttributeReadInteger(MAREA_SemaAttributeFind(fixture.parser.root, symbol, "pack"), &value)) << "The pack of the symbol must be read.";
+
+    EXPECT_EQ(value, 16U) << "The hexadecimal value of the symbol must win over the file attribute.";
+
+    ASSERT_TRUE(MAREA_SemaAttributeReadInteger(MAREA_SemaAttributeFind(fixture.parser.root, other, "pack"), &value)) << "The file attribute must be read for a structure with no pack.";
+
+    EXPECT_EQ(value, 2U) << "The decimal value of the file attribute must be read.";
+
+    EXPECT_EQ(MAREA_SemaAttributeFind(fixture.parser.root, other, "align"), nullptr) << "A missing key must give null.";
+
+    EXPECT_FALSE(MAREA_SemaAttributeReadInteger(nullptr, &value)) << "A null item must not be read.";
+
+    EXPECT_FALSE(MAREA_SemaAttributeReadInteger(MAREA_SemaAttributeFind(fixture.parser.root, symbol, "pack"), nullptr)) << "A null output must be refused.";
+}

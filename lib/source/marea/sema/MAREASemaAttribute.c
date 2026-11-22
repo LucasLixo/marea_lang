@@ -285,7 +285,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckAttributes(MAREA_SemaContext *context
     return MAREA_G_CheckGroup(context, node, MAREA_AST_KIND_ATTRIBUTE);
 }
 
-static MAREA_Boolean MAREA_CALL MAREA_G_FindOn(const MAREA_AstNode *owner, MAREA_AstKind listKind, const MAREA_Character8 *key, MAREA_Boolean *outOn)
+static const MAREA_AstNode *MAREA_CALL MAREA_G_FindItem(const MAREA_AstNode *owner, MAREA_AstKind listKind, const MAREA_Character8 *key)
 {
     const MAREA_IntegerSize LIST_COUNT = MAREA_AstNodeGetChildCount(owner);
 
@@ -304,27 +304,39 @@ static MAREA_Boolean MAREA_CALL MAREA_G_FindOn(const MAREA_AstNode *owner, MAREA
             const MAREA_AstNode *itemKey = (item == MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_SemaChildAt(item, 0);
 
             if ((itemKey != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(itemKey) == MAREA_AST_KIND_IDENTIFIER) && (MAREA_G_TextIs(itemKey, key) == MAREA_BOOLEAN_TRUE)) {
-                *outOn = MAREA_G_IsOn(item);
-
-                return MAREA_BOOLEAN_TRUE;
+                return item;
             }
         }
     }
 
-    return MAREA_BOOLEAN_FALSE;
+    return MAREA_NULLPTR;
+}
+
+const MAREA_AstNode *MAREA_CALL MAREA_SemaAttributeFind(const MAREA_AstNode *root, const MAREA_AstNode *declaration, const MAREA_Character8 *key)
+{
+    const MAREA_AstNode *item = (declaration == MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_G_FindItem(declaration, MAREA_AST_KIND_ATTRIBUTE, key);
+
+    if ((item == MAREA_NULLPTR) && (root != MAREA_NULLPTR)) {
+        item = MAREA_G_FindItem(root, MAREA_AST_KIND_FILE_ATTRIBUTE, key);
+    }
+
+    return item;
+}
+
+MAREA_Boolean MAREA_CALL MAREA_SemaAttributeReadInteger(const MAREA_AstNode *item, MAREA_Uinteger64 *outValue)
+{
+    const MAREA_AstNode *value = MAREA_SemaChildAt(item, 1);
+
+    if ((value == MAREA_NULLPTR) || (outValue == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(value) != MAREA_AST_KIND_INTEGER_LITERAL)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    return MAREA_G_ParseInteger(value, outValue);
 }
 
 MAREA_Boolean MAREA_CALL MAREA_SemaAttributeIsOn(const MAREA_AstNode *root, const MAREA_AstNode *declaration, const MAREA_Character8 *key)
 {
-    MAREA_Boolean on = MAREA_BOOLEAN_FALSE;
+    const MAREA_AstNode *item = MAREA_SemaAttributeFind(root, declaration, key);
 
-    if ((declaration != MAREA_NULLPTR) && (MAREA_G_FindOn(declaration, MAREA_AST_KIND_ATTRIBUTE, key, &on) == MAREA_BOOLEAN_TRUE)) {
-        return on;
-    }
-
-    if ((root != MAREA_NULLPTR) && (MAREA_G_FindOn(root, MAREA_AST_KIND_FILE_ATTRIBUTE, key, &on) == MAREA_BOOLEAN_TRUE)) {
-        return on;
-    }
-
-    return MAREA_BOOLEAN_FALSE;
+    return (item == MAREA_NULLPTR) ? MAREA_BOOLEAN_FALSE : MAREA_G_IsOn(item);
 }
