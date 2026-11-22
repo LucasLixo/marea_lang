@@ -291,9 +291,8 @@ static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOfBinary(const MAREA_SemaContext *c
         return MAREA_G_ShapePrimitive("boolean");
     case MAREA_TOKEN_KIND_SHIFT_LEFT:
     case MAREA_TOKEN_KIND_SHIFT_RIGHT:
-    case MAREA_TOKEN_KIND_STAR_STAR:
     {
-        // INFO: the right side of a shift or a power may have another type, so the result is the type of the left side.
+        // INFO: the right side of a shift may have another type, so the result is the type of the left side.
         const MAREA_G_Shape left = MAREA_G_ShapeOf(context, MAREA_SemaChildAt(expression, 0), (depth + 1));
 
         return (MAREA_G_IsNumber(&left) == MAREA_BOOLEAN_TRUE) ? left : MAREA_G_ShapeUnknown();
@@ -418,12 +417,12 @@ static MAREA_Boolean MAREA_CALL MAREA_G_OperandsAgree(const MAREA_G_Shape *left,
     return (right->kind == MAREA_G_SHAPE_KIND_PRIMITIVE) ? MAREA_G_Fits(right, left) : MAREA_BOOLEAN_TRUE;
 }
 
-// INFO: the right side of a shift or a power may have another type, so these operators are not compared.
+// INFO: the right side of a shift may have another type, so a shift is not compared here.
 static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckOperands(MAREA_SemaContext *context, const MAREA_AstNode *expression)
 {
     const MAREA_TokenKind operatorKind = MAREA_AstNodeGetOperator(expression);
 
-    if ((operatorKind == MAREA_TOKEN_KIND_SHIFT_LEFT) || (operatorKind == MAREA_TOKEN_KIND_SHIFT_RIGHT) || (operatorKind == MAREA_TOKEN_KIND_STAR_STAR)) {
+    if ((operatorKind == MAREA_TOKEN_KIND_SHIFT_LEFT) || (operatorKind == MAREA_TOKEN_KIND_SHIFT_RIGHT)) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
