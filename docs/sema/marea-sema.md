@@ -48,6 +48,26 @@ top-level symbol `c` there. Both answers `NOT_FOUND` is `UNRESOLVED_IMPORT`. A n
 The local name of an import is its alias, or its last segment. A type name that no local rule knows
 is given to the resolver as a last step.
 
+`import a.b { f as g, T as U, Color.red as Crimson, MAX };` asks the resolver for `a.b` once, then
+binds one local name per member: its alias, or the last segment of its path. A member path has one
+or two segments; a longer path is `UNRESOLVED_IMPORT`. For a `NOT_FOUND` namespace every member is
+unresolved. For `EXTERNAL` every member of one or two segments is accepted. For `FOUND` the first
+segment must be a `#[public]` top-level symbol of the tree, and a two-segment member needs that symbol
+to be an `enum` with that variant. An unresolved member still binds its local name, so one error
+does not start a chain of `UNDECLARED_NAME`. A member alias that is a parse error (`f as }`) is
+skipped without a diagnostic.
+
+Every import name keeps its original: the text the same import binds without `as` (the last segment
+of a whole path, the member path as written for a member, for example `Color.red`). The internal name
+table (`MAREA_SemaName`) holds it in `original` and `originalLength`, empty for a name that has none.
+The IR lowers an alias to this text. A type written with an alias compares equal to the type
+written with the original in a contract signature, and so does a local `type Name = Other;` (a chain
+of aliases is followed up to 8 steps; an alias with generic parameters is not expanded).
+
+The name `c` is the reserved namespace of C. An import alias named `c` (either form) or a `type`
+named `c` is `NAME_ALREADY_DECLARED` with the message `name is reserved: 'c'`; an alias that is
+refused is not bound. A plain declaration or a plain `import c.x;` is not affected.
+
 ## Rules
 
 **Attributes.** A fixed key table: `public` and `private` (not both), `inline` (`force`, `never`,
@@ -253,9 +273,9 @@ real, instantiated result type is deferred to when the `ir` stage needs one for 
 
 | Code | Name | Example |
 |---|---|---|
-| 3001 | `UNRESOLVED_IMPORT` | `import a.b.c;` when the resolver finds neither `a.b.c` nor a public `c` in `a.b` |
+| 3001 | `UNRESOLVED_IMPORT` | `import a.b.c;` when the resolver finds neither `a.b.c` nor a public `c` in `a.b`; `import a.b { f };` when `a.b` is not found, `f` is not a public symbol of it, a two-part member is not a variant of a public enum, or the member path has more than two parts |
 | 3002 | `NAMESPACE_PATH_MISMATCH` | `namespace a.b.c;` in the file `a/b.marea` |
-| 3003 | `NAME_ALREADY_DECLARED` | `structure Item end function Item() end`, or an import and a declaration of one local name |
+| 3003 | `NAME_ALREADY_DECLARED` | `structure Item end function Item() end`, or an import (or an import alias, or a member alias) and a declaration or another import of one local name; an import alias or a `type` named `c` (message `name is reserved:`) |
 | 3004 | `UNDECLARED_NAME` | `where Item: Missing`, or a constraint on a name that is not a generic parameter; `local x: integer32 = missing;`, `missing(1);` |
 | 3005 | `UNKNOWN_ATTRIBUTE_KEY` | `#[frobnicate = true]` |
 | 3006 | `INVALID_ATTRIBUTE_VALUE` | `#[inline = maybe]`, `#[build = 1]`, `#[simd = force]` |
@@ -282,6 +302,12 @@ real, instantiated result type is deferred to when the `ir` stage needs one for 
 
 ## Gaps
 
+- A `switch` over an enum imported from another file is not checked for coverage.
+- Renaming on use inside one file (without an import) is not offered: a local declaration has its own name.
+- An alias compares equal to its original by text. Two aliases of same-named members of two different namespaces
+  (`import a { T as X }; import b { T as Y };`) therefore compare equal in a contract signature.
+- The IR reads an import by position (the alias is the first `IDENTIFIER` child) and does not know the member
+  list yet; the apply that follows this one teaches it.
 - `TYPE_MISMATCH` (3011) knows the type of an expression only in the shapes listed under "Expressions". It never
   compares an enum, a library type, a generic parameter or a `owned`, `task` or `vector` value, and the result of
   a generic call is unknown (see below).
