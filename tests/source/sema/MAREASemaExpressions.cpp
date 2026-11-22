@@ -164,7 +164,70 @@ TEST(MAREASemaExpressions, BinaryOperandOfAnUnknownTypeIsAccepted)
 
     EXPECT_TRUE(MAREA_codesOf("function g(a: float64) for i in 0 .. 3 do i + a; end end").empty()) << "A binder with no known type must not be guessed.";
 
-    EXPECT_TRUE(MAREA_codesOf("function g(v: unsigned32, n: integer32, f: float64) v << n; v >> n; n ** f; f ** n; n ** 2.0; end").empty()) << "The shift and the power operators must keep the type of their right side free.";
+    EXPECT_TRUE(MAREA_codesOf("function g(v: unsigned32, n: integer32, q: pointer<integer32>) v << n; v >> n; q << n; n << q; end").empty()) << "A shift with an unknown operand must not be guessed.";
+}
+
+TEST(MAREASemaExpressions, ShiftCountIsAnyIntegerAndTheResultIsTheLeftType)
+{
+    GTEST_COUT << "Validating a shift takes any integer count and gives the type of its left operand." << std::endl;
+
+    const std::string HEAD{ "function g(v: unsigned32, a: integer8, b: unsigned64, f: float64, p: boolean, s: string) " };
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "v << a; v >> b; v << 3; v >> 0x4; 1 << a; local r: unsigned32 = v << b; local t: integer8 = a >> v; end").empty()) << "A count of any integer width, or a literal, must raise nothing.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "local r: unsigned64 = v << b; end"), Codes{ MISMATCH }) << "The result must have the type of the left operand, not of the count.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "v << f; v >> 1.5; v << p; v >> s; end"), (Codes{ MISMATCH, MISMATCH, MISMATCH, MISMATCH })) << "A count that is not an integer must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "f << v; p >> a; s << 1; 1.5 << a; end"), (Codes{ MISMATCH, MISMATCH, MISMATCH, MISMATCH })) << "A left operand that is not an integer must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "local r: float64 = f << v; end"), Codes{ MISMATCH }) << "A broken shift must raise once and give no type for the local.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "local r: unsigned32 = v << f; end"), Codes{ MISMATCH }) << "A shift with a float count must raise once whatever the local.";
+}
+
+TEST(MAREASemaExpressions, PowerOperandsMustHaveTheSameType)
+{
+    GTEST_COUT << "Validating the operands of a power follow the rule of every arithmetic operator, as Rust pow and powf do." << std::endl;
+
+    const std::string HEAD{ "function g(a: integer32, c: integer64, f: float64) " };
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "a ** f; f ** a; a ** c; end"), (Codes{ MISMATCH, MISMATCH, MISMATCH })) << "A base and an exponent of different primitives must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "local n: float64 = a ** f; end"), Codes{ MISMATCH }) << "An integer base with a float exponent must raise one TYPE_MISMATCH and no second one for the local.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "local n: integer32 = a ** f; end"), Codes{ MISMATCH }) << "An integer base with a float exponent must raise TYPE_MISMATCH whatever the declared type.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "local n: float64 = a ** 2; end"), Codes{ MISMATCH }) << "The result of a power must keep the type of its operands.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "a ** 2.5; end"), Codes{ MISMATCH }) << "A fraction literal exponent does not fit an integer base.";
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "local p: integer32 = a ** 2; local q: float64 = f ** 0.5; local r: float64 = f ** 2; local s: integer32 = 2 ** a; local t: integer32 = a ** a; end").empty()) << "A power of the same primitive, or with a fitting literal, must raise nothing.";
+}
+
+TEST(MAREASemaExpressions, CompoundAssignmentNeedsTheSameTypeOnBothSides)
+{
+    GTEST_COUT << "Validating a compound assignment is compared like a = a + b and a compound shift follows the shift rule." << std::endl;
+
+    const std::string HEAD{ "structure Point x: float32; end function g(a: integer32, c: integer64, f: float64, v: unsigned32, p: Point, s: string) " };
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "a += f; a -= c; f *= a; a /= f; a %= c; a **= f; end"), (Codes{ MISMATCH, MISMATCH, MISMATCH, MISMATCH, MISMATCH, MISMATCH })) << "Every compound operator must compare both sides.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "a &= c; a |= c; a ^= c; s += a; end"), (Codes{ MISMATCH, MISMATCH, MISMATCH, MISMATCH })) << "A bitwise compound operator and a string must compare both sides.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "a += 1.5; f += \"x\"; end"), (Codes{ MISMATCH, MISMATCH })) << "A literal that does not fit the target must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "p.x += a; end"), Codes{ MISMATCH }) << "A field target must be typed.";
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "a += a; a -= 1; f *= 2; f += 0.5; a **= 2; f **= 0.5; a &= 0xFF; s += s; p.x += 1.0; end").empty()) << "Both sides of the same type, or a fitting literal, must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "p += a; a += p; end").empty()) << "A structure side must not be compared.";
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "v <<= a; v >>= c; v <<= 2; a >>= v; end").empty()) << "A compound shift takes any integer count.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "v <<= f; v >>= 1.5; f <<= v; s >>= 1; end"), (Codes{ MISMATCH, MISMATCH, MISMATCH, MISMATCH })) << "A compound shift needs an integer on both sides.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "a += missing; end"), Codes{ UNDECLARED }) << "A missing name must raise UNDECLARED_NAME and no mismatch.";
 }
 
 TEST(MAREASemaExpressions, CallResultIsTypedForAKnownFunction)
@@ -301,6 +364,25 @@ TEST(MAREASemaExpressions, ConstantOfAnImplementationIsNotReported)
     EXPECT_TRUE(MAREA_codesOf("structure Planet mass: float64; end implementation Planet constant GRAVITY: float64 = 6.0; function pull(self: Planet): float64 return GRAVITY * self.mass; end end").empty()) << "A bare constant of the block must raise nothing.";
 
     EXPECT_EQ(MAREA_codesOf("structure Planet mass: float64; end implementation Planet constant GRAVITY: float64 = 6.0; end function g(): float64 return GRAVITY; end"), Codes{ UNDECLARED }) << "The constant is not a name outside the block.";
+}
+
+TEST(MAREASemaExpressions, ConstantOfAnImplementationShadowsATopLevelConstant)
+{
+    GTEST_COUT << "Validating inside an implementation block the constant of the block wins over a top-level constant of the same name." << std::endl;
+
+    const std::string HEAD{ "structure Planet mass: float64; end structure Moon mass: float64; end constant LIMIT: integer32 = 1; " };
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "implementation Planet constant LIMIT: float64 = 6.0; function pull(self: Planet): float64 return LIMIT; end end").empty()) << "The type of the constant of the block must be used inside the block.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "implementation Planet constant LIMIT: float64 = 6.0; function pull(self: Planet): integer32 return LIMIT; end end"), Codes{ MISMATCH }) << "The type of the top-level constant must not be used inside the block.";
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "implementation Planet constant LIMIT: float64 = 6.0; end function top(): integer32 return LIMIT; end").empty()) << "The top-level constant must be used outside the block.";
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "implementation Planet constant LIMIT: float64 = 6.0; end implementation Moon function push(self: Moon): integer32 return LIMIT; end end").empty()) << "The constant of another block must not shadow the top-level one.";
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "implementation Planet constant LIMIT: float64 = 6.0; function pull(self: Planet, LIMIT: integer32): integer32 return LIMIT; end end").empty()) << "A parameter must still hide the constant of the block.";
+
+    EXPECT_EQ(MAREA_codesOf("structure Planet mass: float64; end structure Moon mass: float64; end implementation Planet constant GRAVITY: float64 = 6.0; end implementation Moon function push(self: Moon): float64 return GRAVITY; end end"), Codes{ UNDECLARED }) << "The constant of one block is not a name in another block.";
 }
 
 TEST(MAREASemaExpressions, ErrorNodeInAnExpressionIsSkipped)
