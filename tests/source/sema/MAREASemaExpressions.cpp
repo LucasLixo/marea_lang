@@ -203,13 +203,13 @@ TEST(MAREASemaExpressions, ImportedAndNamespaceNamesAreNotReported)
 
     MAREA_SemaFixture fixture{ [](const std::string &, const MAREA_AstNode **) { return MAREA_SEMA_IMPORT_RESULT_EXTERNAL; } };
 
-    EXPECT_EQ(fixture.MAREA_sema("namespace main; import library.text as text; function g() local x: integer32 = text.size(); end"), MAREA_SEMA_EXCEPT_SUCCESS);
+    EXPECT_EQ(fixture.MAREA_sema("namespace main; import library.text as text; function g() local x: integer32 = text.size(); end"), MAREA_SEMA_EXCEPT_SUCCESS) << "A program with an import alias must pass the sema run.";
 
     EXPECT_TRUE(fixture.MAREA_semaCodes().empty()) << "An import alias must raise nothing.";
 
     MAREA_SemaFixture own{ [](const std::string &, const MAREA_AstNode **) { return MAREA_SEMA_IMPORT_RESULT_EXTERNAL; } };
 
-    EXPECT_EQ(own.MAREA_sema("namespace main.sub; function helper() end function g() main.sub.helper(); end", "main/sub.marea"), MAREA_SEMA_EXCEPT_SUCCESS);
+    EXPECT_EQ(own.MAREA_sema("namespace main.sub; function helper() end function g() main.sub.helper(); end", "main/sub.marea"), MAREA_SEMA_EXCEPT_SUCCESS) << "A program that names its own namespace must pass the sema run.";
 
     EXPECT_TRUE(own.MAREA_semaCodes().empty()) << "The first segment of the own namespace must raise nothing.";
 }
@@ -230,7 +230,7 @@ TEST(MAREASemaExpressions, ErrorNodeInAnExpressionIsSkipped)
     for (const char *body : { "function g() local x: integer32 = ; end", "function g() local x: integer32 = 1 + ; end", "function g() local x: integer32 = (; end" }) {
         MAREA_SemaFixture fixture;
 
-        EXPECT_EQ(fixture.MAREA_sema(std::string{ "namespace main; " } + body), MAREA_SEMA_EXCEPT_SUCCESS);
+        EXPECT_EQ(fixture.MAREA_sema(std::string{ "namespace main; " } + body), MAREA_SEMA_EXCEPT_SUCCESS) << "A broken expression must not stop the sema run: " << body;
 
         for (MAREA_Uinteger32 code : fixture.MAREA_semaCodes()) {
             EXPECT_NE(code, UNDECLARED) << body;
