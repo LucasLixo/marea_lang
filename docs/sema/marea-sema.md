@@ -68,6 +68,9 @@ table (`MAREA_SemaName`) holds it in `original` and `originalLength`, empty for 
 The IR lowers an alias to this text. A type written with an alias compares equal to the type
 written with the original in a contract signature, and so does a local `type Name = Other;` (a chain
 of aliases is followed up to 8 steps; an alias with generic parameters is not expanded).
+An import name also keeps its qualifier, the namespace it came from (`qualifier` and `qualifierLength`),
+and the comparison renders it with that namespace: `import a { T as X }; import b { T as Y };` make two
+types, while two aliases of one member of one namespace stay one type.
 
 The name `c` is the reserved namespace of C. An import alias named `c` (either form) or a `type`
 named `c` is `NAME_ALREADY_DECLARED` with the message `name is reserved: 'c'`; an alias that is
@@ -310,8 +313,6 @@ real, instantiated result type is deferred to when the `ir` stage needs one for 
 ## Gaps
 
 - Renaming on use inside one file (without an import) is not offered: a local declaration has its own name.
-- An alias compares equal to its original by text. Two aliases of same-named members of two different namespaces
-  (`import a { T as X }; import b { T as Y };`) therefore compare equal in a contract signature.
 - `TYPE_MISMATCH` (3011) knows the type of an expression only in the shapes listed under "Expressions". It never
   compares an enum, a library type, a generic parameter or a `owned`, `task` or `vector` value, and the result of
   a generic call is unknown (see below).
