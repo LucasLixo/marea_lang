@@ -120,7 +120,7 @@ program the parser accepts.
 literal has its own type. A name has the declared type of its local, parameter or file constant. A field, or an
 element of an `array`, `slice`, `vector` or `pointer`, has the type sema already reads for the ownership check
 (a primitive only). A `-`, `~`, `copy` or `move` keeps the type of its operand. `not`, `and`, `or` and a
-comparison give `boolean`. A shift or `**` gives the type of its left side. Any other binary operator gives the
+comparison give `boolean`. A shift gives the type of its left side. Any other binary operator, `**` too, gives the
 type of both sides when they are the same primitive, or when one side is a number literal and the other a
 primitive of its family; it gives no type when they differ. A call of a plain function of the file (not
 generic, and not hidden by a local of the same name) has the declared result type. Everything else has an
@@ -133,20 +133,40 @@ any float type, and a structure fits no primitive. An alias of a primitive is th
 
 **Operands of a binary operator.** Every binary expression in a checked slot (the same slots as the names, and
 the initializer of a constant) has its two operands compared, whatever the declared type: `+`, `-`, `*`, `/`,
-`%` and their wrapping and saturating forms, the six comparisons, `&`, `|`, `^`, `and` and `or`. Two primitives
+`%`, `**` and their wrapping and saturating forms, the six comparisons, `&`, `|`, `^`, `and` and `or`. Two primitives
 agree only by exact name (`integer32` and `float64` do not, and a conversion is always written). A number literal
 agrees with a primitive as it fits a declared type, so `a + 1` is accepted for a `float64` and `a + 1.5` is not
 for an `integer32`. A mismatch is `TYPE_MISMATCH` (3011) on the binary expression, once per expression, and the
 expression then has no type, so the declared type of a local or a `return` is not reported a second time. An
 operand that is a structure, an enum, a library type, a generic result or any other unknown type is accepted.
-A shift and `**` are not compared, as their right side may have another type.
+A shift is not compared here, as its right side may have another type; it has its own rule below.
+
+**No implicit numeric conversion (decision of the user).** A calculation never converts a
+number by itself: the two operands of an arithmetic or a comparison operator have the same primitive type, and
+`**` follows the same rule as `+`. An integer base with a float exponent is `TYPE_MISMATCH`, whatever the declared type of the result, and the result of a power has the type of its operands.
+
+**Shifts (decision of the user).** The count of `<<` and `>>` may be any integer primitive of
+any width (`integer8` to `integer64`, `unsigned8` to `unsigned64`, or an integer literal), and the result has the
+type of the left operand. A count or a left operand that is a known type and not an integer (a float, a
+`boolean`, a `string`, a fraction literal) is `TYPE_MISMATCH` (3011) on the shift, once, and the shift then has
+no type. An operand of an unknown type is accepted.
+
+**Compound assignments (decision of the user).** `+=`, `-=`, `*=`, `/=`, `%=`, `**=`, `&=`,
+`|=` and `^=` need the same type on both sides, as `a = a + b` does, with the same literal rule as a binary
+operator. `<<=` and `>>=` follow the shift rule. A mismatch is `TYPE_MISMATCH` (3011) on the assignment, once.
+A side of an unknown type is accepted.
+
+**Constants of an `implementation` block (decision of the user).** Inside an `implementation` block, a bare
+constant of that block shadows a top-level constant of the same name: the inner scope wins, and the name has the
+type that the block gives it. A parameter or a local still hides both. A constant of one block is not a name in
+another block or outside the blocks.
 
 **Names in expressions.** A bare name in the initializer of a local, either side of an assignment, an
 expression statement, the condition of an `if`, `elseif` or `while`, a `return` value and a `switch` value (and
 below them: operands, arguments, indexes, entries of a literal value) must be declared, or sema raises
 `UNDECLARED_NAME` (3004) on it. A name is declared when it is a local or parameter in scope, the name of a
 `for`, `for each`, `partition` or `with` statement (hidden from the end of that statement), a declaration or
-import of the file, a generic parameter in scope, a constant of an `implementation` block inside the block, the
+import of the file, a generic parameter in scope, a constant of an `implementation` block inside that block only, the
 first segment of the file namespace, or one of the built-ins `c`, `size_of`, `align_of`, `convert` and `Self`.
 A member name, a field key of a literal value, a type, a macro call and the bare name that starts a member
 chain (`stdio.puts(text)`, which may be a namespace the file never imports) are not checked. The local that a
@@ -234,12 +254,9 @@ real, instantiated result type is deferred to when the `ir` stage needs one for 
 
 - `TYPE_MISMATCH` (3011) knows the type of an expression only in the shapes listed under "Expressions". It never
   compares an enum, a library type, a generic parameter or a `owned`, `task` or `vector` value, and the result of
-  a generic call is unknown (see below). Compound assignments (`+=` and the others) are not compared.
-- The two operands of a shift or of `**` are not compared (see "Operands of a binary operator"). Whether the
-  shift count must have the type of the left side, and whether an integer base with a float exponent is
-  accepted for `**`, is not decided. A binary operator is not checked against what its operands may be (`a and b`
-  with two integers raises nothing, as the two have the same name), and an operator that is declared for a
-  structure is not compared.
+  a generic call is unknown (see below).
+- A binary operator is not checked against what its operands may be (`a and b` with two integers raises nothing,
+  as the two have the same name), and an operator that is declared for a structure is not compared.
 - `UNDECLARED_NAME` (3004) is not raised for the bare name that starts a member chain, for the header of a `for`,
   `for each`, `partition` or `with` statement, or for a name in the initializer of a file constant. The bare
   chain head is skipped because the `basics/functions` example calls `stdio.puts(text)` with no `import`, so the
