@@ -539,7 +539,7 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckCompound(MAREA_SemaContext *cont
     return MAREA_G_CheckPair(context, MAREA_AstNodeGetPosition(assignment), MAREA_AstNodeGetOperator(assignment), &target, &value, "sides of a compound assignment differ in type, one is");
 }
 
-// INFO: a conversion is always written. A number goes to a number of any width and sign, a structure to a structure whose layout sema cannot tell apart, and any type to itself. A shape that sema does not know fits.
+// INFO: a conversion is always written. A number goes to a number of any width and sign, a structure to a structure whose layout sema measures as the same (a layout that sema cannot measure is rejected), and any type to itself. A shape that sema does not know fits.
 static MAREA_Boolean MAREA_CALL MAREA_G_CanConvert(const MAREA_SemaContext *context, const MAREA_G_Shape *target, const MAREA_G_Shape *operand)
 {
     if ((target->kind == MAREA_G_SHAPE_KIND_UNKNOWN) || (operand->kind == MAREA_G_SHAPE_KIND_UNKNOWN)) {
@@ -547,7 +547,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_CanConvert(const MAREA_SemaContext *cont
     }
 
     if (target->kind == MAREA_G_SHAPE_KIND_STRUCTURE) {
-        return ((operand->kind == MAREA_G_SHAPE_KIND_STRUCTURE) && (MAREA_SemaCompareStructureLayout(context, operand->declaration, target->declaration) != MAREA_SEMA_LAYOUT_VERDICT_INCOMPATIBLE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+        return ((operand->kind == MAREA_G_SHAPE_KIND_STRUCTURE) && (MAREA_SemaCompareStructureLayout(context, operand->declaration, target->declaration) == MAREA_SEMA_LAYOUT_VERDICT_COMPATIBLE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
     }
 
     if (operand->kind == MAREA_G_SHAPE_KIND_STRUCTURE) {

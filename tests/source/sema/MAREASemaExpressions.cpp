@@ -512,7 +512,7 @@ TEST(MAREASemaExpressions, ConvertBetweenStructuresNeedsTheSameLayout)
 
 TEST(MAREASemaExpressions, ConvertBetweenStructuresComparesTheComputedSizeAndAlignment)
 {
-    GTEST_COUT << "Validating pack and align change the size and the alignment, and a layout sema cannot decide is accepted." << std::endl;
+    GTEST_COUT << "Validating pack and align change the size and the alignment, and the auto layout is compared by the fields." << std::endl;
 
     const std::string FIELDS{ "x: unsigned8; y: unsigned32; end " };
 
@@ -526,35 +526,63 @@ TEST(MAREASemaExpressions, ConvertBetweenStructuresComparesTheComputedSizeAndAli
 
     EXPECT_TRUE(MAREA_codesOf(HEAD + "local x: Other = convert<Other>(a); local y: PackedOther = convert<PackedOther>(b); end").empty()) << "Two structures with the same fields and the same pack and align must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf(HEAD + "local x: AutoTwo = convert<AutoTwo>(e); local y: Plain = convert<Plain>(e); end").empty()) << "A structure with the default auto layout has a size that the backend chooses, so it is accepted.";
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "local x: AutoTwo = convert<AutoTwo>(e); end").empty()) << "Two structures of the default auto layout with the same fields get the same layout, so it is accepted.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "convert<Plain>(e); convert<AutoOne>(a); end"), (Codes{ MISMATCH, MISMATCH })) << "An auto layout against a c layout has no common size, so it must raise TYPE_MISMATCH.";
 }
 
-TEST(MAREASemaExpressions, ConvertBetweenStructuresAcceptsWhatSemaCannotDecide)
+TEST(MAREASemaExpressions, ConvertBetweenStructuresRejectsWhatSemaCannotMeasure)
 {
-    GTEST_COUT << "Validating a field of a type that sema cannot size makes the check a gap for the backend, not a mismatch." << std::endl;
+    GTEST_COUT << "Validating a field of a type that sema cannot size makes the conversion a TYPE_MISMATCH, never a silent accept." << std::endl;
 
     const std::string STRUCTURES{ "#[layout = c] structure Text name: string; end "
                                   "#[layout = c] structure Other label: string; end "
                                   "#[layout = c] structure Number x: integer32; end "
-                                  "#[layout = c] structure Nested inner: Number; end "
-                                  "#[layout = c] structure Holder<Item> value: Item; end "
                                   "#[layout = c] structure Handle raw: pointer<integer32>; end "
-                                  "#[layout = c] structure Aligned #[align = 16] x: integer32; end "
+                                  "#[layout = c] structure Holder<Item> value: Item; end "
+                                  "#[layout = c] structure Again<Item> value: Item; end " };
+
+    const std::string HEAD{ STRUCTURES + "function g(t: Text, n: Number, h: Handle, v: Holder<integer32>) " };
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "convert<Other>(t); convert<Number>(t); end"), (Codes{ MISMATCH, MISMATCH })) << "A string field has no size in sema, so the pair is rejected, whatever the other fields are.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "convert<Number>(h); end"), Codes{ MISMATCH }) << "A pointer field is rejected.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "convert<Number>(v); convert<Again<integer32>>(v); end"), (Codes{ MISMATCH, MISMATCH })) << "A generic structure has no layout in sema, so it is rejected against another type and against another instance.";
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "local x: Text = convert<Text>(t); local y: Holder<integer32> = convert<Holder<integer32>>(v); end").empty()) << "A structure to itself needs no size, so it stays accepted.";
+}
+
+TEST(MAREASemaExpressions, ConvertBetweenStructuresMeasuresAFieldAlignAndANestedStructure)
+{
+    GTEST_COUT << "Validating a field align and a nested structure of the c layout are measured and compared." << std::endl;
+
+    const std::string STRUCTURES{ "#[layout = c] structure Number x: integer32; end "
+                                  "#[layout = c] structure Count y: integer32; end "
+                                  "#[layout = c] structure Wide z: integer64; end "
+                                  "#[layout = c] structure Nested inner: Number; end "
+                                  "#[layout = c] structure NestedCount other: Count; end "
+                                  "#[layout = c] structure NestedWide other: Wide; end "
+                                  "structure AutoNumber x: integer32; end "
+                                  "#[layout = c] structure OfAuto inner: AutoNumber; end "
+                                  "#[layout = c] structure AlignedOne #[align = 16] x: integer32; end "
+                                  "#[layout = c] structure AlignedTwo #[align = 16] y: integer32; end "
+                                  "#[layout = c] structure AlignedEight #[align = 8] x: integer32; end "
                                   "#[layout = c] structure Plain x: integer32; end " };
 
-    const std::string HEAD{ STRUCTURES + "function g(t: Text, n: Number, d: Nested, h: Handle, a: Aligned, p: Plain, v: Holder<integer32>) " };
+    const std::string HEAD{ STRUCTURES + "function g(n: Number, d: Nested, c: NestedCount, w: NestedWide, o: OfAuto, a: AlignedOne, b: AlignedTwo, e: AlignedEight, p: Plain) " };
 
-    EXPECT_TRUE(MAREA_codesOf(HEAD + "local x: Other = convert<Other>(t); local y: Number = convert<Number>(t); end").empty()) << "A string field has no size in sema, so the pair is accepted, whatever the other fields are.";
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "local x: NestedCount = convert<NestedCount>(d); local y: Nested = convert<Nested>(c); end").empty()) << "Two nested structures with the same layout must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf(HEAD + "local x: Number = convert<Number>(d); local y: Nested = convert<Nested>(n); end").empty()) << "A field of a structure type is not decided.";
+    EXPECT_EQ(MAREA_codesOf(HEAD + "convert<Nested>(w); convert<NestedWide>(d); end"), (Codes{ MISMATCH, MISMATCH })) << "A nested structure of another layout must raise TYPE_MISMATCH.";
 
-    EXPECT_TRUE(MAREA_codesOf(HEAD + "local x: Number = convert<Number>(h); end").empty()) << "A pointer field is not decided.";
+    EXPECT_EQ(MAREA_codesOf(HEAD + "convert<Number>(d); convert<Nested>(n); end"), (Codes{ MISMATCH, MISMATCH })) << "A nested structure is not the flat field, so it must raise TYPE_MISMATCH.";
 
-    EXPECT_TRUE(MAREA_codesOf(HEAD + "local x: Plain = convert<Plain>(a); local y: Aligned = convert<Aligned>(p); end").empty()) << "A field with its own align is not decided.";
+    EXPECT_EQ(MAREA_codesOf(HEAD + "convert<Nested>(o); convert<OfAuto>(d); end"), (Codes{ MISMATCH, MISMATCH })) << "A nested structure with the auto layout has no size in a c structure, so it is rejected.";
 
-    EXPECT_TRUE(MAREA_codesOf(HEAD + "local x: Number = convert<Number>(v); end").empty()) << "A generic structure is not decided.";
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "local x: AlignedTwo = convert<AlignedTwo>(a); end").empty()) << "The same field align must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf(HEAD + "local x: Number = convert<Number>(a); end").empty()) << "A field with its own align is not decided against another type either.";
+    EXPECT_EQ(MAREA_codesOf(HEAD + "convert<Plain>(a); convert<AlignedOne>(p); convert<AlignedEight>(a); end"), (Codes{ MISMATCH, MISMATCH, MISMATCH })) << "Another field align must raise TYPE_MISMATCH.";
 }
 
 TEST(MAREASemaExpressions, ConvertBetweenStructuresFollowsAnAliasOfAPrimitive)
