@@ -315,6 +315,42 @@ TEST(MAREASemaExpressions, UndeclaredNameInAnExpression)
     EXPECT_EQ(MAREA_codesOf("function f(a: integer32): integer32 return a; end function g() local x: integer32 = f(missing).field; end"), Codes{ UNDECLARED }) << "An argument below a member access must be checked.";
 }
 
+TEST(MAREASemaExpressions, UndeclaredNameInAHeaderOrAConstant)
+{
+    GTEST_COUT << "Validating a missing name in a loop or with header and in a constant initializer is UNDECLARED_NAME." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("function g() for i in 0 .. missing do end end"), Codes{ UNDECLARED }) << "A missing name in a for range bound must raise UNDECLARED_NAME.";
+
+    EXPECT_EQ(MAREA_codesOf("function g() for i in missing .. 3 do end end"), Codes{ UNDECLARED }) << "A missing name in a for range start must raise UNDECLARED_NAME.";
+
+    EXPECT_EQ(MAREA_codesOf("function g() for each item in missing do end end"), Codes{ UNDECLARED }) << "A missing for each collection must raise UNDECLARED_NAME.";
+
+    EXPECT_EQ(MAREA_codesOf("function g() for each key, item in missing do end end"), Codes{ UNDECLARED }) << "A missing for each collection with two names must raise UNDECLARED_NAME.";
+
+    EXPECT_EQ(MAREA_codesOf("function g() with missing as handle do end end"), Codes{ UNDECLARED }) << "A missing with value must raise UNDECLARED_NAME.";
+
+    EXPECT_EQ(MAREA_codesOf("function g() partition missing into 4 as part do end end"), Codes{ UNDECLARED }) << "A missing partition value must raise UNDECLARED_NAME.";
+
+    EXPECT_EQ(MAREA_codesOf("function g() partition mutable missing into 4 as part do end end"), Codes{ UNDECLARED }) << "A missing mutable partition value must raise UNDECLARED_NAME.";
+
+    EXPECT_EQ(MAREA_codesOf("function g(a: integer32) partition a into missing as part do end end"), Codes{ UNDECLARED }) << "A missing partition count must raise UNDECLARED_NAME.";
+
+    EXPECT_EQ(MAREA_codesOf("constant A: integer32 = missing;"), Codes{ UNDECLARED }) << "A missing name in a constant initializer must raise UNDECLARED_NAME.";
+
+    EXPECT_EQ(MAREA_codesOf("constant A: integer32 = 1 + missing;"), Codes{ UNDECLARED }) << "A missing name in a constant operator must raise UNDECLARED_NAME once.";
+}
+
+TEST(MAREASemaExpressions, KnownNamesInAHeaderOrAConstantAreNotReported)
+{
+    GTEST_COUT << "Validating a declared name in a header or a constant raises nothing." << std::endl;
+
+    EXPECT_TRUE(MAREA_codesOf("function g(n: integer32, items: array<integer32>) for i in 0 .. n do end for each item in items do end end").empty()) << "A parameter in a header must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("constant N: integer32 = 4; function g() for i in 0 .. N do end end").empty()) << "A constant in a header must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("constant A: integer32 = B + 1; constant B: integer32 = 4;").empty()) << "A constant that uses a later constant must raise nothing.";
+}
+
 TEST(MAREASemaExpressions, KnownNamesAreNotReported)
 {
     GTEST_COUT << "Validating every name that something declares raises nothing." << std::endl;

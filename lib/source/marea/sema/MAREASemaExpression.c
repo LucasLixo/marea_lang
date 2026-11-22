@@ -725,6 +725,26 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckValue(MAREA_SemaContext *context
     }
 }
 
+// INFO: a node that the parser could not build leaves tokens behind that it may read as an expression, so a declaration with an error node below it has no name check.
+static MAREA_Boolean MAREA_CALL MAREA_G_HasErrorNode(const MAREA_AstNode *node, MAREA_Uinteger32 depth)
+{
+    if ((node == MAREA_NULLPTR) || (depth >= MAREA_G_DEPTH_LIMIT)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    if (MAREA_AstNodeGetKind(node) == MAREA_AST_KIND_ERROR_NODE) {
+        return MAREA_BOOLEAN_TRUE;
+    }
+
+    for (MAREA_IntegerSize index = 0; index < MAREA_AstNodeGetChildCount(node); ++index) {
+        if (MAREA_G_HasErrorNode(MAREA_SemaChildAt(node, index), (depth + 1)) == MAREA_BOOLEAN_TRUE) {
+            return MAREA_BOOLEAN_TRUE;
+        }
+    }
+
+    return MAREA_BOOLEAN_FALSE;
+}
+
 MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressions(MAREA_SemaContext *context, const MAREA_AstNode *node)
 {
     if ((context == MAREA_NULLPTR) || (node == MAREA_NULLPTR)) {
@@ -734,10 +754,10 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressions(MAREA_SemaContext *contex
     switch (MAREA_AstNodeGetKind(node)) {
     case MAREA_AST_KIND_CONSTANT_DECLARATION:
     {
-        // INFO: the initializer of a constant is typed but its names are not checked, because a constant may use a name of a later declaration.
+        // INFO: every declaration of the file is in the name table before the first check, so a constant may use a name of a later declaration. A constant with an error node below it is typed but its names are not checked.
         const MAREA_IntegerSize count = MAREA_AstNodeGetChildCount(node);
 
-        const MAREA_SemaExcept operandsResult = MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, (count - 1)), 0, MAREA_BOOLEAN_FALSE);
+        const MAREA_SemaExcept operandsResult = MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, (count - 1)), 0, (MAREA_G_HasErrorNode(node, 0) == MAREA_BOOLEAN_TRUE) ? MAREA_BOOLEAN_FALSE : MAREA_BOOLEAN_TRUE);
 
         if (operandsResult != MAREA_SEMA_EXCEPT_SUCCESS) {
             return operandsResult;
@@ -747,6 +767,27 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressions(MAREA_SemaContext *contex
     }
     case MAREA_AST_KIND_LOCAL_DECLARATION:
         return MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, 2), 0, MAREA_BOOLEAN_TRUE);
+    case MAREA_AST_KIND_FOR_RANGE_STATEMENT:
+    {
+        const MAREA_SemaExcept firstResult = MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, 1), 0, MAREA_BOOLEAN_TRUE);
+
+        return (firstResult != MAREA_SEMA_EXCEPT_SUCCESS) ? firstResult : MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, 2), 0, MAREA_BOOLEAN_TRUE);
+    }
+    case MAREA_AST_KIND_FOR_EACH_STATEMENT:
+    {
+        // INFO: the children are the variables, the collection and the body, so the collection is the child before the last.
+        const MAREA_IntegerSize count = MAREA_AstNodeGetChildCount(node);
+
+        return (count < 3) ? MAREA_SEMA_EXCEPT_SUCCESS : MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, (count - 2)), 0, MAREA_BOOLEAN_TRUE);
+    }
+    case MAREA_AST_KIND_WITH_STATEMENT:
+        return MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, 0), 0, MAREA_BOOLEAN_TRUE);
+    case MAREA_AST_KIND_PARTITION_STATEMENT:
+    {
+        const MAREA_SemaExcept valueResult = MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, 0), 0, MAREA_BOOLEAN_TRUE);
+
+        return (valueResult != MAREA_SEMA_EXCEPT_SUCCESS) ? valueResult : MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, 1), 0, MAREA_BOOLEAN_TRUE);
+    }
     case MAREA_AST_KIND_EXPRESSION_STATEMENT:
     case MAREA_AST_KIND_IF_STATEMENT:
     case MAREA_AST_KIND_ELSEIF_CLAUSE:
