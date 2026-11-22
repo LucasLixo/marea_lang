@@ -187,6 +187,21 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_BindName(MAREA_SemaContext *context, 
     return MAREA_SemaTableAppend(context, &context->names, (MAREA_SemaName){ .text = text, .declaration = declaration, .original = original, .originalLength = originalLength, .length = length, .kind = kind });
 }
 
+// INFO: the last name bound remembers the namespace it came from, so two same-named members of two namespaces stay apart.
+static MAREA_SemaExcept MAREA_CALL MAREA_G_BindQualified(MAREA_SemaContext *context, MAREA_SourcePosition position, const MAREA_Character8 *text, MAREA_IntegerSize length, MAREA_SemaNameKind kind, const MAREA_AstNode *declaration, const MAREA_Character8 *original, MAREA_IntegerSize originalLength, const MAREA_Character8 *qualifier, MAREA_IntegerSize qualifierLength)
+{
+    const MAREA_SemaExcept RESULT = MAREA_G_BindName(context, position, text, length, kind, declaration, original, originalLength);
+
+    if (RESULT == MAREA_SEMA_EXCEPT_SUCCESS) {
+        MAREA_SemaName *entry = &context->names.entries[context->names.count - MAREA_INTEGER_SIZE(1)];
+
+        entry->qualifier = qualifier;
+        entry->qualifierLength = qualifierLength;
+    }
+
+    return RESULT;
+}
+
 static MAREA_SemaExcept MAREA_CALL MAREA_G_AddName(MAREA_SemaContext *context, MAREA_SourcePosition position, const MAREA_Character8 *text, MAREA_IntegerSize length, MAREA_SemaNameKind kind, const MAREA_AstNode *declaration)
 {
     return MAREA_G_BindName(context, position, text, length, kind, declaration, MAREA_NULLPTR, MAREA_INTEGER_SIZE(0));
@@ -473,7 +488,7 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckImportMember(MAREA_SemaContext *
 
     const MAREA_AstNode *enumeration = ((namespaceResult == MAREA_SEMA_IMPORT_RESULT_FOUND) && (MAREA_AstNodeGetChildCount(path) == MAREA_INTEGER_SIZE(1))) ? MAREA_G_ImportedEnum(namespaceRoot, MAREA_AstNodeGetText(first), MAREA_AstNodeGetTextLength(first)) : MAREA_NULLPTR;
 
-    return MAREA_G_BindName(context, MAREA_AstNodeGetPosition(localName), MAREA_AstNodeGetText(localName), MAREA_AstNodeGetTextLength(localName), MAREA_SEMA_NAME_KIND_IMPORTED_SYMBOL, enumeration, original, originalLength);
+    return MAREA_G_BindQualified(context, MAREA_AstNodeGetPosition(localName), MAREA_AstNodeGetText(localName), MAREA_AstNodeGetTextLength(localName), MAREA_SEMA_NAME_KIND_IMPORTED_SYMBOL, enumeration, original, originalLength, namespaceText, namespaceLength);
 }
 
 static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckImportMembers(MAREA_SemaContext *context, const MAREA_AstNode *import, const MAREA_AstNode *namespaceName)
@@ -593,8 +608,13 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckImport(MAREA_SemaContext *contex
         }
     }
 
+    // INFO: the namespace of the last segment, empty for a one-segment path.
+    const MAREA_IntegerSize QUALIFIER_LENGTH = (SEGMENT_COUNT > 1) ? (joinedLength - MAREA_AstNodeGetTextLength(last) - MAREA_INTEGER_SIZE(1)) : MAREA_INTEGER_SIZE(0);
+
+    const MAREA_Character8 *qualifier = (QUALIFIER_LENGTH > 0) ? joined : MAREA_NULLPTR;
+
     if (HAS_NAMED_ALIAS == MAREA_BOOLEAN_FALSE) {
-        return MAREA_G_AddName(context, MAREA_AstNodeGetPosition(localName), MAREA_AstNodeGetText(localName), MAREA_AstNodeGetTextLength(localName), kind, enumeration);
+        return MAREA_G_BindQualified(context, MAREA_AstNodeGetPosition(localName), MAREA_AstNodeGetText(localName), MAREA_AstNodeGetTextLength(localName), kind, enumeration, MAREA_NULLPTR, MAREA_INTEGER_SIZE(0), qualifier, QUALIFIER_LENGTH);
     }
 
     MAREA_Boolean reserved = MAREA_BOOLEAN_FALSE;
@@ -606,7 +626,7 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckImport(MAREA_SemaContext *contex
     }
 
     // INFO: the alias resolves to the last segment of the path, what the same import binds without "as".
-    return MAREA_G_BindName(context, MAREA_AstNodeGetPosition(alias), MAREA_AstNodeGetText(alias), MAREA_AstNodeGetTextLength(alias), kind, enumeration, MAREA_AstNodeGetText(last), MAREA_AstNodeGetTextLength(last));
+    return MAREA_G_BindQualified(context, MAREA_AstNodeGetPosition(alias), MAREA_AstNodeGetText(alias), MAREA_AstNodeGetTextLength(alias), kind, enumeration, MAREA_AstNodeGetText(last), MAREA_AstNodeGetTextLength(last), qualifier, QUALIFIER_LENGTH);
 }
 
 MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckNamespaceAndNames(MAREA_SemaContext *context, const MAREA_AstNode *root)
