@@ -59,7 +59,7 @@ written weeks ago may already be stale.
 ## Never touch, regardless of which gap you are closing
 
 - The signature or body of `MAREA_SemaCheckCompilationUnit`.
-- Any of the 25 frozen diagnostic codes 3001-3025 or their severities, unless the gap you were
+- Any of the 26 frozen diagnostic codes 3001-3026 or their severities, unless the gap you were
   explicitly asked to close is to add a new one - never repurpose an existing code.
 - `lib/include/marea/{base,lex,parse}/`, `lib/source/marea/{base,lex,parse}/`,
   `lib/internal/marea/internal/{lex,parse}/`, `examples/**/*.marea`, `docs/grammar/marea.ebnf`,
