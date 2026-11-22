@@ -42,6 +42,9 @@ MAREA_BEGIN_EXTERN_C
      * An import name also remembers its original: the text the same import binds without "as" (the last segment
      * of a whole path, the member path as written for a member). The original is empty (null, length zero) for a
      * name that has none, so the name stands for itself. The IR lowers an alias to this text.
+     *
+     * An import name also remembers its qualifier: the namespace it was imported from (null, length zero for a
+     * name with none). Two names with one original but two qualifiers are two types.
      */
     typedef struct MAREA_SemaName
     {
@@ -51,6 +54,8 @@ MAREA_BEGIN_EXTERN_C
         MAREA_SemaNameKind kind;
         const MAREA_Character8 *original;
         MAREA_IntegerSize originalLength;
+        const MAREA_Character8 *qualifier;
+        MAREA_IntegerSize qualifierLength;
     } MAREA_SemaName;
 
     /**
