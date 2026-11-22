@@ -366,9 +366,13 @@ Each diagnostic carries the position of the construct that raised it.
   backend must find that block itself, by walking up. How the parts are cut, in which order, and on how many
   threads, is a choice of the backend; the bytecode VM and the C11 backend only have to give the same
   observable result.
-- Sema accepts a `continue` or `break` that stands inside the body of a `partition` and targets a loop outside
-  the `fork_join`. The IR lowers it as in any other block. A parallel body cannot meaningfully leave to a loop,
-  so this is a defect of an earlier stage, not fixed here.
+- Sema now rejects, with `INVALID_PARALLEL_JUMP` (3024), a `break`, `continue` or `return` that stands in a
+  `partition` body and targets anything outside the enclosing `fork_join` (issue #48, PR #49), and the same
+  code for one that stands directly in a `fork_join` block, outside every `partition` body, also directly
+  around a `spawn` (issue #55, PR #57). A program that passes sema can no longer reach either shape. The
+  IR's own lowering of that shape is unchanged: it still lowers the jump as in any other block, with no
+  check of its own, so the behavior stays a live defensive gap only for a caller that builds or lowers the
+  AST directly, bypassing sema.
 - A `FOR_EACH_STATEMENT` does not say what kind of collection it walks, or what the key is for it. Sema gives
   no type for the collection, so a backend must find the type itself, and must reject, or handle in its own
   way, a collection it cannot walk. The IR does not check that a loop with a key walks a collection that has
@@ -379,8 +383,11 @@ Each diagnostic carries the position of the construct that raised it.
   of an enum. A function that ends with such a `switch` and returns in every arm has no `RETURN_STATEMENT`
   after the chain, so a backend that checks that every path returns must treat the missing branch as
   unreachable. The IR does not mark it.
-- Sema accepts a `switch` with more than one `default` arm. The IR keeps the last one and drops the others,
-  without a diagnostic. A defect of an earlier stage, not fixed here.
+- Sema now rejects a second `default` arm, and a repeated `case` value, with `DUPLICATE_SWITCH_ARM` (3025,
+  issue #50, PR #51). A program that passes sema can no longer reach either shape. The IR's own lowering of
+  more than one `default` arm is unchanged: `MAREA_G_LowerSwitch` still keeps the last one and drops the
+  others with no diagnostic, so this stays a live defensive gap only for a caller that builds or lowers the
+  AST directly, bypassing sema.
 - The hidden `$switch` local has no type name, like the for-range `$last`: the IR does not copy one from the
   scrutinee. A backend must infer it from the scrutinee.
 - A call to a function that was left out of the module still lowers to a plain name that points at
