@@ -257,3 +257,39 @@ TEST(MAREASemaParallel, JumpNextToABrokenStatementIsStillReported)
 
     EXPECT_EQ(MAREA_codesOf("function f(values: array<float32>, a: boolean) while a do fork_join partition values into 2 as part do 1 + ; continue; end end end end"), Codes{ INVALID_JUMP }) << "A broken sibling must not hide the jump, and the broken statement must raise no sema diagnostic.";
 }
+
+TEST(MAREASemaParallel, JumpDirectlyInAForkJoinBlockIsRejected)
+{
+    GTEST_COUT << "Validating a jump directly in a fork_join block, outside every partition body, is rejected." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("function f(values: array<float32>) fork_join continue; end end"), Codes{ INVALID_JUMP }) << "A continue directly in a fork_join block must raise INVALID_PARALLEL_JUMP.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(values: array<float32>) fork_join break; end end"), Codes{ INVALID_JUMP }) << "A break directly in a fork_join block must raise INVALID_PARALLEL_JUMP.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(values: array<float32>) fork_join return; end end"), Codes{ INVALID_JUMP }) << "A return directly in a fork_join block must raise INVALID_PARALLEL_JUMP.";
+}
+
+TEST(MAREASemaParallel, JumpAfterASpawnDirectlyInAForkJoinBlockIsRejected)
+{
+    GTEST_COUT << "Validating a jump that follows a spawn directly in a fork_join block is rejected." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("function g() end function f(values: array<float32>) fork_join spawn g(); return; end end"), Codes{ INVALID_JUMP }) << "A return right after a spawn, both directly in the fork_join block, must raise INVALID_PARALLEL_JUMP.";
+}
+
+TEST(MAREASemaParallel, LoopDirectlyInAForkJoinBlockIsAccepted)
+{
+    GTEST_COUT << "Validating a loop that lives directly in a fork_join block, outside any partition, can use break and continue." << std::endl;
+
+    EXPECT_TRUE(MAREA_codesOf("function f(values: array<float32>, a: boolean) fork_join while a do break; end end end").empty()) << "A while loop directly in the fork_join block must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("function f(values: array<float32>) fork_join for i in 0 .. 3 do continue; end end end").empty()) << "A for-range loop directly in the fork_join block must raise nothing.";
+}
+
+TEST(MAREASemaParallel, LoopOutsideTheWholeForkJoinBlockDoesNotValidateAJump)
+{
+    GTEST_COUT << "Validating a loop outside the whole fork_join block is not a target of a jump directly in the block." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("function f(values: array<float32>, a: boolean) while a do fork_join break; end end end"), Codes{ INVALID_JUMP }) << "A break directly in the fork_join block must not reach an outer loop; it must raise INVALID_PARALLEL_JUMP.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(values: array<float32>, a: boolean) while a do fork_join continue; end end end"), Codes{ INVALID_JUMP }) << "A continue directly in the fork_join block must not reach an outer loop; it must raise INVALID_PARALLEL_JUMP.";
+}
