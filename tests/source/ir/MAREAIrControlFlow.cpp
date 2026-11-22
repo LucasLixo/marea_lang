@@ -270,11 +270,11 @@ TEST(MAREAIrControlFlow, SwitchArmWithAnUnsupportedStatementDropsTheFunction)
     EXPECT_EQ(fixture.MAREA_irCodes(), std::vector<MAREA_Uinteger32>{ MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_MACRO }) << "The macro in the arm must raise its own code once.";
 }
 
-TEST(MAREAIrControlFlow, SwitchDefaultArmBeforeTheCasesStillEndsTheChain)
+TEST(MAREAIrControlFlow, SwitchDefaultArmBeforeTheCasesNoLongerReachesLowering)
 {
-    GTEST_COUT << "Validating a default arm written before the cases becomes the else of the chain, after every case." << std::endl;
+    GTEST_COUT << "Validating a default arm written before the cases is now a parse diagnostic, so lowering never sees it." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerBody("", "a: integer32", "switch a default then return; case 1 then break; case 2 then continue; end"), "(BLOCK (BLOCK (LOCAL_DECLARATION $switch (IDENTIFIER a)) (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch) (INTEGER_LITERAL 1)) (BLOCK (BREAK_STATEMENT)) (ELSEIF_CLAUSE (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch) (INTEGER_LITERAL 2)) (BLOCK (CONTINUE_STATEMENT))) (ELSE_CLAUSE (BLOCK (RETURN_STATEMENT))))))") << "The default must come last in the chain, whatever its place in the source.";
+    EXPECT_EQ(MAREA_lowerBody("", "a: integer32", "switch a default then return; case 1 then break; case 2 then continue; end"), "<lower failed>") << "The parser now rejects a default arm that is not last, so the body never reaches the lowerer.";
 }
 
 TEST(MAREAIrControlFlow, SwitchWithAGapInACaseValueOrTheDefaultDropsTheFunction)
