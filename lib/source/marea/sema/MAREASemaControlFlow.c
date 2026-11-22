@@ -351,6 +351,23 @@ static const MAREA_AstNode *MAREA_CALL MAREA_G_ResolveConstant(const MAREA_SemaC
     return current;
 }
 
+// INFO: a qualified name is compared by its path, because its last name belongs to another namespace and never to a constant of this file.
+static MAREA_Boolean MAREA_CALL MAREA_G_SamePath(const MAREA_AstNode *left, const MAREA_AstNode *right)
+{
+    if ((MAREA_G_IsError(left) == MAREA_BOOLEAN_TRUE) || (MAREA_G_IsError(right) == MAREA_BOOLEAN_TRUE) || (MAREA_AstNodeGetKind(left) != MAREA_AstNodeGetKind(right))) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    switch (MAREA_AstNodeGetKind(left)) {
+    case MAREA_AST_KIND_IDENTIFIER:
+        return MAREA_G_SameText(left, right);
+    case MAREA_AST_KIND_MEMBER_ACCESS:
+        return ((MAREA_G_SamePath(MAREA_SemaChildAt(left, 0), MAREA_SemaChildAt(right, 0)) == MAREA_BOOLEAN_TRUE) && (MAREA_G_SamePath(MAREA_SemaChildAt(left, 1), MAREA_SemaChildAt(right, 1)) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+    default:
+        return MAREA_BOOLEAN_FALSE;
+    }
+}
+
 // INFO: two case values are the same when they hold one value: integer literals by number in any base, a constant of this file by the value it is declared with, any other literal, name or unary operator by text.
 static MAREA_Boolean MAREA_CALL MAREA_G_SameValue(const MAREA_SemaContext *context, const MAREA_AstNode *left, const MAREA_AstNode *right)
 {
@@ -389,7 +406,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_SameValue(const MAREA_SemaContext *conte
     case MAREA_AST_KIND_UNARY_EXPRESSION:
         return ((MAREA_AstNodeGetOperator(leftValue) == MAREA_AstNodeGetOperator(rightValue)) && (MAREA_G_SameValue(context, MAREA_SemaChildAt(leftValue, 0), MAREA_SemaChildAt(rightValue, 0)) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
     case MAREA_AST_KIND_MEMBER_ACCESS:
-        return ((MAREA_G_SameValue(context, MAREA_SemaChildAt(leftValue, 0), MAREA_SemaChildAt(rightValue, 0)) == MAREA_BOOLEAN_TRUE) && (MAREA_G_SameValue(context, MAREA_SemaChildAt(leftValue, 1), MAREA_SemaChildAt(rightValue, 1)) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+        return MAREA_G_SamePath(leftValue, rightValue);
     default:
         return MAREA_BOOLEAN_FALSE;
     }
