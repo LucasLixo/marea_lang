@@ -164,7 +164,26 @@ TEST(MAREASemaExpressions, BinaryOperandOfAnUnknownTypeIsAccepted)
 
     EXPECT_TRUE(MAREA_codesOf("function g(a: float64) for i in 0 .. 3 do i + a; end end").empty()) << "A binder with no known type must not be guessed.";
 
-    EXPECT_TRUE(MAREA_codesOf("function g(v: unsigned32, n: integer32, f: float64) v << n; v >> n; n ** f; f ** n; n ** 2.0; end").empty()) << "The shift and the power operators must keep the type of their right side free.";
+    EXPECT_TRUE(MAREA_codesOf("function g(v: unsigned32, n: integer32) v << n; v >> n; end").empty()) << "The shift operators must keep the type of their right side free.";
+}
+
+TEST(MAREASemaExpressions, PowerOperandsMustHaveTheSameType)
+{
+    GTEST_COUT << "Validating the operands of a power follow the rule of every arithmetic operator." << std::endl;
+
+    const std::string HEAD{ "function g(a: integer32, c: integer64, f: float64) " };
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "a ** f; f ** a; a ** c; end"), (Codes{ MISMATCH, MISMATCH, MISMATCH })) << "A base and an exponent of different primitives must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "local n: float64 = a ** f; end"), Codes{ MISMATCH }) << "An integer base with a float exponent must raise one TYPE_MISMATCH and no second one for the local.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "local n: integer32 = a ** f; end"), Codes{ MISMATCH }) << "An integer base with a float exponent must raise TYPE_MISMATCH whatever the declared type.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "local n: float64 = a ** 2; end"), Codes{ MISMATCH }) << "The result of a power must keep the type of its operands.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "a ** 2.5; end"), Codes{ MISMATCH }) << "A fraction literal exponent does not fit an integer base.";
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "local p: integer32 = a ** 2; local q: float64 = f ** 0.5; local r: float64 = f ** 2; local s: integer32 = 2 ** a; local t: integer32 = a ** a; end").empty()) << "A power of the same primitive, or with a fitting literal, must raise nothing.";
 }
 
 TEST(MAREASemaExpressions, CallResultIsTypedForAKnownFunction)
