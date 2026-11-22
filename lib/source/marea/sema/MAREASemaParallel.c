@@ -164,8 +164,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckJump(MAREA_SemaContext *context, cons
         return MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER;
     }
 
-    // INFO: a fork_join block is a join barrier too: a jump directly in it, outside every partition
-    // body, must not leave it either, the same as a jump leaving a partition body.
+    // INFO: a fork_join block is a join barrier too, so a jump directly in it, outside every partition body, must not leave it either, the same as a jump leaving a partition body.
     if ((context->partitionDepth == 0) && (context->forkDepth == 0)) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
