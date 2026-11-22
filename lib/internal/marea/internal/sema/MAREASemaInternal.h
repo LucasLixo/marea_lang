@@ -463,10 +463,9 @@ MAREA_BEGIN_EXTERN_C
     /**
      * @brief Checks the expressions of one statement: every bare name is declared (UNDECLARED_NAME), a plain
      * assignment, a return value and the initializer of a constant fit the declared type (TYPE_MISMATCH). The
-     * expressions checked are the
-     * initializer of a local, the two sides of an assignment, an expression statement, the condition of an if,
-     * elseif and while, the value of a return and the value of a switch. A call argument is checked by
-     * MAREA_SemaCheckCall and a local initializer by MAREA_SemaCheckOwnership.
+     * expressions checked are the initializer of a local, the two sides of an assignment, an expression
+     * statement, the condition of an if, elseif and while, the value of a return and the value of a switch. A
+     * call argument is checked by MAREA_SemaCheckCall and a local initializer by MAREA_SemaCheckOwnership.
      * @param context Context of the run. Must not be null.
      * @param node Node about to be visited. Must not be null.
      * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
