@@ -38,6 +38,10 @@ MAREA_BEGIN_EXTERN_C
 
     /**
      * @brief One local name of a file. The text points into the source, it is not copied.
+     *
+     * An import name also remembers its original: the text the same import binds without "as" (the last segment
+     * of a whole path, the member path as written for a member). The original is empty (null, length zero) for a
+     * name that has none, so the name stands for itself. The IR lowers an alias to this text.
      */
     typedef struct MAREA_SemaName
     {
@@ -45,6 +49,8 @@ MAREA_BEGIN_EXTERN_C
         const MAREA_AstNode *declaration;
         MAREA_IntegerSize length;
         MAREA_SemaNameKind kind;
+        const MAREA_Character8 *original;
+        MAREA_IntegerSize originalLength;
     } MAREA_SemaName;
 
     /**

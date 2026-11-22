@@ -73,6 +73,7 @@ static const MAREA_Character8 *const MAREA_G_AstKindNames[] = {
     "VALUE_ENTRY",
     "MACRO_CALL",
     "ERROR_NODE",
+    "IMPORT_MEMBER",
 };
 
 MAREA_STATIC_ASSERT((sizeof(MAREA_G_AstKindNames) / sizeof(MAREA_G_AstKindNames[0])) == MAREA_AST_KIND_COUNT, "MAREA_G_AstKindNames must have one entry per AST kind.");

@@ -180,6 +180,47 @@ static MAREA_AstNode *MAREA_CALL MAREA_G_ParseNamespace(MAREA_ParseState *state)
     return declaration;
 }
 
+static MAREA_AstNode *MAREA_CALL MAREA_G_ParseImportMember(MAREA_ParseState *state)
+{
+    MAREA_AstNode *member = MAREA_ParseNodeBegin(state, MAREA_AST_KIND_IMPORT_MEMBER);
+
+    MAREA_ParseNodeAdd(state, member, MAREA_ParseQualifiedName(state));
+
+    if (MAREA_ParseAccept(state, MAREA_TOKEN_KIND_KEYWORD_AS) == MAREA_BOOLEAN_TRUE) {
+        MAREA_ParseNodeAdd(state, member, MAREA_ParseIdentifier(state, "expected an alias name after 'as'"));
+
+        MAREA_AstNodeSetFlags(member, MAREA_AST_FLAG_HAS_ALIAS);
+    }
+
+    MAREA_ParseNodeEnd(state, member);
+
+    return member;
+}
+
+// INFO: The braces of a member list are a list, never a block. The caller has checked that the next token is the opening brace.
+static void MAREA_CALL MAREA_G_ParseImportMemberList(MAREA_ParseState *state, MAREA_AstNode *declaration)
+{
+    MAREA_IGNORE(MAREA_ParseAdvance(state));
+
+    MAREA_AstNodeSetFlags(declaration, MAREA_AST_FLAG_HAS_MEMBERS);
+
+    if (MAREA_ParseAt(state, MAREA_TOKEN_KIND_RIGHT_BRACE) == MAREA_BOOLEAN_TRUE) {
+        MAREA_ParseReport(state, MAREA_PARSE_DIAGNOSTIC_CODE_EXPECTED_TOKEN, MAREA_ParsePeekToken(state, MAREA_INTEGER_SIZE(0)), "an import member list needs at least one member");
+    } else {
+        do {
+            if (MAREA_ParseAt(state, MAREA_TOKEN_KIND_RIGHT_BRACE) == MAREA_BOOLEAN_TRUE) {
+                MAREA_ParseReport(state, MAREA_PARSE_DIAGNOSTIC_CODE_EXPECTED_TOKEN, MAREA_ParsePeekToken(state, MAREA_INTEGER_SIZE(0)), "an import member list has no trailing comma");
+
+                break;
+            }
+
+            MAREA_ParseNodeAdd(state, declaration, MAREA_G_ParseImportMember(state));
+        } while (MAREA_ParseAccept(state, MAREA_TOKEN_KIND_COMMA) == MAREA_BOOLEAN_TRUE);
+    }
+
+    MAREA_IGNORE(MAREA_ParseExpect(state, MAREA_TOKEN_KIND_RIGHT_BRACE, "expected '}' after the import member list"));
+}
+
 static MAREA_AstNode *MAREA_CALL MAREA_G_ParseImport(MAREA_ParseState *state)
 {
     MAREA_AstNode *declaration = MAREA_ParseNodeBegin(state, MAREA_AST_KIND_IMPORT_DECLARATION);
@@ -192,6 +233,12 @@ static MAREA_AstNode *MAREA_CALL MAREA_G_ParseImport(MAREA_ParseState *state)
         MAREA_ParseNodeAdd(state, declaration, MAREA_ParseIdentifier(state, "expected an alias name after 'as'"));
 
         MAREA_AstNodeSetFlags(declaration, MAREA_AST_FLAG_HAS_ALIAS);
+
+        if (MAREA_ParseAt(state, MAREA_TOKEN_KIND_LEFT_BRACE) == MAREA_BOOLEAN_TRUE) {
+            MAREA_ParseReport(state, MAREA_PARSE_DIAGNOSTIC_CODE_EXPECTED_TOKEN, MAREA_ParsePeekToken(state, MAREA_INTEGER_SIZE(0)), "an import cannot have an alias and a member list");
+        }
+    } else if (MAREA_ParseAt(state, MAREA_TOKEN_KIND_LEFT_BRACE) == MAREA_BOOLEAN_TRUE) {
+        MAREA_G_ParseImportMemberList(state, declaration);
     }
 
     MAREA_IGNORE(MAREA_ParseExpect(state, MAREA_TOKEN_KIND_SEMICOLON, "expected ';' after the import"));

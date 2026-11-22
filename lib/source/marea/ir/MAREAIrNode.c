@@ -248,21 +248,24 @@ MAREA_IrExcept MAREA_CALL MAREA_IrNodeAppendChild(MAREA_IrContext *context, MARE
     return MAREA_IR_EXCEPT_SUCCESS;
 }
 
-void MAREA_CALL MAREA_IrNodeSetTypeNameFromTyped(MAREA_IrNode *node, const MAREA_SemaTypedNode *typedNode)
+MAREA_IrExcept MAREA_CALL MAREA_IrNodeSetTypeNameFromTyped(MAREA_IrContext *context, MAREA_IrNode *node, const MAREA_SemaTypedNode *typedNode)
 {
+    if (context == MAREA_NULLPTR) {
+        return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
+    }
+
     if ((node == MAREA_NULLPTR) || (typedNode == MAREA_NULLPTR)) {
-        return;
+        return MAREA_IR_EXCEPT_SUCCESS;
     }
 
     const MAREA_Character8 *text = MAREA_NULLPTR;
     MAREA_IntegerSize length = MAREA_INTEGER_SIZE(0);
 
-    if (MAREA_SemaTypedNodeGetTypeName(typedNode, &text, &length) != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) {
-        return;
+    if ((MAREA_SemaTypedNodeGetTypeName(typedNode, &text, &length) != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) || (text == MAREA_NULLPTR)) {
+        return MAREA_IR_EXCEPT_SUCCESS;
     }
 
-    node->typeName = text;
-    node->typeNameLength = length;
+    return MAREA_IrAliasType(context, text, length, &node->typeName, &node->typeNameLength);
 }
 
 MAREA_Boolean MAREA_CALL MAREA_IrAstQualifiedNameSpan(const MAREA_AstNode *name, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength)
@@ -309,19 +312,24 @@ MAREA_Boolean MAREA_CALL MAREA_IrAstTypeName(const MAREA_AstNode *type, const MA
     return MAREA_IrAstQualifiedNameSpan(name, outText, outLength);
 }
 
-void MAREA_CALL MAREA_IrNodeSetTypeNameFromAst(MAREA_IrNode *node, const MAREA_AstNode *type)
+MAREA_IrExcept MAREA_CALL MAREA_IrNodeSetTypeNameFromAst(MAREA_IrContext *context, MAREA_IrNode *node, const MAREA_AstNode *type)
 {
+    if (context == MAREA_NULLPTR) {
+        return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
+    }
+
     if (node == MAREA_NULLPTR) {
-        return;
+        return MAREA_IR_EXCEPT_SUCCESS;
     }
 
     const MAREA_Character8 *text = MAREA_NULLPTR;
     MAREA_IntegerSize length = MAREA_INTEGER_SIZE(0);
 
-    if (MAREA_IrAstTypeName(type, &text, &length) == MAREA_BOOLEAN_TRUE) {
-        node->typeName = text;
-        node->typeNameLength = length;
+    if (MAREA_IrAstTypeName(type, &text, &length) == MAREA_BOOLEAN_FALSE) {
+        return MAREA_IR_EXCEPT_SUCCESS;
     }
+
+    return MAREA_IrAliasType(context, text, length, &node->typeName, &node->typeNameLength);
 }
 
 MAREA_IrExcept MAREA_CALL MAREA_IrNodeSetQualifiedText(MAREA_IrContext *context, MAREA_IrNode *node, const MAREA_Character8 *qualifier, MAREA_IntegerSize qualifierLength, const MAREA_Character8 *name, MAREA_IntegerSize nameLength)

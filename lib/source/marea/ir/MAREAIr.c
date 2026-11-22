@@ -34,6 +34,9 @@ MAREA_IrExcept MAREA_CALL MAREA_IrContextCreate(MAREA_Arena *arena, MAREA_Diagno
     context->arena = arena;
     context->sink = sink;
     context->unit = MAREA_NULLPTR;
+    context->function = MAREA_NULLPTR;
+    context->aliases = MAREA_NULLPTR;
+    context->aliasCount = MAREA_INTEGER_SIZE(0);
 
     *outContext = context;
 
@@ -147,12 +150,19 @@ MAREA_IrExcept MAREA_CALL MAREA_IrLowerCompilationUnit(MAREA_IrContext *context,
         return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
     }
 
-    // INFO: the root stays in the context only while the unit is lowered, so that a call can ask which names the unit binds.
+    // INFO: the root and the alias table stay in the context only while the unit is lowered, so that a call can ask which names the unit binds and which names are aliases.
     context->unit = typedRoot;
 
-    const MAREA_IrExcept result = MAREA_G_LowerUnitDeclarations(context, typedRoot, outModule);
+    MAREA_IrExcept result = MAREA_IrAliasBuild(context, typedRoot);
+
+    if (result == MAREA_IR_EXCEPT_SUCCESS) {
+        result = MAREA_G_LowerUnitDeclarations(context, typedRoot, outModule);
+    }
 
     context->unit = MAREA_NULLPTR;
+    context->function = MAREA_NULLPTR;
+    context->aliases = MAREA_NULLPTR;
+    context->aliasCount = MAREA_INTEGER_SIZE(0);
 
     return result;
 }

@@ -193,3 +193,152 @@ TEST(MAREAParserDeclarations, BadMemberInsideBlocksIsSkipped)
         EXPECT_NE(ignored.find("FUNCTION_DECLARATION"), std::string::npos) << "The function after the bad token must be parsed.";
     }
 }
+
+TEST(MAREAParserDeclarations, ImportMemberListWithAliases)
+{
+    GTEST_COUT << "Validating an import member list with an alias on every member." << std::endl;
+
+    MAREA_ParseFixture fixture;
+
+    const std::string EXPECTED{ MAREA_lines({ "  IMPORT_DECLARATION flags=32", "    QUALIFIED_NAME", "      IDENTIFIER \"a\"", "      IDENTIFIER \"b\"", "    IMPORT_MEMBER flags=8", "      QUALIFIED_NAME", "        IDENTIFIER \"f\"", "      IDENTIFIER \"g\"", "    IMPORT_MEMBER flags=8", "      QUALIFIED_NAME", "        IDENTIFIER \"T\"", "      IDENTIFIER \"U\"" }) };
+
+    EXPECT_EQ(MAREA_itemsOf(fixture, "import a.b { f as g, T as U };"), EXPECTED) << "The namespace is the first child and every member follows with HAS_ALIAS.";
+
+    EXPECT_TRUE(fixture.MAREA_codes().empty()) << "No diagnostic is expected.";
+}
+
+TEST(MAREAParserDeclarations, ImportMemberListWithOneAlias)
+{
+    GTEST_COUT << "Validating an import member list where only one member has an alias." << std::endl;
+
+    MAREA_ParseFixture fixture;
+
+    const std::string EXPECTED{ MAREA_lines({ "  IMPORT_DECLARATION flags=32", "    QUALIFIED_NAME", "      IDENTIFIER \"a\"", "    IMPORT_MEMBER", "      QUALIFIED_NAME", "        IDENTIFIER \"f\"", "    IMPORT_MEMBER flags=8", "      QUALIFIED_NAME", "        IDENTIFIER \"T\"", "      IDENTIFIER \"U\"" }) };
+
+    EXPECT_EQ(MAREA_itemsOf(fixture, "import a { f, T as U };"), EXPECTED) << "A member without an alias has no flags and no second child.";
+
+    EXPECT_TRUE(fixture.MAREA_codes().empty()) << "No diagnostic is expected.";
+}
+
+TEST(MAREAParserDeclarations, ImportMemberListWithVariantMember)
+{
+    GTEST_COUT << "Validating an import member that names an enum variant by a two part path." << std::endl;
+
+    MAREA_ParseFixture fixture;
+
+    const std::string EXPECTED{ MAREA_lines({ "  IMPORT_DECLARATION flags=32", "    QUALIFIED_NAME", "      IDENTIFIER \"a\"", "      IDENTIFIER \"b\"", "    IMPORT_MEMBER flags=8", "      QUALIFIED_NAME", "        IDENTIFIER \"Color\"", "        IDENTIFIER \"Red\"", "      IDENTIFIER \"Crimson\"", "    IMPORT_MEMBER", "      QUALIFIED_NAME", "        IDENTIFIER \"Color\"", "        IDENTIFIER \"Blue\"" }) };
+
+    EXPECT_EQ(MAREA_itemsOf(fixture, "import a.b { Color.Red as Crimson, Color.Blue };"), EXPECTED) << "The member path keeps every segment.";
+
+    EXPECT_TRUE(fixture.MAREA_codes().empty()) << "No diagnostic is expected.";
+}
+
+TEST(MAREAParserDeclarations, ImportOldFormsBesideAMemberList)
+{
+    GTEST_COUT << "Validating the whole path forms still parse beside a member list." << std::endl;
+
+    MAREA_ParseFixture fixture;
+
+    const std::string EXPECTED{ MAREA_lines({ "  IMPORT_DECLARATION", "    QUALIFIED_NAME", "      IDENTIFIER \"a\"", "  IMPORT_DECLARATION flags=32", "    QUALIFIED_NAME", "      IDENTIFIER \"b\"", "    IMPORT_MEMBER", "      QUALIFIED_NAME", "        IDENTIFIER \"f\"", "  IMPORT_DECLARATION flags=8", "    QUALIFIED_NAME", "      IDENTIFIER \"c\"", "    IDENTIFIER \"d\"" }) };
+
+    EXPECT_EQ(MAREA_itemsOf(fixture, "import a; import b { f }; import c as d;"), EXPECTED) << "The word after the path decides the form.";
+
+    EXPECT_TRUE(fixture.MAREA_codes().empty()) << "No diagnostic is expected.";
+}
+
+TEST(MAREAParserDeclarations, ImportMemberListEmpty)
+{
+    GTEST_COUT << "Validating an empty import member list gives one diagnostic and parsing goes on." << std::endl;
+
+    MAREA_ParseFixture fixture;
+
+    const std::string DUMP{ MAREA_itemsOf(fixture, "import a { }; constant MAX: integer32 = 10;") };
+
+    EXPECT_EQ(fixture.MAREA_codes(), std::vector<MAREA_Uinteger32>{ MAREA_PARSE_DIAGNOSTIC_CODE_EXPECTED_TOKEN }) << "An empty list is EXPECTED_TOKEN.";
+
+    EXPECT_EQ(fixture.MAREA_offsets(), std::vector<MAREA_Uinteger32>{ 27 }) << "The diagnostic must sit on the closing brace, offset 27.";
+
+    EXPECT_NE(DUMP.find("  CONSTANT_DECLARATION\n"), std::string::npos) << "The declaration after the import must still parse.";
+}
+
+TEST(MAREAParserDeclarations, ImportMemberListTrailingComma)
+{
+    GTEST_COUT << "Validating a trailing comma in an import member list is an error." << std::endl;
+
+    MAREA_ParseFixture fixture;
+
+    const std::string DUMP{ MAREA_itemsOf(fixture, "import a { f, }; constant MAX: integer32 = 10;") };
+
+    EXPECT_EQ(fixture.MAREA_codes(), std::vector<MAREA_Uinteger32>{ MAREA_PARSE_DIAGNOSTIC_CODE_EXPECTED_TOKEN }) << "A trailing comma is EXPECTED_TOKEN.";
+
+    EXPECT_NE(DUMP.find("  CONSTANT_DECLARATION\n"), std::string::npos) << "The declaration after the import must still parse.";
+}
+
+TEST(MAREAParserDeclarations, ImportMemberListMissingCloseBrace)
+{
+    GTEST_COUT << "Validating a missing closing brace gives one diagnostic and parsing goes on." << std::endl;
+
+    MAREA_ParseFixture fixture;
+
+    const std::string DUMP{ MAREA_itemsOf(fixture, "import a { f as g; constant MAX: integer32 = 10;") };
+
+    EXPECT_EQ(fixture.MAREA_codes(), std::vector<MAREA_Uinteger32>{ MAREA_PARSE_DIAGNOSTIC_CODE_EXPECTED_TOKEN }) << "A missing brace is EXPECTED_TOKEN.";
+
+    EXPECT_NE(DUMP.find("    IMPORT_MEMBER flags=8\n"), std::string::npos) << "The member before the error must stay in the tree.";
+
+    EXPECT_NE(DUMP.find("  CONSTANT_DECLARATION\n"), std::string::npos) << "The declaration after the import must still parse.";
+}
+
+TEST(MAREAParserDeclarations, ImportMemberAliasWithoutName)
+{
+    GTEST_COUT << "Validating as without a name inside a member list." << std::endl;
+
+    MAREA_ParseFixture fixture;
+
+    const std::string DUMP{ MAREA_itemsOf(fixture, "import a { f as }; constant MAX: integer32 = 10;") };
+
+    EXPECT_EQ(fixture.MAREA_codes(), std::vector<MAREA_Uinteger32>{ MAREA_PARSE_DIAGNOSTIC_CODE_EXPECTED_TOKEN }) << "A missing alias name is EXPECTED_TOKEN.";
+
+    EXPECT_NE(DUMP.find("      ERROR_NODE\n"), std::string::npos) << "An ERROR_NODE must stand for the missing alias.";
+
+    EXPECT_NE(DUMP.find("  CONSTANT_DECLARATION\n"), std::string::npos) << "The declaration after the import must still parse.";
+}
+
+TEST(MAREAParserDeclarations, ImportAliasAndMemberListDoNotMix)
+{
+    GTEST_COUT << "Validating an import cannot have an alias and a member list at once." << std::endl;
+
+    MAREA_ParseFixture fixture;
+
+    const std::string DUMP{ MAREA_itemsOf(fixture, "import a.b as c { f }; constant MAX: integer32 = 10;") };
+
+    EXPECT_EQ(fixture.MAREA_codes(), std::vector<MAREA_Uinteger32>{ MAREA_PARSE_DIAGNOSTIC_CODE_EXPECTED_TOKEN }) << "The mix is one EXPECTED_TOKEN.";
+
+    EXPECT_NE(DUMP.find("  CONSTANT_DECLARATION\n"), std::string::npos) << "The declaration after the import must still parse.";
+}
+
+TEST(MAREAParserDeclarations, ImportMemberListWithoutSemicolon)
+{
+    GTEST_COUT << "Validating a member list without the closing semicolon." << std::endl;
+
+    MAREA_ParseFixture fixture;
+
+    const std::string DUMP{ MAREA_itemsOf(fixture, "import a { f } constant MAX: integer32 = 10;") };
+
+    EXPECT_EQ(fixture.MAREA_codes(), std::vector<MAREA_Uinteger32>{ MAREA_PARSE_DIAGNOSTIC_CODE_EXPECTED_TOKEN }) << "A missing semicolon is EXPECTED_TOKEN.";
+
+    EXPECT_NE(DUMP.find("  CONSTANT_DECLARATION\n"), std::string::npos) << "The declaration after the import must still parse.";
+}
+
+TEST(MAREAParserDeclarations, ImportMemberListBadMemberTerminates)
+{
+    GTEST_COUT << "Validating junk inside a member list terminates and gives a diagnostic." << std::endl;
+
+    for (const char *source : { "import a { 1 };", "import a { , };", "import a { f g };", "import a {", "import a { f,", "import a { f as g,", "import a { . };", "import a { f.1 };" }) {
+        MAREA_ParseFixture fixture;
+
+        ASSERT_EQ(fixture.MAREA_parse(std::string("namespace main; ") + source), MAREA_PARSE_EXCEPT_SUCCESS) << "Parsing must succeed for: " << source;
+
+        EXPECT_FALSE(fixture.MAREA_codes().empty()) << "A bad member list must give a diagnostic for: " << source;
+    }
+}

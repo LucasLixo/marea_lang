@@ -61,7 +61,8 @@ field or member that owns it.
 |---|---|
 | `COMPILATION_UNIT` | `NAMESPACE_DECLARATION`, `FILE_ATTRIBUTE*`, `IMPORT_DECLARATION*`, item* |
 | `NAMESPACE_DECLARATION` | `QUALIFIED_NAME` |
-| `IMPORT_DECLARATION` (flag HAS_ALIAS) | `QUALIFIED_NAME` [`IDENTIFIER` alias] |
+| `IMPORT_DECLARATION` (flag HAS_ALIAS or HAS_MEMBERS, never both) | `QUALIFIED_NAME` (the namespace), then [`IDENTIFIER` alias] when HAS_ALIAS, or `IMPORT_MEMBER`+ when HAS_MEMBERS |
+| `IMPORT_MEMBER` (flag HAS_ALIAS) | `QUALIFIED_NAME` (the member path, one or two parts for the checker), [`IDENTIFIER` alias] |
 | `QUALIFIED_NAME` | `IDENTIFIER`+ |
 | `IDENTIFIER`, `INTEGER_LITERAL`, `FLOAT_LITERAL`, `STRING_LITERAL`, `BOOLEAN_LITERAL` | none, they have text (a string keeps its quotes and is not decoded) |
 | `ATTRIBUTE`, `FILE_ATTRIBUTE` | `ATTRIBUTE_ITEM`+ |
@@ -121,6 +122,24 @@ field or member that owns it.
 | `MACRO_CALL` | `IDENTIFIER` (text is the macro name), `ARGUMENT_LIST` |
 | `ERROR_NODE` | none, placed at the bad token |
 
+The flag values are MUTABLE 1, REFERENCE 2, CONSTANT 4, HAS_ALIAS 8, FILE 16 and HAS_MEMBERS 32.
+The word after the namespace path of an import decides its form: `as` or `;` is the whole path
+form, `{` is the member list. For example, `import a.b { f as g, T };` dumps as:
+
+```
+  IMPORT_DECLARATION flags=32
+    QUALIFIED_NAME
+      IDENTIFIER "a"
+      IDENTIFIER "b"
+    IMPORT_MEMBER flags=8
+      QUALIFIED_NAME
+        IDENTIFIER "f"
+      IDENTIFIER "g"
+    IMPORT_MEMBER
+      QUALIFIED_NAME
+        IDENTIFIER "T"
+```
+
 A bare name in an expression is an `IDENTIFIER` node. `or`, `and`, comparison, bit, shift, additive,
 multiplicative operators and `**` are all `BINARY_EXPRESSION` with the token kind as operator.
 
@@ -160,6 +179,11 @@ operators on its left: `-a ** 2` is `-(a ** 2)`, and the right side may be unary
   treated the same way. Every loop of the parser moves at least one token on each pass.
 - A missing `;`, `then`, `do` or closing bracket is reported and nothing is skipped, so the next
   construct is parsed normally.
+- An import member list that is empty, ends with a comma, has an `as` without a name, has no `}`, or
+  follows an `as` alias is reported once and nothing more is skipped by the list itself. A missing
+  `;` is then reported at the same token, so it adds no second diagnostic, and the parser goes on
+  with the next import or item. A token that cannot start a member ends the list and the top level
+  recovery skips to the next `;`.
 - A block stops at `end`, at the end of the file, or at the start of a top level declaration, so an
   unfinished body never hides the next function. `elseif`, `else`, `case` and `default` end the
   block only inside an `if` or a `switch`; elsewhere they are reported and skipped.
@@ -172,7 +196,7 @@ All are errors, from 2001 up. A diagnostic is not repeated at the same byte offs
 
 | Code | Name | Example |
 |---|---|---|
-| 2001 | `EXPECTED_TOKEN` | `namespace main` (no `;`) |
+| 2001 | `EXPECTED_TOKEN` | `namespace main` (no `;`), `import a { };` (empty member list), `import a { f, };`, `import a { f as };`, `import a as b { f };` |
 | 2002 | `EXPECTED_EXPRESSION` | `constant x: integer32 = 1 +;` |
 | 2003 | `EXPECTED_TYPE` | `constant x: = 1;` |
 | 2004 | `EXPECTED_DECLARATION` | `namespace main; 42;`, an import after a declaration |
@@ -189,3 +213,5 @@ All are errors, from 2001 up. A diagnostic is not repeated at the same byte offs
   recursively, so a left-deep tree of hundreds of thousands of operators needs a large stack.
 - The semantic rules that the grammar gives to "the checker" are not parsed: the namespace against
   the path, attribute keys and values, ownership, switch coverage.
+- An `IMPORT_MEMBER` path may have any number of parts. Only one part (a function, a type or a
+  constant) or two parts (an enum variant) are valid, and the checker enforces that, not the parser.
