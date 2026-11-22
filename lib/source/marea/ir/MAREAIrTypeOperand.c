@@ -44,6 +44,43 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IdentifierIs(const MAREA_SemaTypedNode *
     return (memcmp(MAREA_AstNodeGetText(ast), text, length) == 0) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
+// INFO: an import binds its alias when it has one, otherwise the last segment of its path. A member list binds one name
+// INFO: per member: its alias, or the last segment of its member path.
+static MAREA_Boolean MAREA_CALL MAREA_G_ImportBindsName(const MAREA_SemaTypedNode *item, const MAREA_Character8 *text, MAREA_IntegerSize length)
+{
+    const MAREA_SemaTypedNode *path = MAREA_IrTypedFindChild(item, MAREA_AST_KIND_QUALIFIED_NAME);
+
+    if ((MAREA_AstNodeGetFlags(MAREA_SemaTypedNodeGetAstNode(item)) & (MAREA_Uinteger32)MAREA_AST_FLAG_HAS_MEMBERS) == 0) {
+        const MAREA_SemaTypedNode *alias = MAREA_IrTypedFindChild(item, MAREA_AST_KIND_IDENTIFIER);
+
+        const MAREA_SemaTypedNode *bound = (alias != MAREA_NULLPTR) ? alias : MAREA_IrTypedChildAt(path, (MAREA_SemaTypedNodeGetChildCount(path) - MAREA_INTEGER_SIZE(1)));
+
+        return MAREA_G_IdentifierIs(bound, text, length);
+    }
+
+    const MAREA_IntegerSize COUNT = MAREA_SemaTypedNodeGetChildCount(item);
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < COUNT; index = (index + MAREA_INTEGER_SIZE(1))) {
+        const MAREA_SemaTypedNode *member = MAREA_IrTypedChildAt(item, index);
+
+        if (MAREA_IrTypedKind(member) != MAREA_AST_KIND_IMPORT_MEMBER) {
+            continue;
+        }
+
+        const MAREA_SemaTypedNode *alias = MAREA_IrTypedFindChild(member, MAREA_AST_KIND_IDENTIFIER);
+
+        const MAREA_SemaTypedNode *memberPath = MAREA_IrTypedFindChild(member, MAREA_AST_KIND_QUALIFIED_NAME);
+
+        const MAREA_SemaTypedNode *bound = (alias != MAREA_NULLPTR) ? alias : MAREA_IrTypedChildAt(memberPath, (MAREA_SemaTypedNodeGetChildCount(memberPath) - MAREA_INTEGER_SIZE(1)));
+
+        if (MAREA_G_IdentifierIs(bound, text, length) == MAREA_BOOLEAN_TRUE) {
+            return MAREA_BOOLEAN_TRUE;
+        }
+    }
+
+    return MAREA_BOOLEAN_FALSE;
+}
+
 // INFO: a function of the unit, or an import, with the name of a built-in is a call to a user function.
 static MAREA_Boolean MAREA_CALL MAREA_G_UnitBindsName(const MAREA_IrContext *context, const MAREA_Character8 *text, MAREA_IntegerSize length)
 {
@@ -59,14 +96,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_UnitBindsName(const MAREA_IrContext *con
                 return MAREA_BOOLEAN_TRUE;
             }
         } else if (KIND == MAREA_AST_KIND_IMPORT_DECLARATION) {
-            // INFO: an import binds its alias when it has one, otherwise the last segment of its path.
-            const MAREA_SemaTypedNode *alias = MAREA_IrTypedFindChild(item, MAREA_AST_KIND_IDENTIFIER);
-
-            const MAREA_SemaTypedNode *path = MAREA_IrTypedFindChild(item, MAREA_AST_KIND_QUALIFIED_NAME);
-
-            const MAREA_SemaTypedNode *bound = (alias != MAREA_NULLPTR) ? alias : MAREA_IrTypedChildAt(path, (MAREA_SemaTypedNodeGetChildCount(path) - MAREA_INTEGER_SIZE(1)));
-
-            if (MAREA_G_IdentifierIs(bound, text, length) == MAREA_BOOLEAN_TRUE) {
+            if (MAREA_G_ImportBindsName(item, text, length) == MAREA_BOOLEAN_TRUE) {
                 return MAREA_BOOLEAN_TRUE;
             }
         }
@@ -162,6 +192,13 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerTypeName(MAREA_IrContext *context,
         return MAREA_IR_EXCEPT_SUCCESS;
     }
 
+    // INFO: the type operand names the original type, never an alias of it.
+    result = MAREA_IrAliasType(context, text, length, &text, &length);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
     node->text = text;
     node->textLength = (MAREA_Uinteger32)length;
 
@@ -219,7 +256,11 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_FinishCall(MAREA_IrContext *context, co
         return result;
     }
 
-    MAREA_IrNodeSetTypeNameFromTyped(call, typed);
+    result = MAREA_IrNodeSetTypeNameFromTyped(context, call, typed);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
 
     *outNode = call;
 
@@ -258,11 +299,12 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerStaticCall(MAREA_IrContext *contex
         return result;
     }
 
+    // INFO: the member after the dot names a function of the type, so it is never an alias.
     MAREA_IrNode *member = MAREA_NULLPTR;
 
-    result = MAREA_IrLowerExpression(context, MAREA_IrTypedChildAt(callee, MAREA_INTEGER_SIZE(1)), &member);
+    result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_IDENTIFIER, MAREA_SemaTypedNodeGetAstNode(MAREA_IrTypedChildAt(callee, MAREA_INTEGER_SIZE(1))), &member);
 
-    if ((result != MAREA_IR_EXCEPT_SUCCESS) || (member == MAREA_NULLPTR)) {
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
         return result;
     }
 

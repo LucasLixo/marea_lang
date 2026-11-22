@@ -306,8 +306,6 @@ real, instantiated result type is deferred to when the `ir` stage needs one for 
 - Renaming on use inside one file (without an import) is not offered: a local declaration has its own name.
 - An alias compares equal to its original by text. Two aliases of same-named members of two different namespaces
   (`import a { T as X }; import b { T as Y };`) therefore compare equal in a contract signature.
-- The IR reads an import by position (the alias is the first `IDENTIFIER` child) and does not know the member
-  list yet; the apply that follows this one teaches it.
 - `TYPE_MISMATCH` (3011) knows the type of an expression only in the shapes listed under "Expressions". It never
   compares an enum, a library type, a generic parameter or a `owned`, `task` or `vector` value, and the result of
   a generic call is unknown (see below).
