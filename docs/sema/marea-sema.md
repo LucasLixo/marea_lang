@@ -111,9 +111,10 @@ variant, as in the coverage check. Two broken (`ERROR_NODE`) values are never co
 every scrutinee type, and it does not replace `NON_EXHAUSTIVE_SWITCH`: a `switch` over an enum with a repeat
 and a missing variant raises both. The rule follows the grammar (`switch_statement` has one optional
 `default_arm`) and the arms of a `switch` do not fall through, so a repeated value is an arm that never runs
-and a second `default` is an arm that the IR would drop. The place of the `default` is not checked: the
-grammar puts it last, but the parser accepts it anywhere and the IR lowers it as the last test, so a
-`default` before a `case` raises nothing here.
+and a second `default` is an arm that the IR would drop. The place of the `default` is not checked by
+sema itself: the grammar puts `default_arm` last, and the parser now enforces that placement
+(`DEFAULT_ARM_NOT_LAST`, 2010), so a `default` that is not the last arm never reaches sema through a
+program the parser accepts.
 
 **Entry point.** In the namespace `main`, `function main` has exactly the parameter `arguments:
 array<string>` with no word, and the result `integer32`. Sema never requires a `main`.
@@ -201,10 +202,6 @@ real, instantiated result type is deferred to when the `ir` stage needs one for 
 - The type of a call result is closed for non-generic calls via the typed-AST hand-off; generic-
   result substitution still open. The type of a library type is not tracked, so a missing `copy` or
   `move` there is not reported.
-- A `default` arm that is not the last arm of a `switch` is accepted. The grammar (`switch_statement`) puts the
-  `default_arm` last, but the parser accepts it anywhere, and sema leaves the form as it is: the place of an
-  arm is a syntax rule, so it belongs to the parser, and the IR lowers a `default` that comes first as the last
-  test.
 - `DUPLICATE_SWITCH_ARM` compares the text of a value, not its number: `1` and `0x1`, or `1.0` and `1.00`, are
   taken for different values. A constant that is named in one arm and written as its literal in another is not
   matched either, and a name of an enum is matched by the variant name only, so `Color.red` and `Other.red`
