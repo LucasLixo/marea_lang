@@ -91,3 +91,6 @@ tmp/
 .DS_Store?
 
 .luarc.json
+
+# Graphify
+graphify-out/
