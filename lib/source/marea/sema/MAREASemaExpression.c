@@ -14,6 +14,10 @@ typedef enum MAREA_G_ShapeKind
     MAREA_G_SHAPE_KIND_FLOAT_LITERAL = MAREA_UINTEGER_8(2),
     MAREA_G_SHAPE_KIND_PRIMITIVE = MAREA_UINTEGER_8(3),
     MAREA_G_SHAPE_KIND_STRUCTURE = MAREA_UINTEGER_8(4),
+    MAREA_G_SHAPE_KIND_ENUM = MAREA_UINTEGER_8(5),
+    MAREA_G_SHAPE_KIND_LIBRARY = MAREA_UINTEGER_8(6),
+    MAREA_G_SHAPE_KIND_GENERIC = MAREA_UINTEGER_8(7),
+    MAREA_G_SHAPE_KIND_BUILTIN = MAREA_UINTEGER_8(8),
 } MAREA_G_ShapeKind;
 
 // INFO: what sema knows of the type of an expression. A literal number fits any type of its family, a primitive carries its name.
@@ -175,7 +179,22 @@ static MAREA_Boolean MAREA_CALL MAREA_G_SameName(const MAREA_G_Shape *left, cons
     return MAREA_SemaTextEquals(left->name, left->length, right->name, right->length);
 }
 
-// INFO: the target is always a primitive. A shape that sema does not know fits, so a type is never guessed.
+// INFO: the target is always a primitive. An enum, a library type, a generic parameter and an owned, task or vector value are known but never compared: their conversion rule is not decided, so each fits and a type is never guessed. A shape that sema does not know fits too.
+// INFO: an unknown shape and the four known but undecided shapes (enum, library type, generic parameter, owned, task and vector value) have no conversion rule in sema.
+static MAREA_Boolean MAREA_CALL MAREA_G_IsUndecided(const MAREA_G_Shape *shape)
+{
+    switch (shape->kind) {
+    case MAREA_G_SHAPE_KIND_UNKNOWN:
+    case MAREA_G_SHAPE_KIND_ENUM:
+    case MAREA_G_SHAPE_KIND_LIBRARY:
+    case MAREA_G_SHAPE_KIND_GENERIC:
+    case MAREA_G_SHAPE_KIND_BUILTIN:
+        return MAREA_BOOLEAN_TRUE;
+    default:
+        return MAREA_BOOLEAN_FALSE;
+    }
+}
+
 static MAREA_Boolean MAREA_CALL MAREA_G_Fits(const MAREA_G_Shape *target, const MAREA_G_Shape *actual)
 {
     switch (actual->kind) {
@@ -187,12 +206,39 @@ static MAREA_Boolean MAREA_CALL MAREA_G_Fits(const MAREA_G_Shape *target, const 
         return MAREA_G_SameName(target, actual);
     case MAREA_G_SHAPE_KIND_STRUCTURE:
         return MAREA_BOOLEAN_FALSE;
+    case MAREA_G_SHAPE_KIND_ENUM:
+    case MAREA_G_SHAPE_KIND_LIBRARY:
+    case MAREA_G_SHAPE_KIND_GENERIC:
+    case MAREA_G_SHAPE_KIND_BUILTIN:
     default:
         return MAREA_BOOLEAN_TRUE;
     }
 }
 
-static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOfType(const MAREA_SemaContext *context, const MAREA_AstNode *type, MAREA_Boolean allowStructure)
+// INFO: pointer, slice and a function type are not classified yet and stay unknown. An enum is a plain integer and its conversion rule is not decided.
+static MAREA_G_ShapeKind MAREA_CALL MAREA_G_ShapeKindOfClass(MAREA_SemaTypeClass typeClass, const MAREA_AstNode *declaration, const MAREA_Character8 *name, MAREA_IntegerSize length)
+{
+    switch (typeClass) {
+    case MAREA_SEMA_TYPE_CLASS_USER:
+        if (MAREA_G_IsKind(declaration, MAREA_AST_KIND_STRUCTURE_DECLARATION) == MAREA_BOOLEAN_TRUE) {
+            return MAREA_G_SHAPE_KIND_STRUCTURE;
+        }
+
+        return (MAREA_G_IsKind(declaration, MAREA_AST_KIND_ENUM_DECLARATION) == MAREA_BOOLEAN_TRUE) ? MAREA_G_SHAPE_KIND_ENUM : MAREA_G_SHAPE_KIND_UNKNOWN;
+    case MAREA_SEMA_TYPE_CLASS_EXTERNAL:
+        return MAREA_G_SHAPE_KIND_LIBRARY;
+    case MAREA_SEMA_TYPE_CLASS_GENERIC:
+        return MAREA_G_SHAPE_KIND_GENERIC;
+    case MAREA_SEMA_TYPE_CLASS_MOVE_BUILTIN:
+        return MAREA_G_SHAPE_KIND_BUILTIN;
+    case MAREA_SEMA_TYPE_CLASS_COPY_BUILTIN:
+        return (MAREA_G_TextIs(name, length, "vector") == MAREA_BOOLEAN_TRUE) ? MAREA_G_SHAPE_KIND_BUILTIN : MAREA_G_SHAPE_KIND_UNKNOWN;
+    default:
+        return MAREA_G_SHAPE_KIND_UNKNOWN;
+    }
+}
+
+static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOfType(const MAREA_SemaContext *context, const MAREA_AstNode *type, MAREA_Boolean allowNonPrimitive)
 {
     if (MAREA_G_IsType(type) == MAREA_BOOLEAN_FALSE) {
         return MAREA_G_ShapeUnknown();
@@ -210,16 +256,22 @@ static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOfType(const MAREA_SemaContext *con
         return MAREA_G_ShapeMake(MAREA_G_SHAPE_KIND_PRIMITIVE, name, length);
     }
 
-    // INFO: an enum is a plain integer and its conversion rule is not decided, so only a structure is a known non-primitive.
-    if ((allowStructure == MAREA_BOOLEAN_TRUE) && (typeClass == MAREA_SEMA_TYPE_CLASS_USER) && (MAREA_G_IsKind(declaration, MAREA_AST_KIND_STRUCTURE_DECLARATION) == MAREA_BOOLEAN_TRUE)) {
-        MAREA_G_Shape shape = MAREA_G_ShapeMake(MAREA_G_SHAPE_KIND_STRUCTURE, name, length);
-
-        shape.declaration = declaration;
-
-        return shape;
+    // INFO: a non-primitive is classified only where the type is written in the scope of the expression, so a field or a constant type stays unknown.
+    if (allowNonPrimitive == MAREA_BOOLEAN_FALSE) {
+        return MAREA_G_ShapeUnknown();
     }
 
-    return MAREA_G_ShapeUnknown();
+    const MAREA_G_ShapeKind kind = MAREA_G_ShapeKindOfClass(typeClass, declaration, name, length);
+
+    if (kind == MAREA_G_SHAPE_KIND_UNKNOWN) {
+        return MAREA_G_ShapeUnknown();
+    }
+
+    MAREA_G_Shape shape = MAREA_G_ShapeMake(kind, name, length);
+
+    shape.declaration = declaration;
+
+    return shape;
 }
 
 static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOf(const MAREA_SemaContext *context, const MAREA_AstNode *expression, MAREA_Uinteger32 depth);
@@ -314,10 +366,10 @@ static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOfCall(const MAREA_SemaContext *con
     return MAREA_G_ShapeOfType(context, MAREA_SemaReturnType(function), MAREA_BOOLEAN_TRUE);
 }
 
-// INFO: a structure or an unknown shape is accepted, because an operator may be declared for a structure and sema does not know the other types.
+// INFO: only a literal or a primitive is compared. Any other shape is accepted, because an operator may be declared for a structure or a library type and sema does not decide the other types.
 static MAREA_Boolean MAREA_CALL MAREA_G_IsComparable(const MAREA_G_Shape *shape)
 {
-    return ((shape->kind != MAREA_G_SHAPE_KIND_UNKNOWN) && (shape->kind != MAREA_G_SHAPE_KIND_STRUCTURE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+    return ((shape->kind == MAREA_G_SHAPE_KIND_INTEGER_LITERAL) || (shape->kind == MAREA_G_SHAPE_KIND_FLOAT_LITERAL) || (shape->kind == MAREA_G_SHAPE_KIND_PRIMITIVE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
 static MAREA_Boolean MAREA_CALL MAREA_G_IsInteger(const MAREA_G_Shape *shape)
@@ -539,10 +591,10 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckCompound(MAREA_SemaContext *cont
     return MAREA_G_CheckPair(context, MAREA_AstNodeGetPosition(assignment), MAREA_AstNodeGetOperator(assignment), &target, &value, "sides of a compound assignment differ in type, one is");
 }
 
-// INFO: a conversion is always written. A number goes to a number of any width and sign, a structure to a structure whose layout sema cannot tell apart, and any type to itself. A shape that sema does not know fits.
+// INFO: a conversion is always written. A number goes to a number of any width and sign, a structure to a structure whose layout sema cannot tell apart, and any type to itself. A shape that sema does not decide fits.
 static MAREA_Boolean MAREA_CALL MAREA_G_CanConvert(const MAREA_SemaContext *context, const MAREA_G_Shape *target, const MAREA_G_Shape *operand)
 {
-    if ((target->kind == MAREA_G_SHAPE_KIND_UNKNOWN) || (operand->kind == MAREA_G_SHAPE_KIND_UNKNOWN)) {
+    if ((MAREA_G_IsUndecided(target) == MAREA_BOOLEAN_TRUE) || (MAREA_G_IsUndecided(operand) == MAREA_BOOLEAN_TRUE)) {
         return MAREA_BOOLEAN_TRUE;
     }
 
