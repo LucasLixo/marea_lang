@@ -47,22 +47,48 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsField(const MAREA_AstNode *node)
     return ((node != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(node) == MAREA_AST_KIND_FIELD_DECLARATION)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
-// INFO: reads the primitive of a field, or says that its width is unknown. The result is the name of the primitive that an alias stands for.
-static MAREA_Boolean MAREA_CALL MAREA_G_FieldPrimitive(const MAREA_SemaContext *context, const MAREA_AstNode *field, const MAREA_Character8 **outName, MAREA_IntegerSize *outLength, MAREA_Uinteger64 *outSize)
+// INFO: how deep a structure may hold another one by value. A deeper chain, or a structure that holds itself, is not decided.
+#define MAREA_G_DEPTH_LIMIT MAREA_UINTEGER_64(8)
+
+typedef struct MAREA_G_FieldShape
 {
-    if (MAREA_SemaAttributeFind(MAREA_NULLPTR, field, "align") != MAREA_NULLPTR) {
+    const MAREA_Character8 *name;
+    MAREA_IntegerSize length;
+    const MAREA_AstNode *declaration;
+    MAREA_Uinteger64 size;
+    MAREA_Uinteger64 explicitAlignment;
+    MAREA_Boolean nested;
+} MAREA_G_FieldShape;
+
+// INFO: reads the shape of a field: a primitive that has a width, or a structure of the file. Anything else has no width in sema, so the read says so. A field align is read here too.
+static MAREA_Boolean MAREA_CALL MAREA_G_FieldShapeOf(const MAREA_SemaContext *context, const MAREA_AstNode *field, MAREA_G_FieldShape *outShape)
+{
+    outShape->explicitAlignment = 0;
+    outShape->nested = MAREA_BOOLEAN_FALSE;
+    outShape->declaration = MAREA_NULLPTR;
+    outShape->size = 0;
+
+    const MAREA_AstNode *item = MAREA_SemaAttributeFind(MAREA_NULLPTR, field, "align");
+
+    if ((item != MAREA_NULLPTR) && ((MAREA_SemaAttributeReadInteger(item, &outShape->explicitAlignment) == MAREA_BOOLEAN_FALSE) || (outShape->explicitAlignment == 0) || (outShape->explicitAlignment > MAREA_G_ALIGNMENT_LIMIT))) {
         return MAREA_BOOLEAN_FALSE;
     }
 
-    const MAREA_AstNode *declaration = MAREA_NULLPTR;
+    const MAREA_SemaTypeClass CLASS = MAREA_SemaClassifyType(context, MAREA_SemaChildAt(field, (MAREA_AstNodeGetChildCount(field) - 1)), &outShape->declaration, &outShape->name, &outShape->length);
 
-    if (MAREA_SemaClassifyType(context, MAREA_SemaChildAt(field, (MAREA_AstNodeGetChildCount(field) - 1)), &declaration, outName, outLength) != MAREA_SEMA_TYPE_CLASS_PRIMITIVE) {
+    if ((CLASS == MAREA_SEMA_TYPE_CLASS_USER) && (outShape->declaration != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(outShape->declaration) == MAREA_AST_KIND_STRUCTURE_DECLARATION)) {
+        outShape->nested = MAREA_BOOLEAN_TRUE;
+
+        return MAREA_BOOLEAN_TRUE;
+    }
+
+    if (CLASS != MAREA_SEMA_TYPE_CLASS_PRIMITIVE) {
         return MAREA_BOOLEAN_FALSE;
     }
 
     for (MAREA_IntegerSize index = 0; index < MAREA_ARRAY_SIZE(MAREA_G_WIDTHS); ++index) {
-        if (MAREA_SemaTextEquals(*outName, *outLength, MAREA_G_WIDTHS[index].name, strlen(MAREA_G_WIDTHS[index].name)) == MAREA_BOOLEAN_TRUE) {
-            *outSize = MAREA_G_WIDTHS[index].size;
+        if (MAREA_SemaTextEquals(outShape->name, outShape->length, MAREA_G_WIDTHS[index].name, strlen(MAREA_G_WIDTHS[index].name)) == MAREA_BOOLEAN_TRUE) {
+            outShape->size = MAREA_G_WIDTHS[index].size;
 
             return MAREA_BOOLEAN_TRUE;
         }
@@ -96,9 +122,13 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsCLayout(const MAREA_SemaContext *conte
     return ((member != MAREA_NULLPTR) && (MAREA_SemaTextEquals(MAREA_AstNodeGetText(member), MAREA_AstNodeGetTextLength(member), "c", 1) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
-// INFO: the layout of the rules of C: each field at the next multiple of its alignment, a pack caps that alignment, an align raises the one of the structure. Returns false when sema cannot size the structure.
-static MAREA_Boolean MAREA_CALL MAREA_G_MeasureStructure(const MAREA_SemaContext *context, const MAREA_AstNode *structure, MAREA_G_Measure *outMeasure)
+// INFO: the layout of the rules of C: each field at the next multiple of its alignment, a pack caps that alignment, an align raises the one of the structure or of a field. A structure inside a c structure must be c too, because only then has it a size. Returns false when sema cannot size the structure.
+static MAREA_Boolean MAREA_CALL MAREA_G_MeasureStructure(const MAREA_SemaContext *context, const MAREA_AstNode *structure, MAREA_Uinteger64 depth, MAREA_G_Measure *outMeasure)
 {
+    if (depth > MAREA_G_DEPTH_LIMIT) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
     MAREA_Uinteger64 pack = 0;
 
     MAREA_Uinteger64 align = 0;
@@ -124,20 +154,33 @@ static MAREA_Boolean MAREA_CALL MAREA_G_MeasureStructure(const MAREA_SemaContext
             continue;
         }
 
-        const MAREA_Character8 *name = MAREA_NULLPTR;
+        MAREA_G_FieldShape shape = { 0 };
 
-        MAREA_IntegerSize length = 0;
-
-        MAREA_Uinteger64 size = 0;
-
-        if (MAREA_G_FieldPrimitive(context, child, &name, &length, &size) == MAREA_BOOLEAN_FALSE) {
+        if (MAREA_G_FieldShapeOf(context, child, &shape) == MAREA_BOOLEAN_FALSE) {
             return MAREA_BOOLEAN_FALSE;
         }
 
-        const MAREA_Uinteger64 FIELD_ALIGNMENT = ((pack > 0) && (size > pack)) ? pack : size;
+        MAREA_Uinteger64 size = shape.size;
 
-        offset = (MAREA_G_RoundUp(offset, FIELD_ALIGNMENT) + size);
-        outMeasure->alignment = (FIELD_ALIGNMENT > outMeasure->alignment) ? FIELD_ALIGNMENT : outMeasure->alignment;
+        MAREA_Uinteger64 natural = shape.size;
+
+        if (shape.nested == MAREA_BOOLEAN_TRUE) {
+            MAREA_G_Measure inner = { 0 };
+
+            if ((MAREA_G_MeasureStructure(context, shape.declaration, (depth + 1), &inner) == MAREA_BOOLEAN_FALSE) || ((outMeasure->cLayout == MAREA_BOOLEAN_TRUE) && (inner.cLayout == MAREA_BOOLEAN_FALSE))) {
+                return MAREA_BOOLEAN_FALSE;
+            }
+
+            size = inner.size;
+            natural = inner.alignment;
+        }
+
+        MAREA_Uinteger64 fieldAlignment = ((pack > 0) && (natural > pack)) ? pack : natural;
+
+        fieldAlignment = (shape.explicitAlignment > fieldAlignment) ? shape.explicitAlignment : fieldAlignment;
+
+        offset = (MAREA_G_RoundUp(offset, fieldAlignment) + size);
+        outMeasure->alignment = (fieldAlignment > outMeasure->alignment) ? fieldAlignment : outMeasure->alignment;
         outMeasure->fieldCount += 1;
     }
 
@@ -168,34 +211,45 @@ static const MAREA_AstNode *MAREA_CALL MAREA_G_FieldAt(const MAREA_AstNode *stru
     return MAREA_NULLPTR;
 }
 
-static MAREA_Boolean MAREA_CALL MAREA_G_SameFields(const MAREA_SemaContext *context, const MAREA_AstNode *from, const MAREA_AstNode *to, MAREA_IntegerSize count)
+static MAREA_SemaLayoutVerdict MAREA_CALL MAREA_G_CompareDepth(const MAREA_SemaContext *context, const MAREA_AstNode *from, const MAREA_AstNode *to, MAREA_Uinteger64 depth);
+
+// INFO: the fields in the same place must have the same primitive by exact name, or the same structure layout, and the same field align. A nested pair that is not decided is not decided here either.
+static MAREA_SemaLayoutVerdict MAREA_CALL MAREA_G_SameFields(const MAREA_SemaContext *context, const MAREA_AstNode *from, const MAREA_AstNode *to, MAREA_IntegerSize count, MAREA_Uinteger64 depth)
 {
+    MAREA_SemaLayoutVerdict result = MAREA_SEMA_LAYOUT_VERDICT_COMPATIBLE;
+
     for (MAREA_IntegerSize position = 0; position < count; ++position) {
-        const MAREA_Character8 *fromName = MAREA_NULLPTR;
+        MAREA_G_FieldShape fromShape = { 0 };
 
-        const MAREA_Character8 *toName = MAREA_NULLPTR;
-
-        MAREA_IntegerSize fromLength = 0;
-
-        MAREA_IntegerSize toLength = 0;
-
-        MAREA_Uinteger64 size = 0;
+        MAREA_G_FieldShape toShape = { 0 };
 
         // INFO: both fields were measured already, so the reads cannot fail here.
-        if ((MAREA_G_FieldPrimitive(context, MAREA_G_FieldAt(from, position), &fromName, &fromLength, &size) == MAREA_BOOLEAN_FALSE) || (MAREA_G_FieldPrimitive(context, MAREA_G_FieldAt(to, position), &toName, &toLength, &size) == MAREA_BOOLEAN_FALSE) || (MAREA_SemaTextEquals(fromName, fromLength, toName, toLength) == MAREA_BOOLEAN_FALSE)) {
-            return MAREA_BOOLEAN_FALSE;
+        if ((MAREA_G_FieldShapeOf(context, MAREA_G_FieldAt(from, position), &fromShape) == MAREA_BOOLEAN_FALSE) || (MAREA_G_FieldShapeOf(context, MAREA_G_FieldAt(to, position), &toShape) == MAREA_BOOLEAN_FALSE) || (fromShape.nested != toShape.nested) || (fromShape.explicitAlignment != toShape.explicitAlignment)) {
+            return MAREA_SEMA_LAYOUT_VERDICT_INCOMPATIBLE;
         }
+
+        if (fromShape.nested == MAREA_BOOLEAN_FALSE) {
+            if (MAREA_SemaTextEquals(fromShape.name, fromShape.length, toShape.name, toShape.length) == MAREA_BOOLEAN_FALSE) {
+                return MAREA_SEMA_LAYOUT_VERDICT_INCOMPATIBLE;
+            }
+
+            continue;
+        }
+
+        const MAREA_SemaLayoutVerdict INNER = MAREA_G_CompareDepth(context, fromShape.declaration, toShape.declaration, (depth + 1));
+
+        if (INNER == MAREA_SEMA_LAYOUT_VERDICT_INCOMPATIBLE) {
+            return MAREA_SEMA_LAYOUT_VERDICT_INCOMPATIBLE;
+        }
+
+        result = (INNER == MAREA_SEMA_LAYOUT_VERDICT_UNDECIDED) ? MAREA_SEMA_LAYOUT_VERDICT_UNDECIDED : result;
     }
 
-    return MAREA_BOOLEAN_TRUE;
+    return result;
 }
 
-MAREA_SemaLayoutVerdict MAREA_CALL MAREA_SemaCompareStructureLayout(const MAREA_SemaContext *context, const MAREA_AstNode *from, const MAREA_AstNode *to)
+static MAREA_SemaLayoutVerdict MAREA_CALL MAREA_G_CompareDepth(const MAREA_SemaContext *context, const MAREA_AstNode *from, const MAREA_AstNode *to, MAREA_Uinteger64 depth)
 {
-    if ((context == MAREA_NULLPTR) || (from == MAREA_NULLPTR) || (to == MAREA_NULLPTR)) {
-        return MAREA_SEMA_LAYOUT_VERDICT_UNDECIDED;
-    }
-
     if (from == to) {
         return MAREA_SEMA_LAYOUT_VERDICT_COMPATIBLE;
     }
@@ -204,17 +258,37 @@ MAREA_SemaLayoutVerdict MAREA_CALL MAREA_SemaCompareStructureLayout(const MAREA_
 
     MAREA_G_Measure toMeasure = { 0 };
 
-    if ((MAREA_G_MeasureStructure(context, from, &fromMeasure) == MAREA_BOOLEAN_FALSE) || (MAREA_G_MeasureStructure(context, to, &toMeasure) == MAREA_BOOLEAN_FALSE)) {
+    if ((MAREA_G_MeasureStructure(context, from, depth, &fromMeasure) == MAREA_BOOLEAN_FALSE) || (MAREA_G_MeasureStructure(context, to, depth, &toMeasure) == MAREA_BOOLEAN_FALSE)) {
         return MAREA_SEMA_LAYOUT_VERDICT_UNDECIDED;
     }
 
-    if ((fromMeasure.fieldCount != toMeasure.fieldCount) || (fromMeasure.alignment != toMeasure.alignment) || (MAREA_G_SameFields(context, from, to, fromMeasure.fieldCount) == MAREA_BOOLEAN_FALSE)) {
+    if ((fromMeasure.fieldCount != toMeasure.fieldCount) || (fromMeasure.alignment != toMeasure.alignment)) {
         return MAREA_SEMA_LAYOUT_VERDICT_INCOMPATIBLE;
     }
 
-    if ((fromMeasure.cLayout == MAREA_BOOLEAN_FALSE) || (toMeasure.cLayout == MAREA_BOOLEAN_FALSE)) {
+    const MAREA_SemaLayoutVerdict FIELDS = MAREA_G_SameFields(context, from, to, fromMeasure.fieldCount, depth);
+
+    if (FIELDS != MAREA_SEMA_LAYOUT_VERDICT_COMPATIBLE) {
+        return FIELDS;
+    }
+
+    if (fromMeasure.cLayout != toMeasure.cLayout) {
         return MAREA_SEMA_LAYOUT_VERDICT_UNDECIDED;
     }
 
+    // INFO: two auto layouts that have the same fields, the same pack and the same align come from the same input, so the backend gives them the same layout. Sema has no size to compare for them.
+    if (fromMeasure.cLayout == MAREA_BOOLEAN_FALSE) {
+        return MAREA_SEMA_LAYOUT_VERDICT_COMPATIBLE;
+    }
+
     return (fromMeasure.size == toMeasure.size) ? MAREA_SEMA_LAYOUT_VERDICT_COMPATIBLE : MAREA_SEMA_LAYOUT_VERDICT_INCOMPATIBLE;
+}
+
+MAREA_SemaLayoutVerdict MAREA_CALL MAREA_SemaCompareStructureLayout(const MAREA_SemaContext *context, const MAREA_AstNode *from, const MAREA_AstNode *to)
+{
+    if ((context == MAREA_NULLPTR) || (from == MAREA_NULLPTR) || (to == MAREA_NULLPTR)) {
+        return MAREA_SEMA_LAYOUT_VERDICT_UNDECIDED;
+    }
+
+    return MAREA_G_CompareDepth(context, from, to, 0);
 }
