@@ -164,7 +164,26 @@ TEST(MAREASemaExpressions, BinaryOperandOfAnUnknownTypeIsAccepted)
 
     EXPECT_TRUE(MAREA_codesOf("function g(a: float64) for i in 0 .. 3 do i + a; end end").empty()) << "A binder with no known type must not be guessed.";
 
-    EXPECT_TRUE(MAREA_codesOf("function g(v: unsigned32, n: integer32) v << n; v >> n; end").empty()) << "The shift operators must keep the type of their right side free.";
+    EXPECT_TRUE(MAREA_codesOf("function g(v: unsigned32, n: integer32, q: pointer<integer32>) v << n; v >> n; q << n; n << q; end").empty()) << "A shift with an unknown operand must not be guessed.";
+}
+
+TEST(MAREASemaExpressions, ShiftCountIsAnyIntegerAndTheResultIsTheLeftType)
+{
+    GTEST_COUT << "Validating a shift takes any integer count and gives the type of its left operand." << std::endl;
+
+    const std::string HEAD{ "function g(v: unsigned32, a: integer8, b: unsigned64, f: float64, p: boolean, s: string) " };
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "v << a; v >> b; v << 3; v >> 0x4; 1 << a; local r: unsigned32 = v << b; local t: integer8 = a >> v; end").empty()) << "A count of any integer width, or a literal, must raise nothing.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "local r: unsigned64 = v << b; end"), Codes{ MISMATCH }) << "The result must have the type of the left operand, not of the count.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "v << f; v >> 1.5; v << p; v >> s; end"), (Codes{ MISMATCH, MISMATCH, MISMATCH, MISMATCH })) << "A count that is not an integer must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "f << v; p >> a; s << 1; 1.5 << a; end"), (Codes{ MISMATCH, MISMATCH, MISMATCH, MISMATCH })) << "A left operand that is not an integer must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "local r: float64 = f << v; end"), Codes{ MISMATCH }) << "A broken shift must raise once and give no type for the local.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "local r: unsigned32 = v << f; end"), Codes{ MISMATCH }) << "A shift with a float count must raise once whatever the local.";
 }
 
 TEST(MAREASemaExpressions, PowerOperandsMustHaveTheSameType)
