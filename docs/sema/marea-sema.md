@@ -314,10 +314,12 @@ real, instantiated result type is deferred to when the `ir` stage needs one for 
   a generic call is unknown (see below).
 - A binary operator is not checked against what its operands may be (`a and b` with two integers raises nothing,
   as the two have the same name), and an operator that is declared for a structure is not compared.
-- `UNDECLARED_NAME` (3004) is not raised for the bare name that starts a member chain, for the header of a `for`,
-  `for each`, `partition` or `with` statement, or for a name in the initializer of a file constant. The bare
-  chain head is skipped because the `basics/functions` example calls `stdio.puts(text)` with no `import`, so the
-  name may be a namespace; a later step can check it once that example imports what it uses.
+- `UNDECLARED_NAME` (3004) is not raised for the bare name that starts a member chain. The bare chain head is
+  skipped because the `basics/functions` example calls `stdio.puts(text)` with no `import`, so the name may be a
+  namespace; a later step can check it once that example imports what it uses. The `for`, `for each`, `partition`
+  and `with` header expressions and the initializer of a file constant are checked. The loop name is already in
+  scope when its own header is checked, so `for i in 0 .. i` with no outer `i` raises nothing. A constant that has
+  an `ERROR_NODE` below it has no name check, because the parser may leave its tokens as an expression.
 - The contract check only sees arguments whose type is cheap to know. Other arguments are not checked.
 - `destroy`, `operator` and `export` are checked for shape only.
 - The type of a call result is closed for non-generic calls via the typed-AST hand-off; generic-
