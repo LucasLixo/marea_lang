@@ -245,6 +245,28 @@ TEST(MAREAParserStatements, CaseOutsideSwitchIsUnexpected)
     EXPECT_EQ(fixture.MAREA_codes()[0], static_cast<MAREA_Uinteger32>(MAREA_PARSE_DIAGNOSTIC_CODE_UNEXPECTED_TOKEN)) << "The first diagnostic must be UNEXPECTED_TOKEN.";
 }
 
+TEST(MAREAParserStatements, DefaultArmNotLastIsReported)
+{
+    GTEST_COUT << "Validating a switch arm after default gives DEFAULT_ARM_NOT_LAST." << std::endl;
+
+    MAREA_ParseFixture fixture;
+
+    EXPECT_EQ(fixture.MAREA_statements("switch a default then x = 1; case 2 then y = 2; end"), "(switch_statement a (default_arm (block (assignment:EQUAL x 1))) (switch_arm 2 (block (assignment:EQUAL y 2))))") << "Both arms must still be parsed, in source order.";
+
+    EXPECT_EQ(fixture.MAREA_codes(), std::vector<MAREA_Uinteger32>{ MAREA_PARSE_DIAGNOSTIC_CODE_DEFAULT_ARM_NOT_LAST }) << "One DEFAULT_ARM_NOT_LAST is expected.";
+}
+
+TEST(MAREAParserStatements, TwoDefaultArmsAreBothReportedNotLast)
+{
+    GTEST_COUT << "Validating a second default arm also gives DEFAULT_ARM_NOT_LAST." << std::endl;
+
+    MAREA_ParseFixture fixture;
+
+    EXPECT_EQ(fixture.MAREA_statements("switch a default then x = 1; default then y = 2; end"), "(switch_statement a (default_arm (block (assignment:EQUAL x 1))) (default_arm (block (assignment:EQUAL y 2))))") << "Both default arms must still be parsed.";
+
+    EXPECT_EQ(fixture.MAREA_codes(), std::vector<MAREA_Uinteger32>{ MAREA_PARSE_DIAGNOSTIC_CODE_DEFAULT_ARM_NOT_LAST }) << "One DEFAULT_ARM_NOT_LAST is expected.";
+}
+
 TEST(MAREAParserStatements, UnfinishedIfDoesNotHideNextFunction)
 {
     GTEST_COUT << "Validating an unfinished if does not hide the next function." << std::endl;
