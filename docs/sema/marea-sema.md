@@ -151,6 +151,11 @@ type of the left operand. A count or a left operand that is a known type and not
 `boolean`, a `string`, a fraction literal) is `TYPE_MISMATCH` (3011) on the shift, once, and the shift then has
 no type. An operand of an unknown type is accepted.
 
+**Compound assignments (decision of the user).** `+=`, `-=`, `*=`, `/=`, `%=`, `**=`, `&=`,
+`|=` and `^=` need the same type on both sides, as `a = a + b` does, with the same literal rule as a binary
+operator. `<<=` and `>>=` follow the shift rule. A mismatch is `TYPE_MISMATCH` (3011) on the assignment, once.
+A side of an unknown type is accepted.
+
 **Names in expressions.** A bare name in the initializer of a local, either side of an assignment, an
 expression statement, the condition of an `if`, `elseif` or `while`, a `return` value and a `switch` value (and
 below them: operands, arguments, indexes, entries of a literal value) must be declared, or sema raises
@@ -244,7 +249,7 @@ real, instantiated result type is deferred to when the `ir` stage needs one for 
 
 - `TYPE_MISMATCH` (3011) knows the type of an expression only in the shapes listed under "Expressions". It never
   compares an enum, a library type, a generic parameter or a `owned`, `task` or `vector` value, and the result of
-  a generic call is unknown (see below). Compound assignments (`+=` and the others) are not compared.
+  a generic call is unknown (see below).
 - A binary operator is not checked against what its operands may be (`a and b` with two integers raises nothing,
   as the two have the same name), and an operator that is declared for a structure is not compared.
 - `UNDECLARED_NAME` (3004) is not raised for the bare name that starts a member chain, for the header of a `for`,

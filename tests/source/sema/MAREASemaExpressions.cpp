@@ -205,6 +205,31 @@ TEST(MAREASemaExpressions, PowerOperandsMustHaveTheSameType)
     EXPECT_TRUE(MAREA_codesOf(HEAD + "local p: integer32 = a ** 2; local q: float64 = f ** 0.5; local r: float64 = f ** 2; local s: integer32 = 2 ** a; local t: integer32 = a ** a; end").empty()) << "A power of the same primitive, or with a fitting literal, must raise nothing.";
 }
 
+TEST(MAREASemaExpressions, CompoundAssignmentNeedsTheSameTypeOnBothSides)
+{
+    GTEST_COUT << "Validating a compound assignment is compared like a = a + b and a compound shift follows the shift rule." << std::endl;
+
+    const std::string HEAD{ "structure Point x: float32; end function g(a: integer32, c: integer64, f: float64, v: unsigned32, p: Point, s: string) " };
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "a += f; a -= c; f *= a; a /= f; a %= c; a **= f; end"), (Codes{ MISMATCH, MISMATCH, MISMATCH, MISMATCH, MISMATCH, MISMATCH })) << "Every compound operator must compare both sides.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "a &= c; a |= c; a ^= c; s += a; end"), (Codes{ MISMATCH, MISMATCH, MISMATCH, MISMATCH })) << "A bitwise compound operator and a string must compare both sides.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "a += 1.5; f += \"x\"; end"), (Codes{ MISMATCH, MISMATCH })) << "A literal that does not fit the target must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "p.x += a; end"), Codes{ MISMATCH }) << "A field target must be typed.";
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "a += a; a -= 1; f *= 2; f += 0.5; a **= 2; f **= 0.5; a &= 0xFF; s += s; p.x += 1.0; end").empty()) << "Both sides of the same type, or a fitting literal, must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "p += a; a += p; end").empty()) << "A structure side must not be compared.";
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "v <<= a; v >>= c; v <<= 2; a >>= v; end").empty()) << "A compound shift takes any integer count.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "v <<= f; v >>= 1.5; f <<= v; s >>= 1; end"), (Codes{ MISMATCH, MISMATCH, MISMATCH, MISMATCH })) << "A compound shift needs an integer on both sides.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "a += missing; end"), Codes{ UNDECLARED }) << "A missing name must raise UNDECLARED_NAME and no mismatch.";
+}
+
 TEST(MAREASemaExpressions, CallResultIsTypedForAKnownFunction)
 {
     GTEST_COUT << "Validating a call of a non-generic function of the file has its declared result type." << std::endl;
