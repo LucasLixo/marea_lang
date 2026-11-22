@@ -139,12 +139,18 @@ agrees with a primitive as it fits a declared type, so `a + 1` is accepted for a
 for an `integer32`. A mismatch is `TYPE_MISMATCH` (3011) on the binary expression, once per expression, and the
 expression then has no type, so the declared type of a local or a `return` is not reported a second time. An
 operand that is a structure, an enum, a library type, a generic result or any other unknown type is accepted.
-A shift is not compared here, as its right side may have another type.
+A shift is not compared here, as its right side may have another type; it has its own rule below.
 
 **No implicit numeric conversion (decision of the user, by the rules of Rust).** A calculation never converts a
 number by itself: the two operands of an arithmetic or a comparison operator have the same primitive type, and
 `**` follows the same rule as `+`. An integer base with a float exponent is `TYPE_MISMATCH` (Rust `pow` against
 `powf`), whatever the declared type of the result, and the result of a power has the type of its operands.
+
+**Shifts (decision of the user, by the rules of Rust).** The count of `<<` and `>>` may be any integer primitive of
+any width (`integer8` to `integer64`, `unsigned8` to `unsigned64`, or an integer literal), and the result has the
+type of the left operand. A count or a left operand that is a known type and not an integer (a float, a
+`boolean`, a `string`, a fraction literal) is `TYPE_MISMATCH` (3011) on the shift, once, and the shift then has
+no type. An operand of an unknown type is accepted.
 
 **Names in expressions.** A bare name in the initializer of a local, either side of an assignment, an
 expression statement, the condition of an `if`, `elseif` or `while`, a `return` value and a `switch` value (and
@@ -240,9 +246,8 @@ real, instantiated result type is deferred to when the `ir` stage needs one for 
 - `TYPE_MISMATCH` (3011) knows the type of an expression only in the shapes listed under "Expressions". It never
   compares an enum, a library type, a generic parameter or a `owned`, `task` or `vector` value, and the result of
   a generic call is unknown (see below). Compound assignments (`+=` and the others) are not compared.
-- The two operands of a shift are not compared (see "Operands of a binary operator"). A binary operator is not
-  checked against what its operands may be (`a and b` with two integers raises nothing, as the two have the same
-  name), and an operator that is declared for a structure is not compared.
+- A binary operator is not checked against what its operands may be (`a and b` with two integers raises nothing,
+  as the two have the same name), and an operator that is declared for a structure is not compared.
 - `UNDECLARED_NAME` (3004) is not raised for the bare name that starts a member chain, for the header of a `for`,
   `for each`, `partition` or `with` statement, or for a name in the initializer of a file constant. The bare
   chain head is skipped because the `basics/functions` example calls `stdio.puts(text)` with no `import`, so the

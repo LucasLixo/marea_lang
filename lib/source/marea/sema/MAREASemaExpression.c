@@ -254,6 +254,27 @@ static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOfCall(const MAREA_SemaContext *con
     return MAREA_G_ShapeOfType(context, MAREA_SemaReturnType(function), MAREA_BOOLEAN_TRUE);
 }
 
+// INFO: a structure or an unknown shape is accepted, because an operator may be declared for a structure and sema does not know the other types.
+static MAREA_Boolean MAREA_CALL MAREA_G_IsComparable(const MAREA_G_Shape *shape)
+{
+    return ((shape->kind != MAREA_G_SHAPE_KIND_UNKNOWN) && (shape->kind != MAREA_G_SHAPE_KIND_STRUCTURE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
+static MAREA_Boolean MAREA_CALL MAREA_G_IsInteger(const MAREA_G_Shape *shape)
+{
+    if (shape->kind == MAREA_G_SHAPE_KIND_INTEGER_LITERAL) {
+        return MAREA_BOOLEAN_TRUE;
+    }
+
+    return ((shape->kind == MAREA_G_SHAPE_KIND_PRIMITIVE) && (MAREA_G_IsNumberName(shape) == MAREA_BOOLEAN_TRUE) && (MAREA_G_IsFloatName(shape) == MAREA_BOOLEAN_FALSE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
+// INFO: the count of a shift may be any integer of any width, so a shift needs two integers and not two equal types. An unknown shape is accepted.
+static MAREA_Boolean MAREA_CALL MAREA_G_ShiftAgree(const MAREA_G_Shape *left, const MAREA_G_Shape *right)
+{
+    return (((MAREA_G_IsComparable(left) == MAREA_BOOLEAN_FALSE) || (MAREA_G_IsInteger(left) == MAREA_BOOLEAN_TRUE)) && ((MAREA_G_IsComparable(right) == MAREA_BOOLEAN_FALSE) || (MAREA_G_IsInteger(right) == MAREA_BOOLEAN_TRUE))) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
 static MAREA_G_Shape MAREA_CALL MAREA_G_Combine(const MAREA_G_Shape *left, const MAREA_G_Shape *right)
 {
     const MAREA_G_Shape unknown = MAREA_G_ShapeUnknown();
@@ -292,10 +313,12 @@ static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOfBinary(const MAREA_SemaContext *c
     case MAREA_TOKEN_KIND_SHIFT_LEFT:
     case MAREA_TOKEN_KIND_SHIFT_RIGHT:
     {
-        // INFO: the right side of a shift may have another type, so the result is the type of the left side.
+        // INFO: the result is the type of the left side. A shift with a side that is not an integer has no type.
         const MAREA_G_Shape left = MAREA_G_ShapeOf(context, MAREA_SemaChildAt(expression, 0), (depth + 1));
 
-        return (MAREA_G_IsNumber(&left) == MAREA_BOOLEAN_TRUE) ? left : MAREA_G_ShapeUnknown();
+        const MAREA_G_Shape right = MAREA_G_ShapeOf(context, MAREA_SemaChildAt(expression, 1), (depth + 1));
+
+        return ((MAREA_G_IsInteger(&left) == MAREA_BOOLEAN_TRUE) && (MAREA_G_ShiftAgree(&left, &right) == MAREA_BOOLEAN_TRUE)) ? left : MAREA_G_ShapeUnknown();
     }
     default:
     {
@@ -397,12 +420,6 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressionFit(MAREA_SemaContext *cont
     return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH, MAREA_AstNodeGetPosition(expression), "value does not fit the type", target.name, target.length);
 }
 
-// INFO: a structure or an unknown shape is accepted, because an operator may be declared for a structure and sema does not know the other types.
-static MAREA_Boolean MAREA_CALL MAREA_G_IsComparable(const MAREA_G_Shape *shape)
-{
-    return ((shape->kind != MAREA_G_SHAPE_KIND_UNKNOWN) && (shape->kind != MAREA_G_SHAPE_KIND_STRUCTURE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
-}
-
 // INFO: two primitives agree by exact name and a literal agrees with a primitive as it fits a declared type. Two literals always agree.
 static MAREA_Boolean MAREA_CALL MAREA_G_OperandsAgree(const MAREA_G_Shape *left, const MAREA_G_Shape *right)
 {
@@ -417,18 +434,21 @@ static MAREA_Boolean MAREA_CALL MAREA_G_OperandsAgree(const MAREA_G_Shape *left,
     return (right->kind == MAREA_G_SHAPE_KIND_PRIMITIVE) ? MAREA_G_Fits(right, left) : MAREA_BOOLEAN_TRUE;
 }
 
-// INFO: the right side of a shift may have another type, so a shift is not compared here.
 static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckOperands(MAREA_SemaContext *context, const MAREA_AstNode *expression)
 {
     const MAREA_TokenKind operatorKind = MAREA_AstNodeGetOperator(expression);
 
-    if ((operatorKind == MAREA_TOKEN_KIND_SHIFT_LEFT) || (operatorKind == MAREA_TOKEN_KIND_SHIFT_RIGHT)) {
-        return MAREA_SEMA_EXCEPT_SUCCESS;
-    }
-
     const MAREA_G_Shape left = MAREA_G_ShapeOf(context, MAREA_SemaChildAt(expression, 0), 0);
 
     const MAREA_G_Shape right = MAREA_G_ShapeOf(context, MAREA_SemaChildAt(expression, 1), 0);
+
+    if ((operatorKind == MAREA_TOKEN_KIND_SHIFT_LEFT) || (operatorKind == MAREA_TOKEN_KIND_SHIFT_RIGHT)) {
+        if (MAREA_G_ShiftAgree(&left, &right) == MAREA_BOOLEAN_FALSE) {
+            MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH, MAREA_AstNodeGetPosition(expression), "a shift needs an integer left operand and an integer count");
+        }
+
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
 
     if (MAREA_G_OperandsAgree(&left, &right) == MAREA_BOOLEAN_TRUE) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
