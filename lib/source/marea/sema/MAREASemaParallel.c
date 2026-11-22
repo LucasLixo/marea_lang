@@ -166,6 +166,13 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckJump(MAREA_SemaContext *context, cons
 
     // INFO: a fork_join block is a join barrier too, so a jump directly in it, outside every partition body, must not leave it either, the same as a jump leaving a partition body.
     if ((context->partitionDepth == 0) && (context->forkDepth == 0)) {
+        // INFO: outside any parallel construct, a break or continue still needs an enclosing loop; a return does not.
+        const MAREA_AstKind KIND = MAREA_AstNodeGetKind(node);
+
+        if ((context->loopDepth == 0) && ((KIND == MAREA_AST_KIND_BREAK_STATEMENT) || (KIND == MAREA_AST_KIND_CONTINUE_STATEMENT))) {
+            MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_JUMP_OUTSIDE_LOOP, MAREA_AstNodeGetPosition(node), (KIND == MAREA_AST_KIND_BREAK_STATEMENT) ? "a break must be inside a loop" : "a continue must be inside a loop");
+        }
+
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 

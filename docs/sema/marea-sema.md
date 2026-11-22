@@ -22,7 +22,7 @@ MAREA_SemaCheckCompilationUnit(sema, root);   /* once per file, dependencies fir
 `MAREA_SemaCheckCompilationUnit` returns an error only for a null argument or an out of memory. A rule
 violation is a diagnostic in the sink. A size that does not fit in `MAREA_IntegerSize` (a diagnostic
 message, or the growth of a name table) is also an out of memory: nothing is allocated or copied.
-Every sema diagnostic is an error, in the range 3001-3025.
+Every sema diagnostic is an error, in the range 3001-3026.
 The lexer file name decides the path rule, so call `MAREA_LexContextSetFileName` with a project
 relative path with forward slashes and the `.marea` extension before the lex step.
 
@@ -192,6 +192,7 @@ real, instantiated result type is deferred to when the `ir` stage needs one for 
 | 3023 | `INVALID_MAIN_SIGNATURE` | `function main(): integer32` in the namespace `main` |
 | 3024 | `INVALID_PARALLEL_JUMP` | `continue;`, `break;` or `return;` in a `partition` body when no loop of the body is the target, or directly in a `fork_join` block, outside every `partition` body, when no loop of the block is the target |
 | 3025 | `DUPLICATE_SWITCH_ARM` | a second `default` arm in a `switch`, or `case 1 then ... case 1 then ...`, `case 1, 1 then ...`, `case Color.red` twice |
+| 3026 | `JUMP_OUTSIDE_LOOP` | `break;` or `continue;` with no enclosing loop and no enclosing `partition`/`fork_join` block |
 
 ## Gaps
 
@@ -206,4 +207,3 @@ real, instantiated result type is deferred to when the `ir` stage needs one for 
   taken for different values. A constant that is named in one arm and written as its literal in another is not
   matched either, and a name of an enum is matched by the variant name only, so `Color.red` and `Other.red`
   count as one. A case value that is a call or another computed expression is never compared.
-- A `break` or `continue` that is not inside any loop is not reported.

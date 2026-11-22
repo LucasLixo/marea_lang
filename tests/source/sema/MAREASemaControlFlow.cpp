@@ -12,6 +12,7 @@ namespace
     constexpr MAREA_Uinteger32 MISSING_RETURN{ MAREA_SEMA_DIAGNOSTIC_CODE_MISSING_RETURN };
     constexpr MAREA_Uinteger32 NON_EXHAUSTIVE{ MAREA_SEMA_DIAGNOSTIC_CODE_NON_EXHAUSTIVE_SWITCH };
     constexpr MAREA_Uinteger32 DUPLICATE_ARM{ MAREA_SEMA_DIAGNOSTIC_CODE_DUPLICATE_SWITCH_ARM };
+    constexpr MAREA_Uinteger32 JUMP_OUTSIDE_LOOP{ MAREA_SEMA_DIAGNOSTIC_CODE_JUMP_OUTSIDE_LOOP };
 
     const std::string COLOR{ "enum Color red; green; blue; end " };
 
@@ -259,6 +260,37 @@ TEST(MAREASemaControlFlow, BrokenCaseValuesAreNotCompared)
     GTEST_COUT << "Validating two broken case values are not taken for a repeat." << std::endl;
 
     EXPECT_TRUE(MAREA_codesOf("function f(n: integer32) switch n case ), ) then return; end end").empty()) << "Two error nodes must raise no sema diagnostic.";
+}
+
+TEST(MAREASemaControlFlow, BreakOrContinueWithNoEnclosingLoopIsRejected)
+{
+    GTEST_COUT << "Validating a break or continue with no enclosing loop raises JUMP_OUTSIDE_LOOP." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("function f() break; end"), Codes{ JUMP_OUTSIDE_LOOP }) << "A bare break at function top level must raise JUMP_OUTSIDE_LOOP.";
+
+    EXPECT_EQ(MAREA_codesOf("function f() continue; end"), Codes{ JUMP_OUTSIDE_LOOP }) << "A bare continue at function top level must raise JUMP_OUTSIDE_LOOP.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(a: boolean) if a then break; end end"), Codes{ JUMP_OUTSIDE_LOOP }) << "A break inside an if with no enclosing loop must raise JUMP_OUTSIDE_LOOP.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(a: integer32) with a as view do continue; end end"), Codes{ JUMP_OUTSIDE_LOOP }) << "A continue inside a with with no enclosing loop must raise JUMP_OUTSIDE_LOOP.";
+}
+
+TEST(MAREASemaControlFlow, BreakOrContinueInsideALoopIsAccepted)
+{
+    GTEST_COUT << "Validating a break or continue correctly inside a loop raises nothing." << std::endl;
+
+    EXPECT_TRUE(MAREA_codesOf("function f(a: boolean) while a do break; end end").empty()) << "A break inside a while must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("function f() for i in 1 .. 3 do continue; end end").empty()) << "A continue inside a for-range must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("function f(values: array<integer32>) for each v in values do break; end end").empty()) << "A break inside a for-each must raise nothing.";
+}
+
+TEST(MAREASemaControlFlow, ReturnWithNoEnclosingLoopIsStillUnreported)
+{
+    GTEST_COUT << "Validating a return with no enclosing loop raises nothing from this check." << std::endl;
+
+    EXPECT_TRUE(MAREA_codesOf("function f() return; end").empty()) << "A bare return at function top level must raise nothing.";
 }
 
 TEST(MAREASemaControlFlow, RepeatedArmIsReportedAtTheRepeat)
