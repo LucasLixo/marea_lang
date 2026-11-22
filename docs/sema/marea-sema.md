@@ -129,9 +129,12 @@ join of the spawned workers.
 **Switch arms.** A `switch` has at most one `default` arm, and no `case` value appears twice. Each second
 and later `default` arm is rejected with `DUPLICATE_SWITCH_ARM` (3025), and so is each `case` value that
 appeared before, in one list (`case 1, 1`) or across arms. The first use is never reported, and each repeat
-is one diagnostic, at the repeated item. Two values are the same when they are built from the same literals,
-names and unary operators with the same text (`1` and `1`, `-1` and `-1`, `"a"` and `"a"`, `a.LIMIT` and
-`a.LIMIT`). Over an enum a bare and a qualified name of one variant (`red`, `Color.red`) are the same
+is one diagnostic, at the repeated item. Two values are the same when they hold one value. Integer literals
+are compared by number in any base, with or without `_` separators (`1` and `0x1`, `5` and `0b101`, `-1` and
+`-0x1`). A name of a constant of the file stands for the value it is declared with, and a constant that is
+declared with another constant is followed (at most 16 steps, so a cycle ends), so `MAX` and `100` are the same
+when `constant MAX: integer32 = 100;`. A local or a parameter with the name of a constant hides it. Other
+literals, names and unary operators are compared by text (`"a"` and `"a"`, `a.LIMIT` and `a.LIMIT`). Over an enum a bare and a qualified name of one variant (`red`, `Color.red`) are the same
 variant, as in the coverage check. Two broken (`ERROR_NODE`) values are never compared. The check runs for
 every scrutinee type, and it does not replace `NON_EXHAUSTIVE_SWITCH`: a `switch` over an enum with a repeat
 and a missing variant raises both. The rule follows the grammar (`switch_statement` has one optional
@@ -323,10 +326,9 @@ real, instantiated result type is deferred to when the `ir` stage needs one for 
 - The type of a call result is closed for non-generic calls via the typed-AST hand-off; generic-
   result substitution still open. The type of a library type is not tracked, so a missing `copy` or
   `move` there is not reported.
-- `DUPLICATE_SWITCH_ARM` compares the text of a value, not its number: `1` and `0x1`, or `1.0` and `1.00`, are
-  taken for different values. A constant that is named in one arm and written as its literal in another is not
-  matched either, and a name of an enum is matched by the variant name only, so `Color.red` and `Other.red`
-  count as one. A case value that is a call or another computed expression is never compared.
+- `DUPLICATE_SWITCH_ARM` compares a float by its text: `1.0` and `1.00` are taken for different values. A constant
+  that sema cannot read (imported, or declared with a computed expression) is compared by its name only, and a
+  case value that is a call or another computed expression is never compared.
 - `convert<T>(x)` between two structures is checked in sema only for the field types, the alignment and, for a `c`
   layout, the size, as described under "Rules". Where sema cannot size a structure (the default `auto` layout, a
   `string`, `pointer`, `vector`, structure or enum field, a generic structure, a field `align`), the pair is
