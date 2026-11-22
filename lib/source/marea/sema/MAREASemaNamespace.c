@@ -227,6 +227,18 @@ static const MAREA_AstNode *MAREA_CALL MAREA_G_FindPublicSymbol(const MAREA_AstN
     return MAREA_NULLPTR;
 }
 
+// INFO: only an enum is kept from an import, so a switch over it is checked for coverage against its real variants.
+static const MAREA_AstNode *MAREA_CALL MAREA_G_ImportedEnum(const MAREA_AstNode *namespaceRoot, const MAREA_Character8 *name, MAREA_IntegerSize nameLength)
+{
+    if (namespaceRoot == MAREA_NULLPTR) {
+        return MAREA_NULLPTR;
+    }
+
+    const MAREA_AstNode *symbol = MAREA_G_FindPublicSymbol(namespaceRoot, name, nameLength);
+
+    return ((symbol != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(symbol) == MAREA_AST_KIND_ENUM_DECLARATION)) ? symbol : MAREA_NULLPTR;
+}
+
 static MAREA_Boolean MAREA_CALL MAREA_G_EnumHasVariant(const MAREA_AstNode *enumeration, const MAREA_Character8 *name, MAREA_IntegerSize nameLength)
 {
     const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(enumeration);
@@ -457,7 +469,11 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckImportMember(MAREA_SemaContext *
         }
     }
 
-    return MAREA_G_BindName(context, MAREA_AstNodeGetPosition(localName), MAREA_AstNodeGetText(localName), MAREA_AstNodeGetTextLength(localName), MAREA_SEMA_NAME_KIND_IMPORTED_SYMBOL, MAREA_NULLPTR, original, originalLength);
+    const MAREA_AstNode *first = MAREA_SemaChildAt(path, 0);
+
+    const MAREA_AstNode *enumeration = ((namespaceResult == MAREA_SEMA_IMPORT_RESULT_FOUND) && (MAREA_AstNodeGetChildCount(path) == MAREA_INTEGER_SIZE(1))) ? MAREA_G_ImportedEnum(namespaceRoot, MAREA_AstNodeGetText(first), MAREA_AstNodeGetTextLength(first)) : MAREA_NULLPTR;
+
+    return MAREA_G_BindName(context, MAREA_AstNodeGetPosition(localName), MAREA_AstNodeGetText(localName), MAREA_AstNodeGetTextLength(localName), MAREA_SEMA_NAME_KIND_IMPORTED_SYMBOL, enumeration, original, originalLength);
 }
 
 static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckImportMembers(MAREA_SemaContext *context, const MAREA_AstNode *import, const MAREA_AstNode *namespaceName)
@@ -545,6 +561,8 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckImport(MAREA_SemaContext *contex
 
     MAREA_Boolean resolved = MAREA_BOOLEAN_TRUE;
 
+    const MAREA_AstNode *enumeration = MAREA_NULLPTR;
+
     if (MAREA_G_Resolve(context, joined, joinedLength, &foundRoot) == MAREA_SEMA_IMPORT_RESULT_NOT_FOUND) {
         resolved = MAREA_BOOLEAN_FALSE;
         kind = MAREA_SEMA_NAME_KIND_IMPORTED_SYMBOL;
@@ -561,6 +579,8 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckImport(MAREA_SemaContext *contex
 
             if ((PARENT_RESULT == MAREA_SEMA_IMPORT_RESULT_FOUND) && (foundRoot != MAREA_NULLPTR) && (MAREA_G_FindPublicSymbol(foundRoot, MAREA_AstNodeGetText(last), MAREA_AstNodeGetTextLength(last)) != MAREA_NULLPTR)) {
                 resolved = MAREA_BOOLEAN_TRUE;
+
+                enumeration = MAREA_G_ImportedEnum(foundRoot, MAREA_AstNodeGetText(last), MAREA_AstNodeGetTextLength(last));
             }
         }
     }
@@ -574,7 +594,7 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckImport(MAREA_SemaContext *contex
     }
 
     if (HAS_NAMED_ALIAS == MAREA_BOOLEAN_FALSE) {
-        return MAREA_G_AddName(context, MAREA_AstNodeGetPosition(localName), MAREA_AstNodeGetText(localName), MAREA_AstNodeGetTextLength(localName), kind, MAREA_NULLPTR);
+        return MAREA_G_AddName(context, MAREA_AstNodeGetPosition(localName), MAREA_AstNodeGetText(localName), MAREA_AstNodeGetTextLength(localName), kind, enumeration);
     }
 
     MAREA_Boolean reserved = MAREA_BOOLEAN_FALSE;
@@ -586,7 +606,7 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckImport(MAREA_SemaContext *contex
     }
 
     // INFO: the alias resolves to the last segment of the path, what the same import binds without "as".
-    return MAREA_G_BindName(context, MAREA_AstNodeGetPosition(alias), MAREA_AstNodeGetText(alias), MAREA_AstNodeGetTextLength(alias), kind, MAREA_NULLPTR, MAREA_AstNodeGetText(last), MAREA_AstNodeGetTextLength(last));
+    return MAREA_G_BindName(context, MAREA_AstNodeGetPosition(alias), MAREA_AstNodeGetText(alias), MAREA_AstNodeGetTextLength(alias), kind, enumeration, MAREA_AstNodeGetText(last), MAREA_AstNodeGetTextLength(last));
 }
 
 MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckNamespaceAndNames(MAREA_SemaContext *context, const MAREA_AstNode *root)

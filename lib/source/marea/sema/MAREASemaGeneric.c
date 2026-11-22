@@ -520,6 +520,13 @@ static MAREA_SemaTypeClass MAREA_CALL MAREA_G_Classify(const MAREA_SemaContext *
 
     const MAREA_SemaName *entry = MAREA_SemaNameTableFind(context, *outName, *outLength);
 
+    // INFO: an import binds a declaration only for an enum of a file the resolver gave, so the enum has its real variants here.
+    if ((entry != MAREA_NULLPTR) && (entry->kind == MAREA_SEMA_NAME_KIND_IMPORTED_SYMBOL) && (entry->declaration != MAREA_NULLPTR)) {
+        *outDeclaration = entry->declaration;
+
+        return MAREA_SEMA_TYPE_CLASS_USER;
+    }
+
     if ((entry == MAREA_NULLPTR) || (entry->kind != MAREA_SEMA_NAME_KIND_DECLARATION) || (entry->declaration == MAREA_NULLPTR)) {
         return MAREA_SEMA_TYPE_CLASS_EXTERNAL;
     }

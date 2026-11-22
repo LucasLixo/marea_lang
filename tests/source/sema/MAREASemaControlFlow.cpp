@@ -321,3 +321,78 @@ TEST(MAREASemaControlFlow, RepeatedArmIsReportedAtTheRepeat)
 
     EXPECT_EQ(caseFixture.parser.MAREA_offsets()[0], CASE_SOURCE.rfind('7')) << "The diagnostic must sit on the repeated value.";
 }
+
+TEST(MAREASemaControlFlow, SwitchOverAnImportedEnumChecksCoverage)
+{
+    GTEST_COUT << "Validating a switch over an enum imported from another file is checked for coverage." << std::endl;
+
+    MAREA_SemaFixture library;
+
+    ASSERT_EQ(library.parser.MAREA_parse("namespace a.b; #[public] enum Color red; green; blue; end"), MAREA_PARSE_EXCEPT_SUCCESS) << "The library must parse.";
+
+    const auto RESOLVE = [&library](const std::string &name, const MAREA_AstNode **root) {
+        *root = library.parser.root;
+
+        return (name == "a.b") ? MAREA_SEMA_IMPORT_RESULT_FOUND : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
+    };
+
+    const std::string PARTIAL{ "function f(c: Color): integer32 switch c case Color.red then return 1; case Color.green then return 2; end end" };
+
+    const std::string FULL{ "function f(c: Color): integer32 switch c case Color.red then return 1; case Color.green then return 2; case Color.blue then return 3; end end" };
+
+    const std::string DEFAULTED{ "function f(c: Color): integer32 switch c case Color.red then return 1; default then return 2; end end" };
+
+    MAREA_SemaFixture member(RESOLVE);
+
+    ASSERT_EQ(member.MAREA_sema("namespace main; import a.b { Color }; " + PARTIAL), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+
+    EXPECT_EQ(member.MAREA_semaCodes(), Codes{ NON_EXHAUSTIVE }) << "A missing variant of a member import must raise NON_EXHAUSTIVE_SWITCH.";
+
+    MAREA_SemaFixture whole(RESOLVE);
+
+    ASSERT_EQ(whole.MAREA_sema("namespace main; import a.b.Color; " + PARTIAL), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+
+    EXPECT_EQ(whole.MAREA_semaCodes(), Codes{ NON_EXHAUSTIVE }) << "A missing variant of a whole-path import must raise NON_EXHAUSTIVE_SWITCH.";
+
+    MAREA_SemaFixture covered(RESOLVE);
+
+    ASSERT_EQ(covered.MAREA_sema("namespace main; import a.b { Color }; " + FULL), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+
+    EXPECT_TRUE(covered.MAREA_semaCodes().empty()) << "Every variant covered must raise nothing.";
+
+    MAREA_SemaFixture defaulted(RESOLVE);
+
+    ASSERT_EQ(defaulted.MAREA_sema("namespace main; import a.b { Color }; " + DEFAULTED), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+
+    EXPECT_TRUE(defaulted.MAREA_semaCodes().empty()) << "A default arm must raise nothing.";
+}
+
+TEST(MAREASemaControlFlow, SwitchOverAnAliasedImportedEnumChecksCoverage)
+{
+    GTEST_COUT << "Validating a switch over an enum imported under an alias is checked for coverage." << std::endl;
+
+    MAREA_SemaFixture library;
+
+    ASSERT_EQ(library.parser.MAREA_parse("namespace a.b; #[public] enum Color red; green; blue; end"), MAREA_PARSE_EXCEPT_SUCCESS) << "The library must parse.";
+
+    MAREA_SemaFixture fixture([&library](const std::string &name, const MAREA_AstNode **root) {
+        *root = library.parser.root;
+
+        return (name == "a.b") ? MAREA_SEMA_IMPORT_RESULT_FOUND : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
+    });
+
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; import a.b { Color as Hue }; function g(h: Hue): integer32 switch h case Hue.red then return 1; end end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+
+    EXPECT_EQ(fixture.MAREA_semaCodes(), Codes{ NON_EXHAUSTIVE }) << "A missing variant behind an alias must raise NON_EXHAUSTIVE_SWITCH.";
+}
+
+TEST(MAREASemaControlFlow, SwitchOverAnExternalEnumIsStillExempt)
+{
+    GTEST_COUT << "Validating a switch over a type of an external namespace is still not checked." << std::endl;
+
+    MAREA_SemaFixture fixture([](const std::string &, const MAREA_AstNode **) { return MAREA_SEMA_IMPORT_RESULT_EXTERNAL; });
+
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; import a.b { Color }; function f(c: Color): integer32 switch c case Color.red then return 1; end end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+
+    EXPECT_TRUE(fixture.MAREA_semaCodes().empty()) << "An external type has no tree, so it must raise nothing.";
+}
