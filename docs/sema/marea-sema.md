@@ -57,6 +57,11 @@ to be an `enum` with that variant. An unresolved member still binds its local na
 does not start a chain of `UNDECLARED_NAME`. A member alias that is a parse error (`f as }`) is
 skipped without a diagnostic.
 
+An import of a `#[public]` `enum` from a `FOUND` namespace (a one-segment member, or a whole path whose
+parent is `FOUND`) also keeps that enum declaration with its local name, alias included. The type
+class of that name is then `USER`, so a `switch` over it raises `NON_EXHAUSTIVE_SWITCH` like a
+same-file enum. Any other import, and every `EXTERNAL` one, keeps no declaration and stays `EXTERNAL`.
+
 Every import name keeps its original: the text the same import binds without `as` (the last segment
 of a whole path, the member path as written for a member, for example `Color.red`). The internal name
 table (`MAREA_SemaName`) holds it in `original` and `originalLength`, empty for a name that has none.
@@ -301,7 +306,6 @@ real, instantiated result type is deferred to when the `ir` stage needs one for 
 
 ## Gaps
 
-- A `switch` over an enum imported from another file is not checked for coverage.
 - Renaming on use inside one file (without an import) is not offered: a local declaration has its own name.
 - An alias compares equal to its original by text. Two aliases of same-named members of two different namespaces
   (`import a { T as X }; import b { T as Y };`) therefore compare equal in a contract signature.
