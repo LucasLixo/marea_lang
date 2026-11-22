@@ -206,16 +206,20 @@ assignment). Allowed:
 Everything else is `TYPE_MISMATCH` (3011) on the call, once: a `string` or a `boolean` to a number or the other
 way, a structure to a primitive, a primitive to a structure, and a structure to a structure with another layout.
 
-Two structures have the same layout when every field has the same primitive type, by exact name, at the same
-place (an alias of a primitive is the primitive, the names of the fields do not count), they have the same
-alignment and, when both are `#[layout = c]`, the same size. Sema computes the alignment and the size by the rules
-of C: each field at the next multiple of its own alignment (the size of a primitive), `pack = N` caps that
-alignment, `align = N` raises the alignment of the structure, and the size is rounded up to the alignment. The
-layout may come from a file attribute. The pair is accepted, and the size check is a gap for the backend, when sema
-cannot decide it: a generic structure, a field that is not a fixed-width primitive (`string`, `pointer`, `vector`,
-a structure, an enum, a library type), a field with its own `align`, a `pack` or `align` value that is not an
-integer from 1 to 4294967296, and two structures whose size depends on the backend (a layout that is not `c`,
-and `auto` is the default). The alignment and the field types are still compared when only the size is open.
+Two structures have the same layout when every field has the same primitive type, by exact name, or a structure of
+the same layout (below), at the same place (an alias of a primitive is the primitive, the names of the fields do not
+count), the same field `align`, they have the same alignment and, when both are `#[layout = c]`, the same size.
+Sema computes the alignment and the size by the rules of C: each field at the next multiple of its own alignment
+(the size of a primitive, the alignment of a nested structure), `pack = N` caps that alignment, a field
+`align = N` raises the alignment of the field, `align = N` on the structure raises the alignment of the structure,
+and the size is rounded up to the alignment. The layout may come from a file attribute. A structure held by value
+is measured too, up to 8 levels deep, and only inside a `c` structure when it is `c` itself. Two `auto` structures
+(the default layout) with the same fields, `pack` and `align` have the same layout, because the backend gives the
+same input the same layout. A pair that sema cannot measure is a `TYPE_MISMATCH` (3011): a generic structure, a
+field that is not a fixed-width primitive or a structure of the file (`string`, `pointer`, `vector`, an enum, a
+library type), a `pack` or `align` value that is not an integer from 1 to 4294967296, an `auto` structure inside a
+`c` structure, a `c` structure against an `auto` one, a chain of structures deeper than 8 levels (or one that holds
+itself). A structure converted to itself needs no measure and is accepted.
 
 **Constants of an `implementation` block (decision of the user).** Inside an `implementation` block, a bare
 constant of that block shadows a top-level constant of the same name: the inner scope wins, and the name has the
@@ -334,10 +338,13 @@ type arguments is deferred to when the `ir` stage needs one for real.
 - `DUPLICATE_SWITCH_ARM` compares a float by its text: `1.0` and `1.00` are taken for different values. A constant
   that sema cannot read (imported, or declared with a computed expression) is compared by its name only, and a
   case value that is a call or another computed expression is never compared.
-- `convert<T>(x)` between two structures is checked in sema only for the field types, the alignment and, for a `c`
-  layout, the size, as described under "Rules". Where sema cannot size a structure (the default `auto` layout, a
-  `string`, `pointer`, `vector`, structure or enum field, a generic structure, a field `align`), the pair is
-  accepted and the backend must check the size and the alignment of the two types before it emits the conversion.
-  A field pair of two primitives with the same width but another name (`integer32` and `float32`) is a mismatch
-  here, as the rule is by exact name; a looser rule is a later decision of the user. The numeric range of a
-  conversion (`convert<integer8>(count)` with `count` above 127) is a run-time stop, not a check of sema.
+- `convert<T>(x)` between two structures is measured in sema, as described under "Rules", for primitive fields, a
+  field `align`, a structure held by value and two `auto` structures with the same fields. It is no longer accepted
+  when sema cannot measure the pair: a generic structure, a `string`, `pointer`, `vector`, enum or library field, an
+  `auto` structure inside a `c` structure, an `auto` against a `c` structure, and a chain deeper than 8 levels are
+  an explicit `TYPE_MISMATCH` (3011), not a silent accept. These are rejections, not real sizes: a generic
+  structure and a field of another type have no size in sema, and two `auto` structures are compared by their
+  fields, not by a size, on the assumption that the backend lays out equal input equally. A field pair of two
+  primitives with the same width but another name (`integer32` and `float32`) is a mismatch here, as the rule is
+  by exact name; a looser rule is a later decision of the user. The numeric range of a conversion
+  (`convert<integer8>(count)` with `count` above 127) is a run-time stop, not a check of sema.

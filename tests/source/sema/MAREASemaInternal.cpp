@@ -205,7 +205,7 @@ TEST(MAREASemaInternal, CompareStructureLayoutGivesAVerdict)
 
     EXPECT_EQ(MAREA_verdictOf(C + "structure A x: unsigned8; y: unsigned16; z: unsigned8; end " + C + "structure B x: unsigned8; y: unsigned16; z: unsigned8; end", 0, 1), MAREA_SEMA_LAYOUT_VERDICT_COMPATIBLE) << "Padding is the same for the same fields.";
 
-    EXPECT_EQ(MAREA_verdictOf(C + "structure A x: unsigned8; end structure B x: unsigned8; end", 0, 1), MAREA_SEMA_LAYOUT_VERDICT_UNDECIDED) << "A layout that is not C leaves the size to the backend.";
+    EXPECT_EQ(MAREA_verdictOf(C + "structure A x: unsigned8; end structure B x: unsigned8; end", 0, 1), MAREA_SEMA_LAYOUT_VERDICT_UNDECIDED) << "A c layout against an auto layout has no common size.";
 
     EXPECT_EQ(MAREA_verdictOf("#![layout = c] structure A x: integer32; end structure B y: integer32; end", 0, 1), MAREA_SEMA_LAYOUT_VERDICT_COMPATIBLE) << "A file attribute gives the layout when the structure has none.";
 
@@ -214,6 +214,41 @@ TEST(MAREASemaInternal, CompareStructureLayoutGivesAVerdict)
     EXPECT_EQ(MAREA_verdictOf(C + "structure A x: integer32; end #[layout = c, align = 4294967297] structure B x: integer32; end", 0, 1), MAREA_SEMA_LAYOUT_VERDICT_UNDECIDED) << "An alignment that is too large to compute with is left to the backend.";
 
     EXPECT_EQ(MAREA_verdictOf(C + "structure A x: integer32; end", 0, 0), MAREA_SEMA_LAYOUT_VERDICT_COMPATIBLE) << "The same declaration is compatible with itself.";
+}
+
+TEST(MAREASemaInternal, CompareStructureLayoutMeasuresTheShapesItCan)
+{
+    GTEST_COUT << "Validating MAREA_SemaCompareStructureLayout for the auto layout, a field align, a nested structure and a generic structure." << std::endl;
+
+    const std::string C{ "#[layout = c] " };
+
+    EXPECT_EQ(MAREA_verdictOf("structure A x: integer32; y: unsigned8; end structure B p: integer32; q: unsigned8; end", 0, 1), MAREA_SEMA_LAYOUT_VERDICT_COMPATIBLE) << "Two auto layouts with the same fields are the same.";
+
+    EXPECT_EQ(MAREA_verdictOf("structure A x: integer32; end structure B x: float32; end", 0, 1), MAREA_SEMA_LAYOUT_VERDICT_INCOMPATIBLE) << "Two auto layouts with other fields differ.";
+
+    EXPECT_EQ(MAREA_verdictOf("structure A x: string; end structure B x: string; end", 0, 1), MAREA_SEMA_LAYOUT_VERDICT_UNDECIDED) << "An auto layout with a string field cannot be measured.";
+
+    EXPECT_EQ(MAREA_verdictOf(C + "structure A #[align = 16] x: integer32; end " + C + "structure B #[align = 16] y: integer32; end", 0, 1), MAREA_SEMA_LAYOUT_VERDICT_COMPATIBLE) << "The same field align is compatible.";
+
+    EXPECT_EQ(MAREA_verdictOf(C + "structure A #[align = 16] x: integer32; end " + C + "structure B x: integer32; end", 0, 1), MAREA_SEMA_LAYOUT_VERDICT_INCOMPATIBLE) << "A field align against none differs.";
+
+    EXPECT_EQ(MAREA_verdictOf(C + "structure A #[align = 16] x: integer32; end " + C + "structure B #[align = 8] x: integer32; end", 0, 1), MAREA_SEMA_LAYOUT_VERDICT_INCOMPATIBLE) << "Two field aligns differ.";
+
+    EXPECT_EQ(MAREA_verdictOf(C + "structure A #[align = 0] x: integer32; end " + C + "structure B x: integer32; end", 0, 1), MAREA_SEMA_LAYOUT_VERDICT_UNDECIDED) << "A field align that sema cannot read is not decided.";
+
+    const std::string NESTED{ C + "structure N x: integer32; end " + C + "structure M y: integer32; end " + C + "structure W z: integer64; end " };
+
+    EXPECT_EQ(MAREA_verdictOf(NESTED + C + "structure A i: N; end " + C + "structure B j: M; end", 3, 4), MAREA_SEMA_LAYOUT_VERDICT_COMPATIBLE) << "Two nested structures of the same layout are compatible.";
+
+    EXPECT_EQ(MAREA_verdictOf(NESTED + C + "structure A i: N; end " + C + "structure B j: W; end", 3, 4), MAREA_SEMA_LAYOUT_VERDICT_INCOMPATIBLE) << "Two nested structures of another layout differ.";
+
+    EXPECT_EQ(MAREA_verdictOf(NESTED + C + "structure A i: N; end " + C + "structure B j: integer32; end", 3, 4), MAREA_SEMA_LAYOUT_VERDICT_INCOMPATIBLE) << "A nested structure is not a flat field.";
+
+    EXPECT_EQ(MAREA_verdictOf("structure N x: integer32; end " + C + "structure A i: N; end " + C + "structure B i: N; end", 1, 2), MAREA_SEMA_LAYOUT_VERDICT_UNDECIDED) << "An auto structure inside a c structure has no size.";
+
+    EXPECT_EQ(MAREA_verdictOf(C + "structure A<T> v: T; end " + C + "structure B<T> v: T; end", 0, 1), MAREA_SEMA_LAYOUT_VERDICT_UNDECIDED) << "A generic structure cannot be measured.";
+
+    EXPECT_EQ(MAREA_verdictOf(C + "structure A x: A; end " + C + "structure B x: A; end", 0, 1), MAREA_SEMA_LAYOUT_VERDICT_UNDECIDED) << "A structure that holds itself is cut off by the depth limit.";
 }
 
 TEST(MAREASemaInternal, CompareStructureLayoutRejectsANullArgument)
