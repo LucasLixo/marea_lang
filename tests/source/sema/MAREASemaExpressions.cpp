@@ -84,7 +84,87 @@ TEST(MAREASemaExpressions, OperatorsGiveATypedResult)
 
     EXPECT_TRUE(MAREA_codesOf("function g(v: unsigned32) local shifted: unsigned32 = v << 4; local masked: unsigned32 = v & 255; local wrapped: unsigned32 = v +% 200; local inverted: unsigned32 = ~v; end").empty()) << "Shift, bit and wrap operators with a fitting type must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("function g(a: integer32, b: float64) local n: float64 = a + b; end").empty()) << "A sum of two different primitives has no known type and must not be guessed.";
+    EXPECT_EQ(MAREA_codesOf("function g(a: integer32, b: float64) local n: float64 = a + b; end"), Codes{ MISMATCH }) << "A sum of two different primitives must raise one TYPE_MISMATCH and no second one for the local.";
+}
+
+TEST(MAREASemaExpressions, BinaryOperandsMustHaveTheSameType)
+{
+    GTEST_COUT << "Validating the two operands of a binary operator are compared by exact primitive name." << std::endl;
+
+    const std::string HEAD{ "function g(a: integer32, b: float64, c: integer64, p: boolean, s: string) " };
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "a + b; end"), Codes{ MISMATCH }) << "An integer32 plus a float64 must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "a - c; a * c; a / c; a % c; end"), (Codes{ MISMATCH, MISMATCH, MISMATCH, MISMATCH })) << "Every arithmetic operator must compare its operands.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "a +% c; a -% c; a *% c; a +| c; a -| c; a *| c; end"), (Codes{ MISMATCH, MISMATCH, MISMATCH, MISMATCH, MISMATCH, MISMATCH })) << "Every wrapping and saturating operator must compare its operands.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "a == b; a != b; a < b; a <= b; a > b; a >= b; end"), (Codes{ MISMATCH, MISMATCH, MISMATCH, MISMATCH, MISMATCH, MISMATCH })) << "Every comparison operator must compare its operands.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "a & c; a | c; a ^ c; end"), (Codes{ MISMATCH, MISMATCH, MISMATCH })) << "Every bitwise operator must compare its operands.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "p and a; a or p; end"), (Codes{ MISMATCH, MISMATCH })) << "A logical operator with a boolean and an integer must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "s + a; end"), Codes{ MISMATCH }) << "A string plus an integer must raise TYPE_MISMATCH.";
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "a + a; b * b; c - c; p and p; s == s; a < a; a & a; end").empty()) << "Two operands of the same primitive must raise nothing.";
+}
+
+TEST(MAREASemaExpressions, BinaryOperandWithALiteralFitsLikeADeclaredType)
+{
+    GTEST_COUT << "Validating a number literal is compared with the other operand as it is compared with a declared type." << std::endl;
+
+    const std::string HEAD{ "function g(a: integer32, b: float64, p: boolean, s: string) " };
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "a + 1.5; end"), Codes{ MISMATCH }) << "A fraction literal does not fit an integer32 operand.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "s + 1; end"), Codes{ MISMATCH }) << "A number literal does not fit a string operand.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "p == 1; 2 < s; end"), (Codes{ MISMATCH, MISMATCH })) << "A number literal does not fit a boolean or a string operand, on either side.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "a == true; \"x\" == b; end"), (Codes{ MISMATCH, MISMATCH })) << "A boolean or a string literal does not fit a number operand.";
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "a + 1; 1 + a; b * 2.5; b + 2; a < 0x10; p == true; s == \"x\"; 1 + 2.5; end").empty()) << "A literal that fits the other operand must raise nothing.";
+}
+
+TEST(MAREASemaExpressions, BinaryOperandMismatchIsReportedOnceAndWhereverItStands)
+{
+    GTEST_COUT << "Validating a mismatch is reported once per binary expression in every checked slot." << std::endl;
+
+    const std::string HEAD{ "function g(a: integer32, b: float64, c: integer32): boolean " };
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "a + b + c; return true; end"), Codes{ MISMATCH }) << "A mismatch inside a longer chain must be reported once, with no cascade.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "if a < b then end return true; end"), Codes{ MISMATCH }) << "A condition of an if statement must be checked.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "while a < b do end return true; end"), Codes{ MISMATCH }) << "A condition of a while statement must be checked.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "return a < b; end"), Codes{ MISMATCH }) << "A returned value must be checked once, with no second report for the result type.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "local n: boolean = (a == b); return n; end"), Codes{ MISMATCH }) << "A parenthesized operand pair must be checked.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "local n: float64 = 1.0; n = n + a; return true; end"), Codes{ MISMATCH }) << "The value of an assignment must be checked.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(x: float64) end function g(a: integer32, b: float64) f(a * b); end"), Codes{ MISMATCH }) << "An argument of a call must be checked.";
+
+    EXPECT_EQ(MAREA_codesOf("constant A: integer32 = 1; constant B: float64 = 1.5; constant C: float64 = A * B;"), Codes{ MISMATCH }) << "The initializer of a constant must be checked.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "(a + b) * (a + b); return true; end"), (Codes{ MISMATCH, MISMATCH })) << "Two separate mismatches must each be reported.";
+}
+
+TEST(MAREASemaExpressions, BinaryOperandOfAnUnknownTypeIsAccepted)
+{
+    GTEST_COUT << "Validating an operand whose type sema does not know is never guessed and the shift and power operators are left as they are." << std::endl;
+
+    const std::string POINT{ "structure Point x: float32; end enum Color red; end " };
+
+    EXPECT_TRUE(MAREA_codesOf(POINT + "function g(p: Point, c: Color, a: integer32, q: pointer<integer32>) p == a; c == a; c + 1; q + a; a + q; end").empty()) << "A structure, an enum and a pointer must not be compared with a primitive.";
+
+    EXPECT_TRUE(MAREA_codesOf("function same<Item>(a: Item): Item return copy a; end function g(a: integer32, b: float64) same(a) + b; same(b) + a; end").empty()) << "The result of a generic call must not be guessed.";
+
+    EXPECT_TRUE(MAREA_codesOf("function g(a: float64) for i in 0 .. 3 do i + a; end end").empty()) << "A binder with no known type must not be guessed.";
+
+    EXPECT_TRUE(MAREA_codesOf("function g(v: unsigned32, n: integer32, f: float64) v << n; v >> n; n ** f; f ** n; n ** 2.0; end").empty()) << "The shift and the power operators must keep the type of their right side free.";
 }
 
 TEST(MAREASemaExpressions, CallResultIsTypedForAKnownFunction)

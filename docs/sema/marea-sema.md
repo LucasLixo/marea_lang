@@ -131,6 +131,16 @@ only by name (`integer32` does not fit `integer64`), a number literal fits any n
 any float type, and a structure fits no primitive. An alias of a primitive is the primitive. The mismatch is
 `TYPE_MISMATCH` (3011) on the expression. A name of an enum or of a library type is never compared.
 
+**Operands of a binary operator.** Every binary expression in a checked slot (the same slots as the names, and
+the initializer of a constant) has its two operands compared, whatever the declared type: `+`, `-`, `*`, `/`,
+`%` and their wrapping and saturating forms, the six comparisons, `&`, `|`, `^`, `and` and `or`. Two primitives
+agree only by exact name (`integer32` and `float64` do not, and a conversion is always written). A number literal
+agrees with a primitive as it fits a declared type, so `a + 1` is accepted for a `float64` and `a + 1.5` is not
+for an `integer32`. A mismatch is `TYPE_MISMATCH` (3011) on the binary expression, once per expression, and the
+expression then has no type, so the declared type of a local or a `return` is not reported a second time. An
+operand that is a structure, an enum, a library type, a generic result or any other unknown type is accepted.
+A shift and `**` are not compared, as their right side may have another type.
+
 **Names in expressions.** A bare name in the initializer of a local, either side of an assignment, an
 expression statement, the condition of an `if`, `elseif` or `while`, a `return` value and a `switch` value (and
 below them: operands, arguments, indexes, entries of a literal value) must be declared, or sema raises
@@ -203,7 +213,7 @@ real, instantiated result type is deferred to when the `ir` stage needs one for 
 | 3008 | `INVALID_ALIGNMENT` | `#[align = 15]` |
 | 3009 | `UNKNOWN_TYPE` | `a: Missing;` in a structure |
 | 3010 | `ARGUMENT_COUNT_MISMATCH` | `add(1)` when `add` takes two parameters |
-| 3011 | `TYPE_MISMATCH` | `f("text")` when the parameter is `integer32`, `local x: boolean = 1;`, `local n: integer32 = a < b;`, `f(s)` with a `string` name `s`, `return a + 1;` in a function that returns `boolean` |
+| 3011 | `TYPE_MISMATCH` | `f("text")` when the parameter is `integer32`, `local x: boolean = 1;`, `local n: integer32 = a < b;`, `f(s)` with a `string` name `s`, `return a + 1;` in a function that returns `boolean`, `a + b` with an `integer32` and a `float64` |
 | 3012 | `DUPLICATE_MEMBER` | two `implementation` blocks of one type that both declare `area` |
 | 3013 | `CONTRACT_NOT_SATISFIED` | `maximum(a, b)` when the type of `a` has no `less` for `where Item: Comparable` |
 | 3014 | `GENERIC_ARGUMENT_MISMATCH` | `Pair<integer32>` when `Pair` has two parameters, `Box<4>` |
@@ -222,11 +232,14 @@ real, instantiated result type is deferred to when the `ir` stage needs one for 
 
 ## Gaps
 
-- `TYPE_MISMATCH` (3011) knows the type of an expression only in the shapes listed under "Expressions". It does not
-  compare the two sides of a binary operator (`a + b` with an `integer32` and a `float64` gives no type and no
-  diagnostic), it never compares an enum, a library type, a generic parameter or a `owned`, `task` or `vector`
-  value, and the result of a generic call is unknown (see below). Compound assignments (`+=` and the others) are
-  not compared.
+- `TYPE_MISMATCH` (3011) knows the type of an expression only in the shapes listed under "Expressions". It never
+  compares an enum, a library type, a generic parameter or a `owned`, `task` or `vector` value, and the result of
+  a generic call is unknown (see below). Compound assignments (`+=` and the others) are not compared.
+- The two operands of a shift or of `**` are not compared (see "Operands of a binary operator"). Whether the
+  shift count must have the type of the left side, and whether an integer base with a float exponent is
+  accepted for `**`, is not decided. A binary operator is not checked against what its operands may be (`a and b`
+  with two integers raises nothing, as the two have the same name), and an operator that is declared for a
+  structure is not compared.
 - `UNDECLARED_NAME` (3004) is not raised for the bare name that starts a member chain, for the header of a `for`,
   `for each`, `partition` or `with` statement, or for a name in the initializer of a file constant. The bare
   chain head is skipped because the `basics/functions` example calls `stdio.puts(text)` with no `import`, so the
