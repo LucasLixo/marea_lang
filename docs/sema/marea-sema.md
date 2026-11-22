@@ -68,6 +68,9 @@ table (`MAREA_SemaName`) holds it in `original` and `originalLength`, empty for 
 The IR lowers an alias to this text. A type written with an alias compares equal to the type
 written with the original in a contract signature, and so does a local `type Name = Other;` (a chain
 of aliases is followed up to 8 steps; an alias with generic parameters is not expanded).
+An import name also keeps its qualifier, the namespace it came from (`qualifier` and `qualifierLength`),
+and the comparison renders it with that namespace: `import a { T as X }; import b { T as Y };` make two
+types, while two aliases of one member of one namespace stay one type.
 
 The name `c` is the reserved namespace of C. An import alias named `c` (either form) or a `type`
 named `c` is `NAME_ALREADY_DECLARED` with the message `name is reserved: 'c'`; an alias that is
@@ -129,9 +132,12 @@ join of the spawned workers.
 **Switch arms.** A `switch` has at most one `default` arm, and no `case` value appears twice. Each second
 and later `default` arm is rejected with `DUPLICATE_SWITCH_ARM` (3025), and so is each `case` value that
 appeared before, in one list (`case 1, 1`) or across arms. The first use is never reported, and each repeat
-is one diagnostic, at the repeated item. Two values are the same when they are built from the same literals,
-names and unary operators with the same text (`1` and `1`, `-1` and `-1`, `"a"` and `"a"`, `a.LIMIT` and
-`a.LIMIT`). Over an enum a bare and a qualified name of one variant (`red`, `Color.red`) are the same
+is one diagnostic, at the repeated item. Two values are the same when they hold one value. Integer literals
+are compared by number in any base, with or without `_` separators (`1` and `0x1`, `5` and `0b101`, `-1` and
+`-0x1`). A name of a constant of the file stands for the value it is declared with, and a constant that is
+declared with another constant is followed (at most 16 steps, so a cycle ends), so `MAX` and `100` are the same
+when `constant MAX: integer32 = 100;`. A local or a parameter with the name of a constant hides it. Other
+literals, names and unary operators are compared by text (`"a"` and `"a"`, `a.LIMIT` and `a.LIMIT`). Over an enum a bare and a qualified name of one variant (`red`, `Color.red`) are the same
 variant, as in the coverage check. Two broken (`ERROR_NODE`) values are never compared. The check runs for
 every scrutinee type, and it does not replace `NON_EXHAUSTIVE_SWITCH`: a `switch` over an enum with a repeat
 and a missing variant raises both. The rule follows the grammar (`switch_statement` has one optional
@@ -154,7 +160,8 @@ is a primitive, at a call argument of a function of the file, a local initialize
 `return` value and a constant initializer: a conversion is always written, so two primitives are the same
 only by name (`integer32` does not fit `integer64`), a number literal fits any number type, a fraction literal
 any float type, and a structure fits no primitive. An alias of a primitive is the primitive. The mismatch is
-`TYPE_MISMATCH` (3011) on the expression. A name of an enum or of a library type is never compared.
+`TYPE_MISMATCH` (3011) on the expression. A name of an enum, of a library type or of a generic parameter, and an `owned`,
+`task` or `vector` value, are classified as their own shapes but are never compared.
 
 **Operands of a binary operator.** Every binary expression in a checked slot (the same slots as the names, and
 the initializer of a constant) has its two operands compared, whatever the declared type: `+`, `-`, `*`, `/`,
@@ -310,11 +317,10 @@ type arguments is deferred to when the `ir` stage needs one for real.
 ## Gaps
 
 - Renaming on use inside one file (without an import) is not offered: a local declaration has its own name.
-- An alias compares equal to its original by text. Two aliases of same-named members of two different namespaces
-  (`import a { T as X }; import b { T as Y };`) therefore compare equal in a contract signature.
-- `TYPE_MISMATCH` (3011) knows the type of an expression only in the shapes listed under "Expressions". It never
-  compares an enum, a library type, a generic parameter or a `owned`, `task` or `vector` value, and the result of
-  a generic call is unknown (see below).
+- `TYPE_MISMATCH` (3011) sorts the type of an expression into a fixed set of shapes: a literal, a primitive, a
+  structure, and, known but never compared, an enum, a library type, a generic parameter and an `owned`, `task` or
+  `vector` value. Still fully unknown: a `pointer`, a `slice`, a function type, the type of a field or a file
+  constant that is not a primitive, and the result of a generic call (see below).
 - A binary operator is not checked against what its operands may be (`a and b` with two integers raises nothing,
   as the two have the same name), and an operator that is declared for a structure is not compared.
 - `UNDECLARED_NAME` (3004) is not raised for the bare name that starts a member chain, for the header of a `for`,
@@ -326,10 +332,9 @@ type arguments is deferred to when the `ir` stage needs one for real.
 - The type of a library type is not tracked, so a missing `copy` or `move` there is not reported.
 - The typed-AST hand-off substitutes a generic result only for a bare parameter with explicit type arguments; a
   result from inferred type arguments or a compound such as `array<Item>` keeps the raw type.
-- `DUPLICATE_SWITCH_ARM` compares the text of a value, not its number: `1` and `0x1`, or `1.0` and `1.00`, are
-  taken for different values. A constant that is named in one arm and written as its literal in another is not
-  matched either, and a name of an enum is matched by the variant name only, so `Color.red` and `Other.red`
-  count as one. A case value that is a call or another computed expression is never compared.
+- `DUPLICATE_SWITCH_ARM` compares a float by its text: `1.0` and `1.00` are taken for different values. A constant
+  that sema cannot read (imported, or declared with a computed expression) is compared by its name only, and a
+  case value that is a call or another computed expression is never compared.
 - `convert<T>(x)` between two structures is checked in sema only for the field types, the alignment and, for a `c`
   layout, the size, as described under "Rules". Where sema cannot size a structure (the default `auto` layout, a
   `string`, `pointer`, `vector`, structure or enum field, a generic structure, a field `align`), the pair is

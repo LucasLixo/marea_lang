@@ -572,3 +572,67 @@ TEST(MAREASemaExpressions, ConvertBetweenStructuresFollowsAnAliasOfAPrimitive)
 
     EXPECT_EQ(MAREA_codesOf(HEAD + "convert<Count>(l); convert<Length>(c); end"), (Codes{ MISMATCH, MISMATCH })) << "An alias of float32 is not integer32.";
 }
+
+namespace
+{
+    // INFO: one value of each opaque kind is used in every slot that compares a shape, so a kind that is classified as comparable would raise TYPE_MISMATCH here. A local initializer uses copy, as the ownership rule asks.
+    void MAREA_expectOpaqueValueAccepted(const std::string &declarations, const std::string &parameter, const std::string &kind)
+    {
+        const std::string HEAD{ declarations + "function f(a: integer32) end function g(v: " + parameter + ", w: " + parameter + ", s: string) " };
+
+        EXPECT_TRUE(MAREA_codesOf(HEAD + "f(v); local n: integer32 = copy v; local b: boolean = copy v; local t: string = copy v; end").empty()) << kind << " value must not be compared with a primitive target.";
+
+        EXPECT_TRUE(MAREA_codesOf(HEAD + "local x: boolean = v == w; local y: boolean = v < 1; local z: boolean = 1 == v; end").empty()) << kind << " value must not be compared in a binary operator.";
+
+        EXPECT_TRUE(MAREA_codesOf(HEAD + "local x: integer32 = v << 1; local y: integer32 = 1 >> v; local z: integer32 = v + 1; end").empty()) << kind << " value must not be checked as an integer in a shift or in arithmetic.";
+
+        EXPECT_TRUE(MAREA_codesOf(HEAD + "local n: integer32 = convert<integer32>(v); local m: boolean = convert<boolean>(v); end").empty()) << kind << " value must not be refused by a conversion.";
+
+        EXPECT_EQ(MAREA_codesOf(HEAD + "f(v); f(s); end"), Codes{ MISMATCH }) << kind << " value must not hide a real mismatch next to it.";
+    }
+} // namespace
+
+TEST(MAREASemaExpressions, EnumValueIsAKnownShapeNeverComparedWithAPrimitive)
+{
+    GTEST_COUT << "Validating an enum value is classified and never compared with a primitive." << std::endl;
+
+    MAREA_expectOpaqueValueAccepted("enum Color red; green; end ", "Color", "An enum");
+}
+
+TEST(MAREASemaExpressions, LibraryValueIsAKnownShapeNeverComparedWithAPrimitive)
+{
+    GTEST_COUT << "Validating a library type value is classified and never compared with a primitive." << std::endl;
+
+    MAREA_expectOpaqueValueAccepted("", "Handle", "A library type");
+}
+
+TEST(MAREASemaExpressions, GenericParameterValueIsAKnownShapeNeverComparedWithAPrimitive)
+{
+    GTEST_COUT << "Validating a generic parameter value is classified and never compared with a primitive." << std::endl;
+
+    const std::string HEAD{ "function f(a: integer32) end function g<Item>(v: Item, w: Item, s: string) " };
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "f(v); local n: integer32 = copy v; local x: boolean = v == w; local y: integer32 = v << 1; local z: integer32 = v + 1; local m: integer32 = convert<integer32>(v); end").empty()) << "A generic parameter value must not be compared with a primitive.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "f(v); f(s); end"), Codes{ MISMATCH }) << "A generic parameter value must not hide a real mismatch next to it.";
+}
+
+TEST(MAREASemaExpressions, OwnedTaskAndVectorValuesAreKnownShapesNeverComparedWithAPrimitive)
+{
+    GTEST_COUT << "Validating an owned, a task and a vector value are classified and never compared with a primitive." << std::endl;
+
+    MAREA_expectOpaqueValueAccepted("", "owned<integer32>", "An owned");
+
+    MAREA_expectOpaqueValueAccepted("", "task<integer32>", "A task");
+
+    MAREA_expectOpaqueValueAccepted("", "vector<float32, 4>", "A vector");
+}
+
+TEST(MAREASemaExpressions, OpaqueKindsStayUnknownAtAFieldAccess)
+{
+    GTEST_COUT << "Validating a field of an opaque kind is accepted at every slot." << std::endl;
+
+    const std::string HEAD{ "enum Color red; end structure Box c: Color; o: owned<integer32>; v: vector<float32, 4>; end function f(a: integer32) end function g(b: Box) " };
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "f(b.c); f(b.o); f(b.v); local n: integer32 = b.c + 1; end").empty()) << "A field of an opaque kind must not be compared with a primitive.";
+}
