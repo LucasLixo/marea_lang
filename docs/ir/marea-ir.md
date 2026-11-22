@@ -328,7 +328,8 @@ double quotes when present, then `type=NAME` when the node has a type name, then
 has an operator, then `flags=NUMBER` when the flags are not zero. In the text, `"` and `\` get a
 backslash and a byte below 0x20 or above 0x7E is written as `\xHH`. The result is NUL terminated;
 `outLength` does not count the NUL. It returns `ERROR_NULL_POINTER` for a null argument and
-`ERROR_OUT_OF_MEMORY` when the arena cannot grow.
+`ERROR_OUT_OF_MEMORY` when the arena cannot grow. The walk uses an explicit stack held in the arena, so
+call-stack use does not depend on the tree depth; a deep tree costs arena memory only.
 
 ```
 MODULE
@@ -451,7 +452,7 @@ Each diagnostic carries the position of the construct that raised it.
   namespace. A backend that needs it must read the import itself.
 - A type alias is lowered only when its right side is one plain named type. An alias to a function type, or to a
   type with type arguments, stays as written.
-- The tree builder and the dump are recursive, and so is the lowering of a nested type argument. A very deep tree
-  needs a large stack; no test goes deeper than the example programs.
+- The tree builder and the lowering of a nested type argument are recursive. A very deep tree needs a large stack;
+  no test goes deeper than the example programs. The dump is not part of this gap: it walks an explicit stack.
 - `MAREA_IrLowerCompilationUnit` reports a root that is not a `COMPILATION_UNIT` with
   `MAREA_IR_EXCEPT_ERROR_NULL_POINTER`, because the except set has no other fitting value.
