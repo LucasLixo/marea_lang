@@ -173,7 +173,7 @@ static void MAREA_CALL MAREA_G_DumpTree(MAREA_G_DumpBuffer *buffer, const MAREA_
         }
 
         if ((count + current.node->childCount) > capacity) {
-            MAREA_IntegerSize newCapacity = (capacity == MAREA_INTEGER_SIZE(0)) ? MAREA_INTEGER_SIZE(64) : (capacity * MAREA_INTEGER_SIZE(2));
+            MAREA_IntegerSize newCapacity = (capacity * MAREA_INTEGER_SIZE(2));
 
             while ((count + current.node->childCount) > newCapacity) {
                 newCapacity = (newCapacity * MAREA_INTEGER_SIZE(2));
