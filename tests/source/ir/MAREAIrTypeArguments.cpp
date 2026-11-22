@@ -110,14 +110,14 @@ TEST(MAREAIrTypeArguments, ConvertKeepsItsTypeAndItsValue)
 {
     GTEST_COUT << "Validating convert<T>(x) keeps the target type in the callee and the value in the argument list." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerLocal("count: integer32", "integer64", "convert<integer64>(count)"), "(CALL_EXPRESSION (BUILTIN_NAME convert (TYPE_NAME integer64)) (ARGUMENT_LIST (IDENTIFIER count)))") << "The target type must not be mixed with the value.";
+    EXPECT_EQ(MAREA_lowerLocal("count: integer32", "integer64", "convert<integer64>(count)"), "(CALL_EXPRESSION :integer64 (BUILTIN_NAME convert (TYPE_NAME integer64)) (ARGUMENT_LIST (IDENTIFIER count)))") << "The target type must not be mixed with the value.";
 }
 
 TEST(MAREAIrTypeArguments, BuiltinCallsNestAndJoinExpressions)
 {
     GTEST_COUT << "Validating a built-in call lowers inside another call and inside a binary expression." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerLocal("count: integer32", "float64", "convert<float64>(convert<integer64>(count))"), "(CALL_EXPRESSION (BUILTIN_NAME convert (TYPE_NAME float64)) (ARGUMENT_LIST (CALL_EXPRESSION (BUILTIN_NAME convert (TYPE_NAME integer64)) (ARGUMENT_LIST (IDENTIFIER count)))))") << "A built-in call must lower as an argument.";
+    EXPECT_EQ(MAREA_lowerLocal("count: integer32", "float64", "convert<float64>(convert<integer64>(count))"), "(CALL_EXPRESSION :float64 (BUILTIN_NAME convert (TYPE_NAME float64)) (ARGUMENT_LIST (CALL_EXPRESSION :integer64 (BUILTIN_NAME convert (TYPE_NAME integer64)) (ARGUMENT_LIST (IDENTIFIER count)))))") << "A built-in call must lower as an argument.";
 
     EXPECT_EQ(MAREA_lowerConstant("unsigned64", "size_of<Light>() * 2"), "(BINARY_EXPRESSION op=STAR (CALL_EXPRESSION (BUILTIN_NAME size_of (TYPE_NAME Light)) (ARGUMENT_LIST)) (INTEGER_LITERAL 2))") << "A built-in call must lower as an operand.";
 }
@@ -395,7 +395,7 @@ TEST(MAREAIrTypeArguments, DumpShowsTheNewKinds)
 
     const std::string DUMP{ text, length };
 
-    EXPECT_NE(DUMP.find("      LOCAL_DECLARATION \"wide\" type=integer64\n        CALL_EXPRESSION\n          BUILTIN_NAME \"convert\"\n            TYPE_NAME \"integer64\"\n          ARGUMENT_LIST\n            IDENTIFIER \"count\"\n"), std::string::npos) << "The built-in call must dump with its name, its type and its argument.\n"
+    EXPECT_NE(DUMP.find("      LOCAL_DECLARATION \"wide\" type=integer64\n        CALL_EXPRESSION type=integer64\n          BUILTIN_NAME \"convert\"\n            TYPE_NAME \"integer64\"\n          ARGUMENT_LIST\n            IDENTIFIER \"count\"\n"), std::string::npos) << "The built-in call must dump with its name, its type and its argument.\n"
                                                                                                                                                                                                                                                               << DUMP;
 
     EXPECT_NE(DUMP.find("        CALL_EXPRESSION\n          MEMBER_ACCESS\n            TYPE_NAME \"array\"\n              TYPE_NAME \"integer32\"\n            IDENTIFIER \"filled\"\n          ARGUMENT_LIST\n"), std::string::npos) << "The static call must dump with its type as the receiver.\n"
