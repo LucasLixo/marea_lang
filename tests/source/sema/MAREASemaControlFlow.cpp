@@ -264,9 +264,11 @@ TEST(MAREASemaControlFlow, RepeatedArmIsReportedAtTheRepeat)
 
     ASSERT_EQ(defaultFixture.MAREA_sema(DEFAULT_SOURCE), MAREA_SEMA_EXCEPT_SUCCESS) << "The unit must check.";
 
-    ASSERT_EQ(defaultFixture.parser.MAREA_offsets().size(), 1U) << "One diagnostic must be raised.";
+    ASSERT_EQ(defaultFixture.parser.MAREA_offsets().size(), 2U) << "The parser now also flags the second default as not last, so two diagnostics are raised.";
 
-    EXPECT_EQ(defaultFixture.parser.MAREA_offsets()[0], DEFAULT_SOURCE.rfind("default")) << "The diagnostic must sit on the second default arm.";
+    EXPECT_EQ(defaultFixture.parser.MAREA_offsets()[0], DEFAULT_SOURCE.rfind("default")) << "The parse diagnostic must sit on the second default arm.";
+
+    EXPECT_EQ(defaultFixture.parser.MAREA_offsets()[1], DEFAULT_SOURCE.rfind("default")) << "The sema diagnostic must also sit on the second default arm.";
 
     const std::string CASE_SOURCE{ PREFIX + "case 7 then return; case 8, 7 then return; end end" };
 
