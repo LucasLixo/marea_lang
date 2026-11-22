@@ -207,4 +207,3 @@ real, instantiated result type is deferred to when the `ir` stage needs one for 
   matched either, and a name of an enum is matched by the variant name only, so `Color.red` and `Other.red`
   count as one. A case value that is a call or another computed expression is never compared.
 - A `break` or `continue` that is not inside any loop is not reported.
-- A `with` statement is not an ending path for `MISSING_RETURN`, even when its body returns.
