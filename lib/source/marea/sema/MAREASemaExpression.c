@@ -29,6 +29,11 @@ static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeMake(MAREA_G_ShapeKind kind, const 
     return (MAREA_G_Shape){ .name = name, .length = length, .kind = kind };
 }
 
+static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeUnknown(void)
+{
+    return MAREA_G_ShapeMake(MAREA_G_SHAPE_KIND_UNKNOWN, MAREA_NULLPTR, 0);
+}
+
 static MAREA_G_Shape MAREA_CALL MAREA_G_ShapePrimitive(const MAREA_Character8 *name)
 {
     return MAREA_G_ShapeMake(MAREA_G_SHAPE_KIND_PRIMITIVE, name, strlen(name));
@@ -189,7 +194,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_Fits(const MAREA_G_Shape *target, const 
 static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOfType(const MAREA_SemaContext *context, const MAREA_AstNode *type, MAREA_Boolean allowStructure)
 {
     if (MAREA_G_IsType(type) == MAREA_BOOLEAN_FALSE) {
-        return MAREA_G_ShapeMake(MAREA_G_SHAPE_KIND_UNKNOWN, MAREA_NULLPTR, 0);
+        return MAREA_G_ShapeUnknown();
     }
 
     const MAREA_AstNode *declaration = MAREA_NULLPTR;
@@ -209,7 +214,7 @@ static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOfType(const MAREA_SemaContext *con
         return MAREA_G_ShapeMake(MAREA_G_SHAPE_KIND_STRUCTURE, name, length);
     }
 
-    return MAREA_G_ShapeMake(MAREA_G_SHAPE_KIND_UNKNOWN, MAREA_NULLPTR, 0);
+    return MAREA_G_ShapeUnknown();
 }
 
 static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOf(const MAREA_SemaContext *context, const MAREA_AstNode *expression, MAREA_Uinteger32 depth);
@@ -225,7 +230,7 @@ static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOfName(const MAREA_SemaContext *con
     const MAREA_AstNode *constant = MAREA_G_FindDeclaration(context, name, MAREA_AST_KIND_CONSTANT_DECLARATION);
 
     if (constant == MAREA_NULLPTR) {
-        return MAREA_G_ShapeMake(MAREA_G_SHAPE_KIND_UNKNOWN, MAREA_NULLPTR, 0);
+        return MAREA_G_ShapeUnknown();
     }
 
     return MAREA_G_ShapeOfType(context, MAREA_SemaChildAt(constant, (MAREA_AstNodeGetChildCount(constant) - 2)), MAREA_BOOLEAN_FALSE);
@@ -237,13 +242,13 @@ static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOfCall(const MAREA_SemaContext *con
     const MAREA_AstNode *callee = MAREA_SemaChildAt(call, 0);
 
     if ((MAREA_G_IsKind(callee, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_FALSE) || (MAREA_G_FindLocal(context, callee) != MAREA_NULLPTR)) {
-        return MAREA_G_ShapeMake(MAREA_G_SHAPE_KIND_UNKNOWN, MAREA_NULLPTR, 0);
+        return MAREA_G_ShapeUnknown();
     }
 
     const MAREA_AstNode *function = MAREA_G_FindDeclaration(context, callee, MAREA_AST_KIND_FUNCTION_DECLARATION);
 
     if ((function == MAREA_NULLPTR) || (MAREA_G_FindChild(function, MAREA_AST_KIND_GENERIC_PARAMETERS) != MAREA_NULLPTR)) {
-        return MAREA_G_ShapeMake(MAREA_G_SHAPE_KIND_UNKNOWN, MAREA_NULLPTR, 0);
+        return MAREA_G_ShapeUnknown();
     }
 
     return MAREA_G_ShapeOfType(context, MAREA_SemaReturnType(function), MAREA_BOOLEAN_TRUE);
@@ -251,7 +256,7 @@ static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOfCall(const MAREA_SemaContext *con
 
 static MAREA_G_Shape MAREA_CALL MAREA_G_Combine(const MAREA_G_Shape *left, const MAREA_G_Shape *right)
 {
-    const MAREA_G_Shape unknown = MAREA_G_ShapeMake(MAREA_G_SHAPE_KIND_UNKNOWN, MAREA_NULLPTR, 0);
+    const MAREA_G_Shape unknown = MAREA_G_ShapeUnknown();
 
     if ((MAREA_G_IsNumber(left) == MAREA_BOOLEAN_FALSE) || (MAREA_G_IsNumber(right) == MAREA_BOOLEAN_FALSE)) {
         return ((left->kind == MAREA_G_SHAPE_KIND_PRIMITIVE) && (right->kind == MAREA_G_SHAPE_KIND_PRIMITIVE) && (MAREA_G_SameName(left, right) == MAREA_BOOLEAN_TRUE)) ? *left : unknown;
@@ -291,7 +296,7 @@ static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOfBinary(const MAREA_SemaContext *c
         // INFO: the right side of a shift or a power may have another type, so the result is the type of the left side.
         const MAREA_G_Shape left = MAREA_G_ShapeOf(context, MAREA_SemaChildAt(expression, 0), (depth + 1));
 
-        return (MAREA_G_IsNumber(&left) == MAREA_BOOLEAN_TRUE) ? left : MAREA_G_ShapeMake(MAREA_G_SHAPE_KIND_UNKNOWN, MAREA_NULLPTR, 0);
+        return (MAREA_G_IsNumber(&left) == MAREA_BOOLEAN_TRUE) ? left : MAREA_G_ShapeUnknown();
     }
     default:
     {
@@ -313,7 +318,7 @@ static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOfUnary(const MAREA_SemaContext *co
     }
 
     if ((operatorKind != MAREA_TOKEN_KIND_MINUS) && (operatorKind != MAREA_TOKEN_KIND_TILDE) && (operatorKind != MAREA_TOKEN_KIND_KEYWORD_COPY) && (operatorKind != MAREA_TOKEN_KIND_KEYWORD_MOVE)) {
-        return MAREA_G_ShapeMake(MAREA_G_SHAPE_KIND_UNKNOWN, MAREA_NULLPTR, 0);
+        return MAREA_G_ShapeUnknown();
     }
 
     const MAREA_G_Shape operand = MAREA_G_ShapeOf(context, MAREA_SemaChildAt(expression, 0), (depth + 1));
@@ -322,7 +327,7 @@ static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOfUnary(const MAREA_SemaContext *co
         return operand;
     }
 
-    return MAREA_G_ShapeMake(MAREA_G_SHAPE_KIND_UNKNOWN, MAREA_NULLPTR, 0);
+    return MAREA_G_ShapeUnknown();
 }
 
 // INFO: a member or an index access is trusted only when its type is a primitive, because the field type of a generic structure is written in the scope of the structure.
@@ -333,7 +338,7 @@ static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOfAccess(const MAREA_SemaContext *c
 
 static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOf(const MAREA_SemaContext *context, const MAREA_AstNode *expression, MAREA_Uinteger32 depth)
 {
-    const MAREA_G_Shape unknown = MAREA_G_ShapeMake(MAREA_G_SHAPE_KIND_UNKNOWN, MAREA_NULLPTR, 0);
+    const MAREA_G_Shape unknown = MAREA_G_ShapeUnknown();
 
     if ((expression == MAREA_NULLPTR) || (depth >= MAREA_G_DEPTH_LIMIT)) {
         return unknown;
@@ -497,7 +502,6 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckNames(MAREA_SemaContext *context
         return (MAREA_G_IsKind(base, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_TRUE) ? MAREA_SEMA_EXCEPT_SUCCESS : MAREA_G_CheckNames(context, base, (depth + 1));
     }
     case MAREA_AST_KIND_LITERAL_VALUE:
-        return MAREA_G_CheckNamesOfChildren(context, expression, 1, depth);
     case MAREA_AST_KIND_FIELD_ENTRY:
         return MAREA_G_CheckNamesOfChildren(context, expression, 1, depth);
     default:

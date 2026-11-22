@@ -662,15 +662,9 @@ const MAREA_AstNode *MAREA_CALL MAREA_SemaInferType(const MAREA_SemaContext *con
         return MAREA_NULLPTR;
     }
 
-    for (MAREA_IntegerSize index = context->locals.count; index > 0; --index) {
-        const MAREA_SemaName *local = &context->locals.entries[(index - 1)];
+    const MAREA_SemaName *local = MAREA_SemaLocalFind(context, MAREA_AstNodeGetText(expression), MAREA_AstNodeGetTextLength(expression));
 
-        if (MAREA_SemaTextEquals(local->text, local->length, MAREA_AstNodeGetText(expression), MAREA_AstNodeGetTextLength(expression)) == MAREA_BOOLEAN_TRUE) {
-            return local->declaration;
-        }
-    }
-
-    return MAREA_NULLPTR;
+    return (local == MAREA_NULLPTR) ? MAREA_NULLPTR : local->declaration;
 }
 
 static const MAREA_G_Binding *MAREA_CALL MAREA_G_FindBinding(const MAREA_G_Bindings *bindings, const MAREA_Character8 *name, MAREA_IntegerSize length)
