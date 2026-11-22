@@ -224,6 +224,57 @@ TEST(MAREASemaControlFlow, RepeatedConstantNameIsRejected)
     EXPECT_EQ(MAREA_codesOf("function f(n: integer32): integer32 switch n case a.LIMIT then return 1; case a.LIMIT then return 2; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "A repeated qualified constant name must raise DUPLICATE_SWITCH_ARM.";
 }
 
+TEST(MAREASemaControlFlow, RepeatedIntegerValueInAnotherBaseIsRejected)
+{
+    GTEST_COUT << "Validating two integer literals of one value in different spellings are the same case value." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("function f(n: integer32): integer32 switch n case 1, 0x1 then return 1; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "1 and 0x1 in one list must raise DUPLICATE_SWITCH_ARM.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(n: integer32): integer32 switch n case 255 then return 1; case 0xFF then return 2; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "255 and 0xFF across arms must raise DUPLICATE_SWITCH_ARM.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(n: integer32): integer32 switch n case 5 then return 1; case 0b101 then return 2; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "5 and 0b101 must raise DUPLICATE_SWITCH_ARM.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(n: integer32): integer32 switch n case 1_000 then return 1; case 1000 then return 2; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "A digit separator must not change the value.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(n: integer32): integer32 switch n case -1 then return 1; case -0x1 then return 2; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "A negated literal must be compared by value.";
+
+    EXPECT_TRUE(MAREA_codesOf("function f(n: integer32): integer32 switch n case 1 then return 1; case 0x2 then return 2; case -0x1 then return 4; default then return 3; end end").empty()) << "Literals of different values must raise nothing.";
+}
+
+TEST(MAREASemaControlFlow, ConstantAndItsLiteralAreTheSameCaseValue)
+{
+    GTEST_COUT << "Validating a named constant and the literal it holds are the same case value." << std::endl;
+
+    const std::string MAX{ "constant MAX: integer32 = 100; " };
+
+    EXPECT_EQ(MAREA_codesOf(MAX + "function f(n: integer32): integer32 switch n case MAX then return 1; case 100 then return 2; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "A constant, then its literal, must raise DUPLICATE_SWITCH_ARM.";
+
+    EXPECT_EQ(MAREA_codesOf(MAX + "function f(n: integer32): integer32 switch n case 0x64 then return 1; case MAX then return 2; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "A literal in another base, then the constant, must raise DUPLICATE_SWITCH_ARM.";
+
+    EXPECT_EQ(MAREA_codesOf("constant A: integer32 = 7; constant B: integer32 = A; function f(n: integer32): integer32 switch n case B then return 1; case 7 then return 2; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "A constant built from another constant must be followed.";
+
+    EXPECT_EQ(MAREA_codesOf("constant A: integer32 = 7; constant B: integer32 = 7; function f(n: integer32): integer32 switch n case A then return 1; case B then return 2; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "Two constants of one value must raise DUPLICATE_SWITCH_ARM.";
+
+    EXPECT_EQ(MAREA_codesOf("constant NAME: string = \"a\"; function f(s: string): integer32 switch s case NAME then return 1; case \"a\" then return 2; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "A string constant and its literal must raise DUPLICATE_SWITCH_ARM.";
+
+    EXPECT_TRUE(MAREA_codesOf(MAX + "function f(n: integer32): integer32 switch n case MAX then return 1; case 101 then return 2; default then return 3; end end").empty()) << "A constant and another literal must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(MAX + "function f(MAX: integer32): integer32 switch MAX case MAX then return 1; case 100 then return 2; default then return 3; end end").empty()) << "A local that hides the constant must not be resolved to it.";
+
+    EXPECT_TRUE(MAREA_codesOf("constant A: integer32 = B; constant B: integer32 = A; function f(n: integer32): integer32 switch n case A then return 1; case 1 then return 2; default then return 3; end end").empty()) << "A cycle of constants must end without a false repeat.";
+}
+
+TEST(MAREASemaControlFlow, QualifiedNamesAreNotResolvedToAConstantOfTheLastName)
+{
+    GTEST_COUT << "Validating a qualified name is compared by its path, never by a constant that shares its last name." << std::endl;
+
+    EXPECT_TRUE(MAREA_codesOf("constant LIMIT: integer32 = 5; function f(n: integer32): integer32 switch n case a.LIMIT then return 1; case b.LIMIT then return 2; default then return 3; end end").empty()) << "a.LIMIT and b.LIMIT must stay distinct when the file has its own LIMIT.";
+
+    EXPECT_TRUE(MAREA_codesOf("constant LIMIT: integer32 = 5; constant MAX: integer32 = 5; function f(n: integer32): integer32 switch n case a.LIMIT then return 1; case a.MAX then return 2; default then return 3; end end").empty()) << "a.LIMIT and a.MAX must stay distinct even when the file has constants LIMIT and MAX of one value.";
+
+    EXPECT_EQ(MAREA_codesOf("constant LIMIT: integer32 = 5; function f(n: integer32): integer32 switch n case a.LIMIT then return 1; case a.LIMIT then return 2; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "A repeated qualified name must still raise DUPLICATE_SWITCH_ARM.";
+}
+
 TEST(MAREASemaControlFlow, RepeatedEnumVariantIsRejected)
 {
     GTEST_COUT << "Validating an enum variant that appears again raises DUPLICATE_SWITCH_ARM." << std::endl;
