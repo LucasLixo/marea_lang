@@ -10,7 +10,8 @@
 (* Main rules of the language that this grammar encodes:                                     *)
 (*   1. Every statement and every simple declaration ends with ";".                          *)
 (*   2. Every construct with a body ends with an explicit "end". No ";" follows that "end".  *)
-(*   3. The curly braces are only for literals. A block never uses braces.                   *)
+(*   3. The curly braces are only for literals. A block never uses braces. The member list of *)
+(*      an import also uses braces: it is a list, never a block (note 14).                   *)
 (*   4. A new line is a space. It does not end anything.                                     *)
 (*   5. The first statement of a file is its namespace.                                      *)
 
@@ -89,7 +90,18 @@ compilation_unit    = namespace_declaration,
 (* reserved as the first part of a namespace. *)
 namespace_declaration = "namespace", qualified_name, ";" ;
 
-import_declaration  = "import", qualified_name, [ "as", identifier ], ";" ;
+(* The word after the namespace path decides the form: "as" or ";" is the whole path form, *)
+(* "{" is the member list. A list holds at least one member and has no trailing comma. "as" *)
+(* and a list never mix on one import. The braces are a list, never a block. See note 14.   *)
+import_declaration  = "import", qualified_name, ( [ "as", identifier ] | import_member_list ), ";" ;
+
+import_member_list  = "{", import_member, { ",", import_member }, "}" ;
+
+(* A member names a symbol of the imported namespace: a function, a type or a constant by one *)
+(* name, or an enum variant by a two part path such as Color.Red. The local name is the alias, *)
+(* or the last segment of the member path. The grammar accepts any path: the checker allows   *)
+(* only one or two parts. *)
+import_member        = qualified_name, [ "as", identifier ] ;
 
 
 (* ================================== 3. Attributes ================================== *)
@@ -118,6 +130,10 @@ top_level_item      = { attribute }, ( constant_declaration
 
 constant_declaration = "constant", identifier, ":", type, "=", expression, ";" ;
 
+(* This is also the local type alias form: "type Name = OtherType;" gives a type a second name *)
+(* in one file. The word "alias" is not added: "type" already is the declaration word of the *)
+(* grammar, it already takes generic parameters, and a second word for one meaning would split *)
+(* the language. See note 14. *)
 type_declaration    = "type", identifier, [ generic_parameters ], "=", type, ";" ;
 
 (* Fields come first. The functions go in an implementation block. *)
@@ -357,3 +373,12 @@ macro_call          = ( identifier | "namespace" ), "!", "(", [ argument_list ],
 (*     main(arguments: array<string>): integer32". This is a checker/driver rule, as note  *)
 (*     7 lists, never grammar: "main" stays an ordinary, non-reserved name everywhere      *)
 (*     else. examples/main.marea already follows it (decided).                            *)
+(* 14. Renaming with "as". Three forms give a name a second name (decided):                   *)
+(*     a. Imported names: "import a.b { f as g, T as U };". Each member may take its own "as". *)
+(*        A member may be a function, a type or a constant ("MAX as LIMIT"). The whole path    *)
+(*        form "import a.b as c;" is unchanged. "as" and a member list never mix on one import.*)
+(*     b. Local type alias: "type Name = OtherType;" (rule type_declaration). There is no     *)
+(*        new word "alias".                                                                   *)
+(*     c. Enum variant or constant: a member of an import list names it, a variant by a two   *)
+(*        part path ("Color.Red as Crimson"). Renaming inside one file without an import is   *)
+(*        out of scope: a local declaration already has its own name.                         *)
