@@ -262,39 +262,143 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsCovered(const MAREA_AstNode *statement
     return MAREA_BOOLEAN_FALSE;
 }
 
-// INFO: two case values are the same when they are built from the same literals, names and unary operators.
-static MAREA_Boolean MAREA_CALL MAREA_G_SameValue(const MAREA_AstNode *left, const MAREA_AstNode *right)
+#define MAREA_G_CONSTANT_DEPTH_LIMIT MAREA_INTEGER_SIZE(16)
+
+// INFO: reads an integer literal of any base (decimal, 0x, 0b, with "_" separators); false when it does not fit 64 bits.
+static MAREA_Boolean MAREA_CALL MAREA_G_ReadInteger(const MAREA_AstNode *node, MAREA_Uinteger64 *outValue)
+{
+    const MAREA_Character8 *text = MAREA_AstNodeGetText(node);
+
+    const MAREA_IntegerSize LENGTH = MAREA_AstNodeGetTextLength(node);
+
+    MAREA_IntegerSize index = 0;
+
+    MAREA_Uinteger64 base = 10;
+
+    if ((LENGTH > 2) && (text[0] == '0') && ((text[1] == 'x') || (text[1] == 'X'))) {
+        base = 16;
+        index = 2;
+    } else if ((LENGTH > 2) && (text[0] == '0') && ((text[1] == 'b') || (text[1] == 'B'))) {
+        base = 2;
+        index = 2;
+    }
+
+    MAREA_Uinteger64 value = 0;
+
+    MAREA_Boolean any = MAREA_BOOLEAN_FALSE;
+
+    for (; index < LENGTH; ++index) {
+        const MAREA_Character8 LETTER = text[index];
+
+        if (LETTER == '_') {
+            continue;
+        }
+
+        MAREA_Uinteger64 digit = 0;
+
+        if ((LETTER >= '0') && (LETTER <= '9')) {
+            digit = (MAREA_Uinteger64)(LETTER - '0');
+        } else if ((base == 16) && (LETTER >= 'a') && (LETTER <= 'f')) {
+            digit = (MAREA_Uinteger64)((LETTER - 'a') + 10);
+        } else if ((base == 16) && (LETTER >= 'A') && (LETTER <= 'F')) {
+            digit = (MAREA_Uinteger64)((LETTER - 'A') + 10);
+        } else {
+            return MAREA_BOOLEAN_FALSE;
+        }
+
+        if ((digit >= base) || (value > ((MAREA_UINTEGER_64_MAXIMUM - digit) / base))) {
+            return MAREA_BOOLEAN_FALSE;
+        }
+
+        value = ((value * base) + digit);
+        any = MAREA_BOOLEAN_TRUE;
+    }
+
+    *outValue = value;
+
+    return any;
+}
+
+// INFO: a name of a constant of this file stands for the value it is declared with; a local of the same name hides it.
+static const MAREA_AstNode *MAREA_CALL MAREA_G_ResolveConstant(const MAREA_SemaContext *context, const MAREA_AstNode *value)
+{
+    const MAREA_AstNode *current = value;
+
+    for (MAREA_IntegerSize depth = 0; depth < MAREA_G_CONSTANT_DEPTH_LIMIT; ++depth) {
+        if ((MAREA_G_IsError(current) == MAREA_BOOLEAN_TRUE) || (MAREA_AstNodeGetKind(current) != MAREA_AST_KIND_IDENTIFIER)) {
+            return current;
+        }
+
+        if (MAREA_SemaLocalFind(context, MAREA_AstNodeGetText(current), MAREA_AstNodeGetTextLength(current)) != MAREA_NULLPTR) {
+            return current;
+        }
+
+        const MAREA_SemaName *entry = MAREA_SemaNameTableFind(context, MAREA_AstNodeGetText(current), MAREA_AstNodeGetTextLength(current));
+
+        if ((entry == MAREA_NULLPTR) || (entry->kind != MAREA_SEMA_NAME_KIND_DECLARATION) || (entry->declaration == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(entry->declaration) != MAREA_AST_KIND_CONSTANT_DECLARATION)) {
+            return current;
+        }
+
+        const MAREA_AstNode *initializer = MAREA_SemaChildAt(entry->declaration, 2);
+
+        if (MAREA_G_IsError(initializer) == MAREA_BOOLEAN_TRUE) {
+            return current;
+        }
+
+        current = initializer;
+    }
+
+    return current;
+}
+
+// INFO: two case values are the same when they hold one value: integer literals by number in any base, a constant of this file by the value it is declared with, any other literal, name or unary operator by text.
+static MAREA_Boolean MAREA_CALL MAREA_G_SameValue(const MAREA_SemaContext *context, const MAREA_AstNode *left, const MAREA_AstNode *right)
 {
     if ((MAREA_G_IsError(left) == MAREA_BOOLEAN_TRUE) || (MAREA_G_IsError(right) == MAREA_BOOLEAN_TRUE)) {
         return MAREA_BOOLEAN_FALSE;
     }
 
-    const MAREA_AstKind KIND = MAREA_AstNodeGetKind(left);
+    const MAREA_AstNode *leftValue = MAREA_G_ResolveConstant(context, left);
 
-    if (KIND != MAREA_AstNodeGetKind(right)) {
+    const MAREA_AstNode *rightValue = MAREA_G_ResolveConstant(context, right);
+
+    const MAREA_AstKind KIND = MAREA_AstNodeGetKind(leftValue);
+
+    if (KIND != MAREA_AstNodeGetKind(rightValue)) {
         return MAREA_BOOLEAN_FALSE;
     }
 
     switch (KIND) {
-    case MAREA_AST_KIND_IDENTIFIER:
     case MAREA_AST_KIND_INTEGER_LITERAL:
+    {
+        MAREA_Uinteger64 leftNumber = 0;
+
+        MAREA_Uinteger64 rightNumber = 0;
+
+        if ((MAREA_G_ReadInteger(leftValue, &leftNumber) == MAREA_BOOLEAN_TRUE) && (MAREA_G_ReadInteger(rightValue, &rightNumber) == MAREA_BOOLEAN_TRUE)) {
+            return (leftNumber == rightNumber) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+        }
+
+        return MAREA_G_SameText(leftValue, rightValue);
+    }
+    case MAREA_AST_KIND_IDENTIFIER:
     case MAREA_AST_KIND_FLOAT_LITERAL:
     case MAREA_AST_KIND_STRING_LITERAL:
     case MAREA_AST_KIND_BOOLEAN_LITERAL:
-        return MAREA_G_SameText(left, right);
+        return MAREA_G_SameText(leftValue, rightValue);
     case MAREA_AST_KIND_UNARY_EXPRESSION:
-        return ((MAREA_AstNodeGetOperator(left) == MAREA_AstNodeGetOperator(right)) && (MAREA_G_SameValue(MAREA_SemaChildAt(left, 0), MAREA_SemaChildAt(right, 0)) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+        return ((MAREA_AstNodeGetOperator(leftValue) == MAREA_AstNodeGetOperator(rightValue)) && (MAREA_G_SameValue(context, MAREA_SemaChildAt(leftValue, 0), MAREA_SemaChildAt(rightValue, 0)) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
     case MAREA_AST_KIND_MEMBER_ACCESS:
-        return ((MAREA_G_SameValue(MAREA_SemaChildAt(left, 0), MAREA_SemaChildAt(right, 0)) == MAREA_BOOLEAN_TRUE) && (MAREA_G_SameValue(MAREA_SemaChildAt(left, 1), MAREA_SemaChildAt(right, 1)) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+        return ((MAREA_G_SameValue(context, MAREA_SemaChildAt(leftValue, 0), MAREA_SemaChildAt(rightValue, 0)) == MAREA_BOOLEAN_TRUE) && (MAREA_G_SameValue(context, MAREA_SemaChildAt(leftValue, 1), MAREA_SemaChildAt(rightValue, 1)) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
     default:
         return MAREA_BOOLEAN_FALSE;
     }
 }
 
 // INFO: over an enum, "red" and "Color.red" name one variant, the same way the coverage check reads them.
-static MAREA_Boolean MAREA_CALL MAREA_G_SameCase(const MAREA_AstNode *left, const MAREA_AstNode *right, MAREA_Boolean isEnum)
+static MAREA_Boolean MAREA_CALL MAREA_G_SameCase(const MAREA_SemaContext *context, const MAREA_AstNode *left, const MAREA_AstNode *right, MAREA_Boolean isEnum)
 {
-    if (MAREA_G_SameValue(left, right) == MAREA_BOOLEAN_TRUE) {
+    if (MAREA_G_SameValue(context, left, right) == MAREA_BOOLEAN_TRUE) {
         return MAREA_BOOLEAN_TRUE;
     }
 
@@ -306,7 +410,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_SameCase(const MAREA_AstNode *left, cons
 }
 
 // INFO: an arm and its values are numbered in source order; only a value or a default that comes before the one in hand counts as seen.
-static MAREA_Boolean MAREA_CALL MAREA_G_ValueSeenBefore(const MAREA_AstNode *statement, MAREA_IntegerSize armIndex, MAREA_IntegerSize valueIndex, MAREA_Boolean isEnum)
+static MAREA_Boolean MAREA_CALL MAREA_G_ValueSeenBefore(const MAREA_SemaContext *context, const MAREA_AstNode *statement, MAREA_IntegerSize armIndex, MAREA_IntegerSize valueIndex, MAREA_Boolean isEnum)
 {
     const MAREA_AstNode *value = MAREA_SemaChildAt(MAREA_SemaChildAt(statement, armIndex), valueIndex);
 
@@ -320,7 +424,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_ValueSeenBefore(const MAREA_AstNode *sta
         const MAREA_IntegerSize LIMIT = (index == armIndex) ? valueIndex : (MAREA_AstNodeGetChildCount(arm) - 1);
 
         for (MAREA_IntegerSize earlier = 0; earlier < LIMIT; ++earlier) {
-            if (MAREA_G_SameCase(MAREA_SemaChildAt(arm, earlier), value, isEnum) == MAREA_BOOLEAN_TRUE) {
+            if (MAREA_G_SameCase(context, MAREA_SemaChildAt(arm, earlier), value, isEnum) == MAREA_BOOLEAN_TRUE) {
                 return MAREA_BOOLEAN_TRUE;
             }
         }
@@ -351,7 +455,7 @@ static void MAREA_CALL MAREA_G_CheckDuplicateArms(MAREA_SemaContext *context, co
         }
 
         for (MAREA_IntegerSize valueIndex = 0; (valueIndex + 1) < MAREA_AstNodeGetChildCount(arm); ++valueIndex) {
-            if (MAREA_G_ValueSeenBefore(statement, index, valueIndex, isEnum) == MAREA_BOOLEAN_TRUE) {
+            if (MAREA_G_ValueSeenBefore(context, statement, index, valueIndex, isEnum) == MAREA_BOOLEAN_TRUE) {
                 MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_DUPLICATE_SWITCH_ARM, MAREA_AstNodeGetPosition(MAREA_SemaChildAt(arm, valueIndex)), "switch repeats a case value");
             }
         }
