@@ -23,9 +23,9 @@ typedef struct MAREA_G_AttributeRule
     MAREA_G_AttributeShape shape;
 } MAREA_G_AttributeRule;
 
-static const MAREA_Character8 *const MAREA_G_INLINE_MEMBERS[] = { "force", "never", "auto", MAREA_NULLPTR };
-static const MAREA_Character8 *const MAREA_G_BUILD_MEMBERS[] = { "debug", "release", MAREA_NULLPTR };
-static const MAREA_Character8 *const MAREA_G_LAYOUT_MEMBERS[] = { "c", "auto", MAREA_NULLPTR };
+static const MAREA_Character8 *const MAREA_G_InlineMembers[] = { "force", "never", "auto", MAREA_NULLPTR };
+static const MAREA_Character8 *const MAREA_G_BuildMembers[] = { "debug", "release", MAREA_NULLPTR };
+static const MAREA_Character8 *const MAREA_G_LayoutMembers[] = { "c", "auto", MAREA_NULLPTR };
 
 enum
 {
@@ -40,10 +40,10 @@ enum
 static const MAREA_G_AttributeRule MAREA_G_RULES[MAREA_G_RULE_COUNT] = {
     { .key = "public", .members = MAREA_NULLPTR, .shape = MAREA_G_ATTRIBUTE_SHAPE_FLAG },
     { .key = "private", .members = MAREA_NULLPTR, .shape = MAREA_G_ATTRIBUTE_SHAPE_FLAG },
-    { .key = "inline", .members = MAREA_G_INLINE_MEMBERS, .shape = MAREA_G_ATTRIBUTE_SHAPE_MEMBER },
-    { .key = "build", .members = MAREA_G_BUILD_MEMBERS, .shape = MAREA_G_ATTRIBUTE_SHAPE_MEMBER },
+    { .key = "inline", .members = MAREA_G_InlineMembers, .shape = MAREA_G_ATTRIBUTE_SHAPE_MEMBER },
+    { .key = "build", .members = MAREA_G_BuildMembers, .shape = MAREA_G_ATTRIBUTE_SHAPE_MEMBER },
     { .key = "simd", .members = MAREA_NULLPTR, .shape = MAREA_G_ATTRIBUTE_SHAPE_FLAG },
-    { .key = "layout", .members = MAREA_G_LAYOUT_MEMBERS, .shape = MAREA_G_ATTRIBUTE_SHAPE_MEMBER },
+    { .key = "layout", .members = MAREA_G_LayoutMembers, .shape = MAREA_G_ATTRIBUTE_SHAPE_MEMBER },
     { .key = "align", .members = MAREA_NULLPTR, .shape = MAREA_G_ATTRIBUTE_SHAPE_ALIGNMENT },
     { .key = "pack", .members = MAREA_NULLPTR, .shape = MAREA_G_ATTRIBUTE_SHAPE_INTEGER },
     { .key = "value", .members = MAREA_NULLPTR, .shape = MAREA_G_ATTRIBUTE_SHAPE_FLAG },

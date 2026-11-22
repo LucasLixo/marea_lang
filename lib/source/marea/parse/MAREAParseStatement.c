@@ -230,6 +230,8 @@ static MAREA_AstNode *MAREA_CALL MAREA_G_ParseSwitch(MAREA_ParseState *state)
 
     MAREA_ParseNodeAdd(state, statement, MAREA_ParseExpression(state));
 
+    MAREA_Boolean sawDefault = MAREA_BOOLEAN_FALSE;
+
     for (;;) {
         const MAREA_TokenKind kind = MAREA_ParsePeekKind(state, MAREA_INTEGER_SIZE(0));
 
@@ -242,6 +244,10 @@ static MAREA_AstNode *MAREA_CALL MAREA_G_ParseSwitch(MAREA_ParseState *state)
         }
 
         const MAREA_IntegerSize before = state->index;
+
+        if ((sawDefault == MAREA_BOOLEAN_TRUE) && ((kind == MAREA_TOKEN_KIND_KEYWORD_CASE) || (kind == MAREA_TOKEN_KIND_KEYWORD_DEFAULT))) {
+            MAREA_ParseReport(state, MAREA_PARSE_DIAGNOSTIC_CODE_DEFAULT_ARM_NOT_LAST, MAREA_ParsePeekToken(state, MAREA_INTEGER_SIZE(0)), "expected the default arm to be the last arm of the switch");
+        }
 
         if (kind == MAREA_TOKEN_KIND_KEYWORD_CASE) {
             MAREA_AstNode *arm = MAREA_ParseNodeBegin(state, MAREA_AST_KIND_SWITCH_ARM);
@@ -271,6 +277,8 @@ static MAREA_AstNode *MAREA_CALL MAREA_G_ParseSwitch(MAREA_ParseState *state)
             MAREA_ParseNodeEnd(state, arm);
 
             MAREA_ParseNodeAdd(state, statement, arm);
+
+            sawDefault = MAREA_BOOLEAN_TRUE;
         } else {
             MAREA_ParseReport(state, MAREA_PARSE_DIAGNOSTIC_CODE_EXPECTED_TOKEN, MAREA_ParsePeekToken(state, MAREA_INTEGER_SIZE(0)), "expected 'case', 'default' or 'end'");
 
