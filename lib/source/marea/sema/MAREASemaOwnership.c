@@ -284,7 +284,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckOwnership(MAREA_SemaContext *context,
     }
     case MAREA_AST_KIND_LOCAL_DECLARATION:
     {
-        const MAREA_SemaExcept LITERAL_RESULT = MAREA_SemaCheckLiteralFit(context, MAREA_SemaChildAt(node, 1), MAREA_SemaChildAt(node, 2));
+        const MAREA_SemaExcept LITERAL_RESULT = MAREA_SemaCheckExpressionFit(context, MAREA_SemaChildAt(node, 1), MAREA_SemaChildAt(node, 2));
 
         if (LITERAL_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
             return LITERAL_RESULT;
