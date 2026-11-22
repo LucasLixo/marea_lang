@@ -434,30 +434,49 @@ static MAREA_Boolean MAREA_CALL MAREA_G_OperandsAgree(const MAREA_G_Shape *left,
     return (right->kind == MAREA_G_SHAPE_KIND_PRIMITIVE) ? MAREA_G_Fits(right, left) : MAREA_BOOLEAN_TRUE;
 }
 
-static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckOperands(MAREA_SemaContext *context, const MAREA_AstNode *expression)
+static MAREA_Boolean MAREA_CALL MAREA_G_IsShiftOperator(MAREA_TokenKind operatorKind)
 {
-    const MAREA_TokenKind operatorKind = MAREA_AstNodeGetOperator(expression);
+    return ((operatorKind == MAREA_TOKEN_KIND_SHIFT_LEFT) || (operatorKind == MAREA_TOKEN_KIND_SHIFT_RIGHT) || (operatorKind == MAREA_TOKEN_KIND_SHIFT_LEFT_EQUAL) || (operatorKind == MAREA_TOKEN_KIND_SHIFT_RIGHT_EQUAL)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
 
-    const MAREA_G_Shape left = MAREA_G_ShapeOf(context, MAREA_SemaChildAt(expression, 0), 0);
-
-    const MAREA_G_Shape right = MAREA_G_ShapeOf(context, MAREA_SemaChildAt(expression, 1), 0);
-
-    if ((operatorKind == MAREA_TOKEN_KIND_SHIFT_LEFT) || (operatorKind == MAREA_TOKEN_KIND_SHIFT_RIGHT)) {
-        if (MAREA_G_ShiftAgree(&left, &right) == MAREA_BOOLEAN_FALSE) {
-            MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH, MAREA_AstNodeGetPosition(expression), "a shift needs an integer left operand and an integer count");
+// INFO: a shift and a compound shift follow the shift rule, every other operator and compound operator needs the same type on both sides. The prefix names what is compared.
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckPair(MAREA_SemaContext *context, MAREA_SourcePosition position, MAREA_TokenKind operatorKind, const MAREA_G_Shape *left, const MAREA_G_Shape *right, const MAREA_Character8 *prefix)
+{
+    if (MAREA_G_IsShiftOperator(operatorKind) == MAREA_BOOLEAN_TRUE) {
+        if (MAREA_G_ShiftAgree(left, right) == MAREA_BOOLEAN_FALSE) {
+            MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH, position, "a shift needs an integer left operand and an integer count");
         }
 
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
-    if (MAREA_G_OperandsAgree(&left, &right) == MAREA_BOOLEAN_TRUE) {
+    if (MAREA_G_OperandsAgree(left, right) == MAREA_BOOLEAN_TRUE) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
     // INFO: the name that is reported is the primitive side, because a literal has no name.
-    const MAREA_G_Shape *known = (left.kind == MAREA_G_SHAPE_KIND_PRIMITIVE) ? &left : &right;
+    const MAREA_G_Shape *known = (left->kind == MAREA_G_SHAPE_KIND_PRIMITIVE) ? left : right;
 
-    return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH, MAREA_AstNodeGetPosition(expression), "operands of a binary operator differ in type, one is", known->name, known->length);
+    return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH, position, prefix, known->name, known->length);
+}
+
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckOperands(MAREA_SemaContext *context, const MAREA_AstNode *expression)
+{
+    const MAREA_G_Shape left = MAREA_G_ShapeOf(context, MAREA_SemaChildAt(expression, 0), 0);
+
+    const MAREA_G_Shape right = MAREA_G_ShapeOf(context, MAREA_SemaChildAt(expression, 1), 0);
+
+    return MAREA_G_CheckPair(context, MAREA_AstNodeGetPosition(expression), MAREA_AstNodeGetOperator(expression), &left, &right, "operands of a binary operator differ in type, one is");
+}
+
+// INFO: a compound assignment is the same as a = a op b, so its two sides are compared like the operands of the operator.
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckCompound(MAREA_SemaContext *context, const MAREA_AstNode *assignment)
+{
+    const MAREA_G_Shape target = MAREA_G_ShapeOf(context, MAREA_SemaChildAt(assignment, 0), 0);
+
+    const MAREA_G_Shape value = MAREA_G_ShapeOf(context, MAREA_SemaChildAt(assignment, 1), 0);
+
+    return MAREA_G_CheckPair(context, MAREA_AstNodeGetPosition(assignment), MAREA_AstNodeGetOperator(assignment), &target, &value, "sides of a compound assignment differ in type, one is");
 }
 
 static MAREA_Boolean MAREA_CALL MAREA_G_IsNamespaceRoot(const MAREA_SemaContext *context, const MAREA_AstNode *name)
@@ -624,8 +643,12 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressions(MAREA_SemaContext *contex
 
         const MAREA_SemaExcept valueResult = MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, 1), 0, MAREA_BOOLEAN_TRUE);
 
-        if ((valueResult != MAREA_SEMA_EXCEPT_SUCCESS) || (MAREA_AstNodeGetOperator(node) != MAREA_TOKEN_KIND_EQUAL)) {
+        if (valueResult != MAREA_SEMA_EXCEPT_SUCCESS) {
             return valueResult;
+        }
+
+        if (MAREA_AstNodeGetOperator(node) != MAREA_TOKEN_KIND_EQUAL) {
+            return MAREA_G_CheckCompound(context, node);
         }
 
         return MAREA_SemaCheckExpressionFit(context, MAREA_SemaInferType(context, MAREA_SemaChildAt(node, 0)), MAREA_SemaChildAt(node, 1));
