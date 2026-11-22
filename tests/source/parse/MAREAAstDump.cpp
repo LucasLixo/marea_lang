@@ -37,6 +37,19 @@ TEST(MAREAAstDump, OperatorAndFlags)
     EXPECT_EQ(DUMP.find("QUALIFIED_NAME flags="), std::string::npos) << "A node without flags must not write flags=.";
 }
 
+TEST(MAREAAstDump, ImportMemberList)
+{
+    GTEST_COUT << "Validating the dump of an import member list names the kind and writes the flags." << std::endl;
+
+    MAREA_ParseFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_parse("namespace main; import a.b { f as g, T };"), MAREA_PARSE_EXCEPT_SUCCESS) << "Parsing must succeed.";
+
+    const std::string EXPECTED{ MAREA_lines({ "  IMPORT_DECLARATION flags=32", "    QUALIFIED_NAME", "      IDENTIFIER \"a\"", "      IDENTIFIER \"b\"", "    IMPORT_MEMBER flags=8", "      QUALIFIED_NAME", "        IDENTIFIER \"f\"", "      IDENTIFIER \"g\"", "    IMPORT_MEMBER", "      QUALIFIED_NAME", "        IDENTIFIER \"T\"" }) };
+
+    EXPECT_EQ(fixture.MAREA_itemsDump(), EXPECTED) << "The dump must show HAS_MEMBERS as flags=32 and HAS_ALIAS as flags=8.";
+}
+
 TEST(MAREAAstDump, TextIsEscaped)
 {
     GTEST_COUT << "Validating quote, backslash and non printable bytes are escaped." << std::endl;

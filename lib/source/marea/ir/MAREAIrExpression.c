@@ -9,8 +9,38 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsErasedChild(MAREA_AstKind kind)
     return ((kind == MAREA_AST_KIND_NAMED_TYPE) || (kind == MAREA_AST_KIND_FUNCTION_TYPE) || (kind == MAREA_AST_KIND_TYPE_ARGUMENTS)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
+// INFO: an identifier read as a value lowers to the original name when it is an alias that no local of the function hides.
+static MAREA_IrExcept MAREA_CALL MAREA_G_LowerIdentifier(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode)
+{
+    MAREA_IrNode *node = MAREA_NULLPTR;
+
+    const MAREA_AstNode *ast = MAREA_SemaTypedNodeGetAstNode(typed);
+
+    MAREA_IrExcept result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_IDENTIFIER, ast, &node);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    const MAREA_Character8 *original = MAREA_NULLPTR;
+    MAREA_IntegerSize length = MAREA_INTEGER_SIZE(0);
+
+    if (MAREA_IrAliasValue(context, MAREA_AstNodeGetText(ast), MAREA_AstNodeGetTextLength(ast), &original, &length) == MAREA_BOOLEAN_TRUE) {
+        result = MAREA_IrNodeSetQualifiedText(context, node, MAREA_NULLPTR, MAREA_INTEGER_SIZE(0), original, length);
+
+        if (result != MAREA_IR_EXCEPT_SUCCESS) {
+            return result;
+        }
+    }
+
+    *outNode = node;
+
+    return MAREA_IR_EXCEPT_SUCCESS;
+}
+
 // INFO: a child that lowers to nothing makes the whole parent lower to nothing, so no partial tree is produced.
-static MAREA_IrExcept MAREA_CALL MAREA_G_LowerChildren(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode *node, MAREA_Boolean *outComplete)
+// INFO: with headOnly, only the first child may be an alias; a later IDENTIFIER is a member name and keeps its text.
+static MAREA_IrExcept MAREA_CALL MAREA_G_LowerChildren(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode *node, MAREA_Boolean headOnly, MAREA_Boolean *outComplete)
 {
     *outComplete = MAREA_BOOLEAN_TRUE;
 
@@ -25,7 +55,13 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerChildren(MAREA_IrContext *context,
 
         MAREA_IrNode *lowered = MAREA_NULLPTR;
 
-        MAREA_IrExcept result = MAREA_IrLowerExpression(context, child, &lowered);
+        MAREA_IrExcept result = MAREA_IR_EXCEPT_SUCCESS;
+
+        if ((headOnly == MAREA_BOOLEAN_TRUE) && (index != MAREA_INTEGER_SIZE(0)) && (MAREA_IrTypedKind(child) == MAREA_AST_KIND_IDENTIFIER)) {
+            result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_IDENTIFIER, MAREA_SemaTypedNodeGetAstNode(child), &lowered);
+        } else {
+            result = MAREA_IrLowerExpression(context, child, &lowered);
+        }
 
         if (result != MAREA_IR_EXCEPT_SUCCESS) {
             return result;
@@ -47,7 +83,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerChildren(MAREA_IrContext *context,
     return MAREA_IR_EXCEPT_SUCCESS;
 }
 
-static MAREA_IrExcept MAREA_CALL MAREA_G_LowerWithChildren(MAREA_IrContext *context, MAREA_IrKind kind, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode)
+static MAREA_IrExcept MAREA_CALL MAREA_G_LowerWithChildrenOf(MAREA_IrContext *context, MAREA_IrKind kind, const MAREA_SemaTypedNode *typed, MAREA_Boolean headOnly, MAREA_IrNode **outNode)
 {
     MAREA_IrNode *node = MAREA_NULLPTR;
 
@@ -59,13 +95,18 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerWithChildren(MAREA_IrContext *cont
 
     MAREA_Boolean complete = MAREA_BOOLEAN_TRUE;
 
-    result = MAREA_G_LowerChildren(context, typed, node, &complete);
+    result = MAREA_G_LowerChildren(context, typed, node, headOnly, &complete);
 
     if ((result == MAREA_IR_EXCEPT_SUCCESS) && (complete == MAREA_BOOLEAN_TRUE)) {
         *outNode = node;
     }
 
     return result;
+}
+
+static MAREA_IrExcept MAREA_CALL MAREA_G_LowerWithChildren(MAREA_IrContext *context, MAREA_IrKind kind, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode)
+{
+    return MAREA_G_LowerWithChildrenOf(context, kind, typed, MAREA_BOOLEAN_FALSE, outNode);
 }
 
 static MAREA_IrExcept MAREA_CALL MAREA_G_RaiseGeneric(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, const MAREA_Character8 *message)
@@ -108,7 +149,11 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerCall(MAREA_IrContext *context, con
         return result;
     }
 
-    MAREA_IrNodeSetTypeNameFromTyped(node, typed);
+    result = MAREA_IrNodeSetTypeNameFromTyped(context, node, typed);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
 
     *outNode = node;
 
@@ -119,7 +164,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerLiteralValue(MAREA_IrContext *cont
 {
     MAREA_IrNode *node = MAREA_NULLPTR;
 
-    const MAREA_IrExcept result = MAREA_G_LowerWithChildren(context, MAREA_IR_KIND_LITERAL_VALUE, typed, &node);
+    MAREA_IrExcept result = MAREA_G_LowerWithChildren(context, MAREA_IR_KIND_LITERAL_VALUE, typed, &node);
 
     if ((result != MAREA_IR_EXCEPT_SUCCESS) || (node == MAREA_NULLPTR)) {
         return result;
@@ -127,7 +172,11 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerLiteralValue(MAREA_IrContext *cont
 
     const MAREA_SemaTypedNode *type = MAREA_IrTypedFindChild(typed, MAREA_AST_KIND_NAMED_TYPE);
 
-    MAREA_IrNodeSetTypeNameFromAst(node, MAREA_SemaTypedNodeGetAstNode(type));
+    result = MAREA_IrNodeSetTypeNameFromAst(context, node, MAREA_SemaTypedNodeGetAstNode(type));
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
 
     *outNode = node;
 
@@ -198,7 +247,7 @@ MAREA_IrExcept MAREA_CALL MAREA_IrLowerExpression(MAREA_IrContext *context, cons
 
     switch (MAREA_IrTypedKind(typed)) {
     case MAREA_AST_KIND_IDENTIFIER:
-        return MAREA_IrNodeCreate(context, MAREA_IR_KIND_IDENTIFIER, MAREA_SemaTypedNodeGetAstNode(typed), outNode);
+        return MAREA_G_LowerIdentifier(context, typed, outNode);
     case MAREA_AST_KIND_INTEGER_LITERAL:
         return MAREA_IrNodeCreate(context, MAREA_IR_KIND_INTEGER_LITERAL, MAREA_SemaTypedNodeGetAstNode(typed), outNode);
     case MAREA_AST_KIND_FLOAT_LITERAL:
@@ -208,7 +257,8 @@ MAREA_IrExcept MAREA_CALL MAREA_IrLowerExpression(MAREA_IrContext *context, cons
     case MAREA_AST_KIND_BOOLEAN_LITERAL:
         return MAREA_IrNodeCreate(context, MAREA_IR_KIND_BOOLEAN_LITERAL, MAREA_SemaTypedNodeGetAstNode(typed), outNode);
     case MAREA_AST_KIND_QUALIFIED_NAME:
-        return MAREA_G_LowerWithChildren(context, MAREA_IR_KIND_QUALIFIED_NAME, typed, outNode);
+        // INFO: only the first segment can be a namespace alias.
+        return MAREA_G_LowerWithChildrenOf(context, MAREA_IR_KIND_QUALIFIED_NAME, typed, MAREA_BOOLEAN_TRUE, outNode);
     case MAREA_AST_KIND_PARENTHESIZED_EXPRESSION:
         // INFO: the parentheses only shaped the tree; the inner expression lowers directly.
         return MAREA_IrLowerExpression(context, MAREA_IrTypedChildAt(typed, MAREA_INTEGER_SIZE(0)), outNode);
@@ -218,7 +268,8 @@ MAREA_IrExcept MAREA_CALL MAREA_IrLowerExpression(MAREA_IrContext *context, cons
         // INFO: spawn, copy and move keep their operator on a UNARY_EXPRESSION; spawn needs no kind of its own.
         return MAREA_G_LowerWithChildren(context, MAREA_IR_KIND_UNARY_EXPRESSION, typed, outNode);
     case MAREA_AST_KIND_MEMBER_ACCESS:
-        return MAREA_G_LowerWithChildren(context, MAREA_IR_KIND_MEMBER_ACCESS, typed, outNode);
+        // INFO: the member name after the dot is never an alias.
+        return MAREA_G_LowerWithChildrenOf(context, MAREA_IR_KIND_MEMBER_ACCESS, typed, MAREA_BOOLEAN_TRUE, outNode);
     case MAREA_AST_KIND_INDEX_ACCESS:
         return MAREA_G_LowerWithChildren(context, MAREA_IR_KIND_INDEX_ACCESS, typed, outNode);
     case MAREA_AST_KIND_CALL_EXPRESSION:

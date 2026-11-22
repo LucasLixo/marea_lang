@@ -174,7 +174,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaNameTableAdd(MAREA_SemaContext *context, c
     return MAREA_SemaTableAppend(context, &context->names, (MAREA_SemaName){ .text = text, .declaration = declaration, .length = length, .kind = kind });
 }
 
-static MAREA_SemaExcept MAREA_CALL MAREA_G_AddName(MAREA_SemaContext *context, MAREA_SourcePosition position, const MAREA_Character8 *text, MAREA_IntegerSize length, MAREA_SemaNameKind kind, const MAREA_AstNode *declaration)
+static MAREA_SemaExcept MAREA_CALL MAREA_G_BindName(MAREA_SemaContext *context, MAREA_SourcePosition position, const MAREA_Character8 *text, MAREA_IntegerSize length, MAREA_SemaNameKind kind, const MAREA_AstNode *declaration, const MAREA_Character8 *original, MAREA_IntegerSize originalLength)
 {
     if (MAREA_SemaNameTableFind(context, text, length) != MAREA_NULLPTR) {
         const MAREA_SemaExcept REPORT_RESULT = MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_NAME_ALREADY_DECLARED, position, "name is already declared:", text, length);
@@ -184,10 +184,27 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_AddName(MAREA_SemaContext *context, M
         }
     }
 
-    return MAREA_SemaNameTableAdd(context, text, length, kind, declaration);
+    return MAREA_SemaTableAppend(context, &context->names, (MAREA_SemaName){ .text = text, .declaration = declaration, .original = original, .originalLength = originalLength, .length = length, .kind = kind });
 }
 
-static MAREA_Boolean MAREA_CALL MAREA_G_HasPublicSymbol(const MAREA_AstNode *root, const MAREA_Character8 *name, MAREA_IntegerSize nameLength)
+static MAREA_SemaExcept MAREA_CALL MAREA_G_AddName(MAREA_SemaContext *context, MAREA_SourcePosition position, const MAREA_Character8 *text, MAREA_IntegerSize length, MAREA_SemaNameKind kind, const MAREA_AstNode *declaration)
+{
+    return MAREA_G_BindName(context, position, text, length, kind, declaration, MAREA_NULLPTR, MAREA_INTEGER_SIZE(0));
+}
+
+// INFO: c is the reserved namespace of C, so an alias or a type name must not hide it.
+static MAREA_SemaExcept MAREA_CALL MAREA_G_ReportReserved(MAREA_SemaContext *context, MAREA_SourcePosition position, const MAREA_Character8 *text, MAREA_IntegerSize length, MAREA_Boolean *outReserved)
+{
+    *outReserved = MAREA_SemaTextEquals(text, length, "c", MAREA_INTEGER_SIZE(1));
+
+    if (*outReserved == MAREA_BOOLEAN_FALSE) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_NAME_ALREADY_DECLARED, position, "name is reserved:", text, length);
+}
+
+static const MAREA_AstNode *MAREA_CALL MAREA_G_FindPublicSymbol(const MAREA_AstNode *root, const MAREA_Character8 *name, MAREA_IntegerSize nameLength)
 {
     const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(root);
 
@@ -203,6 +220,27 @@ static MAREA_Boolean MAREA_CALL MAREA_G_HasPublicSymbol(const MAREA_AstNode *roo
         }
 
         if ((MAREA_SemaTextEquals(declarationName, declarationLength, name, nameLength) == MAREA_BOOLEAN_TRUE) && (MAREA_SemaAttributeIsOn(root, declaration, "public") == MAREA_BOOLEAN_TRUE)) {
+            return declaration;
+        }
+    }
+
+    return MAREA_NULLPTR;
+}
+
+static MAREA_Boolean MAREA_CALL MAREA_G_EnumHasVariant(const MAREA_AstNode *enumeration, const MAREA_Character8 *name, MAREA_IntegerSize nameLength)
+{
+    const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(enumeration);
+
+    for (MAREA_IntegerSize index = 0; index < COUNT; ++index) {
+        const MAREA_AstNode *variant = MAREA_SemaChildAt(enumeration, index);
+
+        if ((variant == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(variant) != MAREA_AST_KIND_VARIANT_DECLARATION)) {
+            continue;
+        }
+
+        const MAREA_AstNode *variantName = MAREA_SemaChildAt(variant, 0);
+
+        if ((variantName != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(variantName) == MAREA_AST_KIND_IDENTIFIER) && (MAREA_SemaTextEquals(MAREA_AstNodeGetText(variantName), MAREA_AstNodeGetTextLength(variantName), name, nameLength) == MAREA_BOOLEAN_TRUE)) {
             return MAREA_BOOLEAN_TRUE;
         }
     }
@@ -307,6 +345,156 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckNamespacePath(MAREA_SemaContext 
     return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_NAMESPACE_PATH_MISMATCH, MAREA_AstNodeGetPosition(qualifiedName), "namespace does not match the file path:", joined, joinedLength);
 }
 
+static MAREA_SemaExcept MAREA_CALL MAREA_G_JoinDotted(MAREA_SemaContext *context, const MAREA_Character8 *head, MAREA_IntegerSize headLength, const MAREA_Character8 *tail, MAREA_IntegerSize tailLength, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength)
+{
+    MAREA_Null memory = MAREA_NULLPTR;
+
+    if (MAREA_ArenaAllocate(context->arena, (headLength + tailLength + MAREA_INTEGER_SIZE(2)), MAREA_ALIGNOF(MAREA_Character8), &memory) != MAREA_ARENA_EXCEPT_SUCCESS) {
+        return MAREA_SEMA_EXCEPT_ERROR_OUT_OF_MEMORY;
+    }
+
+    MAREA_Character8 *joined = memory;
+
+    memcpy(joined, head, headLength);
+
+    joined[headLength] = '.';
+
+    memcpy((joined + headLength + MAREA_INTEGER_SIZE(1)), tail, tailLength);
+
+    joined[(headLength + tailLength + MAREA_INTEGER_SIZE(1))] = '\0';
+
+    *outText = joined;
+    *outLength = (headLength + tailLength + MAREA_INTEGER_SIZE(1));
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
+// INFO: a member is one name of the namespace, or the variant of an enum of it (two parts), never a longer path.
+static MAREA_Boolean MAREA_CALL MAREA_G_MemberResolves(const MAREA_AstNode *path, MAREA_SemaImportResult namespaceResult, const MAREA_AstNode *namespaceRoot)
+{
+    const MAREA_IntegerSize SEGMENT_COUNT = MAREA_AstNodeGetChildCount(path);
+
+    if ((SEGMENT_COUNT > MAREA_INTEGER_SIZE(2)) || (namespaceResult == MAREA_SEMA_IMPORT_RESULT_NOT_FOUND)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    if (namespaceResult == MAREA_SEMA_IMPORT_RESULT_EXTERNAL) {
+        return MAREA_BOOLEAN_TRUE;
+    }
+
+    if (namespaceRoot == MAREA_NULLPTR) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_AstNode *first = MAREA_SemaChildAt(path, 0);
+
+    const MAREA_AstNode *symbol = MAREA_G_FindPublicSymbol(namespaceRoot, MAREA_AstNodeGetText(first), MAREA_AstNodeGetTextLength(first));
+
+    if (symbol == MAREA_NULLPTR) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    if (SEGMENT_COUNT == MAREA_INTEGER_SIZE(1)) {
+        return MAREA_BOOLEAN_TRUE;
+    }
+
+    const MAREA_AstNode *variant = MAREA_SemaChildAt(path, 1);
+
+    return ((MAREA_AstNodeGetKind(symbol) == MAREA_AST_KIND_ENUM_DECLARATION) && (MAREA_G_EnumHasVariant(symbol, MAREA_AstNodeGetText(variant), MAREA_AstNodeGetTextLength(variant)) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckImportMember(MAREA_SemaContext *context, const MAREA_AstNode *member, const MAREA_Character8 *namespaceText, MAREA_IntegerSize namespaceLength, MAREA_SemaImportResult namespaceResult, const MAREA_AstNode *namespaceRoot)
+{
+    const MAREA_AstNode *path = MAREA_SemaChildAt(member, 0);
+
+    if ((path == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(path) != MAREA_AST_KIND_QUALIFIED_NAME) || (MAREA_G_IsPlainName(path) == MAREA_BOOLEAN_FALSE)) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_AstNode *last = MAREA_SemaChildAt(path, (MAREA_AstNodeGetChildCount(path) - MAREA_INTEGER_SIZE(1)));
+
+    const MAREA_AstNode *alias = MAREA_NULLPTR;
+
+    if ((MAREA_AstNodeGetFlags(member) & MAREA_AST_FLAG_HAS_ALIAS) != 0) {
+        alias = MAREA_SemaChildAt(member, 1);
+    }
+
+    const MAREA_AstNode *localName = ((alias != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(alias) == MAREA_AST_KIND_IDENTIFIER)) ? alias : last;
+
+    const MAREA_Character8 *original = MAREA_NULLPTR;
+
+    MAREA_IntegerSize originalLength = 0;
+
+    MAREA_SemaExcept result = MAREA_SemaQualifiedNameJoin(context, path, &original, &originalLength);
+
+    if (result != MAREA_SEMA_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    if (MAREA_G_MemberResolves(path, namespaceResult, namespaceRoot) == MAREA_BOOLEAN_FALSE) {
+        const MAREA_Character8 *full = MAREA_NULLPTR;
+
+        MAREA_IntegerSize fullLength = 0;
+
+        result = MAREA_G_JoinDotted(context, namespaceText, namespaceLength, original, originalLength, &full, &fullLength);
+
+        if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
+            result = MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_UNRESOLVED_IMPORT, MAREA_AstNodeGetPosition(member), "unresolved import:", full, fullLength);
+        }
+
+        if (result != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return result;
+        }
+    }
+
+    if (localName == alias) {
+        MAREA_Boolean reserved = MAREA_BOOLEAN_FALSE;
+
+        result = MAREA_G_ReportReserved(context, MAREA_AstNodeGetPosition(alias), MAREA_AstNodeGetText(alias), MAREA_AstNodeGetTextLength(alias), &reserved);
+
+        if ((result != MAREA_SEMA_EXCEPT_SUCCESS) || (reserved == MAREA_BOOLEAN_TRUE)) {
+            return result;
+        }
+    }
+
+    return MAREA_G_BindName(context, MAREA_AstNodeGetPosition(localName), MAREA_AstNodeGetText(localName), MAREA_AstNodeGetTextLength(localName), MAREA_SEMA_NAME_KIND_IMPORTED_SYMBOL, MAREA_NULLPTR, original, originalLength);
+}
+
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckImportMembers(MAREA_SemaContext *context, const MAREA_AstNode *import, const MAREA_AstNode *namespaceName)
+{
+    const MAREA_Character8 *joined = MAREA_NULLPTR;
+
+    MAREA_IntegerSize joinedLength = 0;
+
+    MAREA_SemaExcept result = MAREA_SemaQualifiedNameJoin(context, namespaceName, &joined, &joinedLength);
+
+    if (result != MAREA_SEMA_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    const MAREA_AstNode *foundRoot = MAREA_NULLPTR;
+
+    const MAREA_SemaImportResult NAMESPACE_RESULT = MAREA_G_Resolve(context, joined, joinedLength, &foundRoot);
+
+    const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(import);
+
+    for (MAREA_IntegerSize index = 1; index < COUNT; ++index) {
+        const MAREA_AstNode *member = MAREA_SemaChildAt(import, index);
+
+        if ((member == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(member) != MAREA_AST_KIND_IMPORT_MEMBER)) {
+            continue;
+        }
+
+        result = MAREA_G_CheckImportMember(context, member, joined, joinedLength, NAMESPACE_RESULT, foundRoot);
+
+        if (result != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return result;
+        }
+    }
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
 static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckImport(MAREA_SemaContext *context, const MAREA_AstNode *import)
 {
     const MAREA_AstNode *qualifiedName = MAREA_SemaChildAt(import, 0);
@@ -327,13 +515,19 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckImport(MAREA_SemaContext *contex
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
+    if ((MAREA_AstNodeGetFlags(import) & MAREA_AST_FLAG_HAS_MEMBERS) != 0) {
+        return MAREA_G_CheckImportMembers(context, import, qualifiedName);
+    }
+
     const MAREA_AstNode *alias = MAREA_NULLPTR;
 
     if ((MAREA_AstNodeGetFlags(import) & MAREA_AST_FLAG_HAS_ALIAS) != 0) {
         alias = MAREA_SemaChildAt(import, 1);
     }
 
-    const MAREA_AstNode *localName = ((alias != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(alias) == MAREA_AST_KIND_IDENTIFIER)) ? alias : last;
+    const MAREA_Boolean HAS_NAMED_ALIAS = ((alias != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(alias) == MAREA_AST_KIND_IDENTIFIER)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+
+    const MAREA_AstNode *localName = (HAS_NAMED_ALIAS == MAREA_BOOLEAN_TRUE) ? alias : last;
 
     const MAREA_Character8 *joined = MAREA_NULLPTR;
 
@@ -365,7 +559,7 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckImport(MAREA_SemaContext *contex
                 resolved = MAREA_BOOLEAN_TRUE;
             }
 
-            if ((PARENT_RESULT == MAREA_SEMA_IMPORT_RESULT_FOUND) && (foundRoot != MAREA_NULLPTR) && (MAREA_G_HasPublicSymbol(foundRoot, MAREA_AstNodeGetText(last), MAREA_AstNodeGetTextLength(last)) == MAREA_BOOLEAN_TRUE)) {
+            if ((PARENT_RESULT == MAREA_SEMA_IMPORT_RESULT_FOUND) && (foundRoot != MAREA_NULLPTR) && (MAREA_G_FindPublicSymbol(foundRoot, MAREA_AstNodeGetText(last), MAREA_AstNodeGetTextLength(last)) != MAREA_NULLPTR)) {
                 resolved = MAREA_BOOLEAN_TRUE;
             }
         }
@@ -379,7 +573,20 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckImport(MAREA_SemaContext *contex
         }
     }
 
-    return MAREA_G_AddName(context, MAREA_AstNodeGetPosition(localName), MAREA_AstNodeGetText(localName), MAREA_AstNodeGetTextLength(localName), kind, MAREA_NULLPTR);
+    if (HAS_NAMED_ALIAS == MAREA_BOOLEAN_FALSE) {
+        return MAREA_G_AddName(context, MAREA_AstNodeGetPosition(localName), MAREA_AstNodeGetText(localName), MAREA_AstNodeGetTextLength(localName), kind, MAREA_NULLPTR);
+    }
+
+    MAREA_Boolean reserved = MAREA_BOOLEAN_FALSE;
+
+    const MAREA_SemaExcept RESERVED_RESULT = MAREA_G_ReportReserved(context, MAREA_AstNodeGetPosition(alias), MAREA_AstNodeGetText(alias), MAREA_AstNodeGetTextLength(alias), &reserved);
+
+    if ((RESERVED_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) || (reserved == MAREA_BOOLEAN_TRUE)) {
+        return RESERVED_RESULT;
+    }
+
+    // INFO: the alias resolves to the last segment of the path, what the same import binds without "as".
+    return MAREA_G_BindName(context, MAREA_AstNodeGetPosition(alias), MAREA_AstNodeGetText(alias), MAREA_AstNodeGetTextLength(alias), kind, MAREA_NULLPTR, MAREA_AstNodeGetText(last), MAREA_AstNodeGetTextLength(last));
 }
 
 MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckNamespaceAndNames(MAREA_SemaContext *context, const MAREA_AstNode *root)
@@ -419,6 +626,27 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckNamespaceAndNames(MAREA_SemaContext *
             MAREA_IntegerSize nameLength = 0;
 
             if (MAREA_SemaDeclarationName(child, &name, &nameLength) == MAREA_BOOLEAN_TRUE) {
+                // INFO: a type name is an alias too, so it must not hide the reserved namespace c. It is still bound, so its uses resolve.
+                if (KIND == MAREA_AST_KIND_TYPE_DECLARATION) {
+                    MAREA_Boolean reserved = MAREA_BOOLEAN_FALSE;
+
+                    result = MAREA_G_ReportReserved(context, MAREA_AstNodeGetPosition(child), name, nameLength, &reserved);
+
+                    if (result != MAREA_SEMA_EXCEPT_SUCCESS) {
+                        return result;
+                    }
+
+                    if (reserved == MAREA_BOOLEAN_TRUE) {
+                        result = MAREA_SemaNameTableAdd(context, name, nameLength, MAREA_SEMA_NAME_KIND_DECLARATION, child);
+
+                        if (result != MAREA_SEMA_EXCEPT_SUCCESS) {
+                            return result;
+                        }
+
+                        continue;
+                    }
+                }
+
                 result = MAREA_G_AddName(context, MAREA_AstNodeGetPosition(child), name, nameLength, MAREA_SEMA_NAME_KIND_DECLARATION, child);
             }
         }
