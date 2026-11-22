@@ -6,7 +6,7 @@
 #include <string.h>
 
 // INFO: the core types the language itself defines. Every other type is a library or a user type.
-static const MAREA_Character8 *const MAREA_G_BUILTIN_TYPES[] = {
+static const MAREA_Character8 *const MAREA_G_BuiltinTypes[] = {
     "boolean",
     "integer8",
     "integer16",
@@ -39,8 +39,8 @@ static MAREA_Boolean MAREA_CALL MAREA_G_TextEquals(const MAREA_Character8 *left,
 
 static MAREA_Boolean MAREA_CALL MAREA_G_IsBuiltin(const MAREA_Character8 *text, MAREA_IntegerSize length)
 {
-    for (MAREA_IntegerSize index = 0; index < MAREA_ARRAY_SIZE(MAREA_G_BUILTIN_TYPES); ++index) {
-        if (MAREA_G_TextEquals(text, length, MAREA_G_BUILTIN_TYPES[index]) == MAREA_BOOLEAN_TRUE) {
+    for (MAREA_IntegerSize index = 0; index < MAREA_ARRAY_SIZE(MAREA_G_BuiltinTypes); ++index) {
+        if (MAREA_G_TextEquals(text, length, MAREA_G_BuiltinTypes[index]) == MAREA_BOOLEAN_TRUE) {
             return MAREA_BOOLEAN_TRUE;
         }
     }
