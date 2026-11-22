@@ -93,7 +93,7 @@ Diagnostics:
             readability-identifier-naming.ConstexprVariableCase: UPPER_CASE
 
             # Functions
-            readability-identifier-naming.FunctionCase: CamelBack
+            readability-identifier-naming.FunctionCase: CamelCase
             readability-identifier-naming.FunctionPrefix: MAREA_
             readability-identifier-naming.MethodCase: CamelBack
             readability-identifier-naming.MethodPrefix: MAREA_
@@ -111,9 +111,19 @@ Diagnostics:
             readability-identifier-naming.StaticVariableCase: camelBack
             readability-identifier-naming.StaticVariablePrefix: 'marea_g_'
 
-            # Global static constants (file-local) - MAREA_G_ + PascalCase
+            # Global static constants (file-local) - MAREA_G_ + PascalCase.
+            # clang-tidy only puts a const in the "Static" category when the static keyword
+            # is written inside a function body; a static const at file (translation-unit)
+            # scope - what every MAREA_G_ constant in this project actually is - falls into
+            # the separate "Global" category instead, so both must be set the same way.
             readability-identifier-naming.StaticConstantCase: CamelCase
             readability-identifier-naming.StaticConstantPrefix: 'MAREA_G_'
+            readability-identifier-naming.GlobalConstantCase: CamelCase
+            readability-identifier-naming.GlobalConstantPrefix: 'MAREA_G_'
+
+            # Function-body local const - c-style keeps ordinary names (plain camelBack),
+            # same as any other local variable; without this it falls back to ConstantCase.
+            readability-identifier-naming.LocalConstantCase: camelBack
 
             # Functions with internal linkage (static in .c/.cpp)
             readability-identifier-naming.StaticFunctionCase: CamelCase
