@@ -260,3 +260,22 @@ TEST(MAREASemaTypesAndDeclarations, AliasTypeMatchesTheOriginalInAContractSignat
 
     EXPECT_EQ(MAREA_codesOf("import lib.Thing; import lib { Other as Alias }; " + BASE + WRONG + RUN, external), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_CONTRACT_NOT_SATISFIED }) << "An alias of another type must still miss the contract.";
 }
+
+TEST(MAREASemaTypesAndDeclarations, AliasesOfDifferentNamespacesDoNotMatchInAContractSignature)
+{
+    GTEST_COUT << "Validating two aliases of same-named members of two namespaces are two types in a contract signature." << std::endl;
+
+    auto external = [](const std::string &, const MAREA_AstNode **) { return MAREA_SEMA_IMPORT_RESULT_EXTERNAL; };
+
+    const std::string BASE{ "contract Joiner function join(self: Self, other: X): boolean; end structure Score points: integer32; end function join_all<Item>(a: Item): Item where Item: Joiner return copy a; end " };
+
+    const std::string RUN{ "function run(a: Score): Score return join_all(a); end" };
+
+    const std::string IMPLEMENTATION{ "implementation Score function join(self: Score, other: Y): boolean return true; end end " };
+
+    EXPECT_EQ(MAREA_codesOf("import a { T as X }; import b { T as Y }; " + BASE + IMPLEMENTATION + RUN, external), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_CONTRACT_NOT_SATISFIED }) << "Members of two namespaces must stay two types.";
+
+    EXPECT_TRUE(MAREA_codesOf("import a { T as X }; import a { T as Y }; " + BASE + IMPLEMENTATION + RUN, external).empty()) << "Two aliases of one member must stay one type.";
+
+    EXPECT_EQ(MAREA_codesOf("import a.T as X; import b.T as Y; " + BASE + IMPLEMENTATION + RUN, external), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_CONTRACT_NOT_SATISFIED }) << "Whole-path aliases of two namespaces must stay two types.";
+}

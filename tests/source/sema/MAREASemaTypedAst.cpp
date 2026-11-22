@@ -308,6 +308,99 @@ TEST(MAREASemaTypedAst, GenericCallResultIsTaggedGenericWithoutSubstitution)
     EXPECT_EQ(std::string(outText, outLength), "Item") << "The raw, unsubstituted generic parameter name must be kept.";
 }
 
+TEST(MAREASemaTypedAst, ConvertCallResultCarriesTheTargetType)
+{
+    GTEST_COUT << "Validating a convert<T>(x) call is typed T in the typed-AST hand-off." << std::endl;
+
+    MAREA_SemaFixture fixture;
+
+    const std::string SOURCE{ "namespace main; function f(x: integer32): integer64 return convert<integer64>(x); end" };
+
+    ASSERT_EQ(fixture.MAREA_sema(SOURCE), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
+
+    const MAREA_SemaTypedNode *outRoot{ nullptr };
+
+    ASSERT_EQ(MAREA_SemaBuildTypedAst(fixture.context, fixture.parser.root, &outRoot), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "A checked root with zero errors must build.";
+
+    const MAREA_SemaTypedNode *callNode{ MAREA_findTypedNodeByKind(outRoot, MAREA_AST_KIND_CALL_EXPRESSION) };
+
+    ASSERT_NE(callNode, nullptr) << "The typed tree must carry the convert call node.";
+
+    EXPECT_EQ(MAREA_SemaTypedNodeGetTypeClass(callNode), MAREA_SEMA_TYPE_CLASS_PRIMITIVE) << "The conversion result must classify as PRIMITIVE.";
+
+    const MAREA_Character8 *outText{ nullptr };
+
+    MAREA_IntegerSize outLength{ 0 };
+
+    ASSERT_EQ(MAREA_SemaTypedNodeGetTypeName(callNode, &outText, &outLength), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "The type name must be reachable.";
+
+    ASSERT_NE(outText, nullptr) << "The conversion call must carry a type name.";
+
+    EXPECT_EQ(std::string(outText, outLength), "integer64") << "The conversion result must be the target type.";
+}
+
+TEST(MAREASemaTypedAst, ConvertToAStructureCarriesTheStructureDeclaration)
+{
+    GTEST_COUT << "Validating convert<T>(x) to a structure is typed USER with the real declaration." << std::endl;
+
+    MAREA_SemaFixture fixture;
+
+    const std::string SOURCE{ "namespace main; structure Meters value: float32; end structure Feet value: float32; end function f(x: Feet): Meters return convert<Meters>(x); end" };
+
+    ASSERT_EQ(fixture.MAREA_sema(SOURCE), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
+
+    const MAREA_SemaTypedNode *outRoot{ nullptr };
+
+    ASSERT_EQ(MAREA_SemaBuildTypedAst(fixture.context, fixture.parser.root, &outRoot), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "A checked root with zero errors must build.";
+
+    const MAREA_SemaTypedNode *callNode{ MAREA_findTypedNodeByKind(outRoot, MAREA_AST_KIND_CALL_EXPRESSION) };
+
+    ASSERT_NE(callNode, nullptr) << "The typed tree must carry the convert call node.";
+
+    EXPECT_EQ(MAREA_SemaTypedNodeGetTypeClass(callNode), MAREA_SEMA_TYPE_CLASS_USER) << "The conversion result must classify as USER.";
+
+    const MAREA_AstNode *declaration{ nullptr };
+
+    ASSERT_EQ(MAREA_SemaTypedNodeGetTypeDeclaration(callNode, &declaration), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "The declaration must be reachable.";
+
+    ASSERT_NE(declaration, nullptr) << "The conversion call must carry the target declaration.";
+
+    const MAREA_AstNode *firstStructure{ MAREA_SemaTypedNodeGetAstNode(MAREA_findTypedNodeByKind(outRoot, MAREA_AST_KIND_STRUCTURE_DECLARATION)) };
+
+    EXPECT_EQ(declaration, firstStructure) << "The declaration must be that of Meters, the first structure.";
+}
+
+TEST(MAREASemaTypedAst, GenericCallWithExplicitTypeArgumentIsSubstituted)
+{
+    GTEST_COUT << "Validating a generic call with an explicit type argument gets the substituted result type." << std::endl;
+
+    MAREA_SemaFixture fixture;
+
+    const std::string SOURCE{ "namespace main; function same<Item>(a: Item): Item return copy a; end function f(): integer32 return same<integer32>(5); end" };
+
+    ASSERT_EQ(fixture.MAREA_sema(SOURCE), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
+
+    const MAREA_SemaTypedNode *outRoot{ nullptr };
+
+    ASSERT_EQ(MAREA_SemaBuildTypedAst(fixture.context, fixture.parser.root, &outRoot), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "A checked root with zero errors must build.";
+
+    const MAREA_SemaTypedNode *callNode{ MAREA_findTypedNodeByKind(outRoot, MAREA_AST_KIND_CALL_EXPRESSION) };
+
+    ASSERT_NE(callNode, nullptr) << "The typed tree must carry the same<integer32>() call node.";
+
+    EXPECT_EQ(MAREA_SemaTypedNodeGetTypeClass(callNode), MAREA_SEMA_TYPE_CLASS_PRIMITIVE) << "The substituted result must classify as PRIMITIVE, not GENERIC.";
+
+    const MAREA_Character8 *outText{ nullptr };
+
+    MAREA_IntegerSize outLength{ 0 };
+
+    ASSERT_EQ(MAREA_SemaTypedNodeGetTypeName(callNode, &outText, &outLength), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "The type name must be reachable.";
+
+    ASSERT_NE(outText, nullptr) << "The generic call must carry a type name.";
+
+    EXPECT_EQ(std::string(outText, outLength), "integer32") << "The generic parameter must be replaced by the type argument.";
+}
+
 TEST(MAREASemaTypedAst, PrimitiveIdentifierOwnershipIsValue)
 {
     GTEST_COUT << "Validating a primitive by-value identifier has ownership mode VALUE." << std::endl;
