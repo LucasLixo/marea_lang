@@ -186,6 +186,9 @@ static MAREA_Boolean MAREA_CALL MAREA_G_Terminates(const MAREA_SemaContext *cont
     case MAREA_AST_KIND_UNSAFE_BLOCK:
     case MAREA_AST_KIND_FORK_JOIN_BLOCK:
         return MAREA_G_BlockTerminates(context, MAREA_SemaChildAt(statement, 0));
+    case MAREA_AST_KIND_WITH_STATEMENT:
+        // INFO: a with statement ends a path the same way a scope block does, through its own body, the last child here (the value and the bound name come first).
+        return MAREA_G_BlockTerminates(context, MAREA_G_LastChild(statement));
     default:
         return MAREA_BOOLEAN_FALSE;
     }

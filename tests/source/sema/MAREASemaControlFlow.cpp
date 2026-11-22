@@ -84,6 +84,15 @@ TEST(MAREASemaControlFlow, LoopBodyIsNeverATerminatingPath)
     EXPECT_TRUE(MAREA_codesOf("function f(): integer32 while true do local x: integer32 = 1; end return 1; end").empty()) << "A return after the loop must raise nothing.";
 }
 
+TEST(MAREASemaControlFlow, WithBodyCanReturn)
+{
+    GTEST_COUT << "Validating a with statement whose body returns on every path completes the function." << std::endl;
+
+    EXPECT_TRUE(MAREA_codesOf("function f(a: integer32): integer32 with a as view do return 1; end end").empty()) << "A with body that always returns must raise nothing.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(a: integer32): integer32 with a as view do local x: integer32 = view; end end"), Codes{ MISSING_RETURN }) << "A with body that does not return must still raise MISSING_RETURN.";
+}
+
 TEST(MAREASemaControlFlow, SwitchOverEnumCoveringEveryVariant)
 {
     GTEST_COUT << "Validating a switch over an enum that covers every variant is exhaustive." << std::endl;
