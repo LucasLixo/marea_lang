@@ -44,6 +44,9 @@ name of a kind. A getter on a null node gives a neutral value.
 - ` flags=N` when the flags are not 0;
 - a new line. A position is never written.
 
+The dump walks the tree with a stack of its own in the arena, not with recursion, so the call stack stays
+flat for a tree of any depth, for example a left-deep chain of binary operators.
+
 ```
 COMPILATION_UNIT
   NAMESPACE_DECLARATION
@@ -209,9 +212,9 @@ All are errors, from 2001 up. A diagnostic is not repeated at the same byte offs
 
 ## Gaps
 
-- The parser is iterative for a chain of binary operators, but the text dump walks the tree
-  recursively, so a left-deep tree of hundreds of thousands of operators needs a large stack.
 - The semantic rules that the grammar gives to "the checker" are not parsed: the namespace against
   the path, attribute keys and values, ownership, switch coverage.
-- An `IMPORT_MEMBER` path may have any number of parts. Only one part (a function, a type or a
-  constant) or two parts (an enum variant) are valid, and the checker enforces that, not the parser.
+- An `IMPORT_MEMBER` path may have any number of parts in the tree. This is not a parser gap: only one
+  part (a function, a type or a constant) or two parts (an enum variant) are valid, and that rule is
+  sema's job by design, enforced in `MAREA_G_MemberResolves` (`MAREASemaNamespace.c`), like the other
+  rules the grammar gives to "the checker".
