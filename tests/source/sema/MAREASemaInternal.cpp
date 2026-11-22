@@ -127,3 +127,22 @@ TEST(MAREASemaInternal, CheckJumpRejectsANullArgument)
 
     EXPECT_EQ(MAREA_SemaCheckJump(fixture.context, nullptr), MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER) << "A null node must be rejected.";
 }
+
+TEST(MAREASemaInternal, ExpressionChecksRejectANullArgument)
+{
+    GTEST_COUT << "Validating the expression checks and the binder declaration reject a null context and a null node." << std::endl;
+
+    EXPECT_EQ(MAREA_SemaCheckExpressions(nullptr, nullptr), MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER) << "Two null arguments must be rejected by the expression check.";
+
+    EXPECT_EQ(MAREA_SemaDeclareBinders(nullptr, nullptr), MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER) << "Two null arguments must be rejected by the binder declaration.";
+
+    EXPECT_EQ(MAREA_SemaCheckExpressionFit(nullptr, nullptr, nullptr), MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER) << "A null context must be rejected by the fit check.";
+
+    MAREA_SemaFixture fixture;
+
+    EXPECT_EQ(MAREA_SemaCheckExpressions(fixture.context, nullptr), MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER) << "A null node must be rejected by the expression check.";
+
+    EXPECT_EQ(MAREA_SemaDeclareBinders(fixture.context, nullptr), MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER) << "A null node must be rejected by the binder declaration.";
+
+    EXPECT_EQ(MAREA_SemaCheckExpressionFit(fixture.context, nullptr, nullptr), MAREA_SEMA_EXCEPT_SUCCESS) << "A null type and a null expression must be accepted.";
+}

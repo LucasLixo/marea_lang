@@ -765,57 +765,6 @@ static void MAREA_CALL MAREA_G_Unify(const MAREA_AstNode *genericParameters, con
     }
 }
 
-MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckLiteralFit(MAREA_SemaContext *context, const MAREA_AstNode *type, const MAREA_AstNode *expression)
-{
-    if (context == MAREA_NULLPTR) {
-        return MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER;
-    }
-
-    if ((type == MAREA_NULLPTR) || (expression == MAREA_NULLPTR)) {
-        return MAREA_SEMA_EXCEPT_SUCCESS;
-    }
-
-    const MAREA_AstKind KIND = MAREA_AstNodeGetKind(expression);
-
-    if ((KIND != MAREA_AST_KIND_STRING_LITERAL) && (KIND != MAREA_AST_KIND_BOOLEAN_LITERAL) && (KIND != MAREA_AST_KIND_INTEGER_LITERAL) && (KIND != MAREA_AST_KIND_FLOAT_LITERAL)) {
-        return MAREA_SEMA_EXCEPT_SUCCESS;
-    }
-
-    const MAREA_AstNode *declaration = MAREA_NULLPTR;
-
-    const MAREA_Character8 *name = MAREA_NULLPTR;
-
-    MAREA_IntegerSize length = 0;
-
-    if (MAREA_G_Classify(context, type, 0, &declaration, &name, &length) != MAREA_SEMA_TYPE_CLASS_PRIMITIVE) {
-        return MAREA_SEMA_EXCEPT_SUCCESS;
-    }
-
-    const MAREA_Boolean IS_STRING = MAREA_G_TextIs(name, length, "string");
-
-    const MAREA_Boolean IS_BOOLEAN = MAREA_G_TextIs(name, length, "boolean");
-
-    const MAREA_Boolean IS_FLOAT = (MAREA_G_TextIs(name, length, "float32") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextIs(name, length, "float64") == MAREA_BOOLEAN_TRUE);
-
-    MAREA_Boolean fits = MAREA_BOOLEAN_TRUE;
-
-    if (KIND == MAREA_AST_KIND_STRING_LITERAL) {
-        fits = IS_STRING;
-    } else if (KIND == MAREA_AST_KIND_BOOLEAN_LITERAL) {
-        fits = IS_BOOLEAN;
-    } else if (KIND == MAREA_AST_KIND_INTEGER_LITERAL) {
-        fits = ((IS_STRING == MAREA_BOOLEAN_FALSE) && (IS_BOOLEAN == MAREA_BOOLEAN_FALSE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
-    } else {
-        fits = IS_FLOAT;
-    }
-
-    if (fits == MAREA_BOOLEAN_TRUE) {
-        return MAREA_SEMA_EXCEPT_SUCCESS;
-    }
-
-    return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH, MAREA_AstNodeGetPosition(expression), "literal does not fit the type", name, length);
-}
-
 MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckCall(MAREA_SemaContext *context, const MAREA_AstNode *node)
 {
     if ((context == MAREA_NULLPTR) || (node == MAREA_NULLPTR)) {
@@ -861,7 +810,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckCall(MAREA_SemaContext *context, cons
     for (MAREA_IntegerSize index = 0; index < MAREA_AstNodeGetChildCount(parameters); ++index) {
         const MAREA_AstNode *parameter = MAREA_SemaChildAt(parameters, index);
 
-        const MAREA_SemaExcept LITERAL_RESULT = MAREA_SemaCheckLiteralFit(context, (parameter == MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_SemaChildAt(parameter, 1), MAREA_SemaChildAt(arguments, index));
+        const MAREA_SemaExcept LITERAL_RESULT = MAREA_SemaCheckExpressionFit(context, (parameter == MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_SemaChildAt(parameter, 1), MAREA_SemaChildAt(arguments, index));
 
         if (LITERAL_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
             return LITERAL_RESULT;

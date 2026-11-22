@@ -116,6 +116,32 @@ sema itself: the grammar puts `default_arm` last, and the parser now enforces th
 (`DEFAULT_ARM_NOT_LAST`, 2010), so a `default` that is not the last arm never reaches sema through a
 program the parser accepts.
 
+**Expressions.** Sema gives an expression a type only when it is cheap to know, and never guesses. A
+literal has its own type. A name has the declared type of its local, parameter or file constant. A field, or an
+element of an `array`, `slice`, `vector` or `pointer`, has the type sema already reads for the ownership check
+(a primitive only). A `-`, `~`, `copy` or `move` keeps the type of its operand. `not`, `and`, `or` and a
+comparison give `boolean`. A shift or `**` gives the type of its left side. Any other binary operator gives the
+type of both sides when they are the same primitive, or when one side is a number literal and the other a
+primitive of its family; it gives no type when they differ. A call of a plain function of the file (not
+generic, and not hidden by a local of the same name) has the declared result type. Everything else has an
+unknown type and is accepted. The type of an expression is compared with the declared type when that type
+is a primitive, at a call argument of a function of the file, a local initializer, a plain `=` assignment, a
+`return` value and a constant initializer: a conversion is always written, so two primitives are the same
+only by name (`integer32` does not fit `integer64`), a number literal fits any number type, a fraction literal
+any float type, and a structure fits no primitive. An alias of a primitive is the primitive. The mismatch is
+`TYPE_MISMATCH` (3011) on the expression. A name of an enum or of a library type is never compared.
+
+**Names in expressions.** A bare name in the initializer of a local, either side of an assignment, an
+expression statement, the condition of an `if`, `elseif` or `while`, a `return` value and a `switch` value (and
+below them: operands, arguments, indexes, entries of a literal value) must be declared, or sema raises
+`UNDECLARED_NAME` (3004) on it. A name is declared when it is a local or parameter in scope, the name of a
+`for`, `for each`, `partition` or `with` statement (hidden from the end of that statement), a declaration or
+import of the file, a generic parameter in scope, a constant of an `implementation` block inside the block, the
+first segment of the file namespace, or one of the built-ins `c`, `size_of`, `align_of`, `convert` and `Self`.
+A member name, a field key of a literal value, a type, a macro call and the bare name that starts a member
+chain (`stdio.puts(text)`, which may be a namespace the file never imports) are not checked. The local that a
+`for`, `for each`, `partition` or `with` name hides is never used to type the name.
+
 **Entry point.** In the namespace `main`, `function main` has exactly the parameter `arguments:
 array<string>` with no word, and the result `integer32`. Sema never requires a `main`.
 
@@ -170,14 +196,14 @@ real, instantiated result type is deferred to when the `ir` stage needs one for 
 | 3001 | `UNRESOLVED_IMPORT` | `import a.b.c;` when the resolver finds neither `a.b.c` nor a public `c` in `a.b` |
 | 3002 | `NAMESPACE_PATH_MISMATCH` | `namespace a.b.c;` in the file `a/b.marea` |
 | 3003 | `NAME_ALREADY_DECLARED` | `structure Item end function Item() end`, or an import and a declaration of one local name |
-| 3004 | `UNDECLARED_NAME` | `where Item: Missing`, or a constraint on a name that is not a generic parameter |
+| 3004 | `UNDECLARED_NAME` | `where Item: Missing`, or a constraint on a name that is not a generic parameter; `local x: integer32 = missing;`, `missing(1);` |
 | 3005 | `UNKNOWN_ATTRIBUTE_KEY` | `#[frobnicate = true]` |
 | 3006 | `INVALID_ATTRIBUTE_VALUE` | `#[inline = maybe]`, `#[build = 1]`, `#[simd = force]` |
 | 3007 | `CONFLICTING_ATTRIBUTES` | `#[public, private]`, `#[pack = 1, align = 16]`, a key given twice |
 | 3008 | `INVALID_ALIGNMENT` | `#[align = 15]` |
 | 3009 | `UNKNOWN_TYPE` | `a: Missing;` in a structure |
 | 3010 | `ARGUMENT_COUNT_MISMATCH` | `add(1)` when `add` takes two parameters |
-| 3011 | `TYPE_MISMATCH` | `f("text")` when the parameter is `integer32`, `local x: boolean = 1;` |
+| 3011 | `TYPE_MISMATCH` | `f("text")` when the parameter is `integer32`, `local x: boolean = 1;`, `local n: integer32 = a < b;`, `f(s)` with a `string` name `s`, `return a + 1;` in a function that returns `boolean` |
 | 3012 | `DUPLICATE_MEMBER` | two `implementation` blocks of one type that both declare `area` |
 | 3013 | `CONTRACT_NOT_SATISFIED` | `maximum(a, b)` when the type of `a` has no `less` for `where Item: Comparable` |
 | 3014 | `GENERIC_ARGUMENT_MISMATCH` | `Pair<integer32>` when `Pair` has two parameters, `Box<4>` |
@@ -196,8 +222,15 @@ real, instantiated result type is deferred to when the `ir` stage needs one for 
 
 ## Gaps
 
-- `TYPE_MISMATCH` (3011) checks a literal against a primitive type only, never another expression. The use of an undeclared name in an expression is not checked.
-  `UNDECLARED_NAME` is raised for a `where` clause only.
+- `TYPE_MISMATCH` (3011) knows the type of an expression only in the shapes listed under "Expressions". It does not
+  compare the two sides of a binary operator (`a + b` with an `integer32` and a `float64` gives no type and no
+  diagnostic), it never compares an enum, a library type, a generic parameter or a `owned`, `task` or `vector`
+  value, and the result of a generic call is unknown (see below). Compound assignments (`+=` and the others) are
+  not compared.
+- `UNDECLARED_NAME` (3004) is not raised for the bare name that starts a member chain, for the header of a `for`,
+  `for each`, `partition` or `with` statement, or for a name in the initializer of a file constant. The bare
+  chain head is skipped because the `basics/functions` example calls `stdio.puts(text)` with no `import`, so the
+  name may be a namespace; a later step can check it once that example imports what it uses.
 - The contract check only sees arguments whose type is cheap to know. Other arguments are not checked.
 - `destroy`, `operator` and `export` are checked for shape only.
 - The type of a call result is closed for non-generic calls via the typed-AST hand-off; generic-
