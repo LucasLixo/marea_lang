@@ -93,6 +93,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaScopeEnter(MAREA_SemaContext *context, con
     outMark->localCount = context->locals.count;
     outMark->referenceCount = context->references.count;
     outMark->function = context->function;
+    outMark->implementation = context->implementation;
     outMark->selfDepth = context->selfDepth;
     outMark->forkDepth = context->forkDepth;
     outMark->partitionDepth = context->partitionDepth;
@@ -114,6 +115,10 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaScopeEnter(MAREA_SemaContext *context, con
 
     if ((KIND == MAREA_AST_KIND_IMPLEMENTATION_DECLARATION) || (KIND == MAREA_AST_KIND_CONTRACT_DECLARATION)) {
         context->selfDepth += 1;
+    }
+
+    if (KIND == MAREA_AST_KIND_IMPLEMENTATION_DECLARATION) {
+        context->implementation = node;
     }
 
     if (KIND == MAREA_AST_KIND_FORK_JOIN_BLOCK) {
@@ -187,6 +192,7 @@ void MAREA_CALL MAREA_SemaScopeLeave(MAREA_SemaContext *context, MAREA_SemaScope
     context->locals.count = mark.localCount;
     context->references.count = mark.referenceCount;
     context->function = mark.function;
+    context->implementation = mark.implementation;
     context->selfDepth = mark.selfDepth;
     context->forkDepth = mark.forkDepth;
     context->partitionDepth = mark.partitionDepth;

@@ -157,12 +157,17 @@ no type. An operand of an unknown type is accepted.
 operator. `<<=` and `>>=` follow the shift rule. A mismatch is `TYPE_MISMATCH` (3011) on the assignment, once.
 A side of an unknown type is accepted.
 
+**Constants of an `implementation` block (decision of the user).** Inside an `implementation` block, a bare
+constant of that block shadows a top-level constant of the same name: the inner scope wins, and the name has the
+type that the block gives it. A parameter or a local still hides both. A constant of one block is not a name in
+another block or outside the blocks.
+
 **Names in expressions.** A bare name in the initializer of a local, either side of an assignment, an
 expression statement, the condition of an `if`, `elseif` or `while`, a `return` value and a `switch` value (and
 below them: operands, arguments, indexes, entries of a literal value) must be declared, or sema raises
 `UNDECLARED_NAME` (3004) on it. A name is declared when it is a local or parameter in scope, the name of a
 `for`, `for each`, `partition` or `with` statement (hidden from the end of that statement), a declaration or
-import of the file, a generic parameter in scope, a constant of an `implementation` block inside the block, the
+import of the file, a generic parameter in scope, a constant of an `implementation` block inside that block only, the
 first segment of the file namespace, or one of the built-ins `c`, `size_of`, `align_of`, `convert` and `Self`.
 A member name, a field key of a literal value, a type, a macro call and the bare name that starts a member
 chain (`stdio.puts(text)`, which may be a namespace the file never imports) are not checked. The local that a
