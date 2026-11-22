@@ -61,7 +61,7 @@ written weeks ago may already be stale.
 
 ## Never touch, regardless of which gap you are closing
 
-- Any of the parse diagnostic codes 2001-2009 or their meaning, unless the gap you were
+- Any of the parse diagnostic codes 2001-2010 or their meaning, unless the gap you were
   explicitly asked to close is to add a new one - never repurpose an existing code.
 - The signature or behavior of `MAREA_ParseCompilationUnit` or any other symbol declared under
   `lib/include/marea/parse/` without flagging it: per `audit-code`'s rule, a public API change

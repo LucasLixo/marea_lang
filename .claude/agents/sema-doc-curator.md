@@ -27,7 +27,7 @@ report and name it for `sema-gap-resolver` to pick up - do not attempt the fix y
 2. Compare the result against `docs/sema/marea-sema.md` section by section, in the fixed order:
    `## Contract`, `## Use`, the stage's own sections (today: `## Import resolver`, `## Rules`,
    `## Typed AST hand-off`), `## Diagnostics`, `## Gaps`.
-3. Fix every mismatch: a diagnostic code (3001-3023) that changed name, number or example, a rule
+3. Fix every mismatch: a diagnostic code (3001-3025) that changed name, number or example, a rule
    under `## Rules` the checker no longer enforces exactly that way, a change to the typed-AST
    hand-off's type classes or ownership modes, a limitation that was closed (remove or rewrite its
    `## Gaps` bullet) or a new one the code or a test now exposes (add one).
