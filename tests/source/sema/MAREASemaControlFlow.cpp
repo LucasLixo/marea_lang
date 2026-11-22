@@ -264,6 +264,17 @@ TEST(MAREASemaControlFlow, ConstantAndItsLiteralAreTheSameCaseValue)
     EXPECT_TRUE(MAREA_codesOf("constant A: integer32 = B; constant B: integer32 = A; function f(n: integer32): integer32 switch n case A then return 1; case 1 then return 2; default then return 3; end end").empty()) << "A cycle of constants must end without a false repeat.";
 }
 
+TEST(MAREASemaControlFlow, QualifiedNamesAreNotResolvedToAConstantOfTheLastName)
+{
+    GTEST_COUT << "Validating a qualified name is compared by its path, never by a constant that shares its last name." << std::endl;
+
+    EXPECT_TRUE(MAREA_codesOf("constant LIMIT: integer32 = 5; function f(n: integer32): integer32 switch n case a.LIMIT then return 1; case b.LIMIT then return 2; default then return 3; end end").empty()) << "a.LIMIT and b.LIMIT must stay distinct when the file has its own LIMIT.";
+
+    EXPECT_TRUE(MAREA_codesOf("constant LIMIT: integer32 = 5; constant MAX: integer32 = 5; function f(n: integer32): integer32 switch n case a.LIMIT then return 1; case a.MAX then return 2; default then return 3; end end").empty()) << "a.LIMIT and a.MAX must stay distinct even when the file has constants LIMIT and MAX of one value.";
+
+    EXPECT_EQ(MAREA_codesOf("constant LIMIT: integer32 = 5; function f(n: integer32): integer32 switch n case a.LIMIT then return 1; case a.LIMIT then return 2; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "A repeated qualified name must still raise DUPLICATE_SWITCH_ARM.";
+}
+
 TEST(MAREASemaControlFlow, RepeatedEnumVariantIsRejected)
 {
     GTEST_COUT << "Validating an enum variant that appears again raises DUPLICATE_SWITCH_ARM." << std::endl;
