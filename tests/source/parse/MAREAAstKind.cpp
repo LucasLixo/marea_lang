@@ -36,6 +36,17 @@ TEST(MAREAAstKind, SpotCheckNames)
     EXPECT_STREQ(MAREA_AstKindGetName(MAREA_AST_KIND_BINARY_EXPRESSION), "BINARY_EXPRESSION") << "BINARY_EXPRESSION must keep its name.";
 
     EXPECT_STREQ(MAREA_AstKindGetName(MAREA_AST_KIND_ERROR_NODE), "ERROR_NODE") << "ERROR_NODE must keep its name.";
+
+    EXPECT_STREQ(MAREA_AstKindGetName(MAREA_AST_KIND_IMPORT_MEMBER), "IMPORT_MEMBER") << "IMPORT_MEMBER must be named.";
+}
+
+TEST(MAREAAstKind, ImportMemberIsTheLastKind)
+{
+    GTEST_COUT << "Validating IMPORT_MEMBER sits after ERROR_NODE and before COUNT." << std::endl;
+
+    EXPECT_EQ(static_cast<MAREA_Sinteger32>(MAREA_AST_KIND_IMPORT_MEMBER), static_cast<MAREA_Sinteger32>(MAREA_AST_KIND_ERROR_NODE) + 1) << "IMPORT_MEMBER must follow ERROR_NODE.";
+
+    EXPECT_EQ(static_cast<MAREA_Sinteger32>(MAREA_AST_KIND_IMPORT_MEMBER) + 1, static_cast<MAREA_Sinteger32>(MAREA_AST_KIND_COUNT)) << "IMPORT_MEMBER must come right before COUNT.";
 }
 
 TEST(MAREAAstKind, OutOfRangeIsUnknown)
