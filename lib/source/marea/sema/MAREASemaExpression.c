@@ -219,6 +219,26 @@ static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOfType(const MAREA_SemaContext *con
 
 static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOf(const MAREA_SemaContext *context, const MAREA_AstNode *expression, MAREA_Uinteger32 depth);
 
+// INFO: a constant of an implementation block is written as Type.NAME in the examples, but the grammar does not forbid the bare name inside the block. Only the block being visited is searched.
+static const MAREA_AstNode *MAREA_CALL MAREA_G_FindImplementationConstant(const MAREA_SemaContext *context, const MAREA_AstNode *name)
+{
+    if (context->implementation == MAREA_NULLPTR) {
+        return MAREA_NULLPTR;
+    }
+
+    for (MAREA_IntegerSize member = 0; member < MAREA_AstNodeGetChildCount(context->implementation); ++member) {
+        const MAREA_AstNode *constant = MAREA_SemaChildAt(context->implementation, member);
+
+        const MAREA_AstNode *constantName = (MAREA_G_IsKind(constant, MAREA_AST_KIND_CONSTANT_DECLARATION) == MAREA_BOOLEAN_TRUE) ? MAREA_G_FindChild(constant, MAREA_AST_KIND_IDENTIFIER) : MAREA_NULLPTR;
+
+        if ((constantName != MAREA_NULLPTR) && (MAREA_G_NodeTextIs(constantName, name) == MAREA_BOOLEAN_TRUE)) {
+            return constant;
+        }
+    }
+
+    return MAREA_NULLPTR;
+}
+
 static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOfName(const MAREA_SemaContext *context, const MAREA_AstNode *name)
 {
     const MAREA_SemaName *local = MAREA_G_FindLocal(context, name);
@@ -227,7 +247,10 @@ static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOfName(const MAREA_SemaContext *con
         return MAREA_G_ShapeOfType(context, local->declaration, MAREA_BOOLEAN_TRUE);
     }
 
-    const MAREA_AstNode *constant = MAREA_G_FindDeclaration(context, name, MAREA_AST_KIND_CONSTANT_DECLARATION);
+    // INFO: inside an implementation block, a constant of the block shadows a top-level constant of the same name.
+    const MAREA_AstNode *inner = MAREA_G_FindImplementationConstant(context, name);
+
+    const MAREA_AstNode *constant = (inner != MAREA_NULLPTR) ? inner : MAREA_G_FindDeclaration(context, name, MAREA_AST_KIND_CONSTANT_DECLARATION);
 
     if (constant == MAREA_NULLPTR) {
         return MAREA_G_ShapeUnknown();
@@ -490,34 +513,6 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsNamespaceRoot(const MAREA_SemaContext 
     return ((first != MAREA_NULLPTR) && (MAREA_G_NodeTextIs(first, name) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
-// INFO: a constant of an implementation block is written as Type.NAME in the examples, but the grammar does not forbid the bare name inside the block.
-static MAREA_Boolean MAREA_CALL MAREA_G_IsImplementationConstant(const MAREA_SemaContext *context, const MAREA_AstNode *name)
-{
-    if ((context->selfDepth == 0) || (context->root == MAREA_NULLPTR)) {
-        return MAREA_BOOLEAN_FALSE;
-    }
-
-    for (MAREA_IntegerSize index = 0; index < MAREA_AstNodeGetChildCount(context->root); ++index) {
-        const MAREA_AstNode *implementation = MAREA_SemaChildAt(context->root, index);
-
-        if (MAREA_G_IsKind(implementation, MAREA_AST_KIND_IMPLEMENTATION_DECLARATION) == MAREA_BOOLEAN_FALSE) {
-            continue;
-        }
-
-        for (MAREA_IntegerSize member = 0; member < MAREA_AstNodeGetChildCount(implementation); ++member) {
-            const MAREA_AstNode *constant = MAREA_SemaChildAt(implementation, member);
-
-            const MAREA_AstNode *constantName = (MAREA_G_IsKind(constant, MAREA_AST_KIND_CONSTANT_DECLARATION) == MAREA_BOOLEAN_TRUE) ? MAREA_G_FindChild(constant, MAREA_AST_KIND_IDENTIFIER) : MAREA_NULLPTR;
-
-            if ((constantName != MAREA_NULLPTR) && (MAREA_G_NodeTextIs(constantName, name) == MAREA_BOOLEAN_TRUE)) {
-                return MAREA_BOOLEAN_TRUE;
-            }
-        }
-    }
-
-    return MAREA_BOOLEAN_FALSE;
-}
-
 // INFO: c is the reserved namespace of C, size_of, align_of and convert are the built-in calls and Self is the type of an implementation block.
 static MAREA_Boolean MAREA_CALL MAREA_G_IsBuiltInName(const MAREA_AstNode *name)
 {
@@ -534,7 +529,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsDeclaredName(const MAREA_SemaContext *
         return MAREA_BOOLEAN_TRUE;
     }
 
-    return ((MAREA_G_IsBuiltInName(name) == MAREA_BOOLEAN_TRUE) || (MAREA_G_IsNamespaceRoot(context, name) == MAREA_BOOLEAN_TRUE) || (MAREA_G_IsImplementationConstant(context, name) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+    return ((MAREA_G_IsBuiltInName(name) == MAREA_BOOLEAN_TRUE) || (MAREA_G_IsNamespaceRoot(context, name) == MAREA_BOOLEAN_TRUE) || (MAREA_G_FindImplementationConstant(context, name) != MAREA_NULLPTR)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
 static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckValue(MAREA_SemaContext *context, const MAREA_AstNode *expression, MAREA_Uinteger32 depth, MAREA_Boolean checkNames);

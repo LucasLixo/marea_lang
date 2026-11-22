@@ -73,6 +73,7 @@ MAREA_BEGIN_EXTERN_C
         MAREA_SemaNameTable references;
         const MAREA_AstNode *root;
         const MAREA_AstNode *function;
+        const MAREA_AstNode *implementation;
         MAREA_Uinteger32 selfDepth;
         MAREA_Uinteger32 instantiationDepth;
         MAREA_Uinteger32 forkDepth;
@@ -86,6 +87,7 @@ MAREA_BEGIN_EXTERN_C
     typedef struct MAREA_SemaScopeMark
     {
         const MAREA_AstNode *function;
+        const MAREA_AstNode *implementation;
         MAREA_IntegerSize genericCount;
         MAREA_IntegerSize localCount;
         MAREA_IntegerSize referenceCount;

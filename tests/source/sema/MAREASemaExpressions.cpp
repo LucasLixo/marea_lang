@@ -366,6 +366,25 @@ TEST(MAREASemaExpressions, ConstantOfAnImplementationIsNotReported)
     EXPECT_EQ(MAREA_codesOf("structure Planet mass: float64; end implementation Planet constant GRAVITY: float64 = 6.0; end function g(): float64 return GRAVITY; end"), Codes{ UNDECLARED }) << "The constant is not a name outside the block.";
 }
 
+TEST(MAREASemaExpressions, ConstantOfAnImplementationShadowsATopLevelConstant)
+{
+    GTEST_COUT << "Validating inside an implementation block the constant of the block wins over a top-level constant of the same name." << std::endl;
+
+    const std::string HEAD{ "structure Planet mass: float64; end structure Moon mass: float64; end constant LIMIT: integer32 = 1; " };
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "implementation Planet constant LIMIT: float64 = 6.0; function pull(self: Planet): float64 return LIMIT; end end").empty()) << "The type of the constant of the block must be used inside the block.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "implementation Planet constant LIMIT: float64 = 6.0; function pull(self: Planet): integer32 return LIMIT; end end"), Codes{ MISMATCH }) << "The type of the top-level constant must not be used inside the block.";
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "implementation Planet constant LIMIT: float64 = 6.0; end function top(): integer32 return LIMIT; end").empty()) << "The top-level constant must be used outside the block.";
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "implementation Planet constant LIMIT: float64 = 6.0; end implementation Moon function push(self: Moon): integer32 return LIMIT; end end").empty()) << "The constant of another block must not shadow the top-level one.";
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "implementation Planet constant LIMIT: float64 = 6.0; function pull(self: Planet, LIMIT: integer32): integer32 return LIMIT; end end").empty()) << "A parameter must still hide the constant of the block.";
+
+    EXPECT_EQ(MAREA_codesOf("structure Planet mass: float64; end structure Moon mass: float64; end implementation Planet constant GRAVITY: float64 = 6.0; end implementation Moon function push(self: Moon): float64 return GRAVITY; end end"), Codes{ UNDECLARED }) << "The constant of one block is not a name in another block.";
+}
+
 TEST(MAREASemaExpressions, ErrorNodeInAnExpressionIsSkipped)
 {
     GTEST_COUT << "Validating a broken expression gives no sema diagnostic." << std::endl;
