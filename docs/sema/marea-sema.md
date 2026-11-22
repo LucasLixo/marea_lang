@@ -266,12 +266,14 @@ read-only parameter, a `for each` variable, a `partition` part or a `with` name)
 `mutable` parameter), `MOVE` (an `owned<T>` or `task<T>` parameter or value), `COPY` (a `copy x`
 expression). A node this cannot classify defaults to `VALUE`.
 
-**Call results.** A non-generic call expression's typed node carries the callee's real, unsubstituted
-return type: `USER`, `EXTERNAL` or a built-in class, exactly as the function declares it. Generic-
-result substitution is not performed: when the return type names an unbound generic parameter (for
-example `Pair<T>.first(): T` called without `ir`-level instantiation), the typed node is tagged
-`GENERIC` and the raw, unsubstituted type name is kept - never a guess, never a crash. Resolving the
-real, instantiated result type is deferred to when the `ir` stage needs one for real.
+**Call results.** A call expression's typed node carries the type the call returns. A call of a function of the
+file carries the callee's declared return type: `USER`, `EXTERNAL` or a built-in class. A built-in `convert<T>(x)`
+(with no name `convert` bound in the unit) carries the type `T`, read in the scope of the caller. When the callee is
+generic and the call gives explicit type arguments, a return type that is one generic parameter (`Item`) is
+replaced by the type argument at the same place (`same<integer32>(5)` is `integer32`). When there are no type
+arguments, or the return type is a compound of a parameter (`array<Item>`), the typed node keeps the raw type: a
+bare parameter is tagged `GENERIC` with its name - never a guess, never a crash. Resolving a result from inferred
+type arguments is deferred to when the `ir` stage needs one for real.
 
 ## Diagnostics
 
@@ -320,9 +322,9 @@ real, instantiated result type is deferred to when the `ir` stage needs one for 
   name may be a namespace; a later step can check it once that example imports what it uses.
 - The contract check only sees arguments whose type is cheap to know. Other arguments are not checked.
 - `destroy`, `operator` and `export` are checked for shape only.
-- The type of a call result is closed for non-generic calls via the typed-AST hand-off; generic-
-  result substitution still open. The type of a library type is not tracked, so a missing `copy` or
-  `move` there is not reported.
+- The type of a library type is not tracked, so a missing `copy` or `move` there is not reported.
+- The typed-AST hand-off substitutes a generic result only for a bare parameter with explicit type arguments; a
+  result from inferred type arguments or a compound such as `array<Item>` keeps the raw type.
 - `DUPLICATE_SWITCH_ARM` compares the text of a value, not its number: `1` and `0x1`, or `1.0` and `1.00`, are
   taken for different values. A constant that is named in one arm and written as its literal in another is not
   matched either, and a name of an enum is matched by the variant name only, so `Color.red` and `Other.red`
@@ -334,5 +336,3 @@ real, instantiated result type is deferred to when the `ir` stage needs one for 
   A field pair of two primitives with the same width but another name (`integer32` and `float32`) is a mismatch
   here, as the rule is by exact name; a looser rule is a later decision of the user. The numeric range of a
   conversion (`convert<integer8>(count)` with `count` above 127) is a run-time stop, not a check of sema.
-- The typed-AST hand-off does not give a `convert<T>(x)` call the type `T` yet: its call classifier reads only a
-  function of the file, so the typed node of a conversion call has no type name.
