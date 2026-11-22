@@ -181,6 +181,7 @@ All are errors, from 2001 up. A diagnostic is not repeated at the same byte offs
 | 2007 | `MISSING_NAMESPACE` | a file that does not start with `namespace` |
 | 2008 | `RECURSION_TOO_DEEP` | 300 nested parentheses, `if` blocks or type arguments |
 | 2009 | `UNTERMINATED_BLOCK` | a structure, function or other block that reaches the end of the file |
+| 2010 | `DEFAULT_ARM_NOT_LAST` | `switch a default then x = 1; case 2 then y = 2; end` (the tree is still built) |
 
 ## Gaps
 
