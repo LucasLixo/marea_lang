@@ -987,6 +987,21 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_SemaPrimitiveOfExpression(const MAREA_SemaContext *context, const MAREA_AstNode *expression, const MAREA_Character8 **outName, MAREA_IntegerSize *outLength);
 
     /**
+     * @brief Reports DIVISION_BY_ZERO for /, %, /= and %= whose divisor is a constant zero and the left side is an
+     * integer, and SHIFT_COUNT_TOO_LARGE for a shift or compound shift whose constant count is negative or not below
+     * the width of the left primitive integer type. A constant is an integer literal (decimal, 0x, 0b, "_"), one
+     * leading minus on a constant, or a parenthesized constant; a named constant is not folded. Any other operator,
+     * a divisor or count that is not constant, and a left side with no known width, raise nothing.
+     * @param context Context of the run. Must not be null.
+     * @param operatorKind Operator token of the binary expression or the compound assignment.
+     * @param left Left operand node (the assignment target for a compound assignment). May be null.
+     * @param right Right operand node. May be null.
+     * @param position Position of the expression, used for the diagnostic.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, or ERROR_NULL_POINTER when context is null.
+     */
+    MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckConstantOperands(MAREA_SemaContext * context, MAREA_TokenKind operatorKind, const MAREA_AstNode *left, const MAREA_AstNode *right, MAREA_SourcePosition position);
+
+    /**
      * @brief Tells whether a number literal fits a primitive type under the rule of MAREA_SemaCheckExpressionFit:
      * an integer literal fits any number type, a float literal fits float32 and float64 only.
      * @param kind MAREA_AST_KIND_INTEGER_LITERAL or MAREA_AST_KIND_FLOAT_LITERAL. Any other kind gives false.

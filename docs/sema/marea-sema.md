@@ -374,6 +374,13 @@ chain (`stdio.puts(text)`, which may be a namespace the file never imports) are 
 raised. Sema never requires a `main`. The code 3023 (`INVALID_MAIN_SIGNATURE`) is retired and stays reserved, never
 reused.
 
+**Constant operands.** `/`, `%`, `/=` and `%=` with a divisor that is a constant zero raise `DIVISION_BY_ZERO` (3034)
+when the left side is an integer (a primitive integer type or an integer literal). A shift or compound shift whose
+count is a constant that is negative or not below the width in bits of the left primitive integer type (`value << 32`
+for `uinteger32`) raises `SHIFT_COUNT_TOO_LARGE` (3035). A constant is an integer literal (decimal, `0x`, `0b`, `_`
+digits), one leading minus on a constant, or a parenthesized constant. A float divisor, a left side with no known
+primitive type (a literal) for a shift, and a divisor or count that is not a constant raise nothing.
+
 ## Typed AST hand-off
 
 `MAREA_SemaBuildTypedAst` (`marea/sema/MAREASemaTypedAst.h`) turns a compilation unit `sema` already
@@ -601,6 +608,8 @@ or rejects.
 | 3031 | `INVALID_ENUM_TAG_TYPE` | `enum A : float32`, `: string`, `: SomeStruct`: a tag that is not an integer primitive |
 | 3032 | `CANNOT_BORROW_CONSTANT_AS_MUTABLE` | `take(ORIGIN)` when `take`'s parameter's effective `semantics` is `reference_mutable` and `ORIGIN` is a file constant |
 | 3033 | `LITERAL_OUT_OF_RANGE` | `local a: uinteger8 = 256;`, `local b: sinteger8 = -129;`, `constant BIG: uinteger8 = 300;`, `local c: uinteger32 = -1;`: an integer literal whose value does not fit the integer type it is bound to |
+| 3034 | `DIVISION_BY_ZERO` | `x / 0`, `x % 0`, `x /= 0`, `x %= 0` for an integer: the divisor is a constant zero |
+| 3035 | `SHIFT_COUNT_TOO_LARGE` | `x << 32` for `uinteger32`, `x >>= 64` for `sinteger64`, `x << -1`: a constant shift count that is negative or not below the width of the left integer type |
 
 ## Gaps
 
@@ -626,6 +635,9 @@ or rejects.
 - `LITERAL_OUT_OF_RANGE` (3033) reads only a written integer literal. A float literal, a literal in an operand
   (`1 + 300` bound to a `uinteger8`), a value folded from a named constant, and a literal whose target type is not a
   primitive sema knows (it is then checked against `uinteger64` only) are not range checked.
+- `DIVISION_BY_ZERO` (3034) and `SHIFT_COUNT_TOO_LARGE` (3035) fold only an integer literal, one leading minus and
+  parentheses. A named constant is not folded, so `x / ZERO` raises nothing. A shift whose left side is a literal has
+  no width and raises nothing. A count above 64 bits is not folded.
 - An alias of an `enum` is not resolved to the enum for any comparison, because sema never compares an enum type
   for `TYPE_MISMATCH` (see the `TYPE_MISMATCH` gap above); the aliased-enum case that a test covers is the
   `switch` coverage of an imported enum with an alias. No test covers `type A = Color;` of a same-file enum.

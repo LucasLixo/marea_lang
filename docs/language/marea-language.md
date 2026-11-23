@@ -199,6 +199,9 @@ A `known_gap` item that shares an issue shows one hole of the compiler through m
 | L-BINDINGS-019 | An empty character literal | 1005 @10, 2002 @10 |
 | L-BINDINGS-020 | A character literal of two characters | 1006 @10, 2002 @10 |
 | L-BINDINGS-021 | A number glued to letters | 2001 @10, 3004 @10 |
+| L-BINDINGS-033 | A constant division by zero | 3034 @10 |
+| L-BINDINGS-034 | A constant remainder by zero | 3034 @10 |
+| L-BINDINGS-035 | A shift count equal to the width of the type | 3035 @11 |
 | L-BINDINGS-038 | Sinteger32 plus sinteger64 is a mismatch | 3011 @12 |
 | L-BINDINGS-039 | Sinteger32 plus float64 is a mismatch | 3011 @12 |
 | L-BINDINGS-040 | A comparison of two widths is a mismatch | 3011 @12 |
@@ -248,9 +251,6 @@ A `known_gap` item that shares an issue shows one hole of the compiler through m
 | Id | Shows | Expected |
 |---|---|---|
 | L-BINDINGS-032 | A negated unsigned value | gap: #182 NEW, rule: reject |
-| L-BINDINGS-033 | A constant division by zero | gap: #183 NEW, rule: reject |
-| L-BINDINGS-034 | A constant remainder by zero | gap: #183 NEW, rule: reject |
-| L-BINDINGS-035 | A shift count equal to the width of the type | gap: #184 NEW, rule: reject |
 | L-BINDINGS-037 | The minimum value divided by minus one | gap: #185 NEW, rule: reject |
 | L-BINDINGS-055 | A bit operator on a float | gap: #186 NEW, rule: reject |
 | L-BINDINGS-056 | A logical operator on integers | gap: #187 NEW, rule: reject |
@@ -1243,7 +1243,7 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | area | accept | reject | known_gap |
 |---|---|---|---|
 | adversarial | 0 | 26 | 46 |
-| bindings | 33 | 70 | 10 |
+| bindings | 33 | 73 | 7 |
 | coverage | 0 | 0 | 1 |
 | examples | 16 | 0 | 0 |
 | functions | 19 | 41 | 13 |
@@ -1254,7 +1254,7 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | parallel | 19 | 23 | 17 |
 | seed | 1 | 1 | 1 |
 | types | 60 | 108 | 28 |
-| total | 262 | 352 | 193 |
+| total | 262 | 355 | 190 |
 
 ## Parity plan
 
@@ -1277,6 +1277,7 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 | 2001-2010 | `parse` | [marea-ast.md](../ast/marea-ast.md) |
 | 3001-3032 | `sema` | [marea-sema.md](../sema/marea-sema.md) |
 | 3033 | `sema` | [marea-sema.md](../sema/marea-sema.md), `LITERAL_OUT_OF_RANGE` |
+| 3034-3035 | `sema` | [marea-sema.md](../sema/marea-sema.md), the division and shift rules of constant operands |
 | 4004-4006 | `ir` | [marea-ir.md](../ir/marea-ir.md), no item reaches them (see Gaps) |
 
 ## Gaps
@@ -1344,8 +1345,8 @@ Each rule is kept as a `known_gap` item with its issue, as reject codes, or as a
 | use of an uninitialized value | known_gap items of #177 |
 | write through a read-only borrow | known_gap items of #204 |
 | literal out of range | reject items with 3033 (L-BINDINGS-022, 026 to 029, 031, L-ADVERSARIAL-018 to 021) |
-| constant division by zero | known_gap items of #183 |
-| shift count too large | known_gap items of #184 |
+| constant division by zero | reject items of 3034 |
+| shift count too large | reject items of 3035 |
 | recursive type by value | known_gap items of #221 (L-TYPES-029, 030) |
 | cyclic alias | known_gap items of #221 (L-TYPES-124, 125) |
 | cyclic constant | L-COVERAGE-001, issue #249 |
