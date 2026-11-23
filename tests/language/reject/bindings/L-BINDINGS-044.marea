@@ -1,0 +1,14 @@
+-- expect: 3011 @12
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A compound assignment of two widths is a mismatch.
+
+namespace main;
+
+function check(): sinteger32
+    local total: sinteger32 = 0;
+    local step: sinteger64 = 1;
+    total += step;
+    return total;
+end

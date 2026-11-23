@@ -1,0 +1,14 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A file attribute and a symbol attribute that differ.
+
+namespace main;
+
+#![visibility = public]
+
+#[visibility = private]
+function check(): sinteger32
+    return 1;
+end

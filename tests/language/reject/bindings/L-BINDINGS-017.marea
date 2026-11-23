@@ -1,0 +1,12 @@
+-- expect: 1004 @10, 2002 @10
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A binary literal with a decimal digit 2 after the prefix.
+
+namespace main;
+
+function check(): sinteger32
+    local value: uinteger32 = 0b2;
+    return 1;
+end

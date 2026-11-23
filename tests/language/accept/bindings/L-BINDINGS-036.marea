@@ -1,0 +1,13 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A shift count inside the width.
+
+namespace main;
+
+function check(): sinteger32
+    local value: uinteger32 = 1;
+    local shifted: uinteger32 = value << 31;
+    return 1;
+end

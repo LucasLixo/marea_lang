@@ -1,0 +1,14 @@
+-- expect: 3011 @12
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Sinteger32 plus float64 is a mismatch.
+
+namespace main;
+
+function check(): sinteger32
+    local left: sinteger32 = 1;
+    local right: float64 = 2.0;
+    local sum: float64 = left + right;
+    return 1;
+end

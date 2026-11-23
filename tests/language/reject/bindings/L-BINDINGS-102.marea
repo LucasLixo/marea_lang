@@ -1,0 +1,12 @@
+-- expect: 3006 @9
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A visibility key with a member that does not exist.
+
+namespace main;
+
+#[visibility = hidden]
+function check(): sinteger32
+    return 1;
+end
