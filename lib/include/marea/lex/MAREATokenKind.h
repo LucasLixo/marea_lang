@@ -10,7 +10,7 @@
 MAREA_BEGIN_EXTERN_C
 
     /**
-     * @brief Kind of a lexed token: the 6 base kinds, the 44 keywords, the 36 operators and the 14
+     * @brief Kind of a lexed token: the 7 base kinds, the 44 keywords, the 36 operators and the 14
      * separators of the grammar, in grammar order, followed by MAREA_TOKEN_KIND_COUNT.
      */
     typedef enum MAREA_TokenKind
@@ -21,6 +21,7 @@ MAREA_BEGIN_EXTERN_C
         MAREA_TOKEN_KIND_INTEGER_LITERAL,
         MAREA_TOKEN_KIND_FLOAT_LITERAL,
         MAREA_TOKEN_KIND_STRING_LITERAL,
+        MAREA_TOKEN_KIND_CHARACTER_LITERAL,
 
         MAREA_TOKEN_KIND_KEYWORD_AND,
         MAREA_TOKEN_KIND_KEYWORD_AS,

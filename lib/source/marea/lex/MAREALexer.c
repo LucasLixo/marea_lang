@@ -421,6 +421,16 @@ MAREA_LexExcept MAREA_CALL MAREA_LexTokenize(MAREA_LexContext *context, const MA
             continue;
         }
 
+        if (CURRENT == '\'') {
+            const MAREA_LexExcept characterResult = MAREA_LexScanCharacter(&cursor, list);
+
+            if (characterResult != MAREA_LEX_EXCEPT_SUCCESS) {
+                return characterResult;
+            }
+
+            continue;
+        }
+
         MAREA_TokenKind symbolKind;
         MAREA_IntegerSize symbolLength = MAREA_INTEGER_SIZE(0);
 

@@ -12,6 +12,7 @@ static const MAREA_Character8 *const MAREA_G_TokenKindNames[] = {
     "INTEGER_LITERAL",
     "FLOAT_LITERAL",
     "STRING_LITERAL",
+    "CHARACTER_LITERAL",
 
     "KEYWORD_AND",
     "KEYWORD_AS",
