@@ -1,0 +1,44 @@
+-- gap: #202 3019
+-- rule: reject
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A for each mutable element and its own vector are passed to one call.
+
+namespace main;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+structure Box
+    inner: Point;
+    count: sinteger32;
+end
+
+function make_point(): Point
+    return Point{ x = 1, y = 2 };
+end
+
+function read_point(#[semantics = reference_read_only] point: Point): sinteger32
+    return point.x;
+end
+
+function write_point(#[semantics = reference_mutable] point: Point)
+    point.x = 1;
+end
+
+function take_point(point: owned<Point>): sinteger32
+    return point.x;
+end
+
+function pair(#[semantics = reference_mutable] item: Point, #[semantics = reference_read_only] all: vector<Point>)
+end
+
+function check(#[semantics = reference_mutable] points: vector<Point>): sinteger32
+    for each item in mutable points do
+        pair(item, points);
+    end
+    return 1;
+end

@@ -1,0 +1,22 @@
+-- expect: 3022 @10
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- from: L-FUNCTIONS-008
+-- Mutant of L-FUNCTIONS-008: the return of the else path is dropped.
+
+namespace main;
+
+function sign(value: sinteger32): sinteger32
+    if value < 0 then
+        return -1;
+    end
+    elseif value == 0 then
+
+    end
+    else
+        return 1;
+    end
+    end
+end
+

@@ -1,0 +1,16 @@
+-- expect: 2004 @14, 2004 @14, 2005 @15, 3022 @10
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- from: L-BINDINGS-092
+-- Mutant of L-BINDINGS-092: the unsafe word is dropped.
+
+namespace main;
+
+function check(): sinteger32
+    
+        local value: sinteger32 = 1;
+    end
+    return 1;
+end
+
