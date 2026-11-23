@@ -26,6 +26,7 @@ static const MAREA_Character8 *const MAREA_G_VisibilityMembers[] = { "public", "
 static const MAREA_Character8 *const MAREA_G_InlineMembers[] = { "force", "never", "auto", MAREA_NULLPTR };
 static const MAREA_Character8 *const MAREA_G_BuildMembers[] = { "debug", "release", MAREA_NULLPTR };
 static const MAREA_Character8 *const MAREA_G_LayoutMembers[] = { "c", "marea", MAREA_NULLPTR };
+static const MAREA_Character8 *const MAREA_G_SemanticsMembers[] = { "value_read_only", "reference_read_only", "reference_mutable", MAREA_NULLPTR };
 
 // INFO: the values of the key operator: the operator tokens, then the index, call and lifecycle hooks.
 static const MAREA_Character8 *const MAREA_G_OperatorVocabulary[] = {
@@ -77,7 +78,7 @@ enum
 {
     MAREA_G_RULE_ALIGN = 4,
     MAREA_G_RULE_PACK = 5,
-    MAREA_G_RULE_COUNT = 9,
+    MAREA_G_RULE_COUNT = 10,
 };
 
 // INFO: the order is fixed because the MAREA_G_RULE_ indexes above name entries of this table.
@@ -92,6 +93,9 @@ static const MAREA_G_AttributeRule MAREA_G_RULES[MAREA_G_RULE_COUNT] = {
     { .key = "move_only", .members = MAREA_NULLPTR, .shape = MAREA_G_ATTRIBUTE_SHAPE_FLAG },
     { .key = "operator", .members = MAREA_G_OperatorVocabulary, .shape = MAREA_G_ATTRIBUTE_SHAPE_VOCABULARY },
     { .key = "export", .members = MAREA_NULLPTR, .shape = MAREA_G_ATTRIBUTE_SHAPE_STRING },
+    // INFO: the one and only parameter-passing mechanism; MAREA_SemaGetParameterSemantics in
+    // MAREASemaOwnership.c is the one place the rest of sema reads it.
+    { .key = "semantics", .members = MAREA_G_SemanticsMembers, .shape = MAREA_G_ATTRIBUTE_SHAPE_MEMBER },
 };
 
 static MAREA_Boolean MAREA_CALL MAREA_G_TextIs(const MAREA_AstNode *node, const MAREA_Character8 *text)

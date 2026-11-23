@@ -46,11 +46,11 @@ TEST(MAREASemaEntryPoint, AnyParameterTypeIsAccepted)
 
 TEST(MAREASemaEntryPoint, ParameterFlagIsAccepted)
 {
-    GTEST_COUT << "Validating a mutable or reference flag on a main parameter raises nothing." << std::endl;
+    GTEST_COUT << "Validating a semantics attribute on a main parameter raises nothing." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("namespace main; function main(arguments: mutable c.array<string>): sinteger32 return 0; end").empty()) << "A mutable flag must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("namespace main; function main(arguments: c.array<string>): sinteger32 return 0; end").empty()) << "The non-primitive default (reference_mutable) must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("namespace main; function main(arguments: reference c.array<string>): sinteger32 return 0; end").empty()) << "A reference flag must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("namespace main; function main(#[semantics = reference_read_only] arguments: c.array<string>): sinteger32 return 0; end").empty()) << "An explicit reference_read_only must raise nothing.";
 }
 
 TEST(MAREASemaEntryPoint, AnyReturnTypeIsAccepted)
