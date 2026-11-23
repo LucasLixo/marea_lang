@@ -193,6 +193,51 @@ static MAREA_Boolean MAREA_CALL MAREA_G_HasLifecycleMember(const MAREA_SemaConte
     return MAREA_BOOLEAN_FALSE;
 }
 
+// INFO: the implemented type of an implementation block, read back through the name table so identity is compared
+// by declaration, not by text: two types of the same name in two namespaces never collide here, as the table holds
+// the declaration of this file only.
+static const MAREA_AstNode *MAREA_CALL MAREA_G_ImplementedDeclaration(const MAREA_SemaContext *context, const MAREA_AstNode *implementation)
+{
+    const MAREA_AstNode *name = MAREA_G_TypeName(implementation);
+
+    if (name == MAREA_NULLPTR) {
+        return MAREA_NULLPTR;
+    }
+
+    const MAREA_SemaName *entry = MAREA_SemaNameTableFind(context, MAREA_AstNodeGetText(name), MAREA_AstNodeGetTextLength(name));
+
+    return ((entry != MAREA_NULLPTR) && (entry->kind == MAREA_SEMA_NAME_KIND_DECLARATION)) ? entry->declaration : MAREA_NULLPTR;
+}
+
+const MAREA_AstNode *MAREA_CALL MAREA_SemaFindConstructOperator(const MAREA_SemaContext *context, const MAREA_AstNode *typeDeclaration)
+{
+    if ((context == MAREA_NULLPTR) || (typeDeclaration == MAREA_NULLPTR) || (context->root == MAREA_NULLPTR)) {
+        return MAREA_NULLPTR;
+    }
+
+    const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(context->root);
+
+    for (MAREA_IntegerSize current = 0; current < COUNT; ++current) {
+        const MAREA_AstNode *implementation = MAREA_SemaChildAt(context->root, current);
+
+        if ((implementation == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(implementation) != MAREA_AST_KIND_IMPLEMENTATION_DECLARATION) || (MAREA_G_ImplementedDeclaration(context, implementation) != typeDeclaration)) {
+            continue;
+        }
+
+        const MAREA_IntegerSize MEMBER_COUNT = MAREA_AstNodeGetChildCount(implementation);
+
+        for (MAREA_IntegerSize index = 0; index < MEMBER_COUNT; ++index) {
+            const MAREA_AstNode *member = MAREA_SemaChildAt(implementation, index);
+
+            if (MAREA_G_KindOf(member) == MAREA_G_LIFECYCLE_KIND_CONSTRUCT) {
+                return member;
+            }
+        }
+    }
+
+    return MAREA_NULLPTR;
+}
+
 MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckLifecycleCall(MAREA_SemaContext *context, const MAREA_AstNode *call)
 {
     if ((context == MAREA_NULLPTR) || (call == MAREA_NULLPTR)) {

@@ -288,7 +288,22 @@ static void MAREA_CALL MAREA_G_TypedAstClassifyCall(MAREA_SemaContext *context, 
 
     const MAREA_SemaName *entry = MAREA_SemaNameTableFind(context, MAREA_AstNodeGetText(callee), MAREA_AstNodeGetTextLength(callee));
 
-    if ((entry == MAREA_NULLPTR) || (entry->kind != MAREA_SEMA_NAME_KIND_DECLARATION) || (entry->declaration == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(entry->declaration) != MAREA_AST_KIND_FUNCTION_DECLARATION)) {
+    if ((entry == MAREA_NULLPTR) || (entry->kind != MAREA_SEMA_NAME_KIND_DECLARATION) || (entry->declaration == MAREA_NULLPTR)) {
+        return;
+    }
+
+    const MAREA_AstKind DECLARATION_KIND = MAREA_AstNodeGetKind(entry->declaration);
+
+    // INFO: a call whose callee names a structure or an enum is construction: the typed node carries the
+    // constructed type itself, never the construct function that checks its arguments.
+    if ((DECLARATION_KIND == MAREA_AST_KIND_STRUCTURE_DECLARATION) || (DECLARATION_KIND == MAREA_AST_KIND_ENUM_DECLARATION)) {
+        built->typeClass = MAREA_SEMA_TYPE_CLASS_USER;
+        built->typeDeclaration = entry->declaration;
+
+        return;
+    }
+
+    if (DECLARATION_KIND != MAREA_AST_KIND_FUNCTION_DECLARATION) {
         return;
     }
 
