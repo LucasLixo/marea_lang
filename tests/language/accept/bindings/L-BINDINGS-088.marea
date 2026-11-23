@@ -1,0 +1,18 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Scope blocks nested three deep.
+
+namespace main;
+
+function check(): sinteger32
+    do
+        do
+            do
+                local deep: sinteger32 = 1;
+            end
+        end
+    end
+    return 1;
+end

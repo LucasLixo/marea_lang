@@ -1,0 +1,16 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Number forms: separators, hex, binary, float, exponent.
+
+namespace main;
+
+function check(): sinteger32
+    local a: sinteger32 = 1_000_000;
+    local b: uinteger32 = 0xFF_FF;
+    local c: uinteger8 = 0b1010_0101;
+    local d: float64 = 1.5e3;
+    local e: float64 = 2E-2;
+    return a;
+end

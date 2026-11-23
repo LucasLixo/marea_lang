@@ -1,0 +1,13 @@
+-- gap: #181 NEW
+-- rule: reject
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A literal too big for any integer type.
+
+namespace main;
+
+function check(): sinteger32
+    local value: uinteger64 = 99999999999999999999;
+    return 1;
+end

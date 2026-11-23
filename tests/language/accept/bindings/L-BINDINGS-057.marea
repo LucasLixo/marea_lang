@@ -1,0 +1,14 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- The conversion between widths is written.
+
+namespace main;
+
+function check(): sinteger32
+    local count: sinteger32 = 7;
+    local wide: sinteger64 = convert<sinteger64>(count);
+    local ratio: float64 = convert<float64>(wide);
+    return 1;
+end

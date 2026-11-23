@@ -1,0 +1,14 @@
+-- gap: #182 NEW
+-- rule: reject
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A negated unsigned value.
+
+namespace main;
+
+function check(): sinteger32
+    local value: uinteger32 = 1;
+    local other: uinteger32 = -value;
+    return 1;
+end

@@ -1,0 +1,19 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A local of each primitive type with a literal.
+
+namespace main;
+
+function check(): sinteger32
+    local a: boolean = true;
+    local b: sinteger16 = 300;
+    local c: sinteger64 = 9_000_000_000;
+    local d: uinteger16 = 65535;
+    local e: uinteger64 = 1;
+    local f: float32 = 1.5;
+    local g: character = 'x';
+    local h: string = "text";
+    return 1;
+end

@@ -1,0 +1,12 @@
+-- expect: 2002 @10, 2002 @10, 2001 @10, 2001 @10, 2001 @11, 3004 @10, 3004 @10, 3004 @10
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A C style // comment is no comment, it is two divide operators.
+
+namespace main;
+
+function check(): sinteger32
+    local value: sinteger32 = 1; // not a Marea comment
+    return value;
+end

@@ -1,0 +1,14 @@
+-- expect: 3011 @12
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A power with a float exponent on an integer is a mismatch.
+
+namespace main;
+
+function check(): sinteger32
+    local base: sinteger32 = 2;
+    local exponent: float64 = 2.0;
+    local result: sinteger32 = base ** exponent;
+    return result;
+end

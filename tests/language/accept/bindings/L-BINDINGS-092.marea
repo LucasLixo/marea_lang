@@ -1,0 +1,14 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An unsafe block.
+
+namespace main;
+
+function check(): sinteger32
+    unsafe
+        local value: sinteger32 = 1;
+    end
+    return 1;
+end
