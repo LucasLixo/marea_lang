@@ -11,7 +11,7 @@ typedef enum MAREA_G_AttributeShape
     MAREA_G_ATTRIBUTE_SHAPE_MEMBER = MAREA_UINTEGER_8(1),
     MAREA_G_ATTRIBUTE_SHAPE_INTEGER = MAREA_UINTEGER_8(2),
     MAREA_G_ATTRIBUTE_SHAPE_ALIGNMENT = MAREA_UINTEGER_8(3),
-    MAREA_G_ATTRIBUTE_SHAPE_NAME_OR_STRING = MAREA_UINTEGER_8(4),
+    MAREA_G_ATTRIBUTE_SHAPE_VOCABULARY = MAREA_UINTEGER_8(4),
     MAREA_G_ATTRIBUTE_SHAPE_STRING = MAREA_UINTEGER_8(5),
 } MAREA_G_AttributeShape;
 
@@ -26,6 +26,52 @@ static const MAREA_Character8 *const MAREA_G_VisibilityMembers[] = { "public", "
 static const MAREA_Character8 *const MAREA_G_InlineMembers[] = { "force", "never", "auto", MAREA_NULLPTR };
 static const MAREA_Character8 *const MAREA_G_BuildMembers[] = { "debug", "release", MAREA_NULLPTR };
 static const MAREA_Character8 *const MAREA_G_LayoutMembers[] = { "c", "marea", MAREA_NULLPTR };
+
+// INFO: the values of the key operator: the operator tokens, then the index, call and lifecycle hooks.
+static const MAREA_Character8 *const MAREA_G_OperatorVocabulary[] = {
+    "+",
+    "-",
+    "*",
+    "/",
+    "%",
+    "**",
+    "+%",
+    "-%",
+    "*%",
+    "+|",
+    "-|",
+    "*|",
+    "~",
+    "&",
+    "|",
+    "^",
+    "<<",
+    ">>",
+    "==",
+    "!=",
+    "<",
+    "<=",
+    ">",
+    ">=",
+    "=",
+    "+=",
+    "-=",
+    "*=",
+    "/=",
+    "%=",
+    "**=",
+    "<<=",
+    ">>=",
+    "&=",
+    "|=",
+    "^=",
+    "[]",
+    "()",
+    "convert",
+    "construct",
+    "destroy",
+    MAREA_NULLPTR,
+};
 
 enum
 {
@@ -44,7 +90,7 @@ static const MAREA_G_AttributeRule MAREA_G_RULES[MAREA_G_RULE_COUNT] = {
     { .key = "pack", .members = MAREA_NULLPTR, .shape = MAREA_G_ATTRIBUTE_SHAPE_INTEGER },
     { .key = "value", .members = MAREA_NULLPTR, .shape = MAREA_G_ATTRIBUTE_SHAPE_FLAG },
     { .key = "move_only", .members = MAREA_NULLPTR, .shape = MAREA_G_ATTRIBUTE_SHAPE_FLAG },
-    { .key = "operator", .members = MAREA_NULLPTR, .shape = MAREA_G_ATTRIBUTE_SHAPE_NAME_OR_STRING },
+    { .key = "operator", .members = MAREA_G_OperatorVocabulary, .shape = MAREA_G_ATTRIBUTE_SHAPE_VOCABULARY },
     { .key = "export", .members = MAREA_NULLPTR, .shape = MAREA_G_ATTRIBUTE_SHAPE_STRING },
 };
 
@@ -117,6 +163,26 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_ReportValue(MAREA_SemaContext *contex
     return MAREA_SemaReportNamed(context, code, MAREA_AstNodeGetPosition(item), prefix, MAREA_AstNodeGetText(key), MAREA_AstNodeGetTextLength(key));
 }
 
+// INFO: the text of a string literal keeps its two quotes.
+static MAREA_Boolean MAREA_CALL MAREA_G_IsQuotedMember(const MAREA_AstNode *value, const MAREA_Character8 *const *members)
+{
+    const MAREA_IntegerSize LENGTH = MAREA_AstNodeGetTextLength(value);
+
+    if (LENGTH < 2) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_Character8 *inner = (MAREA_AstNodeGetText(value) + 1);
+
+    for (const MAREA_Character8 *const *candidate = members; *candidate != MAREA_NULLPTR; ++candidate) {
+        if ((strlen(*candidate) == (LENGTH - 2)) && (memcmp(inner, *candidate, (LENGTH - 2)) == 0)) {
+            return MAREA_BOOLEAN_TRUE;
+        }
+    }
+
+    return MAREA_BOOLEAN_FALSE;
+}
+
 static MAREA_Boolean MAREA_CALL MAREA_G_IsSingleName(const MAREA_AstNode *value)
 {
     return ((MAREA_AstNodeGetKind(value) == MAREA_AST_KIND_QUALIFIED_NAME) && (MAREA_AstNodeGetChildCount(value) == 1)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
@@ -163,8 +229,10 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckValue(MAREA_SemaContext *context
         }
         break;
     }
-    case MAREA_G_ATTRIBUTE_SHAPE_NAME_OR_STRING:
-        valid = ((KIND == MAREA_AST_KIND_QUALIFIED_NAME) || (KIND == MAREA_AST_KIND_STRING_LITERAL)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+    case MAREA_G_ATTRIBUTE_SHAPE_VOCABULARY:
+        if (KIND == MAREA_AST_KIND_STRING_LITERAL) {
+            valid = MAREA_G_IsQuotedMember(value, rule->members);
+        }
         break;
     case MAREA_G_ATTRIBUTE_SHAPE_STRING:
         valid = (KIND == MAREA_AST_KIND_STRING_LITERAL) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;

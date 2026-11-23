@@ -110,7 +110,8 @@ import_member        = qualified_name, [ "as", identifier ] ;
 (* A key without a value means "= true". *)
 (* A value is "true" or "false" when the key is not an enum key. An enum key takes one member *)
 (* of its enum as an identifier (visibility = public, inline = force, layout = marea). The key *)
-(* export takes a string. An unknown key is an error. *)
+(* export takes a string. The key operator takes a string of a fixed list: an operator_token, *)
+(* "[]", "()", "convert", "construct" or "destroy". An unknown key is an error. *)
 attribute           = "#[", attribute_item, { ",", attribute_item }, "]" ;
 file_attribute      = "#![", attribute_item, { ",", attribute_item }, "]" ;
 attribute_item      = identifier, [ "=", attribute_value ] ;
