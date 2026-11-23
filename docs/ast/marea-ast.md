@@ -203,10 +203,10 @@ All are errors, from 2001 up. A diagnostic is not repeated at the same byte offs
 | Code | Name | Example |
 |---|---|---|
 | 2001 | `EXPECTED_TOKEN` | `namespace main` (no `;`), `import a { };` (empty member list), `import a { f, };`, `import a { f as };`, `import a as b { f };` |
-| 2002 | `EXPECTED_EXPRESSION` | `constant x: integer32 = 1 +;` |
+| 2002 | `EXPECTED_EXPRESSION` | `constant x: sinteger32 = 1 +;` |
 | 2003 | `EXPECTED_TYPE` | `constant x: = 1;` |
 | 2004 | `EXPECTED_DECLARATION` | `namespace main; 42;`, an import after a declaration |
-| 2005 | `UNEXPECTED_TOKEN` | a stray `end`, `case` outside a `switch`, an `else` with no `end` before it, or a default value in a function type parameter (`function(a: integer32 = 0)`, the tree is still built) |
+| 2005 | `UNEXPECTED_TOKEN` | a stray `end`, `case` outside a `switch`, an `else` with no `end` before it, or a default value in a function type parameter (`function(a: sinteger32 = 0)`, the tree is still built) |
 | 2006 | `CHAINED_COMPARISON` | `a < b < c` (the tree is still built) |
 | 2007 | `MISSING_NAMESPACE` | a file that does not start with `namespace` |
 | 2008 | `RECURSION_TOO_DEEP` | 300 nested parentheses, `if` blocks or type arguments |

@@ -78,6 +78,10 @@ refused is not bound. A plain declaration or a plain `import c.x;` is not affect
 
 ## Rules
 
+**Integer names.** The primitive integers are `sinteger8`, `sinteger16`, `sinteger32`, `sinteger64`, `uinteger8`,
+`uinteger16`, `uinteger32` and `uinteger64`. The older names `integerN` and `unsignedN` are retired: they are
+unknown types and raise `UNKNOWN_TYPE`.
+
 **Attributes.** A fixed key table: `visibility` (`public`, `private`), `inline` (`force`, `never`,
 `auto`), `build` (`debug`, `release`), `layout` (`c`, `marea`), `align` (a power of two, not with
 `pack`), `pack` (an integer), `value` and `move_only` (booleans), `operator` (a name or a string),
@@ -88,7 +92,7 @@ retired `public`, `private`, `simd` and `destroy`, is `UNKNOWN_ATTRIBUTE_KEY`. T
 the same table; the attribute of the symbol wins over the file attribute, so `#![visibility = public]`
 with `#[visibility = private]` on one symbol is not a conflict.
 
-**Types.** The built-in names are `boolean`, `integer8` to `integer64`, `unsigned8` to `unsigned64`,
+**Types.** The built-in names are `boolean`, `sinteger8` to `sinteger64`, `uinteger8` to `uinteger64`,
 `float32`, `float64`, `string`, `vector`, `pointer`, `owned`, `slice` and `task`. A type name is also
 `Self` inside an `implementation` or a `contract`, a generic parameter in scope, a structure, enum,
 opaque type or alias of the file, or an import. `vector` takes two arguments, the others one, and a
@@ -139,7 +143,7 @@ is one diagnostic, at the repeated item. Two values are the same when they hold 
 are compared by number in any base, with or without `_` separators (`1` and `0x1`, `5` and `0b101`, `-1` and
 `-0x1`). A name of a constant of the file stands for the value it is declared with, and a constant that is
 declared with another constant is followed (at most 16 steps, so a cycle ends), so `MAX` and `100` are the same
-when `constant MAX: integer32 = 100;`. A local or a parameter with the name of a constant hides it. Other
+when `constant MAX: sinteger32 = 100;`. A local or a parameter with the name of a constant hides it. Other
 literals, names and unary operators are compared by text (`"a"` and `"a"`, `a.LIMIT` and `a.LIMIT`). Over an enum a bare and a qualified name of one variant (`red`, `Color.red`) are the same
 variant, as in the coverage check. Two broken (`ERROR_NODE`) values are never compared. The check runs for
 every scrutinee type, and it does not replace `NON_EXHAUSTIVE_SWITCH`: a `switch` over an enum with a repeat
@@ -161,7 +165,7 @@ generic, and not hidden by a local of the same name) has the declared result typ
 unknown type and is accepted. The type of an expression is compared with the declared type when that type
 is a primitive, at a call argument of a function of the file, a local initializer, a plain `=` assignment, a
 `return` value and a constant initializer: a conversion is always written, so two primitives are the same
-only by name (`integer32` does not fit `integer64`), a number literal fits any number type, a fraction literal
+only by name (`sinteger32` does not fit `sinteger64`), a number literal fits any number type, a fraction literal
 any float type, and a structure fits no primitive. An alias of a primitive is the primitive. The mismatch is
 `TYPE_MISMATCH` (3011) on the expression. A name of an enum, of a library type or of a generic parameter, and an `owned`,
 `task` or `vector` value, are classified as their own shapes but are never compared.
@@ -169,9 +173,9 @@ any float type, and a structure fits no primitive. An alias of a primitive is th
 **Operands of a binary operator.** Every binary expression in a checked slot (the same slots as the names, and
 the initializer of a constant) has its two operands compared, whatever the declared type: `+`, `-`, `*`, `/`,
 `%`, `**` and their wrapping and saturating forms, the six comparisons, `&`, `|`, `^`, `and` and `or`. Two primitives
-agree only by exact name (`integer32` and `float64` do not, and a conversion is always written). A number literal
+agree only by exact name (`sinteger32` and `float64` do not, and a conversion is always written). A number literal
 agrees with a primitive as it fits a declared type, so `a + 1` is accepted for a `float64` and `a + 1.5` is not
-for an `integer32`. A mismatch is `TYPE_MISMATCH` (3011) on the binary expression, once per expression, and the
+for an `sinteger32`. A mismatch is `TYPE_MISMATCH` (3011) on the binary expression, once per expression, and the
 expression then has no type, so the declared type of a local or a `return` is not reported a second time. An
 operand that is a structure, an enum, a library type, a generic result or any other unknown type is accepted.
 A shift is not compared here, as its right side may have another type; it has its own rule below.
@@ -182,7 +186,7 @@ number by itself: the two operands of an arithmetic or a comparison operator hav
 `powf`), whatever the declared type of the result, and the result of a power has the type of its operands.
 
 **Shifts (decision of the user, by the rules of Rust).** The count of `<<` and `>>` may be any integer primitive of
-any width (`integer8` to `integer64`, `unsigned8` to `unsigned64`, or an integer literal), and the result has the
+any width (`sinteger8` to `sinteger64`, `uinteger8` to `uinteger64`, or an integer literal), and the result has the
 type of the left operand. A count or a left operand that is a known type and not an integer (a float, a
 `boolean`, a `string`, a fraction literal) is `TYPE_MISMATCH` (3011) on the shift, once, and the shift then has
 no type. An operand of an unknown type is accepted.
@@ -200,7 +204,7 @@ feeds every other check of this section (a local, a parameter, a `return`, a con
 assignment). Allowed:
 
 - a number primitive to a number primitive of any width and sign: integer to integer, integer to float, float to
-  integer and float to float (`integer8` to `unsigned64`, `float64` to `integer32`). A number literal and a
+  integer and float to float (`sinteger8` to `uinteger64`, `float64` to `sinteger32`). A number literal and a
   calculation of numbers are number operands. `boolean` and `string` are not numbers;
 - the same primitive to itself (`convert<string>(text)`, `convert<boolean>(flag)`);
 - a `structure` to another `structure` that has the same layout (below), and a structure to itself;
@@ -286,7 +290,7 @@ expression). A node this cannot classify defaults to `VALUE`.
 file carries the callee's declared return type: `USER`, `EXTERNAL` or a built-in class. A built-in `convert<T>(x)`
 (with no name `convert` bound in the unit) carries the type `T`, read in the scope of the caller. When the callee is
 generic and the call gives explicit type arguments, a return type that is one generic parameter (`Item`) is
-replaced by the type argument at the same place (`same<integer32>(5)` is `integer32`). When there are no type
+replaced by the type argument at the same place (`same<sinteger32>(5)` is `sinteger32`). When there are no type
 arguments, or the return type is a compound of a parameter (`array<Item>`), the typed node keeps the raw type: a
 bare parameter is tagged `GENERIC` with its name - never a guess, never a crash. Resolving a result from inferred
 type arguments is deferred to when the `ir` stage needs one for real.
@@ -298,17 +302,17 @@ type arguments is deferred to when the `ir` stage needs one for real.
 | 3001 | `UNRESOLVED_IMPORT` | `import a.b.c;` when the resolver finds neither `a.b.c` nor a public `c` in `a.b`; `import a.b { f };` when `a.b` is not found, `f` is not a public symbol of it, a two-part member is not a variant of a public enum, or the member path has more than two parts |
 | 3002 | `NAMESPACE_PATH_MISMATCH` | `namespace a.b.c;` in the file `a/b.marea` |
 | 3003 | `NAME_ALREADY_DECLARED` | `structure Item end function Item() end`, or an import (or an import alias, or a member alias) and a declaration or another import of one local name; an import alias or a `type` named `c` (message `name is reserved:`) |
-| 3004 | `UNDECLARED_NAME` | `where Item: Missing`, or a constraint on a name that is not a generic parameter; `local x: integer32 = missing;`, `missing(1);` |
+| 3004 | `UNDECLARED_NAME` | `where Item: Missing`, or a constraint on a name that is not a generic parameter; `local x: sinteger32 = missing;`, `missing(1);` |
 | 3005 | `UNKNOWN_ATTRIBUTE_KEY` | `#[frobnicate = true]`, `#[simd]`, `#[public]` |
 | 3006 | `INVALID_ATTRIBUTE_VALUE` | `#[inline = maybe]`, `#[build = 1]`, `#[visibility]`, `#[export]` |
 | 3007 | `CONFLICTING_ATTRIBUTES` | `#[pack = 1, align = 16]`, a key given twice (`visibility` twice included) |
 | 3008 | `INVALID_ALIGNMENT` | `#[align = 15]` |
 | 3009 | `UNKNOWN_TYPE` | `a: Missing;` in a structure |
 | 3010 | `ARGUMENT_COUNT_MISMATCH` | `add(1)` when `add` takes two parameters |
-| 3011 | `TYPE_MISMATCH` | `convert<integer32>(text)` with a `string` name, `convert<Point>(other)` for two structures with another layout, `f("text")` when the parameter is `integer32`, `local x: boolean = 1;`, `local n: integer32 = a < b;`, `f(s)` with a `string` name `s`, `return a + 1;` in a function that returns `boolean`, `a + b` with an `integer32` and a `float64` |
+| 3011 | `TYPE_MISMATCH` | `convert<sinteger32>(text)` with a `string` name, `convert<Point>(other)` for two structures with another layout, `f("text")` when the parameter is `sinteger32`, `local x: boolean = 1;`, `local n: sinteger32 = a < b;`, `f(s)` with a `string` name `s`, `return a + 1;` in a function that returns `boolean`, `a + b` with an `sinteger32` and a `float64` |
 | 3012 | `DUPLICATE_MEMBER` | two `implementation` blocks of one type that both declare `area` |
 | 3013 | `CONTRACT_NOT_SATISFIED` | `maximum(a, b)` when the type of `a` has no `less` for `where Item: Comparable` |
-| 3014 | `GENERIC_ARGUMENT_MISMATCH` | `Pair<integer32>` when `Pair` has two parameters, `Box<4>` |
+| 3014 | `GENERIC_ARGUMENT_MISMATCH` | `Pair<sinteger32>` when `Pair` has two parameters, `Box<4>` |
 | 3015 | `INSTANTIATION_TOO_DEEP` | a type argument nested 65 levels |
 | 3016 | `ASSIGNMENT_NEEDS_COPY_OR_MOVE` | `a = b;` when the type is not a primitive or a `#[value]` type |
 | 3017 | `INVALID_BORROW` | `s: reference Shape` when `Shape` is already a borrow |
@@ -353,6 +357,6 @@ type arguments is deferred to when the `ir` stage needs one for real.
   an explicit `TYPE_MISMATCH` (3011), not a silent accept. These are rejections, not real sizes: a generic
   structure and a field of another type have no size in sema, and two `marea` structures are compared by their
   fields, not by a size, on the assumption that the backend lays out equal input equally. A field pair of two
-  primitives with the same width but another name (`integer32` and `float32`) is a mismatch here, as the rule is
+  primitives with the same width but another name (`sinteger32` and `float32`) is a mismatch here, as the rule is
   by exact name; a looser rule is a later decision of the user. The numeric range of a conversion
-  (`convert<integer8>(count)` with `count` above 127) is a run-time stop, not a check of sema.
+  (`convert<sinteger8>(count)` with `count` above 127) is a run-time stop, not a check of sema.
