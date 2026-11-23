@@ -199,6 +199,13 @@ loop body, a branch, an `if`, a `do ... end` scope) gets the destroys of its own
   the nearest `WHILE_STATEMENT` or `FOR_EACH_STATEMENT`, which it targets, so it never destroys a local of a block
   outside its own loop. The inner block wraps first, so the destroys of the inner locals run before those of the
   outer ones. For a for-range `continue` the destroys stand in front of the step.
+- **Value of a return.** A `return` with a value is wrapped as `BLOCK(LOCAL_DECLARATION $return (value), destroy...,
+  RETURN_STATEMENT(IDENTIFIER $return))`, so the value is read before any destroy runs and `return b.size;` never
+  reads a destroyed `b`. The hidden local `$return` has no type name and no flag, like `$last`; a backend takes its
+  type from the result type of the function. A `return` through two destructible scopes hoists once: the outer wrap
+  sees the value `IDENTIFIER $return` and does not declare it again, so the outer destroys stand between the inner
+  destroys and the `return`. A `return` with no value, a `break` and a `continue` are wrapped as before, with no
+  hidden local.
 - **Moved-from locals.** A local that `move x` names anywhere in its own block is never destroyed at any exit of that
   block. The check is syntactic: the language has no lifetime analysis, so a move on one branch still skips the
   destroy on every branch (see Gaps).
@@ -208,6 +215,13 @@ local a: Box = Box(); local b: Box = Box();
 (BLOCK (LOCAL_DECLARATION a :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST)))
        (LOCAL_DECLARATION b :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST)))
        (DESTROY_CALL Box.drop (IDENTIFIER b)) (DESTROY_CALL Box.drop (IDENTIFIER a)))
+```
+
+```
+local a: Box = Box(); return a.x;
+(BLOCK (LOCAL_DECLARATION a :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST)))
+       (BLOCK (LOCAL_DECLARATION $return (MEMBER_ACCESS (IDENTIFIER a) (IDENTIFIER x)))
+              (DESTROY_CALL Box.drop (IDENTIFIER a)) (RETURN_STATEMENT (IDENTIFIER $return))))
 ```
 
 ## For-range desugaring
@@ -513,10 +527,7 @@ Each diagnostic carries the position of the construct that raised it.
   contract for `cgen` nor the slot-zeroing contract for the `vm`, nor the parity test that is expected to read a
   zeroed field and expect 0 on both, is implemented. This is recorded only as the expected contract (see
   Zero-default creation).
-- The destroy insertion (see Construct and destroy lowering) has these limits. A `return` with a value is wrapped as
-  `BLOCK(destroy..., RETURN_STATEMENT(value))`, so the value is read after the destroy: a returned expression that
-  names a destroyed local reads a local that no longer lives. A backend must evaluate the value first; the ir does not
-  yet hoist it into a hidden local. The move check is syntactic and per block: a local moved on one branch, or in an inner
+- The destroy insertion (see Construct and destroy lowering) has these limits. The move check is syntactic and per block: a local moved on one branch, or in an inner
   block, is never destroyed on any branch. A parameter is never destroyed (it is a borrow, or the caller owns it). The `Type{...}` literal still lowers as a `LITERAL_VALUE` and
   does not call `construct`. The destroy of a type is found by its written name among the `implementation` blocks of
   the same unit only: a type declared in another namespace is not found (the same cross-module gap as Aliases).
