@@ -236,6 +236,10 @@ static MAREA_AstNode *MAREA_CALL MAREA_G_ParseEnum(MAREA_ParseState *state, MARE
 
     MAREA_ParseNodeAdd(state, declaration, MAREA_ParseIdentifier(state, "expected an enum name"));
 
+    if (MAREA_ParseAccept(state, MAREA_TOKEN_KIND_COLON) == MAREA_BOOLEAN_TRUE) {
+        MAREA_ParseNodeAdd(state, declaration, MAREA_ParseType(state));
+    }
+
     for (;;) {
         const MAREA_TokenKind kind = MAREA_ParsePeekKind(state, MAREA_INTEGER_SIZE(0));
 
@@ -273,7 +277,7 @@ static MAREA_AstNode *MAREA_CALL MAREA_G_ParseContractFunction(MAREA_ParseState 
 
     MAREA_ParseNodeAdd(state, function, MAREA_ParseIdentifier(state, "expected a function name"));
 
-    MAREA_ParseNodeAdd(state, function, MAREA_ParseParameterList(state));
+    MAREA_ParseNodeAdd(state, function, MAREA_ParseParameterList(state, MAREA_BOOLEAN_TRUE));
 
     if (MAREA_ParseAccept(state, MAREA_TOKEN_KIND_COLON) == MAREA_BOOLEAN_TRUE) {
         MAREA_ParseNodeAdd(state, function, MAREA_ParseType(state));
@@ -339,7 +343,7 @@ static MAREA_AstNode *MAREA_CALL MAREA_G_ParseFunction(MAREA_ParseState *state, 
         MAREA_ParseNodeAdd(state, declaration, MAREA_ParseGenericParameters(state));
     }
 
-    MAREA_ParseNodeAdd(state, declaration, MAREA_ParseParameterList(state));
+    MAREA_ParseNodeAdd(state, declaration, MAREA_ParseParameterList(state, MAREA_BOOLEAN_TRUE));
 
     if (MAREA_ParseAccept(state, MAREA_TOKEN_KIND_COLON) == MAREA_BOOLEAN_TRUE) {
         MAREA_ParseNodeAdd(state, declaration, MAREA_ParseType(state));

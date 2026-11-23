@@ -145,7 +145,7 @@ field_declaration   = { attribute }, identifier, ":", type, ";" ;
 (* A type of C with an unknown layout. It has no body. *)
 opaque_declaration  = "opaque", "structure", identifier, ";" ;
 
-enum_declaration    = "enum", identifier,
+enum_declaration    = "enum", identifier, [ ":", type ],
                       { variant_declaration },
                       "end" ;
 variant_declaration = identifier, [ "(", variant_field, { ",", variant_field }, ")" ], ";" ;
@@ -171,7 +171,8 @@ parameter_list      = parameter, { ",", parameter } ;
 (* are passed by value. Any other type is a read-only borrow. "mutable" is a write borrow, *)
 (* and it is exclusive. "reference" forces a borrow of a type that is passed by value. *)
 (* A reference can not be stored in a field or returned. See note 9. *)
-parameter           = identifier, ":", [ "reference" | "mutable" ], type ;
+(* A default value is allowed on a function parameter and not on a function type parameter. *)
+parameter           = identifier, ":", [ "reference" | "mutable" ], type, [ "=", expression ] ;
 
 generic_parameters  = "<", generic_parameter, { ",", generic_parameter }, ">" ;
 generic_parameter   = identifier
