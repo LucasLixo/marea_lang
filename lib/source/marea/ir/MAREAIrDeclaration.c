@@ -3,6 +3,112 @@
 
 #include "marea/internal/ir/MAREAIrInternal.h"
 
+#include <string.h>
+
+// INFO: true when value is a quoted string literal whose inner bytes equal inner, same rule sema's own lifecycle check uses.
+static MAREA_Boolean MAREA_CALL MAREA_G_TextIsQuoted(const MAREA_AstNode *value, const MAREA_Character8 *inner, MAREA_IntegerSize innerLength)
+{
+    if ((value == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(value) != MAREA_AST_KIND_STRING_LITERAL) || (MAREA_AstNodeGetTextLength(value) != (innerLength + MAREA_INTEGER_SIZE(2)))) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    return (memcmp((MAREA_AstNodeGetText(value) + MAREA_INTEGER_SIZE(1)), inner, innerLength) == 0) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
+// INFO: true when functionTyped carries #[operator = operatorName] in its first ATTRIBUTE group.
+static MAREA_Boolean MAREA_CALL MAREA_G_FunctionCarriesOperator(const MAREA_SemaTypedNode *functionTyped, const MAREA_Character8 *operatorName, MAREA_IntegerSize operatorLength)
+{
+    const MAREA_SemaTypedNode *attributeList = MAREA_IrTypedFindChild(functionTyped, MAREA_AST_KIND_ATTRIBUTE);
+
+    if (attributeList == MAREA_NULLPTR) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_IntegerSize COUNT = MAREA_SemaTypedNodeGetChildCount(attributeList);
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < COUNT; index = (index + MAREA_INTEGER_SIZE(1))) {
+        const MAREA_SemaTypedNode *item = MAREA_IrTypedChildAt(attributeList, index);
+
+        if (MAREA_IrTypedKind(item) != MAREA_AST_KIND_ATTRIBUTE_ITEM) {
+            continue;
+        }
+
+        const MAREA_SemaTypedNode *key = MAREA_IrTypedChildAt(item, MAREA_INTEGER_SIZE(0));
+
+        if (MAREA_IrTypedKind(key) != MAREA_AST_KIND_IDENTIFIER) {
+            continue;
+        }
+
+        const MAREA_AstNode *keyAst = MAREA_SemaTypedNodeGetAstNode(key);
+
+        const MAREA_IntegerSize OPERATOR_KEY_LENGTH = (MAREA_IntegerSize)strlen("operator");
+
+        if ((MAREA_AstNodeGetTextLength(keyAst) != OPERATOR_KEY_LENGTH) || (memcmp(MAREA_AstNodeGetText(keyAst), "operator", OPERATOR_KEY_LENGTH) != 0)) {
+            continue;
+        }
+
+        const MAREA_SemaTypedNode *value = MAREA_IrTypedChildAt(item, MAREA_INTEGER_SIZE(1));
+
+        if (MAREA_G_TextIsQuoted(MAREA_SemaTypedNodeGetAstNode(value), operatorName, operatorLength) == MAREA_BOOLEAN_TRUE) {
+            return MAREA_BOOLEAN_TRUE;
+        }
+    }
+
+    return MAREA_BOOLEAN_FALSE;
+}
+
+const MAREA_SemaTypedNode *MAREA_CALL MAREA_IrFindLifecycleFunction(const MAREA_IrContext *context, const MAREA_Character8 *typeName, MAREA_IntegerSize typeNameLength, MAREA_Boolean wantConstruct)
+{
+    if ((context == MAREA_NULLPTR) || (context->unit == MAREA_NULLPTR) || (typeName == MAREA_NULLPTR)) {
+        return MAREA_NULLPTR;
+    }
+
+    static const MAREA_Character8 CONSTRUCT_NAME[] = "construct";
+    static const MAREA_Character8 DESTROY_NAME[] = "destroy";
+
+    const MAREA_Character8 *operatorName = (wantConstruct == MAREA_BOOLEAN_TRUE) ? CONSTRUCT_NAME : DESTROY_NAME;
+    const MAREA_IntegerSize operatorLength = (MAREA_IntegerSize)((wantConstruct == MAREA_BOOLEAN_TRUE) ? (sizeof(CONSTRUCT_NAME) - 1) : (sizeof(DESTROY_NAME) - 1));
+
+    const MAREA_IntegerSize COUNT = MAREA_SemaTypedNodeGetChildCount(context->unit);
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < COUNT; index = (index + MAREA_INTEGER_SIZE(1))) {
+        const MAREA_SemaTypedNode *item = MAREA_IrTypedChildAt(context->unit, index);
+
+        if (MAREA_IrTypedKind(item) != MAREA_AST_KIND_IMPLEMENTATION_DECLARATION) {
+            continue;
+        }
+
+        const MAREA_SemaTypedNode *typeNode = MAREA_IrTypedFindChild(item, MAREA_AST_KIND_NAMED_TYPE);
+
+        const MAREA_Character8 *implementedName = MAREA_NULLPTR;
+        MAREA_IntegerSize implementedLength = MAREA_INTEGER_SIZE(0);
+
+        if ((typeNode == MAREA_NULLPTR) || (MAREA_IrAstTypeName(MAREA_SemaTypedNodeGetAstNode(typeNode), &implementedName, &implementedLength) == MAREA_BOOLEAN_FALSE)) {
+            continue;
+        }
+
+        if ((implementedLength != typeNameLength) || (memcmp(implementedName, typeName, typeNameLength) != 0)) {
+            continue;
+        }
+
+        const MAREA_IntegerSize MEMBER_COUNT = MAREA_SemaTypedNodeGetChildCount(item);
+
+        for (MAREA_IntegerSize memberIndex = MAREA_INTEGER_SIZE(0); memberIndex < MEMBER_COUNT; memberIndex = (memberIndex + MAREA_INTEGER_SIZE(1))) {
+            const MAREA_SemaTypedNode *member = MAREA_IrTypedChildAt(item, memberIndex);
+
+            if (MAREA_IrTypedKind(member) != MAREA_AST_KIND_FUNCTION_DECLARATION) {
+                continue;
+            }
+
+            if (MAREA_G_FunctionCarriesOperator(member, operatorName, operatorLength) == MAREA_BOOLEAN_TRUE) {
+                return member;
+            }
+        }
+    }
+
+    return MAREA_NULLPTR;
+}
+
 // INFO: the first direct child that is a type; a type always comes before an optional expression.
 static const MAREA_AstNode *MAREA_CALL MAREA_G_FindTypeChild(const MAREA_SemaTypedNode *typed)
 {

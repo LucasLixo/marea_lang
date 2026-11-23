@@ -180,8 +180,8 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerAndAppend(MAREA_IrContext *context
 }
 
 // INFO: an argument list lowers every argument the call wrote, then fills every parameter the call omitted with
-// INFO: its own default, read fresh from the callee's typed parameter list: the ir materializes every default.
-static MAREA_IrExcept MAREA_CALL MAREA_G_LowerArguments(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, const MAREA_SemaTypedNode *callee, MAREA_IrNode **outNode, MAREA_Boolean *outComplete)
+// INFO: its own default, read fresh from function's typed parameter list: the ir materializes every default.
+static MAREA_IrExcept MAREA_CALL MAREA_G_LowerArgumentsAgainst(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, const MAREA_SemaTypedNode *function, MAREA_IrNode **outNode, MAREA_Boolean *outComplete)
 {
     *outComplete = MAREA_BOOLEAN_TRUE;
 
@@ -202,8 +202,6 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerArguments(MAREA_IrContext *context
             return result;
         }
     }
-
-    const MAREA_SemaTypedNode *function = MAREA_G_FindCalleeFunction(context, callee);
 
     const MAREA_SemaTypedNode *parameters = (function != MAREA_NULLPTR) ? MAREA_IrTypedFindChild(function, MAREA_AST_KIND_PARAMETER_LIST) : MAREA_NULLPTR;
 
@@ -244,6 +242,90 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerArguments(MAREA_IrContext *context
     return MAREA_IR_EXCEPT_SUCCESS;
 }
 
+// INFO: the structure or enum of this unit named like callee, not hidden by a local or a parameter of the enclosing function: the same shadow rule MAREA_G_FindCalleeFunction uses for an ordinary call.
+static const MAREA_SemaTypedNode *MAREA_CALL MAREA_G_FindTypeOfUnit(const MAREA_IrContext *context, const MAREA_SemaTypedNode *callee)
+{
+    if (MAREA_IrTypedKind(callee) != MAREA_AST_KIND_IDENTIFIER) {
+        return MAREA_NULLPTR;
+    }
+
+    const MAREA_AstNode *calleeAst = MAREA_SemaTypedNodeGetAstNode(callee);
+
+    if (MAREA_IrFunctionDeclares(context->function, MAREA_AstNodeGetText(calleeAst), MAREA_AstNodeGetTextLength(calleeAst), MAREA_AstNodeGetPosition(calleeAst).offset) == MAREA_BOOLEAN_TRUE) {
+        return MAREA_NULLPTR;
+    }
+
+    const MAREA_IntegerSize COUNT = MAREA_SemaTypedNodeGetChildCount(context->unit);
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < COUNT; index = (index + MAREA_INTEGER_SIZE(1))) {
+        const MAREA_SemaTypedNode *item = MAREA_IrTypedChildAt(context->unit, index);
+
+        const MAREA_AstKind KIND = MAREA_IrTypedKind(item);
+
+        if ((KIND != MAREA_AST_KIND_STRUCTURE_DECLARATION) && (KIND != MAREA_AST_KIND_ENUM_DECLARATION)) {
+            continue;
+        }
+
+        const MAREA_SemaTypedNode *name = MAREA_IrTypedFindChild(item, MAREA_AST_KIND_IDENTIFIER);
+
+        if ((name != MAREA_NULLPTR) && (MAREA_G_SameText(calleeAst, MAREA_SemaTypedNodeGetAstNode(name)) == MAREA_BOOLEAN_TRUE)) {
+            return item;
+        }
+    }
+
+    return MAREA_NULLPTR;
+}
+
+// INFO: Type(args): the callee names a structure or an enum of the unit, so the call is construction, not an ordinary call. The type name is the constructed type's own written name (a call result carries its declaration, not a name text, so the name comes from typeDeclaration's own IDENTIFIER); the arguments are filled against construct's own parameter list, defaults allowed, same as an ordinary call fills them.
+static MAREA_IrExcept MAREA_CALL MAREA_G_LowerConstructCall(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, const MAREA_SemaTypedNode *typeDeclaration, MAREA_IrNode **outNode)
+{
+    MAREA_IrNode *node = MAREA_NULLPTR;
+
+    MAREA_IrExcept result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_CONSTRUCT_CALL, MAREA_SemaTypedNodeGetAstNode(typed), &node);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    const MAREA_SemaTypedNode *typeName = MAREA_IrTypedFindChild(typeDeclaration, MAREA_AST_KIND_IDENTIFIER);
+
+    if (typeName != MAREA_NULLPTR) {
+        const MAREA_AstNode *typeNameAst = MAREA_SemaTypedNodeGetAstNode(typeName);
+
+        node->typeName = MAREA_AstNodeGetText(typeNameAst);
+        node->typeNameLength = MAREA_AstNodeGetTextLength(typeNameAst);
+    }
+
+    const MAREA_SemaTypedNode *constructOperator = MAREA_IrFindLifecycleFunction(context, node->typeName, node->typeNameLength, MAREA_BOOLEAN_TRUE);
+
+    const MAREA_SemaTypedNode *arguments = MAREA_IrTypedFindChild(typed, MAREA_AST_KIND_ARGUMENT_LIST);
+
+    if (arguments != MAREA_NULLPTR) {
+        MAREA_IrNode *loweredArguments = MAREA_NULLPTR;
+        MAREA_Boolean complete = MAREA_BOOLEAN_TRUE;
+
+        result = MAREA_G_LowerArgumentsAgainst(context, arguments, constructOperator, &loweredArguments, &complete);
+
+        if (result != MAREA_IR_EXCEPT_SUCCESS) {
+            return result;
+        }
+
+        if (complete == MAREA_BOOLEAN_FALSE) {
+            return MAREA_IR_EXCEPT_SUCCESS;
+        }
+
+        result = MAREA_IrNodeAppendChild(context, node, loweredArguments);
+
+        if (result != MAREA_IR_EXCEPT_SUCCESS) {
+            return result;
+        }
+    }
+
+    *outNode = node;
+
+    return MAREA_IR_EXCEPT_SUCCESS;
+}
+
 static MAREA_IrExcept MAREA_CALL MAREA_G_LowerCall(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode)
 {
     const MAREA_SemaTypedNode *callee = MAREA_IrTypedChildAt(typed, MAREA_INTEGER_SIZE(0));
@@ -259,6 +341,13 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerCall(MAREA_IrContext *context, con
 
     if ((operand != MAREA_IR_EXCEPT_SUCCESS) || (handled == MAREA_BOOLEAN_TRUE)) {
         return operand;
+    }
+
+    // INFO: Type(args) is construction, not an ordinary call (docs/sema/marea-sema.md, "Type construction call").
+    const MAREA_SemaTypedNode *typeDeclaration = MAREA_G_FindTypeOfUnit(context, callee);
+
+    if (typeDeclaration != MAREA_NULLPTR) {
+        return MAREA_G_LowerConstructCall(context, typed, typeDeclaration, outNode);
     }
 
     // INFO: a generic callee, or explicit type arguments, ask for an instantiation that no pass performs.
@@ -303,7 +392,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerCall(MAREA_IrContext *context, con
         MAREA_IrNode *loweredArguments = MAREA_NULLPTR;
         MAREA_Boolean complete = MAREA_BOOLEAN_TRUE;
 
-        result = MAREA_G_LowerArguments(context, arguments, callee, &loweredArguments, &complete);
+        result = MAREA_G_LowerArgumentsAgainst(context, arguments, MAREA_G_FindCalleeFunction(context, callee), &loweredArguments, &complete);
 
         if (result != MAREA_IR_EXCEPT_SUCCESS) {
             return result;
