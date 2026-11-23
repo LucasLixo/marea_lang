@@ -20,7 +20,7 @@ import concurrency.task;
 constant WORKER_COUNT: sinteger32 = 4;
 
 -- A worker is a plain function. It has no knowledge of threads.
-function scale_slice(part: mutable slice<float32>, factor: float32)
+function scale_slice(part: slice<float32>, factor: float32)
     for each value in mutable part do
         value *= factor;
     end
@@ -35,7 +35,7 @@ function sum_slice(part: slice<float32>): float32
 end
 
 #[visibility = public]
-function scale_all(values: mutable c.array<float32>, factor: float32)
+function scale_all(values: c.array<float32>, factor: float32)
     fork_join
         partition mutable values into WORKER_COUNT as part do
             spawn scale_slice(part, factor);

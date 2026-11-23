@@ -41,17 +41,16 @@ MAREA_AstNode *MAREA_CALL MAREA_ParseNamedType(MAREA_ParseState *state)
 
 static MAREA_AstNode *MAREA_CALL MAREA_G_ParseParameter(MAREA_ParseState *state, MAREA_Boolean allowDefault)
 {
+    // INFO: a parameter's attribute is written before it, like any other attribute, but is adopted last, so every existing reader of the fixed name, type and default positions keeps working.
+    MAREA_AstNode *holder = MAREA_ParseNodeBegin(state, MAREA_AST_KIND_BLOCK);
+
+    MAREA_ParseAttributes(state, holder, MAREA_TOKEN_KIND_HASH_BRACKET);
+
     MAREA_AstNode *parameter = MAREA_ParseNodeBegin(state, MAREA_AST_KIND_PARAMETER);
 
     MAREA_ParseNodeAdd(state, parameter, MAREA_ParseIdentifier(state, "expected a parameter name"));
 
     MAREA_IGNORE(MAREA_ParseExpect(state, MAREA_TOKEN_KIND_COLON, "expected ':' after the parameter name"));
-
-    if (MAREA_ParseAccept(state, MAREA_TOKEN_KIND_KEYWORD_MUTABLE) == MAREA_BOOLEAN_TRUE) {
-        MAREA_AstNodeSetFlags(parameter, MAREA_AST_FLAG_MUTABLE);
-    } else if (MAREA_ParseAccept(state, MAREA_TOKEN_KIND_KEYWORD_REFERENCE) == MAREA_BOOLEAN_TRUE) {
-        MAREA_AstNodeSetFlags(parameter, MAREA_AST_FLAG_REFERENCE);
-    }
 
     MAREA_ParseNodeAdd(state, parameter, MAREA_ParseType(state));
 
@@ -64,6 +63,8 @@ static MAREA_AstNode *MAREA_CALL MAREA_G_ParseParameter(MAREA_ParseState *state,
 
         MAREA_ParseNodeAdd(state, parameter, MAREA_ParseExpression(state));
     }
+
+    MAREA_ParseAdoptAttributes(state, parameter, holder);
 
     MAREA_ParseNodeEnd(state, parameter);
 

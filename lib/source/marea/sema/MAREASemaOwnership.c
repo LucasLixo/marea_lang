@@ -53,12 +53,26 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_PushReference(MAREA_SemaContext *cont
     return MAREA_SemaTableAppend(context, &context->references, (MAREA_SemaName){ .text = MAREA_AstNodeGetText(name), .declaration = binding, .length = MAREA_AstNodeGetTextLength(name), .kind = MAREA_SEMA_NAME_KIND_DECLARATION });
 }
 
-static MAREA_Boolean MAREA_CALL MAREA_G_IsBorrowParameter(const MAREA_SemaContext *context, const MAREA_AstNode *parameter)
+MAREA_SemaParameterSemantics MAREA_CALL MAREA_SemaGetParameterSemantics(const MAREA_SemaContext *context, const MAREA_AstNode *parameter)
 {
-    if ((MAREA_AstNodeGetFlags(parameter) & (MAREA_AST_FLAG_MUTABLE | MAREA_AST_FLAG_REFERENCE)) != 0) {
-        return MAREA_BOOLEAN_TRUE;
+    if (MAREA_SemaAttributeHasMember(MAREA_NULLPTR, parameter, "semantics", "value_read_only") == MAREA_BOOLEAN_TRUE) {
+        return MAREA_SEMA_PARAMETER_SEMANTICS_VALUE_READ_ONLY;
     }
 
+    if (MAREA_SemaAttributeHasMember(MAREA_NULLPTR, parameter, "semantics", "reference_read_only") == MAREA_BOOLEAN_TRUE) {
+        return MAREA_SEMA_PARAMETER_SEMANTICS_REFERENCE_READ_ONLY;
+    }
+
+    if (MAREA_SemaAttributeHasMember(MAREA_NULLPTR, parameter, "semantics", "reference_mutable") == MAREA_BOOLEAN_TRUE) {
+        return MAREA_SEMA_PARAMETER_SEMANTICS_REFERENCE_MUTABLE;
+    }
+
+    // INFO: the default by type class: a primitive or the one documented by-value exception (an enum) is VALUE_READ_ONLY, anything else is REFERENCE_MUTABLE.
+    return (MAREA_G_IsByValue(context, MAREA_SemaChildAt(parameter, 1), MAREA_BOOLEAN_FALSE) == MAREA_BOOLEAN_TRUE) ? MAREA_SEMA_PARAMETER_SEMANTICS_VALUE_READ_ONLY : MAREA_SEMA_PARAMETER_SEMANTICS_REFERENCE_MUTABLE;
+}
+
+static MAREA_Boolean MAREA_CALL MAREA_G_IsBorrowParameter(const MAREA_SemaContext *context, const MAREA_AstNode *parameter)
+{
     const MAREA_AstNode *type = MAREA_SemaChildAt(parameter, 1);
 
     const MAREA_AstNode *declaration = MAREA_NULLPTR;
@@ -71,7 +85,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsBorrowParameter(const MAREA_SemaContex
         return MAREA_BOOLEAN_FALSE;
     }
 
-    return (MAREA_G_IsByValue(context, type, MAREA_BOOLEAN_FALSE) == MAREA_BOOLEAN_TRUE) ? MAREA_BOOLEAN_FALSE : MAREA_BOOLEAN_TRUE;
+    return (MAREA_SemaGetParameterSemantics(context, parameter) == MAREA_SEMA_PARAMETER_SEMANTICS_VALUE_READ_ONLY) ? MAREA_BOOLEAN_FALSE : MAREA_BOOLEAN_TRUE;
 }
 
 MAREA_SemaExcept MAREA_CALL MAREA_SemaBindReferences(MAREA_SemaContext *context, const MAREA_AstNode *node)
@@ -198,7 +212,8 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckCopyOrMove(MAREA_SemaContext *co
 
 static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckParameter(MAREA_SemaContext *context, const MAREA_AstNode *parameter)
 {
-    if ((MAREA_AstNodeGetFlags(parameter) & MAREA_AST_FLAG_REFERENCE) == 0) {
+    // INFO: value_read_only is legal only for a primitive; every non-primitive is never a copy contract.
+    if (MAREA_SemaAttributeHasMember(MAREA_NULLPTR, parameter, "semantics", "value_read_only") == MAREA_BOOLEAN_FALSE) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
@@ -208,12 +223,7 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckParameter(MAREA_SemaContext *con
 
     MAREA_IntegerSize length = 0;
 
-    const MAREA_SemaTypeClass CLASS = MAREA_SemaClassifyType(context, MAREA_SemaChildAt(parameter, 1), &declaration, &name, &length);
-
-    // INFO: every user type other than an enum, the documented by-value exception, is already borrowed now that "value" is retired.
-    const MAREA_Boolean ALREADY_BORROWED = ((CLASS == MAREA_SEMA_TYPE_CLASS_GENERIC) || (CLASS == MAREA_SEMA_TYPE_CLASS_MOVE_BUILTIN) || ((CLASS == MAREA_SEMA_TYPE_CLASS_USER) && (MAREA_AstNodeGetKind(declaration) != MAREA_AST_KIND_ENUM_DECLARATION))) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
-
-    if (ALREADY_BORROWED == MAREA_BOOLEAN_FALSE) {
+    if (MAREA_SemaClassifyType(context, MAREA_SemaChildAt(parameter, 1), &declaration, &name, &length) == MAREA_SEMA_TYPE_CLASS_PRIMITIVE) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
@@ -223,7 +233,7 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckParameter(MAREA_SemaContext *con
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
-    return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_BORROW, MAREA_AstNodeGetPosition(parameter), "reference on a type that is already borrowed:", MAREA_AstNodeGetText(parameterName), MAREA_AstNodeGetTextLength(parameterName));
+    return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_BORROW, MAREA_AstNodeGetPosition(parameter), "value_read_only is legal only for a primitive:", MAREA_AstNodeGetText(parameterName), MAREA_AstNodeGetTextLength(parameterName));
 }
 
 MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckOwnership(MAREA_SemaContext *context, const MAREA_AstNode *node)
@@ -320,9 +330,11 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckBorrowArguments(MAREA_SemaContext *co
 
             const MAREA_AstNode *rightParameter = MAREA_SemaChildAt(parameters, second);
 
-            const MAREA_Uinteger32 WRITE = (((leftParameter == MAREA_NULLPTR) ? 0 : MAREA_AstNodeGetFlags(leftParameter)) | ((rightParameter == MAREA_NULLPTR) ? 0 : MAREA_AstNodeGetFlags(rightParameter))) & MAREA_AST_FLAG_MUTABLE;
+            const MAREA_Boolean LEFT_WRITE = ((leftParameter != MAREA_NULLPTR) && (MAREA_SemaGetParameterSemantics(context, leftParameter) == MAREA_SEMA_PARAMETER_SEMANTICS_REFERENCE_MUTABLE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 
-            if (WRITE == 0) {
+            const MAREA_Boolean RIGHT_WRITE = ((rightParameter != MAREA_NULLPTR) && (MAREA_SemaGetParameterSemantics(context, rightParameter) == MAREA_SEMA_PARAMETER_SEMANTICS_REFERENCE_MUTABLE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+
+            if ((LEFT_WRITE == MAREA_BOOLEAN_FALSE) && (RIGHT_WRITE == MAREA_BOOLEAN_FALSE)) {
                 continue;
             }
 

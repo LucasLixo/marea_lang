@@ -85,7 +85,9 @@ unknown types and raise `UNKNOWN_TYPE`.
 **Attributes.** A fixed key table: `visibility` (`public`, `private`), `inline` (`force`, `never`,
 `auto`), `build` (`debug`, `release`), `layout` (`c`, `marea`), `align` (a power of two, not with
 `pack`), `pack` (an integer), `move_only` (a boolean), `operator` (a string of a fixed list),
-`export` (a string, the label at the C border). A key of an enum needs one of its members, and `export`
+`export` (a string, the label at the C border), `semantics` (`value_read_only`,
+`reference_read_only`, `reference_mutable` - a parameter's passing mode, see "Ownership" below). A
+key of an enum needs one of its members, and `export`
 and `operator` need a string, so a bare key of those is `INVALID_ATTRIBUTE_VALUE`. The strings of `operator`
 are the operator tokens of the grammar (`+ - * / % **`, the wrapping and saturating forms, `~ & | ^ << >>`, the
 comparisons, the assignment forms), `"[]"`, `"()"`, `"convert"`, `"construct"` and `"destroy"`; any other
@@ -93,7 +95,11 @@ string or a name is `INVALID_ATTRIBUTE_VALUE`. A key not in the table, such as t
 retired `public`, `private`, `simd`, `destroy` and `value`, is `UNKNOWN_ATTRIBUTE_KEY`. The deeper meaning of
 `operator` (the signature, the placement) and `export` is not checked. A flag key with no value is true. File attributes `#![...]` use
 the same table; the attribute of the symbol wins over the file attribute, so `#![visibility = public]`
-with `#[visibility = private]` on one symbol is not a conflict.
+with `#[visibility = private]` on one symbol is not a conflict. `semantics` is meaningful only on a
+`PARAMETER`, but is validated by the same generic, node-shape-agnostic attribute check as everywhere
+else; it is adopted as a `PARAMETER` child last, after the name, type and optional default, so every
+other reader of those fixed positions keeps working unchanged - unlike every other declaration kind,
+whose attributes lead.
 
 **Types.** The built-in names are `boolean`, `sinteger8` to `sinteger64`, `uinteger8` to `uinteger64`,
 `float32`, `float64`, `character`, `string`, `array`, `vector`, `pointer`, `owned`, `slice` and `task`. A type name is also
@@ -144,17 +150,30 @@ parameter is defaulted.
 `INVALID_ENUM_TAG_TYPE` (3031), once per enum. A tag name that is not a type at all also raises
 `UNKNOWN_TYPE`. Sema does not use the tag for the layout of an enum: `size_of` of an enum is unchanged.
 
-**Ownership.** A parameter with no word is a read-only borrow, `mutable` is a write borrow,
-`reference` forces a borrow of a by-value type, `owned<T>` moves in. A primitive, an `array`, `pointer`, `slice` and an
-enum is by value; the enum case is a documented, intentional exception (no attribute exempts any other user type - the retired
-`#[value]` key does not exist, so a structure, move_only or plain, is never by value). A `vector` is a move type, so `=` of a `vector` name needs `copy x` or `move x`. `=` of a name, field or element of any other type needs
+**Ownership.** A parameter's passing mode is its `semantics` attribute - `value_read_only` (a
+copy), `reference_read_only` (a read-only borrow) or `reference_mutable` (a write borrow, the
+`EXCLUSIVE_BORROW_CONFLICT`/`INVALID_SPAWN_ARGUMENT` axis); `MAREA_SemaGetParameterSemantics` is
+the one place the rest of sema reads it. With no attribute written, a primitive defaults to
+`value_read_only` and any other type defaults to `reference_mutable` - the former `mutable`/
+`reference` keywords are retired, `mutable` stays reserved only for `for each` and `partition`.
+`value_read_only` is legal only on a primitive; writing it on anything else is `INVALID_BORROW`
+(3017). `owned<T>` moves in regardless of `semantics`. A primitive, an `array`, `pointer`, `slice`
+and an enum is by value for the *ownership mode* (`MAREA_SemaOwnershipMode`) no matter what
+`semantics` says - checked before `semantics` is even read, the one place `array`/`pointer`/
+`slice` differ from every other non-primitive: the ownership mode is always `VALUE`, so a
+`semantics` attribute on one of them only ever affects whether it counts as a borrow for scope
+escape (below), never its mode. The enum case is the by-value exception among user types (no
+attribute exempts any other user type - the retired `#[value]` key does not exist, so a structure,
+move_only or plain, is never by value by itself). A `vector` is a move type, so `=` of a `vector`
+name needs `copy x` or `move x`. `=` of a name, field or element of any other type needs
 `copy x` or `move x`, in an assignment and in a local initializer. A call or a literal needs no word.
-A borrow parameter, a `for each` variable, a `partition` part and a `with` name cannot be returned,
-nor be the value of a field. A new local of the same name ends the reference.
+A borrow parameter (`reference_read_only` or `reference_mutable`, explicit or by default), a
+`for each` variable, a `partition` part and a `with` name cannot be returned, nor be the value of
+a field. A new local of the same name ends the reference.
 
 **Spawn.** In `fork_join`, each argument of `spawn f(...)` is a `partition` part, a literal, a file
-constant, or a name that is not a `mutable` parameter and not the source of an active `partition
-mutable`, or a field access (`a.b`, nested too) whose base meets the same rule. Any other expression
+constant, or a name that is not a `reference_mutable` (write-borrow) parameter and not the source of
+an active `partition mutable`, or a field access (`a.b`, nested too) whose base meets the same rule. Any other expression
 (a call, an index, a computed value) is rejected. This is a simple first rule.
 
 **Parallel bodies.** The body of a `partition` runs once for each part, so it is a worker body and ends
@@ -319,11 +338,12 @@ inferred keeps the neutral default `PRIMITIVE` with no declaration or name, the 
 fallback `MAREA_SemaInferType` already uses for the checker.
 
 **Ownership mode.** `MAREA_SemaOwnershipMode` names how a typed node carries its value, following the
-same rules "Ownership" above already states: `VALUE` (a primitive, an `array`/`pointer`/`slice`/
-`owned`/`task` core type is a different case below, or an enum - the documented, intentional exception; no
-attribute exempts any other user type), `BORROW` (a
-read-only parameter, a `for each` variable, a `partition` part or a `with` name), `MUTABLE_BORROW` (a
-`mutable` parameter), `MOVE` (an `owned<T>` or `task<T>` parameter or value), `COPY` (a `copy x`
+same rules "Ownership" above already states: `VALUE` (a primitive, an `array`/`pointer`/`slice`
+core type - checked before `semantics`, so no attribute changes it - or an enum, the documented,
+intentional exception; no attribute exempts any other user type), `BORROW` (a parameter whose
+effective `semantics` is `reference_read_only`, a `for each` variable, a `partition` part or a
+`with` name), `MUTABLE_BORROW` (a parameter whose effective `semantics` is `reference_mutable`,
+explicit or by default), `MOVE` (an `owned<T>` or `task<T>` parameter or value), `COPY` (a `copy x`
 expression). A node this cannot classify defaults to `VALUE`.
 
 **Call results.** A call expression's typed node carries the type the call returns. A call of a function of the
@@ -357,10 +377,10 @@ type arguments is deferred to when the `ir` stage needs one for real.
 | 3014 | `GENERIC_ARGUMENT_MISMATCH` | `Pair<sinteger32>` when `Pair` has two parameters, `Box<4>` |
 | 3015 | `INSTANTIATION_TOO_DEEP` | a type argument nested 65 levels |
 | 3016 | `ASSIGNMENT_NEEDS_COPY_OR_MOVE` | `a = b;` when the type is not a primitive, a copyable `array` or an enum |
-| 3017 | `INVALID_BORROW` | `s: reference Shape` when `Shape` is already a borrow |
+| 3017 | `INVALID_BORROW` | `#[semantics = value_read_only] s: Shape` when `Shape` is not a primitive |
 | 3018 | `REFERENCE_ESCAPES_SCOPE` | `return s;` when `s` is a borrow parameter |
-| 3019 | `EXCLUSIVE_BORROW_CONFLICT` | `take(s, s)` when one parameter is `mutable` |
-| 3020 | `INVALID_SPAWN_ARGUMENT` | `spawn g(m)` in `fork_join` when `m` is a `mutable` parameter |
+| 3019 | `EXCLUSIVE_BORROW_CONFLICT` | `take(s, s)` when one parameter's effective `semantics` is `reference_mutable` |
+| 3020 | `INVALID_SPAWN_ARGUMENT` | `spawn g(m)` in `fork_join` when `m`'s effective `semantics` is `reference_mutable` |
 | 3021 | `NON_EXHAUSTIVE_SWITCH` | a `switch` over an enum that misses a variant and has no `default` |
 | 3022 | `MISSING_RETURN` | `if a then return 1; end` as the whole body of a function with a return type |
 | 3023 | retired (`INVALID_MAIN_SIGNATURE`) | reserved, never reused; sema no longer checks the signature of `main` |
@@ -414,3 +434,9 @@ type arguments is deferred to when the `ir` stage needs one for real.
   primitives with the same width but another name (`sinteger32` and `float32`) is a mismatch here, as the rule is
   by exact name; a looser rule is a later decision of the user. The numeric range of a conversion
   (`convert<sinteger8>(count)` with `count` above 127) is a run-time stop, not a check of sema.
+- The parser's `<`-opens-type-arguments lookahead (see [the AST doc](../ast/marea-ast.md),
+  "Lookahead rules") does not tolerate `#[...]` inside the parameter list of a function type used
+  as a type argument (`f<function(#[semantics = reference_mutable] x: T): T>()`); that scan's token
+  vocabulary was never widened for attributes, so such a type argument fails to parse as one. The
+  same scan already had no tolerance for the retired `mutable`/`reference` parameter keywords it
+  used to allow, so this is not a new restriction, only an unaddressed one.

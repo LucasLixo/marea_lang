@@ -93,7 +93,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_HasRequiredParameter(const MAREA_AstNode
     for (MAREA_IntegerSize index = 0; index < COUNT; ++index) {
         const MAREA_AstNode *parameter = MAREA_SemaChildAt(parameters, index);
 
-        if ((parameter != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(parameter) == MAREA_AST_KIND_PARAMETER) && (MAREA_AstNodeGetChildCount(parameter) < 3)) {
+        if ((parameter != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(parameter) == MAREA_AST_KIND_PARAMETER) && (MAREA_SemaParameterHasDefault(parameter) == MAREA_BOOLEAN_FALSE)) {
             return MAREA_BOOLEAN_TRUE;
         }
     }

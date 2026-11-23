@@ -35,13 +35,7 @@ static MAREA_SemaOwnershipMode MAREA_CALL MAREA_G_TypedAstClassifyParameter(MARE
         return MAREA_SEMA_OWNERSHIP_MODE_MOVE;
     }
 
-    const MAREA_Uinteger32 FLAGS = MAREA_AstNodeGetFlags(parameter);
-
-    if (((FLAGS & MAREA_AST_FLAG_MUTABLE) != 0) && ((FLAGS & MAREA_AST_FLAG_REFERENCE) == 0)) {
-        return MAREA_SEMA_OWNERSHIP_MODE_MUTABLE_BORROW;
-    }
-
-    return MAREA_SEMA_OWNERSHIP_MODE_BORROW;
+    return (MAREA_SemaGetParameterSemantics(context, parameter) == MAREA_SEMA_PARAMETER_SEMANTICS_REFERENCE_MUTABLE) ? MAREA_SEMA_OWNERSHIP_MODE_MUTABLE_BORROW : MAREA_SEMA_OWNERSHIP_MODE_BORROW;
 }
 
 MAREA_SemaOwnershipMode MAREA_CALL MAREA_SemaTypedAstClassifyOwnership(MAREA_SemaContext *context, const MAREA_SemaTypedNode *built)

@@ -439,7 +439,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_SignatureMatches(const MAREA_SemaContext
 
         const MAREA_AstNode *parameter = MAREA_SemaChildAt(parameters, index);
 
-        if ((contractParameter == MAREA_NULLPTR) || (parameter == MAREA_NULLPTR) || (MAREA_AstNodeGetFlags(contractParameter) != MAREA_AstNodeGetFlags(parameter))) {
+        if ((contractParameter == MAREA_NULLPTR) || (parameter == MAREA_NULLPTR) || (MAREA_SemaGetParameterSemantics(context, contractParameter) != MAREA_SemaGetParameterSemantics(context, parameter))) {
             return MAREA_BOOLEAN_FALSE;
         }
 
@@ -821,7 +821,7 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckArguments(MAREA_SemaContext *con
     for (MAREA_IntegerSize index = 0; index < PARAMETER_COUNT; ++index) {
         const MAREA_AstNode *parameter = MAREA_SemaChildAt(parameters, index);
 
-        if ((parameter == MAREA_NULLPTR) || (MAREA_AstNodeGetChildCount(parameter) < 3)) {
+        if ((parameter == MAREA_NULLPTR) || (MAREA_SemaParameterHasDefault(parameter) == MAREA_BOOLEAN_FALSE)) {
             requiredCount = (index + 1);
         }
     }

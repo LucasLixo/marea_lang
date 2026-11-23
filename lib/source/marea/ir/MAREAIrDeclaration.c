@@ -70,8 +70,13 @@ MAREA_IrExcept MAREA_CALL MAREA_IrCreateNamed(MAREA_IrContext *context, MAREA_Ir
         }
     }
 
-    // INFO: only the MUTABLE flag survives; the other AST flags are erased with the type system.
-    node->flags = (node->flags & (MAREA_Uinteger32)MAREA_AST_FLAG_MUTABLE);
+    if (kind == MAREA_IR_KIND_PARAMETER) {
+        // INFO: a parameter no longer carries MUTABLE on its own AST node, so this reads the ownership mode sema already computed from its semantics attribute or type-class default.
+        node->flags = (MAREA_SemaTypedNodeGetOwnershipMode(typed) == MAREA_SEMA_OWNERSHIP_MODE_MUTABLE_BORROW) ? (MAREA_Uinteger32)MAREA_AST_FLAG_MUTABLE : MAREA_UINTEGER_32(0);
+    } else {
+        // INFO: only the MUTABLE flag survives; the other AST flags are erased with the type system.
+        node->flags = (node->flags & (MAREA_Uinteger32)MAREA_AST_FLAG_MUTABLE);
+    }
 
     result = MAREA_IrNodeSetTypeNameFromAst(context, node, MAREA_G_FindTypeChild(typed));
 
@@ -95,7 +100,10 @@ const MAREA_SemaTypedNode *MAREA_CALL MAREA_IrTypedFindDefault(const MAREA_SemaT
             continue;
         }
 
-        return MAREA_IrTypedChildAt(typed, (index + MAREA_INTEGER_SIZE(1)));
+        const MAREA_SemaTypedNode *candidate = MAREA_IrTypedChildAt(typed, (index + MAREA_INTEGER_SIZE(1)));
+
+        // INFO: a parameter's trailing "semantics" attribute is not a default value.
+        return (MAREA_IrTypedKind(candidate) == MAREA_AST_KIND_ATTRIBUTE) ? MAREA_NULLPTR : candidate;
     }
 
     return MAREA_NULLPTR;
