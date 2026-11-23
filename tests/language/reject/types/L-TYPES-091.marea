@@ -1,0 +1,23 @@
+-- expect: 3027 @22
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A construct function that is called directly.
+
+namespace main;
+
+structure Point
+    x: float64;
+    y: float64;
+end
+
+implementation Point
+    #[operator = "construct"]
+    function make(x: float64 = 0.0)
+        return;
+    end
+end
+
+function run()
+    Point.make(1.0);
+end

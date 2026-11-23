@@ -1,0 +1,22 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An enum local that two variants assign.
+
+namespace main;
+
+enum Color
+    Red;
+    Green;
+    Blue;
+end
+
+function run(flag: boolean): Color
+    local color: Color = Color.Red;
+    if flag then
+        color = Color.Blue;
+    end
+    end
+    return color;
+end

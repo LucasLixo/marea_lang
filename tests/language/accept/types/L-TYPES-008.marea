@@ -1,0 +1,13 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An opaque structure of a foreign library.
+
+namespace main;
+
+opaque structure Handle;
+
+function pass(handle: Handle)
+    return;
+end

@@ -1,0 +1,12 @@
+-- expect: 3009 @10
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A local of a type that does not exist.
+
+namespace main;
+
+function run(): sinteger32
+    local value: Missing = 1;
+    return 1;
+end

@@ -1,0 +1,16 @@
+-- expect: 3018 @15
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A read-only borrow parameter returned.
+
+namespace main;
+
+structure Point
+    x: float64;
+    y: float64;
+end
+
+function same(#[semantics = reference_read_only] point: Point): Point
+    return point;
+end

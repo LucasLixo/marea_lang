@@ -1,0 +1,24 @@
+-- gap: #225 3012
+-- rule: reject
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Two overlapping implementation blocks of a generic and a concrete type.
+
+namespace main;
+
+structure Box<Item>
+    item: Item;
+end
+
+implementation<Item> Box<Item>
+    function same(self: Box<Item>): sinteger32
+        return 1;
+    end
+end
+
+implementation Box<sinteger32>
+    function same(self: Box<sinteger32>): sinteger32
+        return 2;
+    end
+end

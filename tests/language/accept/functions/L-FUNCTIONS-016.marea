@@ -1,0 +1,17 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A function that returns a function type value.
+
+namespace main;
+
+type Operation = function(value: sinteger32): sinteger32;
+
+function double(value: sinteger32): sinteger32
+    return value * 2;
+end
+
+function pick(): Operation
+    return double;
+end

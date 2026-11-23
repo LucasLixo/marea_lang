@@ -1,0 +1,23 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A for each loop over an array with break and continue.
+
+namespace main;
+
+function sum_array(values: c.array<sinteger32>): sinteger32
+    local total: sinteger32 = 0;
+    for each value in values do
+        if value < 0 then
+            continue;
+        end
+        end
+        if value > 1000 then
+            break;
+        end
+        end
+        total += value;
+    end
+    return total;
+end

@@ -1,0 +1,17 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A generic implementation of a generic structure.
+
+namespace main;
+
+structure Box<Item>
+    item: Item;
+end
+
+implementation<Item> Box<Item>
+    function same(self: Box<Item>): sinteger32
+        return 1;
+    end
+end

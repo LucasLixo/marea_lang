@@ -1,0 +1,15 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Direct recursion.
+
+namespace main;
+
+function factorial(count: sinteger32): sinteger32
+    if count <= 1 then
+        return 1;
+    end
+    end
+    return count * factorial(count - 1);
+end

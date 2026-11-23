@@ -1,0 +1,8 @@
+-- expect: 2007 @7, 2004 @8
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A file that starts with a constant before the namespace.
+
+constant LIMIT: sinteger32 = 1;
+namespace main;

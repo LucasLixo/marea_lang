@@ -1,0 +1,16 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An explicit read-only borrow parameter that only reads.
+
+namespace main;
+
+structure Point
+    x: float64;
+    y: float64;
+end
+
+function get_x(#[semantics = reference_read_only] point: Point): float64
+    return point.x;
+end

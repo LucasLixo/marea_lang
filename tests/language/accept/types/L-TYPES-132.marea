@@ -1,0 +1,12 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A for loop with an empty body.
+
+namespace main;
+
+function run()
+    for index in 0 .. 3 do
+    end
+end

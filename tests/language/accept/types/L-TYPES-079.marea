@@ -1,0 +1,12 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A contract with two functions.
+
+namespace main;
+
+contract Shape
+    function area(self: Self): float64;
+    function name(self: Self): string;
+end
