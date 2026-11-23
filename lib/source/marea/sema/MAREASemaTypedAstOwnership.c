@@ -13,9 +13,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_TypedAstIsValueTypeClass(MAREA_SemaTypeC
         return MAREA_BOOLEAN_FALSE;
     }
 
-    // INFO: an enum is a plain integer, so it is always passed by value, the documented
-    // intentional exception MAREA_G_IsByValue uses too; the retired "value" attribute no longer
-    // exempts any other user type.
+    // INFO: an enum is always by value, the same documented exception MAREA_G_IsByValue uses; the retired "value" key exempts no other type.
     return (MAREA_AstNodeGetKind(declaration) == MAREA_AST_KIND_ENUM_DECLARATION) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
