@@ -69,7 +69,7 @@ TEST(MAREATokenKind, NamesAreUniqueAndNonEmpty)
 {
     GTEST_COUT << "Validating every token kind name is non-null, non-empty, unique and only A-Z0-9_." << std::endl;
 
-    ASSERT_EQ(static_cast<int>(MAREA_TOKEN_KIND_COUNT), 100) << "MAREA_TOKEN_KIND_COUNT must equal 100.";
+    ASSERT_EQ(static_cast<int>(MAREA_TOKEN_KIND_COUNT), 101) << "MAREA_TOKEN_KIND_COUNT must equal 101.";
 
     std::set<std::string> seenNames;
 

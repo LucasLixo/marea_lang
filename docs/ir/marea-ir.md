@@ -79,7 +79,7 @@ operands). The kinds are: `MODULE`, `CONSTANT_DECLARATION`,
 `BINARY_EXPRESSION`, `UNARY_EXPRESSION`, `MEMBER_ACCESS`, `INDEX_ACCESS`, `CALL_EXPRESSION`,
 `ARGUMENT_LIST`, `LITERAL_VALUE`, `FIELD_ENTRY`, `INDEX_ENTRY`, `VALUE_ENTRY`, `QUALIFIED_NAME`,
 `UNREACHABLE_STATEMENT`, `FORK_JOIN_BLOCK`, `PARTITION_STATEMENT`, `WITH_STATEMENT`, `FOR_EACH_STATEMENT`,
-`TYPE_NAME` and `BUILTIN_NAME`. The last six come after every older kind, so no value of an older kind moved.
+`TYPE_NAME`, `BUILTIN_NAME` and `CHARACTER_LITERAL` (the text is the literal as written, with its single quotes). The last seven come after every older kind, so no value of an older kind moved.
 
 The module keeps its declarations in source order. The typing is erased before the IR, so these make
 no node:

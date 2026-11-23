@@ -516,7 +516,7 @@ static MAREA_SemaTypeClass MAREA_CALL MAREA_G_Classify(const MAREA_SemaContext *
         return MAREA_SEMA_TYPE_CLASS_COPY_BUILTIN;
     }
 
-    static const MAREA_Character8 *const PRIMITIVES[] = { "boolean", "sinteger8", "sinteger16", "sinteger32", "sinteger64", "uinteger8", "uinteger16", "uinteger32", "uinteger64", "float32", "float64", "string" };
+    static const MAREA_Character8 *const PRIMITIVES[] = { "boolean", "sinteger8", "sinteger16", "sinteger32", "sinteger64", "uinteger8", "uinteger16", "uinteger32", "uinteger64", "float32", "float64", "character", "string" };
 
     for (MAREA_IntegerSize index = 0; index < MAREA_ARRAY_SIZE(PRIMITIVES); ++index) {
         if (MAREA_G_TextIs(*outName, *outLength, PRIMITIVES[index]) == MAREA_BOOLEAN_TRUE) {

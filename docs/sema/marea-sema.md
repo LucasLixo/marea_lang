@@ -96,7 +96,7 @@ the same table; the attribute of the symbol wins over the file attribute, so `#!
 with `#[visibility = private]` on one symbol is not a conflict.
 
 **Types.** The built-in names are `boolean`, `sinteger8` to `sinteger64`, `uinteger8` to `uinteger64`,
-`float32`, `float64`, `string`, `array`, `vector`, `pointer`, `owned`, `slice` and `task`. A type name is also
+`float32`, `float64`, `character`, `string`, `array`, `vector`, `pointer`, `owned`, `slice` and `task`. A type name is also
 `Self` inside an `implementation` or a `contract`, a generic parameter in scope, a structure, enum,
 opaque type or alias of the file, or an import. `array` takes two arguments (a type and a size), the others one, and a
 user generic takes as many arguments as it has parameters. A number fills a value parameter only.
@@ -193,7 +193,7 @@ unknown type and is accepted. The type of an expression is compared with the dec
 is a primitive, at a call argument of a function of the file, a local initializer, a plain `=` assignment, a
 `return` value and a constant initializer: a conversion is always written, so two primitives are the same
 only by name (`sinteger32` does not fit `sinteger64`), a number literal fits any number type, a fraction literal
-any float type, and a structure fits no primitive. An alias of a primitive is the primitive. The mismatch is
+any float type, a character literal fits only `character` (a number is not a character, and a character is not a number: it has no arithmetic), and a structure fits no primitive. An alias of a primitive is the primitive. The mismatch is
 `TYPE_MISMATCH` (3011) on the expression. A name of an enum, of a library type or of a generic parameter, and an `owned`,
 `task` or `vector` value, and an `array` value, are classified as their own shapes but are never compared.
 
@@ -250,7 +250,7 @@ and the size is rounded up to the alignment. The layout may come from a file att
 is measured too, up to 8 levels deep, and only inside a `c` structure when it is `c` itself. Two `marea` structures
 (the default layout) with the same fields, `pack` and `align` have the same layout, because the backend gives the
 same input the same layout. A pair that sema cannot measure is a `TYPE_MISMATCH` (3011): a generic structure, a
-field that is not a fixed-width primitive or a structure of the file (`string`, `pointer`, `array`, `vector`, an enum, a
+field that is not a fixed-width primitive (a `character` is one byte) or a structure of the file (`string`, `pointer`, `array`, `vector`, an enum, a
 library type), a `pack` or `align` value that is not an integer from 1 to 4294967296, a `marea` structure inside a
 `c` structure, a `c` structure against a `marea` one, a chain of structures deeper than 8 levels (or one that holds
 itself). A structure converted to itself needs no measure and is accepted.

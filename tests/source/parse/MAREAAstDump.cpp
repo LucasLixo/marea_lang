@@ -69,6 +69,19 @@ TEST(MAREAAstDump, TextIsEscaped)
     EXPECT_NE(fixture.MAREA_itemsDump().find(EXPECTED), std::string::npos) << "The escaping rule of the docs must apply.";
 }
 
+TEST(MAREAAstDump, CharacterLiteralKeepsItsQuotes)
+{
+    GTEST_COUT << "Validating a character literal is dumped with its single quotes and escapes as written." << std::endl;
+
+    MAREA_ParseFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_parse("namespace main; constant c: character = '\\n';"), MAREA_PARSE_EXCEPT_SUCCESS) << "Parsing must succeed.";
+
+    const std::string EXPECTED{ std::string(R"(    CHARACTER_LITERAL "'\\n'")") + "\n" };
+
+    EXPECT_NE(fixture.MAREA_itemsDump().find(EXPECTED), std::string::npos) << "The dump must show the text as written, with the backslash escaped.";
+}
+
 TEST(MAREAAstDump, RejectsNullArguments)
 {
     GTEST_COUT << "Validating MAREA_AstDump rejects null arguments." << std::endl;

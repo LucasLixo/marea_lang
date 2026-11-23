@@ -40,6 +40,10 @@ TEST(MAREAIrExpressions, LiteralsKeepTheirKindAndText)
     EXPECT_EQ(MAREA_lowerInitializer("", "boolean", "true"), "(BOOLEAN_LITERAL true)") << "A boolean literal must keep its text.";
 
     EXPECT_EQ(MAREA_lowerInitializer("", "string", "\"hi\""), "(STRING_LITERAL \"hi\")") << "A string literal must keep its text as written.";
+
+    EXPECT_EQ(MAREA_lowerInitializer("", "character", "'a'"), "(CHARACTER_LITERAL 'a')") << "A character literal must keep its text as written.";
+
+    EXPECT_EQ(MAREA_lowerInitializer("", "character", "'\\n'"), "(CHARACTER_LITERAL '\\n')") << "A character escape must stay as written.";
 }
 
 TEST(MAREAIrExpressions, IdentifierKeepsItsName)

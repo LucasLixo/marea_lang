@@ -136,4 +136,18 @@ MAREA_LexExcept MAREA_CALL MAREA_LexScanNumber(MAREA_LexCursor *cursor, MAREA_To
  */
 MAREA_LexExcept MAREA_CALL MAREA_LexScanString(MAREA_LexCursor *cursor, MAREA_TokenList *list);
 
+/**
+ * @brief Scans a character literal starting at the cursor's opening single quote, and appends the
+ * resulting token to list. The escapes are the string escapes plus an escaped single quote. A bad
+ * escape or byte reports a diagnostic and the literal continues. An empty literal reports
+ * MAREA_LEX_DIAGNOSTIC_CODE_EMPTY_CHARACTER, a literal with more than one character reports
+ * MAREA_LEX_DIAGNOSTIC_CODE_TOO_MANY_CHARACTERS, and a literal cut off by a line end or end of
+ * input reports MAREA_LEX_DIAGNOSTIC_CODE_UNTERMINATED_STRING; each of the three appends an
+ * MAREA_TOKEN_KIND_ERROR token instead of MAREA_TOKEN_KIND_CHARACTER_LITERAL.
+ * @param cursor Cursor positioned at the opening quote. Must not be null.
+ * @param list List to append the resulting token to. Must not be null.
+ * @return MAREA_LEX_EXCEPT_SUCCESS, or MAREA_LEX_EXCEPT_ERROR_OUT_OF_MEMORY when appending fails.
+ */
+MAREA_LexExcept MAREA_CALL MAREA_LexScanCharacter(MAREA_LexCursor *cursor, MAREA_TokenList *list);
+
 #endif /* MAREA_INTERNAL_LEX_MAREALEXINTERNAL_H */
