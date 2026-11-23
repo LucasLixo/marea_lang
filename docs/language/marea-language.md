@@ -967,6 +967,109 @@ rejected with 3009 by the type checker, so it has no accept item.
 | L-INTEROP-061 | A format macro result returned as an integer | gap: 3011, rule: reject, issue #241 |
 | L-INTEROP-062 | An include_text macro with a number as the path | gap: NEW, rule: reject, issue #241 |
 
+## Parallel code
+
+`fork_join` blocks, `partition` and `partition mutable`, `spawn` and its argument rule (3020), jumps out of a parallel
+body (3024), the `task` result read after the join, and the races that compile today. The items sit in
+`tests/language/<class>/parallel/`. Ids are `L-PARALLEL-nnn`; the numbers are not continuous, because a gap in the
+numbers groups the kinds (accept 001-020 and 079, 3020 rejects 030-039, 3024 rejects 040-051, holes 060-077).
+
+What sema enforces today is small, and it sits in `lib/source/marea/sema/MAREASemaParallel.c`. 3020: in a `fork_join`,
+each argument of a `spawn` is a part, a literal, a file constant, a name that is not a write-borrow parameter and not
+the source of a `partition mutable`, or a field of such a name; any other expression (a call, an index, a computed
+value, `copy x`, `move x`) is rejected. 3024: a `return`, `break` or `continue` that leaves a `partition` body or stands
+directly in a `fork_join` block. Nothing else about parallel code is checked: there is no data-race analysis. Every
+hole below is accepted today and is a `known_gap` item. A gap that shares an issue shows one hole through more than one
+program. #210 (two workers use the same local) and #211 (a spawn outside a `fork_join`) were opened by the memory area
+and are reused here; #204 is the permission hole of the ownership area (a read-only borrow reaches a write).
+
+Facts the items fix, checked by running the compiler:
+
+- A `fork_join` in a loop, two blocks in a row, and a block inside a block are accepted. A jump in a nested block is
+  rejected as in the outer one. A loop outside the whole block never catches a `break` or `continue` (item 049, 051).
+- A `move x` or `copy x` argument of a `spawn` is rejected with 3020, because the argument rule lists no other form
+  (items 036, 037). The rule says nothing of ownership, so this is the "simple first rule" of the sema doc, not a
+  decided ownership rule.
+- A part is a name of the body only: its use after the `end` of the body is the undeclared name 3004 (item 080).
+- The accept items write `#[semantics = reference_mutable]` and `#[semantics = reference_read_only]` out, so they hold
+  under both readings of settled rule 2 (the default borrow). `examples/parallel/scaling.marea` does not: it writes the
+  elements of a parameter with no attribute (`scale_slice`, `scale_all`), which rule 2 makes a read-only borrow, and it
+  imports `collections.array` and `concurrency.task`, not the `c.{lib}` names that CLAUDE.md fixes for now.
+
+### Parallel code: accept
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-PARALLEL-001 | A spawn of a function on a local, read only | ok |
+| L-PARALLEL-002 | A spawn with literal arguments | ok |
+| L-PARALLEL-003 | A spawn with a file constant as an argument | ok |
+| L-PARALLEL-004 | Two spawns on two different locals, each with a write borrow | ok |
+| L-PARALLEL-005 | A partition that reads and spawns a worker on each part | ok |
+| L-PARALLEL-006 | A partition mutable of a write-borrow parameter | ok |
+| L-PARALLEL-008 | A partition nested in a partition body | ok |
+| L-PARALLEL-009 | A break that leaves a loop inside a partition body | ok |
+| L-PARALLEL-010 | A continue in a loop inside a partition body | ok |
+| L-PARALLEL-011 | A break in a loop that stands directly in a fork_join block | ok |
+| L-PARALLEL-013 | A fork_join block in a loop | ok |
+| L-PARALLEL-014 | Two fork_join blocks one after the other | ok |
+| L-PARALLEL-015 | A field of a local as the argument of a spawn | ok |
+| L-PARALLEL-016 | A spawn of a read-only parameter | ok |
+| L-PARALLEL-017 | A part and a literal as the arguments of a spawn | ok |
+| L-PARALLEL-018 | A nested fork_join inside a fork_join | ok |
+| L-PARALLEL-019 | A part is read in the partition body with a for each | ok |
+| L-PARALLEL-020 | A break in a loop that stands in an if inside a partition body | ok |
+| L-PARALLEL-079 | A local is written after the join | ok |
+
+### Parallel code: reject
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-PARALLEL-030 | A write-borrow parameter is spawned | 3020 @53 |
+| L-PARALLEL-031 | A write-borrow parameter is the second argument of a spawn | 3020 @58 |
+| L-PARALLEL-032 | A call is the argument of a spawn | 3020 @53 |
+| L-PARALLEL-033 | An element of a vector is the argument of a spawn | 3020 @57 |
+| L-PARALLEL-034 | A computed value is the argument of a spawn | 3020 @58 |
+| L-PARALLEL-035 | A field of a write-borrow parameter is the argument of a spawn | 3020 @53 |
+| L-PARALLEL-036 | A moved value is the argument of a spawn | 3020 @58 |
+| L-PARALLEL-037 | A copy is the argument of a spawn | 3020 @54 |
+| L-PARALLEL-038 | A write-borrow parameter is spawned in a nested fork_join | 3020 @54 |
+| L-PARALLEL-039 | The source of a partition mutable is spawned inside its own partition | 3020 @54 |
+| L-PARALLEL-040 | A break leaves the body of a partition | 3024 @54 |
+| L-PARALLEL-041 | A continue leaves the body of a partition | 3024 @54 |
+| L-PARALLEL-042 | A return directly in a fork_join block | 3024 @53 |
+| L-PARALLEL-043 | A break directly in a fork_join block | 3024 @53 |
+| L-PARALLEL-044 | A continue directly in a fork_join block | 3024 @53 |
+| L-PARALLEL-045 | A return in a loop inside a partition body still leaves the body | 3024 @55 |
+| L-PARALLEL-046 | A return in the inner partition of a nested partition | 3024 @55 |
+| L-PARALLEL-047 | A break in an if directly in a fork_join block | 3024 @54 |
+| L-PARALLEL-048 | A return in an arm of switch inside a partition body | 3024 @56 |
+| L-PARALLEL-049 | A loop outside the fork_join block is no target for a break | 3024 @54 |
+| L-PARALLEL-050 | A return in a nested fork_join | 3024 @54 |
+| L-PARALLEL-051 | A continue in a partition body inside a loop that is outside the block | 3024 @55 |
+| L-PARALLEL-080 | A part is used after the partition body | 3004 @56 |
+
+### Parallel code: known_gap
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-PARALLEL-060 | One part is passed to two workers that write it | gap: #210 3020, rule: reject |
+| L-PARALLEL-061 | A worker writes a local and another worker reads it | gap: #210 3020, rule: reject |
+| L-PARALLEL-062 | A spawn in a loop writes the same local in each turn | gap: #210 3020, rule: reject |
+| L-PARALLEL-063 | A worker writes the local that the partition reads | gap: #210 3020, rule: reject |
+| L-PARALLEL-064 | A worker is spawned after the end of a fork_join block | gap: #211 NEW, rule: reject |
+| L-PARALLEL-065 | A partition body writes a local of the function, so the workers race on it | gap: #230 NEW, rule: reject |
+| L-PARALLEL-066 | A partition body adds to a local of the function | gap: #230 NEW, rule: reject |
+| L-PARALLEL-067 | A partition body writes a field of a local of the function | gap: #230 NEW, rule: reject |
+| L-PARALLEL-068 | A part is stored in a local of the function and outlives the body | gap: #231 NEW, rule: reject |
+| L-PARALLEL-069 | The source of a partition mutable is written in the body while the parts are written | gap: #232 NEW, rule: reject |
+| L-PARALLEL-070 | A partition is used outside of a fork_join block | gap: #233 NEW, rule: reject |
+| L-PARALLEL-071 | A spawn statement that is not a call | gap: #234 NEW, rule: reject |
+| L-PARALLEL-072 | A partition of a value that is no array | gap: #235 NEW, rule: reject |
+| L-PARALLEL-073 | A part of a partition that only reads is written | gap: #204 NEW, rule: reject |
+| L-PARALLEL-075 | A read-only parameter is spawned into a function that writes it | gap: #204 NEW, rule: reject |
+| L-PARALLEL-076 | A local is written by a worker and by the body of the block | gap: #210 3020, rule: reject |
+| L-PARALLEL-077 | A part is passed to a function that writes it, with partition and no mutable | gap: #204 NEW, rule: reject |
+
 ## Diagnostics
 
 The catalogue raises no diagnostic of its own. A `reject` item carries a code of another stage:
@@ -985,10 +1088,7 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
   second file.
 - The runner compares the codes of a `reject` item in the order the compiler gives them, so an item over two stages
   depends on the order of the stages (lex, then parse, then sema).
-- Only the seed items exist. The area items are added by later changes.
 - A known_gap item must be accepted today, so a valid program that the compiler rejects by mistake has no item. Known:
   a `switch` over a `boolean` with `case true` and `case false` and no `default` gives 3022 (issue #226).
-- The functions and types areas do not cover the parallel code 3024 and the import and attribute codes 3001, 3002,
-  3005 to 3008 and 3020; those belong to other areas.
 - The parse recovery is shown as it is: after a parse error the later stages still run, so some parse items list sema
   codes after the parse code, and a keyword used as a name gives a short chain of parse codes.
