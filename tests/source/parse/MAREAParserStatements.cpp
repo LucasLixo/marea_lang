@@ -30,8 +30,8 @@ TEST(MAREAParserStatements, LocalDeclarations)
     GTEST_COUT << "Validating local declarations with and without a value." << std::endl;
 
     MAREA_expectCases({
-        { "local x: integer32;", "(local_declaration x (named_type integer32))" },
-        { "local x: integer32 = 1;", "(local_declaration x (named_type integer32) 1)" },
+        { "local x: sinteger32;", "(local_declaration x (named_type sinteger32))" },
+        { "local x: sinteger32 = 1;", "(local_declaration x (named_type sinteger32) 1)" },
     });
 }
 
@@ -310,7 +310,7 @@ TEST(MAREAParserStatements, UnfinishedIfDoesNotHideNextFunction)
 
     MAREA_ParseFixture fixture;
 
-    ASSERT_EQ(fixture.MAREA_parse("namespace main; function a() if x then local y: integer32 = 1; function b() end"), MAREA_PARSE_EXCEPT_SUCCESS) << "Parsing must succeed.";
+    ASSERT_EQ(fixture.MAREA_parse("namespace main; function a() if x then local y: sinteger32 = 1; function b() end"), MAREA_PARSE_EXCEPT_SUCCESS) << "Parsing must succeed.";
 
     EXPECT_FALSE(fixture.MAREA_codes().empty()) << "The unfinished if must be reported.";
 

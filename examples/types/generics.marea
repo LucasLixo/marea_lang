@@ -4,7 +4,7 @@
 -- Step 7d: safe generics (templates).
 -- Rules:
 --   1. A type parameter is written in <...> after the name. Its name is PascalCase and short
---      (Item, Key). A value parameter is written with "constant": <constant Count: integer32>.
+--      (Item, Key). A value parameter is written with "constant": <constant Count: sinteger32>.
 --   2. The body is checked ONCE, at the definition, against the restrictions. An operation that
 --      the restriction does not give is an error in the definition, not at the call.
 --   3. A restriction is a "contract": a list of functions that a type must have. It is written
@@ -14,7 +14,7 @@
 --      There is no inheritance and no virtual table. Dispatch is static.
 --   5. Each use with new types makes one copy of the function (monomorphization). It has no
 --      cost at run time. "marea expand" shows the copies.
---   6. The type is inferred at the call. It can be written: maximum<integer32>(1, 2).
+--   6. The type is inferred at the call. It can be written: maximum<sinteger32>(1, 2).
 --   7. No partial specialization and no SFINAE.
 --   8. A function with #[export = "name"] must be concrete, because C has no generics.
 --   9. Limit of 64 levels of instantiation.
@@ -78,13 +78,13 @@ end
 
 -- A value parameter: the size is part of the type, known at compile time.
 #[visibility = public]
-structure Buffer<Item, constant Count: integer32>
+structure Buffer<Item, constant Count: sinteger32>
     items: array<Item, Count>;
 end
 
 #[visibility = public]
-implementation<Item, constant Count: integer32> Buffer<Item, Count>
-    function capacity(self: Buffer<Item, Count>): integer32
+implementation<Item, constant Count: sinteger32> Buffer<Item, Count>
+    function capacity(self: Buffer<Item, Count>): sinteger32
         return Count;
     end
 end
@@ -98,7 +98,7 @@ end
 -- A type that meets Comparable, Printable and Copyable.
 #[visibility = public, value]
 structure Score
-    value: integer32;
+    value: sinteger32;
 end
 
 #[visibility = public]
@@ -115,9 +115,9 @@ end
 #[visibility = public]
 function show_generics(): string
     local best: Score = maximum(Score{ value = 3 }, Score{ value = 9 });   -- Item is Score
-    local number: integer32 = maximum<integer32>(4, 8);                     -- Item written
+    local number: sinteger32 = maximum<sinteger32>(4, 8);                     -- Item written
     local fixed: Buffer<float32, 16> = Buffer<float32, 16>{ items = array<float32, 16>.filled(0.0) };
-    local size: integer32 = fixed.capacity();
+    local size: sinteger32 = fixed.capacity();
     -- An error, found at the definition of "bad": Item has no operation "+".
     --   function bad<Item>(left: Item, right: Item): Item
     --       return left + right;

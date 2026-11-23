@@ -14,18 +14,18 @@
 namespace attributes.visibility;
 
 #[visibility = public]
-constant VERSION: integer32 = 1;
+constant VERSION: sinteger32 = 1;
 
 #[visibility = private]
-constant SECRET: integer32 = 42;
+constant SECRET: sinteger32 = 42;
 
-constant ALSO_PRIVATE: integer32 = 43;
+constant ALSO_PRIVATE: sinteger32 = 43;
 
-function hidden(): integer32
+function hidden(): sinteger32
     return ALSO_PRIVATE;
 end
 
 #[visibility = public]
-function visible(): integer32
+function visible(): sinteger32
     return hidden() + SECRET;
 end

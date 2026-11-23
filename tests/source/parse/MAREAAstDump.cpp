@@ -28,7 +28,7 @@ TEST(MAREAAstDump, OperatorAndFlags)
 
     MAREA_ParseFixture fixture;
 
-    ASSERT_EQ(fixture.MAREA_parse("namespace main; constant x: integer32 = a ** b; function f(p: mutable integer32) end"), MAREA_PARSE_EXCEPT_SUCCESS) << "Parsing must succeed.";
+    ASSERT_EQ(fixture.MAREA_parse("namespace main; constant x: sinteger32 = a ** b; function f(p: mutable sinteger32) end"), MAREA_PARSE_EXCEPT_SUCCESS) << "Parsing must succeed.";
 
     const std::string DUMP{ fixture.MAREA_itemsDump() };
 
@@ -165,7 +165,7 @@ namespace
 
     std::string MAREA_chainSource(size_t length)
     {
-        std::string source{ "namespace main; constant x: integer32 = a" };
+        std::string source{ "namespace main; constant x: sinteger32 = a" };
 
         for (size_t index = 0; index < length; ++index) {
             source += " + a";

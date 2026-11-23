@@ -8,32 +8,32 @@
 
 namespace basics.primitive_types;
 
-constant MAX_LEVEL: integer32 = 99;
+constant MAX_LEVEL: sinteger32 = 99;
 constant EPSILON: float64 = 0.000001;
 
 #[visibility = public]
 function show_primitives()
     local flag: boolean = true;
-    local small: integer8 = -128;
-    local medium: integer16 = 30000;
-    local normal: integer32 = 1_000_000;
-    local large: integer64 = 9_000_000_000;
-    local byte: unsigned8 = 255;
-    local mask: unsigned32 = 0xFF00FF00;
-    local bits: unsigned8 = 0b1010_0101;
+    local small: sinteger8 = -128;
+    local medium: sinteger16 = 30000;
+    local normal: sinteger32 = 1_000_000;
+    local large: sinteger64 = 9_000_000_000;
+    local byte: uinteger8 = 255;
+    local mask: uinteger32 = 0xFF00FF00;
+    local bits: uinteger8 = 0b1010_0101;
     local single: float32 = 1.5;
     local double: float64 = 3.14159265358979;
     local text: string = "tab:\t quote:\" end";
 end
 
 -- A literal takes the type of its target. A value outside the range is a compile error:
---   local too_big: unsigned8 = 256;        -- error
+--   local too_big: uinteger8 = 256;        -- error
 -- A conversion between types is always written, and it is checked.
 -- This function has a return type, so every path ends with "return value;".
 #[visibility = public]
-function convert_values(count: integer32): float64
-    local wide: integer64 = convert<integer64>(count);
+function convert_values(count: sinteger32): float64
+    local wide: sinteger64 = convert<sinteger64>(count);
     local ratio: float64 = convert<float64>(wide);
-    local narrow: integer8 = convert<integer8>(count);   -- stops with an error if count > 127
+    local narrow: sinteger8 = convert<sinteger8>(count);   -- stops with an error if count > 127
     return ratio;
 end

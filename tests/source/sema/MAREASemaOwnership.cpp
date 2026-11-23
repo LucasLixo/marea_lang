@@ -48,7 +48,7 @@ TEST(MAREASemaOwnership, ReferenceOnABorrowedTypeIsRejected)
 
     EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(s: reference Shape) end"), Codes{ INVALID_BORROW }) << "A reference on a plain structure must raise INVALID_BORROW.";
 
-    EXPECT_TRUE(MAREA_codesOf("function f(n: reference integer32) end").empty()) << "A reference on a primitive must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function f(n: reference sinteger32) end").empty()) << "A reference on a primitive must raise nothing.";
 }
 
 TEST(MAREASemaOwnership, AssignmentOfAnExistingValueNeedsAWord)
@@ -79,7 +79,7 @@ TEST(MAREASemaOwnership, PrimitiveAndValueAssignmentNeedNoWord)
 {
     GTEST_COUT << "Validating a primitive or a value type is assigned with a plain equal sign." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("function f(a: mutable integer32, b: integer32) a = b; end").empty()) << "A primitive must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function f(a: mutable sinteger32, b: sinteger32) a = b; end").empty()) << "A primitive must raise nothing.";
 
     EXPECT_TRUE(MAREA_codesOf("#[value] structure P x: float32; end function f(a: mutable P, b: P) a = b; end").empty()) << "A value type must raise nothing.";
 }
@@ -97,14 +97,14 @@ TEST(MAREASemaOwnership, CompoundAssignmentIsNotChecked)
 {
     GTEST_COUT << "Validating a compound assignment raises nothing." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("function f(a: mutable integer32, b: integer32) a += b; end").empty()) << "A compound assignment must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function f(a: mutable sinteger32, b: sinteger32) a += b; end").empty()) << "A compound assignment must raise nothing.";
 }
 
 TEST(MAREASemaOwnership, UnknownTypesAreNotGuessed)
 {
     GTEST_COUT << "Validating an assignment whose type is unknown raises nothing." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("function f(a: mutable array<integer32>, b: array<integer32>) a = b; end").empty()) << "A library type must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function f(a: mutable array<sinteger32>, b: array<sinteger32>) a = b; end").empty()) << "A library type must raise nothing.";
 }
 
 TEST(MAREASemaOwnership, ReturningABorrowIsRejected)
@@ -122,7 +122,7 @@ TEST(MAREASemaOwnership, ReturningOwnedValuesIsAccepted)
 
     EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(o: owned<Shape>): owned<Shape> return o; end").empty()) << "A move-in must be returnable.";
 
-    EXPECT_TRUE(MAREA_codesOf("function f(n: integer32): integer32 return n; end").empty()) << "A by-value parameter must be returnable.";
+    EXPECT_TRUE(MAREA_codesOf("function f(n: sinteger32): sinteger32 return n; end").empty()) << "A by-value parameter must be returnable.";
 
     EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(s: Shape): Shape return copy s; end").empty()) << "A copy must be returnable.";
 
