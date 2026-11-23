@@ -251,8 +251,8 @@ static const MAREA_IrAlias *MAREA_CALL MAREA_G_FindAlias(const MAREA_IrContext *
     return MAREA_NULLPTR;
 }
 
-// INFO: true when the function that is being lowered declares the name as a parameter or a local of any block.
-static MAREA_Boolean MAREA_CALL MAREA_G_Declares(const MAREA_SemaTypedNode *typed, const MAREA_Character8 *text, MAREA_IntegerSize length)
+// INFO: true when the function that is being lowered declares the name as a parameter or a local of any block, at or before the source offset of the reference.
+static MAREA_Boolean MAREA_CALL MAREA_G_Declares(const MAREA_SemaTypedNode *typed, const MAREA_Character8 *text, MAREA_IntegerSize length, MAREA_Uinteger32 offset)
 {
     const MAREA_AstKind KIND = MAREA_IrTypedKind(typed);
 
@@ -283,13 +283,13 @@ static MAREA_Boolean MAREA_CALL MAREA_G_Declares(const MAREA_SemaTypedNode *type
 
         const MAREA_AstNode *ast = MAREA_SemaTypedNodeGetAstNode(binder);
 
-        if (MAREA_G_TextIs(MAREA_AstNodeGetText(ast), MAREA_AstNodeGetTextLength(ast), text, length) == MAREA_BOOLEAN_TRUE) {
+        if ((MAREA_G_TextIs(MAREA_AstNodeGetText(ast), MAREA_AstNodeGetTextLength(ast), text, length) == MAREA_BOOLEAN_TRUE) && (MAREA_AstNodeGetPosition(ast).offset <= offset)) {
             return MAREA_BOOLEAN_TRUE;
         }
     }
 
     for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < COUNT; index = (index + MAREA_INTEGER_SIZE(1))) {
-        if (MAREA_G_Declares(MAREA_IrTypedChildAt(typed, index), text, length) == MAREA_BOOLEAN_TRUE) {
+        if (MAREA_G_Declares(MAREA_IrTypedChildAt(typed, index), text, length, offset) == MAREA_BOOLEAN_TRUE) {
             return MAREA_BOOLEAN_TRUE;
         }
     }
@@ -297,7 +297,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_Declares(const MAREA_SemaTypedNode *type
     return MAREA_BOOLEAN_FALSE;
 }
 
-MAREA_Boolean MAREA_CALL MAREA_IrAliasValue(const MAREA_IrContext *context, const MAREA_Character8 *text, MAREA_IntegerSize length, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength)
+MAREA_Boolean MAREA_CALL MAREA_IrAliasValue(const MAREA_IrContext *context, const MAREA_Character8 *text, MAREA_IntegerSize length, MAREA_Uinteger32 offset, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength)
 {
     const MAREA_IrAlias *entry = MAREA_G_FindAlias(context, text, length, MAREA_BOOLEAN_TRUE);
 
@@ -305,8 +305,8 @@ MAREA_Boolean MAREA_CALL MAREA_IrAliasValue(const MAREA_IrContext *context, cons
         return MAREA_BOOLEAN_FALSE;
     }
 
-    // INFO: a parameter or a local of the enclosing function with the same name hides the alias; the check ignores the order of the declarations.
-    if ((context->function != MAREA_NULLPTR) && (MAREA_G_Declares(context->function, text, length) == MAREA_BOOLEAN_TRUE)) {
+    // INFO: a parameter or a local of the enclosing function with the same name hides the alias from its own declaration onward.
+    if ((context->function != MAREA_NULLPTR) && (MAREA_G_Declares(context->function, text, length, offset) == MAREA_BOOLEAN_TRUE)) {
         return MAREA_BOOLEAN_FALSE;
     }
 
