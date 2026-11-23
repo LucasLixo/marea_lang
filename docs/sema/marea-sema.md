@@ -237,8 +237,9 @@ A member name, a field key of a literal value, a type, a macro call and the bare
 chain (`stdio.puts(text)`, which may be a namespace the file never imports) are not checked. The local that a
 `for`, `for each`, `partition` or `with` name hides is never used to type the name.
 
-**Entry point.** In the namespace `main`, `function main` has exactly the parameter `arguments:
-array<string>` with no word, and the result `integer32`. Sema never requires a `main`.
+**Entry point.** Sema treats `main` as an ordinary function: any signature is accepted and no diagnostic is
+raised. Sema never requires a `main`. The code 3023 (`INVALID_MAIN_SIGNATURE`) is retired and stays reserved, never
+reused.
 
 ## Typed AST hand-off
 
@@ -312,13 +313,14 @@ type arguments is deferred to when the `ir` stage needs one for real.
 | 3020 | `INVALID_SPAWN_ARGUMENT` | `spawn g(m)` in `fork_join` when `m` is a `mutable` parameter |
 | 3021 | `NON_EXHAUSTIVE_SWITCH` | a `switch` over an enum that misses a variant and has no `default` |
 | 3022 | `MISSING_RETURN` | `if a then return 1; end` as the whole body of a function with a return type |
-| 3023 | `INVALID_MAIN_SIGNATURE` | `function main(): integer32` in the namespace `main` |
+| 3023 | retired (`INVALID_MAIN_SIGNATURE`) | reserved, never reused; sema no longer checks the signature of `main` |
 | 3024 | `INVALID_PARALLEL_JUMP` | `continue;`, `break;` or `return;` in a `partition` body when no loop of the body is the target, or directly in a `fork_join` block, outside every `partition` body, when no loop of the block is the target |
 | 3025 | `DUPLICATE_SWITCH_ARM` | a second `default` arm in a `switch`, or `case 1 then ... case 1 then ...`, `case 1, 1 then ...`, `case Color.red` twice |
 | 3026 | `JUMP_OUTSIDE_LOOP` | `break;` or `continue;` with no enclosing loop and no enclosing `partition`/`fork_join` block |
 
 ## Gaps
 
+- No check of the signature of `main` exists any more, and a driver-level replacement does not exist yet.
 - Renaming on use inside one file (without an import) is not offered: a local declaration has its own name.
 - `TYPE_MISMATCH` (3011) sorts the type of an expression into a fixed set of shapes: a literal, a primitive, a
   structure, and, known but never compared, an enum, a library type, a generic parameter and an `owned`, `task` or
