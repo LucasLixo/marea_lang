@@ -262,5 +262,15 @@ TEST(MAREASemaGenericsAndContracts, LiteralMustFitThePrimitiveType)
 
     EXPECT_TRUE(MAREA_codesOf("function f(a: float32, b: string, c: boolean, d: sinteger32) end function g() f(1, \"x\", true, 2); local x: float64 = 2.5; end").empty()) << "Fitting literals must raise nothing.";
 
+    EXPECT_TRUE(MAREA_codesOf("function f(a: character) end function g() f('a'); local x: character = '\\n'; end").empty()) << "A character literal for a character must raise nothing.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(a: sinteger32) end function g() f('a'); end"), Codes{ MISMATCH }) << "A character for an integer must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(a: character) end function g() f(65); end"), Codes{ MISMATCH }) << "An integer for a character must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(a: character) end function g() f(\"a\"); end"), Codes{ MISMATCH }) << "A string for a character must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(a: string) end function g() f('a'); end"), Codes{ MISMATCH }) << "A character for a string must raise TYPE_MISMATCH.";
+
     EXPECT_TRUE(MAREA_codesOf("function f(a: pointer<sinteger32>) end function g() f(\"text\"); end").empty()) << "A non-primitive type must not be guessed.";
 }

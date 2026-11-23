@@ -45,6 +45,8 @@ TEST(MAREASemaParallel, LiteralsAndConstantsAreValidArguments)
 
     EXPECT_TRUE(MAREA_codesOf("function g(a: sinteger32, b: string, c: boolean) end function f(values: array<float32>) fork_join partition values into 4 as part do spawn g(7, \"x\", true); end end end").empty()) << "Literals must raise nothing.";
 
+    EXPECT_TRUE(MAREA_codesOf("function g(a: character) end function f(values: array<float32>) fork_join partition values into 4 as part do spawn g('x'); end end end").empty()) << "A character literal must raise nothing.";
+
     EXPECT_TRUE(MAREA_codesOf("function g(a: sinteger32) end function f(values: array<float32>) fork_join partition values into 4 as part do spawn g(WORKERS); end end end").empty()) << "A constant must raise nothing.";
 }
 

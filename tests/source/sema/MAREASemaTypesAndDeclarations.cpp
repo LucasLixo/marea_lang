@@ -37,7 +37,7 @@ TEST(MAREASemaTypesAndDeclarations, PrimitiveTypesResolve)
 {
     GTEST_COUT << "Validating every primitive type name resolves." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("structure S a: boolean; b: sinteger8; c: sinteger16; d: sinteger32; e: sinteger64; f: uinteger8; g: uinteger16; h: uinteger32; i: uinteger64; j: float32; k: float64; l: string; end").empty()) << "A primitive type must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("structure S a: boolean; b: sinteger8; c: sinteger16; d: sinteger32; e: sinteger64; f: uinteger8; g: uinteger16; h: uinteger32; i: uinteger64; j: float32; k: float64; l: string; m: character; end").empty()) << "A primitive type must raise nothing.";
 }
 
 TEST(MAREASemaTypesAndDeclarations, SignedAndUnsignedIntegerNamesResolve)

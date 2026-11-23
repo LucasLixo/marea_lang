@@ -17,6 +17,7 @@ typedef struct MAREA_G_PrimitiveWidth
 // INFO: the width of a primitive that has one. Its alignment is its size. A string is not here, because its width is a choice of the backend.
 static const MAREA_G_PrimitiveWidth MAREA_G_WIDTHS[] = {
     { .name = "boolean", .size = 1 },
+    { .name = "character", .size = 1 },
     { .name = "sinteger8", .size = 1 },
     { .name = "uinteger8", .size = 1 },
     { .name = "sinteger16", .size = 2 },
