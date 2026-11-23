@@ -620,6 +620,50 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_AppendDefault(MAREA_IrContext *context,
     return result;
 }
 
+// INFO: sema reports NON_EXHAUSTIVE_SWITCH for an enum switch with no default that misses a variant, so one that passed covers them all.
+static MAREA_Boolean MAREA_CALL MAREA_G_IsEnumScrutinee(const MAREA_SemaTypedNode *scrutinee)
+{
+    const MAREA_AstNode *declaration = MAREA_NULLPTR;
+
+    if ((MAREA_SemaTypedNodeGetTypeClass(scrutinee) != MAREA_SEMA_TYPE_CLASS_USER) || (MAREA_SemaTypedNodeGetTypeDeclaration(scrutinee, &declaration) != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) || (declaration == MAREA_NULLPTR)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    return (MAREA_AstNodeGetKind(declaration) == MAREA_AST_KIND_ENUM_DECLARATION) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
+// INFO: the else of a chain that sema proved exhaustive holds an UNREACHABLE_STATEMENT, the node that unreachable!() lowers to.
+static MAREA_IrExcept MAREA_CALL MAREA_G_AppendUnreachableElse(MAREA_IrContext *context, const MAREA_AstNode *switchAst, MAREA_IrNode *chain)
+{
+    MAREA_IrNode *clause = MAREA_NULLPTR;
+    MAREA_IrNode *body = MAREA_NULLPTR;
+    MAREA_IrNode *marker = MAREA_NULLPTR;
+
+    MAREA_IrExcept result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_ELSE_CLAUSE, switchAst, &clause);
+
+    if (result == MAREA_IR_EXCEPT_SUCCESS) {
+        result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_BLOCK, switchAst, &body);
+    }
+
+    if (result == MAREA_IR_EXCEPT_SUCCESS) {
+        result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_UNREACHABLE_STATEMENT, switchAst, &marker);
+    }
+
+    if (result == MAREA_IR_EXCEPT_SUCCESS) {
+        result = MAREA_IrNodeAppendChild(context, body, marker);
+    }
+
+    if (result == MAREA_IR_EXCEPT_SUCCESS) {
+        result = MAREA_IrNodeAppendChild(context, clause, body);
+    }
+
+    if (result == MAREA_IR_EXCEPT_SUCCESS) {
+        result = MAREA_IrNodeAppendChild(context, chain, clause);
+    }
+
+    return result;
+}
+
 // INFO: creates the BLOCK that scopes a switch, holding the hidden local $switch set to the scrutinee, which is evaluated once.
 static MAREA_IrExcept MAREA_CALL MAREA_G_CreateSwitchScope(MAREA_IrContext *context, const MAREA_AstNode *switchAst, MAREA_IrNode *scrutinee, MAREA_IrNode **outScope)
 {
@@ -652,7 +696,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_CreateSwitchScope(MAREA_IrContext *cont
     return result;
 }
 
-// INFO: switch value case a then A case b, c then B default then C end becomes BLOCK(LOCAL $switch = value, IF $switch == a: A, ELSEIF $switch == b or $switch == c: B, ELSE: C).
+// INFO: switch value case a then A case b, c then B default then C end becomes BLOCK(LOCAL $switch = value, IF $switch == a: A, ELSEIF $switch == b or $switch == c: B, ELSE: C); an enum switch with no default ends with ELSE: unreachable.
 // INFO: an arm does not fall through, so the chain is exact; a break or continue in an arm targets the enclosing loop, as it does in an if.
 static MAREA_IrExcept MAREA_CALL MAREA_G_LowerSwitch(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode)
 {
@@ -698,6 +742,8 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerSwitch(MAREA_IrContext *context, c
 
     if ((result == MAREA_IR_EXCEPT_SUCCESS) && (defaultBody != MAREA_NULLPTR)) {
         result = MAREA_G_AppendDefault(context, defaultAst, defaultBody, chain, outer);
+    } else if ((result == MAREA_IR_EXCEPT_SUCCESS) && (chain != MAREA_NULLPTR) && (MAREA_G_IsEnumScrutinee(MAREA_IrTypedChildAt(typed, MAREA_INTEGER_SIZE(0))) == MAREA_BOOLEAN_TRUE)) {
+        result = MAREA_G_AppendUnreachableElse(context, switchAst, chain);
     }
 
     if ((result == MAREA_IR_EXCEPT_SUCCESS) && (chain != MAREA_NULLPTR)) {

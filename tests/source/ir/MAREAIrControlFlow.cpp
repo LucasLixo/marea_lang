@@ -236,7 +236,45 @@ TEST(MAREAIrControlFlow, SwitchOnAnEnumComparesWithTheVariantAccess)
 {
     GTEST_COUT << "Validating a switch on an enum compares the hidden local with the lowered variant access." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerBody("enum Color red; green; end", "c: Color", "switch c case Color.red then return; case Color.green then return; end"), "(BLOCK (BLOCK (LOCAL_DECLARATION $switch (IDENTIFIER c)) (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch) (MEMBER_ACCESS (IDENTIFIER Color) (IDENTIFIER red))) (BLOCK (RETURN_STATEMENT)) (ELSEIF_CLAUSE (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch) (MEMBER_ACCESS (IDENTIFIER Color) (IDENTIFIER green))) (BLOCK (RETURN_STATEMENT))))))") << "A variant case must compare with the variant access.";
+    EXPECT_EQ(MAREA_lowerBody("enum Color red; green; end", "c: Color", "switch c case Color.red then return; case Color.green then return; end"), "(BLOCK (BLOCK (LOCAL_DECLARATION $switch (IDENTIFIER c)) (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch) (MEMBER_ACCESS (IDENTIFIER Color) (IDENTIFIER red))) (BLOCK (RETURN_STATEMENT)) (ELSEIF_CLAUSE (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch) (MEMBER_ACCESS (IDENTIFIER Color) (IDENTIFIER green))) (BLOCK (RETURN_STATEMENT))) (ELSE_CLAUSE (BLOCK (UNREACHABLE_STATEMENT))))))") << "A variant case must compare with the variant access.";
+}
+
+TEST(MAREAIrControlFlow, SwitchOverAnEnumWithoutDefaultEndsWithAnUnreachableElse)
+{
+    GTEST_COUT << "Validating an enum switch that covers every variant and has no default ends its chain with an else holding UNREACHABLE_STATEMENT." << std::endl;
+
+    EXPECT_EQ(MAREA_lowerBody("enum Color red; green; end", "c: Color", "switch c case Color.red then return; case Color.green then return; end"), "(BLOCK (BLOCK (LOCAL_DECLARATION $switch (IDENTIFIER c)) (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch) (MEMBER_ACCESS (IDENTIFIER Color) (IDENTIFIER red))) (BLOCK (RETURN_STATEMENT)) (ELSEIF_CLAUSE (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch) (MEMBER_ACCESS (IDENTIFIER Color) (IDENTIFIER green))) (BLOCK (RETURN_STATEMENT))) (ELSE_CLAUSE (BLOCK (UNREACHABLE_STATEMENT))))))") << "The proven-exhaustive chain must end with an unreachable else.";
+}
+
+TEST(MAREAIrControlFlow, SwitchOverAnEnumWithADefaultKeepsItsDefaultElse)
+{
+    GTEST_COUT << "Validating an enum switch with a default keeps the default as its else and adds no unreachable marker." << std::endl;
+
+    const std::string rendered{ MAREA_lowerBody("enum Color red; green; end", "c: Color", "switch c case Color.red then return; default then return; end") };
+
+    EXPECT_EQ(rendered.find("UNREACHABLE_STATEMENT"), std::string::npos) << "A default arm must stay the only else: " << rendered;
+}
+
+TEST(MAREAIrControlFlow, SwitchOverANonEnumWithoutDefaultKeepsNoElse)
+{
+    GTEST_COUT << "Validating an integer switch with no default has no else, because it can really fall through." << std::endl;
+
+    EXPECT_EQ(MAREA_lowerBody("", "a: integer32", "switch a case 1 then return; end").find("UNREACHABLE_STATEMENT"), std::string::npos) << "An integer switch is not exhaustive, so it must not be marked.";
+}
+
+TEST(MAREAIrControlFlow, SwitchWithTwoDefaultsOrARepeatedCaseNeverReachesLowering)
+{
+    GTEST_COUT << "Validating that a switch with two defaults, or a repeated case, gets a sema error and no typed tree, so the lowering cannot see it." << std::endl;
+
+    for (const char *body : { "switch a case 1 then return; default then return; default then unreachable!(); end", "switch a case 1 then return; case 1 then unreachable!(); end" }) {
+        MAREA_IrFixture fixture(RESOLVE_EXTERNAL);
+
+        ASSERT_EQ(fixture.sema.MAREA_sema(std::string("namespace main; function run(a: integer32) ") + body + " end", "main.marea"), MAREA_SEMA_EXCEPT_SUCCESS) << "Sema must run: " << body;
+
+        EXPECT_NE(std::count(fixture.sema.parser.MAREA_codes().begin(), fixture.sema.parser.MAREA_codes().end(), MAREA_SEMA_DIAGNOSTIC_CODE_DUPLICATE_SWITCH_ARM), 0) << "Sema must raise DUPLICATE_SWITCH_ARM: " << body;
+
+        EXPECT_EQ(MAREA_SemaBuildTypedAst(fixture.sema.context, fixture.sema.parser.root, &fixture.typedRoot), MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NOT_CHECKED) << "The typed tree, the only input of the IR, must refuse a tree with a sema error: " << body;
+    }
 }
 
 TEST(MAREAIrControlFlow, SwitchNestedInAnArmKeepsItsOwnHiddenLocal)
