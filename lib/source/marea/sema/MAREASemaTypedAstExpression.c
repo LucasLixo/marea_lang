@@ -636,6 +636,44 @@ static MAREA_SemaExprType MAREA_CALL MAREA_G_TypeOfIdentifier(MAREA_G_Resolver *
     return MAREA_G_TypeOfFound(resolver, identifier, MAREA_NULLPTR, callTypeArguments);
 }
 
+// INFO: a receiver whose type is a bare generic parameter in scope (no frame bound it to anything concrete) has its
+// member looked up through the contracts its where clause lists: the function or implementation block that holds
+// the current expression. Any other shape (a frame-bound name, a compound, a name that is not generic) gives none.
+static MAREA_SemaExprType MAREA_CALL MAREA_G_ContractMemberType(MAREA_G_Resolver *resolver, const MAREA_SemaExprType *baseType, const MAREA_AstNode *member, const MAREA_AstNode *callTypeArguments)
+{
+    const MAREA_SemaContext *context = resolver->context;
+
+    if ((baseType->frame != MAREA_NULLPTR) || (MAREA_G_IsKind(baseType->node, MAREA_AST_KIND_NAMED_TYPE) == MAREA_BOOLEAN_FALSE) || (MAREA_G_FindChild(baseType->node, MAREA_AST_KIND_TYPE_ARGUMENTS) != MAREA_NULLPTR)) {
+        return MAREA_G_TypeNone();
+    }
+
+    const MAREA_AstNode *identifier = MAREA_G_SingleSegment(MAREA_SemaChildAt(baseType->node, 0));
+
+    if ((identifier == MAREA_NULLPTR) || (MAREA_SemaIsGenericInScope(context, MAREA_AstNodeGetText(identifier), MAREA_AstNodeGetTextLength(identifier)) == MAREA_BOOLEAN_FALSE)) {
+        return MAREA_G_TypeNone();
+    }
+
+    const MAREA_Character8 *parameterName = MAREA_AstNodeGetText(identifier);
+
+    const MAREA_IntegerSize PARAMETER_NAME_LENGTH = MAREA_AstNodeGetTextLength(identifier);
+
+    const MAREA_Character8 *memberName = MAREA_AstNodeGetText(member);
+
+    const MAREA_IntegerSize MEMBER_NAME_LENGTH = MAREA_AstNodeGetTextLength(member);
+
+    const MAREA_AstNode *function = MAREA_SemaFindContractMember(context, context->function, parameterName, PARAMETER_NAME_LENGTH, memberName, MEMBER_NAME_LENGTH);
+
+    if (function == MAREA_NULLPTR) {
+        function = MAREA_SemaFindContractMember(context, context->implementation, parameterName, PARAMETER_NAME_LENGTH, memberName, MEMBER_NAME_LENGTH);
+    }
+
+    if (function == MAREA_NULLPTR) {
+        return MAREA_G_TypeNone();
+    }
+
+    return MAREA_G_TypeOfNode(function, MAREA_G_FunctionFrame(resolver, function, MAREA_NULLPTR, callTypeArguments));
+}
+
 static MAREA_SemaExprType MAREA_CALL MAREA_G_TypeOfMemberAccess(MAREA_G_Resolver *resolver, const MAREA_SemaTypedNode *built, const MAREA_AstNode *callTypeArguments)
 {
     const MAREA_AstNode *base = MAREA_SemaChildAt(built->astNode, 0);
@@ -651,7 +689,13 @@ static MAREA_SemaExprType MAREA_CALL MAREA_G_TypeOfMemberAccess(MAREA_G_Resolver
     MAREA_G_Nominal receiver = { .declaration = MAREA_NULLPTR, .arguments = MAREA_NULLPTR, .frame = MAREA_NULLPTR };
 
     if (MAREA_G_TypeIsKnown(&baseType) == MAREA_BOOLEAN_TRUE) {
-        return (MAREA_G_PeelOwned(resolver->context, &baseType, &receiver) == MAREA_G_PEELED_NOMINAL) ? MAREA_G_MemberType(resolver, &receiver, member, callTypeArguments) : MAREA_G_TypeNone();
+        if (MAREA_G_PeelOwned(resolver->context, &baseType, &receiver) == MAREA_G_PEELED_NOMINAL) {
+            return MAREA_G_MemberType(resolver, &receiver, member, callTypeArguments);
+        }
+
+        // INFO: a receiver whose type is a generic parameter in scope has no structure or enum to read a member on;
+        // the only members it can have are the ones its own where clause promises through a contract.
+        return MAREA_G_ContractMemberType(resolver, &baseType, member, callTypeArguments);
     }
 
     if (MAREA_G_BaseIsTypeName(resolver->context, base, &receiver) == MAREA_BOOLEAN_FALSE) {
@@ -822,13 +866,31 @@ static MAREA_SemaExprType MAREA_CALL MAREA_G_TypeOfCall(MAREA_G_Resolver *resolv
         return CALLEE;
     }
 
-    if ((MAREA_G_IsKind(CALLEE.node, MAREA_AST_KIND_FUNCTION_DECLARATION) == MAREA_BOOLEAN_FALSE) && (MAREA_G_IsKind(CALLEE.node, MAREA_AST_KIND_FUNCTION_TYPE) == MAREA_BOOLEAN_FALSE)) {
+    // INFO: a contract function is callable too, the way a method on a generic receiver reaches one.
+    if ((MAREA_G_IsKind(CALLEE.node, MAREA_AST_KIND_FUNCTION_DECLARATION) == MAREA_BOOLEAN_FALSE) && (MAREA_G_IsKind(CALLEE.node, MAREA_AST_KIND_FUNCTION_TYPE) == MAREA_BOOLEAN_FALSE) && (MAREA_G_IsKind(CALLEE.node, MAREA_AST_KIND_CONTRACT_FUNCTION) == MAREA_BOOLEAN_FALSE)) {
         return MAREA_G_TypeNone();
     }
 
     const MAREA_AstNode *result = MAREA_SemaReturnType(CALLEE.node);
 
-    return (result == MAREA_NULLPTR) ? MAREA_SemaTypedAstVoidType() : MAREA_G_TypeOfNode(result, CALLEE.frame);
+    if (result == MAREA_NULLPTR) {
+        return MAREA_SemaTypedAstVoidType();
+    }
+
+    // INFO: a generic function of this file, called by its bare name with no written type arguments, gets its type
+    // arguments inferred from its arguments. An explicit call (CALLEE.frame->arguments already set), a non-generic
+    // callee (CALLEE.frame null here, since MAREA_G_FunctionFrame only wraps a frame for a callee with its own
+    // generic parameters) and a function reached through a FOUND namespace (callee is a member access, not a bare
+    // name of this file) are untouched, matching the documented behavior of a FOUND namespace member.
+    if ((MAREA_G_IsKind(CALLEE.node, MAREA_AST_KIND_FUNCTION_DECLARATION) == MAREA_BOOLEAN_TRUE) && (CALLEE.frame != MAREA_NULLPTR) && (CALLEE.frame->arguments == MAREA_NULLPTR) && (MAREA_G_IsKind(callee, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_TRUE) && (MAREA_G_FindFileDeclaration(resolver->context, MAREA_AstNodeGetText(callee), MAREA_AstNodeGetTextLength(callee)) == CALLEE.node)) {
+        const MAREA_SemaExprType INFERRED = MAREA_SemaTypedAstInferCallResult(resolver->context, CALLEE.node, result, built);
+
+        if (MAREA_G_TypeIsKnown(&INFERRED) == MAREA_BOOLEAN_TRUE) {
+            return INFERRED;
+        }
+    }
+
+    return MAREA_G_TypeOfNode(result, CALLEE.frame);
 }
 
 static MAREA_Boolean MAREA_CALL MAREA_G_IsNumberLiteralKind(MAREA_AstKind kind)
