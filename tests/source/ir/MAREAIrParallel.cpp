@@ -63,7 +63,7 @@ namespace
         return names;
     }
 
-    const std::string WORK{ "function work(part: list<float32>) end function scale(part: mutable list<float32>, factor: float32) end" };
+    const std::string WORK{ "function work(part: list<float32>) end function scale(part: list<float32>, factor: float32) end" };
 
     using Codes = std::vector<MAREA_Uinteger32>;
 } // namespace
@@ -101,7 +101,7 @@ TEST(MAREAIrParallel, SpawnResultAsAnArgumentStaysInTheCall)
     GTEST_COUT << "Validating a spawn inside a call argument, as in tasks.append(spawn f(part)), lowers in place." << std::endl;
 
     const std::string
-        rendered{ MAREA_lowerBody("function work(a: sinteger32): sinteger32 return a; end", "tasks: mutable list<task<sinteger32>>", "fork_join tasks.append(spawn work(1)); end") };
+        rendered{ MAREA_lowerBody("function work(a: sinteger32): sinteger32 return a; end", "tasks: list<task<sinteger32>>", "fork_join tasks.append(spawn work(1)); end") };
 
     EXPECT_EQ(rendered, "(BLOCK (FORK_JOIN_BLOCK (BLOCK (EXPRESSION_STATEMENT (CALL_EXPRESSION (MEMBER_ACCESS (IDENTIFIER tasks) (IDENTIFIER append)) (ARGUMENT_LIST (UNARY_EXPRESSION op=KEYWORD_SPAWN (CALL_EXPRESSION :sinteger32 (IDENTIFIER work) (ARGUMENT_LIST (INTEGER_LITERAL 1))))))))))") << "The spawn must stay an argument.";
 }
@@ -118,7 +118,7 @@ TEST(MAREAIrParallel, PartitionMutableKeepsTheMutableFlag)
     GTEST_COUT << "Validating a mutable partition carries the MUTABLE flag on its node." << std::endl;
 
     const std::string
-        rendered{ MAREA_lowerBody(WORK, "values: mutable list<float32>", "fork_join partition mutable values into 4 as part do spawn scale(part, 2.0); end end") };
+        rendered{ MAREA_lowerBody(WORK, "values: list<float32>", "fork_join partition mutable values into 4 as part do spawn scale(part, 2.0); end end") };
 
     EXPECT_NE(rendered.find("(PARTITION_STATEMENT part flags=1 (IDENTIFIER values) (INTEGER_LITERAL 4) (BLOCK"), std::string::npos) << "The flag must sit on the partition node: " << rendered;
 }
@@ -137,7 +137,7 @@ TEST(MAREAIrParallel, WithKeepsNameValueAndBody)
 {
     GTEST_COUT << "Validating a with statement keeps the bound name as text, then the value and the body." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerBody("", "scratch: mutable arena", "with scratch as inner do end"), "(BLOCK (WITH_STATEMENT inner (IDENTIFIER scratch) (BLOCK)))") << "The with must keep its layout.";
+    EXPECT_EQ(MAREA_lowerBody("", "scratch: arena", "with scratch as inner do end"), "(BLOCK (WITH_STATEMENT inner (IDENTIFIER scratch) (BLOCK)))") << "The with must keep its layout.";
 }
 
 TEST(MAREAIrParallel, WithValueIsALoweredCallAndTheBodyKeepsItsStatements)
@@ -154,7 +154,7 @@ TEST(MAREAIrParallel, ForkJoinNestsInsideWithAndWithInsideForkJoin)
 {
     GTEST_COUT << "Validating a fork_join inside a with, and a with inside a fork_join, nest in source order." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerBody("", "scratch: mutable arena", "with scratch as inner do fork_join with inner as again do end end end"), "(BLOCK (WITH_STATEMENT inner (IDENTIFIER scratch) (BLOCK (FORK_JOIN_BLOCK (BLOCK (WITH_STATEMENT again (IDENTIFIER inner) (BLOCK)))))))") << "The nesting must follow the source.";
+    EXPECT_EQ(MAREA_lowerBody("", "scratch: arena", "with scratch as inner do fork_join with inner as again do end end end"), "(BLOCK (WITH_STATEMENT inner (IDENTIFIER scratch) (BLOCK (FORK_JOIN_BLOCK (BLOCK (WITH_STATEMENT again (IDENTIFIER inner) (BLOCK)))))))") << "The nesting must follow the source.";
 }
 
 TEST(MAREAIrParallel, ContinueInsideWithTargetsTheEnclosingForRangeAndGetsItsStep)
@@ -162,7 +162,7 @@ TEST(MAREAIrParallel, ContinueInsideWithTargetsTheEnclosingForRangeAndGetsItsSte
     GTEST_COUT << "Validating a continue inside a with body inside a for-range loop still runs the step of the loop first." << std::endl;
 
     const std::string
-        rendered{ MAREA_lowerBody("", "scratch: mutable arena, a: boolean", "for index in 0 .. 3 do with scratch as inner do if a then continue; end end end end") };
+        rendered{ MAREA_lowerBody("", "scratch: arena, a: boolean", "for index in 0 .. 3 do with scratch as inner do if a then continue; end end end end") };
 
     EXPECT_NE(rendered.find("(WITH_STATEMENT inner (IDENTIFIER scratch) (BLOCK (IF_STATEMENT (IDENTIFIER a) (BLOCK (BLOCK (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER index) (IDENTIFIER $last)) (BLOCK (BREAK_STATEMENT))) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER index) (INTEGER_LITERAL 1)) (CONTINUE_STATEMENT))))))"), std::string::npos) << "The continue must carry the step: " << rendered;
 }
@@ -182,7 +182,7 @@ TEST(MAREAIrParallel, WithRaisesNothingAndKeepsItsFunction)
 {
     GTEST_COUT << "Validating a with statement raises no ir diagnostic and its function stays in the module." << std::endl;
 
-    const std::string SOURCE{ MAREA_sourceOf("", "scratch: mutable arena", "with scratch as inner do end") };
+    const std::string SOURCE{ MAREA_sourceOf("", "scratch: arena", "with scratch as inner do end") };
 
     EXPECT_EQ(MAREA_codesOf(SOURCE), Codes{}) << "No ir diagnostic may be raised.";
 
@@ -217,7 +217,7 @@ TEST(MAREAIrParallel, DumpWritesTheThreeNewKindsWithTheirNameAndFlag)
 
     MAREA_IrFixture fixture(RESOLVE_EXTERNAL);
 
-    ASSERT_EQ(fixture.MAREA_lower(MAREA_sourceOf(WORK, "values: mutable list<float32>, scratch: mutable arena", "fork_join partition mutable values into 2 as part do spawn scale(part, 1.0); end end with scratch as inner do end")), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower(MAREA_sourceOf(WORK, "values: list<float32>, scratch: arena", "fork_join partition mutable values into 2 as part do spawn scale(part, 1.0); end end with scratch as inner do end")), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     const MAREA_Character8 *text{ nullptr };
 
