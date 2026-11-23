@@ -44,12 +44,54 @@ MAREA_BEGIN_EXTERN_C
     typedef void(MAREA_CALL * MAREA_SemaImportResolveFunction)(MAREA_Null userData, const MAREA_Character8 *namespaceText, MAREA_IntegerSize namespaceLength, MAREA_SemaImportResult *outResult, const MAREA_AstNode **outRoot);
 
     /**
-     * @brief Opaque import resolver: a resolve function with the user data it needs.
+     * @brief One parameter of the signature of a member of an EXTERNAL namespace: its type in the
+     * canonical type spelling sema itself writes (for example "float64", "string"), not NUL terminated.
+     * The host owns the text and keeps it valid for as long as the resolver may answer with it.
+     */
+    typedef struct MAREA_ALIGNED(8) MAREA_SemaSignatureParameter
+    {
+        const MAREA_Character8 *typeText;
+        MAREA_IntegerSize typeTextLength;
+    } MAREA_SemaSignatureParameter;
+
+    /**
+     * @brief Signature of one member of an EXTERNAL namespace, as the host describes it: its parameter
+     * types and its result type, both in the canonical type spelling (for example "float64", "string").
+     * A plain struct, not opaque, because the host builds and owns every value: the array of parameters
+     * and every text it points to must stay valid for as long as the resolver may be asked again, and
+     * sema only reads them during one call, never copies or frees them.
+     */
+    typedef struct MAREA_ALIGNED(8) MAREA_SemaSignature
+    {
+        const MAREA_SemaSignatureParameter *parameters;
+        MAREA_IntegerSize parameterCount;
+        const MAREA_Character8 *resultTypeText;
+        MAREA_IntegerSize resultTypeTextLength;
+    } MAREA_SemaSignature;
+
+    /**
+     * @brief Function the caller optionally supplies to give the signature of one member of a namespace
+     * it answers EXTERNAL for. Sema calls it only for a call whose callee names such a member, never for
+     * a namespace the resolve function answers FOUND or NOT_FOUND for.
+     * @param userData Pointer given to MAREA_SemaImportResolverCreate.
+     * @param namespaceText Dotted namespace text, not NUL terminated (for example "c.math").
+     * @param namespaceLength Length of namespaceText in bytes.
+     * @param memberText Member name, not NUL terminated (for example "pow").
+     * @param memberLength Length of memberText in bytes.
+     * @param outResult Receives NOT_FOUND when the host does not know the member, or FOUND when
+     * *outSignature is filled. EXTERNAL is never a meaningful answer here.
+     * @param outSignature Receives the signature. Read only when *outResult is FOUND.
+     */
+    typedef void(MAREA_CALL * MAREA_SemaImportSignatureFunction)(MAREA_Null userData, const MAREA_Character8 *namespaceText, MAREA_IntegerSize namespaceLength, const MAREA_Character8 *memberText, MAREA_IntegerSize memberLength, MAREA_SemaImportResult *outResult, const MAREA_SemaSignature **outSignature);
+
+    /**
+     * @brief Opaque import resolver: a resolve function with the user data it needs, and the optional
+     * signature function set after creation.
      */
     typedef struct MAREA_SemaImportResolver MAREA_SemaImportResolver;
 
     /**
-     * @brief Creates an import resolver in the arena.
+     * @brief Creates an import resolver in the arena, with no signature function.
      * @param arena Arena that owns the resolver. Must not be null.
      * @param resolve Function that answers an import. Must not be null.
      * @param userData Pointer handed to resolve on every call. May be null.
@@ -58,6 +100,15 @@ MAREA_BEGIN_EXTERN_C
      * is null, or ERROR_OUT_OF_MEMORY when the arena cannot grow.
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaImportResolverExcept MAREA_CALL MAREA_SemaImportResolverCreate(MAREA_Arena * arena, MAREA_SemaImportResolveFunction resolve, MAREA_Null userData, MAREA_SemaImportResolver * *outResolver);
+
+    /**
+     * @brief Sets or clears the optional signature function of a resolver, created with none.
+     * @param resolver Resolver to change. Must not be null.
+     * @param signature Function that answers the signature of a member of an EXTERNAL namespace, or null
+     * to answer every member with no signature, as a resolver with none always does.
+     * @return MAREA_SEMA_IMPORT_RESOLVER_EXCEPT_SUCCESS, or ERROR_NULL_POINTER when resolver is null.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaImportResolverExcept MAREA_CALL MAREA_SemaImportResolverSetSignatureFunction(MAREA_SemaImportResolver * resolver, MAREA_SemaImportSignatureFunction signature);
 
     /**
      * @brief Returns the user data the resolver was created with.

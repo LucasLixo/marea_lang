@@ -300,6 +300,125 @@ MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedAstFoundNameType(MAREA_SemaCo
     return MAREA_G_ValueType(context, root, entry->qualifier, entry->qualifierLength, name, NAME_LENGTH, callTypeArguments, outType);
 }
 
+// INFO: true when the resolver answers EXTERNAL for a namespace text; the signature function is never asked for a namespace the resolver does not call EXTERNAL.
+static MAREA_Boolean MAREA_CALL MAREA_G_IsExternalNamespace(const MAREA_SemaContext *context, const MAREA_Character8 *text, MAREA_IntegerSize length)
+{
+    if ((context->resolver == MAREA_NULLPTR) || (context->resolver->resolve == MAREA_NULLPTR) || (text == MAREA_NULLPTR) || (length == 0)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    MAREA_SemaImportResult result = MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
+
+    const MAREA_AstNode *root = MAREA_NULLPTR;
+
+    context->resolver->resolve(context->resolver->userData, text, length, &result, &root);
+
+    return (result == MAREA_SEMA_IMPORT_RESULT_EXTERNAL) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
+// INFO: asks the optional signature function for one member of a namespace already known to be EXTERNAL; a resolver with none, or an answer other than FOUND, leaves outSignature null.
+static void MAREA_CALL MAREA_G_QuerySignature(const MAREA_SemaContext *context, const MAREA_Character8 *namespaceText, MAREA_IntegerSize namespaceLength, const MAREA_Character8 *memberText, MAREA_IntegerSize memberLength, const MAREA_SemaSignature **outSignature)
+{
+    *outSignature = MAREA_NULLPTR;
+
+    if ((context->resolver == MAREA_NULLPTR) || (context->resolver->signature == MAREA_NULLPTR)) {
+        return;
+    }
+
+    MAREA_SemaImportResult result = MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
+
+    const MAREA_SemaSignature *signature = MAREA_NULLPTR;
+
+    context->resolver->signature(context->resolver->userData, namespaceText, namespaceLength, memberText, memberLength, &result, &signature);
+
+    if (result == MAREA_SEMA_IMPORT_RESULT_FOUND) {
+        *outSignature = signature;
+    }
+}
+
+MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedAstExternalMemberSignature(MAREA_SemaContext *context, const MAREA_AstNode *base, const MAREA_AstNode *member, const MAREA_SemaSignature **outSignature)
+{
+    if ((context == MAREA_NULLPTR) || (outSignature == MAREA_NULLPTR)) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    *outSignature = MAREA_NULLPTR;
+
+    if ((MAREA_G_IsKind(base, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_FALSE) || (MAREA_G_IsKind(member, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_FALSE)) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_Character8 *text = MAREA_AstNodeGetText(base);
+
+    const MAREA_IntegerSize LENGTH = MAREA_AstNodeGetTextLength(base);
+
+    const MAREA_SemaName *entry = MAREA_SemaNameTableFind(context, text, LENGTH);
+
+    // INFO: a local or a parameter hides a namespace, and a generic parameter is no namespace, exactly as MAREA_SemaTypedAstFoundMemberType reads the base.
+    if ((MAREA_SemaLocalFind(context, text, LENGTH) != MAREA_NULLPTR) || (MAREA_SemaIsGenericInScope(context, text, LENGTH) == MAREA_BOOLEAN_TRUE) || (entry == MAREA_NULLPTR) || (entry->kind != MAREA_SEMA_NAME_KIND_NAMESPACE)) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_Character8 *namespaceText = MAREA_NULLPTR;
+
+    MAREA_IntegerSize namespaceLength = 0;
+
+    const MAREA_SemaTypedAstExcept JOINED = MAREA_G_NamespaceOf(context, entry, &namespaceText, &namespaceLength);
+
+    if (JOINED != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) {
+        return JOINED;
+    }
+
+    if (MAREA_G_IsExternalNamespace(context, namespaceText, namespaceLength) == MAREA_BOOLEAN_FALSE) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+    }
+
+    MAREA_G_QuerySignature(context, namespaceText, namespaceLength, MAREA_AstNodeGetText(member), MAREA_AstNodeGetTextLength(member), outSignature);
+
+    return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+}
+
+MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedAstExternalNameSignature(MAREA_SemaContext *context, const MAREA_AstNode *identifier, const MAREA_SemaSignature **outSignature)
+{
+    if ((context == MAREA_NULLPTR) || (outSignature == MAREA_NULLPTR)) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    *outSignature = MAREA_NULLPTR;
+
+    if (MAREA_G_IsKind(identifier, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_FALSE) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_SemaName *entry = MAREA_SemaNameTableFind(context, MAREA_AstNodeGetText(identifier), MAREA_AstNodeGetTextLength(identifier));
+
+    // INFO: an import of a full path into an EXTERNAL namespace with no tree (import c.math.pow as power;) never
+    // resolves its own full joined path as NOT_FOUND, because every depth of it answers EXTERNAL, so the name stays
+    // bound as a NAMESPACE with the member kept as its original, never becoming an IMPORTED_SYMBOL the way a
+    // deeper member of a FOUND namespace does (MAREA_G_CheckImport, the "unresolved import" branch). Both shapes
+    // are read the same way here: the qualifier is the namespace, the original (or the name itself) is the member.
+    if ((entry == MAREA_NULLPTR) || (entry->kind == MAREA_SEMA_NAME_KIND_DECLARATION) || (entry->qualifierLength == 0)) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_Character8 *name = (entry->original != MAREA_NULLPTR) ? entry->original : entry->text;
+
+    const MAREA_IntegerSize NAME_LENGTH = (entry->original != MAREA_NULLPTR) ? entry->originalLength : entry->length;
+
+    // INFO: a member path with a dot (Color.Red) names a variant, never a function or a constant, exactly as MAREA_SemaTypedAstFoundNameType reads the name.
+    if (memchr(name, '.', NAME_LENGTH) != MAREA_NULLPTR) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+    }
+
+    if (MAREA_G_IsExternalNamespace(context, entry->qualifier, entry->qualifierLength) == MAREA_BOOLEAN_FALSE) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+    }
+
+    MAREA_G_QuerySignature(context, entry->qualifier, entry->qualifierLength, name, NAME_LENGTH, outSignature);
+
+    return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+}
+
 // INFO: an imported symbol is a qualifier only when it is a type of a FOUND tree: a function or a constant is a value, and the tree of an EXTERNAL namespace is unknown.
 static MAREA_Boolean MAREA_CALL MAREA_G_ImportedSymbolIsType(const MAREA_SemaContext *context, const MAREA_SemaName *entry)
 {
