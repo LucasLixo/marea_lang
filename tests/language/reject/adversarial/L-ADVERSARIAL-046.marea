@@ -1,0 +1,23 @@
+-- expect: 3018 @21
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- from: L-OWNERSHIP-145
+-- Mutant of L-OWNERSHIP-145: the owned wrapper is dropped from a returned parameter.
+
+namespace main;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+structure Box
+    inner: Point;
+    count: sinteger32;
+end
+
+function check(point: Point): Point
+    return point;
+end
+

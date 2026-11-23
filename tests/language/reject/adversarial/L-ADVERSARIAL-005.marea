@@ -1,0 +1,42 @@
+-- expect: 3019 @40
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A value is passed to a generic function twice as a write borrow.
+
+namespace main;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+structure Box
+    inner: Point;
+    count: sinteger32;
+end
+
+function make_point(): Point
+    return Point{ x = 1, y = 2 };
+end
+
+function read_point(#[semantics = reference_read_only] point: Point): sinteger32
+    return point.x;
+end
+
+function write_point(#[semantics = reference_mutable] point: Point)
+    point.x = 1;
+end
+
+function take_point(point: owned<Point>): sinteger32
+    return point.x;
+end
+
+function touch_both<Item>(#[semantics = reference_mutable] left: Item, #[semantics = reference_mutable] right: Item)
+end
+
+function check(): sinteger32
+    local point: Point = make_point();
+    touch_both(point, point);
+    return 1;
+end

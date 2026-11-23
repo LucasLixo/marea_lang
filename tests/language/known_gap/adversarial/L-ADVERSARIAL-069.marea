@@ -1,0 +1,19 @@
+-- gap: #245 3011
+-- rule: reject
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- from: L-TYPES-011
+-- Mutant of L-TYPES-011: one type argument of a returned generic struct literal is narrowed.
+
+namespace main;
+
+structure Pair<First, Second>
+    first: First;
+    second: Second;
+end
+
+function make(): Pair<sinteger32, float64>
+    return Pair<sinteger8, float64>{ first = 1, second = 2.0 };
+end
+

@@ -1,0 +1,21 @@
+-- expect: 3022 @17
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- from: L-TYPES-081
+-- Mutant of L-TYPES-081: the return of an operator function is dropped.
+
+namespace main;
+
+structure Point
+    x: float64;
+    y: float64;
+end
+
+implementation Point
+    #[operator = "+"]
+    function add(#[semantics = reference_read_only] self: Point, #[semantics = reference_read_only] other: Point): Point
+
+    end
+end
+

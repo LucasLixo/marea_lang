@@ -1070,6 +1070,131 @@ Facts the items fix, checked by running the compiler:
 | L-PARALLEL-076 | A local is written by a worker and by the body of the block | gap: #210 3020, rule: reject |
 | L-PARALLEL-077 | A part is passed to a function that writes it, with partition and no mutable | gap: #204 NEW, rule: reject |
 
+## Adversarial
+
+Programs that no single area owns: features that meet in one program, and accept items of the other areas with one small
+edit. The items sit in `tests/language/<class>/adversarial/` with ids `L-ADVERSARIAL-nnn`. There is no accept item: each
+program is a reject (the compiler already refuses it) or a known_gap (the compiler accepts it and a settled rule or a
+decided outcome says it must not). Items 001 to 033 are cross-feature programs; items 034 to 072 are mutants, and each
+mutant names the accept item it comes from in a `-- from: <id>` line below the copyright header.
+
+A mutant is made by one edit of the program of its source item: delete or swap `copy` and `move`, drop the write
+attribute or make it read-only, drop `mutable` from a `for each` or a `partition`, drop an `owned` wrapper, drop a
+`return value;` path, drop an initial value, narrow one type. The edits were applied to every accept item of the five
+areas by a throw-away script (551 mutants, 185 refused and 366 still accepted); the script is not part of the
+repository. Of the still accepted mutants, a mutant that only changes a comment or gives a valid program (a `copy` to
+`move` on a value that is not used later, a narrowed type that fits) is not an item. The items are the mutants that the
+language must refuse and the compiler accepts, and a sample of the mutants that it refuses, which shows that the edit
+changes the result. 39 items are mutants.
+
+Facts the items fix, checked by running the compiler:
+
+- A `return value;` path dropped from a function with a result gives 3022 on every shape tried: plain function, struct
+  literal, else branch, method, operator, generic with a bound (items 034 to 039).
+- The word that makes an assignment explicit is checked on a name that is a plain value (3016, items 040, 041, 045), on a
+  returned borrow (3018, items 043, 044, 046, 047, 048) and on one call that shares a write borrow (3019, item 042). The
+  same word swapped from `copy` to `move` is never checked against the source: a `move` of a borrow, a file constant, a
+  `for each` element or a field is accepted (issues #199 and #200, items 013, 015, 050 to 052, 056 to 060, 066).
+- The use of a value after `move` is accepted through every path tried here: a loop in a `fork_join` block, the body of a
+  partition, an arm of `switch` that a spawn follows, a generic function, a method call and a second move into a
+  generic function (issue #198, items 001 to 004, 016, 026, 027, 030).
+- A read-only borrow that is written, or passed on to a write borrow, is accepted through a generic function, a
+  `for each` over a read-only vector, a worker and a `partition mutable` of a read-only source (issue #204). The
+  default borrow of a parameter with no attribute is a write borrow in sema (issue #203, items 063 and 065).
+- Two settled rules are not enforced in the places that parallel code and generics add: a local with no initial value is
+  accepted when a worker reads it (issue #177, item 017), and a literal out of range is accepted as a `spawn` argument,
+  a default value, a struct literal field and a constant (issue #181, items 018 to 021).
+- The type of a field read through a `for each` variable is not compared (issue #246, item 070), and the type arguments
+  of a library type or of a user generic structure are not compared (issue #245, items 067 to 069). The same read of a
+  field through a parameter, a local or an index gives 3011.
+- A file constant passed to a generic function that takes a write borrow gives 3032, as for any function (item 010); a
+  spawn of a write borrow of a call result through a generic function gives 3020 (item 029).
+
+Settled rule 5 (a `private` name is a reject across namespaces) has no item here: a private symbol reached through a
+generic or an alias needs a second namespace, and the runner gives an item one file only (see Gaps).
+
+### Adversarial: reject
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-ADVERSARIAL-005 | A value is passed to a generic function twice as a write borrow | 3019 @40 |
+| L-ADVERSARIAL-010 | A file constant is passed to a generic function as a write borrow | 3032 @41 |
+| L-ADVERSARIAL-012 | A contract method stores its receiver in a write borrow | 3018 @41, 3016 @41 |
+| L-ADVERSARIAL-028 | A return in an arm of switch stands directly in a fork_join block | 3024 @60 |
+| L-ADVERSARIAL-029 | A write borrow of a call result is spawned through a generic function | 3020 @60 |
+| L-ADVERSARIAL-032 | A struct literal takes a borrow inside a loop in a fork_join block | 3018 @58 |
+| L-ADVERSARIAL-034 | Mutant of L-MEMORY-001: the return of the last path is dropped | 3022 @24 |
+| L-ADVERSARIAL-035 | Mutant of L-FUNCTIONS-007: the return of a struct literal is dropped | 3022 @15 |
+| L-ADVERSARIAL-036 | Mutant of L-FUNCTIONS-008: the return of the else path is dropped | 3022 @10 |
+| L-ADVERSARIAL-037 | Mutant of L-TYPES-075: the return of a method of an implementation is dropped | 3022 @18 |
+| L-ADVERSARIAL-038 | Mutant of L-TYPES-081: the return of an operator function is dropped | 3022 @17 |
+| L-ADVERSARIAL-039 | Mutant of L-TYPES-109: the return of a generic function with a contract bound is dropped | 3022 @18 |
+| L-ADVERSARIAL-040 | Mutant of L-MEMORY-005: the move word is dropped when an owner goes up a scope | 3016 @28 |
+| L-ADVERSARIAL-041 | Mutant of L-MEMORY-012: the move word is dropped from a structure with a destroy operator | 3016 @37 |
+| L-ADVERSARIAL-042 | Mutant of L-OWNERSHIP-081: the copy word is dropped, so a write borrow and the same value meet in one call | 3019 @30 |
+| L-ADVERSARIAL-043 | Mutant of L-OWNERSHIP-114: the copy word is dropped from the returned borrow | 3018 @21 |
+| L-ADVERSARIAL-044 | Mutant of L-OWNERSHIP-122: the copy word is dropped from a borrow in a struct literal | 3018 @21 |
+| L-ADVERSARIAL-045 | Mutant of L-OWNERSHIP-124: the copy word is dropped from a borrow stored in a field | 3018 @26, 3016 @26 |
+| L-ADVERSARIAL-046 | Mutant of L-OWNERSHIP-145: the owned wrapper is dropped from a returned parameter | 3018 @21 |
+| L-ADVERSARIAL-047 | Mutant of L-TYPES-111: the owned wrapper is dropped from a generic parameter that is returned | 3018 @11 |
+| L-ADVERSARIAL-048 | Mutant of L-TYPES-075: the copy word is dropped from a generic result | 3018 @25 |
+| L-ADVERSARIAL-049 | Mutant of L-BINDINGS-092: the unsafe word is dropped | 2004 @14, 2004 @14, 2005 @15, 3022 @10 |
+
+### Adversarial: known_gap
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-ADVERSARIAL-001 | A value is moved in each turn of a loop inside a fork_join block | gap: #198 NEW, rule: reject |
+| L-ADVERSARIAL-002 | An outer local is moved in the body of a partition, once for each part | gap: #198 NEW, rule: reject |
+| L-ADVERSARIAL-003 | A value moved in an arm of switch is spawned after the switch | gap: #198 NEW, rule: reject |
+| L-ADVERSARIAL-004 | A generic function moves its argument twice | gap: #198 NEW, rule: reject |
+| L-ADVERSARIAL-006 | A for each mutable element and its own vector are passed to one call | gap: #202 3019, rule: reject |
+| L-ADVERSARIAL-007 | A for each mutable appends to the vector it walks | gap: #202 3019, rule: reject |
+| L-ADVERSARIAL-008 | A partition mutable of a field and a worker that reads the owner of that field | gap: #210 3020, rule: reject |
+| L-ADVERSARIAL-009 | A read-only borrow is passed to a generic function that writes it | gap: #204 NEW, rule: reject |
+| L-ADVERSARIAL-011 | A field of a borrow is returned from an arm of switch | gap: #205 3018, rule: reject |
+| L-ADVERSARIAL-013 | A contract method moves its receiver into a write borrow | gap: #200 NEW, rule: reject |
+| L-ADVERSARIAL-014 | A contract method writes its receiver with the default borrow | gap: #214 NEW, rule: reject |
+| L-ADVERSARIAL-015 | A for each element is moved into an owned parameter | gap: #199 NEW, rule: reject |
+| L-ADVERSARIAL-016 | A value moved into an owned parameter is spawned afterwards | gap: #198 NEW, rule: reject |
+| L-ADVERSARIAL-017 | A local with no initial value is spawned | gap: #177 NEW, rule: reject |
+| L-ADVERSARIAL-018 | A literal out of range is the argument of a spawn | gap: #181 NEW, rule: reject |
+| L-ADVERSARIAL-019 | A literal out of range is the default value of a parameter | gap: #181 NEW, rule: reject |
+| L-ADVERSARIAL-020 | A literal out of range is a field of a struct literal | gap: #181 NEW, rule: reject |
+| L-ADVERSARIAL-021 | A literal out of range is the value of a constant used by a generic call | gap: #181 NEW, rule: reject |
+| L-ADVERSARIAL-022 | An unsigned value is negated in an arm of switch | gap: #182 NEW, rule: reject |
+| L-ADVERSARIAL-023 | The source of a partition mutable is read in the body while the parts are written | gap: #232 NEW, rule: reject |
+| L-ADVERSARIAL-024 | A nested fork_join reads what the outer block writes | gap: #210 3020, rule: reject |
+| L-ADVERSARIAL-025 | Two workers over one for each mutable element, one writes and one reads | gap: #210 3020, rule: reject |
+| L-ADVERSARIAL-026 | A value moved into a generic function is read afterwards | gap: #198 NEW, rule: reject |
+| L-ADVERSARIAL-027 | A method is called on a value that was moved | gap: #198 NEW, rule: reject |
+| L-ADVERSARIAL-030 | A generic function returns an owned parameter and the caller keeps the old name | gap: #198 NEW, rule: reject |
+| L-ADVERSARIAL-031 | A worker is spawned on an element of a read-only vector and writes it | gap: #204 NEW, rule: reject |
+| L-ADVERSARIAL-033 | A nested field of a read-only parameter is written in a switch arm of a generic function | gap: #204 NEW, rule: reject |
+| L-ADVERSARIAL-050 | Mutant of L-OWNERSHIP-012: copy is swapped for move on a borrowed parameter | gap: #200 NEW, rule: reject |
+| L-ADVERSARIAL-051 | Mutant of L-OWNERSHIP-014: copy is swapped for move on a for each element | gap: #199 NEW, rule: reject |
+| L-ADVERSARIAL-052 | Mutant of L-OWNERSHIP-024: copy is swapped for move on a file constant | gap: #200 NEW, rule: reject |
+| L-ADVERSARIAL-053 | Mutant of L-OWNERSHIP-047: the move word is dropped from an owned argument | gap: #208 NEW, rule: reject |
+| L-ADVERSARIAL-054 | Mutant of L-OWNERSHIP-078: the write attribute becomes read-only on the owner of the elements that two calls write | gap: #204 NEW, rule: reject |
+| L-ADVERSARIAL-055 | Mutant of L-OWNERSHIP-106: the write attribute becomes read-only on a primitive parameter that the body writes | gap: #204 NEW, rule: reject |
+| L-ADVERSARIAL-056 | Mutant of L-OWNERSHIP-114: copy is swapped for move in a return of a borrow | gap: #200 NEW, rule: reject |
+| L-ADVERSARIAL-057 | Mutant of L-OWNERSHIP-118: copy is swapped for move in a return of a for each element | gap: #199 NEW, rule: reject |
+| L-ADVERSARIAL-058 | Mutant of L-OWNERSHIP-122: copy is swapped for move on a borrow stored in a struct literal | gap: #200 NEW, rule: reject |
+| L-ADVERSARIAL-059 | Mutant of L-OWNERSHIP-124: copy is swapped for move on a borrow stored in a field | gap: #200 NEW, rule: reject |
+| L-ADVERSARIAL-060 | Mutant of L-OWNERSHIP-127: copy is swapped for move on a borrow appended to a vector | gap: #200 NEW, rule: reject |
+| L-ADVERSARIAL-061 | Mutant of L-PARALLEL-001: the mutable word is dropped from a for each that writes its element | gap: #204 NEW, rule: reject |
+| L-ADVERSARIAL-062 | Mutant of L-PARALLEL-006: the write attribute becomes read-only on the source of a partition mutable | gap: #204 NEW, rule: reject |
+| L-ADVERSARIAL-063 | Mutant of L-PARALLEL-006: the write attribute is dropped from the source of a partition mutable | gap: #203 NEW, rule: reject |
+| L-ADVERSARIAL-064 | Mutant of L-FUNCTIONS-014: the write attribute becomes read-only on a parameter the body writes | gap: #204 NEW, rule: reject |
+| L-ADVERSARIAL-065 | Mutant of L-FUNCTIONS-014: the write attribute is dropped from a parameter the body writes | gap: #203 NEW, rule: reject |
+| L-ADVERSARIAL-066 | Mutant of L-TYPES-075: copy is swapped for move in a generic return of a borrow | gap: #200 NEW, rule: reject |
+| L-ADVERSARIAL-067 | Mutant of L-OWNERSHIP-031: one type argument of a local array is narrowed | gap: #245 3011, rule: reject |
+| L-ADVERSARIAL-068 | Mutant of L-OWNERSHIP-033: one type argument of a local vector is narrowed | gap: #245 3011, rule: reject |
+| L-ADVERSARIAL-069 | Mutant of L-TYPES-011: one type argument of a returned generic struct literal is narrowed | gap: #245 3011, rule: reject |
+| L-ADVERSARIAL-070 | Mutant of L-OWNERSHIP-083: a field of a for each element is stored in a narrower local | gap: #246 3011, rule: reject |
+| L-ADVERSARIAL-071 | Mutant of L-BINDINGS-036: the initial value of a local is dropped | gap: #177 NEW, rule: reject |
+| L-ADVERSARIAL-072 | Mutant of L-BINDINGS-036: the initial value of a local computed from another is dropped | gap: #177 NEW, rule: reject |
+
 ## Diagnostics
 
 The catalogue raises no diagnostic of its own. A `reject` item carries a code of another stage:
@@ -1092,3 +1217,7 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
   a `switch` over a `boolean` with `case true` and `case false` and no `default` gives 3022 (issue #226).
 - The parse recovery is shown as it is: after a parse error the later stages still run, so some parse items list sema
   codes after the parse code, and a keyword used as a name gives a short chain of parse codes.
+- The adversarial area has no item for a private symbol reached through a generic or an alias (settled rule 5): the
+  runner gives an item one file. The mutation of the accept items was run once, by a script that is not in the
+  repository, so a new accept item gets no mutants until someone runs that sweep again. A copy of a structure with a
+  `destroy` operator (the `copy` of L-MEMORY-012) is accepted; no rule says whether it must be refused, so it has no item.
