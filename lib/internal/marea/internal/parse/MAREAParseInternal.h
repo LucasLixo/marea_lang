@@ -258,10 +258,10 @@ MAREA_BEGIN_EXTERN_C
 
     /**
      * @brief Parses a block: statements up to end, the end of file, or the start of a top level
-     * declaration. When stopAtBranches is true it also stops before elseif, else, case and default;
-     * otherwise those words are reported as UNEXPECTED_TOKEN and skipped. The terminator is not consumed.
+     * declaration. The words elseif, else, case and default are reported as UNEXPECTED_TOKEN and
+     * skipped, because every branch has its own end. The terminator is not consumed.
      */
-    MAREA_AstNode *MAREA_CALL MAREA_ParseBlock(MAREA_ParseState * state, MAREA_Boolean stopAtBranches);
+    MAREA_AstNode *MAREA_CALL MAREA_ParseBlock(MAREA_ParseState * state);
 
     /**
      * @brief Parses one statement. Returns an ERROR_NODE without consuming when none starts here.

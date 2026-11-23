@@ -102,7 +102,7 @@ TEST(MAREASemaErrorNodeTolerance, DeepNestingSurvives)
     }
 
     for (int index{ 0 }; index < 300; ++index) {
-        ifs += "end ";
+        ifs += "end end ";
     }
 
     ifs += "end";
