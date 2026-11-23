@@ -24,12 +24,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsAssignmentOperator(MAREA_TokenKind kin
     }
 }
 
-static MAREA_Boolean MAREA_CALL MAREA_G_IsBranchWord(MAREA_TokenKind kind)
-{
-    return ((kind == MAREA_TOKEN_KIND_KEYWORD_ELSEIF) || (kind == MAREA_TOKEN_KIND_KEYWORD_ELSE) || (kind == MAREA_TOKEN_KIND_KEYWORD_CASE) || (kind == MAREA_TOKEN_KIND_KEYWORD_DEFAULT)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
-}
-
-MAREA_AstNode *MAREA_CALL MAREA_ParseBlock(MAREA_ParseState *state, MAREA_Boolean stopAtBranches)
+MAREA_AstNode *MAREA_CALL MAREA_ParseBlock(MAREA_ParseState *state)
 {
     MAREA_AstNode *block = MAREA_ParseNodeBegin(state, MAREA_AST_KIND_BLOCK);
 
@@ -45,12 +40,9 @@ MAREA_AstNode *MAREA_CALL MAREA_ParseBlock(MAREA_ParseState *state, MAREA_Boolea
             break;
         }
 
-        if (MAREA_G_IsBranchWord(kind) == MAREA_BOOLEAN_TRUE) {
-            if (stopAtBranches == MAREA_BOOLEAN_TRUE) {
-                break;
-            }
-
-            MAREA_ParseReport(state, MAREA_PARSE_DIAGNOSTIC_CODE_UNEXPECTED_TOKEN, MAREA_ParsePeekToken(state, MAREA_INTEGER_SIZE(0)), "unexpected block terminator");
+        // INFO: A branch word with no end before it is the old shared-end form: report it and skip the word.
+        if ((kind == MAREA_TOKEN_KIND_KEYWORD_ELSEIF) || (kind == MAREA_TOKEN_KIND_KEYWORD_ELSE) || (kind == MAREA_TOKEN_KIND_KEYWORD_CASE) || (kind == MAREA_TOKEN_KIND_KEYWORD_DEFAULT)) {
+            MAREA_ParseReport(state, MAREA_PARSE_DIAGNOSTIC_CODE_UNEXPECTED_TOKEN, MAREA_ParsePeekToken(state, MAREA_INTEGER_SIZE(0)), "expected 'end' before this branch");
 
             MAREA_ParseNodeAdd(state, block, MAREA_ParseErrorNode(state));
 
@@ -103,7 +95,7 @@ static MAREA_AstNode *MAREA_CALL MAREA_G_ParseLocal(MAREA_ParseState *state)
 // INFO: Every compound statement reads: keyword, header, body block, end. This closes the last two steps.
 static void MAREA_CALL MAREA_G_ParseBodyAndEnd(MAREA_ParseState *state, MAREA_AstNode *node, const MAREA_Character8 *endMessage)
 {
-    MAREA_ParseNodeAdd(state, node, MAREA_ParseBlock(state, MAREA_BOOLEAN_FALSE));
+    MAREA_ParseNodeAdd(state, node, MAREA_ParseBlock(state));
 
     MAREA_ParseExpectEnd(state, endMessage);
 
@@ -120,7 +112,9 @@ static MAREA_AstNode *MAREA_CALL MAREA_G_ParseIf(MAREA_ParseState *state)
 
     MAREA_IGNORE(MAREA_ParseExpect(state, MAREA_TOKEN_KIND_KEYWORD_THEN, "expected 'then' after the condition"));
 
-    MAREA_ParseNodeAdd(state, statement, MAREA_ParseBlock(state, MAREA_BOOLEAN_TRUE));
+    MAREA_ParseNodeAdd(state, statement, MAREA_ParseBlock(state));
+
+    MAREA_ParseExpectEnd(state, "expected 'end' to close the if branch");
 
     while (MAREA_ParseAt(state, MAREA_TOKEN_KIND_KEYWORD_ELSEIF) == MAREA_BOOLEAN_TRUE) {
         MAREA_AstNode *clause = MAREA_ParseNodeBegin(state, MAREA_AST_KIND_ELSEIF_CLAUSE);
@@ -131,7 +125,9 @@ static MAREA_AstNode *MAREA_CALL MAREA_G_ParseIf(MAREA_ParseState *state)
 
         MAREA_IGNORE(MAREA_ParseExpect(state, MAREA_TOKEN_KIND_KEYWORD_THEN, "expected 'then' after the condition"));
 
-        MAREA_ParseNodeAdd(state, clause, MAREA_ParseBlock(state, MAREA_BOOLEAN_TRUE));
+        MAREA_ParseNodeAdd(state, clause, MAREA_ParseBlock(state));
+
+        MAREA_ParseExpectEnd(state, "expected 'end' to close the elseif branch");
 
         MAREA_ParseNodeEnd(state, clause);
 
@@ -143,7 +139,9 @@ static MAREA_AstNode *MAREA_CALL MAREA_G_ParseIf(MAREA_ParseState *state)
 
         MAREA_IGNORE(MAREA_ParseAdvance(state));
 
-        MAREA_ParseNodeAdd(state, clause, MAREA_ParseBlock(state, MAREA_BOOLEAN_TRUE));
+        MAREA_ParseNodeAdd(state, clause, MAREA_ParseBlock(state));
+
+        MAREA_ParseExpectEnd(state, "expected 'end' to close the else branch");
 
         MAREA_ParseNodeEnd(state, clause);
 
@@ -260,7 +258,9 @@ static MAREA_AstNode *MAREA_CALL MAREA_G_ParseSwitch(MAREA_ParseState *state)
 
             MAREA_IGNORE(MAREA_ParseExpect(state, MAREA_TOKEN_KIND_KEYWORD_THEN, "expected 'then' after the case values"));
 
-            MAREA_ParseNodeAdd(state, arm, MAREA_ParseBlock(state, MAREA_BOOLEAN_TRUE));
+            MAREA_ParseNodeAdd(state, arm, MAREA_ParseBlock(state));
+
+            MAREA_ParseExpectEnd(state, "expected 'end' to close the case");
 
             MAREA_ParseNodeEnd(state, arm);
 
@@ -272,7 +272,9 @@ static MAREA_AstNode *MAREA_CALL MAREA_G_ParseSwitch(MAREA_ParseState *state)
 
             MAREA_IGNORE(MAREA_ParseExpect(state, MAREA_TOKEN_KIND_KEYWORD_THEN, "expected 'then' after 'default'"));
 
-            MAREA_ParseNodeAdd(state, arm, MAREA_ParseBlock(state, MAREA_BOOLEAN_TRUE));
+            MAREA_ParseNodeAdd(state, arm, MAREA_ParseBlock(state));
+
+            MAREA_ParseExpectEnd(state, "expected 'end' to close the default");
 
             MAREA_ParseNodeEnd(state, arm);
 

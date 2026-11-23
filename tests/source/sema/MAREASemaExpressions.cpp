@@ -135,7 +135,7 @@ TEST(MAREASemaExpressions, BinaryOperandMismatchIsReportedOnceAndWhereverItStand
 
     EXPECT_EQ(MAREA_codesOf(HEAD + "a + b + c; return true; end"), Codes{ MISMATCH }) << "A mismatch inside a longer chain must be reported once, with no cascade.";
 
-    EXPECT_EQ(MAREA_codesOf(HEAD + "if a < b then end return true; end"), Codes{ MISMATCH }) << "A condition of an if statement must be checked.";
+    EXPECT_EQ(MAREA_codesOf(HEAD + "if a < b then end end return true; end"), Codes{ MISMATCH }) << "A condition of an if statement must be checked.";
 
     EXPECT_EQ(MAREA_codesOf(HEAD + "while a < b do end return true; end"), Codes{ MISMATCH }) << "A condition of a while statement must be checked.";
 
@@ -300,13 +300,13 @@ TEST(MAREASemaExpressions, UndeclaredNameInAnExpression)
 
     EXPECT_EQ(MAREA_codesOf("function g(a: integer32): integer32 return a + missing; end"), Codes{ UNDECLARED }) << "A missing name in an operator must raise UNDECLARED_NAME once.";
 
-    EXPECT_EQ(MAREA_codesOf("function g(a: integer32) if missing then end while a < missing do end end"), (Codes{ UNDECLARED, UNDECLARED })) << "A missing name in a condition must raise UNDECLARED_NAME.";
+    EXPECT_EQ(MAREA_codesOf("function g(a: integer32) if missing then end end while a < missing do end end"), (Codes{ UNDECLARED, UNDECLARED })) << "A missing name in a condition must raise UNDECLARED_NAME.";
 
     EXPECT_EQ(MAREA_codesOf("function f(a: integer32) end function g() f(missing); end"), Codes{ UNDECLARED }) << "A missing name in an argument must raise UNDECLARED_NAME.";
 
     EXPECT_EQ(MAREA_codesOf("function g(a: integer32) a = missing; end"), Codes{ UNDECLARED }) << "A missing name in an assignment must raise UNDECLARED_NAME.";
 
-    EXPECT_EQ(MAREA_codesOf("function g(a: integer32) switch missing case 1 then end end"), Codes{ UNDECLARED }) << "A missing name as the switch value must raise UNDECLARED_NAME.";
+    EXPECT_EQ(MAREA_codesOf("function g(a: integer32) switch missing case 1 then end end end"), Codes{ UNDECLARED }) << "A missing name as the switch value must raise UNDECLARED_NAME.";
 
     EXPECT_EQ(MAREA_codesOf("function g() local x: integer32 = x; end"), Codes{ UNDECLARED }) << "A local is not in scope in its own initializer.";
 
@@ -357,7 +357,7 @@ TEST(MAREASemaExpressions, KnownNamesAreNotReported)
 
     EXPECT_TRUE(MAREA_codesOf("constant LIMIT: integer32 = 9; function twice(a: integer32): integer32 return a * 2; end function g(p: integer32): integer32 local q: integer32 = twice(p) + LIMIT; return q; end").empty()) << "A parameter, a local, a constant and a function must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("enum Color red; green; end function g(c: Color): integer32 switch c case red then return 1; case Color.green then return 2; end end").empty()) << "A bare variant in a case must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("enum Color red; green; end function g(c: Color): integer32 switch c case red then return 1; end case Color.green then return 2; end end end").empty()) << "A bare variant in a case must raise nothing.";
 
     EXPECT_TRUE(MAREA_codesOf("function g(values: array<float32>): float32 local total: float32 = 0.0; for each value in values do total = total + value; end for i in 0 .. 3 do total = total + 1.0; end return total; end").empty()) << "A for and a for each name must raise nothing.";
 

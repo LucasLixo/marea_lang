@@ -51,7 +51,7 @@ TEST(MAREAIrGaps, SwitchRaisesNothingAndKeepsTheFunction)
 {
     GTEST_COUT << "Validating a switch statement is lowered: it raises no ir diagnostic and its function stays in the module." << std::endl;
 
-    const std::string SOURCE{ "namespace main; function keep() end function lose(a: integer32) switch a case 1 then return; default then return; end end" };
+    const std::string SOURCE{ "namespace main; function keep() end function lose(a: integer32) switch a case 1 then return; end default then return; end end end" };
 
     EXPECT_EQ(MAREA_irCodesOf(SOURCE), Codes{}) << "A switch must raise no ir diagnostic.";
 
@@ -62,7 +62,7 @@ TEST(MAREAIrGaps, PlainIfRaisesNothing)
 {
     GTEST_COUT << "Validating a plain if statement, the neighbor of a switch, raises nothing." << std::endl;
 
-    EXPECT_EQ(MAREA_irCodesOf("namespace main; function run(a: integer32) if a == 1 then return; else return; end end"), Codes{}) << "An if must raise no ir diagnostic.";
+    EXPECT_EQ(MAREA_irCodesOf("namespace main; function run(a: integer32) if a == 1 then return; end else return; end end end"), Codes{}) << "An if must raise no ir diagnostic.";
 }
 
 TEST(MAREAIrGaps, ForEachRaisesNothingAndKeepsTheFunction)

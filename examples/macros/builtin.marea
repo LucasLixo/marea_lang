@@ -62,10 +62,13 @@ constant LOGO: array<unsigned8> = include_bytes!("images/logo.bin");
 function sign_name(value: integer32): string
     if value < 0 then
         return "negative";
+    end
     elseif value == 0 then
         return "zero";
+    end
     elseif value > 0 then
         return "positive";
+    end
     end
     unreachable!();
 end

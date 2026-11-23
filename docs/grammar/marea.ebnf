@@ -226,9 +226,10 @@ assignment_operator = "=" | "+=" | "-=" | "*=" | "/=" | "%=" | "**="
 (* A call or a spawn used as a statement. The checker rejects any other value. *)
 expression_statement = expression, ";" ;
 
-if_statement        = "if", expression, "then", block,
-                      { "elseif", expression, "then", block },
-                      [ "else", block ],
+(* Every branch has its own "end", and one more "end" closes the statement (note 11). *)
+if_statement        = "if", expression, "then", block, "end",
+                      { "elseif", expression, "then", block, "end" },
+                      [ "else", block, "end" ],
                       "end" ;
 
 while_statement     = "while", expression, "do", block, "end" ;
@@ -243,8 +244,8 @@ for_each_statement  = "for", "each", identifier, [ ",", identifier ], "in", [ "m
 (* On an enum the checker requires that every variant is handled, or a default. An arm does not *)
 (* fall through. A case lists one or more values, or enum variants, separated by commas. *)
 switch_statement    = "switch", expression, { switch_arm }, [ default_arm ], "end" ;
-switch_arm          = "case", expression, { ",", expression }, "then", block ;
-default_arm         = "default", "then", block ;
+switch_arm          = "case", expression, { ",", expression }, "then", block, "end" ;
+default_arm         = "default", "then", block, "end" ;
 
 (* A scoped resource: the value is open inside the block and closed at its "end". The name is *)
 (* a reference that can not leave the block. Example: with texture.map() as pixels do ... end *)
@@ -366,7 +367,9 @@ macro_call          = ( identifier | "namespace" ), "!", "(", [ argument_list ],
 (*    right side is a name, a field or an element, it must be "copy x" or "move x", or the   *)
 (*    checker gives an error. A new value (a call, a literal) needs no word: it has no       *)
 (*    other owner yet.                                                                      *)
-(* 11. A switch arm starts with "case" or "default", so an arm needs no "end" of its own.     *)
+(* 11. One "end" per branch. Every branch of an "if" (the "if" branch, each "elseif" and the   *)
+(*    "else") and of a "switch" (each "case" and the "default") closes with its own "end", and *)
+(*    one more "end" closes the whole statement. The old shared-end form is a parse error.     *)
 (* 12. Macro name. A reserved word is never an identifier, but the built-in macro namespace!()  *)
 (*    gives the place of the call and shares its name with the keyword. The "!" and "(" after  *)
 (*    it tell the two apart, so "macro_call" lists "namespace" as the one exception.           *)

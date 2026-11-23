@@ -83,9 +83,9 @@ TEST(MAREAParserStatements, IfStatements)
     GTEST_COUT << "Validating if with elseif, else and nesting." << std::endl;
 
     MAREA_expectCases({
-        { "if a then b(); end", "(if_statement a (block (expression_statement (call b (argument_list)))))" },
-        { "if a then x = 1; elseif b then x = 2; else x = 3; end", "(if_statement a (block (assignment:EQUAL x 1)) (elseif_clause b (block (assignment:EQUAL x 2))) (else_clause (block (assignment:EQUAL x 3))))" },
-        { "if a then if b then return; end end", "(if_statement a (block (if_statement b (block (return_statement)))))" },
+        { "if a then b(); end end", "(if_statement a (block (expression_statement (call b (argument_list)))))" },
+        { "if a then x = 1; end elseif b then x = 2; end else x = 3; end end", "(if_statement a (block (assignment:EQUAL x 1)) (elseif_clause b (block (assignment:EQUAL x 2))) (else_clause (block (assignment:EQUAL x 3))))" },
+        { "if a then if b then return; end end end end", "(if_statement a (block (if_statement b (block (return_statement)))))" },
     });
 }
 
@@ -108,8 +108,8 @@ TEST(MAREAParserStatements, SwitchStatements)
     GTEST_COUT << "Validating switch with several values, a default, without a default and empty." << std::endl;
 
     MAREA_expectCases({
-        { "switch a case 1, 2 then x = 1; default then x = 2; end", "(switch_statement a (switch_arm 1 2 (block (assignment:EQUAL x 1))) (default_arm (block (assignment:EQUAL x 2))))" },
-        { "switch a case 1 then end", "(switch_statement a (switch_arm 1 (block)))" },
+        { "switch a case 1, 2 then x = 1; end default then x = 2; end end", "(switch_statement a (switch_arm 1 2 (block (assignment:EQUAL x 1))) (default_arm (block (assignment:EQUAL x 2))))" },
+        { "switch a case 1 then end end", "(switch_statement a (switch_arm 1 (block)))" },
         { "switch a end", "(switch_statement a)" },
     });
 }
@@ -207,7 +207,7 @@ TEST(MAREAParserStatements, MissingThenAndDo)
     {
         MAREA_ParseFixture fixture;
 
-        EXPECT_EQ(fixture.MAREA_statements("if a x = 1; end"), "(if_statement a (block (assignment:EQUAL x 1)))") << "The body must still be parsed.";
+        EXPECT_EQ(fixture.MAREA_statements("if a x = 1; end end"), "(if_statement a (block (assignment:EQUAL x 1)))") << "The body must still be parsed.";
 
         EXPECT_EQ(fixture.MAREA_codes(), std::vector<MAREA_Uinteger32>{ MAREA_PARSE_DIAGNOSTIC_CODE_EXPECTED_TOKEN }) << "One EXPECTED_TOKEN is expected.";
     }
@@ -251,7 +251,7 @@ TEST(MAREAParserStatements, DefaultArmNotLastIsReported)
 
     MAREA_ParseFixture fixture;
 
-    EXPECT_EQ(fixture.MAREA_statements("switch a default then x = 1; case 2 then y = 2; end"), "(switch_statement a (default_arm (block (assignment:EQUAL x 1))) (switch_arm 2 (block (assignment:EQUAL y 2))))") << "Both arms must still be parsed, in source order.";
+    EXPECT_EQ(fixture.MAREA_statements("switch a default then x = 1; end case 2 then y = 2; end end"), "(switch_statement a (default_arm (block (assignment:EQUAL x 1))) (switch_arm 2 (block (assignment:EQUAL y 2))))") << "Both arms must still be parsed, in source order.";
 
     EXPECT_EQ(fixture.MAREA_codes(), std::vector<MAREA_Uinteger32>{ MAREA_PARSE_DIAGNOSTIC_CODE_DEFAULT_ARM_NOT_LAST }) << "One DEFAULT_ARM_NOT_LAST is expected.";
 }
@@ -262,9 +262,46 @@ TEST(MAREAParserStatements, TwoDefaultArmsAreBothReportedNotLast)
 
     MAREA_ParseFixture fixture;
 
-    EXPECT_EQ(fixture.MAREA_statements("switch a default then x = 1; default then y = 2; end"), "(switch_statement a (default_arm (block (assignment:EQUAL x 1))) (default_arm (block (assignment:EQUAL y 2))))") << "Both default arms must still be parsed.";
+    EXPECT_EQ(fixture.MAREA_statements("switch a default then x = 1; end default then y = 2; end end"), "(switch_statement a (default_arm (block (assignment:EQUAL x 1))) (default_arm (block (assignment:EQUAL y 2))))") << "Both default arms must still be parsed.";
 
     EXPECT_EQ(fixture.MAREA_codes(), std::vector<MAREA_Uinteger32>{ MAREA_PARSE_DIAGNOSTIC_CODE_DEFAULT_ARM_NOT_LAST }) << "One DEFAULT_ARM_NOT_LAST is expected.";
+}
+
+TEST(MAREAParserStatements, OldSharedEndFormIsReported)
+{
+    GTEST_COUT << "Validating the old shared-end form of if and switch gives a diagnostic." << std::endl;
+
+    {
+        MAREA_ParseFixture fixture;
+
+        MAREA_IGNORE(fixture.MAREA_statements("if a then x = 1; else x = 2; end"));
+
+        EXPECT_FALSE(fixture.MAREA_codes().empty()) << "An else with no end before it must be reported.";
+    }
+
+    {
+        MAREA_ParseFixture fixture;
+
+        MAREA_IGNORE(fixture.MAREA_statements("if a then x = 1; elseif b then x = 2; end"));
+
+        EXPECT_FALSE(fixture.MAREA_codes().empty()) << "An elseif with no end before it must be reported.";
+    }
+
+    {
+        MAREA_ParseFixture fixture;
+
+        MAREA_IGNORE(fixture.MAREA_statements("switch a case 1 then x = 1; default then x = 2; end"));
+
+        EXPECT_FALSE(fixture.MAREA_codes().empty()) << "A default with no end before it must be reported.";
+    }
+
+    {
+        MAREA_ParseFixture fixture;
+
+        MAREA_IGNORE(fixture.MAREA_statements("if a then x = 1; end"));
+
+        EXPECT_FALSE(fixture.MAREA_codes().empty()) << "An if with one end only lacks the closing end.";
+    }
 }
 
 TEST(MAREAParserStatements, UnfinishedIfDoesNotHideNextFunction)
