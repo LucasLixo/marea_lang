@@ -826,7 +826,22 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckCall(MAREA_SemaContext *context, cons
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
-    if (MAREA_AstNodeGetChildCount(parameters) != MAREA_AstNodeGetChildCount(arguments)) {
+    const MAREA_IntegerSize PARAMETER_COUNT = MAREA_AstNodeGetChildCount(parameters);
+
+    const MAREA_IntegerSize ARGUMENT_COUNT = MAREA_AstNodeGetChildCount(arguments);
+
+    // INFO: the required count ends at the last parameter with no default, so a call may omit only the defaulted tail.
+    MAREA_IntegerSize requiredCount = 0;
+
+    for (MAREA_IntegerSize index = 0; index < PARAMETER_COUNT; ++index) {
+        const MAREA_AstNode *parameter = MAREA_SemaChildAt(parameters, index);
+
+        if ((parameter == MAREA_NULLPTR) || (MAREA_AstNodeGetChildCount(parameter) < 3)) {
+            requiredCount = (index + 1);
+        }
+    }
+
+    if ((ARGUMENT_COUNT < requiredCount) || (ARGUMENT_COUNT > PARAMETER_COUNT)) {
         return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_ARGUMENT_COUNT_MISMATCH, MAREA_AstNodeGetPosition(node), "wrong number of arguments in the call of", calleeName, CALLEE_LENGTH);
     }
 
@@ -836,7 +851,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckCall(MAREA_SemaContext *context, cons
         return BORROW_RESULT;
     }
 
-    for (MAREA_IntegerSize index = 0; index < MAREA_AstNodeGetChildCount(parameters); ++index) {
+    for (MAREA_IntegerSize index = 0; index < ARGUMENT_COUNT; ++index) {
         const MAREA_AstNode *parameter = MAREA_SemaChildAt(parameters, index);
 
         const MAREA_SemaExcept LITERAL_RESULT = MAREA_SemaCheckExpressionFit(context, (parameter == MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_SemaChildAt(parameter, 1), MAREA_SemaChildAt(arguments, index));
@@ -868,7 +883,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckCall(MAREA_SemaContext *context, cons
         }
     }
 
-    for (MAREA_IntegerSize index = 0; index < MAREA_AstNodeGetChildCount(parameters); ++index) {
+    for (MAREA_IntegerSize index = 0; index < ARGUMENT_COUNT; ++index) {
         const MAREA_AstNode *parameter = MAREA_SemaChildAt(parameters, index);
 
         MAREA_G_Unify(genericParameters, (parameter == MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_SemaChildAt(parameter, 1), MAREA_SemaInferType(context, MAREA_SemaChildAt(arguments, index)), &bindings);

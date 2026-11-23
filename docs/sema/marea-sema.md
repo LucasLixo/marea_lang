@@ -22,7 +22,7 @@ MAREA_SemaCheckCompilationUnit(sema, root);   /* once per file, dependencies fir
 `MAREA_SemaCheckCompilationUnit` returns an error only for a null argument or an out of memory. A rule
 violation is a diagnostic in the sink. A size that does not fit in `MAREA_IntegerSize` (a diagnostic
 message, or the growth of a name table) is also an out of memory: nothing is allocated or copied.
-Every sema diagnostic is an error, in the range 3001-3026.
+Every sema diagnostic is an error, in the range 3001-3030 (3027 to 3029 are reserved for the lifecycle rules).
 The lexer file name decides the path rule, so call `MAREA_LexContextSetFileName` with a project
 relative path with forward slashes and the `.marea` extension before the lex step.
 
@@ -104,6 +104,13 @@ function with the same parameters and result, `Self` replaced by the type. A gen
 contract only when its own `where` clause lists it. The check runs at a call of a function of the file,
 with the types written in `f<T>(...)` or taken from the arguments (a name with a declared type, or a
 struct literal). A built-in type is not searched for contract functions.
+
+**Default parameter values.** A parameter may end with `= value`. A call of a function of the file passes
+from the number of parameters up to the last one with no default, to the total number of parameters; any other
+count is `ARGUMENT_COUNT_MISMATCH` (3010). Each default is checked like a local initializer: a name in it must
+be declared (`UNDECLARED_NAME`) and it must fit the parameter type (`TYPE_MISMATCH`). A defaulted parameter
+that has a required parameter after it is `DEFAULT_PARAMETER_BEFORE_REQUIRED` (3030), once per defaulted
+parameter. Sema keeps the default in the tree; it does not copy it into a call.
 
 **Ownership.** A parameter with no word is a read-only borrow, `mutable` is a write borrow,
 `reference` forces a borrow of a by-value type, `owned<T>` moves in. A primitive, a `vector`, an
@@ -306,7 +313,7 @@ type arguments is deferred to when the `ir` stage needs one for real.
 | 3007 | `CONFLICTING_ATTRIBUTES` | `#[pack = 1, align = 16]`, a key given twice (`visibility` twice included) |
 | 3008 | `INVALID_ALIGNMENT` | `#[align = 15]` |
 | 3009 | `UNKNOWN_TYPE` | `a: Missing;` in a structure |
-| 3010 | `ARGUMENT_COUNT_MISMATCH` | `add(1)` when `add` takes two parameters |
+| 3010 | `ARGUMENT_COUNT_MISMATCH` | `add(1)` when `add` takes two parameters with no default; `f()` or `f(1, 2, 3)` when `f` has one required and one defaulted parameter |
 | 3011 | `TYPE_MISMATCH` | `convert<integer32>(text)` with a `string` name, `convert<Point>(other)` for two structures with another layout, `f("text")` when the parameter is `integer32`, `local x: boolean = 1;`, `local n: integer32 = a < b;`, `f(s)` with a `string` name `s`, `return a + 1;` in a function that returns `boolean`, `a + b` with an `integer32` and a `float64` |
 | 3012 | `DUPLICATE_MEMBER` | two `implementation` blocks of one type that both declare `area` |
 | 3013 | `CONTRACT_NOT_SATISFIED` | `maximum(a, b)` when the type of `a` has no `less` for `where Item: Comparable` |
@@ -323,6 +330,7 @@ type arguments is deferred to when the `ir` stage needs one for real.
 | 3024 | `INVALID_PARALLEL_JUMP` | `continue;`, `break;` or `return;` in a `partition` body when no loop of the body is the target, or directly in a `fork_join` block, outside every `partition` body, when no loop of the block is the target |
 | 3025 | `DUPLICATE_SWITCH_ARM` | a second `default` arm in a `switch`, or `case 1 then ... case 1 then ...`, `case 1, 1 then ...`, `case Color.red` twice |
 | 3026 | `JUMP_OUTSIDE_LOOP` | `break;` or `continue;` with no enclosing loop and no enclosing `partition`/`fork_join` block |
+| 3030 | `DEFAULT_PARAMETER_BEFORE_REQUIRED` | `function f(a: integer32 = 0, b: integer32)`: a parameter with a default value before one with none (3027 to 3029 are reserved) |
 
 ## Gaps
 
