@@ -22,7 +22,7 @@ MAREA_SemaCheckCompilationUnit(sema, root);   /* once per file, dependencies fir
 `MAREA_SemaCheckCompilationUnit` returns an error only for a null argument or an out of memory. A rule
 violation is a diagnostic in the sink. A size that does not fit in `MAREA_IntegerSize` (a diagnostic
 message, or the growth of a name table) is also an out of memory: nothing is allocated or copied.
-Every sema diagnostic is an error, in the range 3001-3032.
+Every sema diagnostic is an error, in the range 3001-3032 and 3036-3037.
 The lexer file name decides the path rule, so call `MAREA_LexContextSetFileName` with a project
 relative path with forward slashes and the `.marea` extension before the lex step.
 
@@ -184,7 +184,8 @@ or another type) is `LIFECYCLE_OPERATOR_NEEDS_CONCRETE_TYPE` (3028). A `destroy`
 type, and a `construct` has no return type and a default on every parameter; any other shape is
 `LIFECYCLE_OPERATOR_BAD_SHAPE` (3029), once per function. A call of such a function is
 `LIFECYCLE_OPERATOR_CALLED_DIRECTLY` (3027): by a bare name that no local and no top-level function of another
-meaning hides, and by the static form `Type.name(...)` where `Type` is the implemented type. The automatic call
+meaning hides, by the static form `Type.name(...)` where `Type` is the implemented type, and by a call on a value
+(`point.drop()`), decided to be rejected the same way (see Gaps). The automatic call
 at creation and destruction is lowered in the ir, not here.
 
 **Type construction call.** A call whose callee is a structure or an enum name of the file, not hidden by a local,
@@ -225,7 +226,23 @@ A borrow parameter (`reference_read_only` or `reference_mutable`, explicit or by
 a field. A new local of the same name ends the reference. A file constant passed as the argument of
 a `reference_mutable` (write-borrow) parameter, explicit or by default, has no writable storage to
 back the borrow, so it is rejected with `CANNOT_BORROW_CONSTANT_AS_MUTABLE` (3032); a variable
-passed to the same parameter is unaffected.
+passed to the same parameter is unaffected. Tracking of a moved local and a live borrow across
+statements is a design decision recorded in the last bullet of `## Gaps`.
+
+**Integer literal range.** An integer literal (decimal, `0x` or `0b`, with `_` between digits, with one
+leading minus and any parentheses) must fit the integer primitive it meets: `sinteger8` to `sinteger64`, `uinteger8`
+to `uinteger64`. A literal that does not fit is rejected with `LITERAL_OUT_OF_RANGE` (3033) and is never truncated.
+A negated literal never fits an unsigned type, except `-0`. The check runs beside the `TYPE_MISMATCH` check, at
+the same sites: a local initializer, a constant, a parameter default, a return value, an assignment, a call
+argument (a `spawn` call too, and a call of an `EXTERNAL` member), and a field of a struct literal. A float or any
+non-integer target is never range checked, so a node gets 3011 or 3033, never both. A literal whose target has no
+known primitive type is checked only against the widest range: `uinteger64`, or `sinteger64` when negated.
+
+**Signed boundary.** Plain `+`, `-` and `*` wrap in two's complement, so only two shapes have no defined result. A unary minus over an
+unsigned value is rejected with `NEGATE_UNSIGNED` (3036); a negated literal is the literal range rule, not this one. A `/` or `%` whose
+left side folds to the lowest value of a signed type and whose right side folds to -1 is rejected with `SIGNED_DIVISION_OVERFLOW` (3037).
+The folder reads an integer literal, one unary minus and parentheses. The signed type is the primitive of an operand, else the declared type
+of the `local`, `constant`, `return` or assignment that holds the division.
 
 **Spawn.** In `fork_join`, each argument of `spawn f(...)` is a `partition` part, a literal, a file
 constant, or a name that is not a `reference_mutable` (write-borrow) parameter and not the source of
@@ -369,6 +386,13 @@ chain (`stdio.puts(text)`, which may be a namespace the file never imports) are 
 **Entry point.** Sema treats `main` as an ordinary function: any signature is accepted and no diagnostic is
 raised. Sema never requires a `main`. The code 3023 (`INVALID_MAIN_SIGNATURE`) is retired and stays reserved, never
 reused.
+
+**Constant operands.** `/`, `%`, `/=` and `%=` with a divisor that is a constant zero raise `DIVISION_BY_ZERO` (3034)
+when the left side is an integer (a primitive integer type or an integer literal). A shift or compound shift whose
+count is a constant that is negative or not below the width in bits of the left primitive integer type (`value << 32`
+for `uinteger32`) raises `SHIFT_COUNT_TOO_LARGE` (3035). A constant is an integer literal (decimal, `0x`, `0b`, `_`
+digits), one leading minus on a constant, or a parenthesized constant. A float divisor, a left side with no known
+primitive type (a literal) for a shift, and a divisor or count that is not a constant raise nothing.
 
 ## Typed AST hand-off
 
@@ -590,12 +614,17 @@ or rejects.
 | 3024 | `INVALID_PARALLEL_JUMP` | `continue;`, `break;` or `return;` in a `partition` body when no loop of the body is the target, or directly in a `fork_join` block, outside every `partition` body, when no loop of the block is the target |
 | 3025 | `DUPLICATE_SWITCH_ARM` | a second `default` arm in a `switch`, or `case 1 then ... case 1 then ...`, `case 1, 1 then ...`, `case Color.red` twice |
 | 3026 | `JUMP_OUTSIDE_LOOP` | `break;` or `continue;` with no enclosing loop and no enclosing `partition`/`fork_join` block |
-| 3027 | `LIFECYCLE_OPERATOR_CALLED_DIRECTLY` | `Point.make()` or `make()` when `make` carries `#[operator = "construct"]` or `"destroy"` |
+| 3027 | `LIFECYCLE_OPERATOR_CALLED_DIRECTLY` | `Point.make()`, `make()` or `point.make()` when `make` carries `#[operator = "construct"]` or `"destroy"` |
 | 3028 | `LIFECYCLE_OPERATOR_NEEDS_CONCRETE_TYPE` | a `construct` or `destroy` function at top level, in a generic implementation, with generic parameters, or in an implementation of a type that is not a structure or an enum |
 | 3029 | `LIFECYCLE_OPERATOR_BAD_SHAPE` | a `destroy` with a parameter or a return type; a `construct` with a return type or a parameter that has no default |
 | 3030 | `DEFAULT_PARAMETER_BEFORE_REQUIRED` | `function f(a: sinteger32 = 0, b: sinteger32)`: a parameter with a default value before one with none |
 | 3031 | `INVALID_ENUM_TAG_TYPE` | `enum A : float32`, `: string`, `: SomeStruct`: a tag that is not an integer primitive |
 | 3032 | `CANNOT_BORROW_CONSTANT_AS_MUTABLE` | `take(ORIGIN)` when `take`'s parameter's effective `semantics` is `reference_mutable` and `ORIGIN` is a file constant |
+| 3033 | `LITERAL_OUT_OF_RANGE` | `local a: uinteger8 = 256;`, `local b: sinteger8 = -129;`, `constant BIG: uinteger8 = 300;`, `local c: uinteger32 = -1;`: an integer literal whose value does not fit the integer type it is bound to |
+| 3034 | `DIVISION_BY_ZERO` | `x / 0`, `x % 0`, `x /= 0`, `x %= 0` for an integer: the divisor is a constant zero |
+| 3035 | `SHIFT_COUNT_TOO_LARGE` | `x << 32` for `uinteger32`, `x >>= 64` for `sinteger64`, `x << -1`: a constant shift count that is negative or not below the width of the left integer type |
+| 3036 | `NEGATE_UNSIGNED` | `-value`, `-(a + b)` or `-point.count` when the operand has a known unsigned primitive type |
+| 3037 | `SIGNED_DIVISION_OVERFLOW` | `-2147483648 / -1` or `-128 % -1` when the left side folds to the lowest value of the signed type and the right side folds to -1 |
 | 3038 | `BITWISE_OPERAND_NOT_INTEGER` | `a & b`, `a \| b`, `a ^ b`, `~a`, `a &= b` with a `float32` or `float64`, a `boolean` or a `string` operand, or a float literal |
 | 3039 | `LOGICAL_OPERAND_NOT_BOOLEAN` | `a and b`, `a or b`, `not a` with an operand whose known type is not `boolean`, or a number, string or character literal |
 
@@ -622,9 +651,18 @@ or rejects.
 - `CANNOT_BORROW_CONSTANT_AS_MUTABLE` (3032) sees only a bare file-constant name as the argument. A field chain
   rooted in a constant (`ORIGIN.x`) passed to a write-borrow parameter is not rejected, and a test proves only the
   bare name.
+- `LITERAL_OUT_OF_RANGE` (3033) reads only a written integer literal. A float literal, a literal in an operand
+  (`1 + 300` bound to a `uinteger8`), a value folded from a named constant, and a literal whose target type is not a
+  primitive sema knows (it is then checked against `uinteger64` only) are not range checked.
+- `DIVISION_BY_ZERO` (3034) and `SHIFT_COUNT_TOO_LARGE` (3035) fold only an integer literal, one leading minus and
+  parentheses. A named constant is not folded, so `x / ZERO` raises nothing. A shift whose left side is a literal has
+  no width and raises nothing. A count above 64 bits is not folded.
 - An alias of an `enum` is not resolved to the enum for any comparison, because sema never compares an enum type
   for `TYPE_MISMATCH` (see the `TYPE_MISMATCH` gap above); the aliased-enum case that a test covers is the
   `switch` coverage of an imported enum with an alias. No test covers `type A = Color;` of a same-file enum.
+- `SIGNED_DIVISION_OVERFLOW` (3037) folds only an integer literal, one unary minus and parentheses. A hex or binary literal, a
+  named constant, a nested expression such as `(-128 / -1) + 1`, and a compound `/=` or `%=` (whose left side is a name) are not folded.
+  The folder duplicates the ones of the sibling literal, zero divisor and shift rules; merge them later.
 - `INVALID_ENUM_TAG_TYPE` (3031) checks only that the tag is an integer primitive. Sema does not check that the tag
   is wide enough for the number of variants, and does not use it for the layout of the enum (`size_of` is
   unchanged).
@@ -632,9 +670,11 @@ or rejects.
 - `operator` is checked against its vocabulary; only `construct` and `destroy` have a placement and a shape check
   (see "Construct and destroy"), the signature of any other operator is not checked; `export` is checked for shape
   only.
-- `LIFECYCLE_OPERATOR_CALLED_DIRECTLY` (3027) sees a bare name and the static form `Type.name(...)` only. A call on
-  a value (`point.drop()`) is not resolved, as sema does not know the type of the receiver. A bare name that no
-  top-level function declares also raises `UNDECLARED_NAME` (3004), as a member is not a bare name.
+- `LIFECYCLE_OPERATOR_CALLED_DIRECTLY` (3027) today sees a bare name and the static form `Type.name(...)` only.
+  Decision: a call on a value (`point.drop()`) of a lifecycle operator (`construct` or `destroy`) is also rejected
+  with 3027, for consistency with those two forms; no new code. Sema does not yet implement it, as it does not
+  know the type of the receiver. A bare name that no top-level function declares also raises `UNDECLARED_NAME`
+  (3004), as a member is not a bare name.
 - The type of a library type is not tracked, so a missing `copy` or `move` there is not reported.
 - `MAREA_SemaTypedNodeGetResolvedType` covers the six declaring nodes, the literals and the expressions of "Resolved
   type of an expression". A `Self` type and a generic parameter are spelled by
@@ -721,3 +761,23 @@ or rejects.
   vocabulary was never widened for attributes, so such a type argument fails to parse as one. The
   same scan already had no tolerance for the retired `mutable`/`reference` parameter keywords it
   used to allow, so this is not a new restriction, only an unaddressed one.
+- Move state and borrow liveness are not tracked across statements. Sema keeps no per-variable "moved" or
+  "borrow ended" bit, and `MAREA_SemaCheckSpawn` (`MAREASemaParallel.c`) checks one `spawn` alone, so two
+  sibling `spawn` statements of one `fork_join` are never compared. The settled design for every later
+  check (use after move, partial move, borrow liveness, cross-spawn, `partition` body) is one rule set,
+  recorded here so no check invents its own:
+  - **State table.** One new per-scope table, modeled directly on `references`
+    (`MAREA_SemaNameTable` in `MAREASemaInternal.h`): `MAREA_SemaBindReferences` (`MAREASemaOwnership.c`)
+    pushes entries on scope enter, and they pop on scope leave. The new table is pushed on scope enter,
+    popped on scope leave, and read and written inside the same `MAREA_SemaVisit` pass. There is no second
+    traversal and no control-flow graph.
+  - **Merge rule.** At a branch or loop boundary (`if`/`elseif`/`else`, the arms of a `switch`, a loop
+    body) the merge follows `MAREA_G_Terminates` (`MAREASemaControlFlow.c`), which says a path terminates
+    only when every arm agrees (`MAREA_G_IfTerminates`, `MAREA_G_SwitchTerminates`). In the same way, a
+    local is "definitely moved" after the merge, or a borrow "definitely ended", only when every arm
+    proves it on its own. A loop body is visited once, so an effect that can happen on a later iteration
+    but not on the first is treated as "maybe already happened" once the walk is past the loop.
+  - **Rounding rule.** When the effect of an arm is ambiguous, the merge always rounds toward "still
+    valid" (not moved, still borrowed), never toward "reject". A missed catch is acceptable; a false
+    rejection of valid code is not. Every later check that builds on this table must inherit this
+    rounding and must not define its own.

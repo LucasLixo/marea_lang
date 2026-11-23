@@ -528,7 +528,8 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressionFit(MAREA_SemaContext *cont
     const MAREA_G_Shape actual = MAREA_G_ShapeOf(context, expression, 0);
 
     if (MAREA_G_Fits(&target, &actual) == MAREA_BOOLEAN_TRUE) {
-        return MAREA_SEMA_EXCEPT_SUCCESS;
+        // INFO: a division of the lowest signed value by -1 is checked against the declared type that holds it.
+        return MAREA_SemaCheckSignedDivision(context, type, expression);
     }
 
     return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH, MAREA_AstNodeGetPosition(expression), "value does not fit the type", target.name, target.length);
@@ -661,7 +662,16 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckOperands(MAREA_SemaContext *cont
         return result;
     }
 
-    return MAREA_SemaCheckOperatorOperands(context, operatorKind, leftNode, rightNode, MAREA_AstNodeGetPosition(expression));
+    const MAREA_SemaExcept OPERAND = MAREA_SemaCheckOperatorOperands(context, operatorKind, leftNode, rightNode, MAREA_AstNodeGetPosition(expression));
+
+    if (OPERAND != MAREA_SEMA_EXCEPT_SUCCESS) {
+        return OPERAND;
+    }
+
+    const MAREA_SemaExcept CONSTANT = MAREA_SemaCheckConstantOperands(context, operatorKind, leftNode, rightNode, MAREA_AstNodeGetPosition(expression));
+
+    // INFO: with no declared type here, the signed type of a division comes from an operand.
+    return (CONSTANT != MAREA_SEMA_EXCEPT_SUCCESS) ? CONSTANT : MAREA_SemaCheckSignedDivision(context, MAREA_NULLPTR, expression);
 }
 
 // INFO: a compound assignment is the same as a = a op b, so its two sides are compared like the operands of the operator.
@@ -683,7 +693,9 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckCompound(MAREA_SemaContext *cont
         return result;
     }
 
-    return MAREA_SemaCheckOperatorOperands(context, operatorKind, targetNode, valueNode, MAREA_AstNodeGetPosition(assignment));
+    const MAREA_SemaExcept OPERAND = MAREA_SemaCheckOperatorOperands(context, operatorKind, targetNode, valueNode, MAREA_AstNodeGetPosition(assignment));
+
+    return (OPERAND != MAREA_SEMA_EXCEPT_SUCCESS) ? OPERAND : MAREA_SemaCheckConstantOperands(context, operatorKind, targetNode, valueNode, MAREA_AstNodeGetPosition(assignment));
 }
 
 // INFO: a conversion is always written. A number goes to a number of any width and sign, a structure to a structure whose layout sema measures as the same (a layout that sema cannot measure is rejected), and any type to itself. A shape that sema does not know fits.
@@ -802,7 +814,14 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckValue(MAREA_SemaContext *context
     {
         const MAREA_SemaExcept result = MAREA_G_CheckValueOfChildren(context, expression, 0, depth, checkNames);
 
-        return (result != MAREA_SEMA_EXCEPT_SUCCESS) ? result : MAREA_SemaCheckOperatorOperands(context, MAREA_AstNodeGetOperator(expression), MAREA_SemaChildAt(expression, 0), MAREA_NULLPTR, MAREA_AstNodeGetPosition(expression));
+        if (result != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return result;
+        }
+
+        const MAREA_SemaExcept OPERAND = MAREA_SemaCheckOperatorOperands(context, MAREA_AstNodeGetOperator(expression), MAREA_SemaChildAt(expression, 0), MAREA_NULLPTR, MAREA_AstNodeGetPosition(expression));
+
+        // INFO: the rule for a negated unsigned value runs after the operand is checked.
+        return (OPERAND != MAREA_SEMA_EXCEPT_SUCCESS) ? OPERAND : MAREA_SemaCheckNegation(context, expression);
     }
     case MAREA_AST_KIND_PARENTHESIZED_EXPRESSION:
     case MAREA_AST_KIND_INDEX_ACCESS:
@@ -863,8 +882,12 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressions(MAREA_SemaContext *contex
             return operandsResult;
         }
 
-        return MAREA_SemaCheckExpressionFit(context, MAREA_SemaChildAt(node, (count - 2)), MAREA_SemaChildAt(node, (count - 1)));
+        const MAREA_SemaExcept fitResult = MAREA_SemaCheckExpressionFit(context, MAREA_SemaChildAt(node, (count - 2)), MAREA_SemaChildAt(node, (count - 1)));
+
+        return (fitResult != MAREA_SEMA_EXCEPT_SUCCESS) ? fitResult : MAREA_SemaCheckLiteralRange(context, MAREA_SemaChildAt(node, (count - 2)), MAREA_SemaChildAt(node, (count - 1)));
     }
+    case MAREA_AST_KIND_LITERAL_VALUE:
+        return MAREA_SemaCheckLiteralFields(context, node);
     case MAREA_AST_KIND_LOCAL_DECLARATION:
         return MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, 2), 0, MAREA_BOOLEAN_TRUE);
     case MAREA_AST_KIND_PARAMETER:
@@ -880,7 +903,9 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressions(MAREA_SemaContext *contex
             return valueResult;
         }
 
-        return MAREA_SemaCheckExpressionFit(context, MAREA_SemaChildAt(node, 1), MAREA_SemaChildAt(node, 2));
+        const MAREA_SemaExcept fitResult = MAREA_SemaCheckExpressionFit(context, MAREA_SemaChildAt(node, 1), MAREA_SemaChildAt(node, 2));
+
+        return (fitResult != MAREA_SEMA_EXCEPT_SUCCESS) ? fitResult : MAREA_SemaCheckLiteralRange(context, MAREA_SemaChildAt(node, 1), MAREA_SemaChildAt(node, 2));
     }
     case MAREA_AST_KIND_PARAMETER_LIST:
     {
@@ -944,7 +969,9 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressions(MAREA_SemaContext *contex
             return namesResult;
         }
 
-        return MAREA_SemaCheckExpressionFit(context, MAREA_SemaReturnType(context->function), MAREA_SemaChildAt(node, 0));
+        const MAREA_SemaExcept fitResult = MAREA_SemaCheckExpressionFit(context, MAREA_SemaReturnType(context->function), MAREA_SemaChildAt(node, 0));
+
+        return (fitResult != MAREA_SEMA_EXCEPT_SUCCESS) ? fitResult : MAREA_SemaCheckLiteralRange(context, MAREA_SemaReturnType(context->function), MAREA_SemaChildAt(node, 0));
     }
     case MAREA_AST_KIND_ASSIGNMENT:
     {
@@ -964,7 +991,9 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressions(MAREA_SemaContext *contex
             return MAREA_G_CheckCompound(context, node);
         }
 
-        return MAREA_SemaCheckExpressionFit(context, MAREA_SemaInferType(context, MAREA_SemaChildAt(node, 0)), MAREA_SemaChildAt(node, 1));
+        const MAREA_SemaExcept fitResult = MAREA_SemaCheckExpressionFit(context, MAREA_SemaInferType(context, MAREA_SemaChildAt(node, 0)), MAREA_SemaChildAt(node, 1));
+
+        return (fitResult != MAREA_SEMA_EXCEPT_SUCCESS) ? fitResult : MAREA_SemaCheckLiteralRange(context, MAREA_SemaInferType(context, MAREA_SemaChildAt(node, 0)), MAREA_SemaChildAt(node, 1));
     }
     default:
         return MAREA_SEMA_EXCEPT_SUCCESS;

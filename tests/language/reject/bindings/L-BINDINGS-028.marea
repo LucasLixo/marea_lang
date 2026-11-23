@@ -1,13 +1,12 @@
--- gap: #181 NEW
--- rule: reject
+-- expect: 3033 @10
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- A sinteger32 literal of 2147483648 is out of range (rule 4).
+-- A sinteger8 literal of -129 is out of range (rule 4).
 
 namespace main;
 
 function check(): sinteger32
-    local value: sinteger32 = 2147483648;
+    local value: sinteger8 = -129;
     return 1;
 end
