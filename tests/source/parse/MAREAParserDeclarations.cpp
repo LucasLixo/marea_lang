@@ -78,6 +78,43 @@ TEST(MAREAParserDeclarations, Enumeration)
     EXPECT_TRUE(fixture.MAREA_codes().empty()) << "No diagnostic is expected.";
 }
 
+TEST(MAREAParserDeclarations, EnumerationWithTagType)
+{
+    GTEST_COUT << "Validating an enum tag type is a type child before the variants." << std::endl;
+
+    MAREA_ParseFixture fixture;
+
+    const std::string EXPECTED{ MAREA_lines({ "  ENUM_DECLARATION", "    IDENTIFIER \"Light\"", "    NAMED_TYPE", "      QUALIFIED_NAME", "        IDENTIFIER \"unsigned8\"", "    VARIANT_DECLARATION", "      IDENTIFIER \"Red\"" }) };
+
+    EXPECT_EQ(MAREA_itemsOf(fixture, "enum Light : unsigned8 Red; end"), EXPECTED) << "The tag type is a child after the name.";
+
+    EXPECT_TRUE(fixture.MAREA_codes().empty()) << "No diagnostic is expected.";
+}
+
+TEST(MAREAParserDeclarations, EnumerationTagTypeMissing)
+{
+    GTEST_COUT << "Validating a colon without a tag type is a diagnostic." << std::endl;
+
+    MAREA_ParseFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_parse("namespace main; enum Light : Red; end"), MAREA_PARSE_EXCEPT_SUCCESS) << "Parsing must succeed.";
+
+    EXPECT_FALSE(fixture.MAREA_codes().empty()) << "A missing tag type must be reported.";
+}
+
+TEST(MAREAParserDeclarations, FunctionParameterDefault)
+{
+    GTEST_COUT << "Validating a function parameter default is a child after the type." << std::endl;
+
+    MAREA_ParseFixture fixture;
+
+    const std::string EXPECTED{ MAREA_lines({ "  FUNCTION_DECLARATION", "    IDENTIFIER \"f\"", "    PARAMETER_LIST", "      PARAMETER", "        IDENTIFIER \"a\"", "        NAMED_TYPE", "          QUALIFIED_NAME", "            IDENTIFIER \"integer32\"", "      PARAMETER", "        IDENTIFIER \"b\"", "        NAMED_TYPE", "          QUALIFIED_NAME", "            IDENTIFIER \"integer32\"", "        INTEGER_LITERAL \"0\"", "    BLOCK" }) };
+
+    EXPECT_EQ(MAREA_itemsOf(fixture, "function f(a: integer32, b: integer32 = 0) end"), EXPECTED) << "The default is a child of the parameter.";
+
+    EXPECT_TRUE(fixture.MAREA_codes().empty()) << "No diagnostic is expected.";
+}
+
 TEST(MAREAParserDeclarations, Contract)
 {
     GTEST_COUT << "Validating a contract with functions with and without a result." << std::endl;
