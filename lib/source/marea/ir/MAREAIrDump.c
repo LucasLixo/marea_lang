@@ -172,6 +172,11 @@ static void MAREA_CALL MAREA_G_DumpNodeLine(MAREA_G_DumpBuffer *buffer, const MA
         MAREA_G_DumpWrite(buffer, node->typeName, node->typeNameLength);
     }
 
+    if (node->resolvedType != MAREA_NULLPTR) {
+        MAREA_G_DumpWriteText(buffer, " resolved=");
+        MAREA_G_DumpWrite(buffer, node->resolvedType, node->resolvedTypeLength);
+    }
+
     if (node->operatorKind != MAREA_TOKEN_KIND_ERROR) {
         MAREA_G_DumpWriteText(buffer, " op=");
         MAREA_G_DumpWriteText(buffer, MAREA_TokenKindGetName(node->operatorKind));

@@ -28,14 +28,14 @@ MAREA_IrLowerCompilationUnit(ir, typed, &module);
 a typed root whose AST node is not a `COMPILATION_UNIT`, and `MAREA_IR_EXCEPT_ERROR_OUT_OF_MEMORY`
 when the arena cannot grow. A construct that cannot be lowered is not an error code: it is a
 diagnostic in the sink, and the call still returns `MAREA_IR_EXCEPT_SUCCESS`. Every ir diagnostic is
-an error, and only two codes exist, 4004 and 4005 (4001 to 4003 are retired, see Diagnostics). The tree stays
+an error, and only three codes exist, 4004, 4005 and 4006 (4001 to 4003 are retired, see Diagnostics). The tree stays
 valid for the lifetime of the arena.
 
 ## Node model
 
 There is one opaque type, `MAREA_IrNode`, for every kind. A node holds a kind, a source position,
-an optional text, an optional operator (`MAREA_TokenKind`), a flags word, an optional type name and
-an ordered list of children. The accessors mirror `MAREAAst.h`:
+an optional text, an optional operator (`MAREA_TokenKind`), a flags word, an optional type name, an optional
+resolved type and an ordered list of children. The accessors mirror `MAREAAst.h`:
 
 | Accessor | Result |
 |---|---|
@@ -46,8 +46,26 @@ an ordered list of children. The accessors mirror `MAREAAst.h`:
 | `MAREA_IrNodeGetFlags` | The flags word. Null returns 0. |
 | `MAREA_IrNodeGetChildCount`, `MAREA_IrNodeGetChildAt` | The children. An index out of range returns `MAREA_IR_NODE_EXCEPT_ERROR_OUT_OF_RANGE`. |
 | `MAREA_IrNodeGetTypeName`, `MAREA_IrNodeGetTypeNameLength` | The type name, not NUL terminated. Null or none gives null and 0. |
+| `MAREA_IrNodeGetResolvedType`, `MAREA_IrNodeGetResolvedTypeLength` | The full resolved type, not NUL terminated. Null or none gives null and 0. |
 
 `MAREA_IrKindGetName` returns the stable upper-case kind name, or `UNKNOWN` for a value out of range.
+
+The type name is the head of the written type and stays as it was: `array` for `array<sinteger32,4>`. The resolved
+type is the full canonical text that `MAREA_SemaTypedNodeGetResolvedType` gives (see the sema doc, "Resolved type"),
+with its type arguments (`array<sinteger32,4>`), so a later stage never has to guess a width or a kind. It is a copy in
+the arena of the ir context, made at node creation. Two groups of node carry it: every expression node that comes
+from the source (`IDENTIFIER`, the five literals, `BINARY_EXPRESSION`, `UNARY_EXPRESSION`, `MEMBER_ACCESS`,
+`INDEX_ACCESS`, `CALL_EXPRESSION` or the `CONSTRUCT_CALL` it became, `LITERAL_VALUE`) and every `PARAMETER`,
+`LOCAL_DECLARATION`, `FIELD_DECLARATION`, `VARIANT_FIELD`, `CONSTANT_DECLARATION` and `FUNCTION_DECLARATION` with a
+written type. A name that only qualifies a member (`Planet` in `Planet.Earth`) has none and is not a gap. The nodes
+that the ir invents (`ZERO_VALUE`, the hidden locals `$last`, `$switch` and `$return`, the operations and literals made
+from them) have none yet.
+
+Some expressions stay untyped on purpose, because sema leaves them untyped (the closed list in the sema doc, "Gaps").
+They stay in the tree with no resolved type and raise nothing: an `IDENTIFIER` (a loop name, a function or built-in
+name), the callee of a call, a `CALL_EXPRESSION` whose callee has no type (a call of an `EXTERNAL` function with no
+signature), an operation with an untyped operand, and a `spawn` of a call typed `void`. Any other expression that has
+no type raises 4006 (see Diagnostics).
 
 A node never owns its text or type name: both point into the source buffer of the lexer, so that
 buffer must outlive the tree. The one exception is the name of an `implementation` member, which is
@@ -463,8 +481,8 @@ CALL_EXPRESSION                              -- a static call on a written type:
 
 `MAREA_IrModuleDump` writes the tree as stable text into the arena, one node per line, in the same
 shape as `MAREA_AstDump`. A line is the kind name indented two spaces per depth, then the text in
-double quotes when present, then `type=NAME` when the node has a type name, then `op=OPERATOR` when it
-has an operator, then `flags=NUMBER` when the flags are not zero. In the text, `"` and `\` get a
+double quotes when present, then `type=NAME` when the node has a type name, then `resolved=TEXT` when it has a resolved type (the text has no
+space in its canonical spelling, so it needs no quoting), then `op=OPERATOR` when it has an operator, then `flags=NUMBER` when the flags are not zero. In the text, `"` and `\` get a
 backslash and a byte below 0x20 or above 0x7E is written as `\xHH`. The result is NUL terminated;
 `outLength` does not count the NUL. It returns `ERROR_NULL_POINTER` for a null argument and
 `ERROR_OUT_OF_MEMORY` when the arena cannot grow. The walk uses an explicit stack held in the arena, so
@@ -473,25 +491,26 @@ call-stack use does not depend on the tree depth; a deep tree costs arena memory
 ```
 MODULE
   STRUCTURE_DECLARATION "Point"
-    FIELD_DECLARATION "x" type=float64
-  FUNCTION_DECLARATION "f" type=sinteger32
+    FIELD_DECLARATION "x" type=float64 resolved=float64
+  FUNCTION_DECLARATION "f" type=sinteger32 resolved=sinteger32
     PARAMETER_LIST
-      PARAMETER "a" type=sinteger32
+      PARAMETER "a" type=sinteger32 resolved=sinteger32
     BLOCK
-      LOCAL_DECLARATION "b" type=sinteger32
-        BINARY_EXPRESSION op=PLUS
-          IDENTIFIER "a"
-          INTEGER_LITERAL "1"
+      LOCAL_DECLARATION "b" type=sinteger32 resolved=sinteger32
+        BINARY_EXPRESSION resolved=sinteger32 op=PLUS
+          IDENTIFIER "a" resolved=sinteger32
+          INTEGER_LITERAL "1" resolved=sinteger32
       RETURN_STATEMENT
-        IDENTIFIER "b"
+        IDENTIFIER "b" resolved=sinteger32
 ```
 
 Lowering the same unit twice gives byte-identical text.
 
 ## Constructs the IR cannot lower
 
-Two constructs raise an error diagnostic and make no node: a generic (except the calls of Type operands) and a macro
-other than a statement `unreachable!()`. The declaration that holds the gap is left
+Three constructs raise an error diagnostic and make no node: a generic (except the calls of Type operands), a macro
+other than a statement `unreachable!()`, and an expression that sema gave no type and that is not untyped on purpose
+(see Node model). The declaration that holds the gap is left
 out of the module whole, never in part: a gap in a function body drops that function, a gap in a
 variant default drops the enum, a gap in a constant initializer drops the constant. Lowering then
 continues with the next declaration, so the other declarations stay in the module. A gap inside a
@@ -519,15 +538,22 @@ now (see Type operands).
 |---|---|---|
 | 4004 | `UNINSTANTIATED_GENERIC` | a generic function, structure or `implementation`; a call with explicit type arguments that is not a built-in call (`identity<sinteger32>(5)`); a call whose result type is an unbound generic; a `GENERIC_NAME` that is not the receiver of a call, or whose head is a generic type of the unit; a function type as the type argument of a built-in or a static call; a call whose callee is the bare name of a function of the unit that was left out of the module, also when the callee is declared after the caller (the call and its top-level declaration are dropped, and the callers of a dropped function raise in turn). `size_of<T>()`, `align_of<T>()`, `convert<T>(x)` and `array<sinteger32>.filled(8, 0)` raise nothing. |
 | 4005 | `UNSUPPORTED_MACRO` | `print!("hi");`, a module-level `static_assert!(true);`, a macro call inside an expression. `unreachable!();` as a statement is lowered and raises nothing. |
+| 4006 | `UNTYPED_EXPRESSION` | an expression for which `MAREA_SemaTypedNodeGetResolvedType` gives no type and that is not untyped on purpose (see Node model): `stdio.value` read as a value (not called) from an `EXTERNAL` namespace. It is raised once, at the position of the expression, and the declaration that holds it is left out whole. A name that only qualifies a member raises nothing. |
 
 The codes 4001, 4002 and 4003 are retired: `fork_join`, `switch` and `for each` are lowered. The numbers have no
 name in the public header and are never reused.
 
 The message of 4005 and of 4004 on a declaration names the macro or the declaration in single quotes.
-Each diagnostic carries the position of the construct that raised it.
+Each diagnostic carries the position of the construct that raised it. The message of 4006 does not name the expression.
 
 ## Gaps
 
+- The resolved type is read from sema as it is, so it is as complete as sema makes it. In the 23 examples, 43 expression
+  nodes of the lowered trees have no resolved type, all of them untyped on purpose (calls of `EXTERNAL` functions
+  and library members with no signature, their callees, and the operations and `spawn` derived from them); the
+  sweep test `MAREAIrResolvedType.ExamplesTypeEveryLoweredExpression` lists none other. The `ir` cannot tell a
+  name sema left untyped on purpose from one it missed, so an `IDENTIFIER` with no type never raises 4006. The
+  nodes that the ir invents have no resolved type yet.
 - The zero-default rule (see Zero-default creation) covers only a `LOCAL_DECLARATION` with no written initializer
   and a struct `LITERAL_VALUE` field the source left unnamed. Four more creation paths the language spec names are
   not lowered yet, because they need a backend to exist first: the zero fill of `Type(args)` before `construct` (the call itself is a `CONSTRUCT_CALL` now), `array<T, N>`
