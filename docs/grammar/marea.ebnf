@@ -68,9 +68,11 @@ keyword             = "and" | "as" | "break" | "case" | "constant" | "continue" 
 
 (* Names that are predeclared but are not reserved: the primitive types (boolean, sinteger8 ... *)
 (* sinteger64, uinteger8 ... uinteger64, float32, float64, character, string), the core type constructors *)
-(* array (two arguments, copied by value), vector (one argument, a move type) and pointer, and the names *)
-(* Self and self. The language has no standard library: table, slice, task, arenas and text are libraries written in C or in Marea, and they are *)
-(* imported like any namespace. The namespace "c" is the only reserved one. *)
+(* array (two arguments, a type and a size, copied by value), vector (one argument, growable, a move type), *)
+(* pointer, owned, slice and task (one argument each), and the names Self and self. The parser reads all of them *)
+(* as plain qualified names: only sema knows them. The language has no standard library: table, arenas and text *)
+(* are libraries written in C or in Marea, and they are imported like any namespace. The namespace "c" is the *)
+(* only reserved one. *)
 (* "public" and "private" are words of the attribute list only, the members of the key "visibility". *)
 
 (* Operators and separators. *)
@@ -157,6 +159,8 @@ field_declaration   = { attribute }, identifier, ":", type, ";" ;
 (* A type of C with an unknown layout. It has no body. *)
 opaque_declaration  = "opaque", "structure", identifier, ";" ;
 
+(* The optional ":" type is the tag type. The grammar takes any type; the checker requires an *)
+(* integer primitive (sinteger8 ... uinteger64). *)
 enum_declaration    = "enum", identifier, [ ":", type ],
                       { variant_declaration },
                       "end" ;
@@ -325,6 +329,9 @@ power_expression    = postfix_expression, [ "**", unary_expression ] ;
 postfix_expression  = primary_expression, { member_access | index_access | call_suffix } ;
 member_access       = ".", identifier ;
 index_access        = "[", expression, "]" ;
+(* A call on a type name, Point(1.0), is a call_suffix like any other: the parser does not know that *)
+(* the name is a type. The checker routes it to the construct operator of the type. The literal_value *)
+(* form Point{ x = 1.0 } is the other way to create a value. *)
 call_suffix         = [ type_arguments ], "(", [ argument_list ], ")" ;
 argument_list       = expression, { ",", expression } ;
 
