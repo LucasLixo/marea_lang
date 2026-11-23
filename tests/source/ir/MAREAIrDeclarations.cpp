@@ -162,6 +162,19 @@ TEST(MAREAIrDeclarations, ParameterDefaultValueIsLoweredAsAChild)
     EXPECT_EQ(MAREA_irRender(MAREA_irChild(function, 0)), "(PARAMETER_LIST (PARAMETER name :string) (PARAMETER times :sinteger32 (INTEGER_LITERAL 1)))") << "The defaulted parameter must keep its default as a child.";
 }
 
+TEST(MAREAIrDeclarations, ParameterWithoutDefaultStaysOutsideTheZeroDefaultRule)
+{
+    GTEST_COUT << "Validating a parameter with no default stays without a child: it is a required argument, never a zero." << std::endl;
+
+    MAREA_IrFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; function greet(name: string) end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+
+    const MAREA_IrNode *function{ MAREA_irChild(fixture.module, 0) };
+
+    EXPECT_EQ(MAREA_irRender(MAREA_irChild(function, 0)), "(PARAMETER_LIST (PARAMETER name :string))") << "A required parameter must keep zero children, not a synthesized ZERO_VALUE.";
+}
+
 TEST(MAREAIrDeclarations, FunctionKeepsParametersAndReturnTypeName)
 {
     GTEST_COUT << "Validating a function lowers to a FUNCTION_DECLARATION with a PARAMETER_LIST and an empty BLOCK." << std::endl;

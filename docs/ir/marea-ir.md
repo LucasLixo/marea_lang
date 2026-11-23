@@ -87,7 +87,8 @@ operands). The kinds are: `MODULE`, `CONSTANT_DECLARATION`,
 `BINARY_EXPRESSION`, `UNARY_EXPRESSION`, `MEMBER_ACCESS`, `INDEX_ACCESS`, `CALL_EXPRESSION`,
 `ARGUMENT_LIST`, `LITERAL_VALUE`, `FIELD_ENTRY`, `INDEX_ENTRY`, `VALUE_ENTRY`, `QUALIFIED_NAME`,
 `UNREACHABLE_STATEMENT`, `FORK_JOIN_BLOCK`, `PARTITION_STATEMENT`, `WITH_STATEMENT`, `FOR_EACH_STATEMENT`,
-`TYPE_NAME`, `BUILTIN_NAME` and `CHARACTER_LITERAL` (the text is the literal as written, with its single quotes). The last seven come after every older kind, so no value of an older kind moved.
+`TYPE_NAME`, `BUILTIN_NAME`, `CHARACTER_LITERAL` (the text is the literal as written, with its single quotes) and
+`ZERO_VALUE` (see Zero-default creation). The last eight come after every older kind, so no value of an older kind moved.
 
 The module keeps its declarations in source order. The typing is erased before the IR, so these make
 no node:
@@ -109,9 +110,13 @@ Other shapes:
 - A `do ... end` scope stays a `SCOPE_BLOCK` with a `BLOCK` child.
 - A `FIELD_ENTRY` of a literal is named after its field and holds the lowered value as its only child.
 - `unreachable!()` as a statement becomes `UNREACHABLE_STATEMENT`.
-- A constant, variant field or local with an initializer holds the lowered expression as its only child.
+- A constant, variant field or local with an initializer holds the lowered expression as its only child. A
+  `LOCAL_DECLARATION` with no written initializer holds a `ZERO_VALUE` instead, never no child (see
+  Zero-default creation); a `CONSTANT_DECLARATION` and a `VARIANT_FIELD` keep the no-child shape when they have
+  no initializer, because the rule does not reach them (see Zero-default creation and Gaps).
 - A `PARAMETER` with a default value holds the lowered default as its only child, the same shape a
-  constant or a variant field uses for its own initializer.
+  constant or a variant field uses for its own initializer. A `PARAMETER` with no default keeps the no-child
+  shape: it is a required argument, not a zero (see Zero-default creation).
 - A `CALL_EXPRESSION` whose callee is the bare name of a function of the same unit fills every
   parameter the call omitted: the `ARGUMENT_LIST` holds the lowered written arguments first, then, for
   each trailing parameter the call did not supply, the lowered default read fresh from that parameter in
@@ -120,6 +125,37 @@ Other shapes:
   or a local of the enclosing function that hides the module name (`MAREA_IrFunctionDeclares`, the same
   check an import alias uses) is never matched to the module function, so a call of the local fills
   nothing.
+
+## Zero-default creation
+
+The language spec's zero-default rule (decided 2026-11-22: no value or field is left unset at creation) covers six
+creation paths in all: a literal with an omitted field, a `local` with no initializer, `Type(args)` before
+`construct`, `array<T, N>` elements, `owned<T>` storage and a `convert` result that exposes padding. The ir lowers
+only the two it can see without a backend, both as an explicit `ZERO_VALUE`: a leaf with no text, no type name and
+no children, left for a backend to fill (see the backend contract below). The other four are a gap, recorded below
+and in Gaps; they need `cgen` or `vm` to exist first.
+
+- **A `LOCAL_DECLARATION` with no written initializer** holds one `ZERO_VALUE` as its only child, in place of the
+  no-child shape it had before this rule. `local total: sinteger32;` lowers to `(LOCAL_DECLARATION total
+  :sinteger32 (ZERO_VALUE))`.
+- **A struct `LITERAL_VALUE` field the source left unnamed** gets a synthesized `FIELD_ENTRY`, named after the
+  structure's own field and holding a `ZERO_VALUE` as its only child, appended after every `FIELD_ENTRY` the source
+  wrote, in the structure's own field declaration order. `Point{ x = 1 }`, with `Point` declaring `x` then `y`,
+  lowers to `(LITERAL_VALUE :Point (FIELD_ENTRY x (INTEGER_LITERAL 1)) (FIELD_ENTRY y (ZERO_VALUE)))`. The ir finds
+  the structure by its (de-aliased) type name among the non-generic `STRUCTURE_DECLARATION` items of the unit; a
+  generic structure, an opaque one (it has no field to miss) or a structure the unit does not declare (another
+  namespace) keeps today's shape with no synthesized field, a cross-module gap the ir already has elsewhere (see
+  Aliases and Gaps).
+- The rule stops at these two shapes. A `PARAMETER` with no default, a `CONSTANT_DECLARATION` (the grammar always
+  requires its initializer) and a `VARIANT_FIELD` with no written value all keep their own no-child shape: a
+  missing parameter default is a required argument, and a missing variant field default is a required argument of
+  the variant, neither one a zero.
+- **Backend contract (not yet implemented, recorded here for `cgen`/`vm`):** a `ZERO_VALUE` carries no type of its
+  own; a backend reads the type name of the node that holds it (the `LOCAL_DECLARATION`'s own type name, or the
+  structure field's declared type, found the same way the ir found the structure). `cgen` is expected to emit
+  `= {0}` for a type of constant size, or a `memset` otherwise; the `vm` is expected to zero the slot on
+  allocation. A parity test is expected to read the zeroed value on both backends and expect 0. None of this exists
+  yet (see Gaps): the ir only places the marker.
 
 ## For-range desugaring
 
@@ -414,6 +450,16 @@ Each diagnostic carries the position of the construct that raised it.
 
 ## Gaps
 
+- The zero-default rule (see Zero-default creation) covers only a `LOCAL_DECLARATION` with no written initializer
+  and a struct `LITERAL_VALUE` field the source left unnamed. Four more creation paths the language spec names are
+  not lowered yet, because they need a backend to exist first: `Type(args)` before `construct`, `array<T, N>`
+  elements, `owned<T>` storage and a `convert` result that exposes padding. A `PARAMETER`, a `CONSTANT_DECLARATION`
+  and a `VARIANT_FIELD` with no value are outside the rule on purpose (see Zero-default creation), not an
+  oversight.
+- A `ZERO_VALUE` names no type of its own: `cgen` and `vm` do not exist yet, so neither the `= {0}`/`memset`
+  contract for `cgen` nor the slot-zeroing contract for the `vm`, nor the parity test that is expected to read a
+  zeroed field and expect 0 on both, is implemented. This is recorded only as the expected contract (see
+  Zero-default creation).
 - Generics, and every macro other than a statement `unreachable!()`, are not lowered. The matching declaration is left out of the module, and only its first gap is reported.
 - A `FORK_JOIN_BLOCK` says that the workers end before the node ends, and a `PARTITION_STATEMENT` says that the
   parts are disjoint, but the IR holds nothing else about them: no part count check (a count of zero or less
