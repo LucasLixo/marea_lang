@@ -1,15 +1,14 @@
--- gap: #186 NEW
--- rule: reject
+-- expect: 3039 @12
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- A bit operator on a float.
+-- A logical operator on integers.
 
 namespace main;
 
 function check(): sinteger32
-    local left: float64 = 1.0;
-    local right: float64 = 2.0;
-    local mixed: float64 = left & right;
+    local left: sinteger32 = 1;
+    local right: sinteger32 = 2;
+    local both: boolean = left and right;
     return 1;
 end

@@ -312,6 +312,13 @@ expression then has no type, so the declared type of a local or a `return` is no
 operand that is a structure, an enum, a library type, a generic result or any other unknown type is accepted.
 A shift is not compared here, as its right side may have another type; it has its own rule below.
 
+**What an operand may be.** A bitwise operator (`&`, `|`, `^`, `~` and `&=`, `|=`, `^=`) with an operand that is a
+float (a `float32` or `float64` name or a float literal), a `boolean` or a `string` is `BITWISE_OPERAND_NOT_INTEGER`
+(3038); `and`, `or` and `not` with an operand of a known type that is not `boolean`, or a number, string or character
+literal, is `LOGICAL_OPERAND_NOT_BOOLEAN` (3039). Each is raised once on the expression, and only when the two operands
+already agree in type: a pair that raises `TYPE_MISMATCH` (3011) raises no second code. An operand of an unknown type is
+accepted, and a `character` operand of a bitwise operator is accepted.
+
 **No implicit numeric conversion (decision of the user).** A calculation never converts a
 number by itself: the two operands of an arithmetic or a comparison operator have the same primitive type, and
 `**` follows the same rule as `+`. An integer base with a float exponent is `TYPE_MISMATCH`, whatever the declared type of the result, and the result of a power has the type of its operands.
@@ -618,6 +625,8 @@ or rejects.
 | 3035 | `SHIFT_COUNT_TOO_LARGE` | `x << 32` for `uinteger32`, `x >>= 64` for `sinteger64`, `x << -1`: a constant shift count that is negative or not below the width of the left integer type |
 | 3036 | `NEGATE_UNSIGNED` | `-value`, `-(a + b)` or `-point.count` when the operand has a known unsigned primitive type |
 | 3037 | `SIGNED_DIVISION_OVERFLOW` | `-2147483648 / -1` or `-128 % -1` when the left side folds to the lowest value of the signed type and the right side folds to -1 |
+| 3038 | `BITWISE_OPERAND_NOT_INTEGER` | `a & b`, `a \| b`, `a ^ b`, `~a`, `a &= b` with a `float32` or `float64`, a `boolean` or a `string` operand, or a float literal |
+| 3039 | `LOGICAL_OPERAND_NOT_BOOLEAN` | `a and b`, `a or b`, `not a` with an operand whose known type is not `boolean`, or a number, string or character literal |
 
 ## Gaps
 
@@ -629,8 +638,10 @@ or rejects.
 - `TYPE_MISMATCH` (3011) sorts the type of an expression into a fixed set of shapes: a literal, a primitive, a
   structure, and, known but never compared, an enum, a library type, a generic parameter and an `owned`, `task`, `vector` or `array` value. Still fully unknown: a `pointer`, a `slice`, a function type, the type of a field or a file
   constant that is not a primitive, and the result of a generic call (see below).
-- A binary operator is not checked against what its operands may be (`a and b` with two integers raises nothing,
-  as the two have the same name), and an operator that is declared for a structure is not compared.
+- A binary operator is checked against what its operands may be only for a bitwise operator on a float, a boolean
+  or a string (3038) and for `and`, `or` and `not` on a known type that is not `boolean` (3039). Every other operator
+  (arithmetic on a `boolean` or a `string`, a comparison of two booleans) is not checked, a `character` operand of a
+  bitwise operator is accepted, and an operator that is declared for a structure is not compared.
 - `UNDECLARED_NAME` (3004) is not raised for the bare name that starts a member chain. The bare chain head is
   skipped because the `basics/functions` example calls `stdio.puts(text)` with no `import`, so the name may be a
   namespace; a later step can check it once that example imports what it uses. The `for`, `for each`, `partition`
