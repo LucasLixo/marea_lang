@@ -22,7 +22,7 @@ MAREA_SemaCheckCompilationUnit(sema, root);   /* once per file, dependencies fir
 `MAREA_SemaCheckCompilationUnit` returns an error only for a null argument or an out of memory. A rule
 violation is a diagnostic in the sink. A size that does not fit in `MAREA_IntegerSize` (a diagnostic
 message, or the growth of a name table) is also an out of memory: nothing is allocated or copied.
-Every sema diagnostic is an error, in the range 3001-3032.
+Every sema diagnostic is an error, in the range 3001-3032 and 3036-3037.
 The lexer file name decides the path rule, so call `MAREA_LexContextSetFileName` with a project
 relative path with forward slashes and the `.marea` extension before the lex step.
 
@@ -228,6 +228,12 @@ a `reference_mutable` (write-borrow) parameter, explicit or by default, has no w
 back the borrow, so it is rejected with `CANNOT_BORROW_CONSTANT_AS_MUTABLE` (3032); a variable
 passed to the same parameter is unaffected. Tracking of a moved local and a live borrow across
 statements is a design decision recorded in the last bullet of `## Gaps`.
+
+**Signed boundary.** Plain `+`, `-` and `*` wrap in two's complement, so only two shapes have no defined result. A unary minus over an
+unsigned value is rejected with `NEGATE_UNSIGNED` (3036); a negated literal is the literal range rule, not this one. A `/` or `%` whose
+left side folds to the lowest value of a signed type and whose right side folds to -1 is rejected with `SIGNED_DIVISION_OVERFLOW` (3037).
+The folder reads an integer literal, one unary minus and parentheses. The signed type is the primitive of an operand, else the declared type
+of the `local`, `constant`, `return` or assignment that holds the division.
 
 **Spawn.** In `fork_join`, each argument of `spawn f(...)` is a `partition` part, a literal, a file
 constant, or a name that is not a `reference_mutable` (write-borrow) parameter and not the source of
@@ -592,6 +598,8 @@ or rejects.
 | 3030 | `DEFAULT_PARAMETER_BEFORE_REQUIRED` | `function f(a: sinteger32 = 0, b: sinteger32)`: a parameter with a default value before one with none |
 | 3031 | `INVALID_ENUM_TAG_TYPE` | `enum A : float32`, `: string`, `: SomeStruct`: a tag that is not an integer primitive |
 | 3032 | `CANNOT_BORROW_CONSTANT_AS_MUTABLE` | `take(ORIGIN)` when `take`'s parameter's effective `semantics` is `reference_mutable` and `ORIGIN` is a file constant |
+| 3036 | `NEGATE_UNSIGNED` | `-value`, `-(a + b)` or `-point.count` when the operand has a known unsigned primitive type |
+| 3037 | `SIGNED_DIVISION_OVERFLOW` | `-2147483648 / -1` or `-128 % -1` when the left side folds to the lowest value of the signed type and the right side folds to -1 |
 
 ## Gaps
 
@@ -617,6 +625,9 @@ or rejects.
 - An alias of an `enum` is not resolved to the enum for any comparison, because sema never compares an enum type
   for `TYPE_MISMATCH` (see the `TYPE_MISMATCH` gap above); the aliased-enum case that a test covers is the
   `switch` coverage of an imported enum with an alias. No test covers `type A = Color;` of a same-file enum.
+- `SIGNED_DIVISION_OVERFLOW` (3037) folds only an integer literal, one unary minus and parentheses. A hex or binary literal, a
+  named constant, a nested expression such as `(-128 / -1) + 1`, and a compound `/=` or `%=` (whose left side is a name) are not folded.
+  The folder duplicates the ones of the sibling literal, zero divisor and shift rules; merge them later.
 - `INVALID_ENUM_TAG_TYPE` (3031) checks only that the tag is an integer primitive. Sema does not check that the tag
   is wide enough for the number of variants, and does not use it for the layout of the enum (`size_of` is
   unchanged).

@@ -952,6 +952,26 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_SemaPrimitiveOfExpression(const MAREA_SemaContext *context, const MAREA_AstNode *expression, const MAREA_Character8 **outName, MAREA_IntegerSize *outLength);
 
     /**
+     * @brief Reports NEGATE_UNSIGNED when a unary minus has an operand of a known unsigned primitive type. A negated
+     * literal is not this rule.
+     * @param context Context of the run. Must not be null.
+     * @param unary UNARY_EXPRESSION node. May be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER when context is null, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckNegation(MAREA_SemaContext * context, const MAREA_AstNode *unary);
+
+    /**
+     * @brief Reports SIGNED_DIVISION_OVERFLOW when an expression is a division or modulo whose left side folds to the
+     * lowest value of a signed type and whose right side folds to -1. The signed type is the primitive of an operand,
+     * else the primitive of targetType. With no known signed type nothing is reported.
+     * @param context Context of the run. Must not be null.
+     * @param targetType Declared type that holds the expression. May be null.
+     * @param expression Expression node. May be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER when context is null, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckSignedDivision(MAREA_SemaContext * context, const MAREA_AstNode *targetType, const MAREA_AstNode *expression);
+
+    /**
      * @brief Tells whether a number literal fits a primitive type under the rule of MAREA_SemaCheckExpressionFit:
      * an integer literal fits any number type, a float literal fits float32 and float64 only.
      * @param kind MAREA_AST_KIND_INTEGER_LITERAL or MAREA_AST_KIND_FLOAT_LITERAL. Any other kind gives false.
