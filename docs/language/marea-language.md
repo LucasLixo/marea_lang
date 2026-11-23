@@ -97,6 +97,31 @@ Where the compiler does not enforce a rule yet, the item is a `known_gap` with `
 |---|---|---|
 | L-SEED-003 | a local with no initial value (rule 3), issue #177 | gap: NEW, rule: reject |
 
+## Robustness
+
+One test file, `tests/source/language/MAREALanguageRobustness.cpp`, feeds broken input to `lex`, `parse` and `sema` and
+checks that each call returns, with no crash and no hang, and that every diagnostic has a line inside the file (1 to
+the number of lines). It uses no external fuzzer: every input is fixed or comes from a fixed seed. A watchdog aborts
+the run after 60 seconds, and the whole sweep stays near 10 seconds in the debug build. It changes what no stage
+accepts or rejects.
+
+| Sweep | Input | Result |
+|---|---|---|
+| Truncation | each of the 23 examples cut at every token boundary (4562 cases) | returns |
+| Token mutation | each example with one token deleted, duplicated or swapped with the next (13663 cases) | returns |
+| Byte flips | each example with 1 to 4 bytes replaced, 300 per example, seed `0x4D415245` (6900 cases) | returns |
+| Degenerate files | empty, only newlines, only comments, a NUL byte, a line of one million characters, a string never closed | returns |
+| Depth | parentheses, unary and binary operators, blocks, ifs, generic arguments, closed and unclosed, at depth 100 and 1000 | returns |
+| Depth 10000 | parentheses, unary operators, unclosed parentheses | returns |
+
+Defects found. Each has a disabled test in the file, named `DISABLED_KnownDefect...`, that shows it when enabled:
+
+| Input | Defect | Issue |
+|---|---|---|
+| a chain of 100000 binary operators | `sema` overflows the stack | #192 |
+| 10000 nested generic arguments, closed or unclosed | `parse` takes over 60 seconds, or about 6 seconds when unclosed | #193 |
+| 10000 nested ifs or blocks | about 39 seconds and about 12 seconds | #194 |
+
 ## Diagnostics
 
 The catalogue raises no diagnostic of its own. A `reject` item carries a code of another stage:
