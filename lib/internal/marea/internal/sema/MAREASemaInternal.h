@@ -118,6 +118,10 @@ MAREA_BEGIN_EXTERN_C
      * a structure, a function or an implementation block, the type arguments that fill them, and the type that
      * Self stands for. A name that is one of the parameters is replaced by the argument at the same place.
      * Frames are chained, innermost first, and live in the arena of the context.
+     *
+     * A frame can also mark a type written in another file (a function of a FOUND namespace): foreignRoot is the tree of
+     * that file and foreignName is the last segment of its namespace, a pointer that lives as long as the arena. A name
+     * written under such a frame is read in that tree, never in the file being built.
      */
     typedef struct MAREA_SemaTypeFrame MAREA_SemaTypeFrame;
 
@@ -129,6 +133,9 @@ MAREA_BEGIN_EXTERN_C
         const MAREA_AstNode *selfArguments;
         const MAREA_SemaTypeFrame *argumentFrame;
         const MAREA_SemaTypeFrame *next;
+        const MAREA_AstNode *foreignRoot;
+        const MAREA_Character8 *foreignName;
+        MAREA_IntegerSize foreignNameLength;
     };
 
     /**
@@ -165,6 +172,7 @@ MAREA_BEGIN_EXTERN_C
         MAREA_IntegerSize childCount;
         MAREA_SemaTypeClass typeClass;
         MAREA_SemaOwnershipMode ownershipMode;
+        MAREA_Boolean isQualifier;
     };
 
     /**
@@ -262,6 +270,50 @@ MAREA_BEGIN_EXTERN_C
      * @return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
      */
     MAREA_NODISCARD MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedAstResolveExpressionType(MAREA_SemaContext * context, MAREA_SemaTypedNode * built, const MAREA_AstNode *parent, MAREA_IntegerSize index);
+
+    /**
+     * @brief Finds the frame that marks a type written in another file, the innermost one of the chain.
+     * @param frame First frame of a chain. May be null.
+     * @return The frame whose foreignRoot is set, or null when the type is written in the file being built.
+     */
+    MAREA_NODISCARD const MAREA_SemaTypeFrame *MAREA_CALL MAREA_SemaTypeFrameFindForeign(const MAREA_SemaTypeFrame *frame);
+
+    /**
+     * @brief Tells whether an identifier only qualifies a member and is not a value. It is called for an identifier that
+     * has no type, and it is true when the identifier is the base of a member access and names, with no local or generic
+     * parameter hiding it, a structure or an enum, a namespace or an import alias, an imported type of a FOUND namespace,
+     * or nothing at all (sema takes a name with no declaration for a namespace).
+     * @param context Context the node is being built with. Must not be null.
+     * @param node AST node to test. May be null, which gives false.
+     * @param parent AST node that holds node. May be null, which gives false.
+     * @param index Position of node among the children of parent.
+     * @return True when node is such a qualifier, false otherwise.
+     */
+    MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_SemaTypedAstIsQualifier(const MAREA_SemaContext *context, const MAREA_AstNode *node, const MAREA_AstNode *parent, MAREA_IntegerSize index);
+
+    /**
+     * @brief Types the member of a member access whose base names a namespace that the resolver answers FOUND: a public
+     * function (its function type, read in the tree of that namespace) or a public constant (its declared type). A symbol
+     * that is not public, a type, and a base that a local hides or that is not a namespace leave outType empty.
+     * @param context Context the node is being built with. Must not be null.
+     * @param base AST node on the left of the member access. May be null, which leaves outType empty.
+     * @param member IDENTIFIER on the right of the member access. May be null, which leaves outType empty.
+     * @param callTypeArguments TYPE_ARGUMENTS written on the call of the member, or null.
+     * @param outType Receives what sema knows of the type, empty when it knows none. Must not be null.
+     * @return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null context or outType, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedAstFoundMemberType(MAREA_SemaContext * context, const MAREA_AstNode *base, const MAREA_AstNode *member, const MAREA_AstNode *callTypeArguments, MAREA_SemaExprType *outType);
+
+    /**
+     * @brief Types a bare name that an import bound to one public symbol of a FOUND namespace (import a.b.c as d;
+     * import a.b { c };), the same way MAREA_SemaTypedAstFoundMemberType types a member.
+     * @param context Context the node is being built with. Must not be null.
+     * @param identifier IDENTIFIER read as a value. May be null, which leaves outType empty.
+     * @param callTypeArguments TYPE_ARGUMENTS written on the call of the name, or null.
+     * @param outType Receives what sema knows of the type, empty when it knows none. Must not be null.
+     * @return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null context or outType, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedAstFoundNameType(MAREA_SemaContext * context, const MAREA_AstNode *identifier, const MAREA_AstNode *callTypeArguments, MAREA_SemaExprType *outType);
 
     /**
      * @brief The type of a call that returns nothing: the fixed text "void". It is only the spelling of a resolved

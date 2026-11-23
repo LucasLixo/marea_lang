@@ -176,6 +176,7 @@ namespace
     struct MAREA_ExpressionTally
     {
         std::size_t expressions{ 0 };
+        std::size_t qualifiers{ 0 };
         std::size_t untypedLiterals{ 0 };
         std::size_t untypedOperations{ 0 };
         std::map<std::string, std::size_t> untypedByKind;
@@ -190,7 +191,16 @@ namespace
 
         const bool IS_VALUE_IDENTIFIER{ (KIND == MAREA_AST_KIND_IDENTIFIER) && MAREA_identifierIsValue(parentKind, index, siblings) };
 
-        if (MAREA_isLiteralKind(KIND) || MAREA_isOperationKind(KIND) || IS_VALUE_IDENTIFIER) {
+        // A name that only qualifies a member is not a value: it has no type and is counted on its own.
+        if (MAREA_SemaTypedNodeIsQualifier(node)) {
+            ++tally.qualifiers;
+
+            const MAREA_Character8 *qualifierText{ nullptr };
+
+            MAREA_IntegerSize qualifierLength{ 0 };
+
+            EXPECT_EQ(MAREA_SemaTypedNodeGetResolvedType(node, &qualifierText, &qualifierLength), MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NO_TYPE) << "A qualifier has no resolved type.";
+        } else if (MAREA_isLiteralKind(KIND) || MAREA_isOperationKind(KIND) || IS_VALUE_IDENTIFIER) {
             ++tally.expressions;
 
             const MAREA_Character8 *text{ nullptr };
@@ -286,6 +296,7 @@ TEST(MAREASemaTypedAstExamples, EveryExpressionOfEveryExampleHasATypeOrIsCounted
         MAREA_tallyExpressions(root, MAREA_AST_KIND_COMPILATION_UNIT, 0, 1, tally);
 
         total.expressions += tally.expressions;
+        total.qualifiers += tally.qualifiers;
         total.untypedLiterals += tally.untypedLiterals;
         total.untypedOperations += tally.untypedOperations;
 
@@ -298,7 +309,7 @@ TEST(MAREASemaTypedAstExamples, EveryExpressionOfEveryExampleHasATypeOrIsCounted
         }
     }
 
-    GTEST_COUT << "Examples: " << FILES.size() << ", expression nodes: " << total.expressions << ", with no resolved type: " << (total.untypedLiterals + total.untypedOperations) << " (literals: " << total.untypedLiterals << ", other expressions: " << total.untypedOperations << ")." << std::endl;
+    GTEST_COUT << "Examples: " << FILES.size() << ", expression nodes: " << total.expressions << ", qualifier names (not values): " << total.qualifiers << ", with no resolved type: " << (total.untypedLiterals + total.untypedOperations) << " (literals: " << total.untypedLiterals << ", other expressions: " << total.untypedOperations << ")." << std::endl;
 
     for (const auto &entry : total.untypedByKind) {
         GTEST_COUT << "No type, by kind: " << entry.first << " = " << entry.second << std::endl;
@@ -311,7 +322,10 @@ TEST(MAREASemaTypedAstExamples, EveryExpressionOfEveryExampleHasATypeOrIsCounted
     EXPECT_EQ(FILES.size(), std::size_t{ 23 }) << "The sweep must cover the 23 examples.";
 
     // The ceiling is the count that the documented no-type cases leave (see "Gaps" of the sema doc); a regression raises it. The literals are typed by their own rule and every one of them has a type, so none is in this count.
-    EXPECT_LE(total.untypedOperations, std::size_t{ 150 }) << "Expressions other than literals with no resolved type must not grow past the documented cases.";
+    EXPECT_LE(total.untypedOperations, std::size_t{ 89 }) << "Expressions other than literals with no resolved type must not grow past the documented cases.";
+
+    // The names that only qualify a member are not counted above, so a qualifier that stopped being one would raise the count above or fall here.
+    EXPECT_GE(total.qualifiers, std::size_t{ 36 }) << "The examples hold at least 36 names that only qualify a member.";
 }
 
 namespace

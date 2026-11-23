@@ -1,0 +1,368 @@
+// Copyright (c) 2026 Paulo Lucas Alves Franca
+// Licensed under the MIT License. See LICENSE.txt for full terms.
+
+#include "marea/internal/sema/MAREASemaInternal.h"
+
+#include <string.h>
+
+MAREA_Boolean MAREA_CALL MAREA_SemaTypedNodeIsQualifier(const MAREA_SemaTypedNode *node)
+{
+    if (node == MAREA_NULLPTR) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    return node->isQualifier;
+}
+
+const MAREA_SemaTypeFrame *MAREA_CALL MAREA_SemaTypeFrameFindForeign(const MAREA_SemaTypeFrame *frame)
+{
+    for (const MAREA_SemaTypeFrame *current = frame; current != MAREA_NULLPTR; current = current->next) {
+        if (current->foreignRoot != MAREA_NULLPTR) {
+            return current;
+        }
+    }
+
+    return MAREA_NULLPTR;
+}
+
+static MAREA_SemaExprType MAREA_CALL MAREA_G_NoType(void)
+{
+    return (MAREA_SemaExprType){ .node = MAREA_NULLPTR, .declaration = MAREA_NULLPTR, .arguments = MAREA_NULLPTR, .frame = MAREA_NULLPTR, .fixed = MAREA_NULLPTR, .fixedLength = 0 };
+}
+
+static MAREA_Boolean MAREA_CALL MAREA_G_IsKind(const MAREA_AstNode *node, MAREA_AstKind kind)
+{
+    return ((node != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(node) == kind)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
+static MAREA_Boolean MAREA_CALL MAREA_G_IsTypeDeclaration(const MAREA_AstNode *declaration)
+{
+    return ((MAREA_G_IsKind(declaration, MAREA_AST_KIND_STRUCTURE_DECLARATION) == MAREA_BOOLEAN_TRUE) || (MAREA_G_IsKind(declaration, MAREA_AST_KIND_ENUM_DECLARATION) == MAREA_BOOLEAN_TRUE) || (MAREA_G_IsKind(declaration, MAREA_AST_KIND_OPAQUE_DECLARATION) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
+static MAREA_Boolean MAREA_CALL MAREA_G_IsWrittenType(const MAREA_AstNode *node)
+{
+    return ((MAREA_G_IsKind(node, MAREA_AST_KIND_NAMED_TYPE) == MAREA_BOOLEAN_TRUE) || (MAREA_G_IsKind(node, MAREA_AST_KIND_FUNCTION_TYPE) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
+static const MAREA_AstNode *MAREA_CALL MAREA_G_FindChild(const MAREA_AstNode *node, MAREA_AstKind kind)
+{
+    const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(node);
+
+    for (MAREA_IntegerSize index = 0; index < COUNT; ++index) {
+        const MAREA_AstNode *child = MAREA_SemaChildAt(node, index);
+
+        if (MAREA_G_IsKind(child, kind) == MAREA_BOOLEAN_TRUE) {
+            return child;
+        }
+    }
+
+    return MAREA_NULLPTR;
+}
+
+// INFO: the public top-level function or constant of a namespace tree, or null. A type or a symbol that is not public is not one.
+static const MAREA_AstNode *MAREA_CALL MAREA_G_FindPublicValue(const MAREA_AstNode *root, const MAREA_Character8 *name, MAREA_IntegerSize nameLength)
+{
+    const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(root);
+
+    for (MAREA_IntegerSize index = 0; index < COUNT; ++index) {
+        const MAREA_AstNode *declaration = MAREA_SemaChildAt(root, index);
+
+        const MAREA_Character8 *declarationName = MAREA_NULLPTR;
+
+        MAREA_IntegerSize declarationLength = 0;
+
+        if ((MAREA_SemaDeclarationName(declaration, &declarationName, &declarationLength) == MAREA_BOOLEAN_FALSE) || (MAREA_SemaTextEquals(declarationName, declarationLength, name, nameLength) == MAREA_BOOLEAN_FALSE)) {
+            continue;
+        }
+
+        if ((MAREA_SemaAttributeHasMember(root, declaration, "visibility", "public") == MAREA_BOOLEAN_FALSE) || ((MAREA_G_IsKind(declaration, MAREA_AST_KIND_FUNCTION_DECLARATION) == MAREA_BOOLEAN_FALSE) && (MAREA_G_IsKind(declaration, MAREA_AST_KIND_CONSTANT_DECLARATION) == MAREA_BOOLEAN_FALSE))) {
+            continue;
+        }
+
+        return declaration;
+    }
+
+    return MAREA_NULLPTR;
+}
+
+// INFO: the namespace a name entry stands for, as the resolver knows it: a namespace import is its qualifier then its own name, a symbol import is the namespace of its qualifier.
+static MAREA_SemaTypedAstExcept MAREA_CALL MAREA_G_NamespaceOf(MAREA_SemaContext *context, const MAREA_SemaName *entry, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength)
+{
+    *outText = MAREA_NULLPTR;
+    *outLength = 0;
+
+    const MAREA_Character8 *name = (entry->original != MAREA_NULLPTR) ? entry->original : entry->text;
+
+    const MAREA_IntegerSize NAME_LENGTH = (entry->original != MAREA_NULLPTR) ? entry->originalLength : entry->length;
+
+    if (entry->kind == MAREA_SEMA_NAME_KIND_IMPORTED_SYMBOL) {
+        *outText = entry->qualifier;
+        *outLength = entry->qualifierLength;
+
+        return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+    }
+
+    if (entry->qualifierLength == 0) {
+        *outText = name;
+        *outLength = NAME_LENGTH;
+
+        return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+    }
+
+    MAREA_Null memory = MAREA_NULLPTR;
+
+    if (MAREA_ArenaAllocate(context->arena, (entry->qualifierLength + NAME_LENGTH + MAREA_INTEGER_SIZE(1)), MAREA_INTEGER_SIZE(1), &memory) != MAREA_ARENA_EXCEPT_SUCCESS) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_OUT_OF_MEMORY;
+    }
+
+    MAREA_Character8 *joined = memory;
+
+    memcpy(joined, entry->qualifier, entry->qualifierLength);
+
+    joined[entry->qualifierLength] = '.';
+
+    memcpy((joined + entry->qualifierLength + MAREA_INTEGER_SIZE(1)), name, NAME_LENGTH);
+
+    *outText = joined;
+    *outLength = (entry->qualifierLength + NAME_LENGTH + MAREA_INTEGER_SIZE(1));
+
+    return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+}
+
+// INFO: the tree of a namespace, only when the resolver answers FOUND for it.
+static const MAREA_AstNode *MAREA_CALL MAREA_G_FoundRoot(const MAREA_SemaContext *context, const MAREA_Character8 *text, MAREA_IntegerSize length)
+{
+    if ((context->resolver == MAREA_NULLPTR) || (context->resolver->resolve == MAREA_NULLPTR) || (text == MAREA_NULLPTR) || (length == 0)) {
+        return MAREA_NULLPTR;
+    }
+
+    MAREA_SemaImportResult result = MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
+
+    const MAREA_AstNode *root = MAREA_NULLPTR;
+
+    context->resolver->resolve(context->resolver->userData, text, length, &result, &root);
+
+    return (result == MAREA_SEMA_IMPORT_RESULT_FOUND) ? root : MAREA_NULLPTR;
+}
+
+static MAREA_SemaTypeFrame *MAREA_CALL MAREA_G_NewFrame(MAREA_SemaContext *context)
+{
+    MAREA_Null memory = MAREA_NULLPTR;
+
+    if (MAREA_ArenaAllocate(context->arena, sizeof(MAREA_SemaTypeFrame), MAREA_ALIGNOF(MAREA_SemaTypeFrame), &memory) != MAREA_ARENA_EXCEPT_SUCCESS) {
+        return MAREA_NULLPTR;
+    }
+
+    MAREA_SemaTypeFrame *frame = memory;
+
+    *frame = (MAREA_SemaTypeFrame){ .parameters = MAREA_NULLPTR, .arguments = MAREA_NULLPTR, .selfDeclaration = MAREA_NULLPTR, .selfArguments = MAREA_NULLPTR, .argumentFrame = MAREA_NULLPTR, .next = MAREA_NULLPTR, .foreignRoot = MAREA_NULLPTR, .foreignName = MAREA_NULLPTR, .foreignNameLength = 0 };
+
+    return frame;
+}
+
+// INFO: the declared type of a public function or constant of a FOUND tree. A function with generic parameters gets a frame with the type arguments written at the call, or none, on top of the frame that marks the other file.
+static MAREA_SemaTypedAstExcept MAREA_CALL MAREA_G_ValueType(MAREA_SemaContext *context, const MAREA_AstNode *root, const MAREA_Character8 *namespaceText, MAREA_IntegerSize namespaceLength, const MAREA_Character8 *name, MAREA_IntegerSize nameLength, const MAREA_AstNode *callTypeArguments, MAREA_SemaExprType *outType)
+{
+    const MAREA_AstNode *declaration = MAREA_G_FindPublicValue(root, name, nameLength);
+
+    if (declaration == MAREA_NULLPTR) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+    }
+
+    MAREA_SemaTypeFrame *foreign = MAREA_G_NewFrame(context);
+
+    if (foreign == MAREA_NULLPTR) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_OUT_OF_MEMORY;
+    }
+
+    // INFO: the name that this file gives a type of the other file is the last segment of the namespace, as in structures.Shape.
+    MAREA_IntegerSize last = namespaceLength;
+
+    while ((last > 0) && (namespaceText[(last - MAREA_INTEGER_SIZE(1))] != '.')) {
+        last -= 1;
+    }
+
+    foreign->foreignRoot = root;
+    foreign->foreignName = (namespaceText + last);
+    foreign->foreignNameLength = (namespaceLength - last);
+
+    if (MAREA_G_IsKind(declaration, MAREA_AST_KIND_CONSTANT_DECLARATION) == MAREA_BOOLEAN_TRUE) {
+        const MAREA_AstNode *type = MAREA_SemaChildAt(declaration, (MAREA_AstNodeGetChildCount(declaration) - MAREA_INTEGER_SIZE(2)));
+
+        if (MAREA_G_IsWrittenType(type) == MAREA_BOOLEAN_TRUE) {
+            outType->node = type;
+            outType->frame = foreign;
+        }
+
+        return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_AstNode *parameters = MAREA_G_FindChild(declaration, MAREA_AST_KIND_GENERIC_PARAMETERS);
+
+    const MAREA_SemaTypeFrame *frame = foreign;
+
+    if (parameters != MAREA_NULLPTR) {
+        MAREA_SemaTypeFrame *generic = MAREA_G_NewFrame(context);
+
+        if (generic == MAREA_NULLPTR) {
+            return MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_OUT_OF_MEMORY;
+        }
+
+        generic->parameters = parameters;
+        generic->arguments = callTypeArguments;
+        generic->next = foreign;
+
+        frame = generic;
+    }
+
+    outType->node = declaration;
+    outType->frame = frame;
+
+    return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+}
+
+MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedAstFoundMemberType(MAREA_SemaContext *context, const MAREA_AstNode *base, const MAREA_AstNode *member, const MAREA_AstNode *callTypeArguments, MAREA_SemaExprType *outType)
+{
+    if ((context == MAREA_NULLPTR) || (outType == MAREA_NULLPTR)) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    *outType = MAREA_G_NoType();
+
+    if ((MAREA_G_IsKind(base, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_FALSE) || (MAREA_G_IsKind(member, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_FALSE)) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_Character8 *text = MAREA_AstNodeGetText(base);
+
+    const MAREA_IntegerSize LENGTH = MAREA_AstNodeGetTextLength(base);
+
+    const MAREA_SemaName *entry = MAREA_SemaNameTableFind(context, text, LENGTH);
+
+    // INFO: a local or a parameter hides a namespace, and a generic parameter is no namespace.
+    if ((MAREA_SemaLocalFind(context, text, LENGTH) != MAREA_NULLPTR) || (MAREA_SemaIsGenericInScope(context, text, LENGTH) == MAREA_BOOLEAN_TRUE) || (entry == MAREA_NULLPTR) || (entry->kind != MAREA_SEMA_NAME_KIND_NAMESPACE)) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_Character8 *namespaceText = MAREA_NULLPTR;
+
+    MAREA_IntegerSize namespaceLength = 0;
+
+    const MAREA_SemaTypedAstExcept JOINED = MAREA_G_NamespaceOf(context, entry, &namespaceText, &namespaceLength);
+
+    if (JOINED != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) {
+        return JOINED;
+    }
+
+    const MAREA_AstNode *root = MAREA_G_FoundRoot(context, namespaceText, namespaceLength);
+
+    if (root == MAREA_NULLPTR) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+    }
+
+    return MAREA_G_ValueType(context, root, namespaceText, namespaceLength, MAREA_AstNodeGetText(member), MAREA_AstNodeGetTextLength(member), callTypeArguments, outType);
+}
+
+MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedAstFoundNameType(MAREA_SemaContext *context, const MAREA_AstNode *identifier, const MAREA_AstNode *callTypeArguments, MAREA_SemaExprType *outType)
+{
+    if ((context == MAREA_NULLPTR) || (outType == MAREA_NULLPTR)) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    *outType = MAREA_G_NoType();
+
+    if (MAREA_G_IsKind(identifier, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_FALSE) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_SemaName *entry = MAREA_SemaNameTableFind(context, MAREA_AstNodeGetText(identifier), MAREA_AstNodeGetTextLength(identifier));
+
+    if ((entry == MAREA_NULLPTR) || (entry->kind != MAREA_SEMA_NAME_KIND_IMPORTED_SYMBOL) || (entry->qualifierLength == 0)) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_Character8 *name = (entry->original != MAREA_NULLPTR) ? entry->original : entry->text;
+
+    const MAREA_IntegerSize NAME_LENGTH = (entry->original != MAREA_NULLPTR) ? entry->originalLength : entry->length;
+
+    // INFO: a member path with a dot (Color.Red) names a variant, not a function or a constant.
+    if (memchr(name, '.', NAME_LENGTH) != MAREA_NULLPTR) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_AstNode *root = MAREA_G_FoundRoot(context, entry->qualifier, entry->qualifierLength);
+
+    if (root == MAREA_NULLPTR) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+    }
+
+    return MAREA_G_ValueType(context, root, entry->qualifier, entry->qualifierLength, name, NAME_LENGTH, callTypeArguments, outType);
+}
+
+// INFO: an imported symbol is a qualifier only when it is a type of a FOUND tree: a function or a constant is a value, and the tree of an EXTERNAL namespace is unknown.
+static MAREA_Boolean MAREA_CALL MAREA_G_ImportedSymbolIsType(const MAREA_SemaContext *context, const MAREA_SemaName *entry)
+{
+    if (MAREA_G_IsTypeDeclaration(entry->declaration) == MAREA_BOOLEAN_TRUE) {
+        return MAREA_BOOLEAN_TRUE;
+    }
+
+    const MAREA_AstNode *root = MAREA_G_FoundRoot(context, entry->qualifier, entry->qualifierLength);
+
+    if (root == MAREA_NULLPTR) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_Character8 *name = (entry->original != MAREA_NULLPTR) ? entry->original : entry->text;
+
+    const MAREA_IntegerSize NAME_LENGTH = (entry->original != MAREA_NULLPTR) ? entry->originalLength : entry->length;
+
+    const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(root);
+
+    for (MAREA_IntegerSize index = 0; index < COUNT; ++index) {
+        const MAREA_AstNode *declaration = MAREA_SemaChildAt(root, index);
+
+        const MAREA_Character8 *declarationName = MAREA_NULLPTR;
+
+        MAREA_IntegerSize declarationLength = 0;
+
+        if ((MAREA_G_IsTypeDeclaration(declaration) == MAREA_BOOLEAN_TRUE) && (MAREA_SemaDeclarationName(declaration, &declarationName, &declarationLength) == MAREA_BOOLEAN_TRUE) && (MAREA_SemaTextEquals(declarationName, declarationLength, name, NAME_LENGTH) == MAREA_BOOLEAN_TRUE)) {
+            return MAREA_BOOLEAN_TRUE;
+        }
+    }
+
+    return MAREA_BOOLEAN_FALSE;
+}
+
+MAREA_Boolean MAREA_CALL MAREA_SemaTypedAstIsQualifier(const MAREA_SemaContext *context, const MAREA_AstNode *node, const MAREA_AstNode *parent, MAREA_IntegerSize index)
+{
+    if ((context == MAREA_NULLPTR) || (MAREA_G_IsKind(node, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_FALSE) || (MAREA_G_IsKind(parent, MAREA_AST_KIND_MEMBER_ACCESS) == MAREA_BOOLEAN_FALSE) || (index != 0)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_Character8 *text = MAREA_AstNodeGetText(node);
+
+    const MAREA_IntegerSize LENGTH = MAREA_AstNodeGetTextLength(node);
+
+    if ((MAREA_SemaLocalFind(context, text, LENGTH) != MAREA_NULLPTR) || (MAREA_SemaIsGenericInScope(context, text, LENGTH) == MAREA_BOOLEAN_TRUE)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_SemaName *entry = MAREA_SemaNameTableFind(context, text, LENGTH);
+
+    // INFO: a name with no declaration is taken for a namespace, as the checker does for the head of a member chain.
+    if (entry == MAREA_NULLPTR) {
+        return MAREA_BOOLEAN_TRUE;
+    }
+
+    switch (entry->kind) {
+    case MAREA_SEMA_NAME_KIND_NAMESPACE:
+        return MAREA_BOOLEAN_TRUE;
+    case MAREA_SEMA_NAME_KIND_DECLARATION:
+        return MAREA_G_IsTypeDeclaration(entry->declaration);
+    case MAREA_SEMA_NAME_KIND_IMPORTED_SYMBOL:
+        return MAREA_G_ImportedSymbolIsType(context, entry);
+    default:
+        return MAREA_BOOLEAN_FALSE;
+    }
+}
