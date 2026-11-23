@@ -23,7 +23,8 @@ MAREA_BEGIN_EXTERN_C
      * is an operand (the text is the name, kept whole when dotted; the children are its type arguments, each a
      * TYPE_NAME or an INTEGER_LITERAL), and a BUILTIN_NAME is the callee of a built-in call with explicit type
      * arguments (the text is the name; the children are the type arguments, each a TYPE_NAME or an
-     * INTEGER_LITERAL). The list ends with MAREA_IR_KIND_COUNT.
+     * INTEGER_LITERAL). CHARACTER_LITERAL is appended after them so no value moves (the text is the literal as written, with its
+     * single quotes). The list ends with MAREA_IR_KIND_COUNT.
      */
     typedef enum MAREA_IrKind
     {
@@ -72,6 +73,7 @@ MAREA_BEGIN_EXTERN_C
         MAREA_IR_KIND_FOR_EACH_STATEMENT,
         MAREA_IR_KIND_TYPE_NAME,
         MAREA_IR_KIND_BUILTIN_NAME,
+        MAREA_IR_KIND_CHARACTER_LITERAL,
 
         MAREA_IR_KIND_COUNT
     } MAREA_IrKind;

@@ -254,6 +254,8 @@ MAREA_IrExcept MAREA_CALL MAREA_IrLowerExpression(MAREA_IrContext *context, cons
         return MAREA_IrNodeCreate(context, MAREA_IR_KIND_FLOAT_LITERAL, MAREA_SemaTypedNodeGetAstNode(typed), outNode);
     case MAREA_AST_KIND_STRING_LITERAL:
         return MAREA_IrNodeCreate(context, MAREA_IR_KIND_STRING_LITERAL, MAREA_SemaTypedNodeGetAstNode(typed), outNode);
+    case MAREA_AST_KIND_CHARACTER_LITERAL:
+        return MAREA_IrNodeCreate(context, MAREA_IR_KIND_CHARACTER_LITERAL, MAREA_SemaTypedNodeGetAstNode(typed), outNode);
     case MAREA_AST_KIND_BOOLEAN_LITERAL:
         return MAREA_IrNodeCreate(context, MAREA_IR_KIND_BOOLEAN_LITERAL, MAREA_SemaTypedNodeGetAstNode(typed), outNode);
     case MAREA_AST_KIND_QUALIFIED_NAME:
