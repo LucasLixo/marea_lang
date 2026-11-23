@@ -249,3 +249,23 @@ TEST(MAREAIrExpressions, OperatorsExampleKeepsItsOperatorShapes)
 
     EXPECT_NE(MAREA_irRender(comparison).find("(LOCAL_DECLARATION grouped :boolean (BINARY_EXPRESSION op=KEYWORD_AND (BINARY_EXPRESSION op=KEYWORD_OR"), std::string::npos) << "The parentheses of a grouped condition must be elided but keep their shape.";
 }
+
+TEST(MAREAIrExpressions, TypeConstructionCallLowersToConstructCall)
+{
+    GTEST_COUT << "Validating Point(1, 2) lowers to a CONSTRUCT_CALL against construct's own parameters." << std::endl;
+
+    const std::string PREFIX{ "structure Point x: sinteger32; y: sinteger32; end implementation Point #[operator = \"construct\"] function make(x: sinteger32 = 0, y: sinteger32 = 0) end end " };
+
+    EXPECT_EQ(MAREA_lowerInitializer(PREFIX, "Point", "Point(1, 2)"), "(CONSTRUCT_CALL :Point (ARGUMENT_LIST (INTEGER_LITERAL 1) (INTEGER_LITERAL 2)))") << "A full construction call must keep its arguments.";
+
+    EXPECT_EQ(MAREA_lowerInitializer(PREFIX, "Point", "Point(1)"), "(CONSTRUCT_CALL :Point (ARGUMENT_LIST (INTEGER_LITERAL 1) (INTEGER_LITERAL 0)))") << "An omitted trailing argument must be filled from construct's own default.";
+
+    EXPECT_EQ(MAREA_lowerInitializer(PREFIX, "Point", "Point()"), "(CONSTRUCT_CALL :Point (ARGUMENT_LIST (INTEGER_LITERAL 0) (INTEGER_LITERAL 0)))") << "No argument must fill every parameter from construct's own defaults.";
+}
+
+TEST(MAREAIrExpressions, TypeWithNoConstructOperatorLowersToAnEmptyConstructCall)
+{
+    GTEST_COUT << "Validating a type with no construct operator lowers Type() to a CONSTRUCT_CALL with no argument." << std::endl;
+
+    EXPECT_EQ(MAREA_lowerInitializer("structure Line x: sinteger32; end ", "Line", "Line()"), "(CONSTRUCT_CALL :Line (ARGUMENT_LIST))") << "A type with no construct must still get an explicit CONSTRUCT_CALL.";
+}

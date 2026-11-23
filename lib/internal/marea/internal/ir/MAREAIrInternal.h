@@ -227,6 +227,19 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD const MAREA_SemaTypedNode *MAREA_CALL MAREA_IrTypedFindDefault(const MAREA_SemaTypedNode *typed);
 
     /**
+     * @brief Finds the construct or destroy operator of a type: the FUNCTION_DECLARATION, inside an
+     * implementation of the unit whose written type name is typeName, that carries
+     * #[operator = "construct"] (wantConstruct true) or #[operator = "destroy"] (wantConstruct false).
+     * Only the first ATTRIBUTE group of a candidate function is read.
+     * @param context Context that holds the unit. Must not be null.
+     * @param typeName Written name of the structure or enum. Null returns null.
+     * @param typeNameLength Byte length of typeName.
+     * @param wantConstruct True for construct, false for destroy.
+     * @return The typed FUNCTION_DECLARATION that carries the operator, or null when the type declares none.
+     */
+    MAREA_NODISCARD const MAREA_SemaTypedNode *MAREA_CALL MAREA_IrFindLifecycleFunction(const MAREA_IrContext *context, const MAREA_Character8 *typeName, MAREA_IntegerSize typeNameLength, MAREA_Boolean wantConstruct);
+
+    /**
      * @brief Lowers one typed BLOCK and its statements. A statement that cannot be lowered makes the
      * whole block lower to nothing, so no partial body appears.
      * @param context Context that owns the arena and sink. Must not be null.
