@@ -267,7 +267,8 @@ The rules:
   static call, and the qualifier of the methods of an `implementation`. The head of a dotted type name that is a
   namespace alias is replaced (`lst.Item` becomes `list.Item`).
 - A parameter or a local of the function that is lowered, with the name of an alias, hides the alias in that
-  whole function (see Gaps).
+  function, from its own declaration onward: a reference before the declaration still lowers to the original
+  (see Gaps).
 - The built-in lookup (`size_of`, `align_of`, `convert`) counts the local names of a member list: an alias or a
   member with the built-in name binds it, the original of an alias does not.
 - `import` and `type` declarations still make no node, so a dump holds no alias text.
@@ -446,9 +447,9 @@ Each diagnostic carries the position of the construct that raised it.
   type arguments.
 - There is no linking between modules: an imported name is lowered to its original name, but the IR does not look
   at the namespace that holds it.
-- A parameter or a local hides an import alias in its whole function, also in the lines before its declaration,
-  because the check looks at every declaration of the function and not at the order. An alias used before a local
-  of the same name in a nested block therefore stays unrewritten there. Sema does not reject such a shadow.
+- A local hides an import alias from its declaration to the end of the function, also after the end of the nested
+  block that holds it, because the check compares source offsets and does not track block scope. Sema does not
+  reject such a shadow.
 - Two members with the same original name in two namespaces keep the same lowered name; the IR does not add the
   namespace. A backend that needs it must read the import itself.
 - A type alias is lowered only when its right side is one plain named type. An alias to a function type, or to a
