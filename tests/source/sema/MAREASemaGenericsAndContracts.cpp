@@ -32,7 +32,7 @@ namespace
 
     std::string MAREA_nest(int levels)
     {
-        std::string text{ "integer32" };
+        std::string text{ "sinteger32" };
 
         for (int level{ 0 }; level < levels; ++level) {
             text = "Box<" + text + ">";
@@ -53,14 +53,14 @@ TEST(MAREASemaGenericsAndContracts, ValueGenericSizesAVector)
 {
     GTEST_COUT << "Validating a value generic is usable as a vector size." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("structure Buffer<Item, constant Count: integer32> items: vector<Item, Count>; end").empty()) << "A value generic must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("structure Buffer<Item, constant Count: sinteger32> items: vector<Item, Count>; end").empty()) << "A value generic must raise nothing.";
 }
 
 TEST(MAREASemaGenericsAndContracts, ContractMetByImplementation)
 {
     GTEST_COUT << "Validating a call whose concrete type implements the contract raises nothing." << std::endl;
 
-    const std::string BODY{ COMPARABLE + "structure Score points: integer32; end implementation Score function less(self: Score, other: Score): boolean return true; end end " + MAXIMUM + "function run(a: Score, b: Score): Score return maximum(a, b); end" };
+    const std::string BODY{ COMPARABLE + "structure Score points: sinteger32; end implementation Score function less(self: Score, other: Score): boolean return true; end end " + MAXIMUM + "function run(a: Score, b: Score): Score return maximum(a, b); end" };
 
     EXPECT_TRUE(MAREA_codesOf(BODY).empty()) << "A met contract must raise nothing.";
 }
@@ -69,11 +69,11 @@ TEST(MAREASemaGenericsAndContracts, ContractMetThroughExplicitTypeArguments)
 {
     GTEST_COUT << "Validating explicit type arguments are checked like inferred ones." << std::endl;
 
-    const std::string MET{ COMPARABLE + "structure Score points: integer32; end implementation Score function less(self: Score, other: Score): boolean return true; end end " + MAXIMUM + "function run(a: Score, b: Score): Score return maximum<Score>(a, b); end" };
+    const std::string MET{ COMPARABLE + "structure Score points: sinteger32; end implementation Score function less(self: Score, other: Score): boolean return true; end end " + MAXIMUM + "function run(a: Score, b: Score): Score return maximum<Score>(a, b); end" };
 
     EXPECT_TRUE(MAREA_codesOf(MET).empty()) << "Explicit type arguments that meet the contract must raise nothing.";
 
-    const std::string UNMET{ COMPARABLE + "structure Score points: integer32; end " + MAXIMUM + "function run(a: Score, b: Score): Score return maximum<Score>(a, b); end" };
+    const std::string UNMET{ COMPARABLE + "structure Score points: sinteger32; end " + MAXIMUM + "function run(a: Score, b: Score): Score return maximum<Score>(a, b); end" };
 
     EXPECT_EQ(MAREA_codesOf(UNMET), Codes{ NOT_SATISFIED }) << "Explicit type arguments that miss the contract must raise CONTRACT_NOT_SATISFIED.";
 }
@@ -82,7 +82,7 @@ TEST(MAREASemaGenericsAndContracts, ContractWithMissingFunctionIsRejected)
 {
     GTEST_COUT << "Validating a type with no implementation of the contract function is rejected." << std::endl;
 
-    const std::string BODY{ COMPARABLE + "structure Score points: integer32; end " + MAXIMUM + "function run(a: Score, b: Score): Score return maximum(a, b); end" };
+    const std::string BODY{ COMPARABLE + "structure Score points: sinteger32; end " + MAXIMUM + "function run(a: Score, b: Score): Score return maximum(a, b); end" };
 
     EXPECT_EQ(MAREA_codesOf(BODY), Codes{ NOT_SATISFIED }) << "A missing function must raise CONTRACT_NOT_SATISFIED.";
 }
@@ -91,15 +91,15 @@ TEST(MAREASemaGenericsAndContracts, ContractWithMismatchedSignatureIsRejected)
 {
     GTEST_COUT << "Validating an implementation with a wrong parameter or return type is rejected." << std::endl;
 
-    const std::string WRONG_PARAMETER{ COMPARABLE + "structure Score points: integer32; end implementation Score function less(self: Score, other: integer32): boolean return true; end end " + MAXIMUM + "function run(a: Score, b: Score): Score return maximum(a, b); end" };
+    const std::string WRONG_PARAMETER{ COMPARABLE + "structure Score points: sinteger32; end implementation Score function less(self: Score, other: sinteger32): boolean return true; end end " + MAXIMUM + "function run(a: Score, b: Score): Score return maximum(a, b); end" };
 
     EXPECT_EQ(MAREA_codesOf(WRONG_PARAMETER), Codes{ NOT_SATISFIED }) << "A mismatched parameter must raise CONTRACT_NOT_SATISFIED.";
 
-    const std::string WRONG_RETURN{ COMPARABLE + "structure Score points: integer32; end implementation Score function less(self: Score, other: Score): integer32 return 1; end end " + MAXIMUM + "function run(a: Score, b: Score): Score return maximum(a, b); end" };
+    const std::string WRONG_RETURN{ COMPARABLE + "structure Score points: sinteger32; end implementation Score function less(self: Score, other: Score): sinteger32 return 1; end end " + MAXIMUM + "function run(a: Score, b: Score): Score return maximum(a, b); end" };
 
     EXPECT_EQ(MAREA_codesOf(WRONG_RETURN), Codes{ NOT_SATISFIED }) << "A mismatched return type must raise CONTRACT_NOT_SATISFIED.";
 
-    const std::string WRONG_COUNT{ COMPARABLE + "structure Score points: integer32; end implementation Score function less(self: Score): boolean return true; end end " + MAXIMUM + "function run(a: Score, b: Score): Score return maximum(a, b); end" };
+    const std::string WRONG_COUNT{ COMPARABLE + "structure Score points: sinteger32; end implementation Score function less(self: Score): boolean return true; end end " + MAXIMUM + "function run(a: Score, b: Score): Score return maximum(a, b); end" };
 
     EXPECT_EQ(MAREA_codesOf(WRONG_COUNT), Codes{ NOT_SATISFIED }) << "A mismatched parameter count must raise CONTRACT_NOT_SATISFIED.";
 }
@@ -108,7 +108,7 @@ TEST(MAREASemaGenericsAndContracts, ImplementationInSecondBlockCounts)
 {
     GTEST_COUT << "Validating a contract function found in any implementation block of the type is accepted." << std::endl;
 
-    const std::string BODY{ COMPARABLE + "structure Score points: integer32; end implementation Score function other() end end implementation Score function less(self: Score, other: Score): boolean return true; end end " + MAXIMUM + "function run(a: Score, b: Score): Score return maximum(a, b); end" };
+    const std::string BODY{ COMPARABLE + "structure Score points: sinteger32; end implementation Score function other() end end implementation Score function less(self: Score, other: Score): boolean return true; end end " + MAXIMUM + "function run(a: Score, b: Score): Score return maximum(a, b); end" };
 
     EXPECT_TRUE(MAREA_codesOf(BODY).empty()) << "A second block must be searched.";
 }
@@ -121,7 +121,7 @@ TEST(MAREASemaGenericsAndContracts, CopyableNeedsAValueType)
 
     EXPECT_TRUE(MAREA_codesOf(COPY + "#[value] structure Point x: float32; end function run(p: Point): Point return copy_of(p); end").empty()) << "A value type must be Copyable.";
 
-    EXPECT_TRUE(MAREA_codesOf(COPY + "function run(): integer32 return copy_of<integer32>(1); end").empty()) << "A primitive must be Copyable.";
+    EXPECT_TRUE(MAREA_codesOf(COPY + "function run(): sinteger32 return copy_of<sinteger32>(1); end").empty()) << "A primitive must be Copyable.";
 
     EXPECT_EQ(MAREA_codesOf(COPY + "structure Plain x: float32; end function run(p: Plain): Plain return copy_of(p); end"), Codes{ NOT_SATISFIED }) << "A plain structure must miss Copyable.";
 }
@@ -132,11 +132,11 @@ TEST(MAREASemaGenericsAndContracts, MovableNeedsAnOwnedOrMoveOnlyType)
 
     const std::string TAKE{ "function take<Item>(a: owned<Item>): owned<Item> where Item: Movable return a; end " };
 
-    EXPECT_TRUE(MAREA_codesOf(TAKE + "function run(a: owned<integer32>): owned<integer32> return take<owned<integer32>>(a); end").empty()) << "owned<T> must be Movable.";
+    EXPECT_TRUE(MAREA_codesOf(TAKE + "function run(a: owned<sinteger32>): owned<sinteger32> return take<owned<sinteger32>>(a); end").empty()) << "owned<T> must be Movable.";
 
-    EXPECT_TRUE(MAREA_codesOf(TAKE + "#[move_only] structure Token x: integer32; end function run(a: owned<Token>): owned<Token> return take<Token>(a); end").empty()) << "A move_only type must be Movable.";
+    EXPECT_TRUE(MAREA_codesOf(TAKE + "#[move_only] structure Token x: sinteger32; end function run(a: owned<Token>): owned<Token> return take<Token>(a); end").empty()) << "A move_only type must be Movable.";
 
-    EXPECT_EQ(MAREA_codesOf(TAKE + "function run(a: owned<integer32>): owned<integer32> return take<integer32>(a); end"), Codes{ NOT_SATISFIED }) << "A primitive must miss Movable.";
+    EXPECT_EQ(MAREA_codesOf(TAKE + "function run(a: owned<sinteger32>): owned<sinteger32> return take<sinteger32>(a); end"), Codes{ NOT_SATISFIED }) << "A primitive must miss Movable.";
 }
 
 TEST(MAREASemaGenericsAndContracts, GenericParameterSatisfiesThroughItsOwnWhereClause)
@@ -167,19 +167,19 @@ TEST(MAREASemaGenericsAndContracts, TypeArgumentCountMustMatch)
 
     const std::string PAIR{ "structure Pair<First, Second> first: First; second: Second; end " };
 
-    EXPECT_TRUE(MAREA_codesOf(PAIR + "structure H a: Pair<integer32, float32>; end").empty()) << "A matching count must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf(PAIR + "structure H a: Pair<sinteger32, float32>; end").empty()) << "A matching count must raise nothing.";
 
-    EXPECT_EQ(MAREA_codesOf(PAIR + "structure H a: Pair<integer32>; end"), Codes{ ARGUMENT_MISMATCH }) << "Too few arguments must raise GENERIC_ARGUMENT_MISMATCH.";
+    EXPECT_EQ(MAREA_codesOf(PAIR + "structure H a: Pair<sinteger32>; end"), Codes{ ARGUMENT_MISMATCH }) << "Too few arguments must raise GENERIC_ARGUMENT_MISMATCH.";
 
-    EXPECT_EQ(MAREA_codesOf(PAIR + "structure H a: Pair<integer32, float32, string>; end"), Codes{ ARGUMENT_MISMATCH }) << "Too many arguments must raise GENERIC_ARGUMENT_MISMATCH.";
+    EXPECT_EQ(MAREA_codesOf(PAIR + "structure H a: Pair<sinteger32, float32, string>; end"), Codes{ ARGUMENT_MISMATCH }) << "Too many arguments must raise GENERIC_ARGUMENT_MISMATCH.";
 
-    EXPECT_EQ(MAREA_codesOf("structure Plain x: float32; end structure H a: Plain<integer32>; end"), Codes{ ARGUMENT_MISMATCH }) << "Arguments on a non-generic type must raise GENERIC_ARGUMENT_MISMATCH.";
+    EXPECT_EQ(MAREA_codesOf("structure Plain x: float32; end structure H a: Plain<sinteger32>; end"), Codes{ ARGUMENT_MISMATCH }) << "Arguments on a non-generic type must raise GENERIC_ARGUMENT_MISMATCH.";
 
-    EXPECT_EQ(MAREA_codesOf("structure H a: pointer<integer32, integer32>; end"), Codes{ ARGUMENT_MISMATCH }) << "A core generic type has a fixed count.";
+    EXPECT_EQ(MAREA_codesOf("structure H a: pointer<sinteger32, sinteger32>; end"), Codes{ ARGUMENT_MISMATCH }) << "A core generic type has a fixed count.";
 
     EXPECT_EQ(MAREA_codesOf("structure H a: vector<float32>; end"), Codes{ ARGUMENT_MISMATCH }) << "A vector takes a type and a size.";
 
-    EXPECT_EQ(MAREA_codesOf("structure H a: integer32<float32>; end"), Codes{ ARGUMENT_MISMATCH }) << "A primitive takes no arguments.";
+    EXPECT_EQ(MAREA_codesOf("structure H a: sinteger32<float32>; end"), Codes{ ARGUMENT_MISMATCH }) << "A primitive takes no arguments.";
 }
 
 TEST(MAREASemaGenericsAndContracts, TypeArgumentKindMustMatch)
@@ -188,7 +188,7 @@ TEST(MAREASemaGenericsAndContracts, TypeArgumentKindMustMatch)
 
     EXPECT_EQ(MAREA_codesOf("structure Box<Item> v: Item; end structure H a: Box<4>; end"), Codes{ ARGUMENT_MISMATCH }) << "A number for a type parameter must raise GENERIC_ARGUMENT_MISMATCH.";
 
-    EXPECT_TRUE(MAREA_codesOf("structure Buffer<Item, constant Count: integer32> v: vector<Item, Count>; end structure H a: Buffer<float32, 4>; end").empty()) << "A number for a value parameter must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("structure Buffer<Item, constant Count: sinteger32> v: vector<Item, Count>; end structure H a: Buffer<float32, 4>; end").empty()) << "A number for a value parameter must raise nothing.";
 }
 
 TEST(MAREASemaGenericsAndContracts, UnknownContractIsRejected)
@@ -206,22 +206,22 @@ TEST(MAREASemaGenericsAndContracts, DirectCallArgumentCountMustMatch)
 {
     GTEST_COUT << "Validating a direct call of a file function needs the right argument count." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("function add(a: integer32, b: integer32): integer32 return a; end function run(): integer32 return add(1, 2); end").empty()) << "A matching count must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function add(a: sinteger32, b: sinteger32): sinteger32 return a; end function run(): sinteger32 return add(1, 2); end").empty()) << "A matching count must raise nothing.";
 
-    EXPECT_EQ(MAREA_codesOf("function add(a: integer32, b: integer32): integer32 return a; end function run(): integer32 return add(1); end"), Codes{ COUNT_MISMATCH }) << "A wrong count must raise ARGUMENT_COUNT_MISMATCH.";
+    EXPECT_EQ(MAREA_codesOf("function add(a: sinteger32, b: sinteger32): sinteger32 return a; end function run(): sinteger32 return add(1); end"), Codes{ COUNT_MISMATCH }) << "A wrong count must raise ARGUMENT_COUNT_MISMATCH.";
 }
 
 TEST(MAREASemaGenericsAndContracts, CallOfALocalThatHidesAFunctionIsNotChecked)
 {
     GTEST_COUT << "Validating a call through a local that hides a file function is not checked against that function." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("function f(count: integer32) end function g(f: function(text: string)) f(\"x\"); f(\"a\"); end").empty()) << "A parameter that hides a function must raise nothing for its own call.";
+    EXPECT_TRUE(MAREA_codesOf("function f(count: sinteger32) end function g(f: function(text: string)) f(\"x\"); f(\"a\"); end").empty()) << "A parameter that hides a function must raise nothing for its own call.";
 
-    EXPECT_TRUE(MAREA_codesOf("function f(count: integer32) end function g(f: function(text: string, other: string), name: string) f(name, name); end").empty()) << "A name argument and a wrong count of the hidden function must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function f(count: sinteger32) end function g(f: function(text: string, other: string), name: string) f(name, name); end").empty()) << "A name argument and a wrong count of the hidden function must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("function f(count: integer32) end function g(names: slice<string>) for each f in names do f(\"x\"); end end").empty()) << "A binder that hides a function must raise nothing for its own call.";
+    EXPECT_TRUE(MAREA_codesOf("function f(count: sinteger32) end function g(names: slice<string>) for each f in names do f(\"x\"); end end").empty()) << "A binder that hides a function must raise nothing for its own call.";
 
-    EXPECT_EQ(MAREA_codesOf("function f(count: integer32) end function g() f(\"x\"); end"), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH }) << "A call of the function itself must still raise TYPE_MISMATCH.";
+    EXPECT_EQ(MAREA_codesOf("function f(count: sinteger32) end function g() f(\"x\"); end"), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH }) << "A call of the function itself must still raise TYPE_MISMATCH.";
 }
 
 TEST(MAREASemaGenericsAndContracts, ErrorNodeInWhereClauseIsSkipped)
@@ -243,7 +243,7 @@ TEST(MAREASemaGenericsAndContracts, EnumIsCopyableAndBuiltInTypesMeetUserContrac
 
     EXPECT_TRUE(MAREA_codesOf(COPY + "enum Color red; end function run(c: Color): Color return copy_of(c); end").empty()) << "An enum must be Copyable.";
 
-    EXPECT_TRUE(MAREA_codesOf(COMPARABLE + MAXIMUM + "function run(): integer32 return maximum<integer32>(4, 8); end").empty()) << "A primitive must not be searched for implementations.";
+    EXPECT_TRUE(MAREA_codesOf(COMPARABLE + MAXIMUM + "function run(): sinteger32 return maximum<sinteger32>(4, 8); end").empty()) << "A primitive must not be searched for implementations.";
 }
 
 TEST(MAREASemaGenericsAndContracts, LiteralMustFitThePrimitiveType)
@@ -252,15 +252,15 @@ TEST(MAREASemaGenericsAndContracts, LiteralMustFitThePrimitiveType)
 
     constexpr MAREA_Uinteger32 MISMATCH{ MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH };
 
-    EXPECT_EQ(MAREA_codesOf("function f(a: integer32) end function g() f(\"text\"); end"), Codes{ MISMATCH }) << "A string for an integer must raise TYPE_MISMATCH.";
+    EXPECT_EQ(MAREA_codesOf("function f(a: sinteger32) end function g() f(\"text\"); end"), Codes{ MISMATCH }) << "A string for an integer must raise TYPE_MISMATCH.";
 
     EXPECT_EQ(MAREA_codesOf("function f(a: string) end function g() f(true); end"), Codes{ MISMATCH }) << "A boolean for a string must raise TYPE_MISMATCH.";
 
-    EXPECT_EQ(MAREA_codesOf("function f(a: integer32) end function g() f(1.5); end"), Codes{ MISMATCH }) << "A fraction for an integer must raise TYPE_MISMATCH.";
+    EXPECT_EQ(MAREA_codesOf("function f(a: sinteger32) end function g() f(1.5); end"), Codes{ MISMATCH }) << "A fraction for an integer must raise TYPE_MISMATCH.";
 
     EXPECT_EQ(MAREA_codesOf("function g() local x: boolean = 1; end"), Codes{ MISMATCH }) << "A number for a boolean must raise TYPE_MISMATCH.";
 
-    EXPECT_TRUE(MAREA_codesOf("function f(a: float32, b: string, c: boolean, d: integer32) end function g() f(1, \"x\", true, 2); local x: float64 = 2.5; end").empty()) << "Fitting literals must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function f(a: float32, b: string, c: boolean, d: sinteger32) end function g() f(1, \"x\", true, 2); local x: float64 = 2.5; end").empty()) << "Fitting literals must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("function f(a: pointer<integer32>) end function g() f(\"text\"); end").empty()) << "A non-primitive type must not be guessed.";
+    EXPECT_TRUE(MAREA_codesOf("function f(a: pointer<sinteger32>) end function g() f(\"text\"); end").empty()) << "A non-primitive type must not be guessed.";
 }

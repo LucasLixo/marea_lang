@@ -135,7 +135,7 @@ TEST(MAREAParserExpressions, GenericsVersusComparison)
     GTEST_COUT << "Validating the rule that decides type arguments against a comparison." << std::endl;
 
     MAREA_expectCases({
-        { "f<integer32>(x)", "(call f (type_arguments (named_type integer32)) (argument_list x))" },
+        { "f<sinteger32>(x)", "(call f (type_arguments (named_type sinteger32)) (argument_list x))" },
         { "a < b and c > d", "(binary:KEYWORD_AND (binary:LESS a b) (binary:GREATER c d))" },
         { "a < b > (c)", "(call a (type_arguments (named_type b)) (argument_list c))" },
         { "size_of<layout.Light>() == 32", "(binary:EQUAL_EQUAL (call size_of (type_arguments (named_type layout.Light)) (argument_list)) 32)" },
@@ -150,13 +150,13 @@ TEST(MAREAParserExpressions, LiteralValues)
 
     MAREA_expectCases({
         { "Point{ x = 1.0, y = 2.0 }", "(literal_value (named_type Point) (field_entry x 1.0) (field_entry y 2.0))" },
-        { "table<string, integer32>{ [\"a\"] = 1 }", "(literal_value (named_type table (type_arguments (named_type string) (named_type integer32))) (index_entry \"a\" 1))" },
+        { "table<string, sinteger32>{ [\"a\"] = 1 }", "(literal_value (named_type table (type_arguments (named_type string) (named_type sinteger32))) (index_entry \"a\" 1))" },
         { "array<float32>{ 1.0, 2.0 }", "(literal_value (named_type array (type_arguments (named_type float32))) (value_entry 1.0) (value_entry 2.0))" },
         { "vector<float32, 4>{ 1.0, 0.0 }", "(literal_value (named_type vector (type_arguments (named_type float32) 4)) (value_entry 1.0) (value_entry 0.0))" },
         { "Point{ x = 1, }", "(literal_value (named_type Point) (field_entry x 1))" },
         { "Point{}", "(literal_value (named_type Point))" },
         { "ns.Point{ x = 1 }", "(literal_value (named_type ns.Point) (field_entry x 1))" },
-        { "table<string, array<integer32>>{}", "(literal_value (named_type table (type_arguments (named_type string) (named_type array (type_arguments (named_type integer32))))))" },
+        { "table<string, array<sinteger32>>{}", "(literal_value (named_type table (type_arguments (named_type string) (named_type array (type_arguments (named_type sinteger32))))))" },
         { "Point{ a == b }", "(literal_value (named_type Point) (value_entry (binary:EQUAL_EQUAL a b)))" },
     });
 }

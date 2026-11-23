@@ -2,7 +2,7 @@
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
 -- Step 13: C libraries. A c.* namespace calls the C function with its own name, and the
--- language converts the types at the border (string <-> char pointer, integer32 <-> int).
+-- language converts the types at the border (string <-> char pointer, sinteger32 <-> int).
 
 namespace interop.c_library;
 

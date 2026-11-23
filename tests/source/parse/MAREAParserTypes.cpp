@@ -43,7 +43,7 @@ TEST(MAREAParserTypes, PrimitiveName)
 
     MAREA_ParseFixture fixture;
 
-    EXPECT_EQ(MAREA_typeDump(fixture, "integer32"), MAREA_lines({ "NAMED_TYPE", "  QUALIFIED_NAME", "    IDENTIFIER \"integer32\"" })) << "A plain name must be a NAMED_TYPE.";
+    EXPECT_EQ(MAREA_typeDump(fixture, "sinteger32"), MAREA_lines({ "NAMED_TYPE", "  QUALIFIED_NAME", "    IDENTIFIER \"sinteger32\"" })) << "A plain name must be a NAMED_TYPE.";
 
     EXPECT_TRUE(fixture.MAREA_codes().empty()) << "No diagnostic is expected.";
 }
@@ -76,11 +76,11 @@ TEST(MAREAParserTypes, TypeArguments)
     {
         MAREA_ParseFixture fixture;
 
-        const std::string DUMP{ MAREA_typeDump(fixture, "table<string, integer32>") };
+        const std::string DUMP{ MAREA_typeDump(fixture, "table<string, sinteger32>") };
 
         EXPECT_NE(DUMP.find("IDENTIFIER \"string\""), std::string::npos) << "The key type must be present.";
 
-        EXPECT_NE(DUMP.find("IDENTIFIER \"integer32\""), std::string::npos) << "The value type must be present.";
+        EXPECT_NE(DUMP.find("IDENTIFIER \"sinteger32\""), std::string::npos) << "The value type must be present.";
 
         EXPECT_TRUE(fixture.MAREA_codes().empty()) << "No diagnostic is expected.";
     }
@@ -112,15 +112,15 @@ TEST(MAREAParserTypes, FunctionTypes)
     {
         MAREA_ParseFixture fixture;
 
-        const std::string EXPECTED{ MAREA_lines({ "FUNCTION_TYPE", "  PARAMETER_LIST", "    PARAMETER", "      IDENTIFIER \"a\"", "      NAMED_TYPE", "        QUALIFIED_NAME", "          IDENTIFIER \"integer32\"", "  NAMED_TYPE", "    QUALIFIED_NAME", "      IDENTIFIER \"integer32\"" }) };
+        const std::string EXPECTED{ MAREA_lines({ "FUNCTION_TYPE", "  PARAMETER_LIST", "    PARAMETER", "      IDENTIFIER \"a\"", "      NAMED_TYPE", "        QUALIFIED_NAME", "          IDENTIFIER \"sinteger32\"", "  NAMED_TYPE", "    QUALIFIED_NAME", "      IDENTIFIER \"sinteger32\"" }) };
 
-        EXPECT_EQ(MAREA_typeDump(fixture, "function(a: integer32): integer32"), EXPECTED) << "A function type with a result.";
+        EXPECT_EQ(MAREA_typeDump(fixture, "function(a: sinteger32): sinteger32"), EXPECTED) << "A function type with a result.";
     }
 
     {
         MAREA_ParseFixture fixture;
 
-        const std::string DUMP{ MAREA_typeDump(fixture, "function(a: mutable integer32, b: reference integer32)") };
+        const std::string DUMP{ MAREA_typeDump(fixture, "function(a: mutable sinteger32, b: reference sinteger32)") };
 
         EXPECT_NE(DUMP.find("PARAMETER flags=1\n"), std::string::npos) << "mutable must set the MUTABLE flag.";
 
@@ -134,7 +134,7 @@ TEST(MAREAParserTypes, FunctionTypeRejectsParameterDefault)
 
     MAREA_ParseFixture fixture;
 
-    ASSERT_EQ(fixture.MAREA_parse("namespace main; constant x: function(a: integer32 = 0) = 1;"), MAREA_PARSE_EXCEPT_SUCCESS) << "Parsing must succeed.";
+    ASSERT_EQ(fixture.MAREA_parse("namespace main; constant x: function(a: sinteger32 = 0) = 1;"), MAREA_PARSE_EXCEPT_SUCCESS) << "Parsing must succeed.";
 
     EXPECT_EQ(fixture.MAREA_codes(), std::vector<MAREA_Uinteger32>{ MAREA_PARSE_DIAGNOSTIC_CODE_UNEXPECTED_TOKEN }) << "UNEXPECTED_TOKEN is expected and nothing more.";
 }

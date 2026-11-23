@@ -28,12 +28,12 @@ import memory.regions;
 import parallel.scaling;
 
 #[visibility = public]
-function main(arguments: array<string>): integer32
+function main(arguments: array<string>): sinteger32
     local level: string = control_flow.classify(75);
     local shape: structures.Shape = structures.make_square(2.0);
-    local total: integer32 = functions.show_functions() + blocks.show_blocks();
-    local imported: integer32 = consumer.show_imports();
-    local length: integer32 = regions.show_regions();
+    local total: sinteger32 = functions.show_functions() + blocks.show_blocks();
+    local imported: sinteger32 = consumer.show_imports();
+    local length: sinteger32 = regions.show_regions();
     local owned_total: float64 = ownership.show_ownership();
     local values: array<float32> = array<float32>{ 1.0, 2.0, 3.0, 4.0 };
     scaling.scale_all(values, 2.0);

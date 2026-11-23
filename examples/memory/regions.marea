@@ -21,8 +21,8 @@ function join_names(first: string, second: string): string
 end
 
 #[visibility = public]
-function show_regions(): integer32
-    local length: integer32 = 0;
+function show_regions(): sinteger32
+    local length: sinteger32 = 0;
     do
         local full: string = join_names("Ana", "Silva");   -- owned by this block
         length = text.length(full);
@@ -33,7 +33,7 @@ end
 
 -- An explicit arena: the data of the arena is freed together when the arena owner ends.
 #[visibility = public]
-function show_explicit_arena(): integer32
+function show_explicit_arena(): sinteger32
     local pool: Arena = Arena.create();
     local name: string = join_names("Leo", "Costa");
     local copy_in_pool: string = pool.copy_of(name);

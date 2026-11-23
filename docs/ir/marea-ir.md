@@ -57,7 +57,7 @@ Flags reuse the AST flag bits. `MAREA_AST_FLAG_MUTABLE` is kept on a `PARAMETER`
 on a `FOR_EACH_STATEMENT` and on the hidden loop variable of a for-range loop. A
 node made by the named-node path (declarations, fields, parameters, locals) drops every flag but `MUTABLE`.
 
-The type name is the head name of the written type, with no type arguments (`array<integer32>` gives
+The type name is the head name of the written type, with no type arguments (`array<sinteger32>` gives
 `array`; a dotted name is kept whole). A `FUNCTION_TYPE` gives none. It is set on: `CONSTANT_DECLARATION`,
 `FIELD_DECLARATION`, `VARIANT_FIELD`, `PARAMETER`, `LOCAL_DECLARATION` and `FUNCTION_DECLARATION`
 (its return type), read from the AST type child; on a struct `LITERAL_VALUE`, from its type child;
@@ -252,9 +252,9 @@ one alias table from the unit before it lowers a declaration:
 - A whole-path alias (`import a.b.c as d;`) stands for the last segment of its path (`c`).
 - A member alias (`import a.b { f as g, Color.red as Crimson };`) stands for the member path as written (`f`,
   `Color.red`). A two-part path is joined with a dot in the arena. A member without `as` is not an alias.
-- A local type alias without generic parameters (`type Name = Other;`, `type Name = Other<integer32>;`) stands for
+- A local type alias without generic parameters (`type Name = Other;`, `type Name = Other<sinteger32>;`) stands for
   the written head type name; the type arguments are not kept, as on any written type. An alias of a function type
-  (`type Callback = function(v: integer32): boolean;`) lowers to no type name, as the written function type does.
+  (`type Callback = function(v: sinteger32): boolean;`) lowers to no type name, as the written function type does.
   A chain of type aliases is followed up to 8 steps; an import alias ends a chain. A generic alias is not in the
   table and keeps raising 4004. A `TYPE_NAME` operand (a built-in or static call argument) named by an alias that
   carries type arguments or names a function type raises 4004, because the lowered name would lose them.
@@ -279,14 +279,14 @@ The rules:
 ## Type operands
 
 Two forms of call have a type as an operand, and the IR cannot erase it: `size_of<T>()` has no other input, and
-`array<integer32>.filled(8, 0)` names the type whose function it calls. The IR holds the written type, as a name and
+`array<sinteger32>.filled(8, 0)` names the type whose function it calls. The IR holds the written type, as a name and
 a tree of its type arguments, and nothing else. It adds no type system, no check and no runtime call: it does not
 look up the type, does not compute a size and does not choose a conversion. Each backend does that.
 
 ```
-CALL_EXPRESSION                              -- a built-in call: size_of<Light>(), convert<integer64>(count)
+CALL_EXPRESSION                              -- a built-in call: size_of<Light>(), convert<sinteger64>(count)
   BUILTIN_NAME "convert"                     -- the text is the name; the children are the type arguments
-    TYPE_NAME "integer64"
+    TYPE_NAME "sinteger64"
   ARGUMENT_LIST
     IDENTIFIER "count"
 
@@ -315,9 +315,9 @@ CALL_EXPRESSION                              -- a static call on a written type:
   arguments, and the unit binds no name of its own with that spelling. A function declared in the unit, an import
   of that last segment, an import alias, or a member of an import list (its alias, or its last segment) with that
   name is a user function, so its call stays a user generic. A call of the same name with no type argument is a
-  plain call, as before. A qualified callee (`array.convert<integer32>(1)`) is not a built-in.
+  plain call, as before. A qualified callee (`array.convert<sinteger32>(1)`) is not a built-in.
 - A call is a static call on a written type when its callee is a `MEMBER_ACCESS` on a type with type arguments
-  (`array<integer32>.filled`) and the call itself names no type argument. A type that the unit declares with
+  (`array<sinteger32>.filled`) and the call itself names no type argument. A type that the unit declares with
   generic parameters, as a structure or a type alias, is a user generic and keeps raising 4004: its declaration
   is left out of the module, so the call would point at nothing. Any other head, a built-in type such as `vector`
   or a type of another namespace such as `array`, lowers. A head with a dot is a type of another namespace.
@@ -342,11 +342,11 @@ call-stack use does not depend on the tree depth; a deep tree costs arena memory
 MODULE
   STRUCTURE_DECLARATION "Point"
     FIELD_DECLARATION "x" type=float64
-  FUNCTION_DECLARATION "f" type=integer32
+  FUNCTION_DECLARATION "f" type=sinteger32
     PARAMETER_LIST
-      PARAMETER "a" type=integer32
+      PARAMETER "a" type=sinteger32
     BLOCK
-      LOCAL_DECLARATION "b" type=integer32
+      LOCAL_DECLARATION "b" type=sinteger32
         BINARY_EXPRESSION op=PLUS
           IDENTIFIER "a"
           INTEGER_LITERAL "1"
@@ -385,7 +385,7 @@ now (see Type operands).
 
 | Code | Name | Example |
 |---|---|---|
-| 4004 | `UNINSTANTIATED_GENERIC` | a generic function, structure or `implementation`; a call with explicit type arguments that is not a built-in call (`identity<integer32>(5)`); a call whose result type is an unbound generic; a `GENERIC_NAME` that is not the receiver of a call, or whose head is a generic type of the unit; a function type as the type argument of a built-in or a static call; a call whose callee is the bare name of a function of the unit that was left out of the module, also when the callee is declared after the caller (the call and its top-level declaration are dropped, and the callers of a dropped function raise in turn). `size_of<T>()`, `align_of<T>()`, `convert<T>(x)` and `array<integer32>.filled(8, 0)` raise nothing. |
+| 4004 | `UNINSTANTIATED_GENERIC` | a generic function, structure or `implementation`; a call with explicit type arguments that is not a built-in call (`identity<sinteger32>(5)`); a call whose result type is an unbound generic; a `GENERIC_NAME` that is not the receiver of a call, or whose head is a generic type of the unit; a function type as the type argument of a built-in or a static call; a call whose callee is the bare name of a function of the unit that was left out of the module, also when the callee is declared after the caller (the call and its top-level declaration are dropped, and the callers of a dropped function raise in turn). `size_of<T>()`, `align_of<T>()`, `convert<T>(x)` and `array<sinteger32>.filled(8, 0)` raise nothing. |
 | 4005 | `UNSUPPORTED_MACRO` | `print!("hi");`, a module-level `static_assert!(true);`, a macro call inside an expression. `unreachable!();` as a statement is lowered and raises nothing. |
 
 The codes 4001, 4002 and 4003 are retired: `fork_join`, `switch` and `for each` are lowered. The numbers have no
@@ -436,9 +436,9 @@ Each diagnostic carries the position of the construct that raised it.
   built-in when the import does not bind that name.
 - A function type as a type argument of a built-in or of a static call is not lowered and raises 4004, because a
   `TYPE_NAME` has no place for its parameters and its result. A `GENERIC_NAME` that is not the receiver of a call
-  (`array<integer32>.LIMIT`) also raises 4004.
+  (`array<sinteger32>.LIMIT`) also raises 4004.
 - A static call on a generic type of another namespace lowers, but a call of a generic function of another
-  namespace with explicit type arguments (`other.maximum<integer32>(1, 2)`) still raises 4004: only the three
+  namespace with explicit type arguments (`other.maximum<sinteger32>(1, 2)`) still raises 4004: only the three
   built-ins have a call form with a type argument on the function.
 - The hidden loop variable of a for-range loop has no type name (sema gives none for a range bound). A
   backend must infer it from the first bound.

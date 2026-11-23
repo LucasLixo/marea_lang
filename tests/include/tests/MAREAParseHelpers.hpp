@@ -132,7 +132,7 @@ struct MAREA_ParseFixture
 
     std::string MAREA_expression(const std::string &text)
     {
-        if (MAREA_parse("namespace main; constant x: integer32 = " + text + ";") != MAREA_PARSE_EXCEPT_SUCCESS) {
+        if (MAREA_parse("namespace main; constant x: sinteger32 = " + text + ";") != MAREA_PARSE_EXCEPT_SUCCESS) {
             return "<parse failed>";
         }
 

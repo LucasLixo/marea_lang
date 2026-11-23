@@ -26,10 +26,10 @@ end
 -- A header read from a file or a network: no padding at all.
 #[visibility = public, value, layout = c, pack = 1]
 structure FileHeader
-    magic: unsigned32;
-    version: unsigned8;
-    flags: unsigned8;
-    size: unsigned16;
+    magic: uinteger32;
+    version: uinteger8;
+    flags: uinteger8;
+    size: uinteger16;
 end
 
 -- One field with its own alignment.
@@ -40,6 +40,6 @@ structure Uniforms
     matrix: array<float32, 16>;
 end
 
-constant LIGHT_SIZE: unsigned64 = size_of<Light>();       -- 32
-constant LIGHT_ALIGN: unsigned64 = align_of<Light>();     -- 16
-constant HEADER_SIZE: unsigned64 = size_of<FileHeader>(); -- 8
+constant LIGHT_SIZE: uinteger64 = size_of<Light>();       -- 32
+constant LIGHT_ALIGN: uinteger64 = align_of<Light>();     -- 16
+constant HEADER_SIZE: uinteger64 = size_of<FileHeader>(); -- 8
