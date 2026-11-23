@@ -355,8 +355,14 @@ static void MAREA_CALL MAREA_G_Render(const MAREA_SemaContext *context, const MA
     if ((MAREA_G_SingleName(type, &name, &nameLength) == MAREA_BOOLEAN_TRUE) && (MAREA_G_FindChild(type, MAREA_AST_KIND_TYPE_ARGUMENTS) == MAREA_NULLPTR) && (depth < MAREA_G_ALIAS_LIMIT) && (MAREA_SemaIsGenericInScope(context, name, nameLength) == MAREA_BOOLEAN_FALSE)) {
         const MAREA_SemaName *entry = MAREA_SemaNameTableFind(context, name, nameLength);
 
-        if ((entry != MAREA_NULLPTR) && (entry->kind != MAREA_SEMA_NAME_KIND_DECLARATION) && (entry->original != MAREA_NULLPTR)) {
-            MAREA_G_Append(buffer, position, entry->original, entry->originalLength);
+        // INFO: an import renders with its namespace, so same-named members of two namespaces are two types.
+        if ((entry != MAREA_NULLPTR) && (entry->kind != MAREA_SEMA_NAME_KIND_DECLARATION) && ((entry->original != MAREA_NULLPTR) || (entry->qualifier != MAREA_NULLPTR))) {
+            if (entry->qualifier != MAREA_NULLPTR) {
+                MAREA_G_Append(buffer, position, entry->qualifier, entry->qualifierLength);
+                MAREA_G_Append(buffer, position, ".", MAREA_INTEGER_SIZE(1));
+            }
+
+            MAREA_G_Append(buffer, position, (entry->original != MAREA_NULLPTR) ? entry->original : name, (entry->original != MAREA_NULLPTR) ? entry->originalLength : nameLength);
 
             return;
         }
@@ -519,6 +525,13 @@ static MAREA_SemaTypeClass MAREA_CALL MAREA_G_Classify(const MAREA_SemaContext *
     }
 
     const MAREA_SemaName *entry = MAREA_SemaNameTableFind(context, *outName, *outLength);
+
+    // INFO: an import binds a declaration only for an enum of a file the resolver gave, so the enum has its real variants here.
+    if ((entry != MAREA_NULLPTR) && (entry->kind == MAREA_SEMA_NAME_KIND_IMPORTED_SYMBOL) && (entry->declaration != MAREA_NULLPTR)) {
+        *outDeclaration = entry->declaration;
+
+        return MAREA_SEMA_TYPE_CLASS_USER;
+    }
 
     if ((entry == MAREA_NULLPTR) || (entry->kind != MAREA_SEMA_NAME_KIND_DECLARATION) || (entry->declaration == MAREA_NULLPTR)) {
         return MAREA_SEMA_TYPE_CLASS_EXTERNAL;

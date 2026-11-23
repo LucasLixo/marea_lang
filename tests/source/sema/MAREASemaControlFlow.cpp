@@ -224,6 +224,57 @@ TEST(MAREASemaControlFlow, RepeatedConstantNameIsRejected)
     EXPECT_EQ(MAREA_codesOf("function f(n: integer32): integer32 switch n case a.LIMIT then return 1; case a.LIMIT then return 2; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "A repeated qualified constant name must raise DUPLICATE_SWITCH_ARM.";
 }
 
+TEST(MAREASemaControlFlow, RepeatedIntegerValueInAnotherBaseIsRejected)
+{
+    GTEST_COUT << "Validating two integer literals of one value in different spellings are the same case value." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("function f(n: integer32): integer32 switch n case 1, 0x1 then return 1; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "1 and 0x1 in one list must raise DUPLICATE_SWITCH_ARM.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(n: integer32): integer32 switch n case 255 then return 1; case 0xFF then return 2; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "255 and 0xFF across arms must raise DUPLICATE_SWITCH_ARM.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(n: integer32): integer32 switch n case 5 then return 1; case 0b101 then return 2; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "5 and 0b101 must raise DUPLICATE_SWITCH_ARM.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(n: integer32): integer32 switch n case 1_000 then return 1; case 1000 then return 2; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "A digit separator must not change the value.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(n: integer32): integer32 switch n case -1 then return 1; case -0x1 then return 2; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "A negated literal must be compared by value.";
+
+    EXPECT_TRUE(MAREA_codesOf("function f(n: integer32): integer32 switch n case 1 then return 1; case 0x2 then return 2; case -0x1 then return 4; default then return 3; end end").empty()) << "Literals of different values must raise nothing.";
+}
+
+TEST(MAREASemaControlFlow, ConstantAndItsLiteralAreTheSameCaseValue)
+{
+    GTEST_COUT << "Validating a named constant and the literal it holds are the same case value." << std::endl;
+
+    const std::string MAX{ "constant MAX: integer32 = 100; " };
+
+    EXPECT_EQ(MAREA_codesOf(MAX + "function f(n: integer32): integer32 switch n case MAX then return 1; case 100 then return 2; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "A constant, then its literal, must raise DUPLICATE_SWITCH_ARM.";
+
+    EXPECT_EQ(MAREA_codesOf(MAX + "function f(n: integer32): integer32 switch n case 0x64 then return 1; case MAX then return 2; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "A literal in another base, then the constant, must raise DUPLICATE_SWITCH_ARM.";
+
+    EXPECT_EQ(MAREA_codesOf("constant A: integer32 = 7; constant B: integer32 = A; function f(n: integer32): integer32 switch n case B then return 1; case 7 then return 2; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "A constant built from another constant must be followed.";
+
+    EXPECT_EQ(MAREA_codesOf("constant A: integer32 = 7; constant B: integer32 = 7; function f(n: integer32): integer32 switch n case A then return 1; case B then return 2; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "Two constants of one value must raise DUPLICATE_SWITCH_ARM.";
+
+    EXPECT_EQ(MAREA_codesOf("constant NAME: string = \"a\"; function f(s: string): integer32 switch s case NAME then return 1; case \"a\" then return 2; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "A string constant and its literal must raise DUPLICATE_SWITCH_ARM.";
+
+    EXPECT_TRUE(MAREA_codesOf(MAX + "function f(n: integer32): integer32 switch n case MAX then return 1; case 101 then return 2; default then return 3; end end").empty()) << "A constant and another literal must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(MAX + "function f(MAX: integer32): integer32 switch MAX case MAX then return 1; case 100 then return 2; default then return 3; end end").empty()) << "A local that hides the constant must not be resolved to it.";
+
+    EXPECT_TRUE(MAREA_codesOf("constant A: integer32 = B; constant B: integer32 = A; function f(n: integer32): integer32 switch n case A then return 1; case 1 then return 2; default then return 3; end end").empty()) << "A cycle of constants must end without a false repeat.";
+}
+
+TEST(MAREASemaControlFlow, QualifiedNamesAreNotResolvedToAConstantOfTheLastName)
+{
+    GTEST_COUT << "Validating a qualified name is compared by its path, never by a constant that shares its last name." << std::endl;
+
+    EXPECT_TRUE(MAREA_codesOf("constant LIMIT: integer32 = 5; function f(n: integer32): integer32 switch n case a.LIMIT then return 1; case b.LIMIT then return 2; default then return 3; end end").empty()) << "a.LIMIT and b.LIMIT must stay distinct when the file has its own LIMIT.";
+
+    EXPECT_TRUE(MAREA_codesOf("constant LIMIT: integer32 = 5; constant MAX: integer32 = 5; function f(n: integer32): integer32 switch n case a.LIMIT then return 1; case a.MAX then return 2; default then return 3; end end").empty()) << "a.LIMIT and a.MAX must stay distinct even when the file has constants LIMIT and MAX of one value.";
+
+    EXPECT_EQ(MAREA_codesOf("constant LIMIT: integer32 = 5; function f(n: integer32): integer32 switch n case a.LIMIT then return 1; case a.LIMIT then return 2; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "A repeated qualified name must still raise DUPLICATE_SWITCH_ARM.";
+}
+
 TEST(MAREASemaControlFlow, RepeatedEnumVariantIsRejected)
 {
     GTEST_COUT << "Validating an enum variant that appears again raises DUPLICATE_SWITCH_ARM." << std::endl;
@@ -320,4 +371,79 @@ TEST(MAREASemaControlFlow, RepeatedArmIsReportedAtTheRepeat)
     ASSERT_EQ(caseFixture.parser.MAREA_offsets().size(), 1U) << "One diagnostic must be raised.";
 
     EXPECT_EQ(caseFixture.parser.MAREA_offsets()[0], CASE_SOURCE.rfind('7')) << "The diagnostic must sit on the repeated value.";
+}
+
+TEST(MAREASemaControlFlow, SwitchOverAnImportedEnumChecksCoverage)
+{
+    GTEST_COUT << "Validating a switch over an enum imported from another file is checked for coverage." << std::endl;
+
+    MAREA_SemaFixture library;
+
+    ASSERT_EQ(library.parser.MAREA_parse("namespace a.b; #[public] enum Color red; green; blue; end"), MAREA_PARSE_EXCEPT_SUCCESS) << "The library must parse.";
+
+    const auto RESOLVE = [&library](const std::string &name, const MAREA_AstNode **root) {
+        *root = library.parser.root;
+
+        return (name == "a.b") ? MAREA_SEMA_IMPORT_RESULT_FOUND : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
+    };
+
+    const std::string PARTIAL{ "function f(c: Color): integer32 switch c case Color.red then return 1; case Color.green then return 2; end end" };
+
+    const std::string FULL{ "function f(c: Color): integer32 switch c case Color.red then return 1; case Color.green then return 2; case Color.blue then return 3; end end" };
+
+    const std::string DEFAULTED{ "function f(c: Color): integer32 switch c case Color.red then return 1; default then return 2; end end" };
+
+    MAREA_SemaFixture member(RESOLVE);
+
+    ASSERT_EQ(member.MAREA_sema("namespace main; import a.b { Color }; " + PARTIAL), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+
+    EXPECT_EQ(member.MAREA_semaCodes(), Codes{ NON_EXHAUSTIVE }) << "A missing variant of a member import must raise NON_EXHAUSTIVE_SWITCH.";
+
+    MAREA_SemaFixture whole(RESOLVE);
+
+    ASSERT_EQ(whole.MAREA_sema("namespace main; import a.b.Color; " + PARTIAL), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+
+    EXPECT_EQ(whole.MAREA_semaCodes(), Codes{ NON_EXHAUSTIVE }) << "A missing variant of a whole-path import must raise NON_EXHAUSTIVE_SWITCH.";
+
+    MAREA_SemaFixture covered(RESOLVE);
+
+    ASSERT_EQ(covered.MAREA_sema("namespace main; import a.b { Color }; " + FULL), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+
+    EXPECT_TRUE(covered.MAREA_semaCodes().empty()) << "Every variant covered must raise nothing.";
+
+    MAREA_SemaFixture defaulted(RESOLVE);
+
+    ASSERT_EQ(defaulted.MAREA_sema("namespace main; import a.b { Color }; " + DEFAULTED), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+
+    EXPECT_TRUE(defaulted.MAREA_semaCodes().empty()) << "A default arm must raise nothing.";
+}
+
+TEST(MAREASemaControlFlow, SwitchOverAnAliasedImportedEnumChecksCoverage)
+{
+    GTEST_COUT << "Validating a switch over an enum imported under an alias is checked for coverage." << std::endl;
+
+    MAREA_SemaFixture library;
+
+    ASSERT_EQ(library.parser.MAREA_parse("namespace a.b; #[public] enum Color red; green; blue; end"), MAREA_PARSE_EXCEPT_SUCCESS) << "The library must parse.";
+
+    MAREA_SemaFixture fixture([&library](const std::string &name, const MAREA_AstNode **root) {
+        *root = library.parser.root;
+
+        return (name == "a.b") ? MAREA_SEMA_IMPORT_RESULT_FOUND : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
+    });
+
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; import a.b { Color as Hue }; function g(h: Hue): integer32 switch h case Hue.red then return 1; end end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+
+    EXPECT_EQ(fixture.MAREA_semaCodes(), Codes{ NON_EXHAUSTIVE }) << "A missing variant behind an alias must raise NON_EXHAUSTIVE_SWITCH.";
+}
+
+TEST(MAREASemaControlFlow, SwitchOverAnExternalEnumIsStillExempt)
+{
+    GTEST_COUT << "Validating a switch over a type of an external namespace is still not checked." << std::endl;
+
+    MAREA_SemaFixture fixture([](const std::string &, const MAREA_AstNode **) { return MAREA_SEMA_IMPORT_RESULT_EXTERNAL; });
+
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; import a.b { Color }; function f(c: Color): integer32 switch c case Color.red then return 1; end end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+
+    EXPECT_TRUE(fixture.MAREA_semaCodes().empty()) << "An external type has no tree, so it must raise nothing.";
 }

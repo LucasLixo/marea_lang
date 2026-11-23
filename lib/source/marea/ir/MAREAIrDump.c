@@ -109,7 +109,51 @@ static void MAREA_CALL MAREA_G_DumpWriteEscaped(MAREA_G_DumpBuffer *buffer, cons
     }
 }
 
-static void MAREA_CALL MAREA_G_DumpNode(MAREA_G_DumpBuffer *buffer, const MAREA_IrNode *node, MAREA_IntegerSize depth)
+typedef struct MAREA_G_DumpFrame
+{
+    const MAREA_IrNode *node;
+    MAREA_IntegerSize depth;
+} MAREA_G_DumpFrame;
+
+typedef struct MAREA_G_DumpStack
+{
+    MAREA_G_DumpFrame *frames;
+    MAREA_IntegerSize count;
+    MAREA_IntegerSize capacity;
+} MAREA_G_DumpStack;
+
+// INFO: The stack lives in the caller arena, so a deep tree costs heap and never call-stack depth.
+static void MAREA_CALL MAREA_G_DumpPush(MAREA_G_DumpBuffer *buffer, MAREA_G_DumpStack *stack, const MAREA_IrNode *node, MAREA_IntegerSize depth)
+{
+    if (buffer->failed == MAREA_BOOLEAN_TRUE) {
+        return;
+    }
+
+    if (stack->count == stack->capacity) {
+        const MAREA_IntegerSize newCapacity = (stack->capacity == MAREA_INTEGER_SIZE(0)) ? MAREA_INTEGER_SIZE(64) : (stack->capacity * MAREA_INTEGER_SIZE(2));
+
+        MAREA_Null memory = MAREA_NULLPTR;
+
+        if (MAREA_ArenaAllocate(buffer->arena, (newCapacity * sizeof(MAREA_G_DumpFrame)), MAREA_ALIGNOF(MAREA_G_DumpFrame), &memory) != MAREA_ARENA_EXCEPT_SUCCESS) {
+            buffer->failed = MAREA_BOOLEAN_TRUE;
+
+            return;
+        }
+
+        if (stack->count > MAREA_INTEGER_SIZE(0)) {
+            memcpy(memory, stack->frames, (stack->count * sizeof(MAREA_G_DumpFrame)));
+        }
+
+        stack->frames = memory;
+        stack->capacity = newCapacity;
+    }
+
+    stack->frames[stack->count].node = node;
+    stack->frames[stack->count].depth = depth;
+    stack->count = (stack->count + MAREA_INTEGER_SIZE(1));
+}
+
+static void MAREA_CALL MAREA_G_DumpNodeLine(MAREA_G_DumpBuffer *buffer, const MAREA_IrNode *node, MAREA_IntegerSize depth)
 {
     for (MAREA_IntegerSize level = MAREA_INTEGER_SIZE(0); level < depth; level = (level + MAREA_INTEGER_SIZE(1))) {
         MAREA_G_DumpWriteText(buffer, "  ");
@@ -139,9 +183,26 @@ static void MAREA_CALL MAREA_G_DumpNode(MAREA_G_DumpBuffer *buffer, const MAREA_
     }
 
     MAREA_G_DumpWriteText(buffer, "\n");
+}
 
-    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < node->childCount; index = (index + MAREA_INTEGER_SIZE(1))) {
-        MAREA_G_DumpNode(buffer, node->children[index], (depth + MAREA_INTEGER_SIZE(1)));
+static void MAREA_CALL MAREA_G_DumpNode(MAREA_G_DumpBuffer *buffer, const MAREA_IrNode *root)
+{
+    MAREA_G_DumpStack stack = { .frames = MAREA_NULLPTR, .count = MAREA_INTEGER_SIZE(0), .capacity = MAREA_INTEGER_SIZE(0) };
+
+    MAREA_G_DumpPush(buffer, &stack, root, MAREA_INTEGER_SIZE(0));
+
+    while ((stack.count > MAREA_INTEGER_SIZE(0)) && (buffer->failed == MAREA_BOOLEAN_FALSE)) {
+        stack.count = (stack.count - MAREA_INTEGER_SIZE(1));
+
+        const MAREA_IrNode *node = stack.frames[stack.count].node;
+        const MAREA_IntegerSize depth = stack.frames[stack.count].depth;
+
+        MAREA_G_DumpNodeLine(buffer, node, depth);
+
+        // INFO: Children go on in reverse so that the first child comes off first and the order stays the same.
+        for (MAREA_IntegerSize index = node->childCount; index > MAREA_INTEGER_SIZE(0); index = (index - MAREA_INTEGER_SIZE(1))) {
+            MAREA_G_DumpPush(buffer, &stack, node->children[(index - MAREA_INTEGER_SIZE(1))], (depth + MAREA_INTEGER_SIZE(1)));
+        }
     }
 }
 
@@ -167,7 +228,7 @@ MAREA_IrExcept MAREA_CALL MAREA_IrModuleDump(MAREA_Arena *arena, const MAREA_IrN
 
     MAREA_G_DumpReserve(&buffer, MAREA_INTEGER_SIZE(0));
 
-    MAREA_G_DumpNode(&buffer, module, MAREA_INTEGER_SIZE(0));
+    MAREA_G_DumpNode(&buffer, module);
 
     if (buffer.failed == MAREA_BOOLEAN_TRUE) {
         return MAREA_IR_EXCEPT_ERROR_OUT_OF_MEMORY;

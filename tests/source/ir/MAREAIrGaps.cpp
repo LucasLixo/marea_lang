@@ -295,3 +295,43 @@ TEST(MAREAIrGaps, RemainingCodesKeepTheirNumbers)
     EXPECT_EQ(GENERIC, MAREA_UINTEGER_32(4004)) << "UNINSTANTIATED_GENERIC must stay 4004.";
     EXPECT_EQ(MACRO, MAREA_UINTEGER_32(4005)) << "UNSUPPORTED_MACRO must stay 4005.";
 }
+
+TEST(MAREAIrGaps, CallOfADroppedFunctionRaisesAtTheCallSite)
+{
+    GTEST_COUT << "Validating a call to a function that was dropped from the module raises a diagnostic at the call site, and does not lower to a dangling name." << std::endl;
+
+    const std::string SOURCE{ "namespace main; function noop<Item>(value: Item) end function run() noop(5); end function keep() end" };
+
+    EXPECT_EQ(MAREA_irCodesOf(SOURCE), (Codes{ GENERIC, GENERIC })) << "The generic function and the call that targets it must each raise once.";
+
+    EXPECT_EQ(MAREA_functionNamesOf(SOURCE), "keep") << "The caller must be dropped with its dangling call.";
+}
+
+TEST(MAREAIrGaps, CallOfADroppedFunctionDeclaredLaterRaisesAtTheCallSite)
+{
+    GTEST_COUT << "Validating a call to a dropped function that is declared after the caller raises at the call site too." << std::endl;
+
+    const std::string SOURCE{ "namespace main; function run() noop(5); end function noop<Item>(value: Item) end function keep() end" };
+
+    EXPECT_EQ(MAREA_irCodesOf(SOURCE), (Codes{ GENERIC, GENERIC })) << "The generic function and the call that targets it must each raise once.";
+
+    EXPECT_EQ(MAREA_functionNamesOf(SOURCE), "keep") << "The caller must be dropped with its dangling call.";
+}
+
+TEST(MAREAIrGaps, CallOfAFunctionDroppedByItsOwnDanglingCallRaisesToo)
+{
+    GTEST_COUT << "Validating a function dropped for a dangling call is itself a dropped name, so its own callers raise." << std::endl;
+
+    const std::string SOURCE{ "namespace main; function noop<Item>(value: Item) end function middle() noop(5); end function top() middle(); end function keep() end" };
+
+    EXPECT_EQ(MAREA_irCodesOf(SOURCE), (Codes{ GENERIC, GENERIC, GENERIC })) << "The generic function, its caller and the caller of that caller must each raise once.";
+
+    EXPECT_EQ(MAREA_functionNamesOf(SOURCE), "keep") << "Only the function with no dangling call may remain.";
+}
+
+TEST(MAREAIrGaps, CallOfAKeptFunctionStaysQuiet)
+{
+    GTEST_COUT << "Validating a call to a function that stays in the module raises nothing." << std::endl;
+
+    EXPECT_EQ(MAREA_irCodesOf("namespace main; function noop() end function run() noop(); end"), Codes{}) << "A kept callee must raise nothing.";
+}
