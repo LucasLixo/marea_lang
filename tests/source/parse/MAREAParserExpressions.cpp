@@ -34,6 +34,8 @@ TEST(MAREAParserExpressions, Literals)
         { "0xFF", "0xFF" },
         { "1.5", "1.5" },
         { "\"s\"", "\"s\"" },
+        { "'a'", "'a'" },
+        { "'\\n'", "'\\n'" },
         { "true", "true" },
         { "false", "false" },
         { "a", "a" },
