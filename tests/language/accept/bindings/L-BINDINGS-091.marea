@@ -1,0 +1,13 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A function that ends in a scope block with a return.
+
+namespace main;
+
+function check(): sinteger32
+    do
+        return 1;
+    end
+end

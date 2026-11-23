@@ -1,0 +1,12 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A layout and an align attribute on a structure.
+
+namespace main;
+
+#[layout = c, align = 16]
+structure Light
+    red: float32;
+end

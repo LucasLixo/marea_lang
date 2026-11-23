@@ -1,0 +1,13 @@
+-- expect: 3011 @11
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A string converted to a number is a mismatch.
+
+namespace main;
+
+function check(): sinteger32
+    local text: string = "1";
+    local value: sinteger32 = convert<sinteger32>(text);
+    return value;
+end

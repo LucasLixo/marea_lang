@@ -1,0 +1,15 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A local in a nested scope that has the name of an outer local.
+
+namespace main;
+
+function check(): sinteger32
+    local value: sinteger32 = 1;
+    do
+        local value: sinteger32 = 2;
+    end
+    return value;
+end
