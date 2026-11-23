@@ -494,15 +494,6 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckControlFlow(MAREA_SemaContext * context, const MAREA_AstNode *node);
 
     /**
-     * @brief Checks the entry point: a function named main in the namespace main has the signature
-     * (arguments: array<string>): integer32. Sema never requires a main to exist.
-     * @param context Context of the run. Must not be null.
-     * @param root COMPILATION_UNIT node. Must not be null.
-     * @return MAREA_SEMA_EXCEPT_SUCCESS, or MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER on a null argument.
-     */
-    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckEntryPoint(MAREA_SemaContext * context, const MAREA_AstNode *root);
-
-    /**
      * @brief Reports TYPE_MISMATCH when the type that sema knows for an expression cannot be the primitive type
      * the context expects: a literal, a name with a declared type, a field or an element of a known type, a unary
      * or binary operator, or a call of a plain function of the file. Two primitives are the same only by name; a
