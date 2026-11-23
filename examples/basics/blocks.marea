@@ -9,7 +9,7 @@ namespace basics.blocks;
 
 import collections.array;
 
-#[public]
+#[visibility = public]
 function show_blocks(): integer32
     local result: integer32 = 1;
     do

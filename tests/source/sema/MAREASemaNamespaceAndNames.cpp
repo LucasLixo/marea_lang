@@ -19,7 +19,7 @@ namespace
 
         MAREA_LibraryResolver()
         {
-            MAREA_IGNORE(library.parser.MAREA_parse("namespace a.b; #[public] function c() end function hidden() end #[public] enum Color red; green; end #[public] constant MAX: integer32 = 1; #[public] structure Item end"));
+            MAREA_IGNORE(library.parser.MAREA_parse("namespace a.b; #[visibility = public] function c() end function hidden() end #[visibility = public] enum Color red; green; end #[visibility = public] constant MAX: integer32 = 1; #[visibility = public] structure Item end"));
         }
     };
 
@@ -140,6 +140,27 @@ TEST(MAREASemaNamespaceAndNames, ImportOfPrivateSymbolIsRejected)
     ASSERT_EQ(fixture.MAREA_sema("namespace main; import a.b.hidden;"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
 
     EXPECT_EQ(fixture.MAREA_semaCodes(), std::vector<MAREA_Uinteger32>{ UNRESOLVED }) << "A private symbol must raise UNRESOLVED_IMPORT.";
+}
+
+TEST(MAREASemaNamespaceAndNames, ImportHonoursFileVisibilityAndExplicitPrivate)
+{
+    GTEST_COUT << "Validating a file visibility makes symbols importable and a symbol visibility = private overrides it." << std::endl;
+
+    MAREA_SemaFixture library;
+
+    MAREA_IGNORE(library.parser.MAREA_parse("namespace a.b; #![visibility = public] function open() end #[visibility = private] function closed() end"));
+
+    MAREA_SemaFixture openFixture(MAREA_answer("a.b", MAREA_SEMA_IMPORT_RESULT_FOUND, library.parser.root));
+
+    ASSERT_EQ(openFixture.MAREA_sema("namespace main; import a.b.open;"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+
+    EXPECT_TRUE(openFixture.MAREA_semaCodes().empty()) << "A symbol of a public file must be importable.";
+
+    MAREA_SemaFixture closedFixture(MAREA_answer("a.b", MAREA_SEMA_IMPORT_RESULT_FOUND, library.parser.root));
+
+    ASSERT_EQ(closedFixture.MAREA_sema("namespace main; import a.b.closed;"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+
+    EXPECT_EQ(closedFixture.MAREA_semaCodes(), std::vector<MAREA_Uinteger32>{ UNRESOLVED }) << "A private symbol of a public file must raise UNRESOLVED_IMPORT.";
 }
 
 TEST(MAREASemaNamespaceAndNames, ImportOfMissingSymbolIsRejected)

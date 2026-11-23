@@ -48,7 +48,7 @@ programs are in [examples](examples).
   snake_case for functions, variables and namespaces, SCREAMING_SNAKE_CASE for constants.
 - **Syntax rules.** Every statement ends with `;`. Every body ends with an explicit `end`, and curly braces are only
   for literals. A function with a return type ends every path with `return value;`. `switch` replaces `match`.
-  Attributes `#[key = value]` carry visibility, inline, build, simd, layout and more; the key of an enum takes a
+  Attributes `#[key = value]` carry visibility, inline, build, layout and more; the key of an enum takes a
   member, and any other key takes `true` or `false`. Macros are only the built-in ones, never written by a user.
 - **One binding declaration, two consumers.** A single C registration macro exposes a function to the language
   runtime; there is no external binding generator and no per-language glue written by hand.

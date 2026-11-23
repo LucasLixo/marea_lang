@@ -62,7 +62,7 @@ keyword             = "and" | "as" | "break" | "case" | "constant" | "continue" 
 (* vector and pointer, and the names Self and self. The language has no standard library: array, *)
 (* table, slice, task, arenas and text are libraries written in C or in Marea, and they are *)
 (* imported like any namespace. The namespace "c" is the only reserved one. *)
-(* "public" and "private" are words of the attribute list only. *)
+(* "public" and "private" are words of the attribute list only, the members of the key "visibility". *)
 
 (* Operators and separators. *)
 operator_token      = "+" | "-" | "*" | "/" | "%" | "**"
@@ -109,7 +109,8 @@ import_member        = qualified_name, [ "as", identifier ] ;
 (* #[ key = value, key, ... ] before a symbol. #![ ... ] after the namespace, for the file. *)
 (* A key without a value means "= true". *)
 (* A value is "true" or "false" when the key is not an enum key. An enum key takes one member *)
-(* of its enum as an identifier (inline = force, build = debug). An unknown key is an error. *)
+(* of its enum as an identifier (visibility = public, inline = force, layout = marea). The key *)
+(* export takes a string. An unknown key is an error. *)
 attribute           = "#[", attribute_item, { ",", attribute_item }, "]" ;
 file_attribute      = "#![", attribute_item, { ",", attribute_item }, "]" ;
 attribute_item      = identifier, [ "=", attribute_value ] ;

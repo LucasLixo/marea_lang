@@ -34,7 +34,7 @@ import attributes.layout;
 
 -- The format text is checked at compile time: the count and the type of every {} must match.
 -- No printf-like variadic call exists, so a wrong format cannot be a run-time error.
-#[public]
+#[visibility = public]
 function show_format(name: string, count: integer32): string
     print!("name: {}, count: {}", name, count);
     log!(info, "count is {}", count);
@@ -42,7 +42,7 @@ function show_format(name: string, count: integer32): string
 end
 
 -- A condition that is true in every correct program. Both stop with a message.
-#[public]
+#[visibility = public]
 function divide(left: integer32, right: integer32): integer32
     assert!(right != 0, "right must not be zero");
     debug_assert!(left >= 0, "left is not negative in the tests");
@@ -58,7 +58,7 @@ constant VERTEX_SHADER: string = include_text!("shaders/triangle.vert");
 constant LOGO: array<unsigned8> = include_bytes!("images/logo.bin");
 
 -- unreachable!() after a branch that cannot happen.
-#[public]
+#[visibility = public]
 function sign_name(value: integer32): string
     if value < 0 then
         return "negative";
@@ -71,7 +71,7 @@ function sign_name(value: integer32): string
 end
 
 -- A place of the call, as constants, for a message that names where it comes from.
-#[public]
+#[visibility = public]
 function where_am_i(): string
     return format!("{}:{} in {}", file!(), line!(), namespace!());
 end

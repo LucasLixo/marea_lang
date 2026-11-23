@@ -276,7 +276,7 @@ static MAREA_SemaLayoutVerdict MAREA_CALL MAREA_G_CompareDepth(const MAREA_SemaC
         return MAREA_SEMA_LAYOUT_VERDICT_UNDECIDED;
     }
 
-    // INFO: two auto layouts that have the same fields, the same pack and the same align come from the same input, so the backend gives them the same layout. Sema has no size to compare for them.
+    // INFO: two marea layouts that have the same fields, the same pack and the same align come from the same input, so the backend gives them the same layout. Sema has no size to compare for them.
     if (fromMeasure.cLayout == MAREA_BOOLEAN_FALSE) {
         return MAREA_SEMA_LAYOUT_VERDICT_COMPATIBLE;
     }
