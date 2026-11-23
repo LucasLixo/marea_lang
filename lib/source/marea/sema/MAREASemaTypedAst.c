@@ -405,6 +405,8 @@ static MAREA_SemaTypedAstExcept MAREA_CALL MAREA_G_TypedAstBuildNode(MAREA_SemaC
         return MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_OUT_OF_MEMORY;
     }
 
+    MAREA_SemaTypedAstResolveLiteralDefault(built);
+
     built->ownershipMode = MAREA_SemaTypedAstClassifyOwnership(context, built);
 
     MAREA_SemaTypedAstExcept result = MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
@@ -435,6 +437,13 @@ static MAREA_SemaTypedAstExcept MAREA_CALL MAREA_G_TypedAstBuildNode(MAREA_SemaC
 
             built->children[index] = typedChild;
         }
+    }
+
+    if (result == MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) {
+        MAREA_SemaTypedAstResolveLiteralContext(context, built);
+
+        // INFO: the context may change the type of a literal below, so the operations above it are typed again before this node is.
+        result = MAREA_SemaTypedAstRetypeOperations(context, built);
     }
 
     // INFO: an expression is typed after its children, because its type is made from theirs, and before its scope ends.

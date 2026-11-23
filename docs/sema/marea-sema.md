@@ -365,8 +365,10 @@ type arguments is deferred to when the `ir` stage needs one for real.
 type that a node declares in the source, with its type arguments, so a later stage never sees only a head name. The
 text is built while the typed tree is built, lives in the arena and is not NUL terminated. Six node kinds
 declare a type: `PARAMETER`, `LOCAL_DECLARATION`, `FIELD_DECLARATION`, `VARIANT_FIELD`, `CONSTANT_DECLARATION`
-and `FUNCTION_DECLARATION` (its result type); an expression has one by the rules that follow the list. Any other node,
-a function with no result type and a written type that sema cannot spell return `MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NO_TYPE` and clear both outputs; the accessor never
+and `FUNCTION_DECLARATION` (its result type). A literal has a type too, from its context (see "Resolved type of a
+literal" below), and an expression has one by the rules of "Resolved type of an expression". Any other node, a
+function with no result type and a written type that sema cannot spell return
+`MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NO_TYPE` and clear both outputs; the accessor never
 guesses. A null node, text or length is `ERROR_NULL_POINTER`. The accessor is read-only and gives the same text on
 every run. The canonical spelling:
 
@@ -409,8 +411,39 @@ is read with the type arguments that fill it: a generic function takes the expli
 generic structure takes the type arguments of the value, and `Self` is the implemented type. When a parameter has no
 argument to fill it, the node has no type: sema never guesses a type argument. The result of a call whose type
 arguments are only inferred (`maximum(left, right)`) is one of those cases. A node with no type returns
-`MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NO_TYPE` and clears both outputs, as for a declaration. A literal has no resolved
-type text in this rule; see the Gaps.
+`MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NO_TYPE` and clears both outputs, as for a declaration. The literals have their own rule, below. An
+operation takes its type from the types its children have at the end of the build, so `local x: sinteger64 = 1 + 2;`
+gives the binary expression `sinteger64` and not the default `sinteger32` of its literals: when a context changes the
+type of the literals below an operation, the binary, unary and parenthesized expressions below that context are typed
+again.
+
+**Resolved type of a literal.** An `INTEGER_LITERAL`, `FLOAT_LITERAL`, `STRING_LITERAL`, `CHARACTER_LITERAL` and
+`BOOLEAN_LITERAL` has a resolved type too, and the accessor never gives `ERROR_NO_TYPE` for one. A string, a
+character and a boolean literal are always `string`, `character` and `boolean`. A number literal takes the primitive
+type its context fixes, spelled as written in the source (the name behind a local type alias, never the alias). The
+context is read in this order, the nearest one wins, and a context fixes the literal only when it is a primitive that
+the literal fits: an integer literal fits any number type, a float included, as `TYPE_MISMATCH` accepts it, and a float
+literal fits `float32` and `float64` only.
+
+- The declared type of the local, the constant or the variant field that the literal initializes.
+- The type of the parameter that an argument is passed to, and of the parameter that a default value belongs to. A
+  call of a structure or an enum uses the parameters of its `construct` operator.
+- The result type of the function, for `return`.
+- The target of an assignment, a compound assignment included, except the count of `<<=` and `>>=`.
+- The other operand of an arithmetic, bitwise or compare expression, of the two bounds of a `for` range, and of a
+  `case` value against the switched value, when sema knows its primitive type. The type of a context passes down
+  through a parenthesis, a unary `-` or `~`, and an arithmetic or bitwise operator (the left side of a shift only),
+  so `local x: sinteger8 = (1 + 2) * 3;` types all three literals `sinteger8`.
+- The field type of an entry `name = value` of a structure literal, and the element type (the first type argument) of
+  an entry of an `array`, `vector` or `slice` literal, for a plain entry and for the value of `[key] = value`.
+- The target type `T` of `convert<T>(x)` for a literal `x`.
+
+A number literal with no fixing context takes the default: `sinteger32` for an integer literal and `float64` for a
+float literal. The repository named no default before this rule, so these two are the assumption of the plan, not a
+language rule from the grammar. This holds for a literal that is not a value of an expression too: the size in
+`array<sinteger32,4>` and the integer in an attribute are `sinteger32`. The key of `[key] = value` and the index of
+`a[i]` take the default. The rule only records a type: it raises no diagnostic and changes nothing that sema accepts
+or rejects.
 
 ## Diagnostics
 
@@ -484,11 +517,11 @@ type text in this rule; see the Gaps.
   a value (`point.drop()`) is not resolved, as sema does not know the type of the receiver. A bare name that no
   top-level function declares also raises `UNDECLARED_NAME` (3004), as a member is not a bare name.
 - The type of a library type is not tracked, so a missing `copy` or `move` there is not reported.
-- `MAREA_SemaTypedNodeGetResolvedType` covers the six declaring nodes and the expressions of "Resolved type of an
-  expression". A literal has no resolved type text from this rule. A `Self` type and a generic parameter are spelled by
+- `MAREA_SemaTypedNodeGetResolvedType` covers the six declaring nodes, the literals and the expressions of "Resolved
+  type of an expression". A `Self` type and a generic parameter are spelled by
   their written name, not by the type they stand for in one instantiation, and a name of another namespace is spelled
   by what is written and the import alias rule, with no qualifier added.
-- An expression with no resolved type (checked on the 23 examples, 902 expression nodes, 175 of them not literals).
+- An expression with no resolved type (checked on the 23 examples, 902 expression nodes, 174 of them with no type).
   The cases that stay without a type: the name of a `for`, `for each`, `partition` or `with` statement, because sema
   keeps no type for it, and every expression made from it; a call that returns nothing (`grow(second, 2.0)`, `spawn`
   of such a call); a call, a member or a name that comes from an import or from a namespace (`stdio.puts(text)`,
@@ -498,11 +531,18 @@ type text in this rule; see the Gaps.
   (`left.less(right)`); a call whose type arguments are only inferred; the static functions of a generic name
   (`array<float32, 16>.filled(0.0)`); the built-in `convert`, `size_of` and `align_of` as names, and the result type
   of `size_of<T>()` and `align_of<T>()`, which no rule gives; every `MACRO_CALL` and `GENERIC_NAME`; the name of a
-  type or a namespace used as a value; and an operation whose operands are all number literals, until the literal
-  rule gives the literals a type. The `ir` stage decides what to do with each of these.
+  type or a namespace used as a value. The `ir` stage decides what to do with each of these.
 - A binary operation has the type of its operands even when an operator function of the structure declares another
   result type: the result of `#[operator = "+"]` is not read. A field of a variant is read from the first variant that
   declares the name.
+- The type of a literal is the default (`sinteger32`, `float64`) where the context is not a primitive that sema can
+  read: a generic parameter type (`g(5)` with `a: Item`, also with explicit type arguments), an enum or a library
+  type (an integer literal that `TYPE_MISMATCH` accepts for an enum is `sinteger32`, not the tag type), an entry of a
+  library literal such as a table, the index of `a[i]`, the key of `[key] = value`, the count of a shift, a literal
+  inside a macro call, and an operand whose type sema does not know (a call of a generic function, a member of a
+  generic structure). The default itself is an assumption of the plan, not a rule of the grammar. The range of a
+  value is not checked against the type that the context gave: `local x: uinteger8 = 256;` stays accepted, as before.
+  The literal of `convert<T>(x)` takes `T`, so `convert<uinteger8>(300)` types `300` as `uinteger8`.
 - The typed-AST hand-off substitutes a generic result only for a bare parameter with explicit type arguments; a
   result from inferred type arguments or a compound such as `c.array<Item>` keeps the raw type.
 - `DUPLICATE_SWITCH_ARM` compares a float by its text: `1.0` and `1.00` are taken for different values. A constant

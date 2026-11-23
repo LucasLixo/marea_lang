@@ -534,6 +534,53 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressionFit(MAREA_SemaContext *cont
     return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH, MAREA_AstNodeGetPosition(expression), "value does not fit the type", target.name, target.length);
 }
 
+static MAREA_Boolean MAREA_CALL MAREA_G_PrimitiveOfShape(const MAREA_G_Shape *shape, const MAREA_Character8 **outName, MAREA_IntegerSize *outLength)
+{
+    *outName = MAREA_NULLPTR;
+    *outLength = 0;
+
+    if (shape->kind != MAREA_G_SHAPE_KIND_PRIMITIVE) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    *outName = shape->name;
+    *outLength = shape->length;
+
+    return MAREA_BOOLEAN_TRUE;
+}
+
+MAREA_Boolean MAREA_CALL MAREA_SemaPrimitiveOfType(const MAREA_SemaContext *context, const MAREA_AstNode *type, const MAREA_Character8 **outName, MAREA_IntegerSize *outLength)
+{
+    const MAREA_G_Shape shape = MAREA_G_ShapeOfType(context, type, MAREA_BOOLEAN_FALSE);
+
+    return MAREA_G_PrimitiveOfShape(&shape, outName, outLength);
+}
+
+MAREA_Boolean MAREA_CALL MAREA_SemaPrimitiveOfExpression(const MAREA_SemaContext *context, const MAREA_AstNode *expression, const MAREA_Character8 **outName, MAREA_IntegerSize *outLength)
+{
+    const MAREA_G_Shape shape = MAREA_G_ShapeOf(context, expression, 0);
+
+    return MAREA_G_PrimitiveOfShape(&shape, outName, outLength);
+}
+
+MAREA_Boolean MAREA_CALL MAREA_SemaNumberLiteralFitsPrimitive(MAREA_AstKind kind, const MAREA_Character8 *name, MAREA_IntegerSize length)
+{
+    if ((kind != MAREA_AST_KIND_INTEGER_LITERAL) && (kind != MAREA_AST_KIND_FLOAT_LITERAL)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_G_Shape target = MAREA_G_ShapeMake(MAREA_G_SHAPE_KIND_PRIMITIVE, name, length);
+
+    const MAREA_G_Shape actual = MAREA_G_ShapeMake((kind == MAREA_AST_KIND_INTEGER_LITERAL) ? MAREA_G_SHAPE_KIND_INTEGER_LITERAL : MAREA_G_SHAPE_KIND_FLOAT_LITERAL, MAREA_NULLPTR, 0);
+
+    return MAREA_G_Fits(&target, &actual);
+}
+
+const MAREA_AstNode *MAREA_CALL MAREA_SemaConvertTarget(const MAREA_SemaContext *context, const MAREA_AstNode *call)
+{
+    return MAREA_G_ConvertTarget(context, call);
+}
+
 // INFO: two primitives agree by exact name and a literal agrees with a primitive as it fits a declared type. Two literals always agree.
 static MAREA_Boolean MAREA_CALL MAREA_G_OperandsAgree(const MAREA_G_Shape *left, const MAREA_G_Shape *right)
 {

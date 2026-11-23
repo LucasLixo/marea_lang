@@ -1004,3 +1004,49 @@ MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedAstResolveExpressionType(MARE
 
     return MAREA_SemaTypedAstRenderExprType(context, &TYPE, &built->resolvedType, &built->resolvedTypeLength);
 }
+
+// INFO: an operation made from the types of its children, which a number literal below may have changed after the operation was typed.
+static MAREA_Boolean MAREA_CALL MAREA_G_IsDerivedOperation(const MAREA_AstNode *node)
+{
+    const MAREA_AstKind KIND = MAREA_AstNodeGetKind(node);
+
+    return ((KIND == MAREA_AST_KIND_BINARY_EXPRESSION) || (KIND == MAREA_AST_KIND_UNARY_EXPRESSION) || (KIND == MAREA_AST_KIND_PARENTHESIZED_EXPRESSION)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
+MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedAstRetypeOperations(MAREA_SemaContext *context, MAREA_SemaTypedNode *built)
+{
+    if ((context == MAREA_NULLPTR) || (built == MAREA_NULLPTR)) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    for (MAREA_IntegerSize index = 0; index < built->childCount; ++index) {
+        MAREA_SemaTypedNode *child = (built->children == MAREA_NULLPTR) ? MAREA_NULLPTR : built->children[index];
+
+        if (child == MAREA_NULLPTR) {
+            continue;
+        }
+
+        const MAREA_SemaTypedAstExcept RESULT = MAREA_SemaTypedAstRetypeOperations(context, child);
+
+        if (RESULT != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) {
+            return RESULT;
+        }
+
+        if (MAREA_G_IsDerivedOperation(child->astNode) == MAREA_BOOLEAN_FALSE) {
+            continue;
+        }
+
+        // INFO: the type of these operations never reads the parent, so the position is not needed.
+        child->exprType = (MAREA_SemaExprType){ .node = MAREA_NULLPTR, .declaration = MAREA_NULLPTR, .arguments = MAREA_NULLPTR, .frame = MAREA_NULLPTR, .fixed = MAREA_NULLPTR, .fixedLength = 0 };
+        child->resolvedType = MAREA_NULLPTR;
+        child->resolvedTypeLength = 0;
+
+        const MAREA_SemaTypedAstExcept TYPED = MAREA_SemaTypedAstResolveExpressionType(context, child, MAREA_NULLPTR, 0);
+
+        if (TYPED != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) {
+            return TYPED;
+        }
+    }
+
+    return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+}

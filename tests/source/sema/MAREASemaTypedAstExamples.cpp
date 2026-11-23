@@ -310,6 +310,116 @@ TEST(MAREASemaTypedAstExamples, EveryExpressionOfEveryExampleHasATypeOrIsCounted
 
     EXPECT_EQ(FILES.size(), std::size_t{ 23 }) << "The sweep must cover the 23 examples.";
 
-    // The ceiling is the count that the documented no-type cases leave (see "Gaps" of the sema doc); a regression raises it. The literals are typed by another rule and are not counted here.
-    EXPECT_LE(total.untypedOperations, std::size_t{ 175 }) << "Expressions other than literals with no resolved type must not grow past the documented cases.";
+    // The ceiling is the count that the documented no-type cases leave (see "Gaps" of the sema doc); a regression raises it. The literals are typed by their own rule and every one of them has a type, so none is in this count.
+    EXPECT_LE(total.untypedOperations, std::size_t{ 174 }) << "Expressions other than literals with no resolved type must not grow past the documented cases.";
+}
+
+namespace
+{
+    // Walks a typed tree and counts the literals, checking each one has a resolved type of its own family.
+    void MAREA_checkLiteralTypes(const MAREA_SemaTypedNode *node, const std::string &path, std::size_t &literalCount)
+    {
+        if (node == nullptr) {
+            return;
+        }
+
+        const MAREA_AstKind KIND{ MAREA_AstNodeGetKind(MAREA_SemaTypedNodeGetAstNode(node)) };
+
+        const bool IS_LITERAL{ (KIND == MAREA_AST_KIND_INTEGER_LITERAL) || (KIND == MAREA_AST_KIND_FLOAT_LITERAL) || (KIND == MAREA_AST_KIND_STRING_LITERAL) || (KIND == MAREA_AST_KIND_CHARACTER_LITERAL) || (KIND == MAREA_AST_KIND_BOOLEAN_LITERAL) };
+
+        if (IS_LITERAL) {
+            ++literalCount;
+
+            const MAREA_Character8 *text{ nullptr };
+
+            MAREA_IntegerSize length{ 0 };
+
+            ASSERT_EQ(MAREA_SemaTypedNodeGetResolvedType(node, &text, &length), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "A literal of " << path << " must have a resolved type.";
+
+            const std::string TYPE(text, length);
+
+            const std::vector<std::string> INTEGERS{ "sinteger8", "sinteger16", "sinteger32", "sinteger64", "uinteger8", "uinteger16", "uinteger32", "uinteger64", "float32", "float64" };
+
+            const std::vector<std::string> FLOATS{ "float32", "float64" };
+
+            if (KIND == MAREA_AST_KIND_INTEGER_LITERAL) {
+                EXPECT_NE(std::find(INTEGERS.begin(), INTEGERS.end(), TYPE), INTEGERS.end()) << "An integer literal of " << path << " got the type " << TYPE;
+            } else if (KIND == MAREA_AST_KIND_FLOAT_LITERAL) {
+                EXPECT_NE(std::find(FLOATS.begin(), FLOATS.end(), TYPE), FLOATS.end()) << "A float literal of " << path << " got the type " << TYPE;
+            } else {
+                const std::string EXPECTED{ (KIND == MAREA_AST_KIND_STRING_LITERAL) ? "string" : ((KIND == MAREA_AST_KIND_CHARACTER_LITERAL) ? "character" : "boolean") };
+
+                EXPECT_EQ(TYPE, EXPECTED) << "A string, character or boolean literal of " << path << " keeps its own type.";
+            }
+        }
+
+        const MAREA_IntegerSize COUNT{ MAREA_SemaTypedNodeGetChildCount(node) };
+
+        for (MAREA_IntegerSize index{ 0 }; index < COUNT; ++index) {
+            const MAREA_SemaTypedNode *child{ nullptr };
+
+            if (MAREA_SemaTypedNodeGetChildAt(node, index, &child) == MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) {
+                MAREA_checkLiteralTypes(child, path, literalCount);
+            }
+        }
+    }
+} // namespace
+
+TEST(MAREASemaTypedAstExamples, EveryLiteralOfEveryExampleHasAResolvedType)
+{
+    GTEST_COUT << "Validating every literal of every example has a resolved type of its own family." << std::endl;
+
+    const std::vector<MAREA_ExampleFile> FILES{ MAREA_collectExamples() };
+
+    std::map<std::string, const MAREA_AstNode *> roots;
+
+    std::vector<std::unique_ptr<MAREA_ParseFixture>> parsed;
+
+    std::vector<std::string> paths;
+
+    for (const MAREA_ExampleFile &file : FILES) {
+        paths.push_back(file.relativePath);
+
+        auto fixture{ std::make_unique<MAREA_ParseFixture>() };
+
+        ASSERT_EQ(MAREA_LexContextSetFileName(fixture->lexer.context, paths.back().c_str()), MAREA_LEX_EXCEPT_SUCCESS) << "The file name of " << file.relativePath << " must be set.";
+
+        ASSERT_EQ(fixture->MAREA_parse(file.source), MAREA_PARSE_EXCEPT_SUCCESS) << "The example " << file.relativePath << " must parse.";
+
+        roots[file.namespaceText] = fixture->root;
+
+        parsed.push_back(std::move(fixture));
+    }
+
+    const MAREA_ResolveCallback RESOLVE{ [&roots](const std::string &text, const MAREA_AstNode **outRoot) {
+        const auto FOUND{ roots.find(text) };
+
+        if (FOUND != roots.end()) {
+            *outRoot = FOUND->second;
+
+            return MAREA_SEMA_IMPORT_RESULT_FOUND;
+        }
+
+        const bool EXTERNAL{ MAREA_startsWith(text, "collections.") || MAREA_startsWith(text, "concurrency.") || MAREA_startsWith(text, "arenas.") || (text == "text") || MAREA_startsWith(text, "c.") };
+
+        return EXTERNAL ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
+    } };
+
+    std::size_t literalCount{ 0 };
+
+    for (const MAREA_ExampleFile &file : FILES) {
+        MAREA_SemaFixture fixture(RESOLVE);
+
+        ASSERT_EQ(fixture.MAREA_sema(file.source, file.relativePath), MAREA_SEMA_EXCEPT_SUCCESS) << "The check of " << file.relativePath << " must succeed.";
+
+        ASSERT_EQ(fixture.MAREA_errorCount(), MAREA_INTEGER_SIZE(0)) << "The example " << file.relativePath << " must check with zero errors.";
+
+        const MAREA_SemaTypedNode *root{ nullptr };
+
+        ASSERT_EQ(MAREA_SemaBuildTypedAst(fixture.context, fixture.parser.root, &root), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "The example " << file.relativePath << " must build a typed tree.";
+
+        MAREA_checkLiteralTypes(root, file.relativePath, literalCount);
+    }
+
+    EXPECT_GT(literalCount, std::size_t{ 0 }) << "The examples must hold literals.";
 }
