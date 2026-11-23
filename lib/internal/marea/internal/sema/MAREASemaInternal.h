@@ -478,6 +478,16 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckLifecycleCall(MAREA_SemaContext * context, const MAREA_AstNode *call);
 
     /**
+     * @brief Finds the construct operator of a concrete structure or enum: the member of its
+     * implementation whose operator attribute is "construct". Used to resolve a call whose callee
+     * names the type, Type(args), against construct's own parameters.
+     * @param context Context of the run. Must not be null.
+     * @param typeDeclaration STRUCTURE_DECLARATION or ENUM_DECLARATION node. Must not be null.
+     * @return The FUNCTION_DECLARATION that carries construct, or null when the type declares none.
+     */
+    MAREA_NODISCARD const MAREA_AstNode *MAREA_CALL MAREA_SemaFindConstructOperator(const MAREA_SemaContext *context, const MAREA_AstNode *typeDeclaration);
+
+    /**
      * @brief Checks that a call does not pass one name twice when one of the parameters is a write borrow.
      * @param context Context of the run. Must not be null.
      * @param call CALL_EXPRESSION node. Must not be null.

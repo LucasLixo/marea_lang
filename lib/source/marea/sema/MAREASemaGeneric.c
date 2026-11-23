@@ -806,6 +806,69 @@ static void MAREA_CALL MAREA_G_Unify(const MAREA_AstNode *genericParameters, con
     }
 }
 
+// INFO: shared by a plain function call and a Type(args) construction call: the required count ends at the last
+// parameter with no default, so a call may omit only the defaulted tail, then each argument is checked against
+// the borrow rule and, when the parameter type is a primitive, against its literal fit.
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckArguments(MAREA_SemaContext *context, const MAREA_AstNode *node, const MAREA_AstNode *parameters, const MAREA_AstNode *arguments, const MAREA_Character8 *calleeName, MAREA_IntegerSize calleeLength)
+{
+    const MAREA_IntegerSize PARAMETER_COUNT = (parameters == MAREA_NULLPTR) ? 0 : MAREA_AstNodeGetChildCount(parameters);
+
+    const MAREA_IntegerSize ARGUMENT_COUNT = (arguments == MAREA_NULLPTR) ? 0 : MAREA_AstNodeGetChildCount(arguments);
+
+    MAREA_IntegerSize requiredCount = 0;
+
+    for (MAREA_IntegerSize index = 0; index < PARAMETER_COUNT; ++index) {
+        const MAREA_AstNode *parameter = MAREA_SemaChildAt(parameters, index);
+
+        if ((parameter == MAREA_NULLPTR) || (MAREA_AstNodeGetChildCount(parameter) < 3)) {
+            requiredCount = (index + 1);
+        }
+    }
+
+    if ((ARGUMENT_COUNT < requiredCount) || (ARGUMENT_COUNT > PARAMETER_COUNT)) {
+        return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_ARGUMENT_COUNT_MISMATCH, MAREA_AstNodeGetPosition(node), "wrong number of arguments in the call of", calleeName, calleeLength);
+    }
+
+    if ((parameters != MAREA_NULLPTR) && (arguments != MAREA_NULLPTR)) {
+        const MAREA_SemaExcept BORROW_RESULT = MAREA_SemaCheckBorrowArguments(context, node, parameters, arguments);
+
+        if (BORROW_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return BORROW_RESULT;
+        }
+    }
+
+    for (MAREA_IntegerSize index = 0; index < ARGUMENT_COUNT; ++index) {
+        const MAREA_AstNode *parameter = MAREA_SemaChildAt(parameters, index);
+
+        const MAREA_SemaExcept LITERAL_RESULT = MAREA_SemaCheckExpressionFit(context, (parameter == MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_SemaChildAt(parameter, 1), MAREA_SemaChildAt(arguments, index));
+
+        if (LITERAL_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return LITERAL_RESULT;
+        }
+    }
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
+// INFO: a call whose callee names a structure or an enum resolves to its construct operator: the argument list is
+// checked against construct's own parameters (defaults allowed), and a type with no construct operator accepts
+// only a call with no argument. This never raises a new diagnostic: a wrong count or type reuses
+// ARGUMENT_COUNT_MISMATCH (3010) and TYPE_MISMATCH (3011), the same codes an ordinary call reuses.
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckConstruction(MAREA_SemaContext *context, const MAREA_AstNode *node, const MAREA_AstNode *typeDeclaration, const MAREA_Character8 *calleeName, MAREA_IntegerSize calleeLength)
+{
+    const MAREA_AstNode *arguments = MAREA_G_FindChild(node, MAREA_AST_KIND_ARGUMENT_LIST);
+
+    if (arguments == MAREA_NULLPTR) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_AstNode *construct = MAREA_SemaFindConstructOperator(context, typeDeclaration);
+
+    const MAREA_AstNode *parameters = (construct == MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_G_FindChild(construct, MAREA_AST_KIND_PARAMETER_LIST);
+
+    return MAREA_G_CheckArguments(context, node, parameters, arguments, calleeName, calleeLength);
+}
+
 MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckCall(MAREA_SemaContext *context, const MAREA_AstNode *node)
 {
     if ((context == MAREA_NULLPTR) || (node == MAREA_NULLPTR)) {
@@ -824,8 +887,18 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckCall(MAREA_SemaContext *context, cons
 
     const MAREA_SemaName *entry = MAREA_SemaNameTableFind(context, calleeName, CALLEE_LENGTH);
 
-    // INFO: a parameter, a local or a loop name of the same name hides the function, so the call is not a call of the function.
-    if ((entry == MAREA_NULLPTR) || (entry->kind != MAREA_SEMA_NAME_KIND_DECLARATION) || (entry->declaration == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(entry->declaration) != MAREA_AST_KIND_FUNCTION_DECLARATION) || (MAREA_SemaLocalFind(context, calleeName, CALLEE_LENGTH) != MAREA_NULLPTR)) {
+    // INFO: a parameter, a local or a loop name of the same name hides the declaration, so the call is never a call of it.
+    if ((entry == MAREA_NULLPTR) || (entry->kind != MAREA_SEMA_NAME_KIND_DECLARATION) || (entry->declaration == MAREA_NULLPTR) || (MAREA_SemaLocalFind(context, calleeName, CALLEE_LENGTH) != MAREA_NULLPTR)) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_AstKind DECLARATION_KIND = MAREA_AstNodeGetKind(entry->declaration);
+
+    if ((DECLARATION_KIND == MAREA_AST_KIND_STRUCTURE_DECLARATION) || (DECLARATION_KIND == MAREA_AST_KIND_ENUM_DECLARATION)) {
+        return MAREA_G_CheckConstruction(context, node, entry->declaration, calleeName, CALLEE_LENGTH);
+    }
+
+    if (DECLARATION_KIND != MAREA_AST_KIND_FUNCTION_DECLARATION) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
@@ -839,39 +912,12 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckCall(MAREA_SemaContext *context, cons
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
-    const MAREA_IntegerSize PARAMETER_COUNT = MAREA_AstNodeGetChildCount(parameters);
-
     const MAREA_IntegerSize ARGUMENT_COUNT = MAREA_AstNodeGetChildCount(arguments);
 
-    // INFO: the required count ends at the last parameter with no default, so a call may omit only the defaulted tail.
-    MAREA_IntegerSize requiredCount = 0;
+    const MAREA_SemaExcept ARGUMENTS_RESULT = MAREA_G_CheckArguments(context, node, parameters, arguments, calleeName, CALLEE_LENGTH);
 
-    for (MAREA_IntegerSize index = 0; index < PARAMETER_COUNT; ++index) {
-        const MAREA_AstNode *parameter = MAREA_SemaChildAt(parameters, index);
-
-        if ((parameter == MAREA_NULLPTR) || (MAREA_AstNodeGetChildCount(parameter) < 3)) {
-            requiredCount = (index + 1);
-        }
-    }
-
-    if ((ARGUMENT_COUNT < requiredCount) || (ARGUMENT_COUNT > PARAMETER_COUNT)) {
-        return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_ARGUMENT_COUNT_MISMATCH, MAREA_AstNodeGetPosition(node), "wrong number of arguments in the call of", calleeName, CALLEE_LENGTH);
-    }
-
-    const MAREA_SemaExcept BORROW_RESULT = MAREA_SemaCheckBorrowArguments(context, node, parameters, arguments);
-
-    if (BORROW_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
-        return BORROW_RESULT;
-    }
-
-    for (MAREA_IntegerSize index = 0; index < ARGUMENT_COUNT; ++index) {
-        const MAREA_AstNode *parameter = MAREA_SemaChildAt(parameters, index);
-
-        const MAREA_SemaExcept LITERAL_RESULT = MAREA_SemaCheckExpressionFit(context, (parameter == MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_SemaChildAt(parameter, 1), MAREA_SemaChildAt(arguments, index));
-
-        if (LITERAL_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
-            return LITERAL_RESULT;
-        }
+    if (ARGUMENTS_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+        return ARGUMENTS_RESULT;
     }
 
     const MAREA_AstNode *where = MAREA_G_FindChild(function, MAREA_AST_KIND_WHERE_CLAUSE);
