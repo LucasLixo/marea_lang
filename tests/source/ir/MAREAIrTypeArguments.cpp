@@ -395,8 +395,8 @@ TEST(MAREAIrTypeArguments, DumpShowsTheNewKinds)
 
     const std::string DUMP{ text, length };
 
-    EXPECT_NE(DUMP.find("      LOCAL_DECLARATION \"wide\" type=sinteger64\n        CALL_EXPRESSION type=sinteger64\n          BUILTIN_NAME \"convert\"\n            TYPE_NAME \"sinteger64\"\n          ARGUMENT_LIST\n            IDENTIFIER \"count\"\n"), std::string::npos) << "The built-in call must dump with its name, its type and its argument.\n"
-                                                                                                                                                                                                                                                                                << DUMP;
+    EXPECT_NE(DUMP.find("      LOCAL_DECLARATION \"wide\" type=sinteger64 resolved=sinteger64\n        CALL_EXPRESSION type=sinteger64 resolved=sinteger64\n          BUILTIN_NAME \"convert\"\n            TYPE_NAME \"sinteger64\"\n          ARGUMENT_LIST\n            IDENTIFIER \"count\" resolved=sinteger32\n"), std::string::npos) << "The built-in call must dump with its name, its type and its argument.\n"
+                                                                                                                                                                                                                                                                                                                                            << DUMP;
 
     EXPECT_NE(DUMP.find("        CALL_EXPRESSION\n          MEMBER_ACCESS\n            TYPE_NAME \"list\"\n              TYPE_NAME \"sinteger32\"\n            IDENTIFIER \"filled\"\n          ARGUMENT_LIST\n"), std::string::npos) << "The static call must dump with its type as the receiver.\n"
                                                                                                                                                                                                                                       << DUMP;

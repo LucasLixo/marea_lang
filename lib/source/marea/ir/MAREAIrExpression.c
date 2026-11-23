@@ -327,6 +327,8 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerConstructCall(MAREA_IrContext *con
     return MAREA_IR_EXCEPT_SUCCESS;
 }
 
+static MAREA_IrExcept MAREA_CALL MAREA_G_LowerTyped(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_Boolean asCallee, MAREA_IrNode **outNode);
+
 static MAREA_IrExcept MAREA_CALL MAREA_G_LowerCall(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode)
 {
     const MAREA_SemaTypedNode *callee = MAREA_IrTypedChildAt(typed, MAREA_INTEGER_SIZE(0));
@@ -371,7 +373,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerCall(MAREA_IrContext *context, con
 
     MAREA_IrNode *loweredCallee = MAREA_NULLPTR;
 
-    result = MAREA_IrLowerExpression(context, callee, &loweredCallee);
+    result = MAREA_G_LowerTyped(context, callee, MAREA_BOOLEAN_TRUE, &loweredCallee);
 
     if (result != MAREA_IR_EXCEPT_SUCCESS) {
         return result;
@@ -464,7 +466,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_NodeHasField(const MAREA_IrNode *node, c
 }
 
 // INFO: one field the source did not name: a FIELD_ENTRY of the structure's own field name holding a ZERO_VALUE, positioned at the literal itself, since the omission names no position of its own.
-static MAREA_IrExcept MAREA_CALL MAREA_G_AppendZeroField(MAREA_IrContext *context, const MAREA_AstNode *literalAst, const MAREA_AstNode *nameAst, MAREA_IrNode *node)
+static MAREA_IrExcept MAREA_CALL MAREA_G_AppendZeroField(MAREA_IrContext *context, const MAREA_AstNode *literalAst, const MAREA_SemaTypedNode *field, const MAREA_AstNode *nameAst, MAREA_IrNode *node)
 {
     MAREA_IrNode *entry = MAREA_NULLPTR;
 
@@ -483,6 +485,11 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_AppendZeroField(MAREA_IrContext *contex
     MAREA_IrNode *zero = MAREA_NULLPTR;
 
     result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_ZERO_VALUE, literalAst, &zero);
+
+    // INFO: the zero fills one field, so it has the declared type of that field.
+    if (result == MAREA_IR_EXCEPT_SUCCESS) {
+        result = MAREA_IrNodeSetResolvedTypeFromTyped(context, zero, field, MAREA_NULLPTR);
+    }
 
     if (result != MAREA_IR_EXCEPT_SUCCESS) {
         return result;
@@ -527,7 +534,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_AppendMissingFields(MAREA_IrContext *co
             continue;
         }
 
-        const MAREA_IrExcept result = MAREA_G_AppendZeroField(context, literalAst, nameAst, node);
+        const MAREA_IrExcept result = MAREA_G_AppendZeroField(context, literalAst, field, nameAst, node);
 
         if (result != MAREA_IR_EXCEPT_SUCCESS) {
             return result;
@@ -668,22 +675,8 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerFieldEntry(MAREA_IrContext *contex
     return MAREA_IR_EXCEPT_SUCCESS;
 }
 
-MAREA_IrExcept MAREA_CALL MAREA_IrLowerExpression(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode)
+static MAREA_IrExcept MAREA_CALL MAREA_G_LowerExpressionKind(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode)
 {
-    if (context == MAREA_NULLPTR) {
-        return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
-    }
-
-    if (typed == MAREA_NULLPTR) {
-        return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
-    }
-
-    if (outNode == MAREA_NULLPTR) {
-        return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
-    }
-
-    *outNode = MAREA_NULLPTR;
-
     switch (MAREA_IrTypedKind(typed)) {
     case MAREA_AST_KIND_IDENTIFIER:
         return MAREA_G_LowerIdentifier(context, typed, outNode);
@@ -732,4 +725,142 @@ MAREA_IrExcept MAREA_CALL MAREA_IrLowerExpression(MAREA_IrContext *context, cons
     default:
         return MAREA_IR_EXCEPT_SUCCESS;
     }
+}
+
+// INFO: the kinds whose lowered node must carry the resolved type that sema gave the expression. A parenthesized expression lowers to its inner expression, which carries its own, and an argument list, a field entry or an entry of a literal is not an expression of its own.
+static MAREA_Boolean MAREA_CALL MAREA_G_IsTypedExpression(MAREA_AstKind kind)
+{
+    switch (kind) {
+    case MAREA_AST_KIND_IDENTIFIER:
+    case MAREA_AST_KIND_INTEGER_LITERAL:
+    case MAREA_AST_KIND_FLOAT_LITERAL:
+    case MAREA_AST_KIND_STRING_LITERAL:
+    case MAREA_AST_KIND_CHARACTER_LITERAL:
+    case MAREA_AST_KIND_BOOLEAN_LITERAL:
+    case MAREA_AST_KIND_BINARY_EXPRESSION:
+    case MAREA_AST_KIND_UNARY_EXPRESSION:
+    case MAREA_AST_KIND_MEMBER_ACCESS:
+    case MAREA_AST_KIND_INDEX_ACCESS:
+    case MAREA_AST_KIND_CALL_EXPRESSION:
+    case MAREA_AST_KIND_LITERAL_VALUE:
+        return MAREA_BOOLEAN_TRUE;
+    default:
+        return MAREA_BOOLEAN_FALSE;
+    }
+}
+
+// INFO: true when sema gave the typed node no resolved type and the node is a value that should have had one: a name that only qualifies a member and a written type are not.
+static MAREA_Boolean MAREA_CALL MAREA_G_IsUntypedValue(const MAREA_SemaTypedNode *typed)
+{
+    if ((typed == MAREA_NULLPTR) || (MAREA_G_IsErasedChild(MAREA_IrTypedKind(typed)) == MAREA_BOOLEAN_TRUE) || (MAREA_SemaTypedNodeIsQualifier(typed) == MAREA_BOOLEAN_TRUE)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_Character8 *text = MAREA_NULLPTR;
+    MAREA_IntegerSize length = MAREA_INTEGER_SIZE(0);
+
+    return ((MAREA_SemaTypedNodeGetResolvedType(typed, &text, &length) != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) || (text == MAREA_NULLPTR)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
+// INFO: the operands whose type decides the type of an operation: the receiver of a member access, the callee of a call and every child of an operator, an index or a parenthesis. A member name, an argument and a literal entry are not operands.
+static MAREA_Boolean MAREA_CALL MAREA_G_HasUntypedOperand(const MAREA_SemaTypedNode *typed)
+{
+    const MAREA_AstKind KIND = MAREA_IrTypedKind(typed);
+
+    if ((KIND == MAREA_AST_KIND_MEMBER_ACCESS) || (KIND == MAREA_AST_KIND_CALL_EXPRESSION)) {
+        return MAREA_G_IsUntypedValue(MAREA_IrTypedChildAt(typed, MAREA_INTEGER_SIZE(0)));
+    }
+
+    if ((KIND != MAREA_AST_KIND_BINARY_EXPRESSION) && (KIND != MAREA_AST_KIND_UNARY_EXPRESSION) && (KIND != MAREA_AST_KIND_PARENTHESIZED_EXPRESSION) && (KIND != MAREA_AST_KIND_INDEX_ACCESS)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_IntegerSize COUNT = MAREA_SemaTypedNodeGetChildCount(typed);
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < COUNT; index = (index + MAREA_INTEGER_SIZE(1))) {
+        if (MAREA_G_IsUntypedValue(MAREA_IrTypedChildAt(typed, index)) == MAREA_BOOLEAN_TRUE) {
+            return MAREA_BOOLEAN_TRUE;
+        }
+    }
+
+    return MAREA_BOOLEAN_FALSE;
+}
+
+// INFO: a task of a call that returns nothing keeps no type in sema, so a spawn of a call typed void is untyped on purpose.
+static MAREA_Boolean MAREA_CALL MAREA_G_IsSpawnOfVoid(const MAREA_SemaTypedNode *typed)
+{
+    if (MAREA_IrTypedKind(typed) != MAREA_AST_KIND_UNARY_EXPRESSION) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_Character8 *text = MAREA_NULLPTR;
+    MAREA_IntegerSize length = MAREA_INTEGER_SIZE(0);
+
+    const MAREA_SemaTypedNode *operand = MAREA_IrTypedChildAt(typed, MAREA_INTEGER_SIZE(0));
+
+    if ((operand == MAREA_NULLPTR) || (MAREA_SemaTypedNodeGetResolvedType(operand, &text, &length) != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) || (text == MAREA_NULLPTR)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    return ((length == MAREA_INTEGER_SIZE(4)) && (memcmp(text, "void", 4) == 0)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
+// INFO: an untyped expression that sema leaves untyped on purpose (the closed list of "Gaps" in the sema doc) is kept without a type and raises nothing: a name (a loop name, a function or a built-in name, any callee), a call whose callee has no type, an operation with an untyped operand, and a spawn of a void call. Every other untyped expression is a hole in sema and raises UNTYPED_EXPRESSION.
+static MAREA_Boolean MAREA_CALL MAREA_G_UntypedOnPurpose(const MAREA_SemaTypedNode *typed, MAREA_Boolean asCallee)
+{
+    if ((asCallee == MAREA_BOOLEAN_TRUE) || (MAREA_IrTypedKind(typed) == MAREA_AST_KIND_IDENTIFIER)) {
+        return MAREA_BOOLEAN_TRUE;
+    }
+
+    return ((MAREA_G_HasUntypedOperand(typed) == MAREA_BOOLEAN_TRUE) || (MAREA_G_IsSpawnOfVoid(typed) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
+static MAREA_IrExcept MAREA_CALL MAREA_G_LowerTyped(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_Boolean asCallee, MAREA_IrNode **outNode)
+{
+    *outNode = MAREA_NULLPTR;
+
+    MAREA_IrNode *lowered = MAREA_NULLPTR;
+
+    MAREA_IrExcept result = MAREA_G_LowerExpressionKind(context, typed, &lowered);
+
+    // INFO: a node that lowered to nothing already raised its own diagnostic, or its parent is left out because of a child that did; either way no second one is raised for the same expression.
+    if ((result != MAREA_IR_EXCEPT_SUCCESS) || (lowered == MAREA_NULLPTR) || (MAREA_G_IsTypedExpression(MAREA_IrTypedKind(typed)) == MAREA_BOOLEAN_FALSE)) {
+        *outNode = lowered;
+
+        return result;
+    }
+
+    MAREA_Boolean typedResult = MAREA_BOOLEAN_FALSE;
+
+    result = MAREA_IrNodeSetResolvedTypeFromTyped(context, lowered, typed, &typedResult);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    // INFO: a name that only qualifies a member is not a value, so it has no type and is not an expression that is missing one.
+    if ((typedResult == MAREA_BOOLEAN_FALSE) && (MAREA_SemaTypedNodeIsQualifier(typed) == MAREA_BOOLEAN_FALSE) && (MAREA_G_UntypedOnPurpose(typed, asCallee) == MAREA_BOOLEAN_FALSE)) {
+        return MAREA_IrRaise(context, MAREA_IR_DIAGNOSTIC_CODE_UNTYPED_EXPRESSION, MAREA_SemaTypedNodeGetAstNode(typed), "An expression with no resolved type is not supported by the IR yet.", MAREA_NULLPTR, MAREA_INTEGER_SIZE(0));
+    }
+
+    *outNode = lowered;
+
+    return MAREA_IR_EXCEPT_SUCCESS;
+}
+
+MAREA_IrExcept MAREA_CALL MAREA_IrLowerExpression(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode)
+{
+    if (context == MAREA_NULLPTR) {
+        return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    if (typed == MAREA_NULLPTR) {
+        return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    if (outNode == MAREA_NULLPTR) {
+        return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    return MAREA_G_LowerTyped(context, typed, MAREA_BOOLEAN_FALSE, outNode);
 }
