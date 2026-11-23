@@ -101,8 +101,7 @@ const MAREA_SemaTypedNode *MAREA_CALL MAREA_IrTypedFindDefault(const MAREA_SemaT
     return MAREA_NULLPTR;
 }
 
-// INFO: the zero-default rule's own node: a leaf with no text, no type name and no children, left for a
-// INFO: backend to fill (cgen emits "= {0}" or a memset, the vm zeroes the slot).
+// INFO: the zero-default rule's own node: a leaf with no text, no type name and no children, left for a backend to fill.
 static MAREA_IrExcept MAREA_CALL MAREA_G_AppendZero(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode *node)
 {
     MAREA_IrNode *zero = MAREA_NULLPTR;

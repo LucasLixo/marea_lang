@@ -331,9 +331,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerCall(MAREA_IrContext *context, con
     return MAREA_IR_EXCEPT_SUCCESS;
 }
 
-// INFO: the structure of this unit named text, found only when it is not generic: the ir does not instantiate one,
-// INFO: so its literal keeps today's shape, a known gap. A structure of another namespace is the same gap, because
-// INFO: the ir holds no cross-module link; an opaque declaration has no FIELD_DECLARATION, so it needs no lookup.
+// INFO: the structure of this unit named text, found only when it is not generic, because the ir does not instantiate one: a structure of another namespace is the same gap, and an opaque declaration has no field to find.
 static const MAREA_SemaTypedNode *MAREA_CALL MAREA_G_FindStructureOfUnit(const MAREA_IrContext *context, const MAREA_Character8 *text, MAREA_IntegerSize length)
 {
     if (text == MAREA_NULLPTR) {
@@ -375,8 +373,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_NodeHasField(const MAREA_IrNode *node, c
     return MAREA_BOOLEAN_FALSE;
 }
 
-// INFO: one field the literal's source did not name: a FIELD_ENTRY of the structure's own field name holding a
-// INFO: ZERO_VALUE, positioned at the literal itself, since the omission names no position of its own.
+// INFO: one field the source did not name: a FIELD_ENTRY of the structure's own field name holding a ZERO_VALUE, positioned at the literal itself, since the omission names no position of its own.
 static MAREA_IrExcept MAREA_CALL MAREA_G_AppendZeroField(MAREA_IrContext *context, const MAREA_AstNode *literalAst, const MAREA_AstNode *nameAst, MAREA_IrNode *node)
 {
     MAREA_IrNode *entry = MAREA_NULLPTR;
@@ -410,9 +407,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_AppendZeroField(MAREA_IrContext *contex
     return MAREA_IrNodeAppendChild(context, node, entry);
 }
 
-// INFO: the zero-default rule for a struct literal: every field of its own (non-generic, unit-declared) structure
-// INFO: that the source did not name gets a synthesized zero field, appended after the fields the source wrote,
-// INFO: in the structure's own declaration order. A type the ir cannot resolve this way keeps today's shape.
+// INFO: every field of the literal's structure that the source did not name gets a synthesized zero field, appended after the fields the source wrote, in the structure's own declaration order.
 static MAREA_IrExcept MAREA_CALL MAREA_G_AppendMissingFields(MAREA_IrContext *context, const MAREA_AstNode *literalAst, MAREA_IrNode *node)
 {
     const MAREA_SemaTypedNode *structure = MAREA_G_FindStructureOfUnit(context, node->typeName, node->typeNameLength);
