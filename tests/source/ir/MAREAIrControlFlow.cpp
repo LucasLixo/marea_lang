@@ -612,3 +612,88 @@ TEST(MAREAIrControlFlow, ControlFlowExampleKeepsItsIfAndWhileShapes)
 
     EXPECT_TRUE(sumRange) << "The function sum_range must be lowered.";
 }
+
+namespace
+{
+    const std::string MAREA_BOX{ "structure Box x: sinteger32; end implementation Box #[operator = \"destroy\"] function drop() end end " };
+} // namespace
+
+TEST(MAREAIrControlFlow, DestructibleLocalIsDestroyedAtTheEndOfItsBlock)
+{
+    GTEST_COUT << "Validating a local of a destructible type is destroyed, in reverse order, at the end of its own block." << std::endl;
+
+    EXPECT_EQ(MAREA_lowerBody(MAREA_BOX, "", "local a: Box = Box(); local b: Box = Box();"), "(BLOCK (LOCAL_DECLARATION a :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST))) (LOCAL_DECLARATION b :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST))) (DESTROY_CALL Box.drop (IDENTIFIER b)) (DESTROY_CALL Box.drop (IDENTIFIER a)))") << "Both locals must be destroyed, last declared first.";
+}
+
+TEST(MAREAIrControlFlow, NonDestructibleLocalGetsNoDestroyCall)
+{
+    GTEST_COUT << "Validating a local of a type with no destroy operator gets no DESTROY_CALL." << std::endl;
+
+    EXPECT_EQ(MAREA_lowerBody("", "", "local total: sinteger32 = 1;"), "(BLOCK (LOCAL_DECLARATION total :sinteger32 (INTEGER_LITERAL 1)))") << "A plain primitive local must never be destroyed.";
+}
+
+TEST(MAREAIrControlFlow, EarlyReturnDestroysEverySurroundingDestructibleLocal)
+{
+    GTEST_COUT << "Validating a return inside a nested if destroys every enclosing destructible local first." << std::endl;
+
+    const std::string
+RENDERED
+{ MAREA_lowerBody(MAREA_BOX, "flag: boolean", "local a: Box = Box(); if flag then local b: Box = Box(); return; end end") };
+
+EXPECT_EQ(RENDERED, "(BLOCK (LOCAL_DECLARATION a :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST))) (IF_STATEMENT (IDENTIFIER flag) (BLOCK (LOCAL_DECLARATION b :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST))) (BLOCK (DESTROY_CALL Box.drop (IDENTIFIER b)) (BLOCK (DESTROY_CALL Box.drop (IDENTIFIER a)) (RETURN_STATEMENT))))) (DESTROY_CALL Box.drop (IDENTIFIER a)))") << "The return must destroy b, then a, in that order, before transferring control: " <<
+RENDERED
+;
+}
+
+TEST(MAREAIrControlFlow, BreakDestroysOnlyScopesInsideItsOwnLoop)
+{
+    GTEST_COUT << "Validating a break destroys the destructible locals nested inside its own loop, never an outer one." << std::endl;
+
+    const std::string
+RENDERED
+{ MAREA_lowerBody(MAREA_BOX, "flag: boolean", "local a: Box = Box(); while flag do local b: Box = Box(); break; end") };
+
+EXPECT_EQ(RENDERED, "(BLOCK (LOCAL_DECLARATION a :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST))) (WHILE_STATEMENT (IDENTIFIER flag) (BLOCK (LOCAL_DECLARATION b :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST))) (BLOCK (DESTROY_CALL Box.drop (IDENTIFIER b)) (BREAK_STATEMENT)))) (DESTROY_CALL Box.drop (IDENTIFIER a)))") << "The break must destroy only b, never a, which is destroyed later at the function's own end: " <<
+RENDERED
+;
+}
+
+TEST(MAREAIrControlFlow, ContinueDestroysTheLoopBodyScopeBeforeTheStep)
+{
+    GTEST_COUT << "Validating a continue destroys the loop body's own destructible local before the for-range step." << std::endl;
+
+    const std::string
+RENDERED
+{ MAREA_lowerBody(MAREA_BOX, "", "for index in 1 .. 3 do local b: Box = Box(); continue; end") };
+
+EXPECT_NE(RENDERED.find("(BLOCK (DESTROY_CALL Box.drop (IDENTIFIER b)) (BLOCK (IF_STATEMENT"), std::string::npos) << "The destroy of b must come before the loop's own step: " <<
+RENDERED
+;
+}
+
+TEST(MAREAIrControlFlow, MovedLocalIsNotDestroyed)
+{
+    GTEST_COUT << "Validating a local moved out with move x is not destroyed at the end of its block." << std::endl;
+
+    EXPECT_EQ(MAREA_lowerBody(MAREA_BOX + "function sink(value: Box) end ", "", "local a: Box = Box(); sink(move a);"), "(BLOCK (LOCAL_DECLARATION a :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST))) (EXPRESSION_STATEMENT (CALL_EXPRESSION (IDENTIFIER sink) (ARGUMENT_LIST (UNARY_EXPRESSION op=KEYWORD_MOVE (IDENTIFIER a))))))") << "A moved-from local must not get a DESTROY_CALL.";
+}
+
+TEST(MAREAIrControlFlow, LoopBodyLocalIsDestroyedAtTheEndOfEveryIteration)
+{
+    GTEST_COUT << "Validating a destructible local of a loop body is destroyed at the end of the body, so once per iteration." << std::endl;
+
+    EXPECT_EQ(MAREA_lowerBody(MAREA_BOX, "flag: boolean", "while flag do local b: Box = Box(); end"), "(BLOCK (WHILE_STATEMENT (IDENTIFIER flag) (BLOCK (LOCAL_DECLARATION b :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST))) (DESTROY_CALL Box.drop (IDENTIFIER b)))))") << "The destroy must sit in the loop body, never after the loop.";
+}
+
+TEST(MAREAIrControlFlow, ReturnWithAValueIsWrappedLikeAnyOtherReturn)
+{
+    GTEST_COUT << "Validating a return that carries a value is wrapped with the destroys of the locals it leaves." << std::endl;
+
+    const std::string
+RENDERED
+{ MAREA_lowerBody(MAREA_BOX, "", "local a: Box = Box(); return 1;") };
+
+EXPECT_NE(RENDERED.find("(BLOCK (DESTROY_CALL Box.drop (IDENTIFIER a)) (RETURN_STATEMENT"), std::string::npos) << "The destroy must come before the return: " <<
+RENDERED
+;
+}
