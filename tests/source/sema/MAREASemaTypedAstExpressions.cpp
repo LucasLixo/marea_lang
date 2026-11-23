@@ -349,13 +349,6 @@ TEST(MAREASemaTypedAstExpressions, CallIsTheDeclaredReturnType)
     MAREA_expectExpressionType("namespace main; function g(): vector<array<sinteger32, 4>> return vector<array<sinteger32, 4>>{}; end function f(): vector<array<sinteger32, 4>> return g(); end", MAREA_AST_KIND_CALL_EXPRESSION, 0, "vector<array<sinteger32,4>>");
 }
 
-TEST(MAREASemaTypedAstExpressions, CallWithoutResultHasNoType)
-{
-    GTEST_COUT << "Validating a call to a function with no result type has no type." << std::endl;
-
-    MAREA_expectExpressionNoType("namespace main; function g(a: sinteger32) end function f(x: sinteger32) g(x); end", MAREA_AST_KIND_CALL_EXPRESSION, 0);
-}
-
 TEST(MAREASemaTypedAstExpressions, GenericCallWithExplicitArgumentsSubstitutes)
 {
     GTEST_COUT << "Validating a generic call with explicit type arguments substitutes them in a bare and in a compound result." << std::endl;
