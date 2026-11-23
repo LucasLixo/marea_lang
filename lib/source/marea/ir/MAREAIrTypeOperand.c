@@ -192,6 +192,11 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerTypeName(MAREA_IrContext *context,
         return MAREA_IR_EXCEPT_SUCCESS;
     }
 
+    // INFO: an alias that carries type arguments or names a function type cannot stand for the whole operand.
+    if (MAREA_IrAliasTypeIsLossy(context, text, length) == MAREA_BOOLEAN_TRUE) {
+        return MAREA_IrRaise(context, MAREA_IR_DIAGNOSTIC_CODE_UNINSTANTIATED_GENERIC, MAREA_SemaTypedNodeGetAstNode(typed), "A type operand named by a type alias with type arguments is not supported by the IR yet.", MAREA_NULLPTR, MAREA_INTEGER_SIZE(0));
+    }
+
     // INFO: the type operand names the original type, never an alias of it.
     result = MAREA_IrAliasType(context, text, length, &text, &length);
 
