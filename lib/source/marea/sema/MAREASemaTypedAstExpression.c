@@ -357,6 +357,11 @@ static MAREA_G_Peeled MAREA_CALL MAREA_G_Peel(const MAREA_SemaContext *context, 
             }
         }
 
+        // INFO: a name written in another file is not looked up among the names of this file.
+        if (MAREA_SemaTypeFrameFindForeign(type->frame) != MAREA_NULLPTR) {
+            return MAREA_G_PEELED_NODE;
+        }
+
         if (MAREA_SemaIsGenericInScope(context, name, NAME_LENGTH) == MAREA_BOOLEAN_TRUE) {
             return MAREA_G_PEELED_NODE;
         }
@@ -561,6 +566,20 @@ static const MAREA_AstNode *MAREA_CALL MAREA_G_FindValueParameterType(const MARE
     return (((MAREA_AstNodeGetFlags(parameter) & MAREA_AST_FLAG_CONSTANT) != 0) && (MAREA_G_IsType(type) == MAREA_BOOLEAN_TRUE)) ? type : MAREA_NULLPTR;
 }
 
+// INFO: a member (or, with no member, a bare imported name) that comes from a namespace the resolver has a tree for is typed from that tree.
+static MAREA_SemaExprType MAREA_CALL MAREA_G_TypeOfFound(MAREA_G_Resolver *resolver, const MAREA_AstNode *base, const MAREA_AstNode *member, const MAREA_AstNode *callTypeArguments)
+{
+    MAREA_SemaExprType type = MAREA_G_TypeNone();
+
+    const MAREA_SemaTypedAstExcept RESULT = (member == MAREA_NULLPTR) ? MAREA_SemaTypedAstFoundNameType(resolver->context, base, callTypeArguments, &type) : MAREA_SemaTypedAstFoundMemberType(resolver->context, base, member, callTypeArguments, &type);
+
+    if (RESULT == MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_OUT_OF_MEMORY) {
+        resolver->outOfMemory = MAREA_BOOLEAN_TRUE;
+    }
+
+    return type;
+}
+
 static MAREA_SemaExprType MAREA_CALL MAREA_G_TypeOfIdentifier(MAREA_G_Resolver *resolver, const MAREA_AstNode *identifier, const MAREA_AstNode *callTypeArguments)
 {
     const MAREA_SemaContext *context = resolver->context;
@@ -610,7 +629,7 @@ static MAREA_SemaExprType MAREA_CALL MAREA_G_TypeOfIdentifier(MAREA_G_Resolver *
         return MAREA_G_TypeOfNode(declaration, MAREA_G_FunctionFrame(resolver, declaration, MAREA_NULLPTR, callTypeArguments));
     }
 
-    return MAREA_G_TypeNone();
+    return MAREA_G_TypeOfFound(resolver, identifier, MAREA_NULLPTR, callTypeArguments);
 }
 
 static MAREA_SemaExprType MAREA_CALL MAREA_G_TypeOfMemberAccess(MAREA_G_Resolver *resolver, const MAREA_SemaTypedNode *built, const MAREA_AstNode *callTypeArguments)
@@ -632,7 +651,7 @@ static MAREA_SemaExprType MAREA_CALL MAREA_G_TypeOfMemberAccess(MAREA_G_Resolver
     }
 
     if (MAREA_G_BaseIsTypeName(resolver->context, base, &receiver) == MAREA_BOOLEAN_FALSE) {
-        return MAREA_G_TypeNone();
+        return MAREA_G_TypeOfFound(resolver, base, member, callTypeArguments);
     }
 
     if ((MAREA_G_IsKind(receiver.declaration, MAREA_AST_KIND_ENUM_DECLARATION) == MAREA_BOOLEAN_TRUE) && (MAREA_G_EnumHasVariant(receiver.declaration, member) == MAREA_BOOLEAN_TRUE)) {
@@ -997,6 +1016,8 @@ MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedAstResolveExpressionType(MARE
     }
 
     if (MAREA_G_TypeIsKnown(&TYPE) == MAREA_BOOLEAN_FALSE) {
+        built->isQualifier = MAREA_SemaTypedAstIsQualifier(context, built->astNode, parent, index);
+
         return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
     }
 
