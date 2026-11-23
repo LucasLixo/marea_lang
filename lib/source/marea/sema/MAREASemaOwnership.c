@@ -297,6 +297,12 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckOwnership(MAREA_SemaContext *context,
             return LITERAL_RESULT;
         }
 
+        const MAREA_SemaExcept RANGE_RESULT = MAREA_SemaCheckLiteralRange(context, MAREA_SemaChildAt(node, 1), MAREA_SemaChildAt(node, 2));
+
+        if (RANGE_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return RANGE_RESULT;
+        }
+
         return MAREA_G_CheckCopyOrMove(context, node, MAREA_G_IsType(MAREA_SemaChildAt(node, 1)) == MAREA_BOOLEAN_TRUE ? MAREA_SemaChildAt(node, 1) : MAREA_NULLPTR, MAREA_SemaChildAt(node, 2));
     }
     default:

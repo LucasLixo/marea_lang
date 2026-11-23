@@ -227,6 +227,15 @@ a `reference_mutable` (write-borrow) parameter, explicit or by default, has no w
 back the borrow, so it is rejected with `CANNOT_BORROW_CONSTANT_AS_MUTABLE` (3032); a variable
 passed to the same parameter is unaffected.
 
+**Integer literal range.** An integer literal (decimal, `0x` or `0b`, with `_` between digits, with one
+leading minus and any parentheses) must fit the integer primitive it meets: `sinteger8` to `sinteger64`, `uinteger8`
+to `uinteger64`. A literal that does not fit is rejected with `LITERAL_OUT_OF_RANGE` (3033) and is never truncated.
+A negated literal never fits an unsigned type, except `-0`. The check runs beside the `TYPE_MISMATCH` check, at
+the same sites: a local initializer, a constant, a parameter default, a return value, an assignment, a call
+argument (a `spawn` call too, and a call of an `EXTERNAL` member), and a field of a struct literal. A float or any
+non-integer target is never range checked, so a node gets 3011 or 3033, never both. A literal whose target has no
+known primitive type is checked only against the widest range: `uinteger64`, or `sinteger64` when negated.
+
 **Spawn.** In `fork_join`, each argument of `spawn f(...)` is a `partition` part, a literal, a file
 constant, or a name that is not a `reference_mutable` (write-borrow) parameter and not the source of
 an active `partition mutable`, or a field access (`a.b`, nested too) whose base meets the same rule. Any other expression
@@ -590,6 +599,7 @@ or rejects.
 | 3030 | `DEFAULT_PARAMETER_BEFORE_REQUIRED` | `function f(a: sinteger32 = 0, b: sinteger32)`: a parameter with a default value before one with none |
 | 3031 | `INVALID_ENUM_TAG_TYPE` | `enum A : float32`, `: string`, `: SomeStruct`: a tag that is not an integer primitive |
 | 3032 | `CANNOT_BORROW_CONSTANT_AS_MUTABLE` | `take(ORIGIN)` when `take`'s parameter's effective `semantics` is `reference_mutable` and `ORIGIN` is a file constant |
+| 3033 | `LITERAL_OUT_OF_RANGE` | `local a: uinteger8 = 256;`, `local b: sinteger8 = -129;`, `constant BIG: uinteger8 = 300;`, `local c: uinteger32 = -1;`: an integer literal whose value does not fit the integer type it is bound to |
 
 ## Gaps
 
@@ -612,6 +622,9 @@ or rejects.
 - `CANNOT_BORROW_CONSTANT_AS_MUTABLE` (3032) sees only a bare file-constant name as the argument. A field chain
   rooted in a constant (`ORIGIN.x`) passed to a write-borrow parameter is not rejected, and a test proves only the
   bare name.
+- `LITERAL_OUT_OF_RANGE` (3033) reads only a written integer literal. A float literal, a literal in an operand
+  (`1 + 300` bound to a `uinteger8`), a value folded from a named constant, and a literal whose target type is not a
+  primitive sema knows (it is then checked against `uinteger64` only) are not range checked.
 - An alias of an `enum` is not resolved to the enum for any comparison, because sema never compares an enum type
   for `TYPE_MISMATCH` (see the `TYPE_MISMATCH` gap above); the aliased-enum case that a test covers is the
   `switch` coverage of an imported enum with an alias. No test covers `type A = Color;` of a same-file enum.
