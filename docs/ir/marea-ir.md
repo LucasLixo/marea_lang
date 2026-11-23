@@ -382,7 +382,7 @@ now (see Type operands).
 
 | Code | Name | Example |
 |---|---|---|
-| 4004 | `UNINSTANTIATED_GENERIC` | a generic function, structure or `implementation`; a call with explicit type arguments that is not a built-in call (`identity<integer32>(5)`); a call whose result type is an unbound generic; a `GENERIC_NAME` that is not the receiver of a call, or whose head is a generic type of the unit; a function type as the type argument of a built-in or a static call. `size_of<T>()`, `align_of<T>()`, `convert<T>(x)` and `array<integer32>.filled(8, 0)` raise nothing. |
+| 4004 | `UNINSTANTIATED_GENERIC` | a generic function, structure or `implementation`; a call with explicit type arguments that is not a built-in call (`identity<integer32>(5)`); a call whose result type is an unbound generic; a `GENERIC_NAME` that is not the receiver of a call, or whose head is a generic type of the unit; a function type as the type argument of a built-in or a static call; a call whose callee is the bare name of a function of the unit that was left out of the module, also when the callee is declared after the caller (the call and its top-level declaration are dropped, and the callers of a dropped function raise in turn). `size_of<T>()`, `align_of<T>()`, `convert<T>(x)` and `array<integer32>.filled(8, 0)` raise nothing. |
 | 4005 | `UNSUPPORTED_MACRO` | `print!("hi");`, a module-level `static_assert!(true);`, a macro call inside an expression. `unreachable!();` as a statement is lowered and raises nothing. |
 
 The codes 4001, 4002 and 4003 are retired: `fork_join`, `switch` and `for each` are lowered. The numbers have no
@@ -420,8 +420,10 @@ Each diagnostic carries the position of the construct that raised it.
   shape (a test checks it). The IR adds no diagnostic for it.
 - The hidden `$switch` local has no type name, like the for-range `$last`: the IR does not copy one from the
   scrutinee. A backend must infer it from the scrutinee.
-- A call to a function that was left out of the module still lowers to a plain name that points at
-  nothing.
+- Only a call whose callee is a bare name is checked against the functions left out of the module. A dropped
+  function that is used as a value, not called, or reached through a qualified name, still lowers to a name that
+  points at nothing. A parameter or a local with the same name as a dropped function makes a call of it raise
+  too, because the IR holds no scope.
 - A `TYPE_NAME` is a written name, not a resolved type. The IR does not say whether `Light` in `size_of<Light>()` is
   a structure, a built-in or a generic parameter, and does not check that a built-in gets the number of type
   arguments it needs. A backend must look the name up and reject what it cannot handle.
