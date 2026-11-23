@@ -22,7 +22,7 @@ MAREA_SemaCheckCompilationUnit(sema, root);   /* once per file, dependencies fir
 `MAREA_SemaCheckCompilationUnit` returns an error only for a null argument or an out of memory. A rule
 violation is a diagnostic in the sink. A size that does not fit in `MAREA_IntegerSize` (a diagnostic
 message, or the growth of a name table) is also an out of memory: nothing is allocated or copied.
-Every sema diagnostic is an error, in the range 3001-3030.
+Every sema diagnostic is an error, in the range 3001-3031.
 The lexer file name decides the path rule, so call `MAREA_LexContextSetFileName` with a project
 relative path with forward slashes and the `.marea` extension before the lex step.
 
@@ -126,6 +126,12 @@ type, and a `construct` has no return type and a default on every parameter; any
 `LIFECYCLE_OPERATOR_CALLED_DIRECTLY` (3027): by a bare name that no local and no top-level function of another
 meaning hides, and by the static form `Type.name(...)` where `Type` is the implemented type. The automatic call
 at creation and destruction is lowered in the ir, not here.
+
+**Enum tag type.** `enum A : uinteger8` names the integer type of the discriminant. With no tag it is
+`sinteger32`. A tag must be one bare integer primitive (`sinteger8` to `sinteger64`, `uinteger8` to
+`uinteger64`); any other tag (`float32`, `string`, `boolean`, a structure, a generic or an alias) is
+`INVALID_ENUM_TAG_TYPE` (3031), once per enum. A tag name that is not a type at all also raises
+`UNKNOWN_TYPE`. Sema does not use the tag for the layout of an enum: `size_of` of an enum is unchanged.
 
 **Ownership.** A parameter with no word is a read-only borrow, `mutable` is a write borrow,
 `reference` forces a borrow of a by-value type, `owned<T>` moves in. A primitive, a `vector`, an
@@ -350,6 +356,7 @@ type arguments is deferred to when the `ir` stage needs one for real.
 | 3028 | `LIFECYCLE_OPERATOR_NEEDS_CONCRETE_TYPE` | a `construct` or `destroy` function at top level, in a generic implementation, with generic parameters, or in an implementation of a type that is not a structure or an enum |
 | 3029 | `LIFECYCLE_OPERATOR_BAD_SHAPE` | a `destroy` with a parameter or a return type; a `construct` with a return type or a parameter that has no default |
 | 3030 | `DEFAULT_PARAMETER_BEFORE_REQUIRED` | `function f(a: sinteger32 = 0, b: sinteger32)`: a parameter with a default value before one with none |
+| 3031 | `INVALID_ENUM_TAG_TYPE` | `enum A : float32`, `: string`, `: SomeStruct`: a tag that is not an integer primitive |
 
 ## Gaps
 
