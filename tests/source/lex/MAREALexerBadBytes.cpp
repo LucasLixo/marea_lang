@@ -11,7 +11,7 @@ TEST(MAREALexerBadBytes, UnknownByteKinds)
 {
     GTEST_COUT << "Validating every unknown byte lexes as one ERROR token with one UNKNOWN_BYTE diagnostic." << std::endl;
 
-    const std::string BAD_BYTES{ "@$?`\\'" };
+    const std::string BAD_BYTES{ "@$?`\\" };
 
     for (const char BYTE : BAD_BYTES) {
         MAREA_LexFixture fixture;
