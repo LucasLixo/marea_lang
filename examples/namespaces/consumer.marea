@@ -16,8 +16,8 @@ import namespaces.library;                   -- used as library.greet(...)
 import namespaces.library as lib;            -- same namespace, local name lib
 import namespaces.library.greet as welcome;  -- one symbol, local name welcome
 
-#[public]
-function show_imports(): integer32
+#[visibility = public]
+function show_imports(): sinteger32
     stdio.puts(library.greet("one"));
     stdio.puts(lib.greet("two"));
     stdio.puts(welcome("three"));

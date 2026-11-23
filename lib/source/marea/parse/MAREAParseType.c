@@ -39,28 +39,39 @@ MAREA_AstNode *MAREA_CALL MAREA_ParseNamedType(MAREA_ParseState *state)
     return type;
 }
 
-static MAREA_AstNode *MAREA_CALL MAREA_G_ParseParameter(MAREA_ParseState *state)
+static MAREA_AstNode *MAREA_CALL MAREA_G_ParseParameter(MAREA_ParseState *state, MAREA_Boolean allowDefault)
 {
+    // INFO: a parameter's attribute is written before it, like any other attribute, but is adopted last, so every existing reader of the fixed name, type and default positions keeps working.
+    MAREA_AstNode *holder = MAREA_ParseNodeBegin(state, MAREA_AST_KIND_BLOCK);
+
+    MAREA_ParseAttributes(state, holder, MAREA_TOKEN_KIND_HASH_BRACKET);
+
     MAREA_AstNode *parameter = MAREA_ParseNodeBegin(state, MAREA_AST_KIND_PARAMETER);
 
     MAREA_ParseNodeAdd(state, parameter, MAREA_ParseIdentifier(state, "expected a parameter name"));
 
     MAREA_IGNORE(MAREA_ParseExpect(state, MAREA_TOKEN_KIND_COLON, "expected ':' after the parameter name"));
 
-    if (MAREA_ParseAccept(state, MAREA_TOKEN_KIND_KEYWORD_MUTABLE) == MAREA_BOOLEAN_TRUE) {
-        MAREA_AstNodeSetFlags(parameter, MAREA_AST_FLAG_MUTABLE);
-    } else if (MAREA_ParseAccept(state, MAREA_TOKEN_KIND_KEYWORD_REFERENCE) == MAREA_BOOLEAN_TRUE) {
-        MAREA_AstNodeSetFlags(parameter, MAREA_AST_FLAG_REFERENCE);
+    MAREA_ParseNodeAdd(state, parameter, MAREA_ParseType(state));
+
+    if (MAREA_ParseAt(state, MAREA_TOKEN_KIND_EQUAL) == MAREA_BOOLEAN_TRUE) {
+        if (allowDefault == MAREA_BOOLEAN_FALSE) {
+            MAREA_ParseReport(state, MAREA_PARSE_DIAGNOSTIC_CODE_UNEXPECTED_TOKEN, MAREA_ParsePeekToken(state, MAREA_INTEGER_SIZE(0)), "a function type parameter cannot have a default value");
+        }
+
+        MAREA_IGNORE(MAREA_ParseAdvance(state));
+
+        MAREA_ParseNodeAdd(state, parameter, MAREA_ParseExpression(state));
     }
 
-    MAREA_ParseNodeAdd(state, parameter, MAREA_ParseType(state));
+    MAREA_ParseAdoptAttributes(state, parameter, holder);
 
     MAREA_ParseNodeEnd(state, parameter);
 
     return parameter;
 }
 
-MAREA_AstNode *MAREA_CALL MAREA_ParseParameterList(MAREA_ParseState *state)
+MAREA_AstNode *MAREA_CALL MAREA_ParseParameterList(MAREA_ParseState *state, MAREA_Boolean allowDefault)
 {
     MAREA_AstNode *list = MAREA_ParseNodeBegin(state, MAREA_AST_KIND_PARAMETER_LIST);
 
@@ -72,7 +83,7 @@ MAREA_AstNode *MAREA_CALL MAREA_ParseParameterList(MAREA_ParseState *state)
         do {
             const MAREA_IntegerSize before = state->index;
 
-            MAREA_ParseNodeAdd(state, list, MAREA_G_ParseParameter(state));
+            MAREA_ParseNodeAdd(state, list, MAREA_G_ParseParameter(state, allowDefault));
 
             // INFO: A parameter that consumed nothing means the rest is not a parameter list.
             if (state->index == before) {
@@ -94,7 +105,7 @@ static MAREA_AstNode *MAREA_CALL MAREA_G_ParseFunctionType(MAREA_ParseState *sta
 
     MAREA_IGNORE(MAREA_ParseAdvance(state));
 
-    MAREA_ParseNodeAdd(state, type, MAREA_ParseParameterList(state));
+    MAREA_ParseNodeAdd(state, type, MAREA_ParseParameterList(state, MAREA_BOOLEAN_FALSE));
 
     if (MAREA_ParseAccept(state, MAREA_TOKEN_KIND_COLON) == MAREA_BOOLEAN_TRUE) {
         MAREA_ParseNodeAdd(state, type, MAREA_ParseType(state));

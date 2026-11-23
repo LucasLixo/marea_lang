@@ -8,17 +8,19 @@
 // INFO: the core types the language itself defines. Every other type is a library or a user type.
 static const MAREA_Character8 *const MAREA_G_BuiltinTypes[] = {
     "boolean",
-    "integer8",
-    "integer16",
-    "integer32",
-    "integer64",
-    "unsigned8",
-    "unsigned16",
-    "unsigned32",
-    "unsigned64",
+    "sinteger8",
+    "sinteger16",
+    "sinteger32",
+    "sinteger64",
+    "uinteger8",
+    "uinteger16",
+    "uinteger32",
+    "uinteger64",
     "float32",
     "float64",
+    "character",
     "string",
+    "array",
     "vector",
     "pointer",
     "owned",
@@ -201,11 +203,11 @@ void MAREA_CALL MAREA_SemaScopeLeave(MAREA_SemaContext *context, MAREA_SemaScope
 
 static MAREA_IntegerSize MAREA_CALL MAREA_G_BuiltinArity(const MAREA_Character8 *text, MAREA_IntegerSize length)
 {
-    if (MAREA_G_TextEquals(text, length, "vector") == MAREA_BOOLEAN_TRUE) {
+    if (MAREA_G_TextEquals(text, length, "array") == MAREA_BOOLEAN_TRUE) {
         return MAREA_INTEGER_SIZE(2);
     }
 
-    const MAREA_Boolean TAKES_ONE = (MAREA_G_TextEquals(text, length, "pointer") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextEquals(text, length, "owned") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextEquals(text, length, "slice") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextEquals(text, length, "task") == MAREA_BOOLEAN_TRUE);
+    const MAREA_Boolean TAKES_ONE = (MAREA_G_TextEquals(text, length, "pointer") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextEquals(text, length, "owned") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextEquals(text, length, "slice") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextEquals(text, length, "vector") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextEquals(text, length, "task") == MAREA_BOOLEAN_TRUE);
 
     return (TAKES_ONE == MAREA_BOOLEAN_TRUE) ? MAREA_INTEGER_SIZE(1) : MAREA_INTEGER_SIZE(0);
 }

@@ -44,6 +44,12 @@ string_literal      = '"', { string_character | escape_sequence }, '"' ;
 string_character    = ? any ASCII character except '"', "\" and new line ? ;
 escape_sequence     = "\", ( "n" | "t" | "r" | "0" | "\" | '"' | "x", hex_digit, hex_digit ) ;
 
+(* A character literal holds exactly one character or one escape. An empty literal and a literal *)
+(* with more than one character are lexer errors. A '"' needs no escape inside it. *)
+character_literal   = "'", ( character_character | character_escape ), "'" ;
+character_character = ? any ASCII character except "'", "\" and new line ? ;
+character_escape    = escape_sequence | "\", "'" ;
+
 boolean_literal     = "true" | "false" ;
 
 (* There is no nil. Every value has one fixed type. *)
@@ -53,16 +59,21 @@ keyword             = "and" | "as" | "break" | "case" | "constant" | "continue" 
                     | "copy" | "default" | "do" | "each" | "else" | "elseif" | "end" | "enum" | "false"
                     | "for" | "fork_join" | "function" | "if" | "implementation" | "import"
                     | "in" | "into" | "local" | "move" | "mutable" | "namespace"
-                    | "not" | "opaque" | "or" | "partition" | "reference" | "return" | "spawn"
+                    | "not" | "opaque" | "or" | "partition" | "return" | "spawn"
                     | "structure" | "switch" | "then" | "true" | "type" | "unsafe" | "where"
                     | "while" | "with" ;
+(* "reference" is retired: it is a plain identifier now. A parameter's passing mode is its *)
+(* "semantics" attribute (see parameter, below) and "mutable" stays reserved only for *)
+(* "for each" and "partition" - never on a parameter any more. *)
 
-(* Names that are predeclared but are not reserved: the primitive types (boolean, integer8 ... *)
-(* integer64, unsigned8 ... unsigned64, float32, float64, string), the core type constructors *)
-(* vector and pointer, and the names Self and self. The language has no standard library: array, *)
-(* table, slice, task, arenas and text are libraries written in C or in Marea, and they are *)
-(* imported like any namespace. The namespace "c" is the only reserved one. *)
-(* "public" and "private" are words of the attribute list only. *)
+(* Names that are predeclared but are not reserved: the primitive types (boolean, sinteger8 ... *)
+(* sinteger64, uinteger8 ... uinteger64, float32, float64, character, string), the core type constructors *)
+(* array (two arguments, a type and a size, copied by value), vector (one argument, growable, a move type), *)
+(* pointer, owned, slice and task (one argument each), and the names Self and self. The parser reads all of them *)
+(* as plain qualified names: only sema knows them. The language has no standard library: table, arenas and text *)
+(* are libraries written in C or in Marea, and they are imported like any namespace. The namespace "c" is the *)
+(* only reserved one. *)
+(* "public" and "private" are words of the attribute list only, the members of the key "visibility". *)
 
 (* Operators and separators. *)
 operator_token      = "+" | "-" | "*" | "/" | "%" | "**"
@@ -109,7 +120,10 @@ import_member        = qualified_name, [ "as", identifier ] ;
 (* #[ key = value, key, ... ] before a symbol. #![ ... ] after the namespace, for the file. *)
 (* A key without a value means "= true". *)
 (* A value is "true" or "false" when the key is not an enum key. An enum key takes one member *)
-(* of its enum as an identifier (inline = force, build = debug). An unknown key is an error. *)
+(* of its enum as an identifier (visibility = public, inline = force, layout = marea, *)
+(* semantics = value_read_only | reference_read_only | reference_mutable - on a parameter, see *)
+(* note 9). The key export takes a string. The key operator takes a string of a fixed list: an *)
+(* operator_token, "[]", "()", "convert", "construct" or "destroy". An unknown key is an error. *)
 attribute           = "#[", attribute_item, { ",", attribute_item }, "]" ;
 file_attribute      = "#![", attribute_item, { ",", attribute_item }, "]" ;
 attribute_item      = identifier, [ "=", attribute_value ] ;
@@ -145,7 +159,9 @@ field_declaration   = { attribute }, identifier, ":", type, ";" ;
 (* A type of C with an unknown layout. It has no body. *)
 opaque_declaration  = "opaque", "structure", identifier, ";" ;
 
-enum_declaration    = "enum", identifier,
+(* The optional ":" type is the tag type. The grammar takes any type; the checker requires an *)
+(* integer primitive (sinteger8 ... uinteger64). *)
+enum_declaration    = "enum", identifier, [ ":", type ],
                       { variant_declaration },
                       "end" ;
 variant_declaration = identifier, [ "(", variant_field, { ",", variant_field }, ")" ], ";" ;
@@ -167,11 +183,15 @@ function_declaration = "function", identifier, [ generic_parameters ],
                        block,
                        "end" ;
 parameter_list      = parameter, { ",", parameter } ;
-(* A parameter is a reference that lives only for the call. A primitive and a "#[value]" type *)
-(* are passed by value. Any other type is a read-only borrow. "mutable" is a write borrow, *)
-(* and it is exclusive. "reference" forces a borrow of a type that is passed by value. *)
-(* A reference can not be stored in a field or returned. See note 9. *)
-parameter           = identifier, ":", [ "reference" | "mutable" ], type ;
+(* A parameter is a reference that lives only for the call, except a value passed by copy. Its *)
+(* passing mode is the "semantics" attribute (#[semantics = value_read_only | *)
+(* reference_read_only | reference_mutable]), checked once in sema, not a keyword: there is no *)
+(* inline word on a parameter any more. With no attribute, a primitive defaults to *)
+(* value_read_only (a copy) and any other type defaults to reference_mutable (an exclusive *)
+(* write borrow). value_read_only is legal only on a primitive. A reference can not be stored *)
+(* in a field or returned. See note 9. *)
+(* A default value is allowed on a function parameter and not on a function type parameter. *)
+parameter           = { attribute }, identifier, ":", type, [ "=", expression ] ;
 
 generic_parameters  = "<", generic_parameter, { ",", generic_parameter }, ">" ;
 generic_parameter   = identifier
@@ -184,7 +204,7 @@ constraint          = identifier, ":", qualified_name, { ",", qualified_name } ;
 
 (* ===================================== 5. Types ==================================== *)
 
-(* A type has no borrow word. "reference" and "mutable" are only in a parameter. *)
+(* A type has no borrow word; a parameter's passing mode is its "semantics" attribute. *)
 type                = named_type | function_type ;
 named_type          = qualified_name, [ type_arguments ] ;
 function_type       = "function", "(", [ parameter_list ], ")", [ ":", type ] ;
@@ -224,9 +244,10 @@ assignment_operator = "=" | "+=" | "-=" | "*=" | "/=" | "%=" | "**="
 (* A call or a spawn used as a statement. The checker rejects any other value. *)
 expression_statement = expression, ";" ;
 
-if_statement        = "if", expression, "then", block,
-                      { "elseif", expression, "then", block },
-                      [ "else", block ],
+(* Every branch has its own "end", and one more "end" closes the statement (note 11). *)
+if_statement        = "if", expression, "then", block, "end",
+                      { "elseif", expression, "then", block, "end" },
+                      [ "else", block, "end" ],
                       "end" ;
 
 while_statement     = "while", expression, "do", block, "end" ;
@@ -241,8 +262,8 @@ for_each_statement  = "for", "each", identifier, [ ",", identifier ], "in", [ "m
 (* On an enum the checker requires that every variant is handled, or a default. An arm does not *)
 (* fall through. A case lists one or more values, or enum variants, separated by commas. *)
 switch_statement    = "switch", expression, { switch_arm }, [ default_arm ], "end" ;
-switch_arm          = "case", expression, { ",", expression }, "then", block ;
-default_arm         = "default", "then", block ;
+switch_arm          = "case", expression, { ",", expression }, "then", block, "end" ;
+default_arm         = "default", "then", block, "end" ;
 
 (* A scoped resource: the value is open inside the block and closed at its "end". The name is *)
 (* a reference that can not leave the block. Example: with texture.map() as pixels do ... end *)
@@ -308,12 +329,16 @@ power_expression    = postfix_expression, [ "**", unary_expression ] ;
 postfix_expression  = primary_expression, { member_access | index_access | call_suffix } ;
 member_access       = ".", identifier ;
 index_access        = "[", expression, "]" ;
+(* A call on a type name, Point(1.0), is a call_suffix like any other: the parser does not know that *)
+(* the name is a type. The checker routes it to the construct operator of the type. The literal_value *)
+(* form Point{ x = 1.0 } is the other way to create a value. *)
 call_suffix         = [ type_arguments ], "(", [ argument_list ], ")" ;
 argument_list       = expression, { ",", expression } ;
 
 primary_expression  = integer_literal
                     | float_literal
                     | string_literal
+                    | character_literal
                     | boolean_literal
                     | "(", expression, ")"
                     | macro_call
@@ -325,8 +350,8 @@ primary_expression  = integer_literal
 (* array<float32>.filled(0.0). The checker rejects a use without a following "." or "(". *)
 generic_name        = qualified_name, type_arguments ;
 
-(* A value with a type and a body: Point{ x = 1.0 }, table<string, integer32>{ ["a"] = 1 }, *)
-(* array<float32>{ 1.0, 2.0 }, vector<float32, 4>{ 1.0, 0.0, 0.0, 0.0 }. *)
+(* A value with a type and a body: Point{ x = 1.0 }, table<string, sinteger32>{ ["a"] = 1 }, *)
+(* c.array<float32>{ 1.0, 2.0 }, array<float32, 4>{ 1.0, 0.0, 0.0, 0.0 }. *)
 literal_value       = named_type, "{", [ literal_entry, { ",", literal_entry }, [ "," ] ], "}" ;
 literal_entry       = identifier, "=", expression
                     | "[", expression, "]", "=", expression
@@ -352,25 +377,30 @@ macro_call          = ( identifier | "namespace" ), "!", "(", [ argument_list ],
 (* 7. Out of this grammar by design: the checker rules (ownership, arena, contracts, switch  *)
 (*    coverage, attribute keys and values, the match of the namespace with the path).        *)
 (* 8. Not in version 0: block comments, #[when(...)], derive, user macros, string            *)
-(*    interpolation, a character literal, a lambda.                                          *)
+(*    interpolation, a lambda.                                                               *)
 (* 9. Return and references. A function with a return type ends every path with an explicit   *)
 (*    "return value;". The last expression is NOT a return value. "return;" leaves a function *)
 (*    that has no return type. A function type without ": Type" is the type of such a       *)
 (*    function, and its result can not be used as a value. A reference exists only as a    *)
 (*    parameter, a "for each" variable, a "partition" part or a "with" name. It lives for   *)
 (*    that scope. It is never stored in a field and never returned. Data goes up by "return *)
-(*    value;", which moves the owner to the scope of the caller.                            *)
+(*    value;", which moves the owner to the scope of the caller. A parameter is a reference  *)
+(*    whenever its "semantics" is reference_read_only or reference_mutable (explicit, or the *)
+(*    default for a non-primitive type); value_read_only (explicit, or the default for a     *)
+(*    primitive) is a plain copy, never a reference.                                         *)
 (* 10. Assignment. "=" copies a primitive and a "#[value]" type. For any other type, when the *)
 (*    right side is a name, a field or an element, it must be "copy x" or "move x", or the   *)
 (*    checker gives an error. A new value (a call, a literal) needs no word: it has no       *)
 (*    other owner yet.                                                                      *)
-(* 11. A switch arm starts with "case" or "default", so an arm needs no "end" of its own.     *)
+(* 11. One "end" per branch. Every branch of an "if" (the "if" branch, each "elseif" and the   *)
+(*    "else") and of a "switch" (each "case" and the "default") closes with its own "end", and *)
+(*    one more "end" closes the whole statement. The old shared-end form is a parse error.     *)
 (* 12. Macro name. A reserved word is never an identifier, but the built-in macro namespace!()  *)
 (*    gives the place of the call and shares its name with the keyword. The "!" and "(" after  *)
 (*    it tell the two apart, so "macro_call" lists "namespace" as the one exception.           *)
 (* 13. Entry point. A driver that builds a standalone program looks for one shape: a       *)
 (*     function named "main" in the namespace "main", with the signature "function        *)
-(*     main(arguments: array<string>): integer32". This is a checker/driver rule, as note  *)
+(*     main(arguments: array<string>): sinteger32". This is a checker/driver rule, as note  *)
 (*     7 lists, never grammar: "main" stays an ordinary, non-reserved name everywhere      *)
 (*     else. examples/main.marea already follows it (decided).                            *)
 (* 14. Renaming with "as". Three forms give a name a second name (decided):                   *)

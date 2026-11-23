@@ -237,8 +237,9 @@ MAREA_BEGIN_EXTERN_C
 
     /**
      * @brief Parses a parenthesized parameter list into a PARAMETER_LIST node. Always returns a node.
+     * @param allowDefault MAREA_BOOLEAN_TRUE lets a parameter have "= expression"; MAREA_BOOLEAN_FALSE (a function type) reports UNEXPECTED_TOKEN and still parses the expression.
      */
-    MAREA_AstNode *MAREA_CALL MAREA_ParseParameterList(MAREA_ParseState * state);
+    MAREA_AstNode *MAREA_CALL MAREA_ParseParameterList(MAREA_ParseState * state, MAREA_Boolean allowDefault);
 
     /**
      * @brief Parses generic_parameters into a GENERIC_PARAMETERS node. The current token must be a less than.
@@ -258,10 +259,10 @@ MAREA_BEGIN_EXTERN_C
 
     /**
      * @brief Parses a block: statements up to end, the end of file, or the start of a top level
-     * declaration. When stopAtBranches is true it also stops before elseif, else, case and default;
-     * otherwise those words are reported as UNEXPECTED_TOKEN and skipped. The terminator is not consumed.
+     * declaration. The words elseif, else, case and default are reported as UNEXPECTED_TOKEN and
+     * skipped, because every branch has its own end. The terminator is not consumed.
      */
-    MAREA_AstNode *MAREA_CALL MAREA_ParseBlock(MAREA_ParseState * state, MAREA_Boolean stopAtBranches);
+    MAREA_AstNode *MAREA_CALL MAREA_ParseBlock(MAREA_ParseState * state);
 
     /**
      * @brief Parses one statement. Returns an ERROR_NODE without consuming when none starts here.

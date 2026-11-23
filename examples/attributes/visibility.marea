@@ -6,25 +6,26 @@
 -- A key without a value means "= true". A key that is not an enum key takes true or false.
 -- A key of an enum takes one member of that enum: inline = force, build = debug.
 -- Visibility is an attribute. There is no public or local keyword.
---   #[public]   other files can import the symbol
---   #[private]  only this file can use it. This is the default, so it can be left out.
--- #[public, private] on one symbol is an error. An unknown key is an error.
+-- The key visibility is an enum key with the members public and private.
+--   #[visibility = public]   other files can import the symbol
+--   #[visibility = private]  only this file can use it. This is the default, so it can be left out.
+-- visibility twice on one symbol is an error. An unknown key is an error.
 
 namespace attributes.visibility;
 
-#[public]
-constant VERSION: integer32 = 1;
+#[visibility = public]
+constant VERSION: sinteger32 = 1;
 
-#[private]
-constant SECRET: integer32 = 42;
+#[visibility = private]
+constant SECRET: sinteger32 = 42;
 
-constant ALSO_PRIVATE: integer32 = 43;
+constant ALSO_PRIVATE: sinteger32 = 43;
 
-function hidden(): integer32
+function hidden(): sinteger32
     return ALSO_PRIVATE;
 end
 
-#[public]
-function visible(): integer32
+#[visibility = public]
+function visible(): sinteger32
     return hidden() + SECRET;
 end

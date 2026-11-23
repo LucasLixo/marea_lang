@@ -282,8 +282,7 @@ static const MAREA_IrAlias *MAREA_CALL MAREA_G_FindAlias(const MAREA_IrContext *
     return MAREA_NULLPTR;
 }
 
-// INFO: true when the function that is being lowered declares the name as a parameter or a local of any block, at or before the source offset of the reference.
-static MAREA_Boolean MAREA_CALL MAREA_G_Declares(const MAREA_SemaTypedNode *typed, const MAREA_Character8 *text, MAREA_IntegerSize length, MAREA_Uinteger32 offset)
+MAREA_Boolean MAREA_CALL MAREA_IrFunctionDeclares(const MAREA_SemaTypedNode *typed, const MAREA_Character8 *text, MAREA_IntegerSize length, MAREA_Uinteger32 offset)
 {
     const MAREA_AstKind KIND = MAREA_IrTypedKind(typed);
 
@@ -320,7 +319,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_Declares(const MAREA_SemaTypedNode *type
     }
 
     for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < COUNT; index = (index + MAREA_INTEGER_SIZE(1))) {
-        if (MAREA_G_Declares(MAREA_IrTypedChildAt(typed, index), text, length, offset) == MAREA_BOOLEAN_TRUE) {
+        if (MAREA_IrFunctionDeclares(MAREA_IrTypedChildAt(typed, index), text, length, offset) == MAREA_BOOLEAN_TRUE) {
             return MAREA_BOOLEAN_TRUE;
         }
     }
@@ -337,7 +336,7 @@ MAREA_Boolean MAREA_CALL MAREA_IrAliasValue(const MAREA_IrContext *context, cons
     }
 
     // INFO: a parameter or a local of the enclosing function with the same name hides the alias from its own declaration onward.
-    if ((context->function != MAREA_NULLPTR) && (MAREA_G_Declares(context->function, text, length, offset) == MAREA_BOOLEAN_TRUE)) {
+    if ((context->function != MAREA_NULLPTR) && (MAREA_IrFunctionDeclares(context->function, text, length, offset) == MAREA_BOOLEAN_TRUE)) {
         return MAREA_BOOLEAN_FALSE;
     }
 

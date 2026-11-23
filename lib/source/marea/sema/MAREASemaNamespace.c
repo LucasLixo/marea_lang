@@ -41,6 +41,14 @@ const MAREA_AstNode *MAREA_CALL MAREA_SemaChildAt(const MAREA_AstNode *node, MAR
     return child;
 }
 
+MAREA_Boolean MAREA_CALL MAREA_SemaParameterHasDefault(const MAREA_AstNode *parameter)
+{
+    // INFO: name and type are the first two children; a trailing "semantics" attribute is not a default.
+    const MAREA_AstNode *candidate = MAREA_SemaChildAt(parameter, 2);
+
+    return ((candidate != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(candidate) != MAREA_AST_KIND_ATTRIBUTE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
 MAREA_Boolean MAREA_CALL MAREA_SemaDeclarationName(const MAREA_AstNode *node, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength)
 {
     if (node == MAREA_NULLPTR) {
@@ -234,7 +242,7 @@ static const MAREA_AstNode *MAREA_CALL MAREA_G_FindPublicSymbol(const MAREA_AstN
             continue;
         }
 
-        if ((MAREA_SemaTextEquals(declarationName, declarationLength, name, nameLength) == MAREA_BOOLEAN_TRUE) && (MAREA_SemaAttributeIsOn(root, declaration, "public") == MAREA_BOOLEAN_TRUE)) {
+        if ((MAREA_SemaTextEquals(declarationName, declarationLength, name, nameLength) == MAREA_BOOLEAN_TRUE) && (MAREA_SemaAttributeHasMember(root, declaration, "visibility", "public") == MAREA_BOOLEAN_TRUE)) {
             return declaration;
         }
     }

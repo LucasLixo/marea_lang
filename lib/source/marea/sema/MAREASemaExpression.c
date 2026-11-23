@@ -157,7 +157,7 @@ static const MAREA_AstNode *MAREA_CALL MAREA_G_FindDeclaration(const MAREA_SemaC
 
 static MAREA_Boolean MAREA_CALL MAREA_G_IsNumberName(const MAREA_G_Shape *shape)
 {
-    return ((MAREA_G_TextIs(shape->name, shape->length, "string") == MAREA_BOOLEAN_FALSE) && (MAREA_G_TextIs(shape->name, shape->length, "boolean") == MAREA_BOOLEAN_FALSE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+    return ((MAREA_G_TextIs(shape->name, shape->length, "string") == MAREA_BOOLEAN_FALSE) && (MAREA_G_TextIs(shape->name, shape->length, "boolean") == MAREA_BOOLEAN_FALSE) && (MAREA_G_TextIs(shape->name, shape->length, "character") == MAREA_BOOLEAN_FALSE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
 static MAREA_Boolean MAREA_CALL MAREA_G_IsFloatName(const MAREA_G_Shape *shape)
@@ -232,7 +232,7 @@ static MAREA_G_ShapeKind MAREA_CALL MAREA_G_ShapeKindOfClass(MAREA_SemaTypeClass
     case MAREA_SEMA_TYPE_CLASS_MOVE_BUILTIN:
         return MAREA_G_SHAPE_KIND_BUILTIN;
     case MAREA_SEMA_TYPE_CLASS_COPY_BUILTIN:
-        return (MAREA_G_TextIs(name, length, "vector") == MAREA_BOOLEAN_TRUE) ? MAREA_G_SHAPE_KIND_BUILTIN : MAREA_G_SHAPE_KIND_UNKNOWN;
+        return (MAREA_G_TextIs(name, length, "array") == MAREA_BOOLEAN_TRUE) ? MAREA_G_SHAPE_KIND_BUILTIN : MAREA_G_SHAPE_KIND_UNKNOWN;
     default:
         return MAREA_G_SHAPE_KIND_UNKNOWN;
     }
@@ -485,6 +485,8 @@ static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOf(const MAREA_SemaContext *context
         return MAREA_G_ShapeMake(MAREA_G_SHAPE_KIND_FLOAT_LITERAL, MAREA_NULLPTR, 0);
     case MAREA_AST_KIND_STRING_LITERAL:
         return MAREA_G_ShapePrimitive("string");
+    case MAREA_AST_KIND_CHARACTER_LITERAL:
+        return MAREA_G_ShapePrimitive("character");
     case MAREA_AST_KIND_BOOLEAN_LITERAL:
         return MAREA_G_ShapePrimitive("boolean");
     case MAREA_AST_KIND_PARENTHESIZED_EXPRESSION:
@@ -767,6 +769,48 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressions(MAREA_SemaContext *contex
     }
     case MAREA_AST_KIND_LOCAL_DECLARATION:
         return MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, 2), 0, MAREA_BOOLEAN_TRUE);
+    case MAREA_AST_KIND_PARAMETER:
+    {
+        // INFO: the default value is the optional third child, and it must fit the type of its parameter.
+        if (MAREA_SemaParameterHasDefault(node) == MAREA_BOOLEAN_FALSE) {
+            return MAREA_SEMA_EXCEPT_SUCCESS;
+        }
+
+        const MAREA_SemaExcept valueResult = MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, 2), 0, MAREA_BOOLEAN_TRUE);
+
+        if (valueResult != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return valueResult;
+        }
+
+        return MAREA_SemaCheckExpressionFit(context, MAREA_SemaChildAt(node, 1), MAREA_SemaChildAt(node, 2));
+    }
+    case MAREA_AST_KIND_PARAMETER_LIST:
+    {
+        // INFO: a defaulted parameter is reported once when any required parameter follows it.
+        MAREA_Boolean requiredFollows = MAREA_BOOLEAN_FALSE;
+
+        for (MAREA_IntegerSize index = MAREA_AstNodeGetChildCount(node); index > 0; --index) {
+            const MAREA_AstNode *parameter = MAREA_SemaChildAt(node, (index - 1));
+
+            if ((parameter == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(parameter) != MAREA_AST_KIND_PARAMETER)) {
+                continue;
+            }
+
+            if (MAREA_SemaParameterHasDefault(parameter) == MAREA_BOOLEAN_FALSE) {
+                requiredFollows = MAREA_BOOLEAN_TRUE;
+            } else if (requiredFollows == MAREA_BOOLEAN_TRUE) {
+                const MAREA_AstNode *name = MAREA_SemaChildAt(parameter, 0);
+
+                const MAREA_SemaExcept reportResult = MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_DEFAULT_PARAMETER_BEFORE_REQUIRED, MAREA_AstNodeGetPosition(parameter), "a default value comes before a required parameter:", MAREA_AstNodeGetText(name), MAREA_AstNodeGetTextLength(name));
+
+                if (reportResult != MAREA_SEMA_EXCEPT_SUCCESS) {
+                    return reportResult;
+                }
+            }
+        }
+
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
     case MAREA_AST_KIND_FOR_RANGE_STATEMENT:
     {
         const MAREA_SemaExcept firstResult = MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, 1), 0, MAREA_BOOLEAN_TRUE);

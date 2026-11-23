@@ -106,8 +106,6 @@ static MAREA_IntegerSize MAREA_CALL MAREA_G_ScanTypeArguments(const MAREA_ParseS
         case MAREA_TOKEN_KIND_INTEGER_LITERAL:
         case MAREA_TOKEN_KIND_KEYWORD_FUNCTION:
         case MAREA_TOKEN_KIND_COLON:
-        case MAREA_TOKEN_KIND_KEYWORD_MUTABLE:
-        case MAREA_TOKEN_KIND_KEYWORD_REFERENCE:
             break;
         default:
             return MAREA_INTEGER_SIZE(0);
@@ -293,6 +291,8 @@ static MAREA_AstNode *MAREA_CALL MAREA_G_ParsePrimary(MAREA_ParseState *state)
         return MAREA_ParseNodeFromToken(state, MAREA_AST_KIND_FLOAT_LITERAL, MAREA_ParseAdvance(state));
     case MAREA_TOKEN_KIND_STRING_LITERAL:
         return MAREA_ParseNodeFromToken(state, MAREA_AST_KIND_STRING_LITERAL, MAREA_ParseAdvance(state));
+    case MAREA_TOKEN_KIND_CHARACTER_LITERAL:
+        return MAREA_ParseNodeFromToken(state, MAREA_AST_KIND_CHARACTER_LITERAL, MAREA_ParseAdvance(state));
     case MAREA_TOKEN_KIND_KEYWORD_TRUE:
     case MAREA_TOKEN_KIND_KEYWORD_FALSE:
         return MAREA_ParseNodeFromToken(state, MAREA_AST_KIND_BOOLEAN_LITERAL, MAREA_ParseAdvance(state));

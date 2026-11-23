@@ -11,9 +11,8 @@ typedef enum MAREA_G_AttributeShape
     MAREA_G_ATTRIBUTE_SHAPE_MEMBER = MAREA_UINTEGER_8(1),
     MAREA_G_ATTRIBUTE_SHAPE_INTEGER = MAREA_UINTEGER_8(2),
     MAREA_G_ATTRIBUTE_SHAPE_ALIGNMENT = MAREA_UINTEGER_8(3),
-    MAREA_G_ATTRIBUTE_SHAPE_NAME = MAREA_UINTEGER_8(4),
-    MAREA_G_ATTRIBUTE_SHAPE_NAME_OR_STRING = MAREA_UINTEGER_8(5),
-    MAREA_G_ATTRIBUTE_SHAPE_OPTIONAL_NAME = MAREA_UINTEGER_8(6),
+    MAREA_G_ATTRIBUTE_SHAPE_VOCABULARY = MAREA_UINTEGER_8(4),
+    MAREA_G_ATTRIBUTE_SHAPE_STRING = MAREA_UINTEGER_8(5),
 } MAREA_G_AttributeShape;
 
 typedef struct MAREA_G_AttributeRule
@@ -23,34 +22,79 @@ typedef struct MAREA_G_AttributeRule
     MAREA_G_AttributeShape shape;
 } MAREA_G_AttributeRule;
 
+static const MAREA_Character8 *const MAREA_G_VisibilityMembers[] = { "public", "private", MAREA_NULLPTR };
 static const MAREA_Character8 *const MAREA_G_InlineMembers[] = { "force", "never", "auto", MAREA_NULLPTR };
 static const MAREA_Character8 *const MAREA_G_BuildMembers[] = { "debug", "release", MAREA_NULLPTR };
-static const MAREA_Character8 *const MAREA_G_LayoutMembers[] = { "c", "auto", MAREA_NULLPTR };
+static const MAREA_Character8 *const MAREA_G_LayoutMembers[] = { "c", "marea", MAREA_NULLPTR };
+static const MAREA_Character8 *const MAREA_G_SemanticsMembers[] = { "value_read_only", "reference_read_only", "reference_mutable", MAREA_NULLPTR };
+
+// INFO: the values of the key operator: the operator tokens, then the index, call and lifecycle hooks.
+static const MAREA_Character8 *const MAREA_G_OperatorVocabulary[] = {
+    "+",
+    "-",
+    "*",
+    "/",
+    "%",
+    "**",
+    "+%",
+    "-%",
+    "*%",
+    "+|",
+    "-|",
+    "*|",
+    "~",
+    "&",
+    "|",
+    "^",
+    "<<",
+    ">>",
+    "==",
+    "!=",
+    "<",
+    "<=",
+    ">",
+    ">=",
+    "=",
+    "+=",
+    "-=",
+    "*=",
+    "/=",
+    "%=",
+    "**=",
+    "<<=",
+    ">>=",
+    "&=",
+    "|=",
+    "^=",
+    "[]",
+    "()",
+    "convert",
+    "construct",
+    "destroy",
+    MAREA_NULLPTR,
+};
 
 enum
 {
-    MAREA_G_RULE_PUBLIC = 0,
-    MAREA_G_RULE_PRIVATE = 1,
-    MAREA_G_RULE_PACK = 7,
-    MAREA_G_RULE_ALIGN = 6,
-    MAREA_G_RULE_COUNT = 13,
+    MAREA_G_RULE_ALIGN = 4,
+    MAREA_G_RULE_PACK = 5,
+    MAREA_G_RULE_COUNT = 10,
 };
 
 // INFO: the order is fixed because the MAREA_G_RULE_ indexes above name entries of this table.
 static const MAREA_G_AttributeRule MAREA_G_RULES[MAREA_G_RULE_COUNT] = {
-    { .key = "public", .members = MAREA_NULLPTR, .shape = MAREA_G_ATTRIBUTE_SHAPE_FLAG },
-    { .key = "private", .members = MAREA_NULLPTR, .shape = MAREA_G_ATTRIBUTE_SHAPE_FLAG },
+    { .key = "visibility", .members = MAREA_G_VisibilityMembers, .shape = MAREA_G_ATTRIBUTE_SHAPE_MEMBER },
     { .key = "inline", .members = MAREA_G_InlineMembers, .shape = MAREA_G_ATTRIBUTE_SHAPE_MEMBER },
     { .key = "build", .members = MAREA_G_BuildMembers, .shape = MAREA_G_ATTRIBUTE_SHAPE_MEMBER },
-    { .key = "simd", .members = MAREA_NULLPTR, .shape = MAREA_G_ATTRIBUTE_SHAPE_FLAG },
     { .key = "layout", .members = MAREA_G_LayoutMembers, .shape = MAREA_G_ATTRIBUTE_SHAPE_MEMBER },
     { .key = "align", .members = MAREA_NULLPTR, .shape = MAREA_G_ATTRIBUTE_SHAPE_ALIGNMENT },
     { .key = "pack", .members = MAREA_NULLPTR, .shape = MAREA_G_ATTRIBUTE_SHAPE_INTEGER },
-    { .key = "value", .members = MAREA_NULLPTR, .shape = MAREA_G_ATTRIBUTE_SHAPE_FLAG },
+    // INFO: "value" is retired outright; MAREA_G_IsByValue in MAREASemaOwnership.c names the one by-value exception left.
     { .key = "move_only", .members = MAREA_NULLPTR, .shape = MAREA_G_ATTRIBUTE_SHAPE_FLAG },
-    { .key = "destroy", .members = MAREA_NULLPTR, .shape = MAREA_G_ATTRIBUTE_SHAPE_NAME },
-    { .key = "operator", .members = MAREA_NULLPTR, .shape = MAREA_G_ATTRIBUTE_SHAPE_NAME_OR_STRING },
-    { .key = "export", .members = MAREA_NULLPTR, .shape = MAREA_G_ATTRIBUTE_SHAPE_OPTIONAL_NAME },
+    { .key = "operator", .members = MAREA_G_OperatorVocabulary, .shape = MAREA_G_ATTRIBUTE_SHAPE_VOCABULARY },
+    { .key = "export", .members = MAREA_NULLPTR, .shape = MAREA_G_ATTRIBUTE_SHAPE_STRING },
+    // INFO: the one and only parameter-passing mechanism; MAREA_SemaGetParameterSemantics is the one place the rest of sema reads it.
+    { .key = "semantics", .members = MAREA_G_SemanticsMembers, .shape = MAREA_G_ATTRIBUTE_SHAPE_MEMBER },
 };
 
 static MAREA_Boolean MAREA_CALL MAREA_G_TextIs(const MAREA_AstNode *node, const MAREA_Character8 *text)
@@ -122,6 +166,26 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_ReportValue(MAREA_SemaContext *contex
     return MAREA_SemaReportNamed(context, code, MAREA_AstNodeGetPosition(item), prefix, MAREA_AstNodeGetText(key), MAREA_AstNodeGetTextLength(key));
 }
 
+// INFO: the text of a string literal keeps its two quotes.
+static MAREA_Boolean MAREA_CALL MAREA_G_IsQuotedMember(const MAREA_AstNode *value, const MAREA_Character8 *const *members)
+{
+    const MAREA_IntegerSize LENGTH = MAREA_AstNodeGetTextLength(value);
+
+    if (LENGTH < 2) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_Character8 *inner = (MAREA_AstNodeGetText(value) + 1);
+
+    for (const MAREA_Character8 *const *candidate = members; *candidate != MAREA_NULLPTR; ++candidate) {
+        if ((strlen(*candidate) == (LENGTH - 2)) && (memcmp(inner, *candidate, (LENGTH - 2)) == 0)) {
+            return MAREA_BOOLEAN_TRUE;
+        }
+    }
+
+    return MAREA_BOOLEAN_FALSE;
+}
+
 static MAREA_Boolean MAREA_CALL MAREA_G_IsSingleName(const MAREA_AstNode *value)
 {
     return ((MAREA_AstNodeGetKind(value) == MAREA_AST_KIND_QUALIFIED_NAME) && (MAREA_AstNodeGetChildCount(value) == 1)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
@@ -168,14 +232,13 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckValue(MAREA_SemaContext *context
         }
         break;
     }
-    case MAREA_G_ATTRIBUTE_SHAPE_NAME:
-        valid = (KIND == MAREA_AST_KIND_QUALIFIED_NAME) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+    case MAREA_G_ATTRIBUTE_SHAPE_VOCABULARY:
+        if (KIND == MAREA_AST_KIND_STRING_LITERAL) {
+            valid = MAREA_G_IsQuotedMember(value, rule->members);
+        }
         break;
-    case MAREA_G_ATTRIBUTE_SHAPE_NAME_OR_STRING:
-        valid = ((KIND == MAREA_AST_KIND_QUALIFIED_NAME) || (KIND == MAREA_AST_KIND_STRING_LITERAL)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
-        break;
-    case MAREA_G_ATTRIBUTE_SHAPE_OPTIONAL_NAME:
-        valid = ((value == MAREA_NULLPTR) || (KIND == MAREA_AST_KIND_QUALIFIED_NAME) || (KIND == MAREA_AST_KIND_BOOLEAN_LITERAL)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+    case MAREA_G_ATTRIBUTE_SHAPE_STRING:
+        valid = (KIND == MAREA_AST_KIND_STRING_LITERAL) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
         break;
     }
 
@@ -196,10 +259,6 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsOn(const MAREA_AstNode *item)
 static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckGroup(MAREA_SemaContext *context, const MAREA_AstNode *owner, MAREA_AstKind listKind)
 {
     MAREA_Boolean seen[MAREA_G_RULE_COUNT] = { MAREA_BOOLEAN_FALSE };
-
-    MAREA_Boolean publicOn = MAREA_BOOLEAN_FALSE;
-
-    MAREA_Boolean privateOn = MAREA_BOOLEAN_FALSE;
 
     const MAREA_IntegerSize LIST_COUNT = MAREA_AstNodeGetChildCount(owner);
 
@@ -244,15 +303,7 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckGroup(MAREA_SemaContext *context
 
                 result = MAREA_G_CheckValue(context, &MAREA_G_RULES[ruleIndex], item);
 
-                if ((result == MAREA_SEMA_EXCEPT_SUCCESS) && (ruleIndex == MAREA_G_RULE_PUBLIC)) {
-                    publicOn = MAREA_G_IsOn(item);
-                }
-
-                if ((result == MAREA_SEMA_EXCEPT_SUCCESS) && (ruleIndex == MAREA_G_RULE_PRIVATE)) {
-                    privateOn = MAREA_G_IsOn(item);
-                }
-
-                const MAREA_Boolean EXCLUDES = (((ruleIndex == MAREA_G_RULE_PUBLIC) || (ruleIndex == MAREA_G_RULE_PRIVATE)) && (publicOn == MAREA_BOOLEAN_TRUE) && (privateOn == MAREA_BOOLEAN_TRUE)) || ((ruleIndex == MAREA_G_RULE_PACK) && (seen[MAREA_G_RULE_ALIGN] == MAREA_BOOLEAN_TRUE)) || ((ruleIndex == MAREA_G_RULE_ALIGN) && (seen[MAREA_G_RULE_PACK] == MAREA_BOOLEAN_TRUE));
+                const MAREA_Boolean EXCLUDES = ((ruleIndex == MAREA_G_RULE_PACK) && (seen[MAREA_G_RULE_ALIGN] == MAREA_BOOLEAN_TRUE)) || ((ruleIndex == MAREA_G_RULE_ALIGN) && (seen[MAREA_G_RULE_PACK] == MAREA_BOOLEAN_TRUE));
 
                 if ((result == MAREA_SEMA_EXCEPT_SUCCESS) && (EXCLUDES == MAREA_BOOLEAN_TRUE)) {
                     result = MAREA_G_ReportValue(context, MAREA_SEMA_DIAGNOSTIC_CODE_CONFLICTING_ATTRIBUTES, item, "attribute conflicts with another:");
@@ -339,4 +390,19 @@ MAREA_Boolean MAREA_CALL MAREA_SemaAttributeIsOn(const MAREA_AstNode *root, cons
     const MAREA_AstNode *item = MAREA_SemaAttributeFind(root, declaration, key);
 
     return (item == MAREA_NULLPTR) ? MAREA_BOOLEAN_FALSE : MAREA_G_IsOn(item);
+}
+
+MAREA_Boolean MAREA_CALL MAREA_SemaAttributeHasMember(const MAREA_AstNode *root, const MAREA_AstNode *declaration, const MAREA_Character8 *key, const MAREA_Character8 *member)
+{
+    const MAREA_AstNode *item = MAREA_SemaAttributeFind(root, declaration, key);
+
+    const MAREA_AstNode *value = (item == MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_SemaChildAt(item, 1);
+
+    if ((value == MAREA_NULLPTR) || (MAREA_G_IsSingleName(value) == MAREA_BOOLEAN_FALSE)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_AstNode *name = MAREA_SemaChildAt(value, 0);
+
+    return ((name != MAREA_NULLPTR) && (MAREA_G_TextIs(name, member) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }

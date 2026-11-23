@@ -204,14 +204,40 @@ MAREA_BEGIN_EXTERN_C
 
     /**
      * @brief Lowers the expression right after the type child of a typed node, when there is one, and
-     * appends it to node.
+     * appends it to node. When there is none and zeroWhenAbsent is true, appends a ZERO_VALUE instead,
+     * the zero-default rule for a LOCAL_DECLARATION with no written initializer; a PARAMETER default, a
+     * CONSTANT_DECLARATION initializer and a VARIANT_FIELD value stay outside the rule and pass false.
      * @param context Context that owns the arena. Must not be null.
      * @param typed Typed node that holds the type and the initializer. Must not be null.
-     * @param node Node that receives the lowered initializer. Must not be null.
+     * @param node Node that receives the lowered initializer or the synthesized zero. Must not be null.
+     * @param zeroWhenAbsent True to append a ZERO_VALUE when typed has no written initializer.
      * @param outComplete Receives false when the initializer lowered to nothing. Must not be null.
      * @return MAREA_IR_EXCEPT_SUCCESS, ERROR_NULL_POINTER when an argument is null, or ERROR_OUT_OF_MEMORY.
      */
-    MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrAppendInitializer(MAREA_IrContext * context, const MAREA_SemaTypedNode *typed, MAREA_IrNode *node, MAREA_Boolean *outComplete);
+    MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrAppendInitializer(MAREA_IrContext * context, const MAREA_SemaTypedNode *typed, MAREA_IrNode *node, MAREA_Boolean zeroWhenAbsent, MAREA_Boolean *outComplete);
+
+    /**
+     * @brief Returns the typed expression right after a typed node's first type child (NAMED_TYPE or
+     * FUNCTION_TYPE): the written default of a parameter, or the written initializer of a field or a
+     * constant. The same shape also reads a function's own parameter default when filling an omitted
+     * call argument.
+     * @param typed Typed node to search. Null returns null.
+     * @return The typed default expression, or null when the node has no type child or nothing follows it.
+     */
+    MAREA_NODISCARD const MAREA_SemaTypedNode *MAREA_CALL MAREA_IrTypedFindDefault(const MAREA_SemaTypedNode *typed);
+
+    /**
+     * @brief Finds the construct or destroy operator of a type: the FUNCTION_DECLARATION, inside an
+     * implementation of the unit whose written type name is typeName, that carries
+     * #[operator = "construct"] (wantConstruct true) or #[operator = "destroy"] (wantConstruct false).
+     * Only the first ATTRIBUTE group of a candidate function is read.
+     * @param context Context that holds the unit. Must not be null.
+     * @param typeName Written name of the structure or enum. Null returns null.
+     * @param typeNameLength Byte length of typeName.
+     * @param wantConstruct True for construct, false for destroy.
+     * @return The typed FUNCTION_DECLARATION that carries the operator, or null when the type declares none.
+     */
+    MAREA_NODISCARD const MAREA_SemaTypedNode *MAREA_CALL MAREA_IrFindLifecycleFunction(const MAREA_IrContext *context, const MAREA_Character8 *typeName, MAREA_IntegerSize typeNameLength, MAREA_Boolean wantConstruct);
 
     /**
      * @brief Lowers one typed BLOCK and its statements. A statement that cannot be lowered makes the
@@ -225,7 +251,7 @@ MAREA_BEGIN_EXTERN_C
 
     /**
      * @brief Lowers a call that carries an explicit type operand: a built-in call (size_of, align_of or
-     * convert with type arguments) or a static call on a written type (array<integer32>.filled(8, 0)). Any
+     * convert with type arguments) or a static call on a written type (array<sinteger32>.filled(8, 0)). Any
      * other call is not handled and is left to the generic path of MAREA_IrLowerExpression.
      * @param context Context that owns the arena and sink. Must not be null.
      * @param typed Typed CALL_EXPRESSION to lower. Must not be null.
@@ -258,6 +284,18 @@ MAREA_BEGIN_EXTERN_C
      * @return MAREA_IR_EXCEPT_SUCCESS, ERROR_NULL_POINTER when an argument is null, or ERROR_OUT_OF_MEMORY.
      */
     MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrAliasBuild(MAREA_IrContext * context, const MAREA_SemaTypedNode *unit);
+
+    /**
+     * @brief Tells whether a typed function declares a name as a parameter or a local of any block, at or
+     * before a source offset: the shadow check an identifier reference, or a callee matched against a
+     * module-level declaration, must pass before it is treated as that outer name.
+     * @param typed Typed node to search, normally a typed FUNCTION_DECLARATION. Null returns false.
+     * @param text Identifier text to look for.
+     * @param length Byte length of text.
+     * @param offset Source offset the declaration must be at or before.
+     * @return MAREA_BOOLEAN_TRUE when a parameter or a local declares the name at or before offset.
+     */
+    MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_IrFunctionDeclares(const MAREA_SemaTypedNode *typed, const MAREA_Character8 *text, MAREA_IntegerSize length, MAREA_Uinteger32 offset);
 
     /**
      * @brief Looks up an identifier used as a value (a function, a constant, a variant or the head of a member

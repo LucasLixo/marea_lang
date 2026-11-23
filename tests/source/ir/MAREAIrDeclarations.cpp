@@ -18,7 +18,7 @@ TEST(MAREAIrDeclarations, ConstantKeepsNameAndTypeName)
 
     MAREA_IrFixture fixture;
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; constant LIMIT: integer32 = 10;"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; constant LIMIT: sinteger32 = 10;"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     ASSERT_EQ(MAREA_IrNodeGetChildCount(fixture.module), 1U) << "The module must hold the constant only.";
 
@@ -28,7 +28,7 @@ TEST(MAREAIrDeclarations, ConstantKeepsNameAndTypeName)
 
     EXPECT_EQ(MAREA_irText(constant), "LIMIT") << "The text must be the name.";
 
-    EXPECT_EQ(MAREA_irTypeName(constant), "integer32") << "The type name must be the declared type.";
+    EXPECT_EQ(MAREA_irTypeName(constant), "sinteger32") << "The type name must be the declared type.";
 }
 
 TEST(MAREAIrDeclarations, TypeNameOfAGenericTypeIsItsHeadName)
@@ -37,7 +37,7 @@ TEST(MAREAIrDeclarations, TypeNameOfAGenericTypeIsItsHeadName)
 
     MAREA_IrFixture fixture;
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; function total(values: slice<integer32>) end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; function total(values: slice<sinteger32>) end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     const MAREA_IrNode *parameters{ MAREA_irChild(MAREA_irChild(fixture.module, 0), 0) };
 
@@ -50,7 +50,7 @@ TEST(MAREAIrDeclarations, ImportAndNamespaceProduceNoNode)
 
     MAREA_IrFixture fixture(RESOLVE_EXTERNAL);
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; import c.math.sqrt; constant A: integer32 = 1;"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; import c.math.sqrt; constant A: sinteger32 = 1;"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     ASSERT_EQ(MAREA_IrNodeGetChildCount(fixture.module), 1U) << "Only the constant must remain.";
 
@@ -76,7 +76,7 @@ TEST(MAREAIrDeclarations, StructureAttributesAreErased)
 
     MAREA_IrFixture fixture;
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; #[public, value] structure Point x: float64; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; #[visibility = public, move_only] structure Point x: float64; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     EXPECT_EQ(MAREA_irRender(MAREA_irChild(fixture.module, 0)), "(STRUCTURE_DECLARATION Point (FIELD_DECLARATION x :float64))") << "No ATTRIBUTE node must survive.";
 }
@@ -127,13 +127,61 @@ TEST(MAREAIrDeclarations, EnumKeepsVariantsAndVariantFields)
     EXPECT_EQ(MAREA_IrNodeGetChildCount(MAREA_irChild(declaration, 1)), 0U) << "A variant without fields must have zero children.";
 }
 
+TEST(MAREAIrDeclarations, EnumWithNoTagDefaultsToSinteger32)
+{
+    GTEST_COUT << "Validating an enum with no written tag type carries sinteger32 as its type name." << std::endl;
+
+    MAREA_IrFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; enum Status Active; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+
+    EXPECT_EQ(MAREA_irTypeName(MAREA_irChild(fixture.module, 0)), "sinteger32") << "The default tag type must be sinteger32.";
+}
+
+TEST(MAREAIrDeclarations, EnumKeepsItsWrittenTagType)
+{
+    GTEST_COUT << "Validating an enum with a written tag type carries it as its type name." << std::endl;
+
+    MAREA_IrFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; enum Status : uinteger8 Active; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+
+    EXPECT_EQ(MAREA_irTypeName(MAREA_irChild(fixture.module, 0)), "uinteger8") << "The written tag type must be kept.";
+}
+
+TEST(MAREAIrDeclarations, ParameterDefaultValueIsLoweredAsAChild)
+{
+    GTEST_COUT << "Validating a parameter with a default value lowers it as its own child." << std::endl;
+
+    MAREA_IrFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; function greet(name: string, times: sinteger32 = 1) end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+
+    const MAREA_IrNode *function{ MAREA_irChild(fixture.module, 0) };
+
+    EXPECT_EQ(MAREA_irRender(MAREA_irChild(function, 0)), "(PARAMETER_LIST (PARAMETER name :string) (PARAMETER times :sinteger32 (INTEGER_LITERAL 1)))") << "The defaulted parameter must keep its default as a child.";
+}
+
+TEST(MAREAIrDeclarations, ParameterWithoutDefaultStaysOutsideTheZeroDefaultRule)
+{
+    GTEST_COUT << "Validating a parameter with no default stays without a child: it is a required argument, never a zero." << std::endl;
+
+    MAREA_IrFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; function greet(name: string) end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+
+    const MAREA_IrNode *function{ MAREA_irChild(fixture.module, 0) };
+
+    EXPECT_EQ(MAREA_irRender(MAREA_irChild(function, 0)), "(PARAMETER_LIST (PARAMETER name :string))") << "A required parameter must keep zero children, not a synthesized ZERO_VALUE.";
+}
+
 TEST(MAREAIrDeclarations, FunctionKeepsParametersAndReturnTypeName)
 {
     GTEST_COUT << "Validating a function lowers to a FUNCTION_DECLARATION with a PARAMETER_LIST and an empty BLOCK." << std::endl;
 
     MAREA_IrFixture fixture;
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; function add(a: integer32, b: integer32): integer32 return a + b; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; function add(a: sinteger32, b: sinteger32): sinteger32 return a + b; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     const MAREA_IrNode *function{ MAREA_irChild(fixture.module, 0) };
 
@@ -141,11 +189,11 @@ TEST(MAREAIrDeclarations, FunctionKeepsParametersAndReturnTypeName)
 
     EXPECT_EQ(MAREA_irText(function), "add") << "The text must be the function name.";
 
-    EXPECT_EQ(MAREA_irTypeName(function), "integer32") << "The type name must be the return type name.";
+    EXPECT_EQ(MAREA_irTypeName(function), "sinteger32") << "The type name must be the return type name.";
 
     ASSERT_EQ(MAREA_IrNodeGetChildCount(function), 2U) << "The function must hold a parameter list and a body.";
 
-    EXPECT_EQ(MAREA_irRender(MAREA_irChild(function, 0)), "(PARAMETER_LIST (PARAMETER a :integer32) (PARAMETER b :integer32))") << "The parameters must keep name and type name.";
+    EXPECT_EQ(MAREA_irRender(MAREA_irChild(function, 0)), "(PARAMETER_LIST (PARAMETER a :sinteger32) (PARAMETER b :sinteger32))") << "The parameters must keep name and type name.";
 
     EXPECT_EQ(MAREA_IrNodeGetKind(MAREA_irChild(function, 1)), MAREA_IR_KIND_BLOCK) << "The second child must be the BLOCK.";
 }
@@ -167,11 +215,11 @@ TEST(MAREAIrDeclarations, FunctionWithoutReturnTypeHasNoTypeName)
 
 TEST(MAREAIrDeclarations, MutableParameterKeepsTheMutableFlag)
 {
-    GTEST_COUT << "Validating a mutable parameter keeps only the MUTABLE flag." << std::endl;
+    GTEST_COUT << "Validating a plain structure parameter (the non-primitive default is reference_mutable) keeps only the MUTABLE flag." << std::endl;
 
     MAREA_IrFixture fixture;
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; structure Counter n: integer32; end function bump(c: mutable Counter) end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; structure Counter n: sinteger32; end function bump(c: Counter) end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     const MAREA_IrNode *parameters{ MAREA_irChild(MAREA_irChild(fixture.module, 1), 0) };
 
@@ -222,7 +270,7 @@ TEST(MAREAIrDeclarations, ModuleKeepsSourceOrder)
 
     MAREA_IrFixture fixture;
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; constant A: integer32 = 1; function f() end enum E X; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; constant A: sinteger32 = 1; function f() end enum E X; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     ASSERT_EQ(MAREA_IrNodeGetChildCount(fixture.module), 3U) << "The module must hold three declarations.";
 
@@ -247,7 +295,7 @@ TEST(MAREAIrDeclarations, StructuresExampleKeepsItsDeclarationShells)
 
     EXPECT_EQ(MAREA_irRender(MAREA_irChild(fixture.module, 0)), "(STRUCTURE_DECLARATION Point (FIELD_DECLARATION x :float64) (FIELD_DECLARATION y :float64))") << "Point must match the source.";
 
-    EXPECT_EQ(MAREA_irRender(MAREA_irChild(fixture.module, 1)), "(ENUM_DECLARATION ShapeKind (VARIANT_DECLARATION Circle) (VARIANT_DECLARATION Rectangle))") << "ShapeKind must match the source.";
+    EXPECT_EQ(MAREA_irRender(MAREA_irChild(fixture.module, 1)), "(ENUM_DECLARATION ShapeKind :sinteger32 (VARIANT_DECLARATION Circle) (VARIANT_DECLARATION Rectangle))") << "ShapeKind must match the source, with its default tag type materialized.";
 
     EXPECT_EQ(MAREA_irRender(MAREA_irChild(fixture.module, 2)), "(STRUCTURE_DECLARATION Shape (FIELD_DECLARATION kind :ShapeKind) (FIELD_DECLARATION center :Point) (FIELD_DECLARATION width :float64) (FIELD_DECLARATION height :float64))") << "Shape must match the source.";
 

@@ -51,7 +51,7 @@ TEST(MAREAIrGaps, SwitchRaisesNothingAndKeepsTheFunction)
 {
     GTEST_COUT << "Validating a switch statement is lowered: it raises no ir diagnostic and its function stays in the module." << std::endl;
 
-    const std::string SOURCE{ "namespace main; function keep() end function lose(a: integer32) switch a case 1 then return; default then return; end end" };
+    const std::string SOURCE{ "namespace main; function keep() end function lose(a: sinteger32) switch a case 1 then return; end default then return; end end end" };
 
     EXPECT_EQ(MAREA_irCodesOf(SOURCE), Codes{}) << "A switch must raise no ir diagnostic.";
 
@@ -62,14 +62,14 @@ TEST(MAREAIrGaps, PlainIfRaisesNothing)
 {
     GTEST_COUT << "Validating a plain if statement, the neighbor of a switch, raises nothing." << std::endl;
 
-    EXPECT_EQ(MAREA_irCodesOf("namespace main; function run(a: integer32) if a == 1 then return; else return; end end"), Codes{}) << "An if must raise no ir diagnostic.";
+    EXPECT_EQ(MAREA_irCodesOf("namespace main; function run(a: sinteger32) if a == 1 then return; end else return; end end end"), Codes{}) << "An if must raise no ir diagnostic.";
 }
 
 TEST(MAREAIrGaps, ForEachRaisesNothingAndKeepsTheFunction)
 {
     GTEST_COUT << "Validating a for-each statement is lowered: it raises no ir diagnostic and its function stays in the module." << std::endl;
 
-    const std::string SOURCE{ "namespace main; import collections.array; function run(values: array<integer32>) for each value in values do end end" };
+    const std::string SOURCE{ "namespace main; import collections.list; function run(values: list<sinteger32>) for each value in values do end end" };
 
     EXPECT_EQ(MAREA_irCodesOf(SOURCE), Codes{}) << "A for each must raise no ir diagnostic.";
 
@@ -87,7 +87,7 @@ TEST(MAREAIrGaps, CallWithoutGenericsRaisesNothing)
 {
     GTEST_COUT << "Validating a plain call raises nothing." << std::endl;
 
-    EXPECT_EQ(MAREA_irCodesOf("namespace main; function twice(a: integer32): integer32 return a + a; end function run(): integer32 return twice(2); end"), Codes{}) << "A plain call must raise no ir diagnostic.";
+    EXPECT_EQ(MAREA_irCodesOf("namespace main; function twice(a: sinteger32): sinteger32 return a + a; end function run(): sinteger32 return twice(2); end"), Codes{}) << "A plain call must raise no ir diagnostic.";
 }
 
 TEST(MAREAIrGaps, GenericFunctionRaisesItsDiagnostic)
@@ -105,7 +105,7 @@ TEST(MAREAIrGaps, GenericStructureRaisesItsDiagnostic)
 {
     GTEST_COUT << "Validating a generic structure raises 4004 and produces no node." << std::endl;
 
-    const std::string SOURCE{ "namespace main; structure Box<Item> value: Item; end structure Plain x: integer32; end" };
+    const std::string SOURCE{ "namespace main; structure Box<Item> value: Item; end structure Plain x: sinteger32; end" };
 
     EXPECT_EQ(MAREA_irCodesOf(SOURCE), Codes{ GENERIC }) << "A generic structure must raise UNINSTANTIATED_GENERIC.";
 
@@ -133,7 +133,7 @@ TEST(MAREAIrGaps, CallOfAGenericFunctionRaisesItsDiagnostic)
 {
     GTEST_COUT << "Validating a call that yields an unbound generic type raises 4004." << std::endl;
 
-    const std::string SOURCE{ "namespace main; function identity<Item>(value: Item): Item where Item: Copyable return copy value; end function run(): integer32 return identity(5); end" };
+    const std::string SOURCE{ "namespace main; function identity<Item>(value: Item): Item where Item: Copyable return copy value; end function run(): sinteger32 return identity(5); end" };
 
     const Codes CODES{ MAREA_irCodesOf(SOURCE) };
 
@@ -148,7 +148,7 @@ TEST(MAREAIrGaps, CallWithExplicitTypeArgumentsRaisesItsDiagnostic)
 {
     GTEST_COUT << "Validating a call with explicit type arguments raises 4004 for the instantiation." << std::endl;
 
-    const std::string SOURCE{ "namespace main; function identity<Item>(value: Item): Item where Item: Copyable return copy value; end function run(): integer32 return identity<integer32>(5); end" };
+    const std::string SOURCE{ "namespace main; function identity<Item>(value: Item): Item where Item: Copyable return copy value; end function run(): sinteger32 return identity<sinteger32>(5); end" };
 
     const Codes CODES{ MAREA_irCodesOf(SOURCE) };
 
@@ -214,7 +214,7 @@ TEST(MAREAIrGaps, ModuleLevelMacroRaisesItsDiagnostic)
 {
     GTEST_COUT << "Validating a module-level macro statement raises 4005." << std::endl;
 
-    const Codes CODES{ MAREA_irCodesOf("namespace main; static_assert!(true); constant A: integer32 = 1;") };
+    const Codes CODES{ MAREA_irCodesOf("namespace main; static_assert!(true); constant A: sinteger32 = 1;") };
 
     EXPECT_EQ(CODES, Codes{ MACRO }) << "A module-level macro must raise UNSUPPORTED_MACRO.";
 }

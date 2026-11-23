@@ -11,72 +11,73 @@
 --      type of another namespace. (Open point: allow this with an import, as an extension.)
 --   4. A function whose first parameter is named "self" is a method: point.length().
 --      A function without "self" is a static function: Vector2.origin().
---   5. "self" follows the rules of any parameter (see basics/ownership.marea): no word is a
---      read-only borrow, "mutable" is a write borrow, and a #[value] type is a copy.
+--   5. "self" follows the rules of any parameter (see basics/ownership.marea): the "semantics"
+--      attribute names the passing mode; a structure defaults to a write borrow
+--      (reference_mutable), and a primitive or an enum is a copy.
 --   6. The call is only a normal function call with a different spelling. Dispatch is static.
 --      There is no virtual table, no inheritance and no hidden field. The layout of the
 --      structure (layout, align, pack) does not change because of its functions.
---   7. Attributes work as everywhere: #[public], #[inline = force], #[simd = false]. An attribute
+--   7. Attributes work as everywhere: #[visibility = public], #[inline = force], #[build = debug]. An attribute
 --      on the implementation line is the default for all its functions, and the attribute of
---      one function wins. A function without #[public] is private to the file.
+--      one function wins. A function without #[visibility = public] is private to the file.
 --   8. A callback is a field with a function type. It is data, so it is not a method.
---   9. #[operator = name] lets a method give meaning to an operator on the structure. The names:
---      add sub mul div rem negate (+ - * / % unary -), equal (== and !=), less (< <= > >=).
---      The signature is checked, for example add must be (self, other: Vector2): Vector2.
---      There is no operator that is not tied to a named method, so a reader can always find it.
+--   9. #[operator = "+"] lets a method give meaning to an operator on the structure. The value is one string
+--      of a fixed list: the operator tokens ("+", "-", "*", "/", "%", "==", "<", ...), and "[]", "()",
+--      "convert", "construct", "destroy". Any other string is an error.
+--      The signature is checked, for example "+" must be (self, other: Vector2): Vector2.
 -- The same rules work for enum (see enum_methods.marea).
 
 namespace types.methods;
 
 import c.math.sqrt as square_root;
 
-#[public, value]
+#[visibility = public]
 structure Vector2
     x: float64;
     y: float64;
 end
 
 -- First block: construction and measure.
-#[public]
+#[visibility = public]
 implementation Vector2
     function origin(): Vector2
         return Vector2{ x = 0.0, y = 0.0 };
     end
 
     #[inline = force]
-    function length_squared(self: Vector2): float64
+    function length_squared(#[semantics = reference_read_only] self: Vector2): float64
         return self.x * self.x + self.y * self.y;
     end
 
-    function length(self: Vector2): float64
+    function length(#[semantics = reference_read_only] self: Vector2): float64
         return square_root(self.length_squared());
     end
 end
 
 -- Second block: change the value.
-#[public]
+#[visibility = public]
 implementation Vector2
-    function scale(self: mutable Vector2, factor: float64)
+    function scale(self: Vector2, factor: float64)
         self.x *= factor;
         self.y *= factor;
     end
 end
 
 -- Third block: the operators.
-#[public]
+#[visibility = public]
 implementation Vector2
-    #[operator = add]
-    function add(self: Vector2, other: Vector2): Vector2
+    #[operator = "+"]
+    function add(#[semantics = reference_read_only] self: Vector2, #[semantics = reference_read_only] other: Vector2): Vector2
         return Vector2{ x = self.x + other.x, y = self.y + other.y };
     end
 
-    #[operator = mul]
-    function multiply(self: Vector2, factor: float64): Vector2
+    #[operator = "*"]
+    function multiply(#[semantics = reference_read_only] self: Vector2, factor: float64): Vector2
         return Vector2{ x = self.x * factor, y = self.y * factor };
     end
 end
 
-#[public]
+#[visibility = public]
 function show_methods(): float64
     local point: Vector2 = Vector2{ x = 3.0, y = 4.0 };
     point.scale(2.0);

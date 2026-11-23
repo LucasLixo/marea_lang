@@ -17,15 +17,16 @@ typedef struct MAREA_G_PrimitiveWidth
 // INFO: the width of a primitive that has one. Its alignment is its size. A string is not here, because its width is a choice of the backend.
 static const MAREA_G_PrimitiveWidth MAREA_G_WIDTHS[] = {
     { .name = "boolean", .size = 1 },
-    { .name = "integer8", .size = 1 },
-    { .name = "unsigned8", .size = 1 },
-    { .name = "integer16", .size = 2 },
-    { .name = "unsigned16", .size = 2 },
-    { .name = "integer32", .size = 4 },
-    { .name = "unsigned32", .size = 4 },
+    { .name = "character", .size = 1 },
+    { .name = "sinteger8", .size = 1 },
+    { .name = "uinteger8", .size = 1 },
+    { .name = "sinteger16", .size = 2 },
+    { .name = "uinteger16", .size = 2 },
+    { .name = "sinteger32", .size = 4 },
+    { .name = "uinteger32", .size = 4 },
     { .name = "float32", .size = 4 },
-    { .name = "integer64", .size = 8 },
-    { .name = "unsigned64", .size = 8 },
+    { .name = "sinteger64", .size = 8 },
+    { .name = "uinteger64", .size = 8 },
     { .name = "float64", .size = 8 },
 };
 
@@ -276,7 +277,7 @@ static MAREA_SemaLayoutVerdict MAREA_CALL MAREA_G_CompareDepth(const MAREA_SemaC
         return MAREA_SEMA_LAYOUT_VERDICT_UNDECIDED;
     }
 
-    // INFO: two auto layouts that have the same fields, the same pack and the same align come from the same input, so the backend gives them the same layout. Sema has no size to compare for them.
+    // INFO: two marea layouts that have the same fields, the same pack and the same align come from the same input, so the backend gives them the same layout. Sema has no size to compare for them.
     if (fromMeasure.cLayout == MAREA_BOOLEAN_FALSE) {
         return MAREA_SEMA_LAYOUT_VERDICT_COMPATIBLE;
     }

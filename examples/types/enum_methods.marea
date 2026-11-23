@@ -11,14 +11,14 @@
 --      is Planet.GRAVITY.
 --   4. The variants are the only values of the type. The constructor is private to the enum.
 --   5. "switch" on an enum checks that every variant is handled, or that a "default" exists.
---      A missing one is a compile error. Each arm starts with "case" and ends where the next
---      "case", the "default" or the "end" starts. An arm does not fall through to the next.
+--      A missing one is a compile error. Each arm starts with "case" and has its own "end".
+--      One more "end" closes the "switch". An arm does not fall through to the next.
 --   6. The enum is a plain integer (the variant index) plus the constant table, so it is
 --      always passed by value and a function on it has no cost beyond a table read.
 
 namespace types.enum_methods;
 
-#[public]
+#[visibility = public]
 enum Planet
     Mercury(mass: float64 = 3.303e+23, radius: float64 = 2.4397e6);
     Earth(mass: float64 = 5.976e+24, radius: float64 = 6.37814e6);
@@ -26,7 +26,7 @@ enum Planet
 end
 
 -- First block: physics.
-#[public]
+#[visibility = public]
 implementation Planet
     constant GRAVITY: float64 = 6.67300e-11;
 
@@ -41,7 +41,7 @@ implementation Planet
 end
 
 -- Second block: description.
-#[public]
+#[visibility = public]
 implementation Planet
     function is_gas_giant(self: Planet): boolean
         return self == Planet.Jupiter;
@@ -51,15 +51,18 @@ implementation Planet
         switch self
             case Planet.Mercury then
                 return "Mercury";
+            end
             case Planet.Earth then
                 return "Earth";
+            end
             case Planet.Jupiter then
                 return "Jupiter";
+            end
         end
     end
 end
 
-#[public]
+#[visibility = public]
 function show_planets(): float64
     local planet: Planet = Planet.Jupiter;
     local gravity: float64 = planet.surface_gravity();

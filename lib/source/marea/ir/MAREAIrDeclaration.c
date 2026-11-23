@@ -3,6 +3,112 @@
 
 #include "marea/internal/ir/MAREAIrInternal.h"
 
+#include <string.h>
+
+// INFO: true when value is a quoted string literal whose inner bytes equal inner, same rule sema's own lifecycle check uses.
+static MAREA_Boolean MAREA_CALL MAREA_G_TextIsQuoted(const MAREA_AstNode *value, const MAREA_Character8 *inner, MAREA_IntegerSize innerLength)
+{
+    if ((value == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(value) != MAREA_AST_KIND_STRING_LITERAL) || (MAREA_AstNodeGetTextLength(value) != (innerLength + MAREA_INTEGER_SIZE(2)))) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    return (memcmp((MAREA_AstNodeGetText(value) + MAREA_INTEGER_SIZE(1)), inner, innerLength) == 0) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
+// INFO: true when functionTyped carries #[operator = operatorName] in its first ATTRIBUTE group.
+static MAREA_Boolean MAREA_CALL MAREA_G_FunctionCarriesOperator(const MAREA_SemaTypedNode *functionTyped, const MAREA_Character8 *operatorName, MAREA_IntegerSize operatorLength)
+{
+    const MAREA_SemaTypedNode *attributeList = MAREA_IrTypedFindChild(functionTyped, MAREA_AST_KIND_ATTRIBUTE);
+
+    if (attributeList == MAREA_NULLPTR) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_IntegerSize COUNT = MAREA_SemaTypedNodeGetChildCount(attributeList);
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < COUNT; index = (index + MAREA_INTEGER_SIZE(1))) {
+        const MAREA_SemaTypedNode *item = MAREA_IrTypedChildAt(attributeList, index);
+
+        if (MAREA_IrTypedKind(item) != MAREA_AST_KIND_ATTRIBUTE_ITEM) {
+            continue;
+        }
+
+        const MAREA_SemaTypedNode *key = MAREA_IrTypedChildAt(item, MAREA_INTEGER_SIZE(0));
+
+        if (MAREA_IrTypedKind(key) != MAREA_AST_KIND_IDENTIFIER) {
+            continue;
+        }
+
+        const MAREA_AstNode *keyAst = MAREA_SemaTypedNodeGetAstNode(key);
+
+        const MAREA_IntegerSize OPERATOR_KEY_LENGTH = (MAREA_IntegerSize)strlen("operator");
+
+        if ((MAREA_AstNodeGetTextLength(keyAst) != OPERATOR_KEY_LENGTH) || (memcmp(MAREA_AstNodeGetText(keyAst), "operator", OPERATOR_KEY_LENGTH) != 0)) {
+            continue;
+        }
+
+        const MAREA_SemaTypedNode *value = MAREA_IrTypedChildAt(item, MAREA_INTEGER_SIZE(1));
+
+        if (MAREA_G_TextIsQuoted(MAREA_SemaTypedNodeGetAstNode(value), operatorName, operatorLength) == MAREA_BOOLEAN_TRUE) {
+            return MAREA_BOOLEAN_TRUE;
+        }
+    }
+
+    return MAREA_BOOLEAN_FALSE;
+}
+
+const MAREA_SemaTypedNode *MAREA_CALL MAREA_IrFindLifecycleFunction(const MAREA_IrContext *context, const MAREA_Character8 *typeName, MAREA_IntegerSize typeNameLength, MAREA_Boolean wantConstruct)
+{
+    if ((context == MAREA_NULLPTR) || (context->unit == MAREA_NULLPTR) || (typeName == MAREA_NULLPTR)) {
+        return MAREA_NULLPTR;
+    }
+
+    static const MAREA_Character8 CONSTRUCT_NAME[] = "construct";
+    static const MAREA_Character8 DESTROY_NAME[] = "destroy";
+
+    const MAREA_Character8 *operatorName = (wantConstruct == MAREA_BOOLEAN_TRUE) ? CONSTRUCT_NAME : DESTROY_NAME;
+    const MAREA_IntegerSize operatorLength = (MAREA_IntegerSize)((wantConstruct == MAREA_BOOLEAN_TRUE) ? (sizeof(CONSTRUCT_NAME) - 1) : (sizeof(DESTROY_NAME) - 1));
+
+    const MAREA_IntegerSize COUNT = MAREA_SemaTypedNodeGetChildCount(context->unit);
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < COUNT; index = (index + MAREA_INTEGER_SIZE(1))) {
+        const MAREA_SemaTypedNode *item = MAREA_IrTypedChildAt(context->unit, index);
+
+        if (MAREA_IrTypedKind(item) != MAREA_AST_KIND_IMPLEMENTATION_DECLARATION) {
+            continue;
+        }
+
+        const MAREA_SemaTypedNode *typeNode = MAREA_IrTypedFindChild(item, MAREA_AST_KIND_NAMED_TYPE);
+
+        const MAREA_Character8 *implementedName = MAREA_NULLPTR;
+        MAREA_IntegerSize implementedLength = MAREA_INTEGER_SIZE(0);
+
+        if ((typeNode == MAREA_NULLPTR) || (MAREA_IrAstTypeName(MAREA_SemaTypedNodeGetAstNode(typeNode), &implementedName, &implementedLength) == MAREA_BOOLEAN_FALSE)) {
+            continue;
+        }
+
+        if ((implementedLength != typeNameLength) || (memcmp(implementedName, typeName, typeNameLength) != 0)) {
+            continue;
+        }
+
+        const MAREA_IntegerSize MEMBER_COUNT = MAREA_SemaTypedNodeGetChildCount(item);
+
+        for (MAREA_IntegerSize memberIndex = MAREA_INTEGER_SIZE(0); memberIndex < MEMBER_COUNT; memberIndex = (memberIndex + MAREA_INTEGER_SIZE(1))) {
+            const MAREA_SemaTypedNode *member = MAREA_IrTypedChildAt(item, memberIndex);
+
+            if (MAREA_IrTypedKind(member) != MAREA_AST_KIND_FUNCTION_DECLARATION) {
+                continue;
+            }
+
+            if (MAREA_G_FunctionCarriesOperator(member, operatorName, operatorLength) == MAREA_BOOLEAN_TRUE) {
+                return member;
+            }
+        }
+    }
+
+    return MAREA_NULLPTR;
+}
+
 // INFO: the first direct child that is a type; a type always comes before an optional expression.
 static const MAREA_AstNode *MAREA_CALL MAREA_G_FindTypeChild(const MAREA_SemaTypedNode *typed)
 {
@@ -70,8 +176,13 @@ MAREA_IrExcept MAREA_CALL MAREA_IrCreateNamed(MAREA_IrContext *context, MAREA_Ir
         }
     }
 
-    // INFO: only the MUTABLE flag survives; the other AST flags are erased with the type system.
-    node->flags = (node->flags & (MAREA_Uinteger32)MAREA_AST_FLAG_MUTABLE);
+    if (kind == MAREA_IR_KIND_PARAMETER) {
+        // INFO: a parameter no longer carries MUTABLE on its own AST node, so this reads the ownership mode sema already computed from its semantics attribute or type-class default.
+        node->flags = (MAREA_SemaTypedNodeGetOwnershipMode(typed) == MAREA_SEMA_OWNERSHIP_MODE_MUTABLE_BORROW) ? (MAREA_Uinteger32)MAREA_AST_FLAG_MUTABLE : MAREA_UINTEGER_32(0);
+    } else {
+        // INFO: only the MUTABLE flag survives; the other AST flags are erased with the type system.
+        node->flags = (node->flags & (MAREA_Uinteger32)MAREA_AST_FLAG_MUTABLE);
+    }
 
     result = MAREA_IrNodeSetTypeNameFromAst(context, node, MAREA_G_FindTypeChild(typed));
 
@@ -84,7 +195,41 @@ MAREA_IrExcept MAREA_CALL MAREA_IrCreateNamed(MAREA_IrContext *context, MAREA_Ir
     return MAREA_IR_EXCEPT_SUCCESS;
 }
 
-MAREA_IrExcept MAREA_CALL MAREA_IrAppendInitializer(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode *node, MAREA_Boolean *outComplete)
+const MAREA_SemaTypedNode *MAREA_CALL MAREA_IrTypedFindDefault(const MAREA_SemaTypedNode *typed)
+{
+    const MAREA_IntegerSize COUNT = MAREA_SemaTypedNodeGetChildCount(typed);
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); (index + MAREA_INTEGER_SIZE(1)) < COUNT; index = (index + MAREA_INTEGER_SIZE(1))) {
+        const MAREA_AstKind KIND = MAREA_IrTypedKind(MAREA_IrTypedChildAt(typed, index));
+
+        if ((KIND != MAREA_AST_KIND_NAMED_TYPE) && (KIND != MAREA_AST_KIND_FUNCTION_TYPE)) {
+            continue;
+        }
+
+        const MAREA_SemaTypedNode *candidate = MAREA_IrTypedChildAt(typed, (index + MAREA_INTEGER_SIZE(1)));
+
+        // INFO: a parameter's trailing "semantics" attribute is not a default value.
+        return (MAREA_IrTypedKind(candidate) == MAREA_AST_KIND_ATTRIBUTE) ? MAREA_NULLPTR : candidate;
+    }
+
+    return MAREA_NULLPTR;
+}
+
+// INFO: the zero-default rule's own node: a leaf with no text, no type name and no children, left for a backend to fill.
+static MAREA_IrExcept MAREA_CALL MAREA_G_AppendZero(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode *node)
+{
+    MAREA_IrNode *zero = MAREA_NULLPTR;
+
+    MAREA_IrExcept result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_ZERO_VALUE, MAREA_SemaTypedNodeGetAstNode(typed), &zero);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    return MAREA_IrNodeAppendChild(context, node, zero);
+}
+
+MAREA_IrExcept MAREA_CALL MAREA_IrAppendInitializer(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode *node, MAREA_Boolean zeroWhenAbsent, MAREA_Boolean *outComplete)
 {
     if (context == MAREA_NULLPTR) {
         return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
@@ -104,33 +249,31 @@ MAREA_IrExcept MAREA_CALL MAREA_IrAppendInitializer(MAREA_IrContext *context, co
 
     *outComplete = MAREA_BOOLEAN_TRUE;
 
-    const MAREA_IntegerSize COUNT = MAREA_SemaTypedNodeGetChildCount(typed);
+    const MAREA_SemaTypedNode *initializer = MAREA_IrTypedFindDefault(typed);
 
-    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); (index + MAREA_INTEGER_SIZE(1)) < COUNT; index = (index + MAREA_INTEGER_SIZE(1))) {
-        const MAREA_AstKind KIND = MAREA_IrTypedKind(MAREA_IrTypedChildAt(typed, index));
-
-        if ((KIND != MAREA_AST_KIND_NAMED_TYPE) && (KIND != MAREA_AST_KIND_FUNCTION_TYPE)) {
-            continue;
-        }
-
-        MAREA_IrNode *lowered = MAREA_NULLPTR;
-
-        MAREA_IrExcept result = MAREA_IrLowerExpression(context, MAREA_IrTypedChildAt(typed, (index + MAREA_INTEGER_SIZE(1))), &lowered);
-
-        if (result != MAREA_IR_EXCEPT_SUCCESS) {
-            return result;
-        }
-
-        if (lowered == MAREA_NULLPTR) {
-            *outComplete = MAREA_BOOLEAN_FALSE;
-
+    if (initializer == MAREA_NULLPTR) {
+        if (zeroWhenAbsent == MAREA_BOOLEAN_FALSE) {
             return MAREA_IR_EXCEPT_SUCCESS;
         }
 
-        return MAREA_IrNodeAppendChild(context, node, lowered);
+        return MAREA_G_AppendZero(context, typed, node);
     }
 
-    return MAREA_IR_EXCEPT_SUCCESS;
+    MAREA_IrNode *lowered = MAREA_NULLPTR;
+
+    MAREA_IrExcept result = MAREA_IrLowerExpression(context, initializer, &lowered);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    if (lowered == MAREA_NULLPTR) {
+        *outComplete = MAREA_BOOLEAN_FALSE;
+
+        return MAREA_IR_EXCEPT_SUCCESS;
+    }
+
+    return MAREA_IrNodeAppendChild(context, node, lowered);
 }
 
 static MAREA_IrExcept MAREA_CALL MAREA_G_AppendNamed(MAREA_IrContext *context, MAREA_IrKind kind, const MAREA_SemaTypedNode *typed, MAREA_IrNode *parent)
@@ -141,6 +284,27 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_AppendNamed(MAREA_IrContext *context, M
 
     if (created != MAREA_IR_EXCEPT_SUCCESS) {
         return created;
+    }
+
+    return MAREA_IrNodeAppendChild(context, parent, node);
+}
+
+// INFO: a parameter whose default cannot be lowered drops the whole function, never a partial parameter list.
+static MAREA_IrExcept MAREA_CALL MAREA_G_AppendParameter(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode *parent, MAREA_Boolean *outComplete)
+{
+    MAREA_IrNode *node = MAREA_NULLPTR;
+
+    MAREA_IrExcept result = MAREA_IrCreateNamed(context, MAREA_IR_KIND_PARAMETER, typed, MAREA_NULLPTR, MAREA_INTEGER_SIZE(0), &node);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    // INFO: a parameter with no default is a required argument, never a zero, so the zero-default rule skips it.
+    result = MAREA_IrAppendInitializer(context, typed, node, MAREA_BOOLEAN_FALSE, outComplete);
+
+    if ((result != MAREA_IR_EXCEPT_SUCCESS) || (*outComplete == MAREA_BOOLEAN_FALSE)) {
+        return result;
     }
 
     return MAREA_IrNodeAppendChild(context, parent, node);
@@ -185,6 +349,9 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerOpaque(MAREA_IrContext *context, c
     return MAREA_G_AppendNamed(context, MAREA_IR_KIND_STRUCTURE_DECLARATION, typed, parent);
 }
 
+// INFO: an enum with no written tag type defaults to sinteger32, per the language spec.
+static const MAREA_Character8 MAREA_G_DefaultEnumTagType[] = "sinteger32";
+
 static MAREA_IrExcept MAREA_CALL MAREA_G_LowerEnum(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode *parent)
 {
     MAREA_IrNode *node = MAREA_NULLPTR;
@@ -193,6 +360,11 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerEnum(MAREA_IrContext *context, con
 
     if (result != MAREA_IR_EXCEPT_SUCCESS) {
         return result;
+    }
+
+    if (node->typeName == MAREA_NULLPTR) {
+        node->typeName = MAREA_G_DefaultEnumTagType;
+        node->typeNameLength = (MAREA_IntegerSize)(sizeof(MAREA_G_DefaultEnumTagType) - MAREA_INTEGER_SIZE(1));
     }
 
     const MAREA_IntegerSize VARIANT_COUNT = MAREA_SemaTypedNodeGetChildCount(typed);
@@ -231,7 +403,8 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerEnum(MAREA_IrContext *context, con
 
             MAREA_Boolean complete = MAREA_BOOLEAN_TRUE;
 
-            result = MAREA_IrAppendInitializer(context, field, fieldNode, &complete);
+            // INFO: a variant field with no default is a required argument of the variant, never a zero, same as a parameter.
+            result = MAREA_IrAppendInitializer(context, field, fieldNode, MAREA_BOOLEAN_FALSE, &complete);
 
             if (result != MAREA_IR_EXCEPT_SUCCESS) {
                 return result;
@@ -271,7 +444,8 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerConstant(MAREA_IrContext *context,
 
     MAREA_Boolean complete = MAREA_BOOLEAN_TRUE;
 
-    result = MAREA_IrAppendInitializer(context, typed, node, &complete);
+    // INFO: the grammar makes a constant's initializer mandatory, so zeroWhenAbsent never triggers here; it stays false for clarity.
+    result = MAREA_IrAppendInitializer(context, typed, node, MAREA_BOOLEAN_FALSE, &complete);
 
     if ((result != MAREA_IR_EXCEPT_SUCCESS) || (complete == MAREA_BOOLEAN_FALSE)) {
         return result;
@@ -314,10 +488,17 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerFunctionBody(MAREA_IrContext *cont
                 continue;
             }
 
-            result = MAREA_G_AppendNamed(context, MAREA_IR_KIND_PARAMETER, parameter, listNode);
+            MAREA_Boolean complete = MAREA_BOOLEAN_TRUE;
+
+            result = MAREA_G_AppendParameter(context, parameter, listNode, &complete);
 
             if (result != MAREA_IR_EXCEPT_SUCCESS) {
                 return result;
+            }
+
+            // INFO: a parameter default that cannot be lowered drops the whole function, never a partial one.
+            if (complete == MAREA_BOOLEAN_FALSE) {
+                return MAREA_IR_EXCEPT_SUCCESS;
             }
         }
 

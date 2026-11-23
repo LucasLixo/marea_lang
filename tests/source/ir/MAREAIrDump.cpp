@@ -37,17 +37,17 @@ TEST(MAREAIrDump, SmallModuleHasAnExactText)
 
     MAREA_IrFixture fixture;
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; structure Point x: float64; end function f(a: integer32): integer32 local b: integer32 = a + 1; return b; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; structure Point x: float64; end function f(a: sinteger32): sinteger32 local b: sinteger32 = a + 1; return b; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     EXPECT_EQ(MAREA_dumpOf(fixture), MAREA_lines({
                                          "MODULE",
                                          "  STRUCTURE_DECLARATION \"Point\"",
                                          "    FIELD_DECLARATION \"x\" type=float64",
-                                         "  FUNCTION_DECLARATION \"f\" type=integer32",
+                                         "  FUNCTION_DECLARATION \"f\" type=sinteger32",
                                          "    PARAMETER_LIST",
-                                         "      PARAMETER \"a\" type=integer32",
+                                         "      PARAMETER \"a\" type=sinteger32",
                                          "    BLOCK",
-                                         "      LOCAL_DECLARATION \"b\" type=integer32",
+                                         "      LOCAL_DECLARATION \"b\" type=sinteger32",
                                          "        BINARY_EXPRESSION op=PLUS",
                                          "          IDENTIFIER \"a\"",
                                          "          INTEGER_LITERAL \"1\"",
@@ -115,6 +115,17 @@ TEST(MAREAIrDump, StringTextIsEscaped)
     EXPECT_NE(MAREA_dumpOf(fixture).find("STRING_LITERAL \"\\\"a\\\\\\\\b\\\"\""), std::string::npos) << "Quotes and backslashes of the text must be escaped: " << MAREA_dumpOf(fixture);
 }
 
+TEST(MAREAIrDump, CharacterTextIsEscaped)
+{
+    GTEST_COUT << "Validating a character literal is dumped with its single quotes and an escaped backslash." << std::endl;
+
+    MAREA_IrFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; constant C: character = '\\n';"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+
+    EXPECT_NE(MAREA_dumpOf(fixture).find("CHARACTER_LITERAL \"'\\\\n'\""), std::string::npos) << "The text must keep its quotes and escape the backslash: " << MAREA_dumpOf(fixture);
+}
+
 TEST(MAREAIrDump, QualifiedImplementationNamesAreWritten)
 {
     GTEST_COUT << "Validating an implementation member is dumped under its qualified name." << std::endl;
@@ -132,7 +143,7 @@ TEST(MAREAIrDump, DumpIsStable)
 
     MAREA_IrFixture fixture;
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; function f() local a: integer32 = 1 + 2 * 3; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; function f() local a: sinteger32 = 1 + 2 * 3; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     EXPECT_EQ(MAREA_dumpOf(fixture), MAREA_dumpOf(fixture)) << "The text form must be stable.";
 }
@@ -183,13 +194,13 @@ TEST(MAREAIrDump, ForEachDumpsItsNameFlagAndChildren)
 
     MAREA_IrFixture fixture(RESOLVE_EXTERNAL);
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; import collections.array; function run(values: mutable array<integer32>) for each key, value in mutable values do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; import collections.list; function run(values: list<sinteger32>) for each key, value in mutable values do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     EXPECT_EQ(MAREA_dumpOf(fixture), MAREA_lines({
                                          "MODULE",
                                          "  FUNCTION_DECLARATION \"run\"",
                                          "    PARAMETER_LIST",
-                                         "      PARAMETER \"values\" type=array flags=1",
+                                         "      PARAMETER \"values\" type=list flags=1",
                                          "    BLOCK",
                                          "      FOR_EACH_STATEMENT \"value\" flags=1",
                                          "        IDENTIFIER \"key\"",

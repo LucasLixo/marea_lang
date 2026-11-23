@@ -23,7 +23,15 @@ MAREA_BEGIN_EXTERN_C
      * is an operand (the text is the name, kept whole when dotted; the children are its type arguments, each a
      * TYPE_NAME or an INTEGER_LITERAL), and a BUILTIN_NAME is the callee of a built-in call with explicit type
      * arguments (the text is the name; the children are the type arguments, each a TYPE_NAME or an
-     * INTEGER_LITERAL). The list ends with MAREA_IR_KIND_COUNT.
+     * INTEGER_LITERAL). CHARACTER_LITERAL is appended after them so no value moves (the text is the literal as written, with its
+     * single quotes). ZERO_VALUE is appended last of all: a leaf with no text, no type name and no children, the
+     * explicit zero of the zero-default rule (a LOCAL_DECLARATION with no written initializer, or a struct
+     * LITERAL_VALUE field the source left unnamed). CONSTRUCT_CALL and DESTROY_CALL are appended after ZERO_VALUE,
+     * so no value moves: CONSTRUCT_CALL is the explicit lowering of Type(args) (the type name is the constructed
+     * type, the one child is an ARGUMENT_LIST, filled with construct's own defaults as an ordinary call fills
+     * them); DESTROY_CALL is the explicit cleanup the ir inserts at a scope exit of a destructible local (the
+     * text is the qualified destroy function, "Type.name", and the one child is an IDENTIFIER naming the local
+     * being destroyed). The list ends with MAREA_IR_KIND_COUNT.
      */
     typedef enum MAREA_IrKind
     {
@@ -72,6 +80,10 @@ MAREA_BEGIN_EXTERN_C
         MAREA_IR_KIND_FOR_EACH_STATEMENT,
         MAREA_IR_KIND_TYPE_NAME,
         MAREA_IR_KIND_BUILTIN_NAME,
+        MAREA_IR_KIND_CHARACTER_LITERAL,
+        MAREA_IR_KIND_ZERO_VALUE,
+        MAREA_IR_KIND_CONSTRUCT_CALL,
+        MAREA_IR_KIND_DESTROY_CALL,
 
         MAREA_IR_KIND_COUNT
     } MAREA_IrKind;
