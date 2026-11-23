@@ -45,3 +45,6 @@ CMakeLists.txt text working-tree-encoding=UTF-8 eol=lf
 *.ico binary
 *.jpg binary
 *.jpeg binary
+
+# The catalogue item that tests CRLF line ends must keep them.
+tests/language/accept/bindings/L-BINDINGS-060.marea -text

@@ -1,0 +1,15 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A literal takes the family of the other operand.
+
+namespace main;
+
+function check(): sinteger32
+    local left: float64 = 1.0;
+    local sum: float64 = left + 1;
+    local count: sinteger8 = 1;
+    local next: sinteger8 = count + 1;
+    return 1;
+end

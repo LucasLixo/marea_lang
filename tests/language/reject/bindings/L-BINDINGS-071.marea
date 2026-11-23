@@ -1,0 +1,12 @@
+-- expect: 3009 @10
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A C type name is an unknown type.
+
+namespace main;
+
+function check(): sinteger32
+    local value: int = 1;
+    return 1;
+end

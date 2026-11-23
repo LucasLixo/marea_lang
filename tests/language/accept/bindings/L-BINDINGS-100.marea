@@ -1,0 +1,17 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Every member of the inline key.
+
+namespace main;
+
+#[inline = never]
+function slow(): sinteger32
+    return 1;
+end
+
+#[inline = auto]
+function normal(): sinteger32
+    return 1;
+end

@@ -1,0 +1,9 @@
+-- expect: 1002 @9, 2002 @9
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A string cut by the end of the file is unterminated.
+
+namespace main;
+
+constant TEXT: string = "open

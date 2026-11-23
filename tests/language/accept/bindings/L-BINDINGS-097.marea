@@ -1,0 +1,12 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A flag key with no value is true.
+
+namespace main;
+
+#[move_only]
+structure Handle
+    value: sinteger32;
+end

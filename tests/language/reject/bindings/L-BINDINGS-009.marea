@@ -1,0 +1,12 @@
+-- expect: 1002 @10, 2002 @10
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A character literal cut by the line end is unterminated.
+
+namespace main;
+
+function check(): sinteger32
+    local letter: character = 'a;
+    return 1;
+end

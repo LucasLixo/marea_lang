@@ -1,0 +1,12 @@
+-- expect: 2001 @10, 3004 @10
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A number glued to letters.
+
+namespace main;
+
+function check(): sinteger32
+    local value: sinteger32 = 12abc;
+    return 1;
+end

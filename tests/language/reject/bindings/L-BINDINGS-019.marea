@@ -1,0 +1,12 @@
+-- expect: 1005 @10, 2002 @10
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An empty character literal.
+
+namespace main;
+
+function check(): sinteger32
+    local letter: character = '';
+    return 1;
+end
