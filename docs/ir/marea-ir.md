@@ -111,7 +111,10 @@ Other shapes:
   parameter the call omitted: the `ARGUMENT_LIST` holds the lowered written arguments first, then, for
   each trailing parameter the call did not supply, the lowered default read fresh from that parameter in
   the callee's own typed parameter list. The ir materializes every default, so a backend never looks at
-  the callee's declaration to find one (see Gaps for what callee shape this does not cover).
+  the callee's declaration to find one (see Gaps for what callee shape this does not cover). A parameter
+  or a local of the enclosing function that hides the module name (`MAREA_IrFunctionDeclares`, the same
+  check an import alias uses) is never matched to the module function, so a call of the local fills
+  nothing.
 
 ## For-range desugaring
 

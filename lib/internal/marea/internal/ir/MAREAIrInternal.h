@@ -270,6 +270,18 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrAliasBuild(MAREA_IrContext * context, const MAREA_SemaTypedNode *unit);
 
     /**
+     * @brief Tells whether a typed function declares a name as a parameter or a local of any block, at or
+     * before a source offset: the shadow check an identifier reference, or a callee matched against a
+     * module-level declaration, must pass before it is treated as that outer name.
+     * @param typed Typed node to search, normally a typed FUNCTION_DECLARATION. Null returns false.
+     * @param text Identifier text to look for.
+     * @param length Byte length of text.
+     * @param offset Source offset the declaration must be at or before.
+     * @return MAREA_BOOLEAN_TRUE when a parameter or a local declares the name at or before offset.
+     */
+    MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_IrFunctionDeclares(const MAREA_SemaTypedNode *typed, const MAREA_Character8 *text, MAREA_IntegerSize length, MAREA_Uinteger32 offset);
+
+    /**
      * @brief Looks up an identifier used as a value (a function, a constant, a variant or the head of a member
      * chain). An import alias gives its original text, unless a parameter or a local of the enclosing function
      * has the same name and is declared at or before the reference.
