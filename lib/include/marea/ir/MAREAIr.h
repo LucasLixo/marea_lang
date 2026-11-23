@@ -34,6 +34,7 @@ MAREA_BEGIN_EXTERN_C
     {
         MAREA_IR_DIAGNOSTIC_CODE_UNINSTANTIATED_GENERIC = MAREA_UINTEGER_32(4004),
         MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_MACRO = MAREA_UINTEGER_32(4005),
+        MAREA_IR_DIAGNOSTIC_CODE_UNTYPED_EXPRESSION = MAREA_UINTEGER_32(4006),
     } MAREA_IrDiagnosticCode;
 
     /**
@@ -81,7 +82,7 @@ MAREA_BEGIN_EXTERN_C
     /**
      * @brief Writes the tree under module as stable text, one node per line, into the arena. Each line is
      * the kind name indented two spaces per depth, then the text in double quotes when present, then
-     * type=NAME when the node carries a type name, then op=OPERATOR, then flags=NUMBER when not zero.
+     * type=NAME when the node carries a type name, then resolved=TEXT when it carries a resolved type, then op=OPERATOR, then flags=NUMBER when not zero.
      * @param arena Arena that owns the text. Must not be null.
      * @param module Root of the tree to write. Must not be null.
      * @param outText Receives a NUL-terminated copy of the text. Must not be null.
