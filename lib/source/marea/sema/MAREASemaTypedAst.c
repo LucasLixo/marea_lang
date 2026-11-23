@@ -381,8 +381,10 @@ static MAREA_SemaTypedAstExcept MAREA_CALL MAREA_G_TypedAstBuildNode(MAREA_SemaC
     built->astNode = node;
     built->typeDeclaration = MAREA_NULLPTR;
     built->typeName = MAREA_NULLPTR;
+    built->resolvedType = MAREA_NULLPTR;
     built->children = MAREA_NULLPTR;
     built->typeNameLength = 0;
+    built->resolvedTypeLength = 0;
     built->childCount = MAREA_AstNodeGetChildCount(node);
     built->typeClass = MAREA_SEMA_TYPE_CLASS_PRIMITIVE;
     built->ownershipMode = MAREA_SEMA_OWNERSHIP_MODE_VALUE;
@@ -395,6 +397,12 @@ static MAREA_SemaTypedAstExcept MAREA_CALL MAREA_G_TypedAstBuildNode(MAREA_SemaC
     }
 
     MAREA_G_TypedAstClassify(context, built);
+
+    if (MAREA_SemaTypedAstResolveDeclaredType(context, built) != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) {
+        MAREA_SemaScopeLeave(context, mark);
+
+        return MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_OUT_OF_MEMORY;
+    }
 
     built->ownershipMode = MAREA_SemaTypedAstClassifyOwnership(context, built);
 
@@ -554,6 +562,26 @@ MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedNodeGetTypeName(const MAREA_S
     *outLength = node->typeNameLength;
 
     return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+}
+
+MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedNodeGetResolvedType(const MAREA_SemaTypedNode *node, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength)
+{
+    if (node == MAREA_NULLPTR) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    if (outText == MAREA_NULLPTR) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    if (outLength == MAREA_NULLPTR) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    *outText = node->resolvedType;
+    *outLength = node->resolvedTypeLength;
+
+    return (node->resolvedType == MAREA_NULLPTR) ? MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NO_TYPE : MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
 }
 
 MAREA_SemaOwnershipMode MAREA_CALL MAREA_SemaTypedNodeGetOwnershipMode(const MAREA_SemaTypedNode *node)

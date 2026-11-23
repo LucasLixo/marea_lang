@@ -47,6 +47,7 @@ MAREA_BEGIN_EXTERN_C
         MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NULL_POINTER = MAREA_UINTEGER_8(1),
         MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_OUT_OF_MEMORY = MAREA_UINTEGER_8(2),
         MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NOT_CHECKED = MAREA_UINTEGER_8(3),
+        MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NO_TYPE = MAREA_UINTEGER_8(4),
     } MAREA_SemaTypedAstExcept;
 
     /**
@@ -117,6 +118,25 @@ MAREA_BEGIN_EXTERN_C
      * outLength is null.
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedNodeGetTypeName(const MAREA_SemaTypedNode *node, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength);
+
+    /**
+     * @brief Returns the canonical full text of the type a typed node declares, with its type arguments, in the
+     * arena. Only a node whose type is written in the source has one: PARAMETER, LOCAL_DECLARATION,
+     * FIELD_DECLARATION, VARIANT_FIELD, CONSTANT_DECLARATION and FUNCTION_DECLARATION (its result type).
+     *
+     * The spelling is fixed: an import alias is replaced by what it stands for, a local type alias by the type it
+     * names, the type arguments follow in angle brackets joined by a comma with no space (array<sinteger32,4>), a
+     * function type is function(sinteger32,sinteger32):sinteger32 with no parameter name, and a dotted name is kept
+     * whole.
+     * @param node Typed node to query. Must not be null.
+     * @param outText Receives the text, valid for the arena lifetime, not NUL terminated, or null when the node has no
+     * type. Must not be null.
+     * @param outLength Receives the byte length of outText, 0 when outText is null. Must not be null.
+     * @return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS, ERROR_NULL_POINTER when node, outText or outLength is null, or
+     * ERROR_NO_TYPE when the node declares no type or the written type is not a name or a function type sema can
+     * spell.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedNodeGetResolvedType(const MAREA_SemaTypedNode *node, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength);
 
     /**
      * @brief Returns the resolved ownership mode of a typed node.
