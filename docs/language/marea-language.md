@@ -214,6 +214,8 @@ A `known_gap` item that shares an issue shows one hole of the compiler through m
 | L-BINDINGS-045 | A float shift count is a mismatch | 3011 @12 |
 | L-BINDINGS-048 | A fraction literal added to an integer is a mismatch | 3011 @11 |
 | L-BINDINGS-054 | A chained comparison is not accepted | 2006 @13, 3011 @13 |
+| L-BINDINGS-055 | A bit operator on a float | 3038 @12 |
+| L-BINDINGS-056 | A logical operator on integers | 3039 @12 |
 | L-BINDINGS-058 | An implicit widening is a mismatch | 3011 @11 |
 | L-BINDINGS-059 | A string converted to a number is a mismatch | 3011 @11 |
 | L-BINDINGS-066 | A name used before its declaration | 3004 @10 |
@@ -252,8 +254,6 @@ A `known_gap` item that shares an issue shows one hole of the compiler through m
 
 | Id | Shows | Expected |
 |---|---|---|
-| L-BINDINGS-055 | A bit operator on a float | gap: #186 NEW, rule: reject |
-| L-BINDINGS-056 | A logical operator on integers | gap: #187 NEW, rule: reject |
 | L-BINDINGS-061 | A local redeclared in the same scope | gap: #188 3003, rule: reject |
 | L-BINDINGS-084 | A constant assigned inside a function | gap: #189 NEW, rule: reject |
 | L-BINDINGS-094 | A raw pointer local outside an unsafe block | gap: #190 NEW, rule: reject |
@@ -1243,7 +1243,7 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | area | accept | reject | known_gap |
 |---|---|---|---|
 | adversarial | 0 | 27 | 45 |
-| bindings | 33 | 75 | 5 |
+| bindings | 33 | 77 | 3 |
 | coverage | 0 | 0 | 1 |
 | examples | 16 | 0 | 0 |
 | functions | 19 | 41 | 13 |
@@ -1254,7 +1254,7 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | parallel | 19 | 23 | 17 |
 | seed | 1 | 1 | 1 |
 | types | 60 | 108 | 28 |
-| total | 262 | 358 | 187 |
+| total | 262 | 360 | 185 |
 
 ## Parity plan
 
@@ -1279,6 +1279,7 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 | 3033 | `sema` | [marea-sema.md](../sema/marea-sema.md), `LITERAL_OUT_OF_RANGE` |
 | 3034-3035 | `sema` | [marea-sema.md](../sema/marea-sema.md), the division and shift rules of constant operands |
 | 3036-3037 | `sema` | [marea-sema.md](../sema/marea-sema.md) |
+| 3038-3039 | `sema` | [marea-sema.md](../sema/marea-sema.md) |
 | 4004-4006 | `ir` | [marea-ir.md](../ir/marea-ir.md), no item reaches them (see Gaps) |
 
 ## Gaps
