@@ -22,7 +22,7 @@ MAREA_SemaCheckCompilationUnit(sema, root);   /* once per file, dependencies fir
 `MAREA_SemaCheckCompilationUnit` returns an error only for a null argument or an out of memory. A rule
 violation is a diagnostic in the sink. A size that does not fit in `MAREA_IntegerSize` (a diagnostic
 message, or the growth of a name table) is also an out of memory: nothing is allocated or copied.
-Every sema diagnostic is an error, in the range 3001-3030 (3027 to 3029 are reserved for the lifecycle rules).
+Every sema diagnostic is an error, in the range 3001-3031.
 The lexer file name decides the path rule, so call `MAREA_LexContextSetFileName` with a project
 relative path with forward slashes and the `.marea` extension before the lex step.
 
@@ -115,6 +115,17 @@ count is `ARGUMENT_COUNT_MISMATCH` (3010). Each default is checked like a local 
 be declared (`UNDECLARED_NAME`) and it must fit the parameter type (`TYPE_MISMATCH`). A defaulted parameter
 that has a required parameter after it is `DEFAULT_PARAMETER_BEFORE_REQUIRED` (3030), once per defaulted
 parameter. Sema keeps the default in the tree; it does not copy it into a call.
+
+**Construct and destroy.** A function with `#[operator = "construct"]` or `#[operator = "destroy"]` stands only
+in an `implementation` that has no generic parameter, of a structure or an enum that the file declares (a type
+that the file does not declare is accepted, as its own rules report it); the function has no generic parameter
+either. Any other place (a top-level function, a generic implementation or function, an implementation of an alias
+or another type) is `LIFECYCLE_OPERATOR_NEEDS_CONCRETE_TYPE` (3028). A `destroy` has no parameter and no return
+type, and a `construct` has no return type and a default on every parameter; any other shape is
+`LIFECYCLE_OPERATOR_BAD_SHAPE` (3029), once per function. A call of such a function is
+`LIFECYCLE_OPERATOR_CALLED_DIRECTLY` (3027): by a bare name that no local and no top-level function of another
+meaning hides, and by the static form `Type.name(...)` where `Type` is the implemented type. The automatic call
+at creation and destruction is lowered in the ir, not here.
 
 **Enum tag type.** `enum A : uinteger8` names the integer type of the discriminant. With no tag it is
 `sinteger32`. A tag must be one bare integer primitive (`sinteger8` to `sinteger64`, `uinteger8` to
@@ -341,7 +352,10 @@ type arguments is deferred to when the `ir` stage needs one for real.
 | 3024 | `INVALID_PARALLEL_JUMP` | `continue;`, `break;` or `return;` in a `partition` body when no loop of the body is the target, or directly in a `fork_join` block, outside every `partition` body, when no loop of the block is the target |
 | 3025 | `DUPLICATE_SWITCH_ARM` | a second `default` arm in a `switch`, or `case 1 then ... case 1 then ...`, `case 1, 1 then ...`, `case Color.red` twice |
 | 3026 | `JUMP_OUTSIDE_LOOP` | `break;` or `continue;` with no enclosing loop and no enclosing `partition`/`fork_join` block |
-| 3030 | `DEFAULT_PARAMETER_BEFORE_REQUIRED` | `function f(a: sinteger32 = 0, b: sinteger32)`: a parameter with a default value before one with none (3027 to 3029 are reserved) |
+| 3027 | `LIFECYCLE_OPERATOR_CALLED_DIRECTLY` | `Point.make()` or `make()` when `make` carries `#[operator = "construct"]` or `"destroy"` |
+| 3028 | `LIFECYCLE_OPERATOR_NEEDS_CONCRETE_TYPE` | a `construct` or `destroy` function at top level, in a generic implementation, with generic parameters, or in an implementation of a type that is not a structure or an enum |
+| 3029 | `LIFECYCLE_OPERATOR_BAD_SHAPE` | a `destroy` with a parameter or a return type; a `construct` with a return type or a parameter that has no default |
+| 3030 | `DEFAULT_PARAMETER_BEFORE_REQUIRED` | `function f(a: sinteger32 = 0, b: sinteger32)`: a parameter with a default value before one with none |
 | 3031 | `INVALID_ENUM_TAG_TYPE` | `enum A : float32`, `: string`, `: SomeStruct`: a tag that is not an integer primitive |
 
 ## Gaps
@@ -361,8 +375,12 @@ type arguments is deferred to when the `ir` stage needs one for real.
   scope when its own header is checked, so `for i in 0 .. i` with no outer `i` raises nothing. A constant that has
   an `ERROR_NODE` below it has no name check, because the parser may leave its tokens as an expression.
 - The contract check only sees arguments whose type is cheap to know. Other arguments are not checked.
-- `operator` is checked against its vocabulary only, not the signature or the placement of a method; `export` is
-  checked for shape only.
+- `operator` is checked against its vocabulary; only `construct` and `destroy` have a placement and a shape check
+  (see "Construct and destroy"), the signature of any other operator is not checked; `export` is checked for shape
+  only.
+- `LIFECYCLE_OPERATOR_CALLED_DIRECTLY` (3027) sees a bare name and the static form `Type.name(...)` only. A call on
+  a value (`point.drop()`) is not resolved, as sema does not know the type of the receiver. A bare name that no
+  top-level function declares also raises `UNDECLARED_NAME` (3004), as a member is not a bare name.
 - The type of a library type is not tracked, so a missing `copy` or `move` there is not reported.
 - The typed-AST hand-off substitutes a generic result only for a bare parameter with explicit type arguments; a
   result from inferred type arguments or a compound such as `array<Item>` keeps the raw type.
