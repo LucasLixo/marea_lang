@@ -571,8 +571,12 @@ static MAREA_SemaExprType MAREA_CALL MAREA_G_TypeOfIdentifier(MAREA_G_Resolver *
 
     const MAREA_SemaName *local = MAREA_SemaLocalFind(context, name, NAME_LENGTH);
 
-    // INFO: the name of a for, for each, partition or with statement has no declared type.
+    // INFO: the name of a for, for each, partition or with statement has the type its statement gave it, when the statement could give one.
     if (local != MAREA_NULLPTR) {
+        if (local->statementType != MAREA_NULLPTR) {
+            return *local->statementType;
+        }
+
         return (MAREA_G_IsType(local->declaration) == MAREA_BOOLEAN_TRUE) ? MAREA_G_TypeOfNode(local->declaration, MAREA_NULLPTR) : MAREA_G_TypeNone();
     }
 
@@ -642,8 +646,8 @@ static MAREA_SemaExprType MAREA_CALL MAREA_G_TypeOfMemberAccess(MAREA_G_Resolver
     return MAREA_G_ImplementationMemberType(resolver, &receiver, MAREA_AstNodeGetText(member), MAREA_AstNodeGetTextLength(member), callTypeArguments);
 }
 
-// INFO: array, slice, vector and pointer give an element, either bare or under the reserved namespace c.
-static MAREA_Boolean MAREA_CALL MAREA_G_IsElementContainer(const MAREA_AstNode *named)
+// INFO: array, slice and vector give an element, and pointer too when it is asked for, either bare or under the reserved namespace c.
+static MAREA_Boolean MAREA_CALL MAREA_G_IsElementContainer(const MAREA_AstNode *named, MAREA_Boolean withPointer)
 {
     const MAREA_AstNode *qualified = MAREA_SemaChildAt(named, 0);
 
@@ -663,24 +667,43 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsElementContainer(const MAREA_AstNode *
 
     const MAREA_IntegerSize LENGTH = MAREA_AstNodeGetTextLength(last);
 
-    return ((MAREA_G_TextIs(text, LENGTH, "array") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextIs(text, LENGTH, "slice") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextIs(text, LENGTH, "vector") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextIs(text, LENGTH, "pointer") == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+    return ((MAREA_G_TextIs(text, LENGTH, "array") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextIs(text, LENGTH, "slice") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextIs(text, LENGTH, "vector") == MAREA_BOOLEAN_TRUE) || ((withPointer == MAREA_BOOLEAN_TRUE) && (MAREA_G_TextIs(text, LENGTH, "pointer") == MAREA_BOOLEAN_TRUE))) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
-static MAREA_SemaExprType MAREA_CALL MAREA_G_TypeOfIndexAccess(MAREA_G_Resolver *resolver, const MAREA_SemaTypedNode *built)
+MAREA_Boolean MAREA_CALL MAREA_SemaTypedAstElementOf(const MAREA_SemaContext *context, const MAREA_SemaExprType *collection, MAREA_Boolean withPointer, MAREA_SemaExprType *outElement)
 {
-    MAREA_SemaExprType baseType = MAREA_G_TypeOfChild(built, 0);
+    *outElement = MAREA_G_TypeNone();
+
+    MAREA_SemaExprType baseType = *collection;
 
     MAREA_G_Nominal ignored = { .declaration = MAREA_NULLPTR, .arguments = MAREA_NULLPTR, .frame = MAREA_NULLPTR };
 
-    if ((MAREA_G_PeelOwned(resolver->context, &baseType, &ignored) != MAREA_G_PEELED_NODE) || (MAREA_G_IsKind(baseType.node, MAREA_AST_KIND_NAMED_TYPE) == MAREA_BOOLEAN_FALSE) || (MAREA_G_IsElementContainer(baseType.node) == MAREA_BOOLEAN_FALSE)) {
-        return MAREA_G_TypeNone();
+    if ((MAREA_G_PeelOwned(context, &baseType, &ignored) != MAREA_G_PEELED_NODE) || (MAREA_G_IsKind(baseType.node, MAREA_AST_KIND_NAMED_TYPE) == MAREA_BOOLEAN_FALSE) || (MAREA_G_IsElementContainer(baseType.node, withPointer) == MAREA_BOOLEAN_FALSE)) {
+        return MAREA_BOOLEAN_FALSE;
     }
 
     const MAREA_AstNode *arguments = MAREA_G_FindChild(baseType.node, MAREA_AST_KIND_TYPE_ARGUMENTS);
 
     const MAREA_AstNode *element = (arguments == MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_SemaChildAt(arguments, 0);
 
-    return (MAREA_G_IsType(element) == MAREA_BOOLEAN_TRUE) ? MAREA_G_TypeOfNode(element, baseType.frame) : MAREA_G_TypeNone();
+    if (MAREA_G_IsType(element) == MAREA_BOOLEAN_FALSE) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    *outElement = MAREA_G_TypeOfNode(element, baseType.frame);
+
+    return MAREA_BOOLEAN_TRUE;
+}
+
+static MAREA_SemaExprType MAREA_CALL MAREA_G_TypeOfIndexAccess(MAREA_G_Resolver *resolver, const MAREA_SemaTypedNode *built)
+{
+    const MAREA_SemaExprType BASE = MAREA_G_TypeOfChild(built, 0);
+
+    MAREA_SemaExprType element = MAREA_G_TypeNone();
+
+    MAREA_IGNORE(MAREA_SemaTypedAstElementOf(resolver->context, &BASE, MAREA_BOOLEAN_TRUE, &element));
+
+    return element;
 }
 
 // INFO: a built-in convert<T>(x) has one type argument and one argument, and the unit binds no name convert.
@@ -816,6 +839,16 @@ static MAREA_SemaExprType MAREA_CALL MAREA_G_TypeOfOperands(const MAREA_SemaType
     }
 
     return (MAREA_G_TypeIsKnown(&LEFT) == MAREA_BOOLEAN_TRUE) ? LEFT : RIGHT;
+}
+
+MAREA_SemaExprType MAREA_CALL MAREA_SemaTypedAstTypeOfChild(const MAREA_SemaTypedNode *built, MAREA_IntegerSize index)
+{
+    return MAREA_G_TypeOfChild(built, index);
+}
+
+MAREA_SemaExprType MAREA_CALL MAREA_SemaTypedAstTypeOfOperands(const MAREA_SemaTypedNode *built)
+{
+    return MAREA_G_TypeOfOperands(built);
 }
 
 static MAREA_SemaExprType MAREA_CALL MAREA_G_TypeOfBoolean(void)

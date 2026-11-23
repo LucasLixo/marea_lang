@@ -45,6 +45,10 @@ MAREA_BEGIN_EXTERN_C
      *
      * An import name also remembers its qualifier: the namespace it was imported from (null, length zero for a
      * name with none). Two names with one original but two qualifiers are two types.
+     *
+     * The name of a for, for each, partition or with statement also remembers the type its statement gives it,
+     * once the typed tree builder has read the header of the statement (null before that, and for every other name).
+     * The entry lives as long as the scope of the name, so the type ends with it.
      */
     typedef struct MAREA_SemaName
     {
@@ -56,6 +60,7 @@ MAREA_BEGIN_EXTERN_C
         MAREA_IntegerSize originalLength;
         const MAREA_Character8 *qualifier;
         MAREA_IntegerSize qualifierLength;
+        const struct MAREA_SemaExprType *statementType;
     } MAREA_SemaName;
 
     /**
@@ -170,6 +175,47 @@ MAREA_BEGIN_EXTERN_C
      * @return The ownership mode. Never fails: a node this cannot classify defaults to VALUE.
      */
     MAREA_NODISCARD MAREA_SemaOwnershipMode MAREA_CALL MAREA_SemaTypedAstClassifyOwnership(MAREA_SemaContext * context, const MAREA_SemaTypedNode *built);
+
+    /**
+     * @brief Gives the type that a for, for each, partition or with statement gives to its name, once the typed
+     * children that decide it are built: the counter of a range has the type of the bounds, the value of a for each
+     * the element type of an array, a vector or a slice and its key uinteger64, the part of a partition a slice of the
+     * element type of the value, and the name of a with the type of its expression. The type is kept on the entry of
+     * the name in the locals of the context, so it ends with the scope. Any other node, a child that is not the
+     * last one that decides, and a type sema does not know are left as they are and are not an error.
+     * @param context Context the node is being built with. Must not be null.
+     * @param built Typed node of the statement, with the children up to index built. Must not be null.
+     * @param index Position of the child that was built last.
+     * @return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedAstTypeScopeNames(MAREA_SemaContext * context, const MAREA_SemaTypedNode *built, MAREA_IntegerSize index);
+
+    /**
+     * @brief Reads what sema knows of the type of a typed child: the type the child stored, or the text of a literal.
+     * @param built Typed node. Must not be null.
+     * @param index Position of the child. A missing child gives an empty type.
+     * @return The type, empty when it is not known.
+     */
+    MAREA_NODISCARD MAREA_SemaExprType MAREA_CALL MAREA_SemaTypedAstTypeOfChild(const MAREA_SemaTypedNode *built, MAREA_IntegerSize index);
+
+    /**
+     * @brief The type of an operation on its first two children: the first child that is not a number literal and has a
+     * type gives it, and two literals give the type of the first.
+     * @param built Typed node with two typed children. Must not be null.
+     * @return The type, empty when it is not known.
+     */
+    MAREA_NODISCARD MAREA_SemaExprType MAREA_CALL MAREA_SemaTypedAstTypeOfOperands(const MAREA_SemaTypedNode *built);
+
+    /**
+     * @brief Reads the element type of a collection: the first type argument of array, slice and vector, and of
+     * pointer when it is asked for, bare or under the reserved namespace c, also through owned<T>.
+     * @param context Context the node is being built with. Must not be null.
+     * @param collection Type of the collection. Must not be null.
+     * @param withPointer True when pointer<T> is a collection too, as it is for an index access.
+     * @param outElement Receives the element type. Must not be null.
+     * @return True when the collection is one of them and the element was read, else false and outElement is empty.
+     */
+    MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_SemaTypedAstElementOf(const MAREA_SemaContext *context, const MAREA_SemaExprType *collection, MAREA_Boolean withPointer, MAREA_SemaExprType *outElement);
 
     /**
      * @brief Fills the resolved type text of a typed node that declares a type: a PARAMETER, LOCAL_DECLARATION,
