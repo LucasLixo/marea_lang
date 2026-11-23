@@ -127,6 +127,16 @@ type, and a `construct` has no return type and a default on every parameter; any
 meaning hides, and by the static form `Type.name(...)` where `Type` is the implemented type. The automatic call
 at creation and destruction is lowered in the ir, not here.
 
+**Type construction call.** A call whose callee is a structure or an enum name of the file, not hidden by a local,
+resolves to that type's construct operator instead of an ordinary call: `Point(1.0, 2.0)` is checked against
+`construct`'s own parameters, defaults allowed, the same rule a function call follows ("Default parameter values"
+above). A type with no `construct` accepts only a call with no argument. A wrong count or a wrong argument type
+reuses `ARGUMENT_COUNT_MISMATCH` (3010) and `TYPE_MISMATCH` (3011), never a new code. A plain function sharing a
+type's name never reaches this rule: the name table rejects the second declaration as `NAME_ALREADY_DECLARED`
+(3003) before any call is checked, so a call site sees one declaration only, the type or the function, never
+both. `Type{...}` (the aggregate literal) is unaffected and keeps working on its own rule, as every `construct`
+parameter is defaulted.
+
 **Enum tag type.** `enum A : uinteger8` names the integer type of the discriminant. With no tag it is
 `sinteger32`. A tag must be one bare integer primitive (`sinteger8` to `sinteger64`, `uinteger8` to
 `uinteger64`); any other tag (`float32`, `string`, `boolean`, a structure, a generic or an alias) is
@@ -188,7 +198,8 @@ element of an `array`, `slice`, `vector` or `pointer`, has the type sema already
 comparison give `boolean`. A shift gives the type of its left side. Any other binary operator, `**` too, gives the
 type of both sides when they are the same primitive, or when one side is a number literal and the other a
 primitive of its family; it gives no type when they differ. A call of a plain function of the file (not
-generic, and not hidden by a local of the same name) has the declared result type. Everything else has an
+generic, and not hidden by a local of the same name) has the declared result type. A call whose callee is a
+structure or an enum name of the file has that type, as construction ("Type construction call" above). Everything else has an
 unknown type and is accepted. The type of an expression is compared with the declared type when that type
 is a primitive, at a call argument of a function of the file, a local initializer, a plain `=` assignment, a
 `return` value and a constant initializer: a conversion is always written, so two primitives are the same
@@ -313,7 +324,9 @@ read-only parameter, a `for each` variable, a `partition` part or a `with` name)
 expression). A node this cannot classify defaults to `VALUE`.
 
 **Call results.** A call expression's typed node carries the type the call returns. A call of a function of the
-file carries the callee's declared return type: `USER`, `EXTERNAL` or a built-in class. A built-in `convert<T>(x)`
+file carries the callee's declared return type: `USER`, `EXTERNAL` or a built-in class. A construction call, whose
+callee names a structure or an enum of the file, carries that type itself: `USER` with the structure or enum
+declaration, never the `construct` function that checked its arguments. A built-in `convert<T>(x)`
 (with no name `convert` bound in the unit) carries the type `T`, read in the scope of the caller. When the callee is
 generic and the call gives explicit type arguments, a return type that is one generic parameter (`Item`) is
 replaced by the type argument at the same place (`same<sinteger32>(5)` is `sinteger32`). When there are no type
@@ -334,8 +347,8 @@ type arguments is deferred to when the `ir` stage needs one for real.
 | 3007 | `CONFLICTING_ATTRIBUTES` | `#[pack = 1, align = 16]`, a key given twice (`visibility` twice included) |
 | 3008 | `INVALID_ALIGNMENT` | `#[align = 15]` |
 | 3009 | `UNKNOWN_TYPE` | `a: Missing;` in a structure |
-| 3010 | `ARGUMENT_COUNT_MISMATCH` | `add(1)` when `add` takes two parameters with no default; `f()` or `f(1, 2, 3)` when `f` has one required and one defaulted parameter |
-| 3011 | `TYPE_MISMATCH` | `convert<sinteger32>(text)` with a `string` name, `convert<Point>(other)` for two structures with another layout, `f("text")` when the parameter is `sinteger32`, `local x: boolean = 1;`, `local n: sinteger32 = a < b;`, `f(s)` with a `string` name `s`, `return a + 1;` in a function that returns `boolean`, `a + b` with an `sinteger32` and a `float64` |
+| 3010 | `ARGUMENT_COUNT_MISMATCH` | `add(1)` when `add` takes two parameters with no default; `f()` or `f(1, 2, 3)` when `f` has one required and one defaulted parameter; `Point(1.0, 2.0, 3.0)` when `construct` takes two; `Line(1.0)` when `Line` declares no `construct` |
+| 3011 | `TYPE_MISMATCH` | `convert<sinteger32>(text)` with a `string` name, `convert<Point>(other)` for two structures with another layout, `f("text")` when the parameter is `sinteger32`, `local x: boolean = 1;`, `local n: sinteger32 = a < b;`, `f(s)` with a `string` name `s`, `return a + 1;` in a function that returns `boolean`, `a + b` with an `sinteger32` and a `float64`, `Point("x", 2.0)` when `construct`'s first parameter is `float32` |
 | 3012 | `DUPLICATE_MEMBER` | two `implementation` blocks of one type that both declare `area` |
 | 3013 | `CONTRACT_NOT_SATISFIED` | `maximum(a, b)` when the type of `a` has no `less` for `where Item: Comparable` |
 | 3014 | `GENERIC_ARGUMENT_MISMATCH` | `Pair<sinteger32>` when `Pair` has two parameters, `Box<4>` |
