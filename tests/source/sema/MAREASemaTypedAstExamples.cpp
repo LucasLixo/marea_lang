@@ -322,7 +322,7 @@ TEST(MAREASemaTypedAstExamples, EveryExpressionOfEveryExampleHasATypeOrIsCounted
     EXPECT_EQ(FILES.size(), std::size_t{ 23 }) << "The sweep must cover the 23 examples.";
 
     // The ceiling is the count that the documented no-type cases leave (see "Gaps" of the sema doc); a regression raises it. The literals are typed by their own rule and every one of them has a type, so none is in this count.
-    EXPECT_LE(total.untypedOperations, std::size_t{ 114 }) << "Expressions other than literals with no resolved type must not grow past the documented cases.";
+    EXPECT_LE(total.untypedOperations, std::size_t{ 89 }) << "Expressions other than literals with no resolved type must not grow past the documented cases.";
 
     // The names that only qualify a member are not counted above, so a qualifier that stopped being one would raise the count above or fall here.
     EXPECT_GE(total.qualifiers, std::size_t{ 36 }) << "The examples hold at least 36 names that only qualify a member.";
