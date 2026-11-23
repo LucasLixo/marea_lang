@@ -163,8 +163,11 @@ tests run in source order and the first one that holds runs its block.
 - A `default` arm is the `ELSE_CLAUSE`, wherever it stands among the arms. A `switch` with a `default` and
   no `case` has no test: the lowered `default` block follows the hidden local. A `switch` with no arm keeps
   only the hidden local, so its scrutinee is still evaluated.
-- A `switch` with no `default` has no `ELSE_CLAUSE`, also when sema has proved that its cases cover every
-  variant of an enum. Nothing in the IR says that the missing branch cannot run (see Gaps).
+- A `switch` over an enum with no `default` ends with an `ELSE_CLAUSE` that holds a `BLOCK` with one
+  `UNREACHABLE_STATEMENT`, the node that `unreachable!()` lowers to. Sema reports `NON_EXHAUSTIVE_SWITCH` for
+  such a `switch` that misses a variant, so a unit that reached the IR covers them all. The IR does not count
+  the variants again. A `switch` over any other type with no `default` has no `ELSE_CLAUSE`, because it can
+  fall through when no case matches.
 - The scrutinee and each case value are lowered like any expression, so a case value that is an enum
   variant stays a `MEMBER_ACCESS`. The synthetic nodes take only a position from the source: the comparison
   is positioned at its case value, the `IF_STATEMENT` or `ELSEIF_CLAUSE` at its arm.
@@ -249,9 +252,12 @@ one alias table from the unit before it lowers a declaration:
 - A whole-path alias (`import a.b.c as d;`) stands for the last segment of its path (`c`).
 - A member alias (`import a.b { f as g, Color.red as Crimson };`) stands for the member path as written (`f`,
   `Color.red`). A two-part path is joined with a dot in the arena. A member without `as` is not an alias.
-- A plain local type alias (`type Name = Other;`, no generic parameters, no type arguments) stands for the written
-  type name. A chain of type aliases is followed up to 8 steps; an import alias ends a chain. A generic alias is
-  not in the table and keeps raising 4004.
+- A local type alias without generic parameters (`type Name = Other;`, `type Name = Other<integer32>;`) stands for
+  the written head type name; the type arguments are not kept, as on any written type. An alias of a function type
+  (`type Callback = function(v: integer32): boolean;`) lowers to no type name, as the written function type does.
+  A chain of type aliases is followed up to 8 steps; an import alias ends a chain. A generic alias is not in the
+  table and keeps raising 4004. A `TYPE_NAME` operand (a built-in or static call argument) named by an alias that
+  carries type arguments or names a function type raises 4004, because the lowered name would lose them.
 
 The rules:
 
@@ -264,7 +270,8 @@ The rules:
   static call, and the qualifier of the methods of an `implementation`. The head of a dotted type name that is a
   namespace alias is replaced (`lst.Item` becomes `list.Item`).
 - A parameter or a local of the function that is lowered, with the name of an alias, hides the alias in that
-  whole function (see Gaps).
+  function, from its own declaration onward: a reference before the declaration still lowers to the original
+  (see Gaps).
 - The built-in lookup (`size_of`, `align_of`, `convert`) counts the local names of a member list: an alias or a
   member with the built-in name binds it, the original of an alias does not.
 - `import` and `type` declarations still make no node, so a dump holds no alias text.
@@ -328,7 +335,8 @@ double quotes when present, then `type=NAME` when the node has a type name, then
 has an operator, then `flags=NUMBER` when the flags are not zero. In the text, `"` and `\` get a
 backslash and a byte below 0x20 or above 0x7E is written as `\xHH`. The result is NUL terminated;
 `outLength` does not count the NUL. It returns `ERROR_NULL_POINTER` for a null argument and
-`ERROR_OUT_OF_MEMORY` when the arena cannot grow.
+`ERROR_OUT_OF_MEMORY` when the arena cannot grow. The walk uses an explicit stack held in the arena, so
+call-stack use does not depend on the tree depth; a deep tree costs arena memory only.
 
 ```
 MODULE
@@ -377,7 +385,7 @@ now (see Type operands).
 
 | Code | Name | Example |
 |---|---|---|
-| 4004 | `UNINSTANTIATED_GENERIC` | a generic function, structure or `implementation`; a call with explicit type arguments that is not a built-in call (`identity<integer32>(5)`); a call whose result type is an unbound generic; a `GENERIC_NAME` that is not the receiver of a call, or whose head is a generic type of the unit; a function type as the type argument of a built-in or a static call. `size_of<T>()`, `align_of<T>()`, `convert<T>(x)` and `array<integer32>.filled(8, 0)` raise nothing. |
+| 4004 | `UNINSTANTIATED_GENERIC` | a generic function, structure or `implementation`; a call with explicit type arguments that is not a built-in call (`identity<integer32>(5)`); a call whose result type is an unbound generic; a `GENERIC_NAME` that is not the receiver of a call, or whose head is a generic type of the unit; a function type as the type argument of a built-in or a static call; a call whose callee is the bare name of a function of the unit that was left out of the module, also when the callee is declared after the caller (the call and its top-level declaration are dropped, and the callers of a dropped function raise in turn). `size_of<T>()`, `align_of<T>()`, `convert<T>(x)` and `array<integer32>.filled(8, 0)` raise nothing. |
 | 4005 | `UNSUPPORTED_MACRO` | `print!("hi");`, a module-level `static_assert!(true);`, a macro call inside an expression. `unreachable!();` as a statement is lowered and raises nothing. |
 
 The codes 4001, 4002 and 4003 are retired: `fork_join`, `switch` and `for each` are lowered. The numbers have no
@@ -408,19 +416,17 @@ Each diagnostic carries the position of the construct that raised it.
   one.
 - The two loop variables of a `FOR_EACH_STATEMENT` have no type name, like the for-range `$last`, because sema
   types no loop variable. A backend must infer them from the collection.
-- A `switch` with no `default` lowers to an if chain with no else, also when the cases cover every variant
-  of an enum. A function that ends with such a `switch` and returns in every arm has no `RETURN_STATEMENT`
-  after the chain, so a backend that checks that every path returns must treat the missing branch as
-  unreachable. The IR does not mark it.
-- Sema now rejects a second `default` arm, and a repeated `case` value, with `DUPLICATE_SWITCH_ARM` (3025,
-  issue #50, PR #51). A program that passes sema can no longer reach either shape. The IR's own lowering of
-  more than one `default` arm is unchanged: `MAREA_G_LowerSwitch` still keeps the last one and drops the
-  others with no diagnostic, so this stays a live defensive gap only for a caller that builds or lowers the
-  AST directly, bypassing sema.
+- `MAREA_G_LowerSwitch` still keeps only the last `default` arm and drops the others with no diagnostic. This
+  is defensive only. Sema rejects a second `default` arm, and a repeated `case` value, with
+  `DUPLICATE_SWITCH_ARM` (3025, issue #50, PR #51), and `MAREA_SemaBuildTypedAst`, the only input of the IR,
+  refuses a tree with a sema error (`ERROR_NOT_CHECKED`). No caller that goes through sema can reach either
+  shape (a test checks it). The IR adds no diagnostic for it.
 - The hidden `$switch` local has no type name, like the for-range `$last`: the IR does not copy one from the
   scrutinee. A backend must infer it from the scrutinee.
-- A call to a function that was left out of the module still lowers to a plain name that points at
-  nothing.
+- Only a call whose callee is a bare name is checked against the functions left out of the module. A dropped
+  function that is used as a value, not called, or reached through a qualified name, still lowers to a name that
+  points at nothing. A parameter or a local with the same name as a dropped function makes a call of it raise
+  too, because the IR holds no scope.
 - A `TYPE_NAME` is a written name, not a resolved type. The IR does not say whether `Light` in `size_of<Light>()` is
   a structure, a built-in or a generic parameter, and does not check that a built-in gets the number of type
   arguments it needs. A backend must look the name up and reject what it cannot handle.
@@ -444,14 +450,12 @@ Each diagnostic carries the position of the construct that raised it.
   type arguments.
 - There is no linking between modules: an imported name is lowered to its original name, but the IR does not look
   at the namespace that holds it.
-- A parameter or a local hides an import alias in its whole function, also in the lines before its declaration,
-  because the check looks at every declaration of the function and not at the order. An alias used before a local
-  of the same name in a nested block therefore stays unrewritten there. Sema does not reject such a shadow.
+- A local hides an import alias from its declaration to the end of the function, also after the end of the nested
+  block that holds it, because the check compares source offsets and does not track block scope. Sema does not
+  reject such a shadow.
 - Two members with the same original name in two namespaces keep the same lowered name; the IR does not add the
   namespace. A backend that needs it must read the import itself.
-- A type alias is lowered only when its right side is one plain named type. An alias to a function type, or to a
-  type with type arguments, stays as written.
-- The tree builder and the dump are recursive, and so is the lowering of a nested type argument. A very deep tree
-  needs a large stack; no test goes deeper than the example programs.
+- The tree builder and the lowering of a nested type argument are recursive. A very deep tree needs a large stack;
+  no test goes deeper than the example programs. The dump is not part of this gap: it walks an explicit stack.
 - `MAREA_IrLowerCompilationUnit` reports a root that is not a `COMPILATION_UNIT` with
   `MAREA_IR_EXCEPT_ERROR_NULL_POINTER`, because the except set has no other fitting value.

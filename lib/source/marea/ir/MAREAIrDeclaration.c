@@ -385,7 +385,8 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerImplementation(MAREA_IrContext *co
     // INFO: the methods are named after the original type, never after an alias of it.
     MAREA_IrExcept result = MAREA_IrAliasType(context, qualifier, qualifierLength, &qualifier, &qualifierLength);
 
-    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+    // INFO: an alias of a function type has no name to qualify the methods with.
+    if ((result != MAREA_IR_EXCEPT_SUCCESS) || (qualifier == MAREA_NULLPTR)) {
         return result;
     }
 

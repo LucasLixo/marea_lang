@@ -25,7 +25,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerIdentifier(MAREA_IrContext *contex
     const MAREA_Character8 *original = MAREA_NULLPTR;
     MAREA_IntegerSize length = MAREA_INTEGER_SIZE(0);
 
-    if (MAREA_IrAliasValue(context, MAREA_AstNodeGetText(ast), MAREA_AstNodeGetTextLength(ast), &original, &length) == MAREA_BOOLEAN_TRUE) {
+    if (MAREA_IrAliasValue(context, MAREA_AstNodeGetText(ast), MAREA_AstNodeGetTextLength(ast), MAREA_AstNodeGetPosition(ast).offset, &original, &length) == MAREA_BOOLEAN_TRUE) {
         result = MAREA_IrNodeSetQualifiedText(context, node, MAREA_NULLPTR, MAREA_INTEGER_SIZE(0), original, length);
 
         if (result != MAREA_IR_EXCEPT_SUCCESS) {

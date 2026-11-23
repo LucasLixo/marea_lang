@@ -7,6 +7,10 @@
 
 #include <string>
 
+#if defined(__linux__)
+    #include <sys/resource.h>
+#endif
+
 TEST(MAREAAstDump, NamespaceOnlyFile)
 {
     GTEST_COUT << "Validating the documented dump of a file with only a namespace." << std::endl;
@@ -119,4 +123,102 @@ TEST(MAREAAstDump, ChildrenAreReadInOrder)
     EXPECT_EQ(MAREA_AstNodeGetKind(child), MAREA_AST_KIND_CONTINUE_STATEMENT) << "Child 3 must be the fourth statement.";
 
     EXPECT_EQ(MAREA_AstNodeGetChildAt(block, MAREA_INTEGER_SIZE(100), &child), MAREA_AST_EXCEPT_ERROR_OUT_OF_RANGE) << "An index equal to the count must be rejected.";
+}
+
+namespace
+{
+
+    struct DumpShape
+    {
+        size_t lines{ 0 };
+        size_t deepestIndent{ 0 };
+    };
+
+    DumpShape MAREA_measureDump(const std::string &dump)
+    {
+        DumpShape shape;
+
+        size_t indent = 0;
+
+        bool atLineStart = true;
+
+        for (const char CHARACTER : dump) {
+            if (CHARACTER == '\n') {
+                ++shape.lines;
+
+                atLineStart = true;
+
+                indent = 0;
+            } else if (atLineStart && CHARACTER == ' ') {
+                ++indent;
+
+                if (indent > shape.deepestIndent) {
+                    shape.deepestIndent = indent;
+                }
+            } else {
+                atLineStart = false;
+            }
+        }
+
+        return shape;
+    }
+
+    std::string MAREA_chainSource(size_t length)
+    {
+        std::string source{ "namespace main; constant x: integer32 = a" };
+
+        for (size_t index = 0; index < length; ++index) {
+            source += " + a";
+        }
+
+        return source + ";";
+    }
+
+} // namespace
+
+TEST(MAREAAstDump, DeepBinaryChainUsesBoundedStack)
+{
+    GTEST_COUT << "Validating a long left-deep chain of binary operators dumps with a small call stack." << std::endl;
+
+    constexpr size_t CHAIN_LENGTH = 5000;
+
+    MAREA_ParseFixture baseline;
+
+    ASSERT_EQ(baseline.MAREA_parse(MAREA_chainSource(0)), MAREA_PARSE_EXCEPT_SUCCESS) << "Parsing a chain of zero operators must succeed.";
+
+    const DumpShape BASE_SHAPE{ MAREA_measureDump(baseline.MAREA_dump()) };
+
+    MAREA_ParseFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_parse(MAREA_chainSource(CHAIN_LENGTH)), MAREA_PARSE_EXCEPT_SUCCESS) << "Parsing a long chain must succeed.";
+
+#if defined(__linux__)
+    struct rlimit saved{};
+
+    ASSERT_EQ(getrlimit(RLIMIT_STACK, &saved), 0) << "Reading the stack limit must succeed.";
+
+    struct rlimit reduced = saved;
+
+    reduced.rlim_cur = ((saved.rlim_max == RLIM_INFINITY) || (saved.rlim_max > 262144)) ? 262144 : saved.rlim_max;
+
+    ASSERT_EQ(setrlimit(RLIMIT_STACK, &reduced), 0) << "Lowering the stack limit must succeed.";
+#endif
+
+    const std::string DUMP{ fixture.MAREA_dump() };
+
+#if defined(__linux__)
+    ASSERT_EQ(setrlimit(RLIMIT_STACK, &saved), 0) << "Restoring the stack limit must succeed.";
+#endif
+
+    const DumpShape SHAPE{ MAREA_measureDump(DUMP) };
+
+    EXPECT_EQ(SHAPE.lines, (BASE_SHAPE.lines + (CHAIN_LENGTH * 2))) << "Every operator and operand of the chain must be written once.";
+
+    MAREA_ParseFixture half;
+
+    ASSERT_EQ(half.MAREA_parse(MAREA_chainSource(CHAIN_LENGTH / 2)), MAREA_PARSE_EXCEPT_SUCCESS) << "Parsing a half-length chain must succeed.";
+
+    const DumpShape HALF_SHAPE{ MAREA_measureDump(half.MAREA_dump()) };
+
+    EXPECT_EQ((SHAPE.deepestIndent - HALF_SHAPE.deepestIndent), CHAIN_LENGTH) << "The deepest operand must be indented by one level per operator.";
 }
