@@ -332,6 +332,26 @@ MAREA_IrExcept MAREA_CALL MAREA_IrNodeSetResolvedTypeFromTyped(MAREA_IrContext *
     return MAREA_IR_EXCEPT_SUCCESS;
 }
 
+void MAREA_CALL MAREA_IrNodeShareResolvedType(MAREA_IrNode *node, const MAREA_IrNode *source)
+{
+    if ((node == MAREA_NULLPTR) || (source == MAREA_NULLPTR) || (source->resolvedType == MAREA_NULLPTR)) {
+        return;
+    }
+
+    node->resolvedType = source->resolvedType;
+    node->resolvedTypeLength = source->resolvedTypeLength;
+}
+
+void MAREA_CALL MAREA_IrNodeSetResolvedTypeStatic(MAREA_IrNode *node, const MAREA_Character8 *text)
+{
+    if ((node == MAREA_NULLPTR) || (text == MAREA_NULLPTR)) {
+        return;
+    }
+
+    node->resolvedType = text;
+    node->resolvedTypeLength = strlen(text);
+}
+
 MAREA_Boolean MAREA_CALL MAREA_IrAstQualifiedNameSpan(const MAREA_AstNode *name, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength)
 {
     if ((name == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(name) != MAREA_AST_KIND_QUALIFIED_NAME)) {

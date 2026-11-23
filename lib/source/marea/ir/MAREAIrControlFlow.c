@@ -23,11 +23,16 @@ static const MAREA_Character8 MAREA_G_ReturnName[] = "$return";
 static const MAREA_IntegerSize MAREA_G_WithNameIndex = MAREA_INTEGER_SIZE(1);
 static const MAREA_IntegerSize MAREA_G_PartitionNameIndex = MAREA_INTEGER_SIZE(2);
 
-// INFO: how a for-range loop goes to its next pass: the loop it comes from and the name it adds one to.
+// INFO: the type of every test the ir invents: a comparison and an or give a boolean.
+static const MAREA_Character8 MAREA_G_TestType[] = "boolean";
+
+// INFO: how a for-range loop goes to its next pass: the loop it comes from, the name it adds one to, and the two hidden or loop locals that give the types of what it reads.
 typedef struct MAREA_G_Step
 {
     const MAREA_AstNode *loopAst;
     const MAREA_AstNode *nameAst;
+    const MAREA_IrNode *variable;
+    const MAREA_IrNode *bound;
 } MAREA_G_Step;
 
 // INFO: a child that lowers to nothing makes the whole parent lower to nothing, so no partial tree is produced.
@@ -135,8 +140,8 @@ static void MAREA_CALL MAREA_G_KeepOnlyPosition(MAREA_IrNode *node)
     node->flags = MAREA_UINTEGER_32(0);
 }
 
-// INFO: builds an IDENTIFIER that reads a for-range variable; a null text keeps the text of the AST node.
-static MAREA_IrExcept MAREA_CALL MAREA_G_CreateReference(MAREA_IrContext *context, const MAREA_AstNode *ast, const MAREA_Character8 *text, MAREA_IrNode **outReference)
+// INFO: builds an IDENTIFIER that reads a local; a null text keeps the text of the AST node. The read has the resolved type of the local it reads.
+static MAREA_IrExcept MAREA_CALL MAREA_G_CreateReference(MAREA_IrContext *context, const MAREA_AstNode *ast, const MAREA_Character8 *text, const MAREA_IrNode *local, MAREA_IrNode **outReference)
 {
     MAREA_IrNode *reference = MAREA_NULLPTR;
 
@@ -145,6 +150,8 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_CreateReference(MAREA_IrContext *contex
     if (result != MAREA_IR_EXCEPT_SUCCESS) {
         return result;
     }
+
+    MAREA_IrNodeShareResolvedType(reference, local);
 
     if (text != MAREA_NULLPTR) {
         // INFO: a hidden name stands for no source token, so it must not inherit the flags of the loop it comes from.
@@ -183,11 +190,11 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_AppendLeave(MAREA_IrContext *context, M
     }
 
     if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_G_CreateReference(context, step->nameAst, MAREA_NULLPTR, &nameReference);
+        result = MAREA_G_CreateReference(context, step->nameAst, MAREA_NULLPTR, step->variable, &nameReference);
     }
 
     if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_G_CreateReference(context, step->loopAst, MAREA_G_BoundName, &boundReference);
+        result = MAREA_G_CreateReference(context, step->loopAst, MAREA_G_BoundName, step->bound, &boundReference);
     }
 
     if (result != MAREA_IR_EXCEPT_SUCCESS) {
@@ -195,6 +202,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_AppendLeave(MAREA_IrContext *context, M
     }
 
     equality->operatorKind = MAREA_TOKEN_KIND_EQUAL_EQUAL;
+    MAREA_IrNodeSetResolvedTypeStatic(equality, MAREA_G_TestType);
 
     MAREA_IrNode *parents[] = { equality, equality, leave, guard, guard, node };
     MAREA_IrNode *children[] = { nameReference, boundReference, breakNode, equality, leave, guard };
@@ -220,7 +228,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_AppendIncrement(MAREA_IrContext *contex
     MAREA_IrExcept result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_ASSIGNMENT, step->loopAst, &increment);
 
     if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_G_CreateReference(context, step->nameAst, MAREA_NULLPTR, &incrementReference);
+        result = MAREA_G_CreateReference(context, step->nameAst, MAREA_NULLPTR, step->variable, &incrementReference);
     }
 
     if (result == MAREA_IR_EXCEPT_SUCCESS) {
@@ -237,6 +245,9 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_AppendIncrement(MAREA_IrContext *contex
     increment->operatorKind = MAREA_TOKEN_KIND_PLUS_EQUAL;
     one->text = MAREA_G_IncrementText;
     one->textLength = (MAREA_Uinteger32)strlen(MAREA_G_IncrementText);
+
+    // INFO: the step adds one to the loop variable, so the literal has the type of that variable.
+    MAREA_IrNodeShareResolvedType(one, step->variable);
 
     MAREA_IrNode *parents[] = { increment, increment, node };
     MAREA_IrNode *children[] = { incrementReference, one, increment };
@@ -353,7 +364,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerForRange(MAREA_IrContext *context,
         return MAREA_IR_EXCEPT_SUCCESS;
     }
 
-    const MAREA_G_Step STEP = { .loopAst = forAst, .nameAst = nameAst };
+    MAREA_G_Step step = { .loopAst = forAst, .nameAst = nameAst, .variable = MAREA_NULLPTR, .bound = MAREA_NULLPTR };
 
     MAREA_IrNode *outer = MAREA_NULLPTR;
     MAREA_IrNode *local = MAREA_NULLPTR;
@@ -381,9 +392,29 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerForRange(MAREA_IrContext *context,
         result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_BINARY_EXPRESSION, forAst, &condition);
     }
 
-    if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_G_PrefixContinues(context, body, &STEP);
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
     }
+
+    // INFO: the loop variable has the type sema gave its name, or else the type of the first value; the hidden bound has the type of the last value.
+    MAREA_Boolean variableTyped = MAREA_BOOLEAN_FALSE;
+
+    result = MAREA_IrNodeSetResolvedTypeFromTyped(context, local, nameTyped, &variableTyped);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    if (variableTyped == MAREA_BOOLEAN_FALSE) {
+        MAREA_IrNodeShareResolvedType(local, first);
+    }
+
+    MAREA_IrNodeShareResolvedType(bound, last);
+
+    step.variable = local;
+    step.bound = bound;
+
+    result = MAREA_G_PrefixContinues(context, body, &step);
 
     if (result != MAREA_IR_EXCEPT_SUCCESS) {
         return result;
@@ -397,6 +428,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerForRange(MAREA_IrContext *context,
 
     // INFO: a range includes both ends (docs/grammar/marea.ebnf), so the bound is <=, not <.
     condition->operatorKind = MAREA_TOKEN_KIND_LESS_EQUAL;
+    MAREA_IrNodeSetResolvedTypeStatic(condition, MAREA_G_TestType);
     result = MAREA_IrNodeAppendChild(context, local, first);
 
     if (result == MAREA_IR_EXCEPT_SUCCESS) {
@@ -404,11 +436,11 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerForRange(MAREA_IrContext *context,
     }
 
     if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_G_CreateReference(context, nameAst, MAREA_NULLPTR, &reference);
+        result = MAREA_G_CreateReference(context, nameAst, MAREA_NULLPTR, local, &reference);
     }
 
     if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_G_CreateReference(context, forAst, MAREA_G_BoundName, &boundReference);
+        result = MAREA_G_CreateReference(context, forAst, MAREA_G_BoundName, bound, &boundReference);
     }
 
     if (result == MAREA_IR_EXCEPT_SUCCESS) {
@@ -420,7 +452,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerForRange(MAREA_IrContext *context,
     }
 
     if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_G_AppendStep(context, body, &STEP);
+        result = MAREA_G_AppendStep(context, body, &step);
     }
 
     if (result == MAREA_IR_EXCEPT_SUCCESS) {
@@ -451,7 +483,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerForRange(MAREA_IrContext *context,
 }
 
 // INFO: builds the test of one case value: $switch == value, positioned at the value.
-static MAREA_IrExcept MAREA_CALL MAREA_G_CreateComparison(MAREA_IrContext *context, const MAREA_AstNode *switchAst, const MAREA_SemaTypedNode *valueTyped, MAREA_IrNode **outComparison)
+static MAREA_IrExcept MAREA_CALL MAREA_G_CreateComparison(MAREA_IrContext *context, const MAREA_AstNode *switchAst, const MAREA_IrNode *switchLocal, const MAREA_SemaTypedNode *valueTyped, MAREA_IrNode **outComparison)
 {
     const MAREA_AstNode *valueAst = MAREA_SemaTypedNodeGetAstNode(valueTyped);
 
@@ -470,12 +502,13 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_CreateComparison(MAREA_IrContext *conte
     result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_BINARY_EXPRESSION, valueAst, &comparison);
 
     if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_G_CreateReference(context, switchAst, MAREA_G_SwitchName, &reference);
+        result = MAREA_G_CreateReference(context, switchAst, MAREA_G_SwitchName, switchLocal, &reference);
     }
 
     if (result == MAREA_IR_EXCEPT_SUCCESS) {
         MAREA_G_KeepOnlyPosition(comparison);
         comparison->operatorKind = MAREA_TOKEN_KIND_EQUAL_EQUAL;
+        MAREA_IrNodeSetResolvedTypeStatic(comparison, MAREA_G_TestType);
         result = MAREA_IrNodeAppendChild(context, comparison, reference);
     }
 
@@ -491,7 +524,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_CreateComparison(MAREA_IrContext *conte
 }
 
 // INFO: joins the tests of every value of a case with or, grouped to the left. All children of the arm but the last are values.
-static MAREA_IrExcept MAREA_CALL MAREA_G_CreateCondition(MAREA_IrContext *context, const MAREA_SemaTypedNode *armTyped, const MAREA_AstNode *switchAst, MAREA_IrNode **outCondition)
+static MAREA_IrExcept MAREA_CALL MAREA_G_CreateCondition(MAREA_IrContext *context, const MAREA_SemaTypedNode *armTyped, const MAREA_AstNode *switchAst, const MAREA_IrNode *switchLocal, MAREA_IrNode **outCondition)
 {
     const MAREA_IntegerSize COUNT = MAREA_SemaTypedNodeGetChildCount(armTyped);
 
@@ -505,7 +538,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_CreateCondition(MAREA_IrContext *contex
 
         MAREA_IrNode *comparison = MAREA_NULLPTR;
 
-        MAREA_IrExcept result = MAREA_G_CreateComparison(context, switchAst, valueTyped, &comparison);
+        MAREA_IrExcept result = MAREA_G_CreateComparison(context, switchAst, switchLocal, valueTyped, &comparison);
 
         if ((result != MAREA_IR_EXCEPT_SUCCESS) || (comparison == MAREA_NULLPTR)) {
             return result;
@@ -524,6 +557,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_CreateCondition(MAREA_IrContext *contex
         if (result == MAREA_IR_EXCEPT_SUCCESS) {
             MAREA_G_KeepOnlyPosition(joined);
             joined->operatorKind = MAREA_TOKEN_KIND_KEYWORD_OR;
+            MAREA_IrNodeSetResolvedTypeStatic(joined, MAREA_G_TestType);
             result = MAREA_IrNodeAppendChild(context, joined, condition);
         }
 
@@ -558,7 +592,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerArmBody(MAREA_IrContext *context, 
 }
 
 // INFO: one case becomes an IF_STATEMENT, or an ELSEIF_CLAUSE of the chain that already started; condition then body.
-static MAREA_IrExcept MAREA_CALL MAREA_G_AppendCase(MAREA_IrContext *context, const MAREA_SemaTypedNode *armTyped, const MAREA_AstNode *switchAst, MAREA_IrNode **chain, MAREA_Boolean *outComplete)
+static MAREA_IrExcept MAREA_CALL MAREA_G_AppendCase(MAREA_IrContext *context, const MAREA_SemaTypedNode *armTyped, const MAREA_AstNode *switchAst, const MAREA_IrNode *switchLocal, MAREA_IrNode **chain, MAREA_Boolean *outComplete)
 {
     MAREA_IrNode *condition = MAREA_NULLPTR;
     MAREA_IrNode *body = MAREA_NULLPTR;
@@ -566,7 +600,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_AppendCase(MAREA_IrContext *context, co
 
     *outComplete = MAREA_BOOLEAN_FALSE;
 
-    MAREA_IrExcept result = MAREA_G_CreateCondition(context, armTyped, switchAst, &condition);
+    MAREA_IrExcept result = MAREA_G_CreateCondition(context, armTyped, switchAst, switchLocal, &condition);
 
     if ((result != MAREA_IR_EXCEPT_SUCCESS) || (condition == MAREA_NULLPTR)) {
         return result;
@@ -687,6 +721,9 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_CreateSwitchScope(MAREA_IrContext *cont
     local->text = MAREA_G_SwitchName;
     local->textLength = (MAREA_Uinteger32)strlen(MAREA_G_SwitchName);
 
+    // INFO: the hidden local holds the scrutinee, so it has the type of the scrutinee.
+    MAREA_IrNodeShareResolvedType(local, scrutinee);
+
     result = MAREA_IrNodeAppendChild(context, local, scrutinee);
 
     if (result == MAREA_IR_EXCEPT_SUCCESS) {
@@ -736,7 +773,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerSwitch(MAREA_IrContext *context, c
             result = MAREA_G_LowerArmBody(context, armTyped, &defaultBody);
             complete = (defaultBody != MAREA_NULLPTR) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
         } else {
-            result = MAREA_G_AppendCase(context, armTyped, switchAst, &chain, &complete);
+            result = MAREA_G_AppendCase(context, armTyped, switchAst, outer->children[0], &chain, &complete);
         }
 
         if ((result == MAREA_IR_EXCEPT_SUCCESS) && (complete == MAREA_BOOLEAN_FALSE)) {
@@ -1027,9 +1064,12 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_HoistReturnValue(MAREA_IrContext *conte
     declaration->text = MAREA_G_ReturnName;
     declaration->textLength = (MAREA_Uinteger32)strlen(MAREA_G_ReturnName);
 
+    // INFO: the hidden local holds the returned value, so it has the type of that value.
+    MAREA_IrNodeShareResolvedType(declaration, value);
+
     MAREA_IrNode *reference = MAREA_NULLPTR;
 
-    result = MAREA_G_CreateReference(context, positionAst, MAREA_G_ReturnName, &reference);
+    result = MAREA_G_CreateReference(context, positionAst, MAREA_G_ReturnName, declaration, &reference);
 
     if (result != MAREA_IR_EXCEPT_SUCCESS) {
         return result;
