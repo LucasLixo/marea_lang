@@ -404,6 +404,8 @@ static MAREA_SemaTypedAstExcept MAREA_CALL MAREA_G_TypedAstBuildNode(MAREA_SemaC
         return MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_OUT_OF_MEMORY;
     }
 
+    MAREA_SemaTypedAstResolveLiteralDefault(built);
+
     built->ownershipMode = MAREA_SemaTypedAstClassifyOwnership(context, built);
 
     MAREA_SemaTypedAstExcept result = MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
@@ -434,6 +436,10 @@ static MAREA_SemaTypedAstExcept MAREA_CALL MAREA_G_TypedAstBuildNode(MAREA_SemaC
 
             built->children[index] = typedChild;
         }
+    }
+
+    if (result == MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) {
+        MAREA_SemaTypedAstResolveLiteralContext(context, built);
     }
 
     MAREA_SemaScopeLeave(context, mark);
