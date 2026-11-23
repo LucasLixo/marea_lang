@@ -1,0 +1,15 @@
+-- expect: 3014 @13
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A generic type with no argument where one is needed.
+
+namespace main;
+
+structure Box<Item>
+    item: Item;
+end
+
+function take(box: Box)
+    return;
+end

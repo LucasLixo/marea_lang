@@ -1,0 +1,20 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A switch whose arms assign and do not return.
+
+namespace main;
+
+function run(value: sinteger32): sinteger32
+    local result: sinteger32 = 0;
+    switch value
+        case 1 then
+            result = 10;
+        end
+        default then
+            result = 20;
+        end
+    end
+    return result;
+end

@@ -1,0 +1,21 @@
+-- expect: 3025 @14
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A switch with one integer value in two arms.
+
+namespace main;
+
+function name(value: sinteger32): sinteger32
+    switch value
+        case 1 then
+            return 1;
+        end
+        case 1 then
+            return 2;
+        end
+        default then
+            return 0;
+        end
+    end
+end

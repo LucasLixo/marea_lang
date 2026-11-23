@@ -255,6 +255,315 @@ A `known_gap` item that shares an issue shows one hole of the compiler through m
 | L-BINDINGS-084 | A constant assigned inside a function | gap: #189 NEW, rule: reject |
 | L-BINDINGS-094 | A raw pointer local outside an unsafe block | gap: #190 NEW, rule: reject |
 
+## Functions and calls
+
+Function declaration and call, parameters and defaults, the result and `return value;` on every path, recursion, function types as values, the passing mode of a parameter, and the diagnostics 3010, 3011, 3017 to 3019, 3022, 3030 and 3032 as these show them. The items sit in `tests/language/<class>/functions/`.
+
+### Functions and calls: accept
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-FUNCTIONS-001 | a function with two parameters and a result | ok |
+| L-FUNCTIONS-002 | a function with no result that leaves early with a bare return | ok |
+| L-FUNCTIONS-003 | direct recursion | ok |
+| L-FUNCTIONS-004 | a function type alias used for a parameter, and a function passed as a value | ok |
+| L-FUNCTIONS-005 | a function type with no result held by a local | ok |
+| L-FUNCTIONS-006 | a default parameter value, a call with and a call without the argument | ok |
+| L-FUNCTIONS-007 | a function that returns a structure literal | ok |
+| L-FUNCTIONS-008 | return value on every path of an if, elseif and else chain | ok |
+| L-FUNCTIONS-009 | return value on every arm of a switch that has a default | ok |
+| L-FUNCTIONS-010 | return value inside a scope block | ok |
+| L-FUNCTIONS-011 | unreachable ends the path of a function with a result | ok |
+| L-FUNCTIONS-012 | nested calls, a call as a statement and an explicit conversion | ok |
+| L-FUNCTIONS-013 | a function that reads a field of a structure parameter | ok |
+| L-FUNCTIONS-014 | an explicit write borrow parameter that changes its argument | ok |
+| L-FUNCTIONS-015 | an explicit read-only borrow parameter that only reads | ok |
+| L-FUNCTIONS-016 | a function that returns a function type value | ok |
+| L-FUNCTIONS-017 | an assignment of a local that a call result initializes | ok |
+| L-FUNCTIONS-018 | a unary function with the result of a boolean operator | ok |
+| L-FUNCTIONS-019 | a function with a constant default and a file constant | ok |
+
+### Functions and calls: reject
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-FUNCTIONS-020 | a function with a result and an empty body | 3022 @9 |
+| L-FUNCTIONS-021 | an if with no else as the whole body of a function with a result | 3022 @9 |
+| L-FUNCTIONS-022 | an if and elseif chain with no else | 3022 @9 |
+| L-FUNCTIONS-023 | a while loop is never an ending path | 3022 @9 |
+| L-FUNCTIONS-024 | a switch with no default over an integer, the last path has no return | 3022 @9 |
+| L-FUNCTIONS-025 | one branch of an if returns and the other falls through | 3022 @9 |
+| L-FUNCTIONS-026 | a call with too few arguments | 3010 @14 |
+| L-FUNCTIONS-027 | a call with too many arguments | 3010 @14 |
+| L-FUNCTIONS-028 | a call with no argument for a function that needs two | 3010 @14 |
+| L-FUNCTIONS-029 | a call with too many arguments when one parameter has a default | 3010 @14 |
+| L-FUNCTIONS-030 | a call with no argument when only the second parameter has a default | 3010 @14 |
+| L-FUNCTIONS-031 | a text argument for an integer parameter | 3011 @14 |
+| L-FUNCTIONS-032 | an integer argument of another width | 3011 @15 |
+| L-FUNCTIONS-033 | a float argument for an integer parameter | 3011 @15 |
+| L-FUNCTIONS-034 | a return value of another type | 3011 @10 |
+| L-FUNCTIONS-035 | a text return value for an integer result | 3011 @10 |
+| L-FUNCTIONS-036 | a local initialized with a value of another type | 3011 @10 |
+| L-FUNCTIONS-037 | a call of a function that no scope declares | 3004 @10 |
+| L-FUNCTIONS-038 | a name that no scope declares, used as an argument | 3004 @14 |
+| L-FUNCTIONS-039 | a default value that names an undeclared constant | 3004 @9 |
+| L-FUNCTIONS-040 | a default value of another type | 3011 @9 |
+| L-FUNCTIONS-041 | two functions with one name | 3003 @13 |
+| L-FUNCTIONS-042 | a function and a structure with one name | 3003 @13 |
+| L-FUNCTIONS-043 | a parameter with a default before a parameter without one | 3030 @9 |
+| L-FUNCTIONS-044 | two parameters with a default before a required one | 3030 @9, 3030 @9 |
+| L-FUNCTIONS-045 | a parameter of a type that does not exist | 3009 @9 |
+| L-FUNCTIONS-046 | a result type that does not exist | 3009 @9 |
+| L-FUNCTIONS-047 | a local of a type that does not exist | 3009 @10 |
+| L-FUNCTIONS-048 | a value_read_only parameter of a structure | 3017 @14 |
+| L-FUNCTIONS-049 | a borrow parameter returned | 3018 @15 |
+| L-FUNCTIONS-050 | a read-only borrow parameter returned | 3018 @15 |
+| L-FUNCTIONS-051 | one structure passed to two write borrow parameters | 3019 @20 |
+| L-FUNCTIONS-052 | a file constant passed to a write borrow parameter | 3032 @21 |
+| L-FUNCTIONS-053 | a structure assigned from a name with no copy or move | 3016 @17 |
+| L-FUNCTIONS-054 | a local initialized from another structure name with no copy or move | 3016 @16 |
+| L-FUNCTIONS-055 | an arithmetic operator on an integer and a float | 3011 @12 |
+| L-FUNCTIONS-056 | a text local given to a parameter of an integer type | 3011 @15 |
+| L-FUNCTIONS-058 | a call of a name that no scope declares, as if it were a function value | 3004 @10 |
+| L-FUNCTIONS-059 | a default value that calls a function that no scope declares | 3004 @9 |
+| L-FUNCTIONS-065 | a return with no value in a function that has a result | 3022 @9 |
+| L-FUNCTIONS-072 | a non-boolean value as the result of a boolean function | 3011 @10 |
+
+### Functions and calls: known_gap
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-FUNCTIONS-057 | a function type local given a text value | gap: 3011, rule: reject, issue #213 |
+| L-FUNCTIONS-060 | a write through a default read-only structure parameter (settled rule 2) | gap: NEW, rule: reject, issue #214 |
+| L-FUNCTIONS-061 | a write through a default structure parameter inside a method (settled rule 2) | gap: NEW, rule: reject, issue #214 |
+| L-FUNCTIONS-062 | a default read-only parameter passed on to a write borrow parameter (settled rule 2) | gap: NEW, rule: reject, issue #214 |
+| L-FUNCTIONS-063 | a function type argument whose signature does not match the parameter type | gap: 3011, rule: reject, issue #213 |
+| L-FUNCTIONS-064 | a call of a function type value with too many arguments | gap: 3010, rule: reject, issue #213 |
+| L-FUNCTIONS-066 | a return with a value in a function that has no result | gap: 3011, rule: reject, issue #215 |
+| L-FUNCTIONS-067 | the result of a function with no result used as a value | gap: 3011, rule: reject, issue #215 |
+| L-FUNCTIONS-068 | a function used before its declaration (the grammar says a name is declared before use) | gap: 3004, rule: reject, issue #216 |
+| L-FUNCTIONS-069 | two parameters with one name | gap: 3003, rule: reject, issue #218 |
+| L-FUNCTIONS-070 | a parameter that shares its name with a local of the body | gap: 3003, rule: reject, issue #218 |
+| L-FUNCTIONS-071 | a call of a value that is not a function | gap: 3011, rule: reject, issue #215 |
+| L-FUNCTIONS-073 | a condition of an integer type in an if | gap: 3011, rule: reject, issue #219 |
+
+Known gaps of this area share their issues: #213, #214, #215, #216, #218, #219, #220, #221, #222, #223, #224, #225. An issue lists the items that show it in the area; an item flips to `reject` the day its rule is implemented.
+
+## Types and control flow
+
+`structure`, `enum` with tag and data, `type` aliases, contracts and `implementation` blocks, generics, `if`, `while`, `for`, `switch`, `break` and `continue`, the lifecycle operators, and the parse codes 2001 to 2010. The items sit in `tests/language/<class>/types/`. A parse item can show the sema codes that follow it, because sema runs on the tree that the parser recovers; the `reject` row lists every code in the order given.
+
+### Types and control flow: accept
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-TYPES-001 | a structure and a field read | ok |
+| L-TYPES-002 | a struct literal with every field | ok |
+| L-TYPES-003 | a nested struct literal and a nested field read | ok |
+| L-TYPES-004 | a field assignment of a local structure | ok |
+| L-TYPES-005 | a structure that holds an enum field | ok |
+| L-TYPES-006 | a type alias of a primitive and of a structure | ok |
+| L-TYPES-007 | a structure with a layout attribute | ok |
+| L-TYPES-008 | an opaque structure of a foreign library | ok |
+| L-TYPES-009 | a structure with no field | ok |
+| L-TYPES-010 | a structure that holds another structure by value, declared before it | ok |
+| L-TYPES-011 | a generic structure with two type parameters | ok |
+| L-TYPES-012 | a constant of a structure type | ok |
+| L-TYPES-032 | an enum, a variant value and a comparison | ok |
+| L-TYPES-033 | an enum with a tag type | ok |
+| L-TYPES-034 | an enum with a tag type of each integer width | ok |
+| L-TYPES-035 | an enum with data in a variant | ok |
+| L-TYPES-036 | a switch over an enum that names every variant | ok |
+| L-TYPES-037 | a switch over an enum with a default and a missing variant | ok |
+| L-TYPES-038 | one case that lists many variants | ok |
+| L-TYPES-039 | a function in an implementation block of an enum | ok |
+| L-TYPES-040 | a constant of an implementation block of an enum | ok |
+| L-TYPES-041 | an enum local that two variants assign | ok |
+| L-TYPES-042 | an enum passed by value and compared with not equal | ok |
+| L-TYPES-062 | a switch over an integer with a default and many values | ok |
+| L-TYPES-064 | a switch over a character | ok |
+| L-TYPES-065 | a switch with only a default arm | ok |
+| L-TYPES-066 | a switch whose arms assign and do not return | ok |
+| L-TYPES-067 | a switch inside a loop that uses break in an arm | ok |
+| L-TYPES-075 | a contract, an implementation that meets it and a generic call that needs it | ok |
+| L-TYPES-076 | two implementation blocks of one type with different functions | ok |
+| L-TYPES-077 | a static function of an implementation, called through the type | ok |
+| L-TYPES-078 | a method call through a local | ok |
+| L-TYPES-079 | a contract with two functions | ok |
+| L-TYPES-080 | a contract function with no result | ok |
+| L-TYPES-081 | an operator function in an implementation | ok |
+| L-TYPES-082 | a construct function with defaults on every parameter | ok |
+| L-TYPES-083 | a destroy function with no parameter and no result | ok |
+| L-TYPES-104 | a generic function called with the type inferred | ok |
+| L-TYPES-105 | a generic function called with the type written | ok |
+| L-TYPES-106 | a generic function with two type parameters | ok |
+| L-TYPES-107 | a generic structure with a value parameter | ok |
+| L-TYPES-108 | a generic implementation of a generic structure | ok |
+| L-TYPES-109 | a generic function with two contracts on one parameter | ok |
+| L-TYPES-110 | a generic function with a where clause for two parameters | ok |
+| L-TYPES-111 | a generic function that stores and returns its argument with no contract | ok |
+| L-TYPES-112 | a generic type used as a parameter type | ok |
+| L-TYPES-113 | a type alias of a generic type | ok |
+| L-TYPES-126 | an if, elseif and else chain that assigns | ok |
+| L-TYPES-127 | a while loop with a counter | ok |
+| L-TYPES-128 | a for loop over a range that includes both ends | ok |
+| L-TYPES-129 | a for each loop over an array with break and continue | ok |
+| L-TYPES-130 | a break and a continue in a while loop | ok |
+| L-TYPES-131 | a break in the inner of two nested loops | ok |
+| L-TYPES-132 | a for loop with an empty body | ok |
+| L-TYPES-133 | a while loop with a boolean name as condition | ok |
+| L-TYPES-134 | an if with a comparison of two logical operands | ok |
+| L-TYPES-135 | a scope block that ends its locals | ok |
+| L-TYPES-136 | the loop variable of a for range used in the body | ok |
+| L-TYPES-202 | a word that looks like a keyword but is not one | ok |
+| L-TYPES-203 | a name that starts with a primitive type name | ok |
+
+### Types and control flow: reject
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-TYPES-013 | a field of a type that does not exist | 3009 @10 |
+| L-TYPES-014 | a structure declared twice | 3003 @13 |
+| L-TYPES-015 | a structure and a constant with one name | 3003 @13 |
+| L-TYPES-016 | a type alias that clashes with a structure | 3003 @14 |
+| L-TYPES-017 | a generic structure used with too few type arguments | 3014 @14 |
+| L-TYPES-018 | a generic structure used with too many type arguments | 3014 @13 |
+| L-TYPES-019 | a local of an undeclared structure | 3009 @10, 3009 @10 |
+| L-TYPES-020 | a field read assigned to a local of another type | 3011 @15 |
+| L-TYPES-022 | a nested field of a type that does not exist, after a valid field | 3009 @16 |
+| L-TYPES-043 | an enum tag of a float type | 3031 @9 |
+| L-TYPES-044 | an enum tag of the string type | 3031 @9 |
+| L-TYPES-045 | an enum tag of the boolean type | 3031 @9 |
+| L-TYPES-046 | an enum tag that is a structure | 3031 @14 |
+| L-TYPES-047 | an enum tag that is an alias of an integer | 3031 @11 |
+| L-TYPES-048 | an enum tag that is not a type | 3031 @9, 3009 @9 |
+| L-TYPES-049 | an enum declared twice | 3003 @15 |
+| L-TYPES-050 | a switch over an enum that misses a variant | 3021 @16 |
+| L-TYPES-051 | a switch over an enum with no arm | 3021 @16 |
+| L-TYPES-052 | a switch that lists a variant twice in two arms | 3025 @20 |
+| L-TYPES-053 | a switch with two default arms | 2010 @14, 3025 @14 |
+| L-TYPES-054 | a switch with a value twice in one case list | 3025 @11 |
+| L-TYPES-055 | a switch with one integer value in two arms | 3025 @14 |
+| L-TYPES-056 | a switch where a hex and a decimal literal are one value | 3025 @14 |
+| L-TYPES-057 | a switch where a constant and its literal are one value | 3025 @16 |
+| L-TYPES-058 | a switch with a repeated value and a missing variant gives both codes | 3025 @20, 3021 @16 |
+| L-TYPES-060 | a switch value of a name that no scope declares | 3004 @10 |
+| L-TYPES-061 | a switch arm that returns the wrong type | 3011 @12 |
+| L-TYPES-084 | two implementation blocks that declare one function | 3012 @21 |
+| L-TYPES-085 | one implementation block that declares one function twice | 3012 @19 |
+| L-TYPES-086 | a generic call with a type that does not meet the contract | 3013 @24, 3013 @24 |
+| L-TYPES-087 | a type that has the contract function with another signature | 3013 @30, 3013 @30 |
+| L-TYPES-088 | a where clause that names a contract that does not exist | 3004 @9 |
+| L-TYPES-089 | a where clause that names a name that is not a generic parameter | 3004 @13 |
+| L-TYPES-090 | a contract declared twice | 3003 @13 |
+| L-TYPES-091 | a construct function that is called directly | 3027 @22 |
+| L-TYPES-092 | a destroy function that is called directly | 3027 @22 |
+| L-TYPES-093 | a construct function at the top level | 3028 @10 |
+| L-TYPES-094 | a destroy function with a parameter | 3029 @16 |
+| L-TYPES-095 | a construct function with a result | 3029 @16 |
+| L-TYPES-096 | a construct function with a parameter that has no default | 3029 @16 |
+| L-TYPES-097 | a type call with too many arguments for a type that has no construct | 3010 @15 |
+| L-TYPES-098 | an implementation of a type that does not exist | 3009 @9, 3009 @10 |
+| L-TYPES-103 | an implementation constant used outside its block | 3004 @19 |
+| L-TYPES-114 | a generic argument count that does not match | 3014 @13 |
+| L-TYPES-115 | a generic type with no argument where one is needed | 3014 @13 |
+| L-TYPES-116 | a number given for a type parameter | 3014 @13 |
+| L-TYPES-117 | a type nested 65 levels deep | 3015 @13 |
+| L-TYPES-118 | a generic function with a bound that the argument type does not meet | 3013 @24, 3013 @24 |
+| L-TYPES-120 | a generic call with a wrong argument count | 3010 @14 |
+| L-TYPES-138 | a break outside a loop | 3026 @10 |
+| L-TYPES-139 | a continue outside a loop | 3026 @10 |
+| L-TYPES-140 | a break in an if that is not in a loop | 3026 @11 |
+| L-TYPES-141 | a break in a switch arm that is not in a loop | 3026 @12 |
+| L-TYPES-142 | a break after the loop ended | 3026 @13 |
+| L-TYPES-143 | a continue in the else branch of a function with no loop | 3026 @14 |
+| L-TYPES-144 | a loop variable used after its loop | 3004 @13 |
+| L-TYPES-145 | a name used after its scope block ended | 3004 @13 |
+| L-TYPES-146 | a for range with a bound that no scope declares | 3004 @10 |
+| L-TYPES-148 | a for each over a name that no scope declares | 3004 @10 |
+| L-TYPES-149 | a while condition that names an undeclared name | 3004 @10 |
+| L-TYPES-150 | an if condition that names an undeclared name | 3004 @10 |
+| L-TYPES-151 | an elseif condition that names an undeclared name | 3004 @13 |
+| L-TYPES-156 | a local with no semicolon | 2001 @11 |
+| L-TYPES-157 | an if with no then | 2001 @11 |
+| L-TYPES-158 | a while with no do | 2001 @11 |
+| L-TYPES-159 | a call with no closing parenthesis | 2001 @14 |
+| L-TYPES-160 | a function with no parameter list | 2001 @9 |
+| L-TYPES-161 | a local with no colon before its type | 2001 @10 |
+| L-TYPES-162 | a structure field with no semicolon | 2001 @11 |
+| L-TYPES-163 | a return with no semicolon | 2001 @11 |
+| L-TYPES-164 | a local initialized with nothing | 2002 @10 |
+| L-TYPES-165 | a binary operator with no right side | 2002 @10 |
+| L-TYPES-166 | a call with a trailing comma | 2002 @14 |
+| L-TYPES-167 | a local with no type | 2003 @10 |
+| L-TYPES-168 | a parameter with no type | 2003 @9 |
+| L-TYPES-169 | a function with a result mark and no type | 2003 @10 |
+| L-TYPES-170 | a stray number at the top level | 2004 @9 |
+| L-TYPES-171 | a stray word at the top level | 2004 @9, 2004 @9 |
+| L-TYPES-172 | a statement keyword used as a top level item | 2004 @9, 2004 @9 |
+| L-TYPES-173 | an extra end after a function | 2005 @12 |
+| L-TYPES-174 | an else with no end before it, the old shared end form | 2005 @12, 2009 @16 |
+| L-TYPES-175 | a case arm outside a switch | 2005 @10, 2001 @10, 2005 @13 |
+| L-TYPES-176 | a function type parameter with a default value | 2005 @9 |
+| L-TYPES-177 | a chained comparison | 2006 @10, 3011 @10 |
+| L-TYPES-178 | a chained equality | 2006 @10, 3011 @10 |
+| L-TYPES-179 | a mixed chained comparison | 2006 @10, 3011 @10 |
+| L-TYPES-180 | a file with no namespace | 2007 @7 |
+| L-TYPES-181 | a file that starts with a constant before the namespace | 2007 @7, 2004 @8 |
+| L-TYPES-182 | an unclosed function | 2009 @11 |
+| L-TYPES-183 | an unclosed if | 2009 @13 |
+| L-TYPES-184 | an unclosed structure | 2009 @11 |
+| L-TYPES-185 | an unclosed switch | 2009 @14 |
+| L-TYPES-186 | an unclosed while | 2009 @12 |
+| L-TYPES-187 | a default arm that is not last | 2010 @14 |
+| L-TYPES-188 | an expression nested 255 parentheses deep | 2008 @10, 2001 @10 |
+| L-TYPES-189 | a block nested 257 levels deep | 2008 @266, 2005 @525 |
+| L-TYPES-190 | two independent errors give two diagnostics and no cascade | 2002 @10, 2001 @16 |
+| L-TYPES-191 | a missing semicolon gives one diagnostic and the next statement still parses | 2001 @11 |
+| L-TYPES-192 | a statement keyword used as a local name | 2001 @10, 2002 @10, 2009 @12 |
+| L-TYPES-193 | a declaration keyword used as a function name | 2001 @9, 2001 @9, 2001 @10, 2001 @10 |
+| L-TYPES-194 | a block keyword used as a parameter name | 2001 @9, 2004 @9, 2004 @10, 2004 @10, 2005 @11 |
+| L-TYPES-195 | a logical keyword used as a local name | 2001 @10, 2002 @10 |
+| L-TYPES-196 | a boolean literal used as a local name | 2001 @10, 2001 @10 |
+| L-TYPES-197 | an ownership keyword used as a variable name | 2001 @10, 2002 @10 |
+| L-TYPES-198 | a loop keyword used as a structure name | 2001 @9 |
+| L-TYPES-199 | a type declaration keyword used as an enum name | 2001 @9 |
+| L-TYPES-200 | a keyword used as a field name | 2001 @10, 2001 @10 |
+| L-TYPES-201 | a keyword used as an enum variant name | 2001 @10, 2001 @10 |
+
+### Types and control flow: known_gap
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-TYPES-021 | a struct literal field of another type than the field | gap: 3011, rule: reject, issue #220 |
+| L-TYPES-023 | a struct literal with a missing field | gap: NEW, rule: reject, issue #220 |
+| L-TYPES-024 | a struct literal with a field that the structure does not have | gap: NEW, rule: reject, issue #220 |
+| L-TYPES-025 | a struct literal that gives one field twice | gap: NEW, rule: reject, issue #220 |
+| L-TYPES-026 | a field read of a field that the structure does not have | gap: NEW, rule: reject, issue #220 |
+| L-TYPES-027 | a field assignment of a field that the structure does not have | gap: NEW, rule: reject, issue #220 |
+| L-TYPES-028 | a structure with two fields of one name | gap: 3012, rule: reject, issue #218 |
+| L-TYPES-029 | a structure that holds itself by value | gap: NEW, rule: reject, issue #221 |
+| L-TYPES-030 | two structures that hold each other by value | gap: NEW, rule: reject, issue #221 |
+| L-TYPES-031 | a structure with a generic parameter that is declared twice | gap: 3003, rule: reject, issue #218 |
+| L-TYPES-070 | a switch arm whose value has another type than the switch value | gap: 3011, rule: reject, issue #222 |
+| L-TYPES-071 | a case value of a variant of another enum | gap: 3011, rule: reject, issue #222 |
+| L-TYPES-072 | a zero-member enum | gap: NEW, rule: reject, issue #223 |
+| L-TYPES-073 | an enum with one variant declared twice | gap: 3012, rule: reject, issue #218 |
+| L-TYPES-074 | a variant of an enum that does not exist | gap: 3004, rule: reject, issue #223 |
+| L-TYPES-099 | a contract that lists one function twice | gap: 3012, rule: reject, issue #218 |
+| L-TYPES-100 | a method call of a function that the type does not have | gap: NEW, rule: reject, issue #224 |
+| L-TYPES-101 | a static call of a function that the type does not have | gap: NEW, rule: reject, issue #224 |
+| L-TYPES-102 | an operator function whose signature does not match the operator | gap: NEW, rule: reject, issue #224 |
+| L-TYPES-119 | a generic parameter named as another declaration | gap: 3003, rule: reject, issue #218 |
+| L-TYPES-121 | an unsatisfied bound inside the body of a generic function, an operation the bound does not give | gap: NEW, rule: reject, issue #225 |
+| L-TYPES-122 | two generic parameters with one name in a function | gap: 3003, rule: reject, issue #218 |
+| L-TYPES-123 | two overlapping implementation blocks of a generic and a concrete type | gap: 3012, rule: reject, issue #225 |
+| L-TYPES-124 | a cyclic type alias | gap: NEW, rule: reject, issue #221 |
+| L-TYPES-125 | a type alias of itself | gap: NEW, rule: reject, issue #221 |
+| L-TYPES-147 | a for range with a bound of another type | gap: 3011, rule: reject, issue #222 |
+| L-TYPES-152 | a while condition of an integer type | gap: 3011, rule: reject, issue #219 |
+| L-TYPES-153 | an if condition of a text type | gap: 3011, rule: reject, issue #219 |
+
 ## Diagnostics
 
 The catalogue raises no diagnostic of its own. A `reject` item carries a code of another stage:
@@ -274,3 +583,9 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 - The runner compares the codes of a `reject` item in the order the compiler gives them, so an item over two stages
   depends on the order of the stages (lex, then parse, then sema).
 - Only the seed items exist. The area items are added by later changes.
+- A known_gap item must be accepted today, so a valid program that the compiler rejects by mistake has no item. Known:
+  a `switch` over a `boolean` with `case true` and `case false` and no `default` gives 3022 (issue #226).
+- The functions and types areas do not cover the parallel code 3024 and the import and attribute codes 3001, 3002,
+  3005 to 3008 and 3020; those belong to other areas.
+- The parse recovery is shown as it is: after a parse error the later stages still run, so some parse items list sema
+  codes after the parse code, and a keyword used as a name gives a short chain of parse codes.

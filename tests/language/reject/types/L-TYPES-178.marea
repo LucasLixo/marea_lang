@@ -1,0 +1,11 @@
+-- expect: 2006 @10, 3011 @10
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A chained equality.
+
+namespace main;
+
+function run(a: sinteger32, b: sinteger32, c: sinteger32): boolean
+    return a == b == c;
+end

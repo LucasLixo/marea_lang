@@ -1,0 +1,15 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A generic function with two type parameters.
+
+namespace main;
+
+function pick<First, Second>(left: First, right: Second): First where First: Copyable
+    return copy left;
+end
+
+function run(): sinteger32
+    return pick<sinteger32, float64>(1, 2.0);
+end

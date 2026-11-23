@@ -1,0 +1,13 @@
+-- expect: 3004 @10
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A for each over a name that no scope declares.
+
+namespace main;
+
+function run()
+    for each value in missing do
+        return;
+    end
+end

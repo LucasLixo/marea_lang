@@ -1,0 +1,15 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A generic function called with the type written.
+
+namespace main;
+
+function first<Item>(left: Item, right: Item): Item where Item: Copyable
+    return copy left;
+end
+
+function run(): sinteger32
+    return first<sinteger32>(1, 2);
+end

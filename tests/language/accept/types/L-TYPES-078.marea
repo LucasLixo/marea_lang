@@ -1,0 +1,23 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A method call through a local.
+
+namespace main;
+
+structure Point
+    x: float64;
+    y: float64;
+end
+
+implementation Point
+    function sum(self: Point): float64
+        return self.x + self.y;
+    end
+end
+
+function run(): float64
+    local point: Point = Point{ x = 1.0, y = 2.0 };
+    return point.sum();
+end

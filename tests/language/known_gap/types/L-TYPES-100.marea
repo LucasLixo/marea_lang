@@ -1,0 +1,17 @@
+-- gap: #224 NEW
+-- rule: reject
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A method call of a function that the type does not have.
+
+namespace main;
+
+structure Point
+    x: float64;
+    y: float64;
+end
+
+function run(point: Point): float64
+    return point.length();
+end

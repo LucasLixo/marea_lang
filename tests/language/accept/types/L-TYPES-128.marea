@@ -1,0 +1,15 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A for loop over a range that includes both ends.
+
+namespace main;
+
+function sum_range(first: sinteger32, last: sinteger32): sinteger32
+    local total: sinteger32 = 0;
+    for index in first .. last do
+        total += index;
+    end
+    return total;
+end

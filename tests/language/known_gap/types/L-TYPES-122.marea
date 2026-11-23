@@ -1,0 +1,12 @@
+-- gap: #218 3003
+-- rule: reject
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Two generic parameters with one name in a function.
+
+namespace main;
+
+function pick<Item, Item>(left: Item)
+    return;
+end

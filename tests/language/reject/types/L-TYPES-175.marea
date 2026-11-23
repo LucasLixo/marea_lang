@@ -1,0 +1,13 @@
+-- expect: 2005 @10, 2001 @10, 2005 @13
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A case arm outside a switch.
+
+namespace main;
+
+function run()
+    case 1 then
+        return;
+    end
+end

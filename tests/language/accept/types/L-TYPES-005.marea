@@ -1,0 +1,22 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A structure that holds an enum field.
+
+namespace main;
+
+enum Color
+    Red;
+    Green;
+    Blue;
+end
+
+structure Pixel
+    color: Color;
+    alpha: uinteger8;
+end
+
+function red(): Pixel
+    return Pixel{ color = Color.Red, alpha = 255 };
+end

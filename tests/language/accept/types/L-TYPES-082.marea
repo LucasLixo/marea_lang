@@ -1,0 +1,19 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A construct function with defaults on every parameter.
+
+namespace main;
+
+structure Point
+    x: float64;
+    y: float64;
+end
+
+implementation Point
+    #[operator = "construct"]
+    function make(x: float64 = 0.0, y: float64 = 0.0)
+        return;
+    end
+end

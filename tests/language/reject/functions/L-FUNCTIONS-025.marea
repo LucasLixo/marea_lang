@@ -1,0 +1,17 @@
+-- expect: 3022 @9
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- One branch of an if returns and the other falls through.
+
+namespace main;
+
+function pick(flag: boolean): sinteger32
+    if flag then
+        return 1;
+    end
+    else
+        local unused: sinteger32 = 2;
+    end
+    end
+end

@@ -1,0 +1,11 @@
+-- expect: 2003 @9
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A parameter with no type.
+
+namespace main;
+
+function run(value: )
+    return;
+end

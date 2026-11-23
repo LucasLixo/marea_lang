@@ -1,0 +1,15 @@
+-- expect: 3026 @12
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A break in a switch arm that is not in a loop.
+
+namespace main;
+
+function run(value: sinteger32)
+    switch value
+        default then
+            break;
+        end
+    end
+end

@@ -1,0 +1,15 @@
+-- expect: 3003 @13
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Two functions with one name.
+
+namespace main;
+
+function value(): sinteger32
+    return 1;
+end
+
+function value(): sinteger32
+    return 2;
+end
