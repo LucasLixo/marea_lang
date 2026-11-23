@@ -188,8 +188,11 @@ operators on its left: `-a ** 2` is `-(a ** 2)`, and the right side may be unary
   with the next import or item. A token that cannot start a member ends the list and the top level
   recovery skips to the next `;`.
 - A block stops at `end`, at the end of the file, or at the start of a top level declaration, so an
-  unfinished body never hides the next function. `elseif`, `else`, `case` and `default` end the
-  block only inside an `if` or a `switch`; elsewhere they are reported and skipped.
+  unfinished body never hides the next function. Every branch of an `if` (the `if` branch, each
+  `elseif` and the `else`) and of a `switch` (each `case` and the `default`) has its own `end`, and one
+  more `end` closes the whole statement. The branch `end` is not a node of the tree. An `elseif`,
+  `else`, `case` or `default` inside a block, which is the old shared-end form, is reported as
+  `UNEXPECTED_TOKEN` and skipped.
 - Nesting is limited to 256 levels of expression, statement and type. Deeper input gives
   `RECURSION_TOO_DEEP` and that construct is left unparsed.
 
@@ -203,12 +206,12 @@ All are errors, from 2001 up. A diagnostic is not repeated at the same byte offs
 | 2002 | `EXPECTED_EXPRESSION` | `constant x: integer32 = 1 +;` |
 | 2003 | `EXPECTED_TYPE` | `constant x: = 1;` |
 | 2004 | `EXPECTED_DECLARATION` | `namespace main; 42;`, an import after a declaration |
-| 2005 | `UNEXPECTED_TOKEN` | a stray `end`, or `case` outside a `switch` |
+| 2005 | `UNEXPECTED_TOKEN` | a stray `end`, `case` outside a `switch`, or an `else` with no `end` before it |
 | 2006 | `CHAINED_COMPARISON` | `a < b < c` (the tree is still built) |
 | 2007 | `MISSING_NAMESPACE` | a file that does not start with `namespace` |
 | 2008 | `RECURSION_TOO_DEEP` | 300 nested parentheses, `if` blocks or type arguments |
 | 2009 | `UNTERMINATED_BLOCK` | a structure, function or other block that reaches the end of the file |
-| 2010 | `DEFAULT_ARM_NOT_LAST` | `switch a default then x = 1; case 2 then y = 2; end` (the tree is still built) |
+| 2010 | `DEFAULT_ARM_NOT_LAST` | `switch a default then x = 1; end case 2 then y = 2; end end` (the tree is still built) |
 
 ## Gaps
 
