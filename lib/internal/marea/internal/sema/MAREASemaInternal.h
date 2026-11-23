@@ -459,6 +459,25 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckOwnership(MAREA_SemaContext * context, const MAREA_AstNode *node);
 
     /**
+     * @brief Checks one function that carries the operator construct or destroy: it stands in a concrete
+     * implementation of a structure or an enum, and it has the fixed shape (destroy has no parameter and
+     * no result, construct has no result and every parameter defaulted). Any other node is ignored.
+     * @param context Context of the run. Must not be null.
+     * @param node Node about to be visited. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckLifecycle(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
+     * @brief Rejects a direct call of a function that carries the operator construct or destroy, by name or
+     * by the static form Type.name(...). Any other call is ignored.
+     * @param context Context of the run. Must not be null.
+     * @param call CALL_EXPRESSION node. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckLifecycleCall(MAREA_SemaContext * context, const MAREA_AstNode *call);
+
+    /**
      * @brief Checks that a call does not pass one name twice when one of the parameters is a write borrow.
      * @param context Context of the run. Must not be null.
      * @param call CALL_EXPRESSION node. Must not be null.
