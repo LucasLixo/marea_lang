@@ -416,6 +416,28 @@ gives the binary expression `sinteger64` and not the default `sinteger32` of its
 type of the literals below an operation, the binary, unary and parenthesized expressions below that context are typed
 again.
 
+**Qualifier names.** An `IDENTIFIER` that is the left side of a member access and only qualifies the member is not a
+value. `MAREA_SemaTypedNodeIsQualifier` is true for it, and it has no resolved type, so it is not an expression that
+misses a type. No local, parameter or generic parameter may have its name, and it is one of these: the name of a
+structure, an enum or an opaque type of the file (`Planet` in `Planet.Earth`, `Vector2` in `Vector2.origin()`); a
+namespace import or its alias, whatever the resolver answered (`stdio`, `lib`); an imported enum, or a type that a
+`FOUND` namespace declares and the file imports by name; a name with no declaration at all, which sema takes for a
+namespace (`stdio.puts` with no `import`). A function or a constant imported by name is a value, not a qualifier. Only
+an `IDENTIFIER` is flagged: a dotted type name such as `c.array` is not an expression. The member after a qualifier is
+typed by the rules above (an enum variant, a constant or a static function of the file) or by the rule below.
+
+**Members of a FOUND namespace.** When the name on the left of a member access stands for a namespace that the
+resolver answers `FOUND` (an import with or without an alias), the member is typed from the tree that the resolver gave.
+Only a `#[visibility = public]` function (its function type, so a call gives the declared result) and a public
+constant (its declared type) are typed. A bare name that an import bound to one such symbol (`import a.b.c as d;`,
+`import a.b { c };`) is typed the same way. A type written in that other file is read in that file, never in this one.
+A structure, an enum, an opaque type or an alias that the file declares is spelled with the last segment of its
+namespace (`shapes.Box`, as a file writes `structures.Shape`), a local alias is followed to its target, and any other
+name (a built-in) is kept as written. For a generic function the type arguments written on the call fill the
+parameters, and a call with none has no type. A field or a method that is read on such a result has no type, because
+the name would be looked up in this file. A type, an enum variant and a symbol that is not public have no type here,
+and neither has a member of an `EXTERNAL` namespace.
+
 **Resolved type of a literal.** An `INTEGER_LITERAL`, `FLOAT_LITERAL`, `STRING_LITERAL`, `CHARACTER_LITERAL` and
 `BOOLEAN_LITERAL` has a resolved type too, and the accessor never gives `ERROR_NO_TYPE` for one. A string, a
 character and a boolean literal are always `string`, `character` and `boolean`. A number literal takes the primitive
@@ -518,19 +540,22 @@ or rejects.
 - The type of a library type is not tracked, so a missing `copy` or `move` there is not reported.
 - `MAREA_SemaTypedNodeGetResolvedType` covers the six declaring nodes, the literals and the expressions of "Resolved
   type of an expression". A `Self` type and a generic parameter are spelled by
-  their written name, not by the type they stand for in one instantiation, and a name of another namespace is spelled
-  by what is written and the import alias rule, with no qualifier added.
-- An expression with no resolved type (checked on the 23 examples, 902 expression nodes, 174 of them with no type).
-  The cases that stay without a type: the name of a `for`, `for each`, `partition` or `with` statement, because sema
-  keeps no type for it, and every expression made from it; a call that returns nothing (`grow(second, 2.0)`, `spawn`
-  of such a call); a call, a member or a name that comes from an import or from a namespace (`stdio.puts(text)`,
-  `vulkan.present(swapchain, texture)`, `square_root(x)`), also when sema has the tree of the namespace, because the
-  typed tree never looks in another file; a method or an element of a library type (`table<K, V>`, `c.array`,
-  `task`, `slice.length`) and an intrinsic of `array<T, N>`; a method on a value whose type is a generic parameter
-  (`left.less(right)`); a call whose type arguments are only inferred; the static functions of a generic name
+  their written name, not by the type they stand for in one instantiation. A name of an `EXTERNAL` namespace is
+  spelled by what is written and the import alias rule, with no qualifier added; a type that a `FOUND` namespace
+  declares is spelled with the last segment of that namespace instead (see "Members of a FOUND namespace").
+- An expression with no resolved type (checked on the 23 examples, 866 expression nodes, 36 of them qualifier names
+  that are not values and are counted on their own, 114 of the rest with no type). The cases that stay without a
+  type: the name of a `for`, `for each`, `partition` or `with` statement, because sema keeps no type for it, and
+  every expression made from it; a call that returns nothing (`grow(second, 2.0)`, `spawn` of such a call); a call,
+  a member or a name that comes from an `EXTERNAL` namespace (`stdio.puts(text)`, `vulkan.present(swapchain,
+  texture)`), or from a `FOUND` namespace but is not a public function or constant, or whose generic type arguments
+  are only inferred; a method or a field read on a result typed from a `FOUND` namespace, because such a lookup
+  stays in the file being built (see "Members of a FOUND namespace"); a method or an element of a library type
+  (`table<K, V>`, `c.array`, `task`, `slice.length`) and an intrinsic of `array<T, N>`; a method on a value whose
+  type is a generic parameter (`left.less(right)`); the static functions of a generic name
   (`array<float32, 16>.filled(0.0)`); the built-in `convert`, `size_of` and `align_of` as names, and the result type
-  of `size_of<T>()` and `align_of<T>()`, which no rule gives; every `MACRO_CALL` and `GENERIC_NAME`; the name of a
-  type or a namespace used as a value. The `ir` stage decides what to do with each of these.
+  of `size_of<T>()` and `align_of<T>()`, which no rule gives; every `MACRO_CALL` and `GENERIC_NAME`. The `ir` stage
+  decides what to do with each of these.
 - A binary operation has the type of its operands even when an operator function of the structure declares another
   result type: the result of `#[operator = "+"]` is not read. A field of a variant is read from the first variant that
   declares the name.
