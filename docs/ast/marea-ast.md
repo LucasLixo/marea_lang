@@ -83,7 +83,7 @@ field or member that owns it.
 | `IMPLEMENTATION_DECLARATION` | `ATTRIBUTE*`, [`GENERIC_PARAMETERS`], `NAMED_TYPE`, (`FUNCTION_DECLARATION` or `CONSTANT_DECLARATION`)* |
 | `FUNCTION_DECLARATION` | `ATTRIBUTE*`, `IDENTIFIER`, [`GENERIC_PARAMETERS`], `PARAMETER_LIST`, [type], [`WHERE_CLAUSE`], `BLOCK` |
 | `PARAMETER_LIST` | `PARAMETER*` (always present) |
-| `PARAMETER` (flag MUTABLE or REFERENCE) | `IDENTIFIER`, type, [default expression] |
+| `PARAMETER` | `IDENTIFIER`, type, [default expression], `ATTRIBUTE*` |
 | `GENERIC_PARAMETERS` | `GENERIC_PARAMETER`+ |
 | `GENERIC_PARAMETER` (flag CONSTANT) | `IDENTIFIER`, and a type when the flag is set |
 | `WHERE_CLAUSE` | `CONSTRAINT`+ |
@@ -125,7 +125,11 @@ field or member that owns it.
 | `MACRO_CALL` | `IDENTIFIER` (text is the macro name), `ARGUMENT_LIST` |
 | `ERROR_NODE` | none, placed at the bad token |
 
-The flag values are MUTABLE 1, REFERENCE 2, CONSTANT 4, HAS_ALIAS 8, FILE 16 and HAS_MEMBERS 32.
+The flag values are MUTABLE 1, CONSTANT 4, HAS_ALIAS 8, FILE 16 and HAS_MEMBERS 32. Bit 2
+(REFERENCE) is retired: the parser never sets it any more. A `PARAMETER`'s own `#[semantics = ...]`
+attribute, adopted last so the name, type and default keep their fixed positions (unlike every
+other declaration, whose attributes lead), is the one source sema reads for its passing mode -
+see [the sema stage doc](../sema/marea-sema.md) ("Ownership").
 The word after the namespace path of an import decides its form: `as` or `;` is the whole path
 form, `{` is the member list. For example, `import a.b { f as g, T };` dumps as:
 
@@ -159,8 +163,10 @@ operators on its left: `-a ** 2` is `-(a ** 2)`, and the right side may be unary
 - **Type arguments in an expression.** A `<` after a name starts type arguments only when a balanced
   `>` closes it and the token after that is `(` (a call) or `{` (a literal value), or `.` when the
   name is a primary (`array<float32>.filled(0.0)` is a `GENERIC_NAME`). Between the brackets only
-  type tokens are allowed: names, `.`, `,`, integers, `function`, `mutable`, `reference`, `:` and
-  balanced parentheses. A `>>` closes two levels. The scan is limited to 1024 tokens and allocates
+  type tokens are allowed: names, `.`, `,`, integers, `function`, `:` and balanced parentheses - a
+  parameter's own attribute (if any) is outside this scan's vocabulary, the same gap as before this
+  scan ever tolerated the retired `mutable`/`reference` parameter keywords. A `>>` closes two levels.
+  The scan is limited to 1024 tokens and allocates
   nothing. Otherwise the `<` is a comparison. `a < b > (c)` is therefore a generic call.
 - **Type arguments in a type.** A `<` always starts type arguments. A `>>` token is split in two
   closing brackets (`array<array<float32>>`).

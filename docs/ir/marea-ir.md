@@ -56,6 +56,11 @@ joined as `Type.name` and copied into the arena.
 Flags reuse the AST flag bits. `MAREA_AST_FLAG_MUTABLE` is kept on a `PARAMETER`, on a `PARTITION_STATEMENT`,
 on a `FOR_EACH_STATEMENT` and on the hidden loop variable of a for-range loop. A
 node made by the named-node path (declarations, fields, parameters, locals) drops every flag but `MUTABLE`.
+A `PARAMETER` no longer carries `MUTABLE` on its own raw AST node (the retired `mutable`/`reference`
+parameter keywords used to set it there); it is set on the `PARAMETER` IR node instead from the
+ownership mode sema already computed for it (`MAREA_SemaTypedNodeGetOwnershipMode`), which is
+`MUTABLE_BORROW` exactly when the parameter's effective `semantics` attribute is
+`reference_mutable` - the default for a non-primitive type with no attribute written.
 
 The type name is the head name of the written type, with no type arguments (`array<sinteger32>` gives
 `array`; a dotted name is kept whole). A `FUNCTION_TYPE` gives none. It is set on: `CONSTANT_DECLARATION`,
