@@ -183,6 +183,15 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedAstResolveDeclaredType(MAREA_SemaContext * context, MAREA_SemaTypedNode * built);
 
     /**
+     * @brief Finds the position of a name among the generic parameters of a declaration.
+     * @param parameters GENERIC_PARAMETERS node. May be null, which means no parameter.
+     * @param name Text of the name, not NUL terminated.
+     * @param nameLength Length of name in bytes.
+     * @return The position of the parameter, or the count of parameters when the name is none of them.
+     */
+    MAREA_NODISCARD MAREA_IntegerSize MAREA_CALL MAREA_SemaGenericParameterIndex(const MAREA_AstNode *parameters, const MAREA_Character8 *name, MAREA_IntegerSize nameLength);
+
+    /**
      * @brief Writes the canonical text of the type of an expression, in the arena of the context, in the scope
      * that is open now. The spelling is the one of MAREA_SemaTypedAstResolveDeclaredType; a name that a frame fills
      * is replaced by its argument, and Self by the type the frame gives.

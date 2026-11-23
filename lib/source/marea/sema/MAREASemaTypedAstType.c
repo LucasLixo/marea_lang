@@ -142,8 +142,7 @@ static void MAREA_CALL MAREA_G_TypeTextRenderNominal(const MAREA_SemaContext *co
     MAREA_G_TypeTextRenderArgumentList(context, arguments, frame, depth, text);
 }
 
-// INFO: the position of a name among the generic parameters of a declaration, or the count when it is none of them.
-static MAREA_IntegerSize MAREA_CALL MAREA_G_TypeTextParameterIndex(const MAREA_AstNode *parameters, const MAREA_Character8 *name, MAREA_IntegerSize nameLength)
+MAREA_IntegerSize MAREA_CALL MAREA_SemaGenericParameterIndex(const MAREA_AstNode *parameters, const MAREA_Character8 *name, MAREA_IntegerSize nameLength)
 {
     const MAREA_IntegerSize COUNT = (parameters == MAREA_NULLPTR) ? MAREA_INTEGER_SIZE(0) : MAREA_AstNodeGetChildCount(parameters);
 
@@ -164,7 +163,7 @@ static MAREA_IntegerSize MAREA_CALL MAREA_G_TypeTextParameterIndex(const MAREA_A
 static MAREA_Boolean MAREA_CALL MAREA_G_TypeTextRenderFrameName(const MAREA_SemaContext *context, const MAREA_Character8 *name, MAREA_IntegerSize nameLength, const MAREA_SemaTypeFrame *frame, MAREA_IntegerSize depth, MAREA_G_TypeText *text)
 {
     for (const MAREA_SemaTypeFrame *current = frame; current != MAREA_NULLPTR; current = current->next) {
-        const MAREA_IntegerSize INDEX = MAREA_G_TypeTextParameterIndex(current->parameters, name, nameLength);
+        const MAREA_IntegerSize INDEX = MAREA_SemaGenericParameterIndex(current->parameters, name, nameLength);
 
         const MAREA_Boolean IS_SELF = ((current->selfDeclaration != MAREA_NULLPTR) && (MAREA_SemaTextEquals(name, nameLength, "Self", MAREA_INTEGER_SIZE(4)) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 
