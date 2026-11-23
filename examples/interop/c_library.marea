@@ -9,7 +9,7 @@ namespace interop.c_library;
 import c.math.pow as power;
 import c.stdio;
 
-#[public]
+#[visibility = public]
 function show_c(): float64
     print!("{}", power(2.0, 10.0));
     return power(2.0, 0.5);

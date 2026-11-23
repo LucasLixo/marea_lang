@@ -19,14 +19,14 @@
 namespace basics.ownership;
 
 -- A small type that is copied. Passing it is passing two numbers.
-#[public, value]
+#[visibility = public, value]
 structure Point
     x: float64;
     y: float64;
 end
 
 -- A normal type. It is borrowed, copied on purpose, or moved.
-#[public]
+#[visibility = public]
 structure Shape
     center: Point;
     width: float64;
@@ -64,7 +64,7 @@ function consume(shape: owned<Shape>): float64
     return area(shape);
 end
 
-#[public]
+#[visibility = public]
 function show_ownership(): float64
     local first: Shape = make_shape(2.0, 3.0);
     local second: Shape = copy first;       -- two owners, two shapes

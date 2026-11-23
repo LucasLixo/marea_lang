@@ -42,7 +42,7 @@ void resolve(void *userData, const char *text, size_t length,
 | `FOUND` | The namespace has a tree. `*outRoot` is its `COMPILATION_UNIT`. |
 | `EXTERNAL` | The namespace exists but sema has no tree for it (every `c.*` namespace, and the libraries that are not written yet). |
 
-`import a.b.c;` asks for `a.b.c`. On `NOT_FOUND` sema asks for `a.b` and looks for a `#[public]`
+`import a.b.c;` asks for `a.b.c`. On `NOT_FOUND` sema asks for `a.b` and looks for a `#[visibility = public]`
 top-level symbol `c` there. Both answers `NOT_FOUND` is `UNRESOLVED_IMPORT`. A name from an
 `EXTERNAL` namespace is opaque: it meets every contract, takes any arguments and gives no diagnostic.
 The local name of an import is its alias, or its last segment. A type name that no local rule knows
@@ -52,12 +52,12 @@ is given to the resolver as a last step.
 binds one local name per member: its alias, or the last segment of its path. A member path has one
 or two segments; a longer path is `UNRESOLVED_IMPORT`. For a `NOT_FOUND` namespace every member is
 unresolved. For `EXTERNAL` every member of one or two segments is accepted. For `FOUND` the first
-segment must be a `#[public]` top-level symbol of the tree, and a two-segment member needs that symbol
+segment must be a `#[visibility = public]` top-level symbol of the tree, and a two-segment member needs that symbol
 to be an `enum` with that variant. An unresolved member still binds its local name, so one error
 does not start a chain of `UNDECLARED_NAME`. A member alias that is a parse error (`f as }`) is
 skipped without a diagnostic.
 
-An import of a `#[public]` `enum` from a `FOUND` namespace (a one-segment member, or a whole path whose
+An import of a `#[visibility = public]` `enum` from a `FOUND` namespace (a one-segment member, or a whole path whose
 parent is `FOUND`) also keeps that enum declaration with its local name, alias included. The type
 class of that name is then `USER`, so a `switch` over it raises `NON_EXHAUSTIVE_SWITCH` like a
 same-file enum. Any other import, and every `EXTERNAL` one, keeps no declaration and stays `EXTERNAL`.
@@ -78,12 +78,15 @@ refused is not bound. A plain declaration or a plain `import c.x;` is not affect
 
 ## Rules
 
-**Attributes.** A fixed key table: `public` and `private` (not both), `inline` (`force`, `never`,
-`auto`), `build` (`debug`, `release`), `simd` (boolean), `layout` (`c`, `auto`), `align` (a power of
-two, not with `pack`), `pack` (an integer), `value` and `move_only` (booleans), `destroy` (a name),
-`operator` (a name or a string), `export` (a flag or a name). The deeper meaning of `destroy`,
-`operator` and `export` is not checked. A key with no value is true. File attributes `#![...]` use
-the same table; the attribute of the symbol wins over the file attribute.
+**Attributes.** A fixed key table: `visibility` (`public`, `private`), `inline` (`force`, `never`,
+`auto`), `build` (`debug`, `release`), `layout` (`c`, `marea`), `align` (a power of two, not with
+`pack`), `pack` (an integer), `value` and `move_only` (booleans), `operator` (a name or a string),
+`export` (a string, the label at the C border). A key of an enum needs one of its members, and `export`
+needs a string, so a bare key of those is `INVALID_ATTRIBUTE_VALUE`. A key not in the table, such as the
+retired `public`, `private`, `simd` and `destroy`, is `UNKNOWN_ATTRIBUTE_KEY`. The deeper meaning of
+`operator` and `export` is not checked. A flag key with no value is true. File attributes `#![...]` use
+the same table; the attribute of the symbol wins over the file attribute, so `#![visibility = public]`
+with `#[visibility = private]` on one symbol is not a conflict.
 
 **Types.** The built-in names are `boolean`, `integer8` to `integer64`, `unsigned8` to `unsigned64`,
 `float32`, `float64`, `string`, `vector`, `pointer`, `owned`, `slice` and `task`. A type name is also
@@ -214,12 +217,12 @@ Sema computes the alignment and the size by the rules of C: each field at the ne
 (the size of a primitive, the alignment of a nested structure), `pack = N` caps that alignment, a field
 `align = N` raises the alignment of the field, `align = N` on the structure raises the alignment of the structure,
 and the size is rounded up to the alignment. The layout may come from a file attribute. A structure held by value
-is measured too, up to 8 levels deep, and only inside a `c` structure when it is `c` itself. Two `auto` structures
+is measured too, up to 8 levels deep, and only inside a `c` structure when it is `c` itself. Two `marea` structures
 (the default layout) with the same fields, `pack` and `align` have the same layout, because the backend gives the
 same input the same layout. A pair that sema cannot measure is a `TYPE_MISMATCH` (3011): a generic structure, a
 field that is not a fixed-width primitive or a structure of the file (`string`, `pointer`, `vector`, an enum, a
-library type), a `pack` or `align` value that is not an integer from 1 to 4294967296, an `auto` structure inside a
-`c` structure, a `c` structure against an `auto` one, a chain of structures deeper than 8 levels (or one that holds
+library type), a `pack` or `align` value that is not an integer from 1 to 4294967296, a `marea` structure inside a
+`c` structure, a `c` structure against a `marea` one, a chain of structures deeper than 8 levels (or one that holds
 itself). A structure converted to itself needs no measure and is accepted.
 
 **Constants of an `implementation` block (decision of the user).** Inside an `implementation` block, a bare
@@ -296,9 +299,9 @@ type arguments is deferred to when the `ir` stage needs one for real.
 | 3002 | `NAMESPACE_PATH_MISMATCH` | `namespace a.b.c;` in the file `a/b.marea` |
 | 3003 | `NAME_ALREADY_DECLARED` | `structure Item end function Item() end`, or an import (or an import alias, or a member alias) and a declaration or another import of one local name; an import alias or a `type` named `c` (message `name is reserved:`) |
 | 3004 | `UNDECLARED_NAME` | `where Item: Missing`, or a constraint on a name that is not a generic parameter; `local x: integer32 = missing;`, `missing(1);` |
-| 3005 | `UNKNOWN_ATTRIBUTE_KEY` | `#[frobnicate = true]` |
-| 3006 | `INVALID_ATTRIBUTE_VALUE` | `#[inline = maybe]`, `#[build = 1]`, `#[simd = force]` |
-| 3007 | `CONFLICTING_ATTRIBUTES` | `#[public, private]`, `#[pack = 1, align = 16]`, a key given twice |
+| 3005 | `UNKNOWN_ATTRIBUTE_KEY` | `#[frobnicate = true]`, `#[simd]`, `#[public]` |
+| 3006 | `INVALID_ATTRIBUTE_VALUE` | `#[inline = maybe]`, `#[build = 1]`, `#[visibility]`, `#[export]` |
+| 3007 | `CONFLICTING_ATTRIBUTES` | `#[pack = 1, align = 16]`, a key given twice (`visibility` twice included) |
 | 3008 | `INVALID_ALIGNMENT` | `#[align = 15]` |
 | 3009 | `UNKNOWN_TYPE` | `a: Missing;` in a structure |
 | 3010 | `ARGUMENT_COUNT_MISMATCH` | `add(1)` when `add` takes two parameters |
@@ -336,7 +339,7 @@ type arguments is deferred to when the `ir` stage needs one for real.
   scope when its own header is checked, so `for i in 0 .. i` with no outer `i` raises nothing. A constant that has
   an `ERROR_NODE` below it has no name check, because the parser may leave its tokens as an expression.
 - The contract check only sees arguments whose type is cheap to know. Other arguments are not checked.
-- `destroy`, `operator` and `export` are checked for shape only.
+- `operator` and `export` are checked for shape only.
 - The type of a library type is not tracked, so a missing `copy` or `move` there is not reported.
 - The typed-AST hand-off substitutes a generic result only for a bare parameter with explicit type arguments; a
   result from inferred type arguments or a compound such as `array<Item>` keeps the raw type.
@@ -344,11 +347,11 @@ type arguments is deferred to when the `ir` stage needs one for real.
   that sema cannot read (imported, or declared with a computed expression) is compared by its name only, and a
   case value that is a call or another computed expression is never compared.
 - `convert<T>(x)` between two structures is measured in sema, as described under "Rules", for primitive fields, a
-  field `align`, a structure held by value and two `auto` structures with the same fields. It is no longer accepted
+  field `align`, a structure held by value and two `marea` structures with the same fields. It is no longer accepted
   when sema cannot measure the pair: a generic structure, a `string`, `pointer`, `vector`, enum or library field, an
-  `auto` structure inside a `c` structure, an `auto` against a `c` structure, and a chain deeper than 8 levels are
+  `marea` structure inside a `c` structure, a `marea` against a `c` structure, and a chain deeper than 8 levels are
   an explicit `TYPE_MISMATCH` (3011), not a silent accept. These are rejections, not real sizes: a generic
-  structure and a field of another type have no size in sema, and two `auto` structures are compared by their
+  structure and a field of another type have no size in sema, and two `marea` structures are compared by their
   fields, not by a size, on the assumption that the backend lays out equal input equally. A field pair of two
   primitives with the same width but another name (`integer32` and `float32`) is a mismatch here, as the rule is
   by exact name; a looser rule is a later decision of the user. The numeric range of a conversion

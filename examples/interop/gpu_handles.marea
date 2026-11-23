@@ -6,7 +6,7 @@
 --   1. An opaque C type is declared with "opaque structure". Its layout is unknown. The
 --      language never reads it, so it has no field and no arithmetic. It is used only through
 --      a parameter (a borrow) or an owner.
---   2. #[destroy = function] says how to free it. The owner calls it when its scope ends, in
+--   2. A function of C frees it. The owner calls it when its scope ends, in
 --      the reverse order of creation. No GC, no finalizer, no forgotten free.
 --   3. owned<T> is the only owner of a resource. It moves, it does not copy. A function that
 --      only uses the resource takes it with no word (read-only) or with "mutable" (write).
@@ -23,10 +23,8 @@ import collections.slice;
 import c.vulkan;
 
 -- Rule 1 and 2: the opaque types come from C, with the function that frees each one.
-#[destroy = vulkan.destroy_swapchain]
 opaque structure SwapChain;
 
-#[destroy = vulkan.destroy_texture]
 opaque structure Texture;
 
 -- A structure with the exact layout of the C one, to pass by value to C.
@@ -69,7 +67,7 @@ function native_handle(swapchain: SwapChain): unsigned64
     end
 end
 
-#[public]
+#[visibility = public]
 function show_frame()
     local swapchain: owned<SwapChain> = create_swapchain(1280, 720);
     local info: TextureInfo = TextureInfo{ width = 64, height = 64, format = 0 };

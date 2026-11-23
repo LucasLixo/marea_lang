@@ -234,7 +234,7 @@ static const MAREA_AstNode *MAREA_CALL MAREA_G_FindPublicSymbol(const MAREA_AstN
             continue;
         }
 
-        if ((MAREA_SemaTextEquals(declarationName, declarationLength, name, nameLength) == MAREA_BOOLEAN_TRUE) && (MAREA_SemaAttributeIsOn(root, declaration, "public") == MAREA_BOOLEAN_TRUE)) {
+        if ((MAREA_SemaTextEquals(declarationName, declarationLength, name, nameLength) == MAREA_BOOLEAN_TRUE) && (MAREA_SemaAttributeHasMember(root, declaration, "visibility", "public") == MAREA_BOOLEAN_TRUE)) {
             return declaration;
         }
     }

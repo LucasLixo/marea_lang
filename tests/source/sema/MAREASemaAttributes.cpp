@@ -21,22 +21,35 @@ namespace
     }
 } // namespace
 
-TEST(MAREASemaAttributes, VisibilityAloneIsValid)
+TEST(MAREASemaAttributes, VisibilityTakesPublicOrPrivate)
 {
-    GTEST_COUT << "Validating public and private each alone raise nothing." << std::endl;
+    GTEST_COUT << "Validating visibility accepts public and private only." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("#[public] function a() end").empty()) << "A public attribute alone must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("#[visibility = public] function a() end").empty()) << "visibility = public must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("#[private] function a() end").empty()) << "A private attribute alone must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("#[visibility = private] function a() end").empty()) << "visibility = private must raise nothing.";
+
+    EXPECT_EQ(MAREA_codesOf("#[visibility = hidden] function a() end"), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_ATTRIBUTE_VALUE }) << "An unknown member must raise INVALID_ATTRIBUTE_VALUE.";
+
+    EXPECT_EQ(MAREA_codesOf("#[visibility] function a() end"), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_ATTRIBUTE_VALUE }) << "A bare visibility must raise INVALID_ATTRIBUTE_VALUE.";
 }
 
-TEST(MAREASemaAttributes, PublicAndPrivateTogetherConflict)
+TEST(MAREASemaAttributes, PublicAndPrivateAreNoLongerKeys)
 {
-    GTEST_COUT << "Validating public and private on one symbol conflict." << std::endl;
+    GTEST_COUT << "Validating the retired keys public and private raise UNKNOWN_ATTRIBUTE_KEY." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf("#[public, private] function a() end"), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_CONFLICTING_ATTRIBUTES }) << "One list with both must raise CONFLICTING_ATTRIBUTES.";
+    EXPECT_EQ(MAREA_codesOf("#[public] function a() end"), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_UNKNOWN_ATTRIBUTE_KEY }) << "public must raise UNKNOWN_ATTRIBUTE_KEY.";
 
-    EXPECT_EQ(MAREA_codesOf("#[public] #[private] function a() end"), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_CONFLICTING_ATTRIBUTES }) << "Two lists with both must raise CONFLICTING_ATTRIBUTES.";
+    EXPECT_EQ(MAREA_codesOf("#[private] function a() end"), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_UNKNOWN_ATTRIBUTE_KEY }) << "private must raise UNKNOWN_ATTRIBUTE_KEY.";
+}
+
+TEST(MAREASemaAttributes, VisibilityGivenTwiceConflicts)
+{
+    GTEST_COUT << "Validating visibility given twice on one symbol conflicts." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("#[visibility = public, visibility = private] function a() end"), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_CONFLICTING_ATTRIBUTES }) << "One list with two must raise CONFLICTING_ATTRIBUTES.";
+
+    EXPECT_EQ(MAREA_codesOf("#[visibility = public] #[visibility = private] function a() end"), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_CONFLICTING_ATTRIBUTES }) << "Two lists with two must raise CONFLICTING_ATTRIBUTES.";
 }
 
 TEST(MAREASemaAttributes, InlineTakesAnEnumMember)
@@ -65,26 +78,29 @@ TEST(MAREASemaAttributes, BuildTakesAnEnumMember)
     EXPECT_EQ(MAREA_codesOf("#[build = 1] function a() end"), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_ATTRIBUTE_VALUE }) << "An integer must raise INVALID_ATTRIBUTE_VALUE.";
 }
 
-TEST(MAREASemaAttributes, SimdTakesABoolean)
+TEST(MAREASemaAttributes, SimdIsNoLongerAKey)
 {
-    GTEST_COUT << "Validating simd accepts a boolean only." << std::endl;
+    GTEST_COUT << "Validating the retired key simd raises UNKNOWN_ATTRIBUTE_KEY." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("#[simd = true] function a() end").empty()) << "simd = true must raise nothing.";
+    EXPECT_EQ(MAREA_codesOf("#[simd = true] function a() end"), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_UNKNOWN_ATTRIBUTE_KEY }) << "simd = true must raise UNKNOWN_ATTRIBUTE_KEY.";
 
-    EXPECT_TRUE(MAREA_codesOf("#[simd = false] function a() end").empty()) << "simd = false must raise nothing.";
+    EXPECT_EQ(MAREA_codesOf("#[simd] function a() end"), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_UNKNOWN_ATTRIBUTE_KEY }) << "A bare simd must raise UNKNOWN_ATTRIBUTE_KEY.";
+}
 
-    EXPECT_TRUE(MAREA_codesOf("#[simd] function a() end").empty()) << "A bare simd means true and must raise nothing.";
+TEST(MAREASemaAttributes, LayoutAutoIsRejected)
+{
+    GTEST_COUT << "Validating the old layout member auto is rejected." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf("#[simd = force] function a() end"), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_ATTRIBUTE_VALUE }) << "A member name must raise INVALID_ATTRIBUTE_VALUE.";
+    EXPECT_EQ(MAREA_codesOf("#[layout = auto] structure S end"), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_ATTRIBUTE_VALUE }) << "layout = auto must raise INVALID_ATTRIBUTE_VALUE.";
 }
 
 TEST(MAREASemaAttributes, LayoutTakesAnEnumMember)
 {
-    GTEST_COUT << "Validating layout accepts c and auto only." << std::endl;
+    GTEST_COUT << "Validating layout accepts c and marea only." << std::endl;
 
     EXPECT_TRUE(MAREA_codesOf("#[layout = c] structure S end").empty()) << "layout = c must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("#[layout = auto] structure S end").empty()) << "layout = auto must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("#[layout = marea] structure S end").empty()) << "layout = marea must raise nothing.";
 
     EXPECT_EQ(MAREA_codesOf("#[layout = packed] structure S end"), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_ATTRIBUTE_VALUE }) << "An unknown member must raise INVALID_ATTRIBUTE_VALUE.";
 }
@@ -122,23 +138,28 @@ TEST(MAREASemaAttributes, ValueAndMoveOnlyAreFlags)
     EXPECT_EQ(MAREA_codesOf("#[value = 3] structure S end"), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_ATTRIBUTE_VALUE }) << "An integer value must raise INVALID_ATTRIBUTE_VALUE.";
 }
 
-TEST(MAREASemaAttributes, DestroyOperatorAndExportAreShapeChecked)
+TEST(MAREASemaAttributes, DestroyIsNoLongerAKey)
 {
-    GTEST_COUT << "Validating destroy, operator and export are checked for shape only." << std::endl;
+    GTEST_COUT << "Validating the retired key destroy raises UNKNOWN_ATTRIBUTE_KEY." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("#[destroy = my_destroy] structure S end").empty()) << "destroy with a name must raise nothing.";
+    EXPECT_EQ(MAREA_codesOf("#[destroy = my_destroy] structure S end"), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_UNKNOWN_ATTRIBUTE_KEY }) << "destroy must raise UNKNOWN_ATTRIBUTE_KEY.";
+}
+
+TEST(MAREASemaAttributes, OperatorAndExportAreShapeChecked)
+{
+    GTEST_COUT << "Validating operator and export are checked for shape only." << std::endl;
 
     EXPECT_TRUE(MAREA_codesOf("#[operator = \"add\"] function a() end").empty()) << "operator with a string must raise nothing.";
 
     EXPECT_TRUE(MAREA_codesOf("#[operator = add] function a() end").empty()) << "operator with a name must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("#[export] function a() end").empty()) << "A bare export must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("#[export = \"a_label\"] function a() end").empty()) << "export with a string must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("#[export = c] function a() end").empty()) << "export with a name must raise nothing.";
+    EXPECT_EQ(MAREA_codesOf("#[export] function a() end"), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_ATTRIBUTE_VALUE }) << "A bare export must raise INVALID_ATTRIBUTE_VALUE.";
 
-    EXPECT_EQ(MAREA_codesOf("#[destroy = 5] structure S end"), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_ATTRIBUTE_VALUE }) << "destroy with an integer must raise INVALID_ATTRIBUTE_VALUE.";
+    EXPECT_EQ(MAREA_codesOf("#[export = c] function a() end"), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_ATTRIBUTE_VALUE }) << "export with a name must raise INVALID_ATTRIBUTE_VALUE.";
 
-    EXPECT_EQ(MAREA_codesOf("#[destroy] structure S end"), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_ATTRIBUTE_VALUE }) << "destroy without a name must raise INVALID_ATTRIBUTE_VALUE.";
+    EXPECT_EQ(MAREA_codesOf("#[export = true] function a() end"), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_ATTRIBUTE_VALUE }) << "export with a boolean must raise INVALID_ATTRIBUTE_VALUE.";
 }
 
 TEST(MAREASemaAttributes, UnknownKeyIsRejected)
@@ -172,7 +193,7 @@ TEST(MAREASemaAttributes, SymbolAttributeOverridesFileAttribute)
 
     EXPECT_TRUE(MAREA_codesOf("#![build = debug] #[build = release] function a() end").empty()) << "The symbol attribute wins and nothing is raised.";
 
-    EXPECT_TRUE(MAREA_codesOf("#![public] #[private] function a() end").empty()) << "A private symbol in a public file is not a conflict.";
+    EXPECT_TRUE(MAREA_codesOf("#![visibility = public] #[visibility = private] function a() end").empty()) << "A private symbol in a public file is not a conflict.";
 }
 
 TEST(MAREASemaAttributes, ErrorNodeInPlaceOfAttributeIsSkipped)
@@ -181,5 +202,5 @@ TEST(MAREASemaAttributes, ErrorNodeInPlaceOfAttributeIsSkipped)
 
     EXPECT_TRUE(MAREA_codesOf("#[ structure S end").empty()) << "A broken attribute must raise no sema diagnostic.";
 
-    EXPECT_TRUE(MAREA_codesOf("#[public, ] function a() end").empty()) << "A broken item must raise no sema diagnostic.";
+    EXPECT_TRUE(MAREA_codesOf("#[visibility = public, ] function a() end").empty()) << "A broken item must raise no sema diagnostic.";
 }
