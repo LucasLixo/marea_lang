@@ -441,16 +441,16 @@ type. The rules:
 | name of a loop or a scope | read as a value, it has the type its statement gives it. `for i in a .. b`: the type of the bounds, as for an operation (a number literal never decides, two literals give the type of the first). `for each key, value in c`: the value is the element type of `array`, `vector` or `slice` (also under `c.`), the key is `uinteger64`. `partition v into n as part`: `slice<T>`, where `T` is the element type of `v`. `with e as name`: the type of `e`. The name has no type when the type that decides it has none |
 | member access | the declared type of the field. On a value of a generic structure, the type arguments of the value replace the parameters of the structure. An enum variant (`Color.Red`) is the enum. A field of a variant of an enum is read on the enum value. `Type.NAME` is a constant of an implementation block. A method or a static function, named with no call, is its function type with the receiver first: `function(Vector2,float64)` |
 | index access | the first type argument of `array`, `slice`, `vector` or `pointer` (also under `c.`) |
-| call | the declared result type of the callee. `convert<T>(x)` is `T`. A call on the name of a structure or enum of the file is that type. A call of a method, a static function, a function value or a local alias of a function type is the result of that function. A call of one of these with no result type is `void`, and `spawn` of such a call keeps no type. `size_of<T>()` and `align_of<T>()` (with no name of the same text bound in the unit) are `uinteger64`; the names `size_of`, `align_of` and `convert` as a callee keep no type of their own |
+| call | the declared result type of the callee. `convert<T>(x)` is `T`. A call on the name of a structure or enum of the file is that type. A call of a method, a static function, a function value or a local alias of a function type is the result of that function. A call of one of these with no result type is `void`, and `spawn` of such a call keeps no type. `size_of<T>()` and `align_of<T>()` (with no name of the same text bound in the unit) are `uinteger64`; the names `size_of`, `align_of` and `convert` as a callee keep no type of their own. A call of a generic function of the file, by its bare name and with no written type arguments, has its type arguments inferred (see "Inferred type arguments" below); a method call on a receiver whose type is a generic parameter in scope has the result of the contract function its where clause lists for it (see "A method on a generic receiver") |
 | structure, array or indexed literal | the written type (`Point`, `array<float32,4>`) |
 
 A value that has `owned<T>` as type gives its members and elements as `T` does. A type written for another declaration
 is read with the type arguments that fill it: a generic function takes the explicit type arguments of the call
 (`make<sinteger32, float32>(x, y)` gives `Pair<float32,sinteger32>` for a result written `Pair<Second, First>`), a
 generic structure takes the type arguments of the value, and `Self` is the implemented type. When a parameter has no
-argument to fill it, the node has no type: sema never guesses a type argument. The result of a call whose type
-arguments are only inferred (`maximum(left, right)`) is one of those cases. A node with no type returns
-`MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NO_TYPE` and clears both outputs, as for a declaration. The literals have their own rule, below. An
+argument to fill it, the node has no type: sema never guesses a type argument, except for the one inference below. A
+node with no type returns `MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NO_TYPE` and clears both outputs, as for a declaration.
+The literals have their own rule, below. An
 operation takes its type from the types its children have at the end of the build, so `local x: sinteger64 = 1 + 2;`
 gives the binary expression `sinteger64` and not the default `sinteger32` of its literals: when a context changes the
 type of the literals below an operation, the binary, unary and parenthesized expressions below that context are typed
@@ -477,6 +477,29 @@ name (a built-in) is kept as written. For a generic function the type arguments 
 parameters, and a call with none has no type. A field or a method that is read on such a result has no type, because
 the name would be looked up in this file. A type, an enum variant and a symbol that is not public have no type here,
 and neither has a member of an `EXTERNAL` namespace.
+
+**Inferred type arguments.** A call of a generic function of the file, by its bare name, with no written type
+arguments, unifies each parameter whose written type is a bare generic parameter (`Item`) or a compound of one
+(`array<Item,N>`, `vector<Item>`) against the resolved type text of the typed argument at the same place: a bare
+parameter binds the whole argument text, a compound parameter splits head and arguments and binds the generic part
+that the argument text has at the same place, each one recursively. The first binding of a name wins; a second
+binding of the same name that reads a different text makes the whole call keep no inferred type, the same neutral
+outcome as before this inference existed - the checker already rejects the program where a mismatch matters, so this
+never raises a diagnostic of its own. When the result type is itself one bound bare generic parameter, its binding's
+text becomes the call's resolved type (`maximum(a, b)` with `sinteger32` arguments is `sinteger32`); any other result
+shape (unbound, compound, or a call that already gives explicit type arguments, which substitutes as "Resolved type
+of an expression" above already describes) is untouched. A call reached through a `FOUND` namespace never infers:
+"Members of a FOUND namespace" above already fixes its own rule, a call with no type arguments has no type.
+
+**A method on a generic receiver.** A member access whose base is a value of a generic parameter type in scope
+(`left` of type `Item`, with no frame bound it to a concrete type) has no structure or enum to read a field or a
+method on, so it is typed through the contracts its own where clause names for that parameter instead: the first
+contract that declares a function of the member's name gives that function, read as the result of a call the same
+way an implementation member is (`left.less(right)` with `where Item: Comparable` is `boolean`, the result
+`Comparable.less` declares). The where clause searched is the one of the function or the implementation block the
+expression is inside; a parameter with no such member in any of its contracts, or a receiver that is not a bare
+generic parameter (a frame already bound it, or it names a structure, an enum or a built-in instead), falls back to
+the existing rules above and is typed the usual way, or not at all.
 
 **Resolved type of a literal.** An `INTEGER_LITERAL`, `FLOAT_LITERAL`, `STRING_LITERAL`, `CHARACTER_LITERAL` and
 `BOOLEAN_LITERAL` has a resolved type too, and the accessor never gives `ERROR_NO_TYPE` for one. A string, a
@@ -584,17 +607,21 @@ or rejects.
   spelled by what is written and the import alias rule, with no qualifier added; a type that a `FOUND` namespace
   declares is spelled with the last segment of that namespace instead (see "Members of a FOUND namespace").
 - An expression with no resolved type (checked on the 23 examples, 866 expression nodes, 36 of them qualifier names
-  that are not values and are counted on their own, 89 of the rest with no type, with no signature function given
+  that are not values and are counted on their own, 86 of the rest with no type, with no signature function given
   to the sweep's resolver - see "Signature of an EXTERNAL member" above). The cases that stay without a
   type: the name of a `for`, `for each`, `partition` or `with` statement when the type that decides it has none
   (`pixels` of `with vulkan.map_texture(texture) as pixels`, the counter of a range with a bound such as
   `slice.length(pixels) - 1`), and every expression made from it; the key of a `for each` over any other collection,
   as no library type of the repository has a key; a call, a member or a name that comes from an `EXTERNAL` namespace
   with no signature known for it (`stdio.puts(text)`, `vulkan.present(swapchain, texture)`, `square_root(x)`), or
-  from a `FOUND` namespace but is not a public function or constant; a method or a field read on a result typed from a `FOUND` namespace, because
-  such a lookup stays in the file being built (see "Members of a FOUND namespace"); a method or an element of a
-  library type (`table<K, V>`, `c.array`, `task`, `slice.length`) and an intrinsic of `array<T, N>`; a method on a
-  value whose type is a generic parameter (`left.less(right)`); a call whose type arguments are only inferred; the
+  from a `FOUND` namespace but is not a public function or constant, or that gives no type arguments to a generic one
+  of these (see "Members of a FOUND namespace"); a method or a field read on a result typed from a `FOUND` namespace,
+  because such a lookup stays in the file being built; a method or an element of a library type (`table<K, V>`,
+  `c.array`, `task`, `slice.length`) and an intrinsic of `array<T, N>`; a method call on a generic-parameter receiver
+  whose own where clause lists no contract that declares the member, and a call of a generic function of the file
+  whose type arguments are only inferred when the unification finds nothing to bind, the bindings disagree, or the
+  result is not itself one bound bare parameter (see "Inferred type arguments" and "A method on a generic receiver"
+  for the cases now resolved); the
   static functions of a generic name (`array<float32, 16>.filled(0.0)`); the built-in `convert`, `size_of` and
   `align_of` as names (the call has a type, the name has none); every `MACRO_CALL` and `GENERIC_NAME`. The `ir`
   stage decides what to do with each of these.
@@ -609,8 +636,10 @@ or rejects.
   generic structure). The default itself is an assumption of the plan, not a rule of the grammar. The range of a
   value is not checked against the type that the context gave: `local x: uinteger8 = 256;` stays accepted, as before.
   The literal of `convert<T>(x)` takes `T`, so `convert<uinteger8>(300)` types `300` as `uinteger8`.
-- The typed-AST hand-off substitutes a generic result only for a bare parameter with explicit type arguments; a
-  result from inferred type arguments or a compound such as `c.array<Item>` keeps the raw type.
+- The typed-AST hand-off substitutes a generic result for a bare parameter with explicit type arguments, and now also
+  for a bare parameter bound through "Inferred type arguments" when the call gives none; a compound result (such as
+  one written `c.array<Item>`) still keeps the raw type either way, since only a parameter, never a result, is
+  unified against a compound shape.
 - `DUPLICATE_SWITCH_ARM` compares a float by its text: `1.0` and `1.00` are taken for different values. A constant
   that sema cannot read (imported, or declared with a computed expression) is compared by its name only, and a
   case value that is a call or another computed expression is never compared.

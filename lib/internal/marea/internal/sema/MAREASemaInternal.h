@@ -260,6 +260,39 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedAstRenderExprType(MAREA_SemaContext * context, const MAREA_SemaExprType *type, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength);
 
     /**
+     * @brief Infers the result of a call of a generic function with no written type arguments: for each parameter
+     * whose written type is a bare generic parameter or a compound of one (array<Item,N>, vector<Item>), matches it
+     * against the resolved type text of the typed argument at the same place. The first binding of a name wins; a
+     * second one that disagrees makes the whole call keep no inferred type, the way a parameter sema cannot read
+     * already does. When the result type is itself a bound bare generic parameter, the binding's text is returned as
+     * a fixed type; any other shape (an unbound parameter, a compound result, an already-explicit call) gives an
+     * empty type, unchanged from before this inference existed.
+     * @param context Context the node is being built with. Must not be null.
+     * @param function FUNCTION_DECLARATION of the callee, read with its own generic parameters. Must not be null.
+     * @param resultType Written result type of function, as MAREA_SemaReturnType gives it. Must not be null.
+     * @param call Typed node of the call expression, with its children (the argument list included) already built.
+     * Must not be null.
+     * @return The inferred type as a fixed text, or an empty type when nothing could be inferred.
+     */
+    MAREA_NODISCARD MAREA_SemaExprType MAREA_CALL MAREA_SemaTypedAstInferCallResult(MAREA_SemaContext * context, const MAREA_AstNode *function, const MAREA_AstNode *resultType, const MAREA_SemaTypedNode *call);
+
+    /**
+     * @brief Finds the contract function named member that a where clause of scope lists for the generic parameter
+     * parameterName, searched through every contract the clause names for it, the first one wins. Used to type a
+     * method call on a receiver whose type is a generic parameter, since such a value has no structure or enum to
+     * read a member on: only the contracts its own where clause promises.
+     * @param context Context the node is being built with. Must not be null.
+     * @param scope A FUNCTION_DECLARATION or an IMPLEMENTATION_DECLARATION that may carry a WHERE_CLAUSE. May be
+     * null, which gives null.
+     * @param parameterName Text of the generic parameter name. Must not be null when parameterNameLength is not 0.
+     * @param parameterNameLength Length of parameterName in bytes.
+     * @param memberName Text of the member name being called.
+     * @param memberNameLength Length of memberName in bytes.
+     * @return The CONTRACT_FUNCTION declaration, or null when no contract of scope's where clause declares it.
+     */
+    MAREA_NODISCARD const MAREA_AstNode *MAREA_CALL MAREA_SemaFindContractMember(const MAREA_SemaContext *context, const MAREA_AstNode *scope, const MAREA_Character8 *parameterName, MAREA_IntegerSize parameterNameLength, const MAREA_Character8 *memberName, MAREA_IntegerSize memberNameLength);
+
+    /**
      * @brief Fills the resolved type of a typed node that is an expression: an operation, a literal value, or an
      * identifier read as a value. It reads the types of the typed children, so every child must be built first.
      * Any other node, and an expression sema cannot type, keep no text and are not an error.
