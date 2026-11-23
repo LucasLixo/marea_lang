@@ -252,9 +252,12 @@ one alias table from the unit before it lowers a declaration:
 - A whole-path alias (`import a.b.c as d;`) stands for the last segment of its path (`c`).
 - A member alias (`import a.b { f as g, Color.red as Crimson };`) stands for the member path as written (`f`,
   `Color.red`). A two-part path is joined with a dot in the arena. A member without `as` is not an alias.
-- A plain local type alias (`type Name = Other;`, no generic parameters, no type arguments) stands for the written
-  type name. A chain of type aliases is followed up to 8 steps; an import alias ends a chain. A generic alias is
-  not in the table and keeps raising 4004.
+- A local type alias without generic parameters (`type Name = Other;`, `type Name = Other<integer32>;`) stands for
+  the written head type name; the type arguments are not kept, as on any written type. An alias of a function type
+  (`type Callback = function(v: integer32): boolean;`) lowers to no type name, as the written function type does.
+  A chain of type aliases is followed up to 8 steps; an import alias ends a chain. A generic alias is not in the
+  table and keeps raising 4004. A `TYPE_NAME` operand (a built-in or static call argument) named by an alias that
+  carries type arguments or names a function type raises 4004, because the lowered name would lose them.
 
 The rules:
 
@@ -452,8 +455,6 @@ Each diagnostic carries the position of the construct that raised it.
   reject such a shadow.
 - Two members with the same original name in two namespaces keep the same lowered name; the IR does not add the
   namespace. A backend that needs it must read the import itself.
-- A type alias is lowered only when its right side is one plain named type. An alias to a function type, or to a
-  type with type arguments, stays as written.
 - The tree builder and the lowering of a nested type argument are recursive. A very deep tree needs a large stack;
   no test goes deeper than the example programs. The dump is not part of this gap: it walks an explicit stack.
 - `MAREA_IrLowerCompilationUnit` reports a root that is not a `COMPILATION_UNIT` with

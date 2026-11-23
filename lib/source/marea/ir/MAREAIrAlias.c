@@ -108,6 +108,8 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_AppendAlias(MAREA_IrContext *context, c
     entry->local = MAREA_AstNodeGetText(alias);
     entry->localLength = MAREA_AstNodeGetTextLength(alias);
     entry->isImport = isImport;
+    entry->isFunction = MAREA_BOOLEAN_FALSE;
+    entry->hasArguments = MAREA_BOOLEAN_FALSE;
 
     if (wholeLast == MAREA_BOOLEAN_TRUE) {
         // INFO: a whole-path alias names the last segment of its path, as the same import does without "as".
@@ -170,18 +172,47 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_AddImport(MAREA_IrContext *context, con
     return MAREA_G_AppendAlias(context, MAREA_SemaTypedNodeGetAstNode(MAREA_IrTypedChildAt(item, MAREA_INTEGER_SIZE(1))), path, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_TRUE);
 }
 
-// INFO: only a plain alias of one named type, with no generic parameters and no type arguments, is lowered.
+// INFO: an alias without generic parameters is lowered when its right side is a named type, with or without concrete type arguments, or a function type.
 static MAREA_IrExcept MAREA_CALL MAREA_G_AddTypeAlias(MAREA_IrContext *context, const MAREA_SemaTypedNode *item)
 {
     const MAREA_SemaTypedNode *name = MAREA_IrTypedFindChild(item, MAREA_AST_KIND_IDENTIFIER);
 
-    const MAREA_SemaTypedNode *type = MAREA_IrTypedFindChild(item, MAREA_AST_KIND_NAMED_TYPE);
-
-    if ((name == MAREA_NULLPTR) || (type == MAREA_NULLPTR) || (MAREA_IrTypedFindChild(item, MAREA_AST_KIND_GENERIC_PARAMETERS) != MAREA_NULLPTR) || (MAREA_IrTypedFindChild(type, MAREA_AST_KIND_TYPE_ARGUMENTS) != MAREA_NULLPTR)) {
+    if ((name == MAREA_NULLPTR) || (MAREA_IrTypedFindChild(item, MAREA_AST_KIND_GENERIC_PARAMETERS) != MAREA_NULLPTR)) {
         return MAREA_IR_EXCEPT_SUCCESS;
     }
 
-    return MAREA_G_AppendAlias(context, MAREA_SemaTypedNodeGetAstNode(name), MAREA_SemaTypedNodeGetAstNode(MAREA_IrTypedChildAt(type, MAREA_INTEGER_SIZE(0))), MAREA_BOOLEAN_FALSE, MAREA_BOOLEAN_FALSE);
+    const MAREA_SemaTypedNode *type = MAREA_IrTypedFindChild(item, MAREA_AST_KIND_NAMED_TYPE);
+
+    if (type == MAREA_NULLPTR) {
+        // INFO: a function type has no type name in the IR, so an alias of it lowers to no name, as the written function type does.
+        if (MAREA_IrTypedFindChild(item, MAREA_AST_KIND_FUNCTION_TYPE) == MAREA_NULLPTR) {
+            return MAREA_IR_EXCEPT_SUCCESS;
+        }
+
+        MAREA_IrAlias *entry = &context->aliases[context->aliasCount];
+
+        const MAREA_AstNode *ast = MAREA_SemaTypedNodeGetAstNode(name);
+
+        entry->local = MAREA_AstNodeGetText(ast);
+        entry->localLength = MAREA_AstNodeGetTextLength(ast);
+        entry->original = MAREA_NULLPTR;
+        entry->originalLength = MAREA_INTEGER_SIZE(0);
+        entry->isImport = MAREA_BOOLEAN_FALSE;
+        entry->isFunction = MAREA_BOOLEAN_TRUE;
+        entry->hasArguments = MAREA_BOOLEAN_FALSE;
+
+        context->aliasCount = (context->aliasCount + MAREA_INTEGER_SIZE(1));
+
+        return MAREA_IR_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_IrExcept RESULT = MAREA_G_AppendAlias(context, MAREA_SemaTypedNodeGetAstNode(name), MAREA_SemaTypedNodeGetAstNode(MAREA_IrTypedChildAt(type, MAREA_INTEGER_SIZE(0))), MAREA_BOOLEAN_FALSE, MAREA_BOOLEAN_FALSE);
+
+    if ((RESULT == MAREA_IR_EXCEPT_SUCCESS) && (MAREA_IrTypedFindChild(type, MAREA_AST_KIND_TYPE_ARGUMENTS) != MAREA_NULLPTR)) {
+        context->aliases[(context->aliasCount - MAREA_INTEGER_SIZE(1))].hasArguments = MAREA_BOOLEAN_TRUE;
+    }
+
+    return RESULT;
 }
 
 MAREA_IrExcept MAREA_CALL MAREA_IrAliasBuild(MAREA_IrContext *context, const MAREA_SemaTypedNode *unit)
@@ -316,10 +347,12 @@ MAREA_Boolean MAREA_CALL MAREA_IrAliasValue(const MAREA_IrContext *context, cons
     return MAREA_BOOLEAN_TRUE;
 }
 
-MAREA_IrExcept MAREA_CALL MAREA_IrAliasType(MAREA_IrContext *context, const MAREA_Character8 *text, MAREA_IntegerSize length, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength)
+// INFO: follows the alias chain of a type name. lossy is set when a step carries type arguments, which the lowered name does not keep.
+static MAREA_IrExcept MAREA_CALL MAREA_G_ResolveType(MAREA_IrContext *context, const MAREA_Character8 *text, MAREA_IntegerSize length, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength, MAREA_Boolean *outLossy)
 {
     *outText = text;
     *outLength = length;
+    *outLossy = MAREA_BOOLEAN_FALSE;
 
     MAREA_Boolean terminal = MAREA_BOOLEAN_FALSE;
 
@@ -332,6 +365,17 @@ MAREA_IrExcept MAREA_CALL MAREA_IrAliasType(MAREA_IrContext *context, const MARE
 
         *outText = entry->original;
         *outLength = entry->originalLength;
+
+        if (entry->hasArguments == MAREA_BOOLEAN_TRUE) {
+            *outLossy = MAREA_BOOLEAN_TRUE;
+        }
+
+        // INFO: a function type has no name, so the chain ends with no name.
+        if (entry->isFunction == MAREA_BOOLEAN_TRUE) {
+            *outLossy = MAREA_BOOLEAN_TRUE;
+
+            return MAREA_IR_EXCEPT_SUCCESS;
+        }
 
         // INFO: an import original names a symbol of another namespace, so it is never looked up again here.
         if (entry->isImport == MAREA_BOOLEAN_TRUE) {
@@ -377,4 +421,24 @@ MAREA_IrExcept MAREA_CALL MAREA_IrAliasType(MAREA_IrContext *context, const MARE
     *outLength = (head->originalLength + TAIL);
 
     return MAREA_IR_EXCEPT_SUCCESS;
+}
+
+MAREA_IrExcept MAREA_CALL MAREA_IrAliasType(MAREA_IrContext *context, const MAREA_Character8 *text, MAREA_IntegerSize length, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength)
+{
+    MAREA_Boolean lossy = MAREA_BOOLEAN_FALSE;
+
+    return MAREA_G_ResolveType(context, text, length, outText, outLength, &lossy);
+}
+
+MAREA_Boolean MAREA_CALL MAREA_IrAliasTypeIsLossy(MAREA_IrContext *context, const MAREA_Character8 *text, MAREA_IntegerSize length)
+{
+    const MAREA_Character8 *lowered = MAREA_NULLPTR;
+    MAREA_IntegerSize loweredLength = MAREA_INTEGER_SIZE(0);
+    MAREA_Boolean lossy = MAREA_BOOLEAN_FALSE;
+
+    if (MAREA_G_ResolveType(context, text, length, &lowered, &loweredLength, &lossy) != MAREA_IR_EXCEPT_SUCCESS) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    return lossy;
 }

@@ -21,7 +21,8 @@ MAREA_BEGIN_EXTERN_C
 
     /**
      * @brief One alias of the unit: a local name and the original text it stands for. The texts point into the
-     * source, or into the arena for a joined path.
+     * source, or into the arena for a joined path. A function type alias has no original text. hasArguments is set
+     * when the written right side carries type arguments, which the lowered name does not keep.
      */
     typedef struct MAREA_IrAlias
     {
@@ -30,6 +31,8 @@ MAREA_BEGIN_EXTERN_C
         MAREA_IntegerSize localLength;
         MAREA_IntegerSize originalLength;
         MAREA_Boolean isImport;
+        MAREA_Boolean isFunction;
+        MAREA_Boolean hasArguments;
     } MAREA_IrAlias;
 
     /**
@@ -273,7 +276,8 @@ MAREA_BEGIN_EXTERN_C
     /**
      * @brief Lowers a written type name to its original: a chain of type aliases is followed up to 8 steps and
      * ends at an import alias, and the head of a dotted name that is a namespace alias is replaced. A name that
-     * is no alias is returned unchanged.
+     * is no alias is returned unchanged. An alias of a function type lowers to a null text of length 0, as the
+     * written function type has no type name.
      * @param context Context that owns the arena and holds the alias table. Must not be null.
      * @param text Type name text.
      * @param length Byte length of text.
@@ -282,6 +286,16 @@ MAREA_BEGIN_EXTERN_C
      * @return MAREA_IR_EXCEPT_SUCCESS or ERROR_OUT_OF_MEMORY.
      */
     MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrAliasType(MAREA_IrContext * context, const MAREA_Character8 *text, MAREA_IntegerSize length, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength);
+
+    /**
+     * @brief Tells whether lowering a type name through the alias table loses something: a step of the chain
+     * carries type arguments, or the chain ends at a function type.
+     * @param context Context that holds the alias table. Must not be null.
+     * @param text Type name text.
+     * @param length Byte length of text.
+     * @return MAREA_BOOLEAN_TRUE when the lowered name is not the whole type, otherwise MAREA_BOOLEAN_FALSE.
+     */
+    MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_IrAliasTypeIsLossy(MAREA_IrContext * context, const MAREA_Character8 *text, MAREA_IntegerSize length);
 
 MAREA_END_EXTERN_C
 
