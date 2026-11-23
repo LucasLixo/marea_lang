@@ -1,0 +1,18 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Return value on every arm of a switch that has a default.
+
+namespace main;
+
+function kind(day: sinteger32): sinteger32
+    switch day
+        case 6, 7 then
+            return 1;
+        end
+        default then
+            return 0;
+        end
+    end
+end

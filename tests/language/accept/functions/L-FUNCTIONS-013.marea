@@ -1,0 +1,16 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A function that reads a field of a structure parameter.
+
+namespace main;
+
+structure Point
+    x: float64;
+    y: float64;
+end
+
+function length_squared(point: Point): float64
+    return point.x * point.x + point.y * point.y;
+end

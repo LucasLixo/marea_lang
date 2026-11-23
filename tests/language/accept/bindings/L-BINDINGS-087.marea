@@ -1,0 +1,16 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A scope block frees its names at the end.
+
+namespace main;
+
+function check(): sinteger32
+    local result: sinteger32 = 1;
+    do
+        local temporary: sinteger32 = 10;
+        result += temporary;
+    end
+    return result;
+end

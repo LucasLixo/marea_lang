@@ -1,0 +1,29 @@
+-- expect: 3004 @27
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A local of a scope block is used after the block.
+
+namespace main;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+structure Box
+    inner: Point;
+    count: sinteger32;
+end
+
+function make_point(): Point
+    return Point{ x = 1, y = 2 };
+end
+
+function check(): sinteger32
+    do
+        local inner: Point = make_point();
+    end
+    local other: Point = copy inner;
+    return 1;
+end

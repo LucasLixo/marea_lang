@@ -1,0 +1,12 @@
+-- expect: 1003 @10
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A bad escape in a string is INVALID_ESCAPE.
+
+namespace main;
+
+function check(): sinteger32
+    local text: string = "a\qb";
+    return 1;
+end

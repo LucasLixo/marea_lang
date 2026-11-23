@@ -1,0 +1,60 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A spawn with a file constant as an argument.
+
+namespace main;
+
+import c.array;
+import c.slice;
+import c.task;
+
+constant WORKER_COUNT: sinteger32 = 4;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+structure Box
+    inner: Point;
+    count: sinteger32;
+end
+
+function make_point(): Point
+    return Point{ x = 1, y = 2 };
+end
+
+function read_point(#[semantics = reference_read_only] point: Point): sinteger32
+    return point.x;
+end
+
+function write_point(#[semantics = reference_mutable] point: Point)
+    point.x = 1;
+end
+
+function scale_slice(#[semantics = reference_mutable] part: c.slice<float32>, factor: float32)
+    for each value in mutable part do
+        value *= factor;
+    end
+end
+
+function sum_slice(#[semantics = reference_read_only] part: c.slice<float32>): float32
+    local total: float32 = 0.0;
+    for each value in part do
+        total += value;
+    end
+    return total;
+end
+
+function use_count(count: sinteger32): sinteger32
+    return count;
+end
+
+function check(): sinteger32
+    fork_join
+        spawn use_count(WORKER_COUNT);
+    end
+    return 1;
+end

@@ -1,0 +1,44 @@
+-- gap: #200 NEW
+-- rule: reject
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A contract method moves its receiver into a write borrow.
+
+namespace main;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+structure Box
+    inner: Point;
+    count: sinteger32;
+end
+
+function make_point(): Point
+    return Point{ x = 1, y = 2 };
+end
+
+function read_point(#[semantics = reference_read_only] point: Point): sinteger32
+    return point.x;
+end
+
+function write_point(#[semantics = reference_mutable] point: Point)
+    point.x = 1;
+end
+
+function take_point(point: owned<Point>): sinteger32
+    return point.x;
+end
+
+contract Keeper
+    function keep(self: Self, #[semantics = reference_mutable] holder: Box);
+end
+
+implementation Point
+    function keep(self: Point, #[semantics = reference_mutable] holder: Box)
+        holder.inner = move self;
+    end
+end

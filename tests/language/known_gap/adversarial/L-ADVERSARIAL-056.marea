@@ -1,0 +1,24 @@
+-- gap: #200 NEW
+-- rule: reject
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- from: L-OWNERSHIP-114
+-- Mutant of L-OWNERSHIP-114: copy is swapped for move in a return of a borrow.
+
+namespace main;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+structure Box
+    inner: Point;
+    count: sinteger32;
+end
+
+function check(point: Point): Point
+    return move point;
+end
+

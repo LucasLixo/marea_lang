@@ -1,0 +1,15 @@
+-- expect: 3014 @13
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A number given for a type parameter.
+
+namespace main;
+
+structure Box<Item>
+    item: Item;
+end
+
+function take(box: Box<4>)
+    return;
+end

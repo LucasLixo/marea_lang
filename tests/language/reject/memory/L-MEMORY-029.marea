@@ -1,0 +1,25 @@
+-- expect: 3024 @22
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A return leaves the body of a partition.
+
+namespace main;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+structure Box
+    inner: Point;
+    count: sinteger32;
+end
+
+function check(values: slice<sinteger32>)
+    fork_join
+        partition values into 2 as part do
+            return;
+        end
+    end
+end

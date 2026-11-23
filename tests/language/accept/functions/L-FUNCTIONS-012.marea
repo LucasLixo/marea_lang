@@ -1,0 +1,17 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Nested calls, a call as a statement and an explicit conversion.
+
+namespace main;
+
+function add(left: sinteger32, right: sinteger32): sinteger32
+    return left + right;
+end
+
+function run(): float64
+    add(1, 2);
+    local total: sinteger32 = add(add(1, 2), add(3, 4));
+    return convert<float64>(total);
+end

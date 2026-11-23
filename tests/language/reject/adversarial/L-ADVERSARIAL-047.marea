@@ -1,0 +1,13 @@
+-- expect: 3018 @11
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- from: L-TYPES-111
+-- Mutant of L-TYPES-111: the owned wrapper is dropped from a generic parameter that is returned.
+
+namespace main;
+
+function same<Item>(value: Item): owned<Item> where Item: Movable
+    return value;
+end
+

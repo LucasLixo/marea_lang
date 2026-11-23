@@ -1,0 +1,78 @@
+-- gap: #210 3020
+-- rule: reject
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A partition mutable of a field and a worker that reads the owner of that field.
+
+namespace main;
+
+import c.array;
+import c.slice;
+import c.task;
+
+constant WORKER_COUNT: sinteger32 = 4;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+structure Box
+    inner: Point;
+    count: sinteger32;
+end
+
+function make_point(): Point
+    return Point{ x = 1, y = 2 };
+end
+
+function read_point(#[semantics = reference_read_only] point: Point): sinteger32
+    return point.x;
+end
+
+function write_point(#[semantics = reference_mutable] point: Point)
+    point.x = 1;
+end
+
+function take_point(point: owned<Point>): sinteger32
+    return point.x;
+end
+
+function scale_slice(#[semantics = reference_mutable] part: c.slice<float32>, factor: float32)
+    for each value in mutable part do
+        value *= factor;
+    end
+end
+
+function sum_slice(#[semantics = reference_read_only] part: c.slice<float32>): float32
+    local total: float32 = 0.0;
+    for each value in part do
+        total += value;
+    end
+    return total;
+end
+
+structure Holder
+    values: c.array<float32>;
+    count: sinteger32;
+end
+
+function read_holder(#[semantics = reference_read_only] holder: Holder): sinteger32
+    return holder.count;
+end
+
+function make_holder(): Holder
+    return Holder{ values = c.array<float32>{}, count = 0 };
+end
+
+function check(): sinteger32
+    local holder: Holder = make_holder();
+    fork_join
+        partition mutable holder.values into WORKER_COUNT as part do
+            spawn scale_slice(part, 2.0);
+            spawn read_holder(holder);
+        end
+    end
+    return 1;
+end

@@ -1,0 +1,19 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A structure with the exact layout of a C structure.
+
+namespace main;
+
+#[layout = c, align = 4]
+structure TextureInfo
+    width: uinteger32;
+    height: uinteger32;
+    format: uinteger32;
+end
+
+function check(): uinteger32
+    local info: TextureInfo = TextureInfo{ width = 64, height = 64, format = 0 };
+    return info.width;
+end

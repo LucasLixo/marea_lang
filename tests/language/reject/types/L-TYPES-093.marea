@@ -1,0 +1,12 @@
+-- expect: 3028 @10
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A construct function at the top level.
+
+namespace main;
+
+#[operator = "construct"]
+function make(x: float64 = 0.0)
+    return;
+end

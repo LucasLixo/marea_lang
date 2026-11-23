@@ -1,0 +1,40 @@
+-- expect: 3016 @37
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- from: L-MEMORY-012
+-- Mutant of L-MEMORY-012: the move word is dropped from a structure with a destroy operator.
+
+namespace main;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+structure Box
+    inner: Point;
+    count: sinteger32;
+end
+
+structure Handle
+    id: sinteger32;
+end
+
+implementation Handle
+    #[operator = "construct"]
+    function open(id: sinteger32 = 0)
+    end
+
+    #[operator = "destroy"]
+    function close()
+    end
+end
+
+-- output: construct, destroy
+function check(): sinteger32
+    local first: Handle = Handle{ id = 1 };
+    local second: Handle = first;
+    return 1;
+end
+

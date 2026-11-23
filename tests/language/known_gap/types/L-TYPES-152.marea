@@ -1,0 +1,14 @@
+-- gap: #219 3011
+-- rule: reject
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A while condition of an integer type.
+
+namespace main;
+
+function run(count: sinteger32)
+    while count do
+        return;
+    end
+end

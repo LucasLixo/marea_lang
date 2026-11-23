@@ -1,0 +1,16 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A name of the outer scope is visible inside.
+
+namespace main;
+
+function check(): sinteger32
+    local outer: sinteger32 = 1;
+    do
+        local inner: sinteger32 = outer + 1;
+        outer = inner;
+    end
+    return outer;
+end

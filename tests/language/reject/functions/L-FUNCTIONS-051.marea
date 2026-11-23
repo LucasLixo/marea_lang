@@ -1,0 +1,21 @@
+-- expect: 3019 @20
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- One structure passed to two write borrow parameters.
+
+namespace main;
+
+structure Point
+    x: float64;
+    y: float64;
+end
+
+function pair(#[semantics = reference_mutable] first: Point, #[semantics = reference_mutable] second: Point)
+    first.x = 1.0;
+end
+
+function run()
+    local point: Point = Point{ x = 0.0, y = 0.0 };
+    pair(point, point);
+end

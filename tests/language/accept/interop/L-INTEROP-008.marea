@@ -1,0 +1,16 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A raw pointer from a c call inside an unsafe block.
+
+namespace main;
+
+import c.vulkan;
+
+function native(): uinteger64
+    unsafe
+        local raw: pointer<uinteger8> = vulkan.native_pointer();
+        return convert<uinteger64>(raw);
+    end
+end

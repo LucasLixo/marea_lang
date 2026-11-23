@@ -1,0 +1,14 @@
+-- expect: 3004 @13
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A name declared in an unsafe block ends at its end.
+
+namespace main;
+
+function check(): sinteger32
+    unsafe
+        local inner: sinteger32 = 1;
+    end
+    return inner;
+end

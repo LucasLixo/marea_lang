@@ -1,0 +1,32 @@
+-- expect: 3020 @29
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A worker spawned on a call result.
+
+namespace main;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+structure Box
+    inner: Point;
+    count: sinteger32;
+end
+
+function make_point(): Point
+    return Point{ x = 1, y = 2 };
+end
+
+function read_point(#[semantics = reference_read_only] point: Point): sinteger32
+    return point.x;
+end
+
+function check(): sinteger32
+    fork_join
+        spawn read_point(make_point());
+    end
+    return 1;
+end

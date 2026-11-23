@@ -1,0 +1,16 @@
+-- expect: 3010 @15
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A type call with too many arguments for a type that has no construct.
+
+namespace main;
+
+structure Point
+    x: float64;
+    y: float64;
+end
+
+function run()
+    local point: Point = Point(1.0, 2.0);
+end

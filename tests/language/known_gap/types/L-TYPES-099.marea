@@ -1,0 +1,13 @@
+-- gap: #218 3012
+-- rule: reject
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A contract that lists one function twice.
+
+namespace main;
+
+contract Twice
+    function run(self: Self);
+    function run(self: Self);
+end

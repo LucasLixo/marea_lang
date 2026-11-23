@@ -1,0 +1,25 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A vector is moved after a for each ended.
+
+namespace main;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+structure Box
+    inner: Point;
+    count: sinteger32;
+end
+
+function check(points: owned<vector<Point>>): sinteger32
+    for each item in points do
+        local x: sinteger32 = item.x;
+    end
+    local other: vector<Point> = move points;
+    return 1;
+end

@@ -1,0 +1,15 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An owner of an opaque type comes from a c call and goes up with return.
+
+namespace main;
+
+import c.vulkan;
+
+opaque structure Texture;
+
+function create(): owned<Texture>
+    return vulkan.create_texture();
+end

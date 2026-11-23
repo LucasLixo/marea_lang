@@ -1,0 +1,22 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A vector assigned with move.
+
+namespace main;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+structure Box
+    inner: Point;
+    count: sinteger32;
+end
+
+function check(values: owned<vector<sinteger32>>): sinteger32
+    local second: vector<sinteger32> = move values;
+    return 1;
+end

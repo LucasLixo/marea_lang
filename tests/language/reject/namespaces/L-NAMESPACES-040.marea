@@ -1,0 +1,12 @@
+-- expect: 3005 @9
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An unknown attribute key.
+
+namespace main;
+
+#[visibilty = public]
+function check(): sinteger32
+    return 1;
+end

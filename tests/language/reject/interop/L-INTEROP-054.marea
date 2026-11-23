@@ -1,0 +1,11 @@
+-- expect: 3004 @10
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A macro name called without the bang.
+
+namespace main;
+
+function check()
+    print("x");
+end

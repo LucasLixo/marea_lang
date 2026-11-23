@@ -1,0 +1,13 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- main takes the argument array of the future driver.
+
+namespace main;
+
+import c.array;
+
+function main(arguments: c.array<string>): sinteger32
+    return 0;
+end

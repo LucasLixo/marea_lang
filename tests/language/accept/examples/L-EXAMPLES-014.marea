@@ -1,0 +1,72 @@
+-- expect: ok
+-- example: examples/types/enum_methods.marea
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Step 7c: enum with data, and its functions in "implementation" blocks.
+-- Rules:
+--   1. A variant can carry fields, given when the variant is declared. All the values are
+--      constants, known at compile time.
+--   2. The enum holds only the variants. Its functions go in "implementation Planet ... end",
+--      with the same rules as for a structure (self, static function, attributes, many blocks).
+--   3. A constant that belongs to the type is declared inside an implementation block. The call
+--      is Planet.GRAVITY.
+--   4. The variants are the only values of the type. The constructor is private to the enum.
+--   5. "switch" on an enum checks that every variant is handled, or that a "default" exists.
+--      A missing one is a compile error. Each arm starts with "case" and has its own "end".
+--      One more "end" closes the "switch". An arm does not fall through to the next.
+--   6. The enum is a plain integer (the variant index) plus the constant table, so it is
+--      always passed by value and a function on it has no cost beyond a table read.
+
+namespace main;
+
+#[visibility = public]
+enum Planet
+    Mercury(mass: float64 = 3.303e+23, radius: float64 = 2.4397e6);
+    Earth(mass: float64 = 5.976e+24, radius: float64 = 6.37814e6);
+    Jupiter(mass: float64 = 1.9e+27, radius: float64 = 7.1492e7);
+end
+
+-- First block: physics.
+#[visibility = public]
+implementation Planet
+    constant GRAVITY: float64 = 6.67300e-11;
+
+    function surface_gravity(self: Planet): float64
+        return Planet.GRAVITY * self.mass / (self.radius ** 2);
+    end
+
+    function weight(self: Planet, mass_on_earth: float64): float64
+        local ratio: float64 = self.surface_gravity() / Planet.Earth.surface_gravity();
+        return mass_on_earth * ratio;
+    end
+end
+
+-- Second block: description.
+#[visibility = public]
+implementation Planet
+    function is_gas_giant(self: Planet): boolean
+        return self == Planet.Jupiter;
+    end
+
+    function name(self: Planet): string
+        switch self
+            case Planet.Mercury then
+                return "Mercury";
+            end
+            case Planet.Earth then
+                return "Earth";
+            end
+            case Planet.Jupiter then
+                return "Jupiter";
+            end
+        end
+    end
+end
+
+#[visibility = public]
+function show_planets(): float64
+    local planet: Planet = Planet.Jupiter;
+    local gravity: float64 = planet.surface_gravity();
+    return planet.weight(70.0) + gravity;
+end

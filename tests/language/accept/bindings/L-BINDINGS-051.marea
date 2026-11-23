@@ -1,0 +1,20 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- The plain operators of an integer.
+
+namespace main;
+
+function check(): sinteger32
+    local left: sinteger32 = 7;
+    local right: sinteger32 = 2;
+    local a: sinteger32 = left + right;
+    local b: sinteger32 = left - right;
+    local c: sinteger32 = left * right;
+    local d: sinteger32 = left / right;
+    local e: sinteger32 = left % right;
+    local f: sinteger32 = left ** right;
+    local g: sinteger32 = -left;
+    return a;
+end

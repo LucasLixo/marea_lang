@@ -1,0 +1,27 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A switch over an enum that names every variant.
+
+namespace main;
+
+enum Color
+    Red;
+    Green;
+    Blue;
+end
+
+function name(color: Color): sinteger32
+    switch color
+        case Color.Red then
+            return 1;
+        end
+        case Color.Green then
+            return 2;
+        end
+        case Color.Blue then
+            return 3;
+        end
+    end
+end

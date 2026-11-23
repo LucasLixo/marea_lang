@@ -1,0 +1,16 @@
+-- expect: 3004 @15
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A name of a with block used after its end.
+
+namespace main;
+
+import c.vulkan;
+
+function check(texture: sinteger32)
+    with vulkan.map_texture(texture) as pixels do
+        local count: sinteger32 = 1;
+    end
+    local again: sinteger32 = pixels;
+end

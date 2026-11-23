@@ -1,0 +1,13 @@
+-- expect: 3003 @9
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An alias hides the reserved namespace c.
+
+namespace main;
+
+import c.stdio as c;
+
+function check()
+    c.puts("x");
+end

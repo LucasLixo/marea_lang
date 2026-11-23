@@ -1,0 +1,31 @@
+-- expect: 3016 @27
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A reference stored in an outer local from an inner scope.
+
+namespace main;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+structure Box
+    inner: Point;
+    count: sinteger32;
+end
+
+function make_point(): Point
+    return Point{ x = 1, y = 2 };
+end
+
+function check(): sinteger32
+    local outer: Point = make_point();
+    do
+        with outer as view do
+            outer = view;
+        end
+    end
+    return 1;
+end

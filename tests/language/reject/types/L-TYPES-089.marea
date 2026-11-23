@@ -1,0 +1,15 @@
+-- expect: 3004 @13
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A where clause that names a name that is not a generic parameter.
+
+namespace main;
+
+contract Comparable
+    function less(self: Self, other: Self): boolean;
+end
+
+function biggest<Item>(left: Item, right: Item): Item where Other: Comparable
+    return copy left;
+end

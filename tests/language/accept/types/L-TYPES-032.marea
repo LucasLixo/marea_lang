@@ -1,0 +1,17 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An enum, a variant value and a comparison.
+
+namespace main;
+
+enum Color
+    Red;
+    Green;
+    Blue;
+end
+
+function is_red(color: Color): boolean
+    return color == Color.Red;
+end

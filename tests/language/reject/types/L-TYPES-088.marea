@@ -1,0 +1,11 @@
+-- expect: 3004 @9
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A where clause that names a contract that does not exist.
+
+namespace main;
+
+function biggest<Item>(left: Item, right: Item): Item where Item: Missing
+    return copy left;
+end

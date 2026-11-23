@@ -1,0 +1,16 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A struct literal with every field.
+
+namespace main;
+
+structure Point
+    x: float64;
+    y: float64;
+end
+
+function origin(): Point
+    return Point{ x = 0.0, y = 0.0 };
+end
