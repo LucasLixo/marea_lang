@@ -1,0 +1,47 @@
+-- expect: ok
+-- example: examples/attributes/layout.marea
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Step 10b: attributes of memory layout, only on structure.
+--   layout = c      (enum key) fields in the order written, with the rules of C.
+--                   Needed to pass to C.
+--   layout = marea   (enum key) the compiler may reorder fields to save space. The default.
+--   align  = N      the structure starts at an address that is a multiple of N bytes.
+--                   N is a power of two. A field can have its own align too.
+--   pack   = N      no padding beyond N bytes between fields. pack = 1 has no padding.
+-- The checker rejects a wrong value (align = 3), and a pack that breaks the alignment of a
+-- field that has an align. pack and align on one structure is an error.
+-- size_of<T>() and align_of<T>() give the result as a constant.
+
+namespace main;
+
+import collections.array;
+
+-- 16 bytes align: a SIMD load or a GPU uniform buffer can read it without a split.
+#[visibility = public, layout = c, align = 16]
+structure Light
+    position: array<float32, 4>;
+    color: array<float32, 4>;
+end
+
+-- A header read from a file or a network: no padding at all.
+#[visibility = public, layout = c, pack = 1]
+structure FileHeader
+    magic: uinteger32;
+    version: uinteger8;
+    flags: uinteger8;
+    size: uinteger16;
+end
+
+-- One field with its own alignment.
+#[visibility = public, layout = c]
+structure Uniforms
+    time: float32;
+    #[align = 16]
+    matrix: array<float32, 16>;
+end
+
+constant LIGHT_SIZE: uinteger64 = size_of<Light>();       -- 32
+constant LIGHT_ALIGN: uinteger64 = align_of<Light>();     -- 16
+constant HEADER_SIZE: uinteger64 = size_of<FileHeader>(); -- 8
