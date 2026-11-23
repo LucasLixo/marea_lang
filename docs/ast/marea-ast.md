@@ -147,8 +147,25 @@ form, `{` is the member list. For example, `import a.b { f as g, T };` dumps as:
         IDENTIFIER "T"
 ```
 
+The parser keeps no word list of its own for names: `array<T, 4>` and `vector<T>` are both a `NAMED_TYPE` whose
+`TYPE_ARGUMENTS` hold types or an `INTEGER_LITERAL` (the split of a fixed `array` from a growable `vector`, and
+which names are primitives such as `character`, is sema's). An `enum` tag type (`enum Light : uinteger8`) is
+any type to the parser, a type child right after the name; that it must be an integer primitive is sema's rule.
+An attribute is read as a plain list: the parser never checks a key or a value, so `#[visibility = public]`,
+`#[operator = "construct"]` (a `STRING_LITERAL` value) and `#[semantics = reference_mutable]` (a
+`QUALIFIED_NAME` value) are the same shape as an unknown key.
+
+`reference` is not a reserved word any more (it lexes as an `IDENTIFIER`), and `mutable` is read only by
+`for each` and `partition`, never on a parameter.
+
 A bare name in an expression is an `IDENTIFIER` node. `or`, `and`, comparison, bit, shift, additive,
 multiplicative operators and `**` are all `BINARY_EXPRESSION` with the token kind as operator.
+
+Creating a value has two spellings and the parser tells them apart by the next token only. `Point{ x = 1.0 }`
+is a `LITERAL_VALUE`. `Point(1.0)` is an ordinary `CALL_EXPRESSION` whose callee is an `IDENTIFIER` (or a
+`MEMBER_ACCESS` chain for a qualified type name): the parser does not know the name is a type, so deciding
+that it is a construction call is sema's job. No test builds a call on a type name on purpose; the shape is
+the same one `f(1)` has in `PostfixChains`.
 
 ## Precedence
 
@@ -163,9 +180,10 @@ operators on its left: `-a ** 2` is `-(a ** 2)`, and the right side may be unary
 - **Type arguments in an expression.** A `<` after a name starts type arguments only when a balanced
   `>` closes it and the token after that is `(` (a call) or `{` (a literal value), or `.` when the
   name is a primary (`array<float32>.filled(0.0)` is a `GENERIC_NAME`). Between the brackets only
-  type tokens are allowed: names, `.`, `,`, integers, `function`, `:` and balanced parentheses - a
-  parameter's own attribute (if any) is outside this scan's vocabulary, the same gap as before this
-  scan ever tolerated the retired `mutable`/`reference` parameter keywords. A `>>` closes two levels.
+  type tokens are allowed: names, `.`, `,`, integers, `function`, `:` and balanced parentheses. A `#[` is not in
+  that vocabulary, so a function type with a parameter attribute inside the brackets of an expression
+  (`f<function(#[semantics = reference_mutable] a: T)>(x)`) is read as a comparison (see Gaps). A `>>`
+  closes two levels.
   The scan is limited to 1024 tokens and allocates
   nothing. Otherwise the `<` is a comparison. `a < b > (c)` is therefore a generic call.
 - **Type arguments in a type.** A `<` always starts type arguments. A `>>` token is split in two
@@ -221,6 +239,12 @@ All are errors, from 2001 up. A diagnostic is not repeated at the same byte offs
 
 ## Gaps
 
+- A function type that carries a parameter attribute (`#[semantics = ...]`) inside the type arguments of
+  an expression is not found by the type-argument scan, so `f<function(#[semantics = reference_mutable] a: T)>(x)`
+  parses as comparisons. In a type position the same text parses (`MAREAParserTypes`, `FunctionTypes`). No
+  test covers the expression case; this is read from the scan's token list in `MAREAParseExpression.c`.
+- No test builds a call on a type name (`Point(1.0)`) or an `enum` tag type that is not an integer; both
+  parse as plain calls and plain types, and the construction and tag rules are sema's.
 - The semantic rules that the grammar gives to "the checker" are not parsed: the namespace against
   the path, attribute keys and values, ownership, switch coverage.
 - An `IMPORT_MEMBER` path may have any number of parts in the tree. This is not a parser gap: only one
