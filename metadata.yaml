@@ -9,5 +9,5 @@ package: dev.marea
 version:
   major: 2 # Breaks the public API
   minor: 6 # Adds to the public API
-  patch: 3 # No public API impact
-  build: 198 # Bumped once per commit, regardless of major/minor/patch
+  patch: 4 # No public API impact
+  build: 199 # Bumped once per commit, regardless of major/minor/patch

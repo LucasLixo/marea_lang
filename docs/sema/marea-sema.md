@@ -184,7 +184,8 @@ or another type) is `LIFECYCLE_OPERATOR_NEEDS_CONCRETE_TYPE` (3028). A `destroy`
 type, and a `construct` has no return type and a default on every parameter; any other shape is
 `LIFECYCLE_OPERATOR_BAD_SHAPE` (3029), once per function. A call of such a function is
 `LIFECYCLE_OPERATOR_CALLED_DIRECTLY` (3027): by a bare name that no local and no top-level function of another
-meaning hides, and by the static form `Type.name(...)` where `Type` is the implemented type. The automatic call
+meaning hides, by the static form `Type.name(...)` where `Type` is the implemented type, and by a call on a value
+(`point.drop()`), decided to be rejected the same way (see Gaps). The automatic call
 at creation and destruction is lowered in the ir, not here.
 
 **Type construction call.** A call whose callee is a structure or an enum name of the file, not hidden by a local,
@@ -584,7 +585,7 @@ or rejects.
 | 3024 | `INVALID_PARALLEL_JUMP` | `continue;`, `break;` or `return;` in a `partition` body when no loop of the body is the target, or directly in a `fork_join` block, outside every `partition` body, when no loop of the block is the target |
 | 3025 | `DUPLICATE_SWITCH_ARM` | a second `default` arm in a `switch`, or `case 1 then ... case 1 then ...`, `case 1, 1 then ...`, `case Color.red` twice |
 | 3026 | `JUMP_OUTSIDE_LOOP` | `break;` or `continue;` with no enclosing loop and no enclosing `partition`/`fork_join` block |
-| 3027 | `LIFECYCLE_OPERATOR_CALLED_DIRECTLY` | `Point.make()` or `make()` when `make` carries `#[operator = "construct"]` or `"destroy"` |
+| 3027 | `LIFECYCLE_OPERATOR_CALLED_DIRECTLY` | `Point.make()`, `make()` or `point.make()` when `make` carries `#[operator = "construct"]` or `"destroy"` |
 | 3028 | `LIFECYCLE_OPERATOR_NEEDS_CONCRETE_TYPE` | a `construct` or `destroy` function at top level, in a generic implementation, with generic parameters, or in an implementation of a type that is not a structure or an enum |
 | 3029 | `LIFECYCLE_OPERATOR_BAD_SHAPE` | a `destroy` with a parameter or a return type; a `construct` with a return type or a parameter that has no default |
 | 3030 | `DEFAULT_PARAMETER_BEFORE_REQUIRED` | `function f(a: sinteger32 = 0, b: sinteger32)`: a parameter with a default value before one with none |
@@ -622,9 +623,11 @@ or rejects.
 - `operator` is checked against its vocabulary; only `construct` and `destroy` have a placement and a shape check
   (see "Construct and destroy"), the signature of any other operator is not checked; `export` is checked for shape
   only.
-- `LIFECYCLE_OPERATOR_CALLED_DIRECTLY` (3027) sees a bare name and the static form `Type.name(...)` only. A call on
-  a value (`point.drop()`) is not resolved, as sema does not know the type of the receiver. A bare name that no
-  top-level function declares also raises `UNDECLARED_NAME` (3004), as a member is not a bare name.
+- `LIFECYCLE_OPERATOR_CALLED_DIRECTLY` (3027) today sees a bare name and the static form `Type.name(...)` only.
+  Decision: a call on a value (`point.drop()`) of a lifecycle operator (`construct` or `destroy`) is also rejected
+  with 3027, for consistency with those two forms; no new code. Sema does not yet implement it, as it does not
+  know the type of the receiver. A bare name that no top-level function declares also raises `UNDECLARED_NAME`
+  (3004), as a member is not a bare name.
 - The type of a library type is not tracked, so a missing `copy` or `move` there is not reported.
 - `MAREA_SemaTypedNodeGetResolvedType` covers the six declaring nodes, the literals and the expressions of "Resolved
   type of an expression". A `Self` type and a generic parameter are spelled by
