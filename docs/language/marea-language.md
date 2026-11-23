@@ -255,6 +255,259 @@ A `known_gap` item that shares an issue shows one hole of the compiler through m
 | L-BINDINGS-084 | A constant assigned inside a function | gap: #189 NEW, rule: reject |
 | L-BINDINGS-094 | A raw pointer local outside an unsafe block | gap: #190 NEW, rule: reject |
 
+## Ownership and borrows
+
+Assignment with `copy` and `move`, the passing mode of a parameter, aliasing of arguments, writes through a read-only
+borrow, references that escape, constants as borrows, owned parameters, use after move and uninitialized locals. The
+items sit in `tests/language/<class>/ownership/`. Every reject has a sibling accept that differs only by the fix, and the
+path of the value changes: local, parameter, field, vector element, `for each` element, `with` name, branch of `if`,
+arm of `switch`, loop.
+
+What sema enforces today is small: 3016 (an existing structure, field or element assigned with no word), 3017
+(`value_read_only` on a non-primitive), 3018 (a borrow returned or stored in a field), 3019 (a bare name passed twice
+with a write borrow among them), 3032 (a bare file constant as a write borrow). Everything else in the known_gap
+tables below is accepted today. The holes are grouped by kind: memory, permission and aliasing. A gap that shares an
+issue shows one hole through more than one program.
+
+Settled rule 2 (the default borrow is read-only) is not what sema, the grammar and the examples say: all three give a
+non-primitive parameter with no attribute a write borrow (`reference_mutable`). The accept items of the area write
+the attribute out, so they hold under both readings. The items that depend on the default are known_gap items of issue
+#203.
+
+### Ownership and borrows: accept
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-OWNERSHIP-001 | A local initialized from an existing structure with copy | ok |
+| L-OWNERSHIP-003 | A local initialized from an existing structure with move | ok |
+| L-OWNERSHIP-005 | An assignment of an existing structure with copy | ok |
+| L-OWNERSHIP-006 | An assignment of an existing structure with move | ok |
+| L-OWNERSHIP-008 | A field of a structure assigned with copy | ok |
+| L-OWNERSHIP-010 | An element of a vector assigned with copy | ok |
+| L-OWNERSHIP-012 | A parameter assigned to a local with copy | ok |
+| L-OWNERSHIP-014 | A for each element assigned to a local with copy | ok |
+| L-OWNERSHIP-016 | An existing structure assigned with copy in a branch of if | ok |
+| L-OWNERSHIP-018 | An existing structure assigned with copy in an arm of switch | ok |
+| L-OWNERSHIP-020 | An existing structure assigned with copy in a loop | ok |
+| L-OWNERSHIP-022 | A with name assigned to a local with copy | ok |
+| L-OWNERSHIP-024 | A structure constant assigned to a local with copy | ok |
+| L-OWNERSHIP-025 | A primitive is assigned with no word | ok |
+| L-OWNERSHIP-026 | A primitive may be moved and copied | ok |
+| L-OWNERSHIP-027 | An enum value is assigned with no word | ok |
+| L-OWNERSHIP-028 | A new value from a call needs no word | ok |
+| L-OWNERSHIP-029 | A new value from a literal needs no word | ok |
+| L-OWNERSHIP-030 | A slice is a view and is assigned with no word | ok |
+| L-OWNERSHIP-031 | An array of primitives is copied by assignment | ok |
+| L-OWNERSHIP-033 | A vector assigned with copy | ok |
+| L-OWNERSHIP-034 | A vector assigned with move | ok |
+| L-OWNERSHIP-037 | The new owner is used after the move | ok |
+| L-OWNERSHIP-040 | A structure is copied in a loop body | ok |
+| L-OWNERSHIP-043 | A structure is moved in a branch that leaves the function | ok |
+| L-OWNERSHIP-045 | A structure is moved in an arm of switch that leaves the function | ok |
+| L-OWNERSHIP-047 | A structure is last used by the call that moves it | ok |
+| L-OWNERSHIP-049 | A moved name is assigned again and then used | ok |
+| L-OWNERSHIP-052 | A field is moved out and put back before the owner is used | ok |
+| L-OWNERSHIP-059 | A local with an initial value is read | ok |
+| L-OWNERSHIP-061 | A local is assigned in both branches and then read | ok |
+| L-OWNERSHIP-063 | A local is assigned in every arm of switch and then read | ok |
+| L-OWNERSHIP-067 | Two values are passed to two write-borrow parameters | ok |
+| L-OWNERSHIP-070 | One value is passed to two read-borrow parameters | ok |
+| L-OWNERSHIP-075 | A field and a copy of its owner are passed to a write and a read borrow | ok |
+| L-OWNERSHIP-078 | Two elements are passed to two write-borrow parameters | ok |
+| L-OWNERSHIP-080 | A value is passed to a write borrow and another is moved in the same call | ok |
+| L-OWNERSHIP-081 | A write borrow and a copy of the same value in one call | ok |
+| L-OWNERSHIP-083 | A vector is moved after a for each ended | ok |
+| L-OWNERSHIP-085 | The elements are written through a for each mutable | ok |
+| L-OWNERSHIP-087 | The source of a with block is only read inside the block | ok |
+| L-OWNERSHIP-090 | A parameter with no attribute is only read | ok |
+| L-OWNERSHIP-091 | A parameter with the write attribute is written | ok |
+| L-OWNERSHIP-095 | A nested field of a write borrow is written | ok |
+| L-OWNERSHIP-102 | A write borrow is passed on to a write-borrow parameter | ok |
+| L-OWNERSHIP-104 | A parameter with no attribute is passed on to a read-borrow parameter | ok |
+| L-OWNERSHIP-106 | A primitive parameter may be marked as a write borrow | ok |
+| L-OWNERSHIP-107 | A primitive parameter may be marked as a read-only borrow | ok |
+| L-OWNERSHIP-109 | The value copy attribute on a primitive parameter | ok |
+| L-OWNERSHIP-114 | A copy of a parameter with no attribute is returned | ok |
+| L-OWNERSHIP-118 | A copy of a for each variable is returned | ok |
+| L-OWNERSHIP-120 | A local is returned and the owner goes up | ok |
+| L-OWNERSHIP-122 | A copy of a borrow is stored in a field of a literal | ok |
+| L-OWNERSHIP-124 | A copy of a borrow is assigned to a field | ok |
+| L-OWNERSHIP-127 | A copy of a borrow is appended to a vector | ok |
+| L-OWNERSHIP-130 | A read borrow of a call result | ok |
+| L-OWNERSHIP-132 | A read borrow of a literal | ok |
+| L-OWNERSHIP-134 | A file constant is passed to a read-borrow parameter | ok |
+| L-OWNERSHIP-135 | A copy of a file constant is passed to a write-borrow parameter | ok |
+| L-OWNERSHIP-137 | A field of a file constant is passed to a read-borrow parameter | ok |
+| L-OWNERSHIP-139 | A value is moved into an owned parameter | ok |
+| L-OWNERSHIP-140 | A value is copied into an owned parameter | ok |
+| L-OWNERSHIP-141 | A new value is given to an owned parameter | ok |
+| L-OWNERSHIP-143 | A local of an owned type takes a value with move | ok |
+| L-OWNERSHIP-145 | An owned parameter is returned and the owner goes up | ok |
+
+### Ownership and borrows: reject
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-OWNERSHIP-002 | A local initialized from an existing structure with no word | 3016 @25 |
+| L-OWNERSHIP-004 | A plain assignment of an existing structure | 3016 @26 |
+| L-OWNERSHIP-007 | A field of a structure assigned with no word | 3016 @25 |
+| L-OWNERSHIP-009 | An element of a vector assigned with no word | 3016 @20 |
+| L-OWNERSHIP-011 | A parameter assigned to a local with no word | 3016 @20 |
+| L-OWNERSHIP-013 | A for each element assigned to a local with no word | 3016 @21 |
+| L-OWNERSHIP-015 | An existing structure assigned with no word in a branch of if | 3016 @26 |
+| L-OWNERSHIP-017 | An existing structure assigned with no word in an arm of switch | 3016 @27 |
+| L-OWNERSHIP-019 | An existing structure assigned with no word in a loop | 3016 @26 |
+| L-OWNERSHIP-021 | A with name assigned to a local with no word | 3016 @26 |
+| L-OWNERSHIP-023 | A structure constant assigned to a local with no word | 3016 @22 |
+| L-OWNERSHIP-032 | A vector assigned with no word | 3016 @20 |
+| L-OWNERSHIP-066 | One value is passed to two write-borrow parameters | 3019 @30 |
+| L-OWNERSHIP-068 | One value is passed to a write borrow and then a read borrow | 3019 @29 |
+| L-OWNERSHIP-069 | One value is passed to a read borrow and then a write borrow | 3019 @29 |
+| L-OWNERSHIP-071 | A parameter is passed to two write-borrow parameters | 3019 @25 |
+| L-OWNERSHIP-072 | A for each element is passed to two write-borrow parameters | 3019 @26 |
+| L-OWNERSHIP-073 | One value is passed to two write-borrow parameters in a branch | 3019 @31 |
+| L-OWNERSHIP-105 | The keyword mutable on a parameter is a parse error (the grammar spells the write borrow as an attribute) | 2001 @19 |
+| L-OWNERSHIP-108 | The value copy attribute on a structure parameter | 3017 @19 |
+| L-OWNERSHIP-110 | The value copy attribute on an enum parameter | 3017 @24 |
+| L-OWNERSHIP-111 | The semantics attribute with an unknown member | 3006 @19 |
+| L-OWNERSHIP-112 | The retired value attribute on a structure | 3005 @19 |
+| L-OWNERSHIP-113 | A parameter with no attribute is returned | 3018 @20 |
+| L-OWNERSHIP-115 | A read-only borrow is returned | 3018 @20 |
+| L-OWNERSHIP-116 | A write borrow is returned | 3018 @20 |
+| L-OWNERSHIP-117 | A for each variable is returned | 3018 @21 |
+| L-OWNERSHIP-119 | A with name is returned | 3018 @26 |
+| L-OWNERSHIP-121 | A borrow is stored in a field of a literal | 3018 @20 |
+| L-OWNERSHIP-123 | A borrow is assigned to a field | 3018 @25, 3016 @25 |
+| L-OWNERSHIP-125 | A borrow is stored in an element of a vector | 3016 @20 |
+| L-OWNERSHIP-128 | A borrow is returned through a generic function | 3018 @20 |
+| L-OWNERSHIP-133 | A file constant is passed to a write-borrow parameter | 3032 @26 |
+| L-OWNERSHIP-138 | A file constant is passed to a write-borrow parameter in a branch | 2001 @29, 3032 @27 |
+| L-OWNERSHIP-144 | A local of an owned type takes a value with no word | 3016 @25 |
+
+### Ownership and borrows: known_gap
+
+#### Memory holes
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-OWNERSHIP-035 | A library array assigned with no word (a library type has no copy or move check) | gap: #197 3016, rule: reject |
+| L-OWNERSHIP-036 | A structure is used after it was moved | gap: #198 NEW, rule: reject |
+| L-OWNERSHIP-038 | A structure is moved twice | gap: #198 NEW, rule: reject |
+| L-OWNERSHIP-039 | A structure is moved in a loop body, so the second turn uses a moved value | gap: #198 NEW, rule: reject |
+| L-OWNERSHIP-041 | A structure is moved in a for loop and the owner is outside | gap: #198 NEW, rule: reject |
+| L-OWNERSHIP-042 | A structure is moved in one branch and used after the branch | gap: #198 NEW, rule: reject |
+| L-OWNERSHIP-044 | A structure is moved in one arm of switch and used after it | gap: #198 NEW, rule: reject |
+| L-OWNERSHIP-046 | A structure is used after it was moved into an owned parameter | gap: #198 NEW, rule: reject |
+| L-OWNERSHIP-048 | An owned parameter is used after it was moved on | gap: #198 NEW, rule: reject |
+| L-OWNERSHIP-050 | A structure is used after the box that holds it was moved | gap: #198 NEW, rule: reject |
+| L-OWNERSHIP-051 | A field is moved out and the owner is used | gap: #199 NEW, rule: reject |
+| L-OWNERSHIP-053 | A field is moved out and then the whole structure is moved | gap: #199 NEW, rule: reject |
+| L-OWNERSHIP-054 | An element of a vector is moved out and the vector is used | gap: #199 NEW, rule: reject |
+| L-OWNERSHIP-055 | A for each element is moved out of the loop owner | gap: #199 NEW, rule: reject |
+| L-OWNERSHIP-056 | A read-only borrow is moved out | gap: #200 NEW, rule: reject |
+| L-OWNERSHIP-057 | A file constant is moved out | gap: #200 NEW, rule: reject |
+| L-OWNERSHIP-058 | A local with no initial value is read | gap: #177 NEW, rule: reject |
+| L-OWNERSHIP-060 | A local is assigned in one branch only and then read | gap: #177 NEW, rule: reject |
+| L-OWNERSHIP-062 | A local is assigned in one arm of switch only and then read | gap: #177 NEW, rule: reject |
+| L-OWNERSHIP-064 | A local is assigned in a loop only and then read | gap: #177 NEW, rule: reject |
+| L-OWNERSHIP-065 | A structure local with no initial value | gap: #177 NEW, rule: reject |
+| L-OWNERSHIP-126 | A borrow is appended to a vector | gap: #205 3018, rule: reject |
+| L-OWNERSHIP-129 | A write borrow of a call result | gap: #206 NEW, rule: reject |
+| L-OWNERSHIP-131 | A write borrow of a literal | gap: #206 NEW, rule: reject |
+| L-OWNERSHIP-142 | An existing value is given to an owned parameter with no word | gap: #208 NEW, rule: reject |
+
+#### Permission holes
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-OWNERSHIP-089 | A parameter with no attribute is written (rule 2: the default borrow is read-only) | gap: #203 NEW, rule: reject |
+| L-OWNERSHIP-092 | A field of an explicit read-only borrow is written | gap: #204 NEW, rule: reject |
+| L-OWNERSHIP-093 | A field of an explicit read-only borrow is changed with a compound operator | gap: #204 NEW, rule: reject |
+| L-OWNERSHIP-094 | A nested field of a read-only borrow is written | gap: #204 NEW, rule: reject |
+| L-OWNERSHIP-096 | An element of a read-only vector is written | gap: #204 NEW, rule: reject |
+| L-OWNERSHIP-097 | A whole read-only borrow is assigned | gap: #204 NEW, rule: reject |
+| L-OWNERSHIP-098 | A for each variable is written | gap: #204 NEW, rule: reject |
+| L-OWNERSHIP-099 | A with name is written | gap: #204 NEW, rule: reject |
+| L-OWNERSHIP-100 | A for each mutable over a read-only vector | gap: #204 NEW, rule: reject |
+| L-OWNERSHIP-101 | A read-only borrow is passed on to a write-borrow parameter | gap: #204 NEW, rule: reject |
+| L-OWNERSHIP-103 | A parameter with no attribute is passed on to a write-borrow parameter | gap: #203 NEW, rule: reject |
+| L-OWNERSHIP-136 | A field of a file constant is passed to a write-borrow parameter | gap: #207 3032, rule: reject |
+
+#### Aliasing holes
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-OWNERSHIP-074 | A field and its owner are passed to a write and a read borrow | gap: #201 3019, rule: reject |
+| L-OWNERSHIP-076 | One field is passed to two write-borrow parameters | gap: #201 3019, rule: reject |
+| L-OWNERSHIP-077 | One element is passed to two write-borrow parameters | gap: #201 3019, rule: reject |
+| L-OWNERSHIP-079 | A value is passed to a write borrow and moved in the same call | gap: #201 3019, rule: reject |
+| L-OWNERSHIP-082 | A vector is moved while a for each reads it | gap: #202 3019, rule: reject |
+| L-OWNERSHIP-084 | An element is written while a for each reads the vector | gap: #202 3019, rule: reject |
+| L-OWNERSHIP-086 | The source of a with block is written inside the block | gap: #202 3019, rule: reject |
+| L-OWNERSHIP-088 | The source of a with block is moved inside the block | gap: #202 3019, rule: reject |
+
+## Memory and regions
+
+Scopes that end, data that goes up with `return value;` and `move`, `construct` and `destroy`, the explicit call of a
+lifecycle operator (3027) and structured `fork_join` with `partition` and `spawn` (3020, 3024). The items sit in
+`tests/language/<class>/memory/`. An accept item of `construct` and `destroy` carries the expected order in a
+`-- output:` comment for the future vm; the runner reads no output today.
+
+### Memory and regions: accept
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-MEMORY-001 | A function returns a local and the owner goes up to the caller | ok |
+| L-MEMORY-002 | Data goes up through two calls | ok |
+| L-MEMORY-003 | A local of a scope block ends at its end | ok |
+| L-MEMORY-005 | An owner moves up from an inner scope to an outer one | ok |
+| L-MEMORY-010 | A structure with construct and destroy is made and goes out of scope once | ok |
+| L-MEMORY-011 | Two locals are destroyed in reverse order of their creation | ok |
+| L-MEMORY-012 | A moved structure is destroyed once, by the new owner | ok |
+| L-MEMORY-013 | A structure made in each turn of a loop is destroyed in the same turn | ok |
+| L-MEMORY-014 | A structure of an inner scope block is destroyed at its end | ok |
+| L-MEMORY-015 | A returned structure is destroyed once, by the caller | ok |
+| L-MEMORY-016 | A structure is made by its construct operator with a call form | ok |
+| L-MEMORY-022 | A partition body spawns a worker on its part | ok |
+| L-MEMORY-024 | A worker spawned on a read-borrow parameter | ok |
+| L-MEMORY-027 | Two workers read the same local | ok |
+| L-MEMORY-033 | A field of a local is read inside its own scope block | ok |
+
+### Memory and regions: reject
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-MEMORY-004 | A local of a scope block is used after the block | 3004 @27 |
+| L-MEMORY-008 | A name of a nested scope block does not leave it | 3004 @28 |
+| L-MEMORY-009 | A reference stored in an outer local from an inner scope | 3016 @27 |
+| L-MEMORY-017 | The destroy operator is called by its bare name | 3004 @34, 3027 @34 |
+| L-MEMORY-018 | The destroy operator is called by the static form | 3027 @34 |
+| L-MEMORY-019 | The construct operator is called by the static form | 3027 @34 |
+| L-MEMORY-023 | A worker spawned on a write-borrow parameter | 3020 @29 |
+| L-MEMORY-025 | A worker spawned on a call result | 3020 @29 |
+| L-MEMORY-029 | A return leaves the body of a partition | 3024 @22 |
+| L-MEMORY-031 | A worker takes the part of a partition mutable while the source is also spawned | 3020 @30 |
+
+### Memory and regions: known_gap
+
+#### Memory holes
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-MEMORY-006 | An inner owner is used after it moved up | gap: #198 NEW, rule: reject |
+| L-MEMORY-007 | An outer owner is moved down into an inner scope and used after | gap: #198 NEW, rule: reject |
+| L-MEMORY-020 | The destroy operator is called on a value | gap: #209 3027, rule: reject |
+| L-MEMORY-021 | A structure is destroyed twice by moving it and keeping the old owner | gap: #198 NEW, rule: reject |
+| L-MEMORY-030 | A worker is spawned outside of a fork_join block | gap: #211 NEW, rule: reject |
+| L-MEMORY-032 | A field of a scope block local is read after the block | gap: #212 3004, rule: reject |
+
+#### Aliasing holes
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-MEMORY-026 | Two workers write the same local | gap: #210 3020, rule: reject |
+| L-MEMORY-028 | A worker writes a local that the block reads at the same time | gap: #210 3020, rule: reject |
+
 ## Functions and calls
 
 Function declaration and call, parameters and defaults, the result and `return value;` on every path, recursion, function types as values, the passing mode of a parameter, and the diagnostics 3010, 3011, 3017 to 3019, 3022, 3030 and 3032 as these show them. The items sit in `tests/language/<class>/functions/`.

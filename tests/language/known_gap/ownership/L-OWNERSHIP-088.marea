@@ -1,0 +1,30 @@
+-- gap: #202 3019
+-- rule: reject
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- The source of a with block is moved inside the block.
+
+namespace main;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+structure Box
+    inner: Point;
+    count: sinteger32;
+end
+
+function make_point(): Point
+    return Point{ x = 1, y = 2 };
+end
+
+function check(): sinteger32
+    local point: Point = make_point();
+    with point as view do
+        local other: Point = move point;
+    end
+    return 1;
+end

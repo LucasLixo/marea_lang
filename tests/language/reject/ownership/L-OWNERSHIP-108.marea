@@ -1,0 +1,22 @@
+-- expect: 3017 @19
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- The value copy attribute on a structure parameter.
+
+namespace main;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+structure Box
+    inner: Point;
+    count: sinteger32;
+end
+
+function check(#[semantics = value_read_only] point: Point): sinteger32
+    local x: sinteger32 = point.x;
+    return 1;
+end

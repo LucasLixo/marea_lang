@@ -1,0 +1,22 @@
+-- expect: 3005 @19
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- The retired value attribute on a structure.
+
+namespace main;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+structure Box
+    inner: Point;
+    count: sinteger32;
+end
+
+#[value]
+structure Small
+    x: sinteger32;
+end

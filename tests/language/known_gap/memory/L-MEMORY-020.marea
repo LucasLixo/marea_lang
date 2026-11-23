@@ -1,0 +1,38 @@
+-- gap: #209 3027
+-- rule: reject
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- The destroy operator is called on a value.
+
+namespace main;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+structure Box
+    inner: Point;
+    count: sinteger32;
+end
+
+structure Handle
+    id: sinteger32;
+end
+
+implementation Handle
+    #[operator = "construct"]
+    function open(id: sinteger32 = 0)
+    end
+
+    #[operator = "destroy"]
+    function close()
+    end
+end
+
+function check(): sinteger32
+    local handle: Handle = Handle{ id = 1 };
+    handle.close();
+    return 1;
+end

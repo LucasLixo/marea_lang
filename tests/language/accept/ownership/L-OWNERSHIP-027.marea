@@ -1,0 +1,29 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An enum value is assigned with no word.
+
+namespace main;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+structure Box
+    inner: Point;
+    count: sinteger32;
+end
+
+enum Mode
+    fast;
+    slow;
+end
+
+function check(): sinteger32
+    local first: Mode = Mode.fast;
+    local second: Mode = first;
+    second = first;
+    return 1;
+end
