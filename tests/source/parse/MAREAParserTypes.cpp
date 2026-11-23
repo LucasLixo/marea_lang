@@ -128,6 +128,17 @@ TEST(MAREAParserTypes, FunctionTypes)
     }
 }
 
+TEST(MAREAParserTypes, FunctionTypeRejectsParameterDefault)
+{
+    GTEST_COUT << "Validating a default in a function type parameter is a diagnostic." << std::endl;
+
+    MAREA_ParseFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_parse("namespace main; constant x: function(a: integer32 = 0) = 1;"), MAREA_PARSE_EXCEPT_SUCCESS) << "Parsing must succeed.";
+
+    EXPECT_EQ(fixture.MAREA_codes(), std::vector<MAREA_Uinteger32>{ MAREA_PARSE_DIAGNOSTIC_CODE_UNEXPECTED_TOKEN }) << "UNEXPECTED_TOKEN is expected and nothing more.";
+}
+
 TEST(MAREAParserTypes, MissingClosingAngleBracket)
 {
     GTEST_COUT << "Validating a missing closing angle bracket." << std::endl;

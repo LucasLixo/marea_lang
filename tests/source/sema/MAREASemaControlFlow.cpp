@@ -379,7 +379,7 @@ TEST(MAREASemaControlFlow, SwitchOverAnImportedEnumChecksCoverage)
 
     MAREA_SemaFixture library;
 
-    ASSERT_EQ(library.parser.MAREA_parse("namespace a.b; #[public] enum Color red; green; blue; end"), MAREA_PARSE_EXCEPT_SUCCESS) << "The library must parse.";
+    ASSERT_EQ(library.parser.MAREA_parse("namespace a.b; #[visibility = public] enum Color red; green; blue; end"), MAREA_PARSE_EXCEPT_SUCCESS) << "The library must parse.";
 
     const auto RESOLVE = [&library](const std::string &name, const MAREA_AstNode **root) {
         *root = library.parser.root;
@@ -424,7 +424,7 @@ TEST(MAREASemaControlFlow, SwitchOverAnAliasedImportedEnumChecksCoverage)
 
     MAREA_SemaFixture library;
 
-    ASSERT_EQ(library.parser.MAREA_parse("namespace a.b; #[public] enum Color red; green; blue; end"), MAREA_PARSE_EXCEPT_SUCCESS) << "The library must parse.";
+    ASSERT_EQ(library.parser.MAREA_parse("namespace a.b; #[visibility = public] enum Color red; green; blue; end"), MAREA_PARSE_EXCEPT_SUCCESS) << "The library must parse.";
 
     MAREA_SemaFixture fixture([&library](const std::string &name, const MAREA_AstNode **root) {
         *root = library.parser.root;

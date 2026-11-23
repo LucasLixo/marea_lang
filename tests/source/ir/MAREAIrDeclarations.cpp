@@ -76,7 +76,7 @@ TEST(MAREAIrDeclarations, StructureAttributesAreErased)
 
     MAREA_IrFixture fixture;
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; #[public, value] structure Point x: float64; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; #[visibility = public, value] structure Point x: float64; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     EXPECT_EQ(MAREA_irRender(MAREA_irChild(fixture.module, 0)), "(STRUCTURE_DECLARATION Point (FIELD_DECLARATION x :float64))") << "No ATTRIBUTE node must survive.";
 }

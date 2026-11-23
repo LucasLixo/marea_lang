@@ -317,6 +317,17 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD const MAREA_AstNode *MAREA_CALL MAREA_SemaAttributeFind(const MAREA_AstNode *root, const MAREA_AstNode *declaration, const MAREA_Character8 *key);
 
     /**
+     * @brief Tells whether the closest attribute of a key has one given enum member as its value. The attributes
+     * of the symbol win over the file attributes of the compilation unit that holds it.
+     * @param root COMPILATION_UNIT node that holds the declaration. May be null: only the symbol is read.
+     * @param declaration Declaration or field node. May be null.
+     * @param key Attribute key, for example "visibility".
+     * @param member Enum member, for example "public".
+     * @return True when the closest attribute with that key is a single name equal to the member.
+     */
+    MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_SemaAttributeHasMember(const MAREA_AstNode *root, const MAREA_AstNode *declaration, const MAREA_Character8 *key, const MAREA_Character8 *member);
+
+    /**
      * @brief Reads the integer value of an ATTRIBUTE_ITEM, decimal or hexadecimal.
      * @param item ATTRIBUTE_ITEM node. May be null.
      * @param outValue Receives the value. Must not be null.
@@ -492,15 +503,6 @@ MAREA_BEGIN_EXTERN_C
      * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
      */
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckControlFlow(MAREA_SemaContext * context, const MAREA_AstNode *node);
-
-    /**
-     * @brief Checks the entry point: a function named main in the namespace main has the signature
-     * (arguments: array<string>): integer32. Sema never requires a main to exist.
-     * @param context Context of the run. Must not be null.
-     * @param root COMPILATION_UNIT node. Must not be null.
-     * @return MAREA_SEMA_EXCEPT_SUCCESS, or MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER on a null argument.
-     */
-    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckEntryPoint(MAREA_SemaContext * context, const MAREA_AstNode *root);
 
     /**
      * @brief Reports TYPE_MISMATCH when the type that sema knows for an expression cannot be the primitive type

@@ -237,8 +237,9 @@ MAREA_BEGIN_EXTERN_C
 
     /**
      * @brief Parses a parenthesized parameter list into a PARAMETER_LIST node. Always returns a node.
+     * @param allowDefault MAREA_BOOLEAN_TRUE lets a parameter have "= expression"; MAREA_BOOLEAN_FALSE (a function type) reports UNEXPECTED_TOKEN and still parses the expression.
      */
-    MAREA_AstNode *MAREA_CALL MAREA_ParseParameterList(MAREA_ParseState * state);
+    MAREA_AstNode *MAREA_CALL MAREA_ParseParameterList(MAREA_ParseState * state, MAREA_Boolean allowDefault);
 
     /**
      * @brief Parses generic_parameters into a GENERIC_PARAMETERS node. The current token must be a less than.

@@ -16,7 +16,7 @@
 --      cost at run time. "marea expand" shows the copies.
 --   6. The type is inferred at the call. It can be written: maximum<integer32>(1, 2).
 --   7. No partial specialization and no SFINAE.
---   8. A function with #[export = c] must be concrete, because C has no generics.
+--   8. A function with #[export = "name"] must be concrete, because C has no generics.
 --   9. Limit of 64 levels of instantiation.
 --   10. Several restrictions: "where Item: Comparable, Printable and Key: Hashable".
 --   11. Built-in contracts: Copyable (the type can use "copy") and Movable (the type can use
@@ -29,18 +29,18 @@ namespace types.generics;
 import collections.array;
 
 -- A contract. The type that meets it is named in the signature as "Self".
-#[public]
+#[visibility = public]
 contract Comparable
     function less(self: Self, other: Self): boolean;
 end
 
-#[public]
+#[visibility = public]
 contract Printable
     function describe(self: Self): string;
 end
 
 -- A type parameter with one restriction.
-#[public]
+#[visibility = public]
 function maximum<Item>(left: Item, right: Item): Item where Item: Comparable, Copyable
     if left.less(right) then
         return copy right;
@@ -50,26 +50,26 @@ function maximum<Item>(left: Item, right: Item): Item where Item: Comparable, Co
 end
 
 -- Two contracts on one parameter.
-#[public]
+#[visibility = public]
 function larger_description<Item>(left: Item, right: Item): string where Item: Comparable, Printable, Copyable
     local winner: Item = maximum(left, right);
     return winner.describe();
 end
 
 -- A reference can not be returned. The function gives a copy, so the type must be Copyable.
-#[public]
+#[visibility = public]
 function first_of<Item>(values: array<Item>): Item where Item: Copyable
     return copy values[0];
 end
 
 -- Two type parameters, no restriction needed to keep the pair.
-#[public]
+#[visibility = public]
 structure Pair<First, Second>
     first: First;
     second: Second;
 end
 
-#[public]
+#[visibility = public]
 implementation<First, Second> Pair<First, Second>
     function swap(self: owned<Pair<First, Second>>): Pair<Second, First> where First: Movable and Second: Movable
         return Pair<Second, First>{ first = move self.second, second = move self.first };
@@ -77,12 +77,12 @@ implementation<First, Second> Pair<First, Second>
 end
 
 -- A value parameter: the size is part of the type, known at compile time.
-#[public]
+#[visibility = public]
 structure Buffer<Item, constant Count: integer32>
     items: array<Item, Count>;
 end
 
-#[public]
+#[visibility = public]
 implementation<Item, constant Count: integer32> Buffer<Item, Count>
     function capacity(self: Buffer<Item, Count>): integer32
         return Count;
@@ -90,18 +90,18 @@ implementation<Item, constant Count: integer32> Buffer<Item, Count>
 end
 
 -- A move-only type: the contract says that the type is moved, so a generic can not copy it.
-#[public]
+#[visibility = public]
 function take<Item>(value: owned<Item>): owned<Item> where Item: Movable
     return value;
 end
 
 -- A type that meets Comparable, Printable and Copyable.
-#[public, value]
+#[visibility = public, value]
 structure Score
     value: integer32;
 end
 
-#[public]
+#[visibility = public]
 implementation Score
     function less(self: Score, other: Score): boolean
         return self.value < other.value;
@@ -112,7 +112,7 @@ implementation Score
     end
 end
 
-#[public]
+#[visibility = public]
 function show_generics(): string
     local best: Score = maximum(Score{ value = 3 }, Score{ value = 9 });   -- Item is Score
     local number: integer32 = maximum<integer32>(4, 8);                     -- Item written

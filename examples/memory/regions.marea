@@ -15,12 +15,12 @@ import arenas.Arena;
 import text;
 
 -- The result is made in the region of the caller, and the caller owns it.
-#[public]
+#[visibility = public]
 function join_names(first: string, second: string): string
     return text.concatenate(first, " ", second);
 end
 
-#[public]
+#[visibility = public]
 function show_regions(): integer32
     local length: integer32 = 0;
     do
@@ -32,7 +32,7 @@ function show_regions(): integer32
 end
 
 -- An explicit arena: the data of the arena is freed together when the arena owner ends.
-#[public]
+#[visibility = public]
 function show_explicit_arena(): integer32
     local pool: Arena = Arena.create();
     local name: string = join_names("Leo", "Costa");
