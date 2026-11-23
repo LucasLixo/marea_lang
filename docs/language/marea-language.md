@@ -1276,7 +1276,7 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 | 1001-1006 | `lex` | [marea-lex.md](../lex/marea-lex.md) |
 | 2001-2010 | `parse` | [marea-ast.md](../ast/marea-ast.md) |
 | 3001-3032 | `sema` | [marea-sema.md](../sema/marea-sema.md) |
-| 4004-4005 | `ir` | [marea-ir.md](../ir/marea-ir.md), no item reaches them (see Gaps) |
+| 4004-4006 | `ir` | [marea-ir.md](../ir/marea-ir.md), no item reaches them (see Gaps) |
 
 ## Gaps
 
@@ -1329,7 +1329,7 @@ the rule is enforced. The coverage test holds this list; an example that gains a
 ### Diagnostic codes with no reject item
 
 Every live lex, parse and sema code (1001-1006, 2001-2010, 3001-3032 without 3023) has a `reject` item. The ir codes
-4004 and 4005 are exempt: the runner runs lex, parse and sema only, so no item can reach the ir. The exemption ends
+4004, 4005 and 4006 are exempt: the runner runs lex, parse and sema only, so no item can reach the ir. The exemption ends
 when a runner or an apply makes the ir run in it. The retired codes 3023 and 4001-4003 are excluded and must not
 return in a header.
 

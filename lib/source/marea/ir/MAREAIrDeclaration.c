@@ -190,6 +190,13 @@ MAREA_IrExcept MAREA_CALL MAREA_IrCreateNamed(MAREA_IrContext *context, MAREA_Ir
         return result;
     }
 
+    // INFO: sema gives a resolved type only to the six declaring kinds; any other kind built here keeps none.
+    result = MAREA_IrNodeSetResolvedTypeFromTyped(context, node, typed, MAREA_NULLPTR);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
     *outNode = node;
 
     return MAREA_IR_EXCEPT_SUCCESS;
