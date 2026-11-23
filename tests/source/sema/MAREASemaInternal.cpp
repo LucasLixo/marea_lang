@@ -211,6 +211,12 @@ TEST(MAREASemaInternal, CompareStructureLayoutGivesAVerdict)
 
     EXPECT_EQ(MAREA_verdictOf(C + "structure A x: string; end " + C + "structure B x: sinteger32; end", 0, 1), MAREA_SEMA_LAYOUT_VERDICT_UNDECIDED) << "A string field has no width in sema.";
 
+    EXPECT_EQ(MAREA_verdictOf(C + "structure A x: character; end " + C + "structure B y: character; end", 0, 1), MAREA_SEMA_LAYOUT_VERDICT_COMPATIBLE) << "A character field has a width, so the same field under another name is compatible.";
+
+    EXPECT_EQ(MAREA_verdictOf(C + "structure A x: character; end " + C + "structure B x: uinteger8; end", 0, 1), MAREA_SEMA_LAYOUT_VERDICT_INCOMPATIBLE) << "A field of another primitive name is incompatible, even with the same width.";
+
+    EXPECT_EQ(MAREA_verdictOf(C + "structure A x: character; end " + C + "structure B x: sinteger32; end", 0, 1), MAREA_SEMA_LAYOUT_VERDICT_INCOMPATIBLE) << "A character is smaller than a sinteger32.";
+
     EXPECT_EQ(MAREA_verdictOf(C + "structure A x: sinteger32; end #[layout = c, align = 4294967297] structure B x: sinteger32; end", 0, 1), MAREA_SEMA_LAYOUT_VERDICT_UNDECIDED) << "An alignment that is too large to compute with is left to the backend.";
 
     EXPECT_EQ(MAREA_verdictOf(C + "structure A x: sinteger32; end", 0, 0), MAREA_SEMA_LAYOUT_VERDICT_COMPATIBLE) << "The same declaration is compatible with itself.";

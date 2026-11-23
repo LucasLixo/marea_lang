@@ -18,6 +18,7 @@ static const MAREA_Character8 *const MAREA_G_BuiltinTypes[] = {
     "uinteger64",
     "float32",
     "float64",
+    "character",
     "string",
     "vector",
     "pointer",
