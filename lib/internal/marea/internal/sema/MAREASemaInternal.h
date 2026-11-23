@@ -375,6 +375,48 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedAstExternalNameSignature(MAREA_SemaContext * context, const MAREA_AstNode *identifier, const MAREA_SemaSignature **outSignature);
 
     /**
+     * @brief Peels an expression type down to a plain NAMED_TYPE, the same way MAREA_SemaTypedAstElementOf reads a
+     * collection before it looks at the type arguments: a generic parameter a frame fills, Self, a local alias with
+     * no generic parameters and owned<T> are all followed. A structure, an enum, a type sema cannot peel or a step
+     * limit reached gives false, and outPeeled is left as a copy of type.
+     * @param context Context the node is being built with. Must not be null.
+     * @param type Type to peel. Must not be null.
+     * @param outPeeled Receives the peeled type. Must not be null.
+     * @return MAREA_BOOLEAN_TRUE when the result is a plain NAMED_TYPE, else MAREA_BOOLEAN_FALSE.
+     */
+    MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_SemaTypedAstPeelToNamedType(const MAREA_SemaContext *context, const MAREA_SemaExprType *type, MAREA_SemaExprType *outPeeled);
+
+    /**
+     * @brief Types a call whose callee is a member of a library type the host gave a signature for: a static call
+     * on the type itself (array<T,N>.filled(0.0), c.array<sinteger32>.filled(8, 0)), or an instance call on a value
+     * whose type is array, vector, slice, pointer, owned, task or table, bare or under the reserved namespace c
+     * (tasks.append(x), item.result()). The signature is asked of the resolver the same way the signature of an
+     * EXTERNAL member is, keyed by the canonical "c.<name>" namespace and the member name, never by the namespace an
+     * import gave the name. A result spelled "Self" gives the receiver's own type; a result that names one of the
+     * library's own generic parameters (array: Item, Count; table: Key, Value; vector, slice, pointer, owned, task:
+     * Item) gives the receiver's type argument at that place, read in the receiver's own frame; any other spelling is
+     * the literal result, exactly as an EXTERNAL call's signature is read. A resolver with no signature function, a
+     * receiver that is not one of these library types, or a member the signature function does not know, leaves this
+     * empty: the call stays exactly as opaque as before this rule existed.
+     * @param context Context the node is being built with. Must not be null.
+     * @param built Typed node of the call, with its callee child already built. Must not be null.
+     * @return The type, or an empty value when no library signature applies.
+     */
+    MAREA_NODISCARD MAREA_SemaExprType MAREA_CALL MAREA_SemaTypedAstLibraryCallType(MAREA_SemaContext * context, const MAREA_SemaTypedNode *built);
+
+    /**
+     * @brief Reads the value type of a table on an index access: the second type argument of table<K, V>, bare or
+     * under the reserved namespace c. Purely structural, the way MAREA_SemaTypedAstElementOf reads an array's
+     * element, so it asks no signature of the resolver. Any other collection, or a table with fewer than two type
+     * arguments, gives false.
+     * @param context Context the node is being built with. Must not be null.
+     * @param collection Type of the collection. Must not be null.
+     * @param outValue Receives the value type. Must not be null.
+     * @return MAREA_BOOLEAN_TRUE when the collection is a table and the value was read, else MAREA_BOOLEAN_FALSE.
+     */
+    MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_SemaTypedAstTableValueOf(const MAREA_SemaContext *context, const MAREA_SemaExprType *collection, MAREA_SemaExprType *outValue);
+
+    /**
      * @brief The type of a call that returns nothing: the fixed text "void". It is only the spelling of a resolved
      * type, never a type that a declaration can write.
      * @return The type, with the fixed text set.

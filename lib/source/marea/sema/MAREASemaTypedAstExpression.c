@@ -415,6 +415,15 @@ static MAREA_G_Peeled MAREA_CALL MAREA_G_PeelOwned(const MAREA_SemaContext *cont
     return MAREA_G_PEELED_NONE;
 }
 
+MAREA_Boolean MAREA_CALL MAREA_SemaTypedAstPeelToNamedType(const MAREA_SemaContext *context, const MAREA_SemaExprType *type, MAREA_SemaExprType *outPeeled)
+{
+    *outPeeled = *type;
+
+    MAREA_G_Nominal ignored = { .declaration = MAREA_NULLPTR, .arguments = MAREA_NULLPTR, .frame = MAREA_NULLPTR };
+
+    return (MAREA_G_PeelOwned(context, outPeeled, &ignored) == MAREA_G_PEELED_NODE) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
 // INFO: a function or a constant of an implementation block, read for the receiver that holds it.
 static MAREA_SemaExprType MAREA_CALL MAREA_G_ImplementationMemberType(MAREA_G_Resolver *resolver, const MAREA_G_Nominal *receiver, const MAREA_Character8 *name, MAREA_IntegerSize nameLength, const MAREA_AstNode *callTypeArguments)
 {
@@ -766,7 +775,15 @@ static MAREA_SemaExprType MAREA_CALL MAREA_G_TypeOfIndexAccess(MAREA_G_Resolver 
 
     MAREA_IGNORE(MAREA_SemaTypedAstElementOf(resolver->context, &BASE, MAREA_BOOLEAN_TRUE, &element));
 
-    return element;
+    if (MAREA_G_TypeIsKnown(&element) == MAREA_BOOLEAN_TRUE) {
+        return element;
+    }
+
+    MAREA_SemaExprType value = MAREA_G_TypeNone();
+
+    MAREA_IGNORE(MAREA_SemaTypedAstTableValueOf(resolver->context, &BASE, &value));
+
+    return value;
 }
 
 // INFO: a built-in convert<T>(x) has one type argument and one argument, and the unit binds no name convert.
@@ -837,6 +854,12 @@ static MAREA_SemaExprType MAREA_CALL MAREA_G_TypeOfCall(MAREA_G_Resolver *resolv
 
     if (MAREA_G_TypeIsKnown(&EXTERNAL) == MAREA_BOOLEAN_TRUE) {
         return EXTERNAL;
+    }
+
+    const MAREA_SemaExprType LIBRARY = MAREA_SemaTypedAstLibraryCallType(resolver->context, built);
+
+    if (MAREA_G_TypeIsKnown(&LIBRARY) == MAREA_BOOLEAN_TRUE) {
+        return LIBRARY;
     }
 
     // INFO: a call on the name of a structure or an enum is a construction, so the value has that type.
