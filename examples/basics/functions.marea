@@ -10,11 +10,11 @@
 namespace basics.functions;
 
 -- A function type has its own name. It is a type name, so it uses PascalCase.
-#[public]
+#[visibility = public]
 type BinaryOperation = function(left: integer32, right: integer32): integer32;
 
 -- The type of a function without a result has no ": Type". Its call can not give a value.
-#[public]
+#[visibility = public]
 type Callback = function(text: string);
 
 function add(left: integer32, right: integer32): integer32
@@ -26,7 +26,7 @@ function multiply(left: integer32, right: integer32): integer32
 end
 
 -- A function is a value of a function type.
-#[public]
+#[visibility = public]
 function apply(operation: BinaryOperation, left: integer32, right: integer32): integer32
     return operation(left, right);
 end
@@ -39,7 +39,7 @@ function log_line(text: string)
     stdio.puts(text);
 end
 
-#[public]
+#[visibility = public]
 function show_functions(): integer32
     local first: integer32 = apply(add, 2, 3);
     local second: integer32 = apply(multiply, 2, 3);

@@ -9,10 +9,10 @@
 
 namespace namespaces.library;
 
-#[public]
+#[visibility = public]
 function greet(name: string): string
     return name;
 end
 
-#[public]
+#[visibility = public]
 constant LIBRARY_NAME: string = "library";
