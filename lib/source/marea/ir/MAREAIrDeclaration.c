@@ -233,6 +233,13 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_AppendZero(MAREA_IrContext *context, co
         return result;
     }
 
+    // INFO: the zero fills the thing the typed node declares, so it has the type of that declaration.
+    result = MAREA_IrNodeSetResolvedTypeFromTyped(context, zero, typed, MAREA_NULLPTR);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
     return MAREA_IrNodeAppendChild(context, node, zero);
 }
 
