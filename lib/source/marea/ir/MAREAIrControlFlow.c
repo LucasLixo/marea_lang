@@ -92,7 +92,8 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerLocal(MAREA_IrContext *context, co
 
     MAREA_Boolean complete = MAREA_BOOLEAN_TRUE;
 
-    result = MAREA_IrAppendInitializer(context, typed, node, &complete);
+    // INFO: a local with no written initializer is the zero-default rule's own case: it gets an explicit ZERO_VALUE.
+    result = MAREA_IrAppendInitializer(context, typed, node, MAREA_BOOLEAN_TRUE, &complete);
 
     if ((result == MAREA_IR_EXCEPT_SUCCESS) && (complete == MAREA_BOOLEAN_TRUE)) {
         *outNode = node;
