@@ -152,7 +152,9 @@ TEST(MAREAIrContext, KindNamesAreStable)
 
     EXPECT_STREQ(MAREA_IrKindGetName(MAREA_IR_KIND_TYPE_NAME), "TYPE_NAME") << "The type operand kind must be named.";
 
-    EXPECT_STREQ(MAREA_IrKindGetName(MAREA_IR_KIND_BUILTIN_NAME), "BUILTIN_NAME") << "The last kind must be BUILTIN_NAME.";
+    EXPECT_STREQ(MAREA_IrKindGetName(MAREA_IR_KIND_BUILTIN_NAME), "BUILTIN_NAME") << "BUILTIN_NAME must be named.";
+
+    EXPECT_STREQ(MAREA_IrKindGetName(MAREA_IR_KIND_CHARACTER_LITERAL), "CHARACTER_LITERAL") << "The last kind must be CHARACTER_LITERAL.";
 
     EXPECT_EQ(static_cast<int>(MAREA_IR_KIND_FOR_EACH_STATEMENT), static_cast<int>(MAREA_IR_KIND_WITH_STATEMENT) + 1) << "FOR_EACH_STATEMENT must come after the parallel kinds, so no value moves.";
 
@@ -162,7 +164,9 @@ TEST(MAREAIrContext, KindNamesAreStable)
 
     EXPECT_EQ(static_cast<int>(MAREA_IR_KIND_BUILTIN_NAME), static_cast<int>(MAREA_IR_KIND_TYPE_NAME) + 1) << "BUILTIN_NAME must follow TYPE_NAME.";
 
-    EXPECT_EQ(static_cast<int>(MAREA_IR_KIND_COUNT), static_cast<int>(MAREA_IR_KIND_BUILTIN_NAME) + 1) << "BUILTIN_NAME must be the last kind before COUNT.";
+    EXPECT_EQ(static_cast<int>(MAREA_IR_KIND_CHARACTER_LITERAL), static_cast<int>(MAREA_IR_KIND_BUILTIN_NAME) + 1) << "CHARACTER_LITERAL must follow BUILTIN_NAME, so no value moves.";
+
+    EXPECT_EQ(static_cast<int>(MAREA_IR_KIND_COUNT), static_cast<int>(MAREA_IR_KIND_CHARACTER_LITERAL) + 1) << "CHARACTER_LITERAL must be the last kind before COUNT.";
 
     EXPECT_STREQ(MAREA_IrKindGetName(MAREA_IR_KIND_COUNT), "UNKNOWN") << "COUNT must be unknown.";
 

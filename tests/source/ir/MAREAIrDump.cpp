@@ -115,6 +115,17 @@ TEST(MAREAIrDump, StringTextIsEscaped)
     EXPECT_NE(MAREA_dumpOf(fixture).find("STRING_LITERAL \"\\\"a\\\\\\\\b\\\"\""), std::string::npos) << "Quotes and backslashes of the text must be escaped: " << MAREA_dumpOf(fixture);
 }
 
+TEST(MAREAIrDump, CharacterTextIsEscaped)
+{
+    GTEST_COUT << "Validating a character literal is dumped with its single quotes and an escaped backslash." << std::endl;
+
+    MAREA_IrFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; constant C: character = '\\n';"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+
+    EXPECT_NE(MAREA_dumpOf(fixture).find("CHARACTER_LITERAL \"'\\\\n'\""), std::string::npos) << "The text must keep its quotes and escape the backslash: " << MAREA_dumpOf(fixture);
+}
+
 TEST(MAREAIrDump, QualifiedImplementationNamesAreWritten)
 {
     GTEST_COUT << "Validating an implementation member is dumped under its qualified name." << std::endl;

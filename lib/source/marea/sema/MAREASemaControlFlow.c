@@ -401,6 +401,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_SameValue(const MAREA_SemaContext *conte
     case MAREA_AST_KIND_IDENTIFIER:
     case MAREA_AST_KIND_FLOAT_LITERAL:
     case MAREA_AST_KIND_STRING_LITERAL:
+    case MAREA_AST_KIND_CHARACTER_LITERAL:
     case MAREA_AST_KIND_BOOLEAN_LITERAL:
         return MAREA_G_SameText(leftValue, rightValue);
     case MAREA_AST_KIND_UNARY_EXPRESSION:

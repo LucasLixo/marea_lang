@@ -12,6 +12,7 @@ static const MAREA_Character8 *const MAREA_G_AstKindNames[] = {
     "INTEGER_LITERAL",
     "FLOAT_LITERAL",
     "STRING_LITERAL",
+    "CHARACTER_LITERAL",
     "BOOLEAN_LITERAL",
     "ATTRIBUTE",
     "FILE_ATTRIBUTE",

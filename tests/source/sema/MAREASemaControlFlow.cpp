@@ -202,6 +202,15 @@ TEST(MAREASemaControlFlow, RepeatedStringAndBooleanCaseValuesAreRejected)
     EXPECT_EQ(MAREA_codesOf("function f(x: float32): sinteger32 switch x case 1.5 then return 1; end case 1.5 then return 2; end default then return 3; end end end"), Codes{ DUPLICATE_ARM }) << "A repeated float must raise DUPLICATE_SWITCH_ARM.";
 }
 
+TEST(MAREASemaControlFlow, RepeatedCharacterCaseValuesAreRejected)
+{
+    GTEST_COUT << "Validating a repeated character value is rejected and distinct ones are accepted." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("function f(c: character): sinteger32 switch c case 'a' then return 1; end case 'a' then return 2; end default then return 3; end end end"), Codes{ DUPLICATE_ARM }) << "A repeated character must raise DUPLICATE_SWITCH_ARM.";
+
+    EXPECT_TRUE(MAREA_codesOf("function f(c: character): sinteger32 switch c case 'a' then return 1; end case 'b' then return 2; end default then return 3; end end end").empty()) << "Distinct characters must raise nothing.";
+}
+
 TEST(MAREASemaControlFlow, DistinctCaseValuesAreAccepted)
 {
     GTEST_COUT << "Validating distinct case values raise nothing, also when the kinds differ in text only." << std::endl;

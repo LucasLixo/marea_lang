@@ -44,6 +44,12 @@ string_literal      = '"', { string_character | escape_sequence }, '"' ;
 string_character    = ? any ASCII character except '"', "\" and new line ? ;
 escape_sequence     = "\", ( "n" | "t" | "r" | "0" | "\" | '"' | "x", hex_digit, hex_digit ) ;
 
+(* A character literal holds exactly one character or one escape. An empty literal and a literal *)
+(* with more than one character are lexer errors. A '"' needs no escape inside it. *)
+character_literal   = "'", ( character_character | character_escape ), "'" ;
+character_character = ? any ASCII character except "'", "\" and new line ? ;
+character_escape    = escape_sequence | "\", "'" ;
+
 boolean_literal     = "true" | "false" ;
 
 (* There is no nil. Every value has one fixed type. *)
@@ -58,7 +64,7 @@ keyword             = "and" | "as" | "break" | "case" | "constant" | "continue" 
                     | "while" | "with" ;
 
 (* Names that are predeclared but are not reserved: the primitive types (boolean, sinteger8 ... *)
-(* sinteger64, uinteger8 ... uinteger64, float32, float64, string), the core type constructors *)
+(* sinteger64, uinteger8 ... uinteger64, float32, float64, character, string), the core type constructors *)
 (* array (two arguments, copied by value), vector (one argument, a move type) and pointer, and the names *)
 (* Self and self. The language has no standard library: table, slice, task, arenas and text are libraries written in C or in Marea, and they are *)
 (* imported like any namespace. The namespace "c" is the only reserved one. *)
@@ -318,6 +324,7 @@ argument_list       = expression, { ",", expression } ;
 primary_expression  = integer_literal
                     | float_literal
                     | string_literal
+                    | character_literal
                     | boolean_literal
                     | "(", expression, ")"
                     | macro_call
@@ -356,7 +363,7 @@ macro_call          = ( identifier | "namespace" ), "!", "(", [ argument_list ],
 (* 7. Out of this grammar by design: the checker rules (ownership, arena, contracts, switch  *)
 (*    coverage, attribute keys and values, the match of the namespace with the path).        *)
 (* 8. Not in version 0: block comments, #[when(...)], derive, user macros, string            *)
-(*    interpolation, a character literal, a lambda.                                          *)
+(*    interpolation, a lambda.                                                               *)
 (* 9. Return and references. A function with a return type ends every path with an explicit   *)
 (*    "return value;". The last expression is NOT a return value. "return;" leaves a function *)
 (*    that has no return type. A function type without ": Type" is the type of such a       *)

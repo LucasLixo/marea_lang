@@ -157,7 +157,7 @@ static const MAREA_AstNode *MAREA_CALL MAREA_G_FindDeclaration(const MAREA_SemaC
 
 static MAREA_Boolean MAREA_CALL MAREA_G_IsNumberName(const MAREA_G_Shape *shape)
 {
-    return ((MAREA_G_TextIs(shape->name, shape->length, "string") == MAREA_BOOLEAN_FALSE) && (MAREA_G_TextIs(shape->name, shape->length, "boolean") == MAREA_BOOLEAN_FALSE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+    return ((MAREA_G_TextIs(shape->name, shape->length, "string") == MAREA_BOOLEAN_FALSE) && (MAREA_G_TextIs(shape->name, shape->length, "boolean") == MAREA_BOOLEAN_FALSE) && (MAREA_G_TextIs(shape->name, shape->length, "character") == MAREA_BOOLEAN_FALSE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
 static MAREA_Boolean MAREA_CALL MAREA_G_IsFloatName(const MAREA_G_Shape *shape)
@@ -485,6 +485,8 @@ static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOf(const MAREA_SemaContext *context
         return MAREA_G_ShapeMake(MAREA_G_SHAPE_KIND_FLOAT_LITERAL, MAREA_NULLPTR, 0);
     case MAREA_AST_KIND_STRING_LITERAL:
         return MAREA_G_ShapePrimitive("string");
+    case MAREA_AST_KIND_CHARACTER_LITERAL:
+        return MAREA_G_ShapePrimitive("character");
     case MAREA_AST_KIND_BOOLEAN_LITERAL:
         return MAREA_G_ShapePrimitive("boolean");
     case MAREA_AST_KIND_PARENTHESIZED_EXPRESSION:
