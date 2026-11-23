@@ -1,0 +1,13 @@
+-- expect: 3011 @11
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A fraction literal added to an integer is a mismatch.
+
+namespace main;
+
+function check(): sinteger32
+    local count: sinteger32 = 1;
+    local sum: sinteger32 = count + 1.5;
+    return sum;
+end

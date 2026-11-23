@@ -1,0 +1,14 @@
+-- expect: 3011 @12
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A bit operator of two widths is a mismatch.
+
+namespace main;
+
+function check(): sinteger32
+    local left: uinteger8 = 1;
+    local right: uinteger32 = 2;
+    local mixed: uinteger32 = left & right;
+    return 1;
+end

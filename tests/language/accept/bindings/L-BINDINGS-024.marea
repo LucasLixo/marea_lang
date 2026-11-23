@@ -1,0 +1,14 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Character literals with escapes.
+
+namespace main;
+
+function check(): sinteger32
+    local newline: character = '\n';
+    local quote: character = '\'';
+    local plain: character = 'a';
+    return 1;
+end

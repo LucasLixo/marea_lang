@@ -1,0 +1,14 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Constants at file level.
+
+namespace main;
+
+constant LIMIT: sinteger32 = 10;
+constant RATIO: float64 = 0.5;
+
+function check(): sinteger32
+    return LIMIT;
+end
