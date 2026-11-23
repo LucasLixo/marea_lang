@@ -870,6 +870,32 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckConstruction(MAREA_SemaContext *
     return MAREA_G_CheckArguments(context, node, parameters, arguments, calleeName, calleeLength);
 }
 
+// INFO: a call checked against the signature the host gave for one member of an EXTERNAL namespace: the
+// argument count must match exactly (no default, the host describes none) and each argument must fit the
+// parameter's primitive spelling, the same two diagnostics an ordinary call of a file function reuses.
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckExternalCall(MAREA_SemaContext *context, const MAREA_AstNode *node, const MAREA_SemaSignature *signature, const MAREA_Character8 *calleeName, MAREA_IntegerSize calleeLength)
+{
+    const MAREA_AstNode *arguments = MAREA_G_FindChild(node, MAREA_AST_KIND_ARGUMENT_LIST);
+
+    const MAREA_IntegerSize ARGUMENT_COUNT = (arguments == MAREA_NULLPTR) ? 0 : MAREA_AstNodeGetChildCount(arguments);
+
+    if (ARGUMENT_COUNT != signature->parameterCount) {
+        return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_ARGUMENT_COUNT_MISMATCH, MAREA_AstNodeGetPosition(node), "wrong number of arguments in the call of", calleeName, calleeLength);
+    }
+
+    for (MAREA_IntegerSize index = 0; index < ARGUMENT_COUNT; ++index) {
+        const MAREA_SemaSignatureParameter *parameter = &signature->parameters[index];
+
+        const MAREA_SemaExcept RESULT = MAREA_SemaCheckExpressionFitsPrimitive(context, parameter->typeText, parameter->typeTextLength, MAREA_SemaChildAt(arguments, index));
+
+        if (RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return RESULT;
+        }
+    }
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
 MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckCall(MAREA_SemaContext *context, const MAREA_AstNode *node)
 {
     if ((context == MAREA_NULLPTR) || (node == MAREA_NULLPTR)) {
@@ -878,8 +904,36 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckCall(MAREA_SemaContext *context, cons
 
     const MAREA_AstNode *callee = MAREA_SemaChildAt(node, 0);
 
+    const MAREA_SemaSignature *externalSignature = MAREA_NULLPTR;
+
+    if (MAREA_AstNodeGetKind(callee) == MAREA_AST_KIND_MEMBER_ACCESS) {
+        const MAREA_AstNode *base = MAREA_SemaChildAt(callee, 0);
+
+        const MAREA_AstNode *member = MAREA_SemaChildAt(callee, 1);
+
+        const MAREA_SemaTypedAstExcept SIGNATURE_RESULT = MAREA_SemaTypedAstExternalMemberSignature(context, base, member, &externalSignature);
+
+        if (SIGNATURE_RESULT == MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_OUT_OF_MEMORY) {
+            return MAREA_SEMA_EXCEPT_ERROR_OUT_OF_MEMORY;
+        }
+
+        if (externalSignature != MAREA_NULLPTR) {
+            return MAREA_G_CheckExternalCall(context, node, externalSignature, MAREA_AstNodeGetText(member), MAREA_AstNodeGetTextLength(member));
+        }
+    }
+
     if ((callee == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(callee) != MAREA_AST_KIND_IDENTIFIER)) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_SemaTypedAstExcept NAME_SIGNATURE_RESULT = MAREA_SemaTypedAstExternalNameSignature(context, callee, &externalSignature);
+
+    if (NAME_SIGNATURE_RESULT == MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_OUT_OF_MEMORY) {
+        return MAREA_SEMA_EXCEPT_ERROR_OUT_OF_MEMORY;
+    }
+
+    if (externalSignature != MAREA_NULLPTR) {
+        return MAREA_G_CheckExternalCall(context, node, externalSignature, MAREA_AstNodeGetText(callee), MAREA_AstNodeGetTextLength(callee));
     }
 
     const MAREA_Character8 *calleeName = MAREA_AstNodeGetText(callee);

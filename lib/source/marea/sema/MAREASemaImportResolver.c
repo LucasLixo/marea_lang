@@ -26,9 +26,21 @@ MAREA_SemaImportResolverExcept MAREA_CALL MAREA_SemaImportResolverCreate(MAREA_A
     MAREA_SemaImportResolver *resolver = memory;
 
     resolver->resolve = resolve;
+    resolver->signature = MAREA_NULLPTR;
     resolver->userData = userData;
 
     *outResolver = resolver;
+
+    return MAREA_SEMA_IMPORT_RESOLVER_EXCEPT_SUCCESS;
+}
+
+MAREA_SemaImportResolverExcept MAREA_CALL MAREA_SemaImportResolverSetSignatureFunction(MAREA_SemaImportResolver *resolver, MAREA_SemaImportSignatureFunction signature)
+{
+    if (resolver == MAREA_NULLPTR) {
+        return MAREA_SEMA_IMPORT_RESOLVER_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    resolver->signature = signature;
 
     return MAREA_SEMA_IMPORT_RESOLVER_EXCEPT_SUCCESS;
 }
