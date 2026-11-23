@@ -163,8 +163,11 @@ tests run in source order and the first one that holds runs its block.
 - A `default` arm is the `ELSE_CLAUSE`, wherever it stands among the arms. A `switch` with a `default` and
   no `case` has no test: the lowered `default` block follows the hidden local. A `switch` with no arm keeps
   only the hidden local, so its scrutinee is still evaluated.
-- A `switch` with no `default` has no `ELSE_CLAUSE`, also when sema has proved that its cases cover every
-  variant of an enum. Nothing in the IR says that the missing branch cannot run (see Gaps).
+- A `switch` over an enum with no `default` ends with an `ELSE_CLAUSE` that holds a `BLOCK` with one
+  `UNREACHABLE_STATEMENT`, the node that `unreachable!()` lowers to. Sema reports `NON_EXHAUSTIVE_SWITCH` for
+  such a `switch` that misses a variant, so a unit that reached the IR covers them all. The IR does not count
+  the variants again. A `switch` over any other type with no `default` has no `ELSE_CLAUSE`, because it can
+  fall through when no case matches.
 - The scrutinee and each case value are lowered like any expression, so a case value that is an enum
   variant stays a `MEMBER_ACCESS`. The synthetic nodes take only a position from the source: the comparison
   is positioned at its case value, the `IF_STATEMENT` or `ELSEIF_CLAUSE` at its arm.
@@ -409,15 +412,11 @@ Each diagnostic carries the position of the construct that raised it.
   one.
 - The two loop variables of a `FOR_EACH_STATEMENT` have no type name, like the for-range `$last`, because sema
   types no loop variable. A backend must infer them from the collection.
-- A `switch` with no `default` lowers to an if chain with no else, also when the cases cover every variant
-  of an enum. A function that ends with such a `switch` and returns in every arm has no `RETURN_STATEMENT`
-  after the chain, so a backend that checks that every path returns must treat the missing branch as
-  unreachable. The IR does not mark it.
-- Sema now rejects a second `default` arm, and a repeated `case` value, with `DUPLICATE_SWITCH_ARM` (3025,
-  issue #50, PR #51). A program that passes sema can no longer reach either shape. The IR's own lowering of
-  more than one `default` arm is unchanged: `MAREA_G_LowerSwitch` still keeps the last one and drops the
-  others with no diagnostic, so this stays a live defensive gap only for a caller that builds or lowers the
-  AST directly, bypassing sema.
+- `MAREA_G_LowerSwitch` still keeps only the last `default` arm and drops the others with no diagnostic. This
+  is defensive only. Sema rejects a second `default` arm, and a repeated `case` value, with
+  `DUPLICATE_SWITCH_ARM` (3025, issue #50, PR #51), and `MAREA_SemaBuildTypedAst`, the only input of the IR,
+  refuses a tree with a sema error (`ERROR_NOT_CHECKED`). No caller that goes through sema can reach either
+  shape (a test checks it). The IR adds no diagnostic for it.
 - The hidden `$switch` local has no type name, like the for-range `$last`: the IR does not copy one from the
   scrutinee. A backend must infer it from the scrutinee.
 - Only a call whose callee is a bare name is checked against the functions left out of the module. A dropped
