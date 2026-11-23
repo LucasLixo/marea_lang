@@ -522,6 +522,17 @@ TEST(MAREASemaTypedAstExpressions, NamespaceAndTypeNamesHaveNoTypeAsValues)
     EXPECT_EQ(TYPE_NAME.except, MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NO_TYPE) << "A type name has no type as a value.";
 }
 
+TEST(MAREASemaTypedAstExpressions, StaticCallOnAGenericStructureWithoutArgumentsHasNoType)
+{
+    GTEST_COUT << "Validating a static call on a generic structure with no type arguments has no type when the result needs one." << std::endl;
+
+    const std::string SOURCE{ "namespace main; structure Box<Item> value: Item; end implementation<Item> Box<Item> function first(a: Item): Item where Item: Copyable return copy a; end function count(a: Item): uinteger8 return 1; end end function f(x: sinteger32): sinteger32 local c: uinteger8 = Box.count(x); return Box.first(x); end" };
+
+    MAREA_expectExpressionNoType(SOURCE, MAREA_AST_KIND_CALL_EXPRESSION, 1);
+
+    MAREA_expectExpressionType(SOURCE, MAREA_AST_KIND_CALL_EXPRESSION, 0, "uinteger8");
+}
+
 TEST(MAREASemaTypedAstExpressions, SpawnIsATaskOfTheResult)
 {
     GTEST_COUT << "Validating spawn of a call gives a task of the type of the call." << std::endl;
