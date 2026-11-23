@@ -112,6 +112,13 @@ namespace
         return result;
     }
 
+    std::string MAREA_firstLine(const std::string &text)
+    {
+        const std::vector<std::string> LINES{ MAREA_lines(text) };
+
+        return LINES.empty() ? "" : LINES[0];
+    }
+
     std::string MAREA_readFile(const std::filesystem::path &path)
     {
         std::ifstream stream(path, std::ios::binary);
@@ -386,7 +393,7 @@ namespace
             if (HOW == "gap") {
                 const std::string WANTED{ "-- gap: #" + std::string(rule.issue) + " " };
 
-                const bool FOUND{ std::any_of(items.begin(), items.end(), [&WANTED](const MAREA_CoverageItem &item) { return (item.itemClass == "known_gap") && (MAREA_lines(item.source)[0].compare(0, WANTED.size(), WANTED) == 0); }) };
+                const bool FOUND{ std::any_of(items.begin(), items.end(), [&WANTED](const MAREA_CoverageItem &item) { return (item.itemClass == "known_gap") && (MAREA_firstLine(item.source).compare(0, WANTED.size(), WANTED) == 0); }) };
 
                 if (!FOUND) {
                     failures.push_back(std::string(rule.name) + ": no known_gap item has the issue #" + rule.issue);
