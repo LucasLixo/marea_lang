@@ -271,7 +271,9 @@ TEST(MAREAIrControlFlow, SwitchWithTwoDefaultsOrARepeatedCaseNeverReachesLowerin
 
         ASSERT_EQ(fixture.sema.MAREA_sema(std::string("namespace main; function run(a: sinteger32) ") + body + " end", "main.marea"), MAREA_SEMA_EXCEPT_SUCCESS) << "Sema must run: " << body;
 
-        EXPECT_NE(std::count(fixture.sema.parser.MAREA_codes().begin(), fixture.sema.parser.MAREA_codes().end(), MAREA_SEMA_DIAGNOSTIC_CODE_DUPLICATE_SWITCH_ARM), 0) << "Sema must raise DUPLICATE_SWITCH_ARM: " << body;
+        const std::vector<MAREA_Uinteger32> codes{ fixture.sema.parser.MAREA_codes() };
+
+        EXPECT_NE(std::count(codes.begin(), codes.end(), MAREA_SEMA_DIAGNOSTIC_CODE_DUPLICATE_SWITCH_ARM), 0) << "Sema must raise DUPLICATE_SWITCH_ARM: " << body;
 
         EXPECT_EQ(MAREA_SemaBuildTypedAst(fixture.sema.context, fixture.sema.parser.root, &fixture.typedRoot), MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NOT_CHECKED) << "The typed tree, the only input of the IR, must refuse a tree with a sema error: " << body;
     }
