@@ -23,6 +23,7 @@ MAREA_BEGIN_EXTERN_C
     struct MAREA_SemaImportResolver
     {
         MAREA_SemaImportResolveFunction resolve;
+        MAREA_SemaImportSignatureFunction signature;
         MAREA_Null userData;
     };
 
@@ -314,6 +315,31 @@ MAREA_BEGIN_EXTERN_C
      * @return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null context or outType, or ERROR_OUT_OF_MEMORY.
      */
     MAREA_NODISCARD MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedAstFoundNameType(MAREA_SemaContext * context, const MAREA_AstNode *identifier, const MAREA_AstNode *callTypeArguments, MAREA_SemaExprType *outType);
+
+    /**
+     * @brief Gives the signature of a call whose callee is a member access on a namespace the resolver
+     * answers EXTERNAL for, when the resolver also carries a signature function and that function knows
+     * the member. Any other base, a namespace the resolver does not answer EXTERNAL for, or a member the
+     * signature function does not know, leaves outSignature null: the call stays as opaque as with no
+     * signature function at all.
+     * @param context Context the node is being built with. Must not be null.
+     * @param base AST node on the left of the member access. May be null, which leaves outSignature null.
+     * @param member IDENTIFIER on the right of the member access. May be null, which leaves outSignature null.
+     * @param outSignature Receives the signature, or null when none applies. Must not be null.
+     * @return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null context or outSignature.
+     */
+    MAREA_NODISCARD MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedAstExternalMemberSignature(MAREA_SemaContext * context, const MAREA_AstNode *base, const MAREA_AstNode *member, const MAREA_SemaSignature **outSignature);
+
+    /**
+     * @brief Gives the signature of a call whose callee is a bare name an import bound to one member of a
+     * namespace the resolver answers EXTERNAL for (import c.math.pow as power;), the same way
+     * MAREA_SemaTypedAstExternalMemberSignature gives it for a member access.
+     * @param context Context the node is being built with. Must not be null.
+     * @param identifier IDENTIFIER read as the callee. May be null, which leaves outSignature null.
+     * @param outSignature Receives the signature, or null when none applies. Must not be null.
+     * @return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null context or outSignature.
+     */
+    MAREA_NODISCARD MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedAstExternalNameSignature(MAREA_SemaContext * context, const MAREA_AstNode *identifier, const MAREA_SemaSignature **outSignature);
 
     /**
      * @brief The type of a call that returns nothing: the fixed text "void". It is only the spelling of a resolved
@@ -812,6 +838,18 @@ MAREA_BEGIN_EXTERN_C
      * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER when context is null, or ERROR_OUT_OF_MEMORY.
      */
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressionFit(MAREA_SemaContext * context, const MAREA_AstNode *type, const MAREA_AstNode *expression);
+
+    /**
+     * @brief Reports TYPE_MISMATCH the same way MAREA_SemaCheckExpressionFit does, against a primitive type
+     * named by fixed text instead of a written NAMED_TYPE node: the shape of the signature of a member of
+     * an EXTERNAL namespace, which the host gives as canonical type spellings, not as AST nodes.
+     * @param context Context of the run. Must not be null.
+     * @param primitiveName Primitive type name, not NUL terminated. May be null, which accepts anything.
+     * @param primitiveLength Length of primitiveName in bytes.
+     * @param expression Expression node. May be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER when context is null, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressionFitsPrimitive(MAREA_SemaContext * context, const MAREA_Character8 *primitiveName, MAREA_IntegerSize primitiveLength, const MAREA_AstNode *expression);
 
     /**
      * @brief Gives the primitive type that sema knows for a written type, the same type MAREA_SemaCheckExpressionFit
