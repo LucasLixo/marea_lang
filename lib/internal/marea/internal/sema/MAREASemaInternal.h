@@ -118,8 +118,10 @@ MAREA_BEGIN_EXTERN_C
         const MAREA_AstNode *astNode;
         const MAREA_AstNode *typeDeclaration;
         const MAREA_Character8 *typeName;
+        const MAREA_Character8 *resolvedType;
         MAREA_SemaTypedNode **children;
         MAREA_IntegerSize typeNameLength;
+        MAREA_IntegerSize resolvedTypeLength;
         MAREA_IntegerSize childCount;
         MAREA_SemaTypeClass typeClass;
         MAREA_SemaOwnershipMode ownershipMode;
@@ -133,6 +135,17 @@ MAREA_BEGIN_EXTERN_C
      * @return The ownership mode. Never fails: a node this cannot classify defaults to VALUE.
      */
     MAREA_NODISCARD MAREA_SemaOwnershipMode MAREA_CALL MAREA_SemaTypedAstClassifyOwnership(MAREA_SemaContext * context, const MAREA_SemaTypedNode *built);
+
+    /**
+     * @brief Fills the resolved type text of a typed node that declares a type: a PARAMETER, LOCAL_DECLARATION,
+     * FIELD_DECLARATION, VARIANT_FIELD, CONSTANT_DECLARATION or FUNCTION_DECLARATION (its result). The text is built
+     * in the arena of the context in the scope the node was entered with. Any other node, a function with no result
+     * and a written type sema cannot spell keep no text and are not an error.
+     * @param context Context the node is being built with. Must not be null.
+     * @param built Typed node whose astNode is set. Must not be null.
+     * @return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedAstResolveDeclaredType(MAREA_SemaContext * context, MAREA_SemaTypedNode * built);
 
     /**
      * @brief Adds a diagnostic with the severity ERROR to the sink of the context.
