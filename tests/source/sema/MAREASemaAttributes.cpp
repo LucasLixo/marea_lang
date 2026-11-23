@@ -127,15 +127,22 @@ TEST(MAREASemaAttributes, PackAndAlignTogetherConflict)
     EXPECT_EQ(MAREA_codesOf("#[pack = 1, align = 16] structure S end"), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_CONFLICTING_ATTRIBUTES }) << "pack with align must raise CONFLICTING_ATTRIBUTES.";
 }
 
-TEST(MAREASemaAttributes, ValueAndMoveOnlyAreFlags)
+TEST(MAREASemaAttributes, MoveOnlyIsAFlag)
 {
-    GTEST_COUT << "Validating value and move_only accept a flag and no other shape." << std::endl;
-
-    EXPECT_TRUE(MAREA_codesOf("#[value] structure S end").empty()) << "A value flag must raise nothing.";
+    GTEST_COUT << "Validating move_only accepts a flag and no other shape." << std::endl;
 
     EXPECT_TRUE(MAREA_codesOf("#[move_only] structure S end").empty()) << "A move_only flag must raise nothing.";
 
-    EXPECT_EQ(MAREA_codesOf("#[value = 3] structure S end"), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_ATTRIBUTE_VALUE }) << "An integer value must raise INVALID_ATTRIBUTE_VALUE.";
+    EXPECT_EQ(MAREA_codesOf("#[move_only = 3] structure S end"), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_ATTRIBUTE_VALUE }) << "An integer value must raise INVALID_ATTRIBUTE_VALUE.";
+}
+
+TEST(MAREASemaAttributes, ValueIsNoLongerAKey)
+{
+    GTEST_COUT << "Validating the retired key value raises UNKNOWN_ATTRIBUTE_KEY." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("#[value] structure S end"), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_UNKNOWN_ATTRIBUTE_KEY }) << "A bare value must raise UNKNOWN_ATTRIBUTE_KEY.";
+
+    EXPECT_EQ(MAREA_codesOf("#[value = 3] structure S end"), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_UNKNOWN_ATTRIBUTE_KEY }) << "value = 3 must raise UNKNOWN_ATTRIBUTE_KEY.";
 }
 
 TEST(MAREASemaAttributes, DestroyIsNoLongerAKey)

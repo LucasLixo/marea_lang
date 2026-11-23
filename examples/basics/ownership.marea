@@ -1,15 +1,15 @@
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- Step 6: ownership. Every value that is not a primitive has exactly one owner: a variable, a
--- field or a scope. A reference lives only for one call. It is never stored and never returned.
--- How a value is passed:
---   primitive or #[value] type   by value (a copy)
+-- Step 6: ownership. Every value that is not a primitive or an enum has exactly one owner: a
+-- variable, a field or a scope. A reference lives only for one call. It is never stored and
+-- never returned. How a value is passed:
+--   primitive or enum type       by value (a copy)
 --   any other type               a read-only borrow, with no word written
 --   "mutable" before the type    an exclusive write borrow
 --   "reference" before the type  a read-only borrow of a type that is passed by value
 --   owned<T>                     the call takes the owner: the caller writes "move"
--- Assignment: "=" copies a primitive and a #[value] type. For any other type, when the right
+-- Assignment: "=" copies a primitive and an enum. For any other type, when the right
 -- side is an existing name, field or element, it is "copy x" (a second owner) or "move x" (the
 -- new owner, the old name ends). Plain "=" there is an error, and the message names both
 -- choices. A new value (a call or a literal) needs no word, because it has no other owner.
@@ -18,8 +18,9 @@
 
 namespace basics.ownership;
 
--- A small type that is copied. Passing it is passing two numbers.
-#[visibility = public, value]
+-- A small structure. Even holding only two numbers, it is not a primitive or an enum, so it is
+-- still borrowed, copied on purpose with "copy", or moved with "move" like any other structure.
+#[visibility = public]
 structure Point
     x: float64;
     y: float64;
@@ -44,7 +45,7 @@ function grow(shape: mutable Shape, factor: float64)
     shape.height *= factor;
 end
 
--- A #[value] type is copied. "mutable" makes the call change the caller's point.
+-- A structure is never copied by assignment alone. "mutable" makes the call change the caller's point.
 function move_right(point: mutable Point, distance: float64)
     point.x += distance;
 end
@@ -69,7 +70,7 @@ function show_ownership(): float64
     local first: Shape = make_shape(2.0, 3.0);
     local second: Shape = copy first;       -- two owners, two shapes
     grow(second, 2.0);                      -- first is not changed
-    local point: Point = first.center;      -- Point is #[value]: "=" copies
+    local point: Point = copy first.center; -- Point is a structure: "copy" makes a second owner
     move_right(point, 1.5);
     local total: float64 = area(first);     -- a borrow, first stays valid
     local moved: owned<Shape> = move second;

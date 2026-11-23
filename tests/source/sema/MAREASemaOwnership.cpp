@@ -37,7 +37,7 @@ TEST(MAREASemaOwnership, ParameterModesAreAccepted)
 
     EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(s: mutable Shape) end").empty()) << "A write borrow must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("#[value] structure P x: float32; end function f(p: reference P) end").empty()) << "A forced borrow of a value type must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("enum Color red; end function f(c: reference Color) end").empty()) << "A forced borrow of an enum, the by-value exception, must raise nothing.";
 
     EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(o: owned<Shape>) end").empty()) << "A move-in must raise nothing.";
 }
@@ -86,13 +86,22 @@ TEST(MAREASemaOwnership, CopyAndMoveSatisfyTheRule)
     EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(b: Shape) local a: Shape = copy b; end").empty()) << "copy in a local initializer must satisfy the rule.";
 }
 
-TEST(MAREASemaOwnership, PrimitiveAndValueAssignmentNeedNoWord)
+TEST(MAREASemaOwnership, PrimitiveAndEnumAssignmentNeedNoWord)
 {
-    GTEST_COUT << "Validating a primitive or a value type is assigned with a plain equal sign." << std::endl;
+    GTEST_COUT << "Validating a primitive or an enum is assigned with a plain equal sign." << std::endl;
 
     EXPECT_TRUE(MAREA_codesOf("function f(a: mutable sinteger32, b: sinteger32) a = b; end").empty()) << "A primitive must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("#[value] structure P x: float32; end function f(a: mutable P, b: P) a = b; end").empty()) << "A value type must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("enum Color red; end function f(a: mutable Color, b: Color) a = b; end").empty()) << "An enum, the by-value exception, must raise nothing.";
+}
+
+TEST(MAREASemaOwnership, StructureIsNeverCopiedByValue)
+{
+    GTEST_COUT << "Validating a structure, even one marked move_only or an ordinary one, is never assigned by plain equal sign; only a primitive, a copyable array and an enum are." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(a: mutable Shape, b: Shape) a = b; end"), Codes{ NEEDS_WORD }) << "An ordinary structure must still raise ASSIGNMENT_NEEDS_COPY_OR_MOVE; #[value] no longer exempts it.";
+
+    EXPECT_EQ(MAREA_codesOf("#[move_only] structure M x: float32; end function f(a: mutable M, b: M) a = b; end"), Codes{ NEEDS_WORD }) << "A move-only structure must raise ASSIGNMENT_NEEDS_COPY_OR_MOVE on the bare equal sign.";
 }
 
 TEST(MAREASemaOwnership, NewValuesNeedNoWord)
