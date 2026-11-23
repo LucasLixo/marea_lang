@@ -358,11 +358,11 @@ TEST(MAREASemaTypedAstExpressions, GenericCallWithExplicitArgumentsSubstitutes)
     MAREA_expectExpressionType("namespace main; structure Pair<First, Second> first: First; second: Second; end function make<First, Second>(a: First, b: Second): Pair<Second, First> where First: Copyable and Second: Copyable return Pair<Second, First>{ first = copy b, second = copy a }; end function f(x: sinteger32, y: float32): Pair<float32, sinteger32> return make<sinteger32, float32>(x, y); end", MAREA_AST_KIND_CALL_EXPRESSION, 0, "Pair<float32,sinteger32>");
 }
 
-TEST(MAREASemaTypedAstExpressions, GenericCallWithInferredArgumentsHasNoType)
+TEST(MAREASemaTypedAstExpressions, GenericCallWithInferredArgumentsHasTheArgumentType)
 {
-    GTEST_COUT << "Validating a generic call whose result needs an inferred type argument has no type." << std::endl;
+    GTEST_COUT << "Validating a generic call of a function of this file, with no written type arguments, infers its result from the argument." << std::endl;
 
-    MAREA_expectExpressionNoType("namespace main; function same<Item>(a: Item): Item where Item: Copyable return copy a; end function f(x: sinteger32): sinteger32 return same(x); end", MAREA_AST_KIND_CALL_EXPRESSION, 0);
+    MAREA_expectExpressionType("namespace main; function same<Item>(a: Item): Item where Item: Copyable return copy a; end function f(x: sinteger32): sinteger32 return same(x); end", MAREA_AST_KIND_CALL_EXPRESSION, 0, "sinteger32");
 }
 
 TEST(MAREASemaTypedAstExpressions, GenericCallWhoseResultNeedsNoArgumentKeepsItsType)
