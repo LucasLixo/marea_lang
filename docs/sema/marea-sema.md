@@ -184,7 +184,8 @@ or another type) is `LIFECYCLE_OPERATOR_NEEDS_CONCRETE_TYPE` (3028). A `destroy`
 type, and a `construct` has no return type and a default on every parameter; any other shape is
 `LIFECYCLE_OPERATOR_BAD_SHAPE` (3029), once per function. A call of such a function is
 `LIFECYCLE_OPERATOR_CALLED_DIRECTLY` (3027): by a bare name that no local and no top-level function of another
-meaning hides, and by the static form `Type.name(...)` where `Type` is the implemented type. The automatic call
+meaning hides, by the static form `Type.name(...)` where `Type` is the implemented type, and by a call on a value
+(`point.drop()`), decided to be rejected the same way (see Gaps). The automatic call
 at creation and destruction is lowered in the ir, not here.
 
 **Type construction call.** A call whose callee is a structure or an enum name of the file, not hidden by a local,
@@ -225,7 +226,8 @@ A borrow parameter (`reference_read_only` or `reference_mutable`, explicit or by
 a field. A new local of the same name ends the reference. A file constant passed as the argument of
 a `reference_mutable` (write-borrow) parameter, explicit or by default, has no writable storage to
 back the borrow, so it is rejected with `CANNOT_BORROW_CONSTANT_AS_MUTABLE` (3032); a variable
-passed to the same parameter is unaffected.
+passed to the same parameter is unaffected. Tracking of a moved local and a live borrow across
+statements is a design decision recorded in the last bullet of `## Gaps`.
 
 **Integer literal range.** An integer literal (decimal, `0x` or `0b`, with `_` between digits, with one
 leading minus and any parentheses) must fit the integer primitive it meets: `sinteger8` to `sinteger64`, `uinteger8`
@@ -593,7 +595,7 @@ or rejects.
 | 3024 | `INVALID_PARALLEL_JUMP` | `continue;`, `break;` or `return;` in a `partition` body when no loop of the body is the target, or directly in a `fork_join` block, outside every `partition` body, when no loop of the block is the target |
 | 3025 | `DUPLICATE_SWITCH_ARM` | a second `default` arm in a `switch`, or `case 1 then ... case 1 then ...`, `case 1, 1 then ...`, `case Color.red` twice |
 | 3026 | `JUMP_OUTSIDE_LOOP` | `break;` or `continue;` with no enclosing loop and no enclosing `partition`/`fork_join` block |
-| 3027 | `LIFECYCLE_OPERATOR_CALLED_DIRECTLY` | `Point.make()` or `make()` when `make` carries `#[operator = "construct"]` or `"destroy"` |
+| 3027 | `LIFECYCLE_OPERATOR_CALLED_DIRECTLY` | `Point.make()`, `make()` or `point.make()` when `make` carries `#[operator = "construct"]` or `"destroy"` |
 | 3028 | `LIFECYCLE_OPERATOR_NEEDS_CONCRETE_TYPE` | a `construct` or `destroy` function at top level, in a generic implementation, with generic parameters, or in an implementation of a type that is not a structure or an enum |
 | 3029 | `LIFECYCLE_OPERATOR_BAD_SHAPE` | a `destroy` with a parameter or a return type; a `construct` with a return type or a parameter that has no default |
 | 3030 | `DEFAULT_PARAMETER_BEFORE_REQUIRED` | `function f(a: sinteger32 = 0, b: sinteger32)`: a parameter with a default value before one with none |
@@ -635,9 +637,11 @@ or rejects.
 - `operator` is checked against its vocabulary; only `construct` and `destroy` have a placement and a shape check
   (see "Construct and destroy"), the signature of any other operator is not checked; `export` is checked for shape
   only.
-- `LIFECYCLE_OPERATOR_CALLED_DIRECTLY` (3027) sees a bare name and the static form `Type.name(...)` only. A call on
-  a value (`point.drop()`) is not resolved, as sema does not know the type of the receiver. A bare name that no
-  top-level function declares also raises `UNDECLARED_NAME` (3004), as a member is not a bare name.
+- `LIFECYCLE_OPERATOR_CALLED_DIRECTLY` (3027) today sees a bare name and the static form `Type.name(...)` only.
+  Decision: a call on a value (`point.drop()`) of a lifecycle operator (`construct` or `destroy`) is also rejected
+  with 3027, for consistency with those two forms; no new code. Sema does not yet implement it, as it does not
+  know the type of the receiver. A bare name that no top-level function declares also raises `UNDECLARED_NAME`
+  (3004), as a member is not a bare name.
 - The type of a library type is not tracked, so a missing `copy` or `move` there is not reported.
 - `MAREA_SemaTypedNodeGetResolvedType` covers the six declaring nodes, the literals and the expressions of "Resolved
   type of an expression". A `Self` type and a generic parameter are spelled by
@@ -724,3 +728,23 @@ or rejects.
   vocabulary was never widened for attributes, so such a type argument fails to parse as one. The
   same scan already had no tolerance for the retired `mutable`/`reference` parameter keywords it
   used to allow, so this is not a new restriction, only an unaddressed one.
+- Move state and borrow liveness are not tracked across statements. Sema keeps no per-variable "moved" or
+  "borrow ended" bit, and `MAREA_SemaCheckSpawn` (`MAREASemaParallel.c`) checks one `spawn` alone, so two
+  sibling `spawn` statements of one `fork_join` are never compared. The settled design for every later
+  check (use after move, partial move, borrow liveness, cross-spawn, `partition` body) is one rule set,
+  recorded here so no check invents its own:
+  - **State table.** One new per-scope table, modeled directly on `references`
+    (`MAREA_SemaNameTable` in `MAREASemaInternal.h`): `MAREA_SemaBindReferences` (`MAREASemaOwnership.c`)
+    pushes entries on scope enter, and they pop on scope leave. The new table is pushed on scope enter,
+    popped on scope leave, and read and written inside the same `MAREA_SemaVisit` pass. There is no second
+    traversal and no control-flow graph.
+  - **Merge rule.** At a branch or loop boundary (`if`/`elseif`/`else`, the arms of a `switch`, a loop
+    body) the merge follows `MAREA_G_Terminates` (`MAREASemaControlFlow.c`), which says a path terminates
+    only when every arm agrees (`MAREA_G_IfTerminates`, `MAREA_G_SwitchTerminates`). In the same way, a
+    local is "definitely moved" after the merge, or a borrow "definitely ended", only when every arm
+    proves it on its own. A loop body is visited once, so an effect that can happen on a later iteration
+    but not on the first is treated as "maybe already happened" once the walk is past the loop.
+  - **Rounding rule.** When the effect of an arm is ambiguous, the merge always rounds toward "still
+    valid" (not moved, still borrowed), never toward "reject". A missed catch is acceptable; a false
+    rejection of valid code is not. Every later check that builds on this table must inherit this
+    rounding and must not define its own.
