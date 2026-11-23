@@ -106,8 +106,6 @@ static MAREA_IntegerSize MAREA_CALL MAREA_G_ScanTypeArguments(const MAREA_ParseS
         case MAREA_TOKEN_KIND_INTEGER_LITERAL:
         case MAREA_TOKEN_KIND_KEYWORD_FUNCTION:
         case MAREA_TOKEN_KIND_COLON:
-        case MAREA_TOKEN_KIND_KEYWORD_MUTABLE:
-        case MAREA_TOKEN_KIND_KEYWORD_REFERENCE:
             break;
         default:
             return MAREA_INTEGER_SIZE(0);
