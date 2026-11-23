@@ -1,0 +1,42 @@
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Entry file. Namespace: main. It calls one function of each step of the examples.
+-- Order of the steps:
+--   basics/      primitive_types, operators, control_flow, blocks, functions, ownership
+--   types/       structures, collections, methods, enum_methods, generics
+--   attributes/  visibility, inline_and_build, simd, layout
+--   namespaces/  library, consumer
+--   interop/     c_library, gpu_handles
+--   macros/      builtin
+--   memory/      regions
+--   parallel/    scaling
+-- The names array, table, slice, task, text and arenas are libraries written in C or in Marea.
+-- The language has no standard library, and "c" is the only reserved namespace.
+-- main is the last function of the file.
+
+namespace main;
+
+import collections.array;
+import basics.control_flow;
+import basics.functions;
+import basics.blocks;
+import basics.ownership;
+import types.structures;
+import namespaces.consumer;
+import memory.regions;
+import parallel.scaling;
+
+#[visibility = public]
+function main(arguments: c.array<string>): sinteger32
+    local level: string = control_flow.classify(75);
+    local shape: structures.Shape = structures.make_square(2.0);
+    local total: sinteger32 = functions.show_functions() + blocks.show_blocks();
+    local imported: sinteger32 = consumer.show_imports();
+    local length: sinteger32 = regions.show_regions();
+    local owned_total: float64 = ownership.show_ownership();
+    local values: c.array<float32> = c.array<float32>{ 1.0, 2.0, 3.0, 4.0 };
+    scaling.scale_all(values, 2.0);
+    local sum: float32 = scaling.sum_all(values);
+    return total + imported + length;
+end

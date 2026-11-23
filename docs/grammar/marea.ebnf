@@ -1,0 +1,414 @@
+(* Copyright (c) 2026 Paulo Lucas Alves Franca *)
+(* Licensed under the MIT License. See LICENSE.txt for full terms. *)
+
+(* Marea Lang - formal grammar, version 0 (draft). *)
+(* Notation: ISO/IEC 14977 EBNF. A terminal is in double quotes. The ";" that ends a rule of this *)
+(* file is the notation. The ";" of the language is always written as the terminal ";". *)
+(*   [ x ] optional      { x } zero or more      ( x | y ) group      , sequence *)
+(* A rule marked OPEN has a point that waits for a decision. The default is what is written. *)
+(*                                                                                           *)
+(* Main rules of the language that this grammar encodes:                                     *)
+(*   1. Every statement and every simple declaration ends with ";".                          *)
+(*   2. Every construct with a body ends with an explicit "end". No ";" follows that "end".  *)
+(*   3. The curly braces are only for literals. A block never uses braces. The member list of *)
+(*      an import also uses braces: it is a list, never a block (note 14).                   *)
+(*   4. A new line is a space. It does not end anything.                                     *)
+(*   5. The first statement of a file is its namespace.                                      *)
+
+
+(* ================================ 1. Lexical rules ================================= *)
+
+(* The source is ASCII. The lexer reads the longest token that matches. *)
+
+letter              = ? "A" to "Z" and "a" to "z" ? ;
+digit               = ? "0" to "9" ? ;
+hex_digit           = digit | ? "A" to "F" and "a" to "f" ? ;
+binary_digit        = "0" | "1" ;
+
+identifier          = ( letter | "_" ), { letter | digit | "_" } ;
+
+(* A comment starts with two hyphens and ends at the end of the line. It is a space. *)
+comment             = "--", { ? any character except new line ? } ;
+
+(* A number may have "_" between digits. The "_" is ignored. A float needs a digit before and *)
+(* after the point, so "1..2" is the tokens 1, "..", 2 and never a float. *)
+integer_literal     = decimal_integer | hexadecimal_integer | binary_integer ;
+decimal_integer     = digit, { digit | "_" } ;
+hexadecimal_integer = "0x", hex_digit, { hex_digit | "_" } ;
+binary_integer      = "0b", binary_digit, { binary_digit | "_" } ;
+float_literal       = decimal_integer, ".", decimal_integer, [ exponent ]
+                    | decimal_integer, exponent ;
+exponent            = ( "e" | "E" ), [ "+" | "-" ], decimal_integer ;
+
+string_literal      = '"', { string_character | escape_sequence }, '"' ;
+string_character    = ? any ASCII character except '"', "\" and new line ? ;
+escape_sequence     = "\", ( "n" | "t" | "r" | "0" | "\" | '"' | "x", hex_digit, hex_digit ) ;
+
+(* A character literal holds exactly one character or one escape. An empty literal and a literal *)
+(* with more than one character are lexer errors. A '"' needs no escape inside it. *)
+character_literal   = "'", ( character_character | character_escape ), "'" ;
+character_character = ? any ASCII character except "'", "\" and new line ? ;
+character_escape    = escape_sequence | "\", "'" ;
+
+boolean_literal     = "true" | "false" ;
+
+(* There is no nil. Every value has one fixed type. *)
+
+(* Reserved words. A reserved word is never an identifier. *)
+keyword             = "and" | "as" | "break" | "case" | "constant" | "continue" | "contract"
+                    | "copy" | "default" | "do" | "each" | "else" | "elseif" | "end" | "enum" | "false"
+                    | "for" | "fork_join" | "function" | "if" | "implementation" | "import"
+                    | "in" | "into" | "local" | "move" | "mutable" | "namespace"
+                    | "not" | "opaque" | "or" | "partition" | "return" | "spawn"
+                    | "structure" | "switch" | "then" | "true" | "type" | "unsafe" | "where"
+                    | "while" | "with" ;
+(* "reference" is retired: it is a plain identifier now. A parameter's passing mode is its *)
+(* "semantics" attribute (see parameter, below) and "mutable" stays reserved only for *)
+(* "for each" and "partition" - never on a parameter any more. *)
+
+(* Names that are predeclared but are not reserved: the primitive types (boolean, sinteger8 ... *)
+(* sinteger64, uinteger8 ... uinteger64, float32, float64, character, string), the core type constructors *)
+(* array (two arguments, a type and a size, copied by value), vector (one argument, growable, a move type), *)
+(* pointer, owned, slice and task (one argument each), and the names Self and self. The parser reads all of them *)
+(* as plain qualified names: only sema knows them. The language has no standard library: table, arenas and text *)
+(* are libraries written in C or in Marea, and they are imported like any namespace. The namespace "c" is the *)
+(* only reserved one. *)
+(* "public" and "private" are words of the attribute list only, the members of the key "visibility". *)
+
+(* Operators and separators. *)
+operator_token      = "+" | "-" | "*" | "/" | "%" | "**"
+                    | "+%" | "-%" | "*%" | "+|" | "-|" | "*|"
+                    | "~" | "&" | "|" | "^" | "<<" | ">>"
+                    | "==" | "!=" | "<" | "<=" | ">" | ">="
+                    | "=" | "+=" | "-=" | "*=" | "/=" | "%=" | "**="
+                    | "<<=" | ">>=" | "&=" | "|=" | "^=" ;
+separator_token    = "(" | ")" | "[" | "]" | "{" | "}" | "," | ";" | ":" | "." | ".." | "!"
+                    | "#[" | "#![" ;
+(* In a type argument list, the lexer may split ">>" in two ">" tokens. See note 2. *)
+
+
+(* ================================ 2. Names and files =============================== *)
+
+qualified_name      = identifier, { ".", identifier } ;
+
+compilation_unit    = namespace_declaration,
+                      { file_attribute },
+                      { import_declaration },
+                      { top_level_item } ;
+
+(* The name must be the folder path of the file, relative to the project root, plus the file *)
+(* name without extension, joined by ".". The compiler checks it. The name "c" is *)
+(* reserved as the first part of a namespace. *)
+namespace_declaration = "namespace", qualified_name, ";" ;
+
+(* The word after the namespace path decides the form: "as" or ";" is the whole path form, *)
+(* "{" is the member list. A list holds at least one member and has no trailing comma. "as" *)
+(* and a list never mix on one import. The braces are a list, never a block. See note 14.   *)
+import_declaration  = "import", qualified_name, ( [ "as", identifier ] | import_member_list ), ";" ;
+
+import_member_list  = "{", import_member, { ",", import_member }, "}" ;
+
+(* A member names a symbol of the imported namespace: a function, a type or a constant by one *)
+(* name, or an enum variant by a two part path such as Color.Red. The local name is the alias, *)
+(* or the last segment of the member path. The grammar accepts any path: the checker allows   *)
+(* only one or two parts. *)
+import_member        = qualified_name, [ "as", identifier ] ;
+
+
+(* ================================== 3. Attributes ================================== *)
+
+(* #[ key = value, key, ... ] before a symbol. #![ ... ] after the namespace, for the file. *)
+(* A key without a value means "= true". *)
+(* A value is "true" or "false" when the key is not an enum key. An enum key takes one member *)
+(* of its enum as an identifier (visibility = public, inline = force, layout = marea, *)
+(* semantics = value_read_only | reference_read_only | reference_mutable - on a parameter, see *)
+(* note 9). The key export takes a string. The key operator takes a string of a fixed list: an *)
+(* operator_token, "[]", "()", "convert", "construct" or "destroy". An unknown key is an error. *)
+attribute           = "#[", attribute_item, { ",", attribute_item }, "]" ;
+file_attribute      = "#![", attribute_item, { ",", attribute_item }, "]" ;
+attribute_item      = identifier, [ "=", attribute_value ] ;
+attribute_value     = boolean_literal | integer_literal | string_literal | qualified_name ;
+
+
+(* ================================ 4. Top level items =============================== *)
+
+top_level_item      = { attribute }, ( constant_declaration
+                                     | structure_declaration
+                                     | opaque_declaration
+                                     | enum_declaration
+                                     | type_declaration
+                                     | contract_declaration
+                                     | implementation_declaration
+                                     | function_declaration
+                                     | macro_statement ) ;
+
+constant_declaration = "constant", identifier, ":", type, "=", expression, ";" ;
+
+(* This is also the local type alias form: "type Name = OtherType;" gives a type a second name *)
+(* in one file. The word "alias" is not added: "type" already is the declaration word of the *)
+(* grammar, it already takes generic parameters, and a second word for one meaning would split *)
+(* the language. See note 14. *)
+type_declaration    = "type", identifier, [ generic_parameters ], "=", type, ";" ;
+
+(* Fields come first. The functions go in an implementation block. *)
+structure_declaration = "structure", identifier, [ generic_parameters ],
+                        { field_declaration },
+                        "end" ;
+field_declaration   = { attribute }, identifier, ":", type, ";" ;
+
+(* A type of C with an unknown layout. It has no body. *)
+opaque_declaration  = "opaque", "structure", identifier, ";" ;
+
+(* The optional ":" type is the tag type. The grammar takes any type; the checker requires an *)
+(* integer primitive (sinteger8 ... uinteger64). *)
+enum_declaration    = "enum", identifier, [ ":", type ],
+                      { variant_declaration },
+                      "end" ;
+variant_declaration = identifier, [ "(", variant_field, { ",", variant_field }, ")" ], ";" ;
+variant_field       = identifier, ":", type, [ "=", expression ] ;
+
+(* Functions of a type. Many blocks are allowed for one type, in the file of the type. *)
+implementation_declaration = "implementation", [ generic_parameters ], named_type,
+                             { { attribute }, ( function_declaration | constant_declaration ) },
+                             "end" ;
+
+contract_declaration = "contract", identifier,
+                       { contract_function },
+                       "end" ;
+contract_function   = "function", identifier, "(", [ parameter_list ], ")", [ ":", type ], ";" ;
+
+function_declaration = "function", identifier, [ generic_parameters ],
+                       "(", [ parameter_list ], ")", [ ":", type ],
+                       [ where_clause ],
+                       block,
+                       "end" ;
+parameter_list      = parameter, { ",", parameter } ;
+(* A parameter is a reference that lives only for the call, except a value passed by copy. Its *)
+(* passing mode is the "semantics" attribute (#[semantics = value_read_only | *)
+(* reference_read_only | reference_mutable]), checked once in sema, not a keyword: there is no *)
+(* inline word on a parameter any more. With no attribute, a primitive defaults to *)
+(* value_read_only (a copy) and any other type defaults to reference_mutable (an exclusive *)
+(* write borrow). value_read_only is legal only on a primitive. A reference can not be stored *)
+(* in a field or returned. See note 9. *)
+(* A default value is allowed on a function parameter and not on a function type parameter. *)
+parameter           = { attribute }, identifier, ":", type, [ "=", expression ] ;
+
+generic_parameters  = "<", generic_parameter, { ",", generic_parameter }, ">" ;
+generic_parameter   = identifier
+                    | "constant", identifier, ":", type ;
+
+(* where Item: Comparable, Printable and Key: Hashable *)
+where_clause        = "where", constraint, { "and", constraint } ;
+constraint          = identifier, ":", qualified_name, { ",", qualified_name } ;
+
+
+(* ===================================== 5. Types ==================================== *)
+
+(* A type has no borrow word; a parameter's passing mode is its "semantics" attribute. *)
+type                = named_type | function_type ;
+named_type          = qualified_name, [ type_arguments ] ;
+function_type       = "function", "(", [ parameter_list ], ")", [ ":", type ] ;
+type_arguments      = "<", type_argument, { ",", type_argument }, ">" ;
+type_argument       = type | integer_literal ;
+
+
+(* =================================== 6. Statements ================================= *)
+
+block               = { statement } ;
+
+statement           = local_declaration
+                    | assignment
+                    | expression_statement
+                    | if_statement
+                    | while_statement
+                    | for_range_statement
+                    | for_each_statement
+                    | switch_statement
+                    | with_statement
+                    | partition_statement
+                    | return_statement
+                    | break_statement
+                    | continue_statement
+                    | scope_block
+                    | unsafe_block
+                    | fork_join_block
+                    | macro_statement ;
+
+local_declaration   = "local", identifier, ":", type, [ "=", expression ], ";" ;
+
+(* The target must be a name, a field or an element. The checker rejects other targets. *)
+assignment          = postfix_expression, assignment_operator, expression, ";" ;
+assignment_operator = "=" | "+=" | "-=" | "*=" | "/=" | "%=" | "**="
+                    | "<<=" | ">>=" | "&=" | "|=" | "^=" ;
+
+(* A call or a spawn used as a statement. The checker rejects any other value. *)
+expression_statement = expression, ";" ;
+
+(* Every branch has its own "end", and one more "end" closes the statement (note 11). *)
+if_statement        = "if", expression, "then", block, "end",
+                      { "elseif", expression, "then", block, "end" },
+                      [ "else", block, "end" ],
+                      "end" ;
+
+while_statement     = "while", expression, "do", block, "end" ;
+
+(* "first .. last" includes both ends. *)
+for_range_statement = "for", identifier, "in", expression, "..", expression, "do", block, "end" ;
+
+(* "mutable" gives write access to the elements. Two names are for a key and a value. *)
+for_each_statement  = "for", "each", identifier, [ ",", identifier ], "in", [ "mutable" ],
+                      expression, "do", block, "end" ;
+
+(* On an enum the checker requires that every variant is handled, or a default. An arm does not *)
+(* fall through. A case lists one or more values, or enum variants, separated by commas. *)
+switch_statement    = "switch", expression, { switch_arm }, [ default_arm ], "end" ;
+switch_arm          = "case", expression, { ",", expression }, "then", block, "end" ;
+default_arm         = "default", "then", block, "end" ;
+
+(* A scoped resource: the value is open inside the block and closed at its "end". The name is *)
+(* a reference that can not leave the block. Example: with texture.map() as pixels do ... end *)
+with_statement      = "with", expression, "as", identifier, "do", block, "end" ;
+
+(* Only inside a fork_join block. Cuts the value in disjoint parts and runs the body once for *)
+(* each part. "part" is a reference that can not leave the body. "mutable" gives each body *)
+(* exclusive write access to its part. *)
+partition_statement = "partition", [ "mutable" ], expression, "into", expression,
+                      "as", identifier, "do", block, "end" ;
+
+return_statement    = "return", [ expression ], ";" ;
+break_statement     = "break", ";" ;
+continue_statement  = "continue", ";" ;
+
+(* A scope without a function. A name inside it ends at its "end". *)
+scope_block         = "do", block, "end" ;
+
+(* A block where a raw pointer and an unchecked conversion are allowed. *)
+unsafe_block        = "unsafe", block, "end" ;
+
+(* Structured fork-join. All spawned work ends before the "end". The word is "fork_join" *)
+(* because "parallel" can stay the name of a folder and of a library (see note 4). *)
+fork_join_block     = "fork_join", block, "end" ;
+
+(* A call of a built-in macro as a statement. The user cannot declare macros. *)
+macro_statement     = macro_call, ";" ;
+
+
+(* ================================== 7. Expressions ================================= *)
+
+(* From the weakest to the strongest operator. See objective 29. *)
+(* "a or b and c" is accepted, and the checker gives a warning: write the parenthesis. *)
+
+expression          = or_expression ;
+or_expression       = and_expression, { "or", and_expression } ;
+and_expression      = comparison_expression, { "and", comparison_expression } ;
+
+(* A comparison does not chain: a < b < c is an error. *)
+comparison_expression = bit_or_expression, [ comparison_operator, bit_or_expression ] ;
+comparison_operator = "==" | "!=" | "<" | "<=" | ">" | ">=" ;
+
+bit_or_expression   = bit_xor_expression, { "|", bit_xor_expression } ;
+bit_xor_expression  = bit_and_expression, { "^", bit_and_expression } ;
+bit_and_expression  = shift_expression, { "&", shift_expression } ;
+shift_expression    = additive_expression, { ( "<<" | ">>" ), additive_expression } ;
+additive_expression = multiplicative_expression,
+                      { ( "+" | "-" | "+%" | "-%" | "+|" | "-|" ), multiplicative_expression } ;
+multiplicative_expression = unary_expression,
+                      { ( "*" | "/" | "%" | "*%" | "*|" ), unary_expression } ;
+
+(* The power is stronger than the unary operators, as in mathematics: -a ** 2 is -(a ** 2). *)
+(* The power is right to left: a ** b ** c is a ** (b ** c). The right side may be unary: *)
+(* 2 ** -1. *)
+
+(* "copy" makes a second owner. "move" gives the value to a new owner, and the old name ends. *)
+(* "spawn" starts one worker, only inside fork_join, and gives a task<T> of its result. *)
+unary_expression    = ( "-" | "~" | "not" ), unary_expression
+                    | ( "copy" | "move" | "spawn" ), postfix_expression
+                    | power_expression ;
+power_expression    = postfix_expression, [ "**", unary_expression ] ;
+
+postfix_expression  = primary_expression, { member_access | index_access | call_suffix } ;
+member_access       = ".", identifier ;
+index_access        = "[", expression, "]" ;
+(* A call on a type name, Point(1.0), is a call_suffix like any other: the parser does not know that *)
+(* the name is a type. The checker routes it to the construct operator of the type. The literal_value *)
+(* form Point{ x = 1.0 } is the other way to create a value. *)
+call_suffix         = [ type_arguments ], "(", [ argument_list ], ")" ;
+argument_list       = expression, { ",", expression } ;
+
+primary_expression  = integer_literal
+                    | float_literal
+                    | string_literal
+                    | character_literal
+                    | boolean_literal
+                    | "(", expression, ")"
+                    | macro_call
+                    | literal_value
+                    | generic_name
+                    | identifier ;
+
+(* A type name with arguments used as a value, to reach a function of the type: *)
+(* array<float32>.filled(0.0). The checker rejects a use without a following "." or "(". *)
+generic_name        = qualified_name, type_arguments ;
+
+(* A value with a type and a body: Point{ x = 1.0 }, table<string, sinteger32>{ ["a"] = 1 }, *)
+(* c.array<float32>{ 1.0, 2.0 }, array<float32, 4>{ 1.0, 0.0, 0.0, 0.0 }. *)
+literal_value       = named_type, "{", [ literal_entry, { ",", literal_entry }, [ "," ] ], "}" ;
+literal_entry       = identifier, "=", expression
+                    | "[", expression, "]", "=", expression
+                    | expression ;
+
+(* A built-in macro. The name is reserved. The user cannot declare one. The word "namespace" is *)
+(* the one keyword that may name a macro, for the built-in namespace!(). See note 12. *)
+macro_call          = ( identifier | "namespace" ), "!", "(", [ argument_list ], ")" ;
+
+
+(* ======================================= Notes ===================================== *)
+(* 1. Statement end. Every statement ends with ";". A construct that ends with "end" has no   *)
+(*    ";" after the "end". A field, a variant and a contract function end with ";".          *)
+(* 2. Generic call and ">>". In "f<T>(x)" the "<" starts type arguments when a matching ">"  *)
+(*    is followed by "(" or "{". Otherwise it is a comparison. In a type, the lexer splits    *)
+(*    ">>" in two ">" tokens: array<array<float32>>.                                         *)
+(* 3. Literal and "{". A "{" after a type name starts a literal. The "{" never starts a      *)
+(*    block, so "if a then" cannot be mistaken for a literal.                                *)
+(* 4. "parallel" stays a namespace name. The block word is "fork_join" (decided).             *)
+(* 5. Power and unary: the power is stronger, so -a ** 2 is -(a ** 2) (decided).            *)
+(* 6. A local name is a type or a namespace, never both. A clash is an error, and "as"      *)
+(*    resolves it (decided).                                                              *)
+(* 7. Out of this grammar by design: the checker rules (ownership, arena, contracts, switch  *)
+(*    coverage, attribute keys and values, the match of the namespace with the path).        *)
+(* 8. Not in version 0: block comments, #[when(...)], derive, user macros, string            *)
+(*    interpolation, a lambda.                                                               *)
+(* 9. Return and references. A function with a return type ends every path with an explicit   *)
+(*    "return value;". The last expression is NOT a return value. "return;" leaves a function *)
+(*    that has no return type. A function type without ": Type" is the type of such a       *)
+(*    function, and its result can not be used as a value. A reference exists only as a    *)
+(*    parameter, a "for each" variable, a "partition" part or a "with" name. It lives for   *)
+(*    that scope. It is never stored in a field and never returned. Data goes up by "return *)
+(*    value;", which moves the owner to the scope of the caller. A parameter is a reference  *)
+(*    whenever its "semantics" is reference_read_only or reference_mutable (explicit, or the *)
+(*    default for a non-primitive type); value_read_only (explicit, or the default for a     *)
+(*    primitive) is a plain copy, never a reference.                                         *)
+(* 10. Assignment. "=" copies a primitive and a "#[value]" type. For any other type, when the *)
+(*    right side is a name, a field or an element, it must be "copy x" or "move x", or the   *)
+(*    checker gives an error. A new value (a call, a literal) needs no word: it has no       *)
+(*    other owner yet.                                                                      *)
+(* 11. One "end" per branch. Every branch of an "if" (the "if" branch, each "elseif" and the   *)
+(*    "else") and of a "switch" (each "case" and the "default") closes with its own "end", and *)
+(*    one more "end" closes the whole statement. The old shared-end form is a parse error.     *)
+(* 12. Macro name. A reserved word is never an identifier, but the built-in macro namespace!()  *)
+(*    gives the place of the call and shares its name with the keyword. The "!" and "(" after  *)
+(*    it tell the two apart, so "macro_call" lists "namespace" as the one exception.           *)
+(* 13. Entry point. A driver that builds a standalone program looks for one shape: a       *)
+(*     function named "main" in the namespace "main", with the signature "function        *)
+(*     main(arguments: array<string>): sinteger32". This is a checker/driver rule, as note  *)
+(*     7 lists, never grammar: "main" stays an ordinary, non-reserved name everywhere      *)
+(*     else. examples/main.marea already follows it (decided).                            *)
+(* 14. Renaming with "as". Three forms give a name a second name (decided):                   *)
+(*     a. Imported names: "import a.b { f as g, T as U };". Each member may take its own "as". *)
+(*        A member may be a function, a type or a constant ("MAX as LIMIT"). The whole path    *)
+(*        form "import a.b as c;" is unchanged. "as" and a member list never mix on one import.*)
+(*     b. Local type alias: "type Name = OtherType;" (rule type_declaration). There is no     *)
+(*        new word "alias".                                                                   *)
+(*     c. Enum variant or constant: a member of an import list names it, a variant by a two   *)
+(*        part path ("Color.Red as Crimson"). Renaming inside one file without an import is   *)
+(*        out of scope: a local declaration already has its own name.                         *)

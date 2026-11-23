@@ -1,0 +1,10 @@
+# StyLua configuration for the build-time tooling scripts under tools/, derived from .editorconfig
+# (3-space indent, LF, double quotes, lines under about 110 columns). These scripts run on the
+# interpreter pinned in mise.toml.
+syntax = "Lua54"
+column_width = 110
+line_endings = "Unix"
+indent_type = "Spaces"
+indent_width = 3
+quote_style = "AutoPreferDouble"
+call_parentheses = "Always"

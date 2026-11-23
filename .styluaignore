@@ -1,0 +1,7 @@
+# Vendored and third-party code stays as its authors wrote it.
+3rdparty/
+patches/
+# Build output.
+cmake-build-*/
+# Test fixtures are data that tests compare against, never formatted.
+**/fixtures/

@@ -1,0 +1,146 @@
+[settings]
+# Pushes tools' bin-paths to the front of PATH instead of allowing modifications of PATH after activation to take precedence
+activate_aggressive = true
+# Print by line with the prefix of the task name
+task.output = "prefix"
+# Automatically install missing tools when executing tasks
+task.run_auto_install = true
+
+[tools]
+# Complete LLVM/Clang toolchain: clang, clang++, clang-format, clang-tidy, lld (linker), lldb (debugger), llvm-ar, llvm-nm, compiler-rt (sanitizers), etc.
+# This project never builds with GCC or another GPL-licensed compiler - clang/LLVM only, on every platform.
+"conda:llvm" = "latest"
+# conda-forge's llvm is a metapackage with no binaries: the archiver (llvm-ar, llvm-ranlib) comes from llvm-tools.
+"conda:llvm-tools" = "latest"
+"conda:clang" = "latest"
+# conda-forge splits the compiler drivers: "clang" only exposes the C driver, so clang++
+# (CXX below) needs this separate package too, or CMake's C++ detection fails at configure time.
+"conda:clangxx" = "latest"
+"conda:libclang" = "latest"
+"conda:lld" = "latest"
+# Build system (needs llvm/clang available for compiler detection)
+cmake = { version = "latest", depends = ["conda:llvm", "conda:clang", "conda:libclang"] }
+ninja = "latest"
+# Build cache (speeds up incremental builds a lot)
+ccache = { version = "latest", depends = ["conda:llvm", "conda:clang"] }
+# Formatter for the tooling scripts (registry: aqua:JohnnyMorganz/StyLua), used by format:tool-scripts and format:check-sources
+stylua = "latest"
+# Python package and tool runner, needed by the pipx: backend below to install gersemi
+uv = "latest"
+# CMake formatter, used by format:cmake-sources and format:check-sources
+"pipx:gersemi" = "latest"
+# Interpreter for the build-time tooling scripts under tools/ - marea-ascii-check,
+# marea-api-catalog.
+lua = "latest"
+
+[vars]
+# Parallel processing
+PARALLEL = "32"
+
+[env]
+# Local scripts
+_.path = ["./tools"]
+# Force every C/C++ build onto the Clang/LLVM toolchain - never GCC or another GPL compiler.
+CC = "clang"
+CXX = "clang++"
+# Neutralize flags inherited from the shell: CMake caches CFLAGS/CXXFLAGS/LDFLAGS on the first
+# configure, so an ambient flag would survive every later reconfigure. Per-machine tuning belongs
+# in a -D on the configure command, not the ambient environment.
+CFLAGS = ""
+CXXFLAGS = ""
+LDFLAGS = ""
+# Generator (once CMakeLists.txt exists)
+CMAKE_GENERATOR = "Ninja"
+# Generate compile_commands.json (for clangd/IDEs)
+CMAKE_EXPORT_COMPILE_COMMANDS = "ON"
+# Mode
+MAREA_BUILD_MODE = "Debug"
+
+# [tasks."test:marea"] below builds marea_tests and runs it through ctest.
+
+[tasks."dev:ascii-check"]
+description = "Check every tracked text file for non-ASCII bytes (AGENTS.md's ASCII-only rule) - wraps tools/marea-ascii-check."
+run = 'git ls-files | while IFS= read -r f; do [ -f "$f" ] && printf "%s\n" "$f"; done | xargs -r lua ./tools/marea-ascii-check/main.lua'
+dir = "{{config_root}}"
+
+[tasks."dev:build-catalog"]
+description = "Scan lib/include, lib/internal and lib/source into a deterministic JSON token/dependency map (includes, MAREA_API_* gates, declared and used symbols) - wraps tools/marea-api-catalog. Override: mise run dev:build-catalog -- --out tmp/catalog.json"
+usage = '''
+flag "--out <path>" help="JSON output path" default="tmp/catalog.json"
+'''
+run = 'lua ./tools/marea-api-catalog/main.lua catalog --out {{ usage.out }}'
+dir = "{{config_root}}"
+
+[tasks."dev:mcp-docs"]
+description = "Run the marea-mcp stdio server for a manual smoke test - wraps tools/marea-mcp. Pipe a JSON-RPC line in by hand; MCP clients (Claude Code, Codex) launch this directly via .mcp.json / .codex/config.toml, not through mise."
+run = 'lua ./tools/marea-mcp/main.lua'
+dir = "{{config_root}}"
+
+[tasks."setup:git-modules"]
+description = "Initialize every Git submodule this repository pins (including nested ones), at the commit it is pinned to - wraps tools/GetGitModules.sh. A no-op until the repository actually vendors a submodule."
+run = "bash ./tools/GetGitModules.sh"
+run_windows = "powershell -NoProfile -File ./tools/GetGitModules.ps1"
+dir = "{{config_root}}"
+
+[tasks."setup:git-modules-update"]
+description = "Move the submodules that follow a branch to the tip of that branch (never a tag), 2 .gitmodules layers deep by default - wraps tools/UpdateGitModules.sh. Override: mise run setup:git-modules-update -- --levels 3, or --dry-run to only report."
+usage = '''
+flag "--levels <n>" help="How many .gitmodules layers to walk below this repository's own submodules" default="2"
+flag "--dry-run" help="Only report what would move, changing nothing"
+'''
+run = 'bash ./tools/UpdateGitModules.sh --levels {{ usage.levels }}{% if usage.dry_run %} --dry-run{% endif %}'
+run_windows = 'powershell -NoProfile -File ./tools/UpdateGitModules.ps1 -Levels {{ usage.levels }}{% if usage.dry_run %} -DryRun{% endif %}'
+dir = "{{config_root}}"
+
+[tasks."config:cmake"]
+description = "Configure the project into cmake-build-<config>. Override: mise run config:cmake -- --config Release"
+usage = '''
+flag "--config <config>" help="Build configuration (Debug, Release, RelWithDebInfo, MinSizeRel)" default="{{env.MAREA_BUILD_MODE}}"
+'''
+run = 'cmake -S "." -B "cmake-build-{{ usage.config | lower }}" -DCMAKE_BUILD_TYPE="{{ usage.config }}" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON'
+dir = "{{config_root}}"
+
+[tasks."build:marea"]
+description = "Build the Marea-Base static library target (default Debug). Override: mise run build:marea -- --config Release"
+usage = '''
+flag "--config <config>" help="Build configuration" default="{{env.MAREA_BUILD_MODE}}"
+'''
+depends = ["config:cmake --config {{ usage.config }}"]
+run = 'cmake --build "cmake-build-{{ usage.config | lower }}" --target Marea-Base --parallel {{vars.PARALLEL}}'
+dir = "{{config_root}}"
+
+[tasks."test:marea"]
+description = "Build the marea_tests target (default Debug) and run it through ctest. Override: mise run test:marea -- --config Release"
+usage = '''
+flag "--config <config>" help="Build configuration" default="{{env.MAREA_BUILD_MODE}}"
+'''
+depends = ["config:cmake --config {{ usage.config }}"]
+run = [
+    'cmake --build "cmake-build-{{ usage.config | lower }}" --target marea_tests --parallel {{vars.PARALLEL}}',
+    'ctest --test-dir "cmake-build-{{ usage.config | lower }}" --output-on-failure',
+]
+dir = "{{config_root}}"
+
+[tasks."format:cpp-sources"]
+description = "Format every tracked .c/.h/.cpp/.hpp file in place with clang-format (.clang-format)"
+run = 'git ls-files -- "*.c" "*.h" "*.cpp" "*.hpp" | xargs -r clang-format -style=file -i'
+dir = "{{config_root}}"
+
+[tasks."format:tool-scripts"]
+description = "Format every tracked tooling script in place with StyLua (.stylua.toml, .styluaignore)"
+run = "stylua ."
+dir = "{{config_root}}"
+
+[tasks."format:cmake-sources"]
+description = "Format every tracked CMakeLists.txt/*.cmake file in place with gersemi (.gersemirc)"
+run = 'git ls-files -- "CMakeLists.txt" "*.cmake" | xargs -r uvx gersemi -i'
+dir = "{{config_root}}"
+
+[tasks."format:check-sources"]
+description = "Read-only formatting check across every language (clang-format, StyLua, gersemi) - what CI runs"
+run = [
+    'git ls-files -- "*.c" "*.h" "*.cpp" "*.hpp" | xargs -r clang-format -style=file --dry-run --Werror',
+    "stylua --check .",
+    'git ls-files -- "CMakeLists.txt" "*.cmake" | xargs -r uvx gersemi --check',
+]
+dir = "{{config_root}}"

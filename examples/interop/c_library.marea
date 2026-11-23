@@ -1,0 +1,16 @@
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Step 13: C libraries. A c.* namespace calls the C function with its own name, and the
+-- language converts the types at the border (string <-> char pointer, sinteger32 <-> int).
+
+namespace interop.c_library;
+
+import c.math.pow as power;
+import c.stdio;
+
+#[visibility = public]
+function show_c(): float64
+    print!("{}", power(2.0, 10.0));
+    return power(2.0, 0.5);
+end
