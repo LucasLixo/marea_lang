@@ -57,6 +57,8 @@ static const MAREA_Character8 *const MAREA_G_IrKindNames[] = {
     "BUILTIN_NAME",
     "CHARACTER_LITERAL",
     "ZERO_VALUE",
+    "CONSTRUCT_CALL",
+    "DESTROY_CALL",
 };
 
 MAREA_STATIC_ASSERT((sizeof(MAREA_G_IrKindNames) / sizeof(MAREA_G_IrKindNames[0])) == MAREA_IR_KIND_COUNT, "MAREA_G_IrKindNames must have one entry per IR kind.");
