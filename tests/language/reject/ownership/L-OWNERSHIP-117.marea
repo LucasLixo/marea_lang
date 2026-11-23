@@ -1,0 +1,24 @@
+-- expect: 3018 @21
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A for each variable is returned.
+
+namespace main;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+structure Box
+    inner: Point;
+    count: sinteger32;
+end
+
+function check(#[semantics = reference_read_only] points: vector<Point>): Point
+    for each item in points do
+        return item;
+    end
+    return Point{ x = 0, y = 0 };
+end

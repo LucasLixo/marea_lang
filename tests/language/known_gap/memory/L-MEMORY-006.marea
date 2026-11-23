@@ -1,0 +1,32 @@
+-- gap: #198 NEW
+-- rule: reject
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An inner owner is used after it moved up.
+
+namespace main;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+structure Box
+    inner: Point;
+    count: sinteger32;
+end
+
+function make_point(): Point
+    return Point{ x = 1, y = 2 };
+end
+
+function check(): sinteger32
+    local outer: Point = make_point();
+    do
+        local inner: Point = make_point();
+        outer = move inner;
+        local x: sinteger32 = inner.x;
+    end
+    return 1;
+end
