@@ -37,14 +37,31 @@ TEST(MAREASemaTypesAndDeclarations, PrimitiveTypesResolve)
 {
     GTEST_COUT << "Validating every primitive type name resolves." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("structure S a: boolean; b: integer8; c: integer16; d: integer32; e: integer64; f: unsigned8; g: unsigned16; h: unsigned32; i: unsigned64; j: float32; k: float64; l: string; end").empty()) << "A primitive type must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("structure S a: boolean; b: sinteger8; c: sinteger16; d: sinteger32; e: sinteger64; f: uinteger8; g: uinteger16; h: uinteger32; i: uinteger64; j: float32; k: float64; l: string; end").empty()) << "A primitive type must raise nothing.";
+}
+
+TEST(MAREASemaTypesAndDeclarations, SignedAndUnsignedIntegerNamesResolve)
+{
+    GTEST_COUT << "Validating every sinteger and uinteger width resolves, also inside a generic." << std::endl;
+
+    EXPECT_TRUE(MAREA_codesOf("structure S a: sinteger8; b: sinteger16; c: sinteger32; d: sinteger64; e: uinteger8; f: uinteger16; g: uinteger32; h: uinteger64; i: pointer<sinteger32>; j: slice<uinteger8>; end").empty()) << "A sinteger or uinteger name must raise nothing.";
+}
+
+TEST(MAREASemaTypesAndDeclarations, RetiredIntegerNamesAreUnknownTypes)
+{
+    GTEST_COUT << "Validating the retired integerN and unsignedN names raise UNKNOWN_TYPE." << std::endl;
+
+    for (const char *name : { "integer8", "integer16", "integer32", "integer64", "unsigned8", "unsigned16", "unsigned32", "unsigned64" }) {
+        EXPECT_EQ(MAREA_codesOf(std::string("structure S a: ") + name + "; end"), Codes{ UNKNOWN_TYPE }) << "The retired name " << name << " must raise UNKNOWN_TYPE.";
+        EXPECT_EQ(MAREA_codesOf(std::string("structure S a: pointer<") + name + ">; end"), Codes{ UNKNOWN_TYPE }) << "The retired name " << name << " must raise UNKNOWN_TYPE inside a generic.";
+    }
 }
 
 TEST(MAREASemaTypesAndDeclarations, CoreGenericTypesResolve)
 {
     GTEST_COUT << "Validating vector, pointer, owned, slice and task resolve." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("structure S a: vector<float32, 4>; b: pointer<integer32>; c: owned<string>; d: slice<unsigned8>; e: task<float32>; end").empty()) << "A core generic type must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("structure S a: vector<float32, 4>; b: pointer<sinteger32>; c: owned<string>; d: slice<uinteger8>; e: task<float32>; end").empty()) << "A core generic type must raise nothing.";
 }
 
 TEST(MAREASemaTypesAndDeclarations, CoreGenericTypeTakesAGenericParameter)
@@ -58,7 +75,7 @@ TEST(MAREASemaTypesAndDeclarations, ExternalTypesResolve)
 {
     GTEST_COUT << "Validating a type the resolver reports as EXTERNAL resolves." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("structure S a: array<integer32>; b: table<string, integer32>; c: handle<integer32>; d: collections.array<integer32>; e: c.math.Vector3; end").empty()) << "An external type must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("structure S a: array<sinteger32>; b: table<string, sinteger32>; c: handle<sinteger32>; d: collections.array<sinteger32>; e: c.math.Vector3; end").empty()) << "An external type must raise nothing.";
 }
 
 TEST(MAREASemaTypesAndDeclarations, UnknownTypeIsRejected)
@@ -130,7 +147,7 @@ TEST(MAREASemaTypesAndDeclarations, EnumWithTypedDefaultedFields)
 {
     GTEST_COUT << "Validating an enum with typed and defaulted variant fields raises nothing." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("enum Shape circle(radius: float32 = 1.0); square(side: float32, tag: integer32 = 0); empty; end").empty()) << "A well-typed enum must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("enum Shape circle(radius: float32 = 1.0); square(side: float32, tag: sinteger32 = 0); empty; end").empty()) << "A well-typed enum must raise nothing.";
 
     EXPECT_EQ(MAREA_codesOf("enum Shape circle(radius: Missing); end"), Codes{ UNKNOWN_TYPE }) << "A missing variant field type must raise UNKNOWN_TYPE.";
 }
@@ -146,7 +163,7 @@ TEST(MAREASemaTypesAndDeclarations, FunctionTypeResolves)
 {
     GTEST_COUT << "Validating a function type with known types resolves and one with a missing type does not." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("structure S callback: function(a: integer32): float32; end").empty()) << "A function type must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("structure S callback: function(a: sinteger32): float32; end").empty()) << "A function type must raise nothing.";
 
     EXPECT_EQ(MAREA_codesOf("structure S callback: function(a: Missing): float32; end"), Codes{ UNKNOWN_TYPE }) << "A missing parameter type of a function type must raise UNKNOWN_TYPE.";
 }
@@ -193,7 +210,7 @@ TEST(MAREASemaTypesAndDeclarations, SameFunctionNameOnDifferentTypesIsAccepted)
 
     EXPECT_TRUE(MAREA_codesOf("structure P x: float32; end structure Q y: float32; end implementation P function area() end end implementation Q function area() end end").empty()) << "Different types must not collide.";
 
-    EXPECT_TRUE(MAREA_codesOf("structure B<Item> v: Item; end implementation B<integer32> function show() end end implementation B<float32> function show() end end").empty()) << "Different instances must not collide.";
+    EXPECT_TRUE(MAREA_codesOf("structure B<Item> v: Item; end implementation B<sinteger32> function show() end end implementation B<float32> function show() end end").empty()) << "Different instances must not collide.";
 }
 
 TEST(MAREASemaTypesAndDeclarations, ErrorNodeInPlaceOfFieldOrTypeIsSkipped)
@@ -202,7 +219,7 @@ TEST(MAREASemaTypesAndDeclarations, ErrorNodeInPlaceOfFieldOrTypeIsSkipped)
 
     EXPECT_TRUE(MAREA_codesOf("structure S a: ; end").empty()) << "A broken field type must raise no sema diagnostic.";
 
-    EXPECT_TRUE(MAREA_codesOf("structure S : integer32; end").empty()) << "A broken field name must raise no sema diagnostic.";
+    EXPECT_TRUE(MAREA_codesOf("structure S : sinteger32; end").empty()) << "A broken field name must raise no sema diagnostic.";
 
     EXPECT_TRUE(MAREA_codesOf("function f(a: ) end").empty()) << "A broken parameter type must raise no sema diagnostic.";
 }
@@ -231,7 +248,7 @@ TEST(MAREASemaTypesAndDeclarations, AliasOfAPrimitiveIsThePrimitive)
 
     const std::string COPY{ "function copy_of<Item>(a: Item): Item where Item: Copyable return copy a; end " };
 
-    EXPECT_TRUE(MAREA_codesOf(COPY + "type Id = integer32; function run(a: Id): Id return copy_of<Id>(a); end").empty()) << "An alias of a primitive must be Copyable.";
+    EXPECT_TRUE(MAREA_codesOf(COPY + "type Id = sinteger32; function run(a: Id): Id return copy_of<Id>(a); end").empty()) << "An alias of a primitive must be Copyable.";
 }
 
 TEST(MAREASemaTypesAndDeclarations, AliasTypeMatchesTheOriginalInAContractSignature)
@@ -240,7 +257,7 @@ TEST(MAREASemaTypesAndDeclarations, AliasTypeMatchesTheOriginalInAContractSignat
 
     auto external = [](const std::string &, const MAREA_AstNode **) { return MAREA_SEMA_IMPORT_RESULT_EXTERNAL; };
 
-    const std::string BASE{ "contract Joiner function join(self: Self, other: Thing): boolean; end structure Score points: integer32; end function join_all<Item>(a: Item): Item where Item: Joiner return copy a; end " };
+    const std::string BASE{ "contract Joiner function join(self: Self, other: Thing): boolean; end structure Score points: sinteger32; end function join_all<Item>(a: Item): Item where Item: Joiner return copy a; end " };
 
     const std::string RUN{ "function run(a: Score): Score return join_all(a); end" };
 
@@ -267,7 +284,7 @@ TEST(MAREASemaTypesAndDeclarations, AliasesOfDifferentNamespacesDoNotMatchInACon
 
     auto external = [](const std::string &, const MAREA_AstNode **) { return MAREA_SEMA_IMPORT_RESULT_EXTERNAL; };
 
-    const std::string BASE{ "contract Joiner function join(self: Self, other: X): boolean; end structure Score points: integer32; end function join_all<Item>(a: Item): Item where Item: Joiner return copy a; end " };
+    const std::string BASE{ "contract Joiner function join(self: Self, other: X): boolean; end structure Score points: sinteger32; end function join_all<Item>(a: Item): Item where Item: Joiner return copy a; end " };
 
     const std::string RUN{ "function run(a: Score): Score return join_all(a); end" };
 

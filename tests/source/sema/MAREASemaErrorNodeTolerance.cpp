@@ -113,7 +113,7 @@ TEST(MAREASemaErrorNodeTolerance, DeepNestingSurvives)
         types += "array<";
     }
 
-    types += "integer32";
+    types += "sinteger32";
 
     for (int index{ 0 }; index < 300; ++index) {
         types += ">";

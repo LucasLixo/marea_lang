@@ -16,7 +16,7 @@ namespace
 
     constexpr MAREA_Uinteger32 INVALID_JUMP{ MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_PARALLEL_JUMP };
 
-    const std::string HEAD{ "constant WORKERS: integer32 = 4; function work(part: mutable slice<float32>, factor: float32) end " };
+    const std::string HEAD{ "constant WORKERS: sinteger32 = 4; function work(part: mutable slice<float32>, factor: float32) end " };
 
     Codes MAREA_codesOf(const std::string &body)
     {
@@ -43,9 +43,9 @@ TEST(MAREASemaParallel, LiteralsAndConstantsAreValidArguments)
 
     EXPECT_TRUE(MAREA_codesOf("function f(values: array<float32>) fork_join partition values into 4 as part do spawn work(part, 2.0); end end end").empty()) << "A float literal must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("function g(a: integer32, b: string, c: boolean) end function f(values: array<float32>) fork_join partition values into 4 as part do spawn g(7, \"x\", true); end end end").empty()) << "Literals must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function g(a: sinteger32, b: string, c: boolean) end function f(values: array<float32>) fork_join partition values into 4 as part do spawn g(7, \"x\", true); end end end").empty()) << "Literals must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("function g(a: integer32) end function f(values: array<float32>) fork_join partition values into 4 as part do spawn g(WORKERS); end end end").empty()) << "A constant must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function g(a: sinteger32) end function f(values: array<float32>) fork_join partition values into 4 as part do spawn g(WORKERS); end end end").empty()) << "A constant must raise nothing.";
 }
 
 TEST(MAREASemaParallel, ReadOnlyIdentifierIsAValidArgument)
@@ -84,7 +84,7 @@ TEST(MAREASemaParallel, OtherExpressionsAreRejected)
 {
     GTEST_COUT << "Validating an argument that is not a name, a literal or a constant is rejected." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf("function g(a: integer32) end function f(values: array<float32>) fork_join partition values into 4 as part do spawn g(1 + 2); end end end"), Codes{ INVALID_SPAWN }) << "A computed argument must raise INVALID_SPAWN_ARGUMENT.";
+    EXPECT_EQ(MAREA_codesOf("function g(a: sinteger32) end function f(values: array<float32>) fork_join partition values into 4 as part do spawn g(1 + 2); end end end"), Codes{ INVALID_SPAWN }) << "A computed argument must raise INVALID_SPAWN_ARGUMENT.";
 }
 
 TEST(MAREASemaParallel, FieldOfASafeNameIsAValidArgument)
@@ -177,7 +177,7 @@ TEST(MAREASemaParallel, ReturnInAPartitionBodyIsRejected)
 
     EXPECT_EQ(MAREA_codesOf("function f(values: array<float32>) fork_join partition values into 2 as part do return; end end end"), Codes{ INVALID_JUMP }) << "A return with no value must raise INVALID_PARALLEL_JUMP.";
 
-    EXPECT_EQ(MAREA_codesOf("function f(values: array<float32>): integer32 fork_join partition values into 2 as part do return 1; end end return 0; end"), Codes{ INVALID_JUMP }) << "A return with a value must raise INVALID_PARALLEL_JUMP.";
+    EXPECT_EQ(MAREA_codesOf("function f(values: array<float32>): sinteger32 fork_join partition values into 2 as part do return 1; end end return 0; end"), Codes{ INVALID_JUMP }) << "A return with a value must raise INVALID_PARALLEL_JUMP.";
 
     EXPECT_EQ(MAREA_codesOf("function f(values: array<float32>, a: boolean) fork_join partition values into 2 as part do while a do return; end end end end"), Codes{ INVALID_JUMP }) << "A return inside a loop of the body must raise INVALID_PARALLEL_JUMP.";
 }
@@ -188,7 +188,7 @@ TEST(MAREASemaParallel, JumpThroughAWithOrSwitchInABodyIsRejected)
 
     EXPECT_EQ(MAREA_codesOf("function f(values: array<float32>, a: boolean) while a do fork_join partition values into 2 as part do with values as view do break; end end end end end"), Codes{ INVALID_JUMP }) << "A break through a with must raise INVALID_PARALLEL_JUMP.";
 
-    EXPECT_EQ(MAREA_codesOf("function f(values: array<float32>, a: integer32) while true do fork_join partition values into 2 as part do switch a case 1 then continue; end default then end end end end end end"), Codes{ INVALID_JUMP }) << "A continue in a switch arm must raise INVALID_PARALLEL_JUMP.";
+    EXPECT_EQ(MAREA_codesOf("function f(values: array<float32>, a: sinteger32) while true do fork_join partition values into 2 as part do switch a case 1 then continue; end default then end end end end end end"), Codes{ INVALID_JUMP }) << "A continue in a switch arm must raise INVALID_PARALLEL_JUMP.";
 }
 
 TEST(MAREASemaParallel, EveryJumpOfABodyIsReported)
@@ -246,7 +246,7 @@ TEST(MAREASemaParallel, JumpOutsideAnyPartitionBodyIsUnchanged)
 
     EXPECT_TRUE(MAREA_codesOf("function f(values: array<float32>, a: boolean) while a do with values as view do continue; end end end").empty()) << "A continue through a with outside a partition must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("function f(values: array<float32>, a: boolean): integer32 with values as view do return 1; end return 0; end").empty()) << "A return inside a with outside a partition must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function f(values: array<float32>, a: boolean): sinteger32 with values as view do return 1; end return 0; end").empty()) << "A return inside a with outside a partition must raise nothing.";
 
     EXPECT_TRUE(MAREA_codesOf("function f(values: array<float32>, a: boolean) while a do if a then break; end end end end").empty()) << "A break in a loop must raise nothing.";
 }

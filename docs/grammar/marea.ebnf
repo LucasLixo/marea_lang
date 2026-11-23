@@ -57,8 +57,8 @@ keyword             = "and" | "as" | "break" | "case" | "constant" | "continue" 
                     | "structure" | "switch" | "then" | "true" | "type" | "unsafe" | "where"
                     | "while" | "with" ;
 
-(* Names that are predeclared but are not reserved: the primitive types (boolean, integer8 ... *)
-(* integer64, unsigned8 ... unsigned64, float32, float64, string), the core type constructors *)
+(* Names that are predeclared but are not reserved: the primitive types (boolean, sinteger8 ... *)
+(* sinteger64, uinteger8 ... uinteger64, float32, float64, string), the core type constructors *)
 (* vector and pointer, and the names Self and self. The language has no standard library: array, *)
 (* table, slice, task, arenas and text are libraries written in C or in Marea, and they are *)
 (* imported like any namespace. The namespace "c" is the only reserved one. *)
@@ -329,7 +329,7 @@ primary_expression  = integer_literal
 (* array<float32>.filled(0.0). The checker rejects a use without a following "." or "(". *)
 generic_name        = qualified_name, type_arguments ;
 
-(* A value with a type and a body: Point{ x = 1.0 }, table<string, integer32>{ ["a"] = 1 }, *)
+(* A value with a type and a body: Point{ x = 1.0 }, table<string, sinteger32>{ ["a"] = 1 }, *)
 (* array<float32>{ 1.0, 2.0 }, vector<float32, 4>{ 1.0, 0.0, 0.0, 0.0 }. *)
 literal_value       = named_type, "{", [ literal_entry, { ",", literal_entry }, [ "," ] ], "}" ;
 literal_entry       = identifier, "=", expression
@@ -376,7 +376,7 @@ macro_call          = ( identifier | "namespace" ), "!", "(", [ argument_list ],
 (*    it tell the two apart, so "macro_call" lists "namespace" as the one exception.           *)
 (* 13. Entry point. A driver that builds a standalone program looks for one shape: a       *)
 (*     function named "main" in the namespace "main", with the signature "function        *)
-(*     main(arguments: array<string>): integer32". This is a checker/driver rule, as note  *)
+(*     main(arguments: array<string>): sinteger32". This is a checker/driver rule, as note  *)
 (*     7 lists, never grammar: "main" stays an ordinary, non-reserved name everywhere      *)
 (*     else. examples/main.marea already follows it (decided).                            *)
 (* 14. Renaming with "as". Three forms give a name a second name (decided):                   *)

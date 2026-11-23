@@ -19,7 +19,7 @@ namespace
 
         MAREA_LibraryResolver()
         {
-            MAREA_IGNORE(library.parser.MAREA_parse("namespace a.b; #[visibility = public] function c() end function hidden() end #[visibility = public] enum Color red; green; end #[visibility = public] constant MAX: integer32 = 1; #[visibility = public] structure Item end"));
+            MAREA_IGNORE(library.parser.MAREA_parse("namespace a.b; #[visibility = public] function c() end function hidden() end #[visibility = public] enum Color red; green; end #[visibility = public] constant MAX: sinteger32 = 1; #[visibility = public] structure Item end"));
         }
     };
 
@@ -340,7 +340,7 @@ TEST(MAREASemaNamespaceAndNames, AliasNamedCIsReserved)
 
     const std::vector<MAREA_Uinteger32> EXPECTED{ ALREADY_DECLARED };
 
-    const char *const SOURCES[]{ "namespace main; import a.b as c;", "namespace main; import a.b { f as c };", "namespace main; type c = integer32;" };
+    const char *const SOURCES[]{ "namespace main; import a.b as c;", "namespace main; import a.b { f as c };", "namespace main; type c = sinteger32;" };
 
     for (const char *source : SOURCES) {
         MAREA_SemaFixture fixture(MAREA_externalAll());
@@ -443,7 +443,7 @@ TEST(MAREASemaNamespaceAndNames, ConstantAliasInAnExpressionIsDeclared)
 
     MAREA_SemaFixture fixture(MAREA_externalAll());
 
-    ASSERT_EQ(fixture.MAREA_sema("namespace main; import a.b { MAX as LIMIT, Color.red as Crimson }; function f(): integer32 return LIMIT; end function g(): integer32 local n: integer32 = Crimson; return 0; end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; import a.b { MAX as LIMIT, Color.red as Crimson }; function f(): sinteger32 return LIMIT; end function g(): sinteger32 local n: sinteger32 = Crimson; return 0; end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
 
     const std::vector<MAREA_Uinteger32> CODES{ fixture.MAREA_semaCodes() };
 

@@ -79,7 +79,7 @@ TEST(MAREAIrParallel, ForkJoinKeepsItsStatementsInOrder)
 {
     GTEST_COUT << "Validating a fork_join keeps each statement of its body in source order." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerBody("function ping() end", "", "fork_join local first: integer32 = 1; ping(); end"), "(BLOCK (FORK_JOIN_BLOCK (BLOCK (LOCAL_DECLARATION first :integer32 (INTEGER_LITERAL 1)) (EXPRESSION_STATEMENT (CALL_EXPRESSION (IDENTIFIER ping) (ARGUMENT_LIST))))))") << "The body must keep its order.";
+    EXPECT_EQ(MAREA_lowerBody("function ping() end", "", "fork_join local first: sinteger32 = 1; ping(); end"), "(BLOCK (FORK_JOIN_BLOCK (BLOCK (LOCAL_DECLARATION first :sinteger32 (INTEGER_LITERAL 1)) (EXPRESSION_STATEMENT (CALL_EXPRESSION (IDENTIFIER ping) (ARGUMENT_LIST))))))") << "The body must keep its order.";
 }
 
 TEST(MAREAIrParallel, SpawnStatementIsAUnaryExpressionWithTheSpawnOperator)
@@ -93,7 +93,7 @@ TEST(MAREAIrParallel, SpawnResultBoundToALocalKeepsItsTypeName)
 {
     GTEST_COUT << "Validating a spawn used as the initializer of a local keeps the local type name and the spawn." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerBody("function work(a: integer32): integer32 return a; end", "", "fork_join local result: task<integer32> = spawn work(1); end"), "(BLOCK (FORK_JOIN_BLOCK (BLOCK (LOCAL_DECLARATION result :task (UNARY_EXPRESSION op=KEYWORD_SPAWN (CALL_EXPRESSION :integer32 (IDENTIFIER work) (ARGUMENT_LIST (INTEGER_LITERAL 1))))))))") << "The task local must hold the spawn.";
+    EXPECT_EQ(MAREA_lowerBody("function work(a: sinteger32): sinteger32 return a; end", "", "fork_join local result: task<sinteger32> = spawn work(1); end"), "(BLOCK (FORK_JOIN_BLOCK (BLOCK (LOCAL_DECLARATION result :task (UNARY_EXPRESSION op=KEYWORD_SPAWN (CALL_EXPRESSION :sinteger32 (IDENTIFIER work) (ARGUMENT_LIST (INTEGER_LITERAL 1))))))))") << "The task local must hold the spawn.";
 }
 
 TEST(MAREAIrParallel, SpawnResultAsAnArgumentStaysInTheCall)
@@ -101,9 +101,9 @@ TEST(MAREAIrParallel, SpawnResultAsAnArgumentStaysInTheCall)
     GTEST_COUT << "Validating a spawn inside a call argument, as in tasks.append(spawn f(part)), lowers in place." << std::endl;
 
     const std::string
-        rendered{ MAREA_lowerBody("function work(a: integer32): integer32 return a; end", "tasks: mutable array<task<integer32>>", "fork_join tasks.append(spawn work(1)); end") };
+        rendered{ MAREA_lowerBody("function work(a: sinteger32): sinteger32 return a; end", "tasks: mutable array<task<sinteger32>>", "fork_join tasks.append(spawn work(1)); end") };
 
-    EXPECT_EQ(rendered, "(BLOCK (FORK_JOIN_BLOCK (BLOCK (EXPRESSION_STATEMENT (CALL_EXPRESSION (MEMBER_ACCESS (IDENTIFIER tasks) (IDENTIFIER append)) (ARGUMENT_LIST (UNARY_EXPRESSION op=KEYWORD_SPAWN (CALL_EXPRESSION :integer32 (IDENTIFIER work) (ARGUMENT_LIST (INTEGER_LITERAL 1))))))))))") << "The spawn must stay an argument.";
+    EXPECT_EQ(rendered, "(BLOCK (FORK_JOIN_BLOCK (BLOCK (EXPRESSION_STATEMENT (CALL_EXPRESSION (MEMBER_ACCESS (IDENTIFIER tasks) (IDENTIFIER append)) (ARGUMENT_LIST (UNARY_EXPRESSION op=KEYWORD_SPAWN (CALL_EXPRESSION :sinteger32 (IDENTIFIER work) (ARGUMENT_LIST (INTEGER_LITERAL 1))))))))))") << "The spawn must stay an argument.";
 }
 
 TEST(MAREAIrParallel, PartitionKeepsNameValueCountAndBody)
@@ -128,7 +128,7 @@ TEST(MAREAIrParallel, PartitionCountIsAnyLoweredExpression)
     GTEST_COUT << "Validating the part count of a partition is lowered like any expression, a constant name here." << std::endl;
 
     const std::string
-        rendered{ MAREA_lowerBody("constant WORKERS: integer32 = 4; " + WORK, "values: array<float32>", "fork_join partition values into WORKERS as part do spawn work(part); end end") };
+        rendered{ MAREA_lowerBody("constant WORKERS: sinteger32 = 4; " + WORK, "values: array<float32>", "fork_join partition values into WORKERS as part do spawn work(part); end end") };
 
     EXPECT_NE(rendered.find("(PARTITION_STATEMENT part (IDENTIFIER values) (IDENTIFIER WORKERS) (BLOCK"), std::string::npos) << "The count must be an IDENTIFIER child: " << rendered;
 }
@@ -145,9 +145,9 @@ TEST(MAREAIrParallel, WithValueIsALoweredCallAndTheBodyKeepsItsStatements)
     GTEST_COUT << "Validating the value of a with statement may be a call and its body keeps its statements." << std::endl;
 
     const std::string
-        rendered{ MAREA_lowerBody("function open_buffer(a: integer32): integer32 return a; end function use(a: integer32) end", "", "with open_buffer(1) as buffer do use(buffer); end") };
+        rendered{ MAREA_lowerBody("function open_buffer(a: sinteger32): sinteger32 return a; end function use(a: sinteger32) end", "", "with open_buffer(1) as buffer do use(buffer); end") };
 
-    EXPECT_EQ(rendered, "(BLOCK (WITH_STATEMENT buffer (CALL_EXPRESSION :integer32 (IDENTIFIER open_buffer) (ARGUMENT_LIST (INTEGER_LITERAL 1))) (BLOCK (EXPRESSION_STATEMENT (CALL_EXPRESSION (IDENTIFIER use) (ARGUMENT_LIST (IDENTIFIER buffer)))))))") << "The with must lower its value and its body.";
+    EXPECT_EQ(rendered, "(BLOCK (WITH_STATEMENT buffer (CALL_EXPRESSION :sinteger32 (IDENTIFIER open_buffer) (ARGUMENT_LIST (INTEGER_LITERAL 1))) (BLOCK (EXPRESSION_STATEMENT (CALL_EXPRESSION (IDENTIFIER use) (ARGUMENT_LIST (IDENTIFIER buffer)))))))") << "The with must lower its value and its body.";
 }
 
 TEST(MAREAIrParallel, ForkJoinNestsInsideWithAndWithInsideForkJoin)

@@ -28,15 +28,15 @@
 namespace basics.operators;
 
 #[visibility = public]
-function arithmetic(left: integer32, right: integer32): integer32
-    local sum: integer32 = left + right;
-    local difference: integer32 = left - right;
-    local product: integer32 = left * right;
-    local quotient: integer32 = left / right;     -- integer division for integers
-    local remainder: integer32 = left % right;    -- the sign follows the left side
-    local negative: integer32 = -left;
-    local power: integer32 = left ** 2;
-    local negative_power: integer32 = -left ** 2;     -- -(left ** 2)
+function arithmetic(left: sinteger32, right: sinteger32): sinteger32
+    local sum: sinteger32 = left + right;
+    local difference: sinteger32 = left - right;
+    local product: sinteger32 = left * right;
+    local quotient: sinteger32 = left / right;     -- integer division for integers
+    local remainder: sinteger32 = left % right;    -- the sign follows the left side
+    local negative: sinteger32 = -left;
+    local power: sinteger32 = left ** 2;
+    local negative_power: sinteger32 = -left ** 2;     -- -(left ** 2)
     return sum + difference + product + quotient + remainder + negative + power + negative_power;
 end
 
@@ -50,17 +50,17 @@ end
 
 -- Wrap around and saturate, written on purpose.
 #[visibility = public]
-function limits(value: unsigned8): unsigned8
-    local wrapped: unsigned8 = value +% 200;       -- 100 +% 200 = 44
-    local saturated: unsigned8 = value +| 200;     -- 100 +| 200 = 255
-    local clamped: unsigned8 = value -| 200;       -- 100 -| 200 = 0
+function limits(value: uinteger8): uinteger8
+    local wrapped: uinteger8 = value +% 200;       -- 100 +% 200 = 44
+    local saturated: uinteger8 = value +| 200;     -- 100 +| 200 = 255
+    local clamped: uinteger8 = value -| 200;       -- 100 -| 200 = 0
     return wrapped ^ saturated ^ clamped;
 end
 
 -- A compound assignment is one instruction: name op= value.
 #[visibility = public]
-function compound(start: integer32): integer32
-    local value: integer32 = start;
+function compound(start: sinteger32): sinteger32
+    local value: sinteger32 = start;
     value += 2;
     value -= 1;
     value *= 3;
@@ -71,18 +71,18 @@ function compound(start: integer32): integer32
 end
 
 #[visibility = public]
-function bits(value: unsigned32): unsigned32
-    local inverted: unsigned32 = ~value;
-    local shifted_left: unsigned32 = value << 4;
-    local shifted_right: unsigned32 = value >> 4;
-    local masked: unsigned32 = value & 0xFF;
-    local combined: unsigned32 = value | 0x100;
-    local toggled: unsigned32 = value ^ 0xFFFF;
+function bits(value: uinteger32): uinteger32
+    local inverted: uinteger32 = ~value;
+    local shifted_left: uinteger32 = value << 4;
+    local shifted_right: uinteger32 = value >> 4;
+    local masked: uinteger32 = value & 0xFF;
+    local combined: uinteger32 = value | 0x100;
+    local toggled: uinteger32 = value ^ 0xFFFF;
     return inverted + shifted_left + shifted_right + masked + combined + toggled;
 end
 
 #[visibility = public]
-function comparison(left: integer32, right: integer32): boolean
+function comparison(left: sinteger32, right: sinteger32): boolean
     local equal: boolean = left == right;
     local different: boolean = left != right;
     local bigger: boolean = left > right;

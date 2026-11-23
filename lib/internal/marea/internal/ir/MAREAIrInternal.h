@@ -225,7 +225,7 @@ MAREA_BEGIN_EXTERN_C
 
     /**
      * @brief Lowers a call that carries an explicit type operand: a built-in call (size_of, align_of or
-     * convert with type arguments) or a static call on a written type (array<integer32>.filled(8, 0)). Any
+     * convert with type arguments) or a static call on a written type (array<sinteger32>.filled(8, 0)). Any
      * other call is not handled and is left to the generic path of MAREA_IrLowerExpression.
      * @param context Context that owns the arena and sink. Must not be null.
      * @param typed Typed CALL_EXPRESSION to lower. Must not be null.

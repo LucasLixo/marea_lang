@@ -60,7 +60,7 @@ TEST(MAREASemaTypedAst, NeverCheckedRootIsRejected)
 
     MAREA_SemaFixture fixture;
 
-    ASSERT_EQ(fixture.parser.MAREA_parse("namespace main; structure S a: integer32; end"), MAREA_PARSE_EXCEPT_SUCCESS) << "The source must parse.";
+    ASSERT_EQ(fixture.parser.MAREA_parse("namespace main; structure S a: sinteger32; end"), MAREA_PARSE_EXCEPT_SUCCESS) << "The source must parse.";
 
     const MAREA_SemaTypedNode *outRoot{ nullptr };
 
@@ -111,7 +111,7 @@ TEST(MAREASemaTypedAst, CheckedRootBuildsAMatchingShadowTree)
 
     MAREA_SemaFixture fixture;
 
-    ASSERT_EQ(fixture.MAREA_sema("namespace main; structure S a: integer32; end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; structure S a: sinteger32; end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
 
     ASSERT_EQ(fixture.MAREA_errorCount(), MAREA_INTEGER_SIZE(0)) << "The source must raise no error.";
 
@@ -146,7 +146,7 @@ TEST(MAREASemaTypedAst, OutOfRangeChildIsRejected)
 
     MAREA_SemaFixture fixture;
 
-    ASSERT_EQ(fixture.MAREA_sema("namespace main; structure S a: integer32; end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; structure S a: sinteger32; end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
 
     const MAREA_SemaTypedNode *outRoot{ nullptr };
 
@@ -165,7 +165,7 @@ TEST(MAREASemaTypedAst, PrimitiveReturnedIdentifierIsTaggedPrimitive)
 
     MAREA_SemaFixture fixture;
 
-    ASSERT_EQ(fixture.MAREA_sema("namespace main; function f(n: integer32): integer32 return n; end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; function f(n: sinteger32): sinteger32 return n; end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
 
     const MAREA_SemaTypedNode *outRoot{ nullptr };
 
@@ -223,7 +223,7 @@ TEST(MAREASemaTypedAst, ExternalReturnedIdentifierIsTaggedExternal)
 
     MAREA_SemaFixture fixture(resolve);
 
-    ASSERT_EQ(fixture.MAREA_sema("namespace main; function f(a: array<integer32>): array<integer32> return copy a; end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; function f(a: array<sinteger32>): array<sinteger32> return copy a; end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
 
     const MAREA_SemaTypedNode *outRoot{ nullptr };
 
@@ -285,7 +285,7 @@ TEST(MAREASemaTypedAst, GenericCallResultIsTaggedGenericWithoutSubstitution)
 
     MAREA_SemaFixture fixture;
 
-    const std::string SOURCE{ "namespace main; function same<Item>(a: Item): Item return copy a; end function f(): integer32 return same(5); end" };
+    const std::string SOURCE{ "namespace main; function same<Item>(a: Item): Item return copy a; end function f(): sinteger32 return same(5); end" };
 
     ASSERT_EQ(fixture.MAREA_sema(SOURCE), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
 
@@ -314,7 +314,7 @@ TEST(MAREASemaTypedAst, ConvertCallResultCarriesTheTargetType)
 
     MAREA_SemaFixture fixture;
 
-    const std::string SOURCE{ "namespace main; function f(x: integer32): integer64 return convert<integer64>(x); end" };
+    const std::string SOURCE{ "namespace main; function f(x: sinteger32): sinteger64 return convert<sinteger64>(x); end" };
 
     ASSERT_EQ(fixture.MAREA_sema(SOURCE), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
 
@@ -336,7 +336,7 @@ TEST(MAREASemaTypedAst, ConvertCallResultCarriesTheTargetType)
 
     ASSERT_NE(outText, nullptr) << "The conversion call must carry a type name.";
 
-    EXPECT_EQ(std::string(outText, outLength), "integer64") << "The conversion result must be the target type.";
+    EXPECT_EQ(std::string(outText, outLength), "sinteger64") << "The conversion result must be the target type.";
 }
 
 TEST(MAREASemaTypedAst, ConvertToAStructureCarriesTheStructureDeclaration)
@@ -376,7 +376,7 @@ TEST(MAREASemaTypedAst, GenericCallWithExplicitTypeArgumentIsSubstituted)
 
     MAREA_SemaFixture fixture;
 
-    const std::string SOURCE{ "namespace main; function same<Item>(a: Item): Item return copy a; end function f(): integer32 return same<integer32>(5); end" };
+    const std::string SOURCE{ "namespace main; function same<Item>(a: Item): Item return copy a; end function f(): sinteger32 return same<sinteger32>(5); end" };
 
     ASSERT_EQ(fixture.MAREA_sema(SOURCE), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
 
@@ -386,7 +386,7 @@ TEST(MAREASemaTypedAst, GenericCallWithExplicitTypeArgumentIsSubstituted)
 
     const MAREA_SemaTypedNode *callNode{ MAREA_findTypedNodeByKind(outRoot, MAREA_AST_KIND_CALL_EXPRESSION) };
 
-    ASSERT_NE(callNode, nullptr) << "The typed tree must carry the same<integer32>() call node.";
+    ASSERT_NE(callNode, nullptr) << "The typed tree must carry the same<sinteger32>() call node.";
 
     EXPECT_EQ(MAREA_SemaTypedNodeGetTypeClass(callNode), MAREA_SEMA_TYPE_CLASS_PRIMITIVE) << "The substituted result must classify as PRIMITIVE, not GENERIC.";
 
@@ -398,7 +398,7 @@ TEST(MAREASemaTypedAst, GenericCallWithExplicitTypeArgumentIsSubstituted)
 
     ASSERT_NE(outText, nullptr) << "The generic call must carry a type name.";
 
-    EXPECT_EQ(std::string(outText, outLength), "integer32") << "The generic parameter must be replaced by the type argument.";
+    EXPECT_EQ(std::string(outText, outLength), "sinteger32") << "The generic parameter must be replaced by the type argument.";
 }
 
 TEST(MAREASemaTypedAst, PrimitiveIdentifierOwnershipIsValue)
@@ -407,7 +407,7 @@ TEST(MAREASemaTypedAst, PrimitiveIdentifierOwnershipIsValue)
 
     MAREA_SemaFixture fixture;
 
-    ASSERT_EQ(fixture.MAREA_sema("namespace main; function f(n: integer32): integer32 return n; end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; function f(n: sinteger32): sinteger32 return n; end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
 
     const MAREA_SemaTypedNode *outRoot{ nullptr };
 
