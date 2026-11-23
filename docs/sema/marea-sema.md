@@ -386,10 +386,13 @@ every run. The canonical spelling:
   the target are kept: with `type Grid = array<Point, 4>;`, `Grid` is `array<Point,4>`. A generic alias is kept as
   written.
 - A generic parameter in scope is its own name: `Item`.
+- `void` is the text of the type of a call that returns nothing (see the call row of "Resolved type of an expression"). It is
+  only a spelling: it is not a type of the language, no declaration can write it, and no declared node carries it.
 
 **Resolved type of an expression.** The same accessor gives the type of an expression, in the same spelling. The text
 is made when the typed tree is built, after the typed children, so it uses what the children carry. A name that is
-not read as a value (a declared name, a member name, a field key, the name of a loop) has no type. The rules:
+not read as a value (a declared name, including the name that a loop or a scope declares, a member name, a field key) has no
+type. The rules:
 
 | Expression | Resolved type |
 |---|---|
@@ -400,9 +403,10 @@ not read as a value (a declared name, a member name, a field key, the name of a 
 | `copy x`, `move x`, `(x)` | the type of `x`, with its type arguments |
 | `spawn call` | `task<T>`, where `T` is the type of the call |
 | identifier | the type of its declaration: a parameter or a local, a constant of the file or of the implementation block, a value parameter such as `Count` in `<constant Count: sinteger32>`, or a function name as its function type |
+| name of a loop or a scope | read as a value, it has the type its statement gives it. `for i in a .. b`: the type of the bounds, as for an operation (a number literal never decides, two literals give the type of the first). `for each key, value in c`: the value is the element type of `array`, `vector` or `slice` (also under `c.`), the key is `uinteger64`. `partition v into n as part`: `slice<T>`, where `T` is the element type of `v`. `with e as name`: the type of `e`. The name has no type when the type that decides it has none |
 | member access | the declared type of the field. On a value of a generic structure, the type arguments of the value replace the parameters of the structure. An enum variant (`Color.Red`) is the enum. A field of a variant of an enum is read on the enum value. `Type.NAME` is a constant of an implementation block. A method or a static function, named with no call, is its function type with the receiver first: `function(Vector2,float64)` |
 | index access | the first type argument of `array`, `slice`, `vector` or `pointer` (also under `c.`) |
-| call | the declared result type of the callee. `convert<T>(x)` is `T`. A call on the name of a structure or enum of the file is that type. A call of a method, a static function, a function value or a local alias of a function type is the result of that function |
+| call | the declared result type of the callee. `convert<T>(x)` is `T`. A call on the name of a structure or enum of the file is that type. A call of a method, a static function, a function value or a local alias of a function type is the result of that function. A call of one of these with no result type is `void`, and `spawn` of such a call keeps no type. `size_of<T>()` and `align_of<T>()` (with no name of the same text bound in the unit) are `uinteger64`; the names `size_of`, `align_of` and `convert` as a callee keep no type of their own |
 | structure, array or indexed literal | the written type (`Point`, `array<float32,4>`) |
 
 A value that has `owned<T>` as type gives its members and elements as `T` does. A type written for another declaration
@@ -545,18 +549,19 @@ or rejects.
   spelled by what is written and the import alias rule, with no qualifier added; a type that a `FOUND` namespace
   declares is spelled with the last segment of that namespace instead (see "Members of a FOUND namespace").
 - An expression with no resolved type (checked on the 23 examples, 866 expression nodes, 36 of them qualifier names
-  that are not values and are counted on their own, 114 of the rest with no type). The cases that stay without a
-  type: the name of a `for`, `for each`, `partition` or `with` statement, because sema keeps no type for it, and
-  every expression made from it; a call that returns nothing (`grow(second, 2.0)`, `spawn` of such a call); a call,
-  a member or a name that comes from an `EXTERNAL` namespace (`stdio.puts(text)`, `vulkan.present(swapchain,
-  texture)`), or from a `FOUND` namespace but is not a public function or constant, or whose generic type arguments
-  are only inferred; a method or a field read on a result typed from a `FOUND` namespace, because such a lookup
-  stays in the file being built (see "Members of a FOUND namespace"); a method or an element of a library type
-  (`table<K, V>`, `c.array`, `task`, `slice.length`) and an intrinsic of `array<T, N>`; a method on a value whose
-  type is a generic parameter (`left.less(right)`); the static functions of a generic name
-  (`array<float32, 16>.filled(0.0)`); the built-in `convert`, `size_of` and `align_of` as names, and the result type
-  of `size_of<T>()` and `align_of<T>()`, which no rule gives; every `MACRO_CALL` and `GENERIC_NAME`. The `ir` stage
-  decides what to do with each of these.
+  that are not values and are counted on their own, 89 of the rest with no type). The cases that stay without a
+  type: the name of a `for`, `for each`, `partition` or `with` statement when the type that decides it has none
+  (`pixels` of `with vulkan.map_texture(texture) as pixels`, the counter of a range with a bound such as
+  `slice.length(pixels) - 1`), and every expression made from it; the key of a `for each` over any other collection,
+  as no library type of the repository has a key; a call, a member or a name that comes from an `EXTERNAL` namespace
+  (`stdio.puts(text)`, `vulkan.present(swapchain, texture)`, `square_root(x)`), or from a `FOUND` namespace but is
+  not a public function or constant; a method or a field read on a result typed from a `FOUND` namespace, because
+  such a lookup stays in the file being built (see "Members of a FOUND namespace"); a method or an element of a
+  library type (`table<K, V>`, `c.array`, `task`, `slice.length`) and an intrinsic of `array<T, N>`; a method on a
+  value whose type is a generic parameter (`left.less(right)`); a call whose type arguments are only inferred; the
+  static functions of a generic name (`array<float32, 16>.filled(0.0)`); the built-in `convert`, `size_of` and
+  `align_of` as names (the call has a type, the name has none); every `MACRO_CALL` and `GENERIC_NAME`. The `ir`
+  stage decides what to do with each of these.
 - A binary operation has the type of its operands even when an operator function of the structure declares another
   result type: the result of `#[operator = "+"]` is not read. A field of a variant is read from the first variant that
   declares the name.
