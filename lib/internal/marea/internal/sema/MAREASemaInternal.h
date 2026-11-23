@@ -991,6 +991,21 @@ MAREA_BEGIN_EXTERN_C
      */
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaDeclareBinders(MAREA_SemaContext * context, const MAREA_AstNode *node);
 
+    /**
+     * @brief Checks what the operands of an operator may be. A bitwise operator (&, |, ^, ~ and the compound forms)
+     * rejects a float, a boolean or a string operand with BITWISE_OPERAND_NOT_INTEGER; and, or and not reject an
+     * operand that is not a boolean with LOGICAL_OPERAND_NOT_BOOLEAN. An operand of an unknown type is accepted, and
+     * any other operator is ignored. The caller calls it only when the operands already agree in type, so one node
+     * never carries this code together with TYPE_MISMATCH.
+     * @param context Context of the run. Must not be null.
+     * @param operatorKind Token kind of the operator.
+     * @param left Left operand, or the only operand of a unary operator. May be null.
+     * @param right Right operand. Null for a unary operator.
+     * @param position Position the diagnostic is reported at.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null context, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckOperatorOperands(MAREA_SemaContext * context, MAREA_TokenKind operatorKind, const MAREA_AstNode *left, const MAREA_AstNode *right, MAREA_SourcePosition position);
+
 MAREA_END_EXTERN_C
 
 #endif /* MAREA_INTERNAL_SEMA_MAREASEMAINTERNAL_H */
