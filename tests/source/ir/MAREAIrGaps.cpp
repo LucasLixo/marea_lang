@@ -69,7 +69,7 @@ TEST(MAREAIrGaps, ForEachRaisesNothingAndKeepsTheFunction)
 {
     GTEST_COUT << "Validating a for-each statement is lowered: it raises no ir diagnostic and its function stays in the module." << std::endl;
 
-    const std::string SOURCE{ "namespace main; import collections.array; function run(values: array<sinteger32>) for each value in values do end end" };
+    const std::string SOURCE{ "namespace main; import collections.list; function run(values: list<sinteger32>) for each value in values do end end" };
 
     EXPECT_EQ(MAREA_irCodesOf(SOURCE), Codes{}) << "A for each must raise no ir diagnostic.";
 

@@ -334,7 +334,7 @@ TEST(MAREASemaControlFlow, BreakOrContinueInsideALoopIsAccepted)
 
     EXPECT_TRUE(MAREA_codesOf("function f() for i in 1 .. 3 do continue; end end").empty()) << "A continue inside a for-range must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("function f(values: array<sinteger32>) for each v in values do break; end end").empty()) << "A break inside a for-each must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function f(values: c.array<sinteger32>) for each v in values do break; end end").empty()) << "A break inside a for-each must raise nothing.";
 }
 
 TEST(MAREASemaControlFlow, ReturnWithNoEnclosingLoopIsStillUnreported)

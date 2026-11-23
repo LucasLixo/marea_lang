@@ -19,6 +19,7 @@ static const MAREA_Character8 *const MAREA_G_BuiltinTypes[] = {
     "float32",
     "float64",
     "string",
+    "array",
     "vector",
     "pointer",
     "owned",
@@ -201,11 +202,11 @@ void MAREA_CALL MAREA_SemaScopeLeave(MAREA_SemaContext *context, MAREA_SemaScope
 
 static MAREA_IntegerSize MAREA_CALL MAREA_G_BuiltinArity(const MAREA_Character8 *text, MAREA_IntegerSize length)
 {
-    if (MAREA_G_TextEquals(text, length, "vector") == MAREA_BOOLEAN_TRUE) {
+    if (MAREA_G_TextEquals(text, length, "array") == MAREA_BOOLEAN_TRUE) {
         return MAREA_INTEGER_SIZE(2);
     }
 
-    const MAREA_Boolean TAKES_ONE = (MAREA_G_TextEquals(text, length, "pointer") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextEquals(text, length, "owned") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextEquals(text, length, "slice") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextEquals(text, length, "task") == MAREA_BOOLEAN_TRUE);
+    const MAREA_Boolean TAKES_ONE = (MAREA_G_TextEquals(text, length, "pointer") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextEquals(text, length, "owned") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextEquals(text, length, "slice") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextEquals(text, length, "vector") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextEquals(text, length, "task") == MAREA_BOOLEAN_TRUE);
 
     return (TAKES_ONE == MAREA_BOOLEAN_TRUE) ? MAREA_INTEGER_SIZE(1) : MAREA_INTEGER_SIZE(0);
 }
