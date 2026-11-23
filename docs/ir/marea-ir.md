@@ -88,7 +88,8 @@ operands). The kinds are: `MODULE`, `CONSTANT_DECLARATION`,
 `ARGUMENT_LIST`, `LITERAL_VALUE`, `FIELD_ENTRY`, `INDEX_ENTRY`, `VALUE_ENTRY`, `QUALIFIED_NAME`,
 `UNREACHABLE_STATEMENT`, `FORK_JOIN_BLOCK`, `PARTITION_STATEMENT`, `WITH_STATEMENT`, `FOR_EACH_STATEMENT`,
 `TYPE_NAME`, `BUILTIN_NAME`, `CHARACTER_LITERAL` (the text is the literal as written, with its single quotes) and
-`ZERO_VALUE` (see Zero-default creation). The last eight come after every older kind, so no value of an older kind moved.
+`ZERO_VALUE` (see Zero-default creation), `CONSTRUCT_CALL` and `DESTROY_CALL` (see Construct and destroy lowering). The last
+ten come after every older kind, so no value of an older kind moved.
 
 The module keeps its declarations in source order. The typing is erased before the IR, so these make
 no node:
@@ -156,6 +157,48 @@ and in Gaps; they need `cgen` or `vm` to exist first.
   `= {0}` for a type of constant size, or a `memset` otherwise; the `vm` is expected to zero the slot on
   allocation. A parity test is expected to read the zeroed value on both backends and expect 0. None of this exists
   yet (see Gaps): the ir only places the marker.
+
+## Construct and destroy lowering
+
+The language spec makes construction and destruction automatic. The ir makes both explicit, so a backend never
+looks for a `construct` or a `destroy` by itself. Two kinds, appended after `ZERO_VALUE`, carry them. A new kind,
+not a flag on `CALL_EXPRESSION`, because a flag would print in the dump as a raw bit mask.
+
+- **`CONSTRUCT_CALL`** is `Type(args)`. Its type name is the written name of the structure or enum that is
+  constructed. Its one child is an `ARGUMENT_LIST`: the written arguments first, then the lowered default of each
+  trailing parameter the call omitted, read from the parameter list of the type's own `construct` operator, the way
+  an ordinary call fills its defaults. A type with no `construct` gets an empty `ARGUMENT_LIST`. A local or a parameter
+  of the enclosing function that hides the type name stops the match, as for an ordinary call. `Point(1)` with
+  `construct(x: sinteger32 = 0, y: sinteger32 = 0)` lowers to `(CONSTRUCT_CALL :Point (ARGUMENT_LIST (INTEGER_LITERAL 1)
+  (INTEGER_LITERAL 0)))`.
+- **`DESTROY_CALL`** is the cleanup of one local. Its text is the qualified destroy function (`Box.drop`), and its
+  one child is an `IDENTIFIER` that names the local, for a backend to bind as the receiver.
+
+A local is destructible when the type name it was declared with is the type of an `implementation` that holds a
+function with `#[operator = "destroy"]`. Every `BLOCK` that declares such a local directly (a function body, a
+loop body, a branch, an `if`, a `do ... end` scope) gets the destroys of its own locals, and only of its own:
+
+- **Order.** Reverse declaration order: the local declared last is destroyed first. A nested block destroys its own
+  locals before the block that holds it does.
+- **Fall through.** The destroys are appended at the end of the block, unless the block already ends in a `return`,
+  `break` or `continue` (a jump leaves them in front of the jump instead). A loop body therefore destroys its
+  locals once per iteration.
+- **Early exit.** A `return`, `break` or `continue` that leaves the block is replaced by `BLOCK(destroy..., jump)`,
+  with a fresh `DESTROY_CALL` set for each exit (a node is never shared between two places). A `return` leaves every
+  enclosing block, so it also leaves the inner blocks of a nested loop; a `break` or `continue` is wrapped only up to
+  the nearest `WHILE_STATEMENT` or `FOR_EACH_STATEMENT`, which it targets, so it never destroys a local of a block
+  outside its own loop. The inner block wraps first, so the destroys of the inner locals run before those of the
+  outer ones. For a for-range `continue` the destroys stand in front of the step.
+- **Moved-from locals.** A local that `move x` names anywhere in its own block is never destroyed at any exit of that
+  block. The check is syntactic: the language has no lifetime analysis, so a move on one branch still skips the
+  destroy on every branch (see Gaps).
+
+```
+local a: Box = Box(); local b: Box = Box();
+(BLOCK (LOCAL_DECLARATION a :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST)))
+       (LOCAL_DECLARATION b :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST)))
+       (DESTROY_CALL Box.drop (IDENTIFIER b)) (DESTROY_CALL Box.drop (IDENTIFIER a)))
+```
 
 ## For-range desugaring
 
@@ -452,7 +495,7 @@ Each diagnostic carries the position of the construct that raised it.
 
 - The zero-default rule (see Zero-default creation) covers only a `LOCAL_DECLARATION` with no written initializer
   and a struct `LITERAL_VALUE` field the source left unnamed. Four more creation paths the language spec names are
-  not lowered yet, because they need a backend to exist first: `Type(args)` before `construct`, `array<T, N>`
+  not lowered yet, because they need a backend to exist first: the zero fill of `Type(args)` before `construct` (the call itself is a `CONSTRUCT_CALL` now), `array<T, N>`
   elements, `owned<T>` storage and a `convert` result that exposes padding. A `PARAMETER`, a `CONSTANT_DECLARATION`
   and a `VARIANT_FIELD` with no value are outside the rule on purpose (see Zero-default creation), not an
   oversight.
@@ -460,6 +503,13 @@ Each diagnostic carries the position of the construct that raised it.
   contract for `cgen` nor the slot-zeroing contract for the `vm`, nor the parity test that is expected to read a
   zeroed field and expect 0 on both, is implemented. This is recorded only as the expected contract (see
   Zero-default creation).
+- The destroy insertion (see Construct and destroy lowering) has these limits. A `return` with a value is wrapped as
+  `BLOCK(destroy..., RETURN_STATEMENT(value))`, so the value is read after the destroy: a returned expression that
+  names a destroyed local reads a local that no longer lives. A backend must evaluate the value first; the ir does not
+  yet hoist it into a hidden local. The move check is syntactic and per block: a local moved on one branch, or in an inner
+  block, is never destroyed on any branch. A parameter is never destroyed (it is a borrow, or the caller owns it). The `Type{...}` literal still lowers as a `LITERAL_VALUE` and
+  does not call `construct`. The destroy of a type is found by its written name among the `implementation` blocks of
+  the same unit only: a type declared in another namespace is not found (the same cross-module gap as Aliases).
 - Generics, and every macro other than a statement `unreachable!()`, are not lowered. The matching declaration is left out of the module, and only its first gap is reported.
 - A `FORK_JOIN_BLOCK` says that the workers end before the node ends, and a `PARTITION_STATEMENT` says that the
   parts are disjoint, but the IR holds nothing else about them: no part count check (a count of zero or less
