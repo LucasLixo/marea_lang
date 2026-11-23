@@ -533,6 +533,32 @@ TEST(MAREASemaTypedAstExpressions, StaticCallOnAGenericStructureWithoutArguments
     MAREA_expectExpressionType(SOURCE, MAREA_AST_KIND_CALL_EXPRESSION, 0, "uinteger8");
 }
 
+TEST(MAREASemaTypedAstExpressions, OperationOfLiteralsTakesTheTypeOfTheContext)
+{
+    GTEST_COUT << "Validating an operation made only of number literals follows the type that the context gives the literals." << std::endl;
+
+    MAREA_expectExpressionType("namespace main; function f(): sinteger64 local x: sinteger64 = 1 + 2; return x; end", MAREA_AST_KIND_BINARY_EXPRESSION, 0, "sinteger64");
+
+    MAREA_expectExpressionType("namespace main; function f(): float32 local x: float32 = 1.0 * 2.0; return x; end", MAREA_AST_KIND_BINARY_EXPRESSION, 0, "float32");
+
+    MAREA_expectExpressionType("namespace main; function f(): uinteger8 local x: uinteger8 = (1 + 2) * 3; return x; end", MAREA_AST_KIND_BINARY_EXPRESSION, 0, "uinteger8");
+
+    MAREA_expectExpressionType("namespace main; function f(): uinteger8 local x: uinteger8 = (1 + 2) * 3; return x; end", MAREA_AST_KIND_PARENTHESIZED_EXPRESSION, 0, "uinteger8");
+
+    MAREA_expectExpressionType("namespace main; function f(): sinteger8 local x: sinteger8 = -(1 + 2); return x; end", MAREA_AST_KIND_UNARY_EXPRESSION, 0, "sinteger8");
+
+    MAREA_expectExpressionType("namespace main; function f(): sinteger64 return 1 + 2; end", MAREA_AST_KIND_BINARY_EXPRESSION, 0, "sinteger64");
+}
+
+TEST(MAREASemaTypedAstExpressions, OperationOfLiteralsWithoutContextKeepsTheDefault)
+{
+    GTEST_COUT << "Validating an operation of literals that no context fixes has the default type of its literals." << std::endl;
+
+    MAREA_expectExpressionType("namespace main; function f(a: sinteger32): boolean return (1 + 2) == a; end", MAREA_AST_KIND_BINARY_EXPRESSION, 1, "sinteger32");
+
+    MAREA_expectExpressionType("namespace main; function g(a: float32) end function f() g(1.0 + 2.0); end", MAREA_AST_KIND_BINARY_EXPRESSION, 0, "float32");
+}
+
 TEST(MAREASemaTypedAstExpressions, SpawnIsATaskOfTheResult)
 {
     GTEST_COUT << "Validating spawn of a call gives a task of the type of the call." << std::endl;
