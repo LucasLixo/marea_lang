@@ -1,0 +1,27 @@
+-- gap: #200 NEW
+-- rule: reject
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- from: L-OWNERSHIP-024
+-- Mutant of L-OWNERSHIP-024: copy is swapped for move on a file constant.
+
+namespace main;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+structure Box
+    inner: Point;
+    count: sinteger32;
+end
+
+constant ORIGIN: Point = Point{ x = 0, y = 0 };
+
+function check(): sinteger32
+    local point: Point = move ORIGIN;
+    return 1;
+end
+
