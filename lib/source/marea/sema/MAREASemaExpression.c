@@ -534,6 +534,27 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressionFit(MAREA_SemaContext *cont
     return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH, MAREA_AstNodeGetPosition(expression), "value does not fit the type", target.name, target.length);
 }
 
+MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressionFitsPrimitive(MAREA_SemaContext *context, const MAREA_Character8 *primitiveName, MAREA_IntegerSize primitiveLength, const MAREA_AstNode *expression)
+{
+    if (context == MAREA_NULLPTR) {
+        return MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    if ((primitiveName == MAREA_NULLPTR) || (expression == MAREA_NULLPTR)) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_G_Shape target = MAREA_G_ShapeMake(MAREA_G_SHAPE_KIND_PRIMITIVE, primitiveName, primitiveLength);
+
+    const MAREA_G_Shape actual = MAREA_G_ShapeOf(context, expression, 0);
+
+    if (MAREA_G_Fits(&target, &actual) == MAREA_BOOLEAN_TRUE) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH, MAREA_AstNodeGetPosition(expression), "value does not fit the type", target.name, target.length);
+}
+
 static MAREA_Boolean MAREA_CALL MAREA_G_PrimitiveOfShape(const MAREA_G_Shape *shape, const MAREA_Character8 **outName, MAREA_IntegerSize *outLength)
 {
     *outName = MAREA_NULLPTR;
