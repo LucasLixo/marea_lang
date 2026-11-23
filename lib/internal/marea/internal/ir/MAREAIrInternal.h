@@ -214,6 +214,16 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrAppendInitializer(MAREA_IrContext * context, const MAREA_SemaTypedNode *typed, MAREA_IrNode *node, MAREA_Boolean *outComplete);
 
     /**
+     * @brief Returns the typed expression right after a typed node's first type child (NAMED_TYPE or
+     * FUNCTION_TYPE): the written default of a parameter, or the written initializer of a field or a
+     * constant. The same shape also reads a function's own parameter default when filling an omitted
+     * call argument.
+     * @param typed Typed node to search. Null returns null.
+     * @return The typed default expression, or null when the node has no type child or nothing follows it.
+     */
+    MAREA_NODISCARD const MAREA_SemaTypedNode *MAREA_CALL MAREA_IrTypedFindDefault(const MAREA_SemaTypedNode *typed);
+
+    /**
      * @brief Lowers one typed BLOCK and its statements. A statement that cannot be lowered makes the
      * whole block lower to nothing, so no partial body appears.
      * @param context Context that owns the arena and sink. Must not be null.
@@ -258,6 +268,18 @@ MAREA_BEGIN_EXTERN_C
      * @return MAREA_IR_EXCEPT_SUCCESS, ERROR_NULL_POINTER when an argument is null, or ERROR_OUT_OF_MEMORY.
      */
     MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrAliasBuild(MAREA_IrContext * context, const MAREA_SemaTypedNode *unit);
+
+    /**
+     * @brief Tells whether a typed function declares a name as a parameter or a local of any block, at or
+     * before a source offset: the shadow check an identifier reference, or a callee matched against a
+     * module-level declaration, must pass before it is treated as that outer name.
+     * @param typed Typed node to search, normally a typed FUNCTION_DECLARATION. Null returns false.
+     * @param text Identifier text to look for.
+     * @param length Byte length of text.
+     * @param offset Source offset the declaration must be at or before.
+     * @return MAREA_BOOLEAN_TRUE when a parameter or a local declares the name at or before offset.
+     */
+    MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_IrFunctionDeclares(const MAREA_SemaTypedNode *typed, const MAREA_Character8 *text, MAREA_IntegerSize length, MAREA_Uinteger32 offset);
 
     /**
      * @brief Looks up an identifier used as a value (a function, a constant, a variant or the head of a member

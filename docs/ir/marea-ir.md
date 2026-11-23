@@ -64,6 +64,9 @@ The type name is the head name of the written type, with no type arguments (`arr
 and on a non-generic `CALL_EXPRESSION`, from the type name the typed tree carries for the call result,
 when it has one. A `CALL_EXPRESSION` of a built-in or of a static call on a written type (see Type operands)
 follows the same rule, and a `TYPE_NAME` or a `BUILTIN_NAME` has no type name: it holds its name as text.
+An `ENUM_DECLARATION` also carries a type name, its tag type: the written tag when the source wrote one
+(`enum Name : uinteger8 ... end` gives `uinteger8`), or the literal `sinteger32` when it wrote none, the
+default the language spec sets for a tag with no written type.
 
 ## Kinds and what is erased
 
@@ -102,6 +105,16 @@ Other shapes:
 - A `FIELD_ENTRY` of a literal is named after its field and holds the lowered value as its only child.
 - `unreachable!()` as a statement becomes `UNREACHABLE_STATEMENT`.
 - A constant, variant field or local with an initializer holds the lowered expression as its only child.
+- A `PARAMETER` with a default value holds the lowered default as its only child, the same shape a
+  constant or a variant field uses for its own initializer.
+- A `CALL_EXPRESSION` whose callee is the bare name of a function of the same unit fills every
+  parameter the call omitted: the `ARGUMENT_LIST` holds the lowered written arguments first, then, for
+  each trailing parameter the call did not supply, the lowered default read fresh from that parameter in
+  the callee's own typed parameter list. The ir materializes every default, so a backend never looks at
+  the callee's declaration to find one (see Gaps for what callee shape this does not cover). A parameter
+  or a local of the enclosing function that hides the module name (`MAREA_IrFunctionDeclares`, the same
+  check an import alias uses) is never matched to the module function, so a call of the local fills
+  nothing.
 
 ## For-range desugaring
 
@@ -459,3 +472,9 @@ Each diagnostic carries the position of the construct that raised it.
   no test goes deeper than the example programs. The dump is not part of this gap: it walks an explicit stack.
 - `MAREA_IrLowerCompilationUnit` reports a root that is not a `COMPILATION_UNIT` with
   `MAREA_IR_EXCEPT_ERROR_NULL_POINTER`, because the except set has no other fitting value.
+- A call fills an omitted defaulted argument only when its callee is a bare `IDENTIFIER` naming a
+  `FUNCTION_DECLARATION` of the same unit, the same limit the built-in lookup already has. A call
+  through a member access (an `implementation` method), an import or a qualified name does not fill
+  one, even when sema accepted the same omission: the IR holds no scope or cross-module link to find
+  that callee's parameter list. Such a call keeps the arguments the source wrote, with no gap and no
+  diagnostic, so it lowers with fewer arguments than the callee's parameter list names.
