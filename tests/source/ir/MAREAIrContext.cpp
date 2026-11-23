@@ -154,7 +154,9 @@ TEST(MAREAIrContext, KindNamesAreStable)
 
     EXPECT_STREQ(MAREA_IrKindGetName(MAREA_IR_KIND_BUILTIN_NAME), "BUILTIN_NAME") << "BUILTIN_NAME must be named.";
 
-    EXPECT_STREQ(MAREA_IrKindGetName(MAREA_IR_KIND_CHARACTER_LITERAL), "CHARACTER_LITERAL") << "The last kind must be CHARACTER_LITERAL.";
+    EXPECT_STREQ(MAREA_IrKindGetName(MAREA_IR_KIND_CHARACTER_LITERAL), "CHARACTER_LITERAL") << "CHARACTER_LITERAL must stay named.";
+
+    EXPECT_STREQ(MAREA_IrKindGetName(MAREA_IR_KIND_ZERO_VALUE), "ZERO_VALUE") << "The last kind must be ZERO_VALUE, the zero-default rule's own node.";
 
     EXPECT_EQ(static_cast<int>(MAREA_IR_KIND_FOR_EACH_STATEMENT), static_cast<int>(MAREA_IR_KIND_WITH_STATEMENT) + 1) << "FOR_EACH_STATEMENT must come after the parallel kinds, so no value moves.";
 
@@ -166,7 +168,9 @@ TEST(MAREAIrContext, KindNamesAreStable)
 
     EXPECT_EQ(static_cast<int>(MAREA_IR_KIND_CHARACTER_LITERAL), static_cast<int>(MAREA_IR_KIND_BUILTIN_NAME) + 1) << "CHARACTER_LITERAL must follow BUILTIN_NAME, so no value moves.";
 
-    EXPECT_EQ(static_cast<int>(MAREA_IR_KIND_COUNT), static_cast<int>(MAREA_IR_KIND_CHARACTER_LITERAL) + 1) << "CHARACTER_LITERAL must be the last kind before COUNT.";
+    EXPECT_EQ(static_cast<int>(MAREA_IR_KIND_ZERO_VALUE), static_cast<int>(MAREA_IR_KIND_CHARACTER_LITERAL) + 1) << "ZERO_VALUE must follow CHARACTER_LITERAL, so no value moves.";
+
+    EXPECT_EQ(static_cast<int>(MAREA_IR_KIND_COUNT), static_cast<int>(MAREA_IR_KIND_ZERO_VALUE) + 1) << "ZERO_VALUE must be the last kind before COUNT.";
 
     EXPECT_STREQ(MAREA_IrKindGetName(MAREA_IR_KIND_COUNT), "UNKNOWN") << "COUNT must be unknown.";
 

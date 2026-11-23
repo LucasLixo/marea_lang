@@ -92,6 +92,15 @@ TEST(MAREAIrExpressions, NestedStructLiteralLowersItsValues)
     EXPECT_EQ(MAREA_lowerInitializer(POINT + "structure Line start: Point; end ", "Line", "Line{ start = Point{ x = 1, y = 2 } }"), "(LITERAL_VALUE :Line (FIELD_ENTRY start (LITERAL_VALUE :Point (FIELD_ENTRY x (INTEGER_LITERAL 1)) (FIELD_ENTRY y (INTEGER_LITERAL 2)))))") << "The nested literal must be lowered.";
 }
 
+TEST(MAREAIrExpressions, StructLiteralFieldTheSourceOmittedIsZero)
+{
+    GTEST_COUT << "Validating a struct literal field the source left unnamed lowers as an explicit zero, per the zero-default rule." << std::endl;
+
+    EXPECT_EQ(MAREA_lowerInitializer(POINT, "Point", "Point{ x = 1 }"), "(LITERAL_VALUE :Point (FIELD_ENTRY x (INTEGER_LITERAL 1)) (FIELD_ENTRY y (ZERO_VALUE)))") << "The omitted field y must be synthesized as zero, after the fields the source wrote.";
+
+    EXPECT_EQ(MAREA_lowerInitializer(POINT, "Point", "Point{}"), "(LITERAL_VALUE :Point (FIELD_ENTRY x (ZERO_VALUE)) (FIELD_ENTRY y (ZERO_VALUE)))") << "An empty literal must zero every field, in declaration order.";
+}
+
 TEST(MAREAIrExpressions, MemberAccessKeepsTargetAndMemberName)
 {
     GTEST_COUT << "Validating a member access keeps the lowered target and an IDENTIFIER for the member." << std::endl;

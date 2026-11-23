@@ -24,7 +24,9 @@ MAREA_BEGIN_EXTERN_C
      * TYPE_NAME or an INTEGER_LITERAL), and a BUILTIN_NAME is the callee of a built-in call with explicit type
      * arguments (the text is the name; the children are the type arguments, each a TYPE_NAME or an
      * INTEGER_LITERAL). CHARACTER_LITERAL is appended after them so no value moves (the text is the literal as written, with its
-     * single quotes). The list ends with MAREA_IR_KIND_COUNT.
+     * single quotes). ZERO_VALUE is appended last of all: a leaf with no text, no type name and no children, the
+     * explicit zero of the zero-default rule (a LOCAL_DECLARATION with no written initializer, or a struct
+     * LITERAL_VALUE field the source left unnamed). The list ends with MAREA_IR_KIND_COUNT.
      */
     typedef enum MAREA_IrKind
     {
@@ -74,6 +76,7 @@ MAREA_BEGIN_EXTERN_C
         MAREA_IR_KIND_TYPE_NAME,
         MAREA_IR_KIND_BUILTIN_NAME,
         MAREA_IR_KIND_CHARACTER_LITERAL,
+        MAREA_IR_KIND_ZERO_VALUE,
 
         MAREA_IR_KIND_COUNT
     } MAREA_IrKind;
