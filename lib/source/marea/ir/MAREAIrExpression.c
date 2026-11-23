@@ -127,6 +127,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_SameText(const MAREA_AstNode *left, cons
 }
 
 // INFO: a call fills a default only for a plain function of the same unit; any other callee shape fills nothing, the same limit the built-in lookup already has.
+// INFO: a parameter or a local of the enclosing function with the callee's name hides the module function, so its own call is never filled either.
 static const MAREA_SemaTypedNode *MAREA_CALL MAREA_G_FindCalleeFunction(const MAREA_IrContext *context, const MAREA_SemaTypedNode *callee)
 {
     if (MAREA_IrTypedKind(callee) != MAREA_AST_KIND_IDENTIFIER) {
@@ -134,6 +135,10 @@ static const MAREA_SemaTypedNode *MAREA_CALL MAREA_G_FindCalleeFunction(const MA
     }
 
     const MAREA_AstNode *calleeAst = MAREA_SemaTypedNodeGetAstNode(callee);
+
+    if (MAREA_IrFunctionDeclares(context->function, MAREA_AstNodeGetText(calleeAst), MAREA_AstNodeGetTextLength(calleeAst), MAREA_AstNodeGetPosition(calleeAst).offset) == MAREA_BOOLEAN_TRUE) {
+        return MAREA_NULLPTR;
+    }
 
     const MAREA_IntegerSize COUNT = MAREA_SemaTypedNodeGetChildCount(context->unit);
 
@@ -154,6 +159,26 @@ static const MAREA_SemaTypedNode *MAREA_CALL MAREA_G_FindCalleeFunction(const MA
     return MAREA_NULLPTR;
 }
 
+// INFO: lowers one expression and appends it to node; a result that lowers to nothing marks the caller incomplete.
+static MAREA_IrExcept MAREA_CALL MAREA_G_LowerAndAppend(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode *node, MAREA_Boolean *outComplete)
+{
+    MAREA_IrNode *lowered = MAREA_NULLPTR;
+
+    MAREA_IrExcept result = MAREA_IrLowerExpression(context, typed, &lowered);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    if (lowered == MAREA_NULLPTR) {
+        *outComplete = MAREA_BOOLEAN_FALSE;
+
+        return MAREA_IR_EXCEPT_SUCCESS;
+    }
+
+    return MAREA_IrNodeAppendChild(context, node, lowered);
+}
+
 // INFO: an argument list lowers every argument the call wrote, then fills every parameter the call omitted with
 // INFO: its own default, read fresh from the callee's typed parameter list: the ir materializes every default.
 static MAREA_IrExcept MAREA_CALL MAREA_G_LowerArguments(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, const MAREA_SemaTypedNode *callee, MAREA_IrNode **outNode, MAREA_Boolean *outComplete)
@@ -171,23 +196,9 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerArguments(MAREA_IrContext *context
     const MAREA_IntegerSize PROVIDED = MAREA_SemaTypedNodeGetChildCount(typed);
 
     for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < PROVIDED; index = (index + MAREA_INTEGER_SIZE(1))) {
-        MAREA_IrNode *lowered = MAREA_NULLPTR;
+        result = MAREA_G_LowerAndAppend(context, MAREA_IrTypedChildAt(typed, index), node, outComplete);
 
-        result = MAREA_IrLowerExpression(context, MAREA_IrTypedChildAt(typed, index), &lowered);
-
-        if (result != MAREA_IR_EXCEPT_SUCCESS) {
-            return result;
-        }
-
-        if (lowered == MAREA_NULLPTR) {
-            *outComplete = MAREA_BOOLEAN_FALSE;
-
-            return MAREA_IR_EXCEPT_SUCCESS;
-        }
-
-        result = MAREA_IrNodeAppendChild(context, node, lowered);
-
-        if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        if ((result != MAREA_IR_EXCEPT_SUCCESS) || (*outComplete == MAREA_BOOLEAN_FALSE)) {
             return result;
         }
     }
@@ -220,23 +231,9 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerArguments(MAREA_IrContext *context
                 continue;
             }
 
-            MAREA_IrNode *lowered = MAREA_NULLPTR;
+            result = MAREA_G_LowerAndAppend(context, defaultExpression, node, outComplete);
 
-            result = MAREA_IrLowerExpression(context, defaultExpression, &lowered);
-
-            if (result != MAREA_IR_EXCEPT_SUCCESS) {
-                return result;
-            }
-
-            if (lowered == MAREA_NULLPTR) {
-                *outComplete = MAREA_BOOLEAN_FALSE;
-
-                return MAREA_IR_EXCEPT_SUCCESS;
-            }
-
-            result = MAREA_IrNodeAppendChild(context, node, lowered);
-
-            if (result != MAREA_IR_EXCEPT_SUCCESS) {
+            if ((result != MAREA_IR_EXCEPT_SUCCESS) || (*outComplete == MAREA_BOOLEAN_FALSE)) {
                 return result;
             }
         }
