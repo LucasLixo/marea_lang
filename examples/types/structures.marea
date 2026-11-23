@@ -7,7 +7,7 @@
 
 namespace types.structures;
 
-#[visibility = public, value]
+#[visibility = public]
 structure Point
     x: float64;
     y: float64;
