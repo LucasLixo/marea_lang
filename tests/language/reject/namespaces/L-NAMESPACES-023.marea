@@ -1,0 +1,13 @@
+-- expect: 3001 @9
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An import of the bare first segment c has no library.
+
+namespace main;
+
+import c;
+
+function check(): sinteger32
+    return 1;
+end

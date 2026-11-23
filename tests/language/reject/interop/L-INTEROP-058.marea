@@ -1,0 +1,11 @@
+-- expect: 3003 @11
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An opaque structure declared twice.
+
+namespace main;
+
+opaque structure Texture;
+
+opaque structure Texture;
