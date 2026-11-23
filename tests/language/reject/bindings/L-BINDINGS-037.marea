@@ -1,14 +1,12 @@
--- gap: #182 NEW
--- rule: reject
+-- expect: 3037 @10
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- A negated unsigned value.
+-- The minimum value divided by minus one.
 
 namespace main;
 
 function check(): sinteger32
-    local value: uinteger32 = 1;
-    local other: uinteger32 = -value;
-    return 1;
+    local quotient: sinteger32 = -2147483648 / -1;
+    return quotient;
 end

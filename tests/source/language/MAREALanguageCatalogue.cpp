@@ -107,6 +107,10 @@ namespace
             return true;
         }
 
+        if ((code == MAREA_SEMA_DIAGNOSTIC_CODE_NEGATE_UNSIGNED) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_SIGNED_DIVISION_OVERFLOW)) {
+            return true;
+        }
+
         return (code >= MAREA_SEMA_DIAGNOSTIC_CODE_UNRESOLVED_IMPORT) && (code <= MAREA_SEMA_DIAGNOSTIC_CODE_SHIFT_COUNT_TOO_LARGE) && (code != 3023);
     }
 

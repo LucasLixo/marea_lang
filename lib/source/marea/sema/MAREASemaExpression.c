@@ -528,7 +528,8 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressionFit(MAREA_SemaContext *cont
     const MAREA_G_Shape actual = MAREA_G_ShapeOf(context, expression, 0);
 
     if (MAREA_G_Fits(&target, &actual) == MAREA_BOOLEAN_TRUE) {
-        return MAREA_SEMA_EXCEPT_SUCCESS;
+        // INFO: a division of the lowest signed value by -1 is checked against the declared type that holds it.
+        return MAREA_SemaCheckSignedDivision(context, type, expression);
     }
 
     return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH, MAREA_AstNodeGetPosition(expression), "value does not fit the type", target.name, target.length);
@@ -650,7 +651,14 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckOperands(MAREA_SemaContext *cont
 
     const MAREA_SemaExcept PAIR = MAREA_G_CheckPair(context, MAREA_AstNodeGetPosition(expression), MAREA_AstNodeGetOperator(expression), &left, &right, "operands of a binary operator differ in type, one is");
 
-    return (PAIR != MAREA_SEMA_EXCEPT_SUCCESS) ? PAIR : MAREA_SemaCheckConstantOperands(context, MAREA_AstNodeGetOperator(expression), MAREA_SemaChildAt(expression, 0), MAREA_SemaChildAt(expression, 1), MAREA_AstNodeGetPosition(expression));
+    if (PAIR != MAREA_SEMA_EXCEPT_SUCCESS) {
+        return PAIR;
+    }
+
+    const MAREA_SemaExcept CONSTANT = MAREA_SemaCheckConstantOperands(context, MAREA_AstNodeGetOperator(expression), MAREA_SemaChildAt(expression, 0), MAREA_SemaChildAt(expression, 1), MAREA_AstNodeGetPosition(expression));
+
+    // INFO: with no declared type here, the signed type of a division comes from an operand.
+    return (CONSTANT != MAREA_SEMA_EXCEPT_SUCCESS) ? CONSTANT : MAREA_SemaCheckSignedDivision(context, MAREA_NULLPTR, expression);
 }
 
 // INFO: a compound assignment is the same as a = a op b, so its two sides are compared like the operands of the operator.
@@ -777,8 +785,14 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckValue(MAREA_SemaContext *context
 
         return (result != MAREA_SEMA_EXCEPT_SUCCESS) ? result : MAREA_G_CheckConvert(context, expression);
     }
-    case MAREA_AST_KIND_PARENTHESIZED_EXPRESSION:
     case MAREA_AST_KIND_UNARY_EXPRESSION:
+    {
+        const MAREA_SemaExcept result = MAREA_G_CheckValueOfChildren(context, expression, 0, depth, checkNames);
+
+        // INFO: the rule for a negated unsigned value runs after the operand is checked.
+        return (result != MAREA_SEMA_EXCEPT_SUCCESS) ? result : MAREA_SemaCheckNegation(context, expression);
+    }
+    case MAREA_AST_KIND_PARENTHESIZED_EXPRESSION:
     case MAREA_AST_KIND_INDEX_ACCESS:
     case MAREA_AST_KIND_ARGUMENT_LIST:
     case MAREA_AST_KIND_INDEX_ENTRY:
