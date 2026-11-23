@@ -4,7 +4,7 @@
 -- Step 10b: attributes of memory layout, only on structure.
 --   layout = c      (enum key) fields in the order written, with the rules of C.
 --                   Needed to pass to C.
---   layout = auto   (enum key) the compiler may reorder fields to save space. The default.
+--   layout = marea   (enum key) the compiler may reorder fields to save space. The default.
 --   align  = N      the structure starts at an address that is a multiple of N bytes.
 --                   N is a power of two. A field can have its own align too.
 --   pack   = N      no padding beyond N bytes between fields. pack = 1 has no padding.
@@ -17,14 +17,14 @@ namespace attributes.layout;
 import collections.array;
 
 -- 16 bytes align: a SIMD load or a GPU uniform buffer can read it without a split.
-#[public, value, layout = c, align = 16]
+#[visibility = public, value, layout = c, align = 16]
 structure Light
     position: vector<float32, 4>;
     color: vector<float32, 4>;
 end
 
 -- A header read from a file or a network: no padding at all.
-#[public, value, layout = c, pack = 1]
+#[visibility = public, value, layout = c, pack = 1]
 structure FileHeader
     magic: unsigned32;
     version: unsigned8;
@@ -33,7 +33,7 @@ structure FileHeader
 end
 
 -- One field with its own alignment.
-#[public, layout = c]
+#[visibility = public, layout = c]
 structure Uniforms
     time: float32;
     #[align = 16]

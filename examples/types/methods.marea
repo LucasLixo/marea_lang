@@ -16,9 +16,9 @@
 --   6. The call is only a normal function call with a different spelling. Dispatch is static.
 --      There is no virtual table, no inheritance and no hidden field. The layout of the
 --      structure (layout, align, pack) does not change because of its functions.
---   7. Attributes work as everywhere: #[public], #[inline = force], #[simd = false]. An attribute
+--   7. Attributes work as everywhere: #[visibility = public], #[inline = force], #[build = debug]. An attribute
 --      on the implementation line is the default for all its functions, and the attribute of
---      one function wins. A function without #[public] is private to the file.
+--      one function wins. A function without #[visibility = public] is private to the file.
 --   8. A callback is a field with a function type. It is data, so it is not a method.
 --   9. #[operator = name] lets a method give meaning to an operator on the structure. The names:
 --      add sub mul div rem negate (+ - * / % unary -), equal (== and !=), less (< <= > >=).
@@ -30,14 +30,14 @@ namespace types.methods;
 
 import c.math.sqrt as square_root;
 
-#[public, value]
+#[visibility = public, value]
 structure Vector2
     x: float64;
     y: float64;
 end
 
 -- First block: construction and measure.
-#[public]
+#[visibility = public]
 implementation Vector2
     function origin(): Vector2
         return Vector2{ x = 0.0, y = 0.0 };
@@ -54,7 +54,7 @@ implementation Vector2
 end
 
 -- Second block: change the value.
-#[public]
+#[visibility = public]
 implementation Vector2
     function scale(self: mutable Vector2, factor: float64)
         self.x *= factor;
@@ -63,7 +63,7 @@ implementation Vector2
 end
 
 -- Third block: the operators.
-#[public]
+#[visibility = public]
 implementation Vector2
     #[operator = add]
     function add(self: Vector2, other: Vector2): Vector2
@@ -76,7 +76,7 @@ implementation Vector2
     end
 end
 
-#[public]
+#[visibility = public]
 function show_methods(): float64
     local point: Vector2 = Vector2{ x = 3.0, y = 4.0 };
     point.scale(2.0);

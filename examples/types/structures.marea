@@ -7,19 +7,19 @@
 
 namespace types.structures;
 
-#[public, value]
+#[visibility = public, value]
 structure Point
     x: float64;
     y: float64;
 end
 
-#[public]
+#[visibility = public]
 enum ShapeKind
     Circle;
     Rectangle;
 end
 
-#[public]
+#[visibility = public]
 structure Shape
     kind: ShapeKind;
     center: Point;
@@ -27,7 +27,7 @@ structure Shape
     height: float64;
 end
 
-#[public]
+#[visibility = public]
 function area(shape: Shape): float64
     if shape.kind == ShapeKind.Circle then
         local radius: float64 = shape.width / 2.0;
@@ -36,7 +36,7 @@ function area(shape: Shape): float64
     return shape.width * shape.height;
 end
 
-#[public]
+#[visibility = public]
 function make_square(side: float64): Shape
     return Shape{
         kind = ShapeKind.Rectangle,

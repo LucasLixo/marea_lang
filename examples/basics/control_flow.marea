@@ -8,7 +8,7 @@ namespace basics.control_flow;
 
 import collections.array;
 
-#[public]
+#[visibility = public]
 function classify(score: integer32): string
     if score >= 90 then
         return "high";
@@ -19,7 +19,7 @@ function classify(score: integer32): string
     end
 end
 
-#[public]
+#[visibility = public]
 function count_up(limit: integer32): integer32
     local total: integer32 = 0;
     local index: integer32 = 0;
@@ -31,7 +31,7 @@ function count_up(limit: integer32): integer32
 end
 
 -- A range "first .. last" includes both ends.
-#[public]
+#[visibility = public]
 function sum_range(first: integer32, last: integer32): integer32
     local total: integer32 = 0;
     for index in first .. last do
@@ -42,7 +42,7 @@ end
 
 -- "switch" works on an integer or an enum. One "case" can list many values. There is no
 -- fall through. "default" runs when no case matches.
-#[public]
+#[visibility = public]
 function day_kind(day: integer32): string
     switch day
         case 6, 7 then
@@ -55,7 +55,7 @@ function day_kind(day: integer32): string
 end
 
 -- "values" is a read-only borrow. The loop variable is a read-only borrow of one element.
-#[public]
+#[visibility = public]
 function sum_array(values: array<integer32>): integer32
     local total: integer32 = 0;
     for each value in values do

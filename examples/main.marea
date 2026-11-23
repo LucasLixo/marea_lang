@@ -27,7 +27,7 @@ import namespaces.consumer;
 import memory.regions;
 import parallel.scaling;
 
-#[public]
+#[visibility = public]
 function main(arguments: array<string>): integer32
     local level: string = control_flow.classify(75);
     local shape: structures.Shape = structures.make_square(2.0);
