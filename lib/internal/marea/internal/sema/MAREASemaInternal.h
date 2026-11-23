@@ -264,6 +264,29 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedAstResolveExpressionType(MAREA_SemaContext * context, MAREA_SemaTypedNode * built, const MAREA_AstNode *parent, MAREA_IntegerSize index);
 
     /**
+     * @brief The type of a call that returns nothing: the fixed text "void". It is only the spelling of a resolved
+     * type, never a type that a declaration can write.
+     * @return The type, with the fixed text set.
+     */
+    MAREA_NODISCARD MAREA_SemaExprType MAREA_CALL MAREA_SemaTypedAstVoidType(void);
+
+    /**
+     * @brief Tells whether a type is the one MAREA_SemaTypedAstVoidType gives.
+     * @param type Type to read. May be null, which is not void.
+     * @return MAREA_BOOLEAN_TRUE for void, else MAREA_BOOLEAN_FALSE.
+     */
+    MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_SemaTypedAstTypeIsVoid(const MAREA_SemaExprType *type);
+
+    /**
+     * @brief Gives the type of a call of the built-in size_of<T>() or align_of<T>(): uinteger64. The call must have
+     * one type argument, no argument, and no name of the same text bound in the unit.
+     * @param context Context the node is being built with. Must not be null.
+     * @param call CALL_EXPRESSION node. Must not be null.
+     * @return The type, or an empty value (no known type) when the call is not one of the two built-ins.
+     */
+    MAREA_NODISCARD MAREA_SemaExprType MAREA_CALL MAREA_SemaTypedAstBuiltinCallType(const MAREA_SemaContext *context, const MAREA_AstNode *call);
+
+    /**
      * @brief Re-types the operations below a typed node after the number literals below it changed type. A binary,
      * a unary and a parenthesized expression take their type from their children, so they are made again, deepest
      * first, from the types the children have now. Any other node is left as it is.
