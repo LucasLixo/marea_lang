@@ -1,0 +1,12 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An enum with data in a variant.
+
+namespace main;
+
+enum Planet
+    Mercury(mass: float64 = 3.303e+23, radius: float64 = 2.4397e6);
+    Earth(mass: float64 = 5.976e+24, radius: float64 = 6.37814e6);
+end

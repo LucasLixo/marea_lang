@@ -1,0 +1,11 @@
+-- expect: 2001 @9
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A type declaration keyword used as an enum name.
+
+namespace main;
+
+enum function
+    Low;
+end

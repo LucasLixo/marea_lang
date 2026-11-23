@@ -1,0 +1,17 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An assignment of a local that a call result initializes.
+
+namespace main;
+
+function two(): sinteger32
+    return 2;
+end
+
+function run(): sinteger32
+    local value: sinteger32 = 0;
+    value = two();
+    return value;
+end

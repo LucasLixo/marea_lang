@@ -1,0 +1,15 @@
+-- expect: 3022 @9
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A switch with no default over an integer, the last path has no return.
+
+namespace main;
+
+function kind(day: sinteger32): sinteger32
+    switch day
+        case 1 then
+            return 1;
+        end
+    end
+end

@@ -1,0 +1,11 @@
+-- expect: 2001 @10, 2002 @10
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An ownership keyword used as a variable name.
+
+namespace main;
+
+function run()
+    local move: sinteger32 = 1;
+end

@@ -1,0 +1,11 @@
+-- expect: 3004 @9
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A default value that calls a function that no scope declares.
+
+namespace main;
+
+function twice(value: sinteger32 = missing(1)): sinteger32
+    return value;
+end

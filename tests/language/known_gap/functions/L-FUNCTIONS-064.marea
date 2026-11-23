@@ -1,0 +1,14 @@
+-- gap: #213 3010
+-- rule: reject
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A call of a function type value with too many arguments.
+
+namespace main;
+
+type Operation = function(value: sinteger32): sinteger32;
+
+function apply(operation: Operation): sinteger32
+    return operation(1, 2);
+end

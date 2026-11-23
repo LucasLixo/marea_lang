@@ -1,0 +1,20 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A break and a continue in a while loop.
+
+namespace main;
+
+function run(): sinteger32
+    local index: sinteger32 = 0;
+    while true do
+        index += 1;
+        if index < 3 then
+            continue;
+        end
+        end
+        break;
+    end
+    return index;
+end

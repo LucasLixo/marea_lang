@@ -1,0 +1,25 @@
+-- expect: 3013 @24, 3013 @24
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A generic function with a bound that the argument type does not meet.
+
+namespace main;
+
+contract Comparable
+    function less(self: Self, other: Self): boolean;
+end
+
+function biggest<Item>(left: Item, right: Item): Item where Item: Comparable, Copyable
+    return copy left;
+end
+
+structure Plain
+    value: sinteger32;
+end
+
+function run(): Plain
+    local one: Plain = Plain{ value = 1 };
+    local two: Plain = Plain{ value = 2 };
+    return biggest<Plain>(one, two);
+end

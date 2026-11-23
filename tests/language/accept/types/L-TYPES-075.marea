@@ -1,0 +1,28 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A contract, an implementation that meets it and a generic call that needs it.
+
+namespace main;
+
+contract Comparable
+    function less(self: Self, other: Self): boolean;
+end
+structure Score
+    value: sinteger32;
+end
+
+implementation Score
+    function less(self: Score, other: Score): boolean
+        return self.value < other.value;
+    end
+end
+
+function maximum<Item>(left: Item, right: Item): Item where Item: Comparable, Copyable
+    if left.less(right) then
+        return copy right;
+    end
+    end
+    return copy left;
+end

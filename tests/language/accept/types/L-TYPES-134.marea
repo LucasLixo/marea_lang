@@ -1,0 +1,15 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An if with a comparison of two logical operands.
+
+namespace main;
+
+function run(left: boolean, right: boolean): boolean
+    if (left and right) or (not left) then
+        return true;
+    end
+    end
+    return false;
+end

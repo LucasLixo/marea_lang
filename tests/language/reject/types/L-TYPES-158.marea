@@ -1,0 +1,13 @@
+-- expect: 2001 @11
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A while with no do.
+
+namespace main;
+
+function run(flag: boolean)
+    while flag
+        return;
+    end
+end

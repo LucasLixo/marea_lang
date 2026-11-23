@@ -1,0 +1,16 @@
+-- expect: 3014 @14
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A generic structure used with too few type arguments.
+
+namespace main;
+
+structure Pair<First, Second>
+    first: First;
+    second: Second;
+end
+
+function run(value: Pair<sinteger32>)
+    return;
+end
