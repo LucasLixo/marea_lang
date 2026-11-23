@@ -741,3 +741,31 @@ TEST(MAREASemaExpressions, DefaultedParameterMustNotPrecedeARequiredOne)
 
     EXPECT_TRUE(MAREA_codesOf("function f(a: sinteger32, b: sinteger32 = 0, c: sinteger32 = 1) end").empty()) << "Defaults at the end must raise nothing.";
 }
+
+TEST(MAREASemaExpressions, CallOfATypeNameResolvesToItsConstructOperator)
+{
+    GTEST_COUT << "Validating a call whose callee is a type name is checked against its construct operator." << std::endl;
+
+    const std::string POINT{ "structure Point x: float32; y: float32; end implementation Point #[operator = \"construct\"] function make(x: float32 = 0.0, y: float32 = 0.0) end end function g() " };
+
+    EXPECT_TRUE(MAREA_codesOf(POINT + "Point(1.0, 2.0); end").empty()) << "A construction call with every argument must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(POINT + "Point(1.0); end").empty()) << "A construction call that omits a defaulted trailing argument must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(POINT + "Point(); end").empty()) << "A construction call with no argument, every parameter defaulted, must raise nothing.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "Point(1.0, 2.0, 3.0); end"), Codes{ COUNT_MISMATCH }) << "A construction call with too many arguments must raise ARGUMENT_COUNT_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "Point(\"x\", 2.0); end"), Codes{ MISMATCH }) << "A construction call with a wrong argument type must raise TYPE_MISMATCH.";
+}
+
+TEST(MAREASemaExpressions, TypeWithNoConstructOperatorAcceptsOnlyAnEmptyCall)
+{
+    GTEST_COUT << "Validating a type with no construct operator accepts only a call with no argument." << std::endl;
+
+    const std::string LINE{ "structure Line length: float32; end function g() " };
+
+    EXPECT_TRUE(MAREA_codesOf(LINE + "Line(); end").empty()) << "A call with no argument and no construct operator must raise nothing.";
+
+    EXPECT_EQ(MAREA_codesOf(LINE + "Line(1.0); end"), Codes{ COUNT_MISMATCH }) << "A call with an argument, and no construct operator, must raise ARGUMENT_COUNT_MISMATCH.";
+}
