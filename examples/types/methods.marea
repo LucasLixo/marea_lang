@@ -11,8 +11,9 @@
 --      type of another namespace. (Open point: allow this with an import, as an extension.)
 --   4. A function whose first parameter is named "self" is a method: point.length().
 --      A function without "self" is a static function: Vector2.origin().
---   5. "self" follows the rules of any parameter (see basics/ownership.marea): no word is a
---      read-only borrow, "mutable" is a write borrow, and a primitive or an enum is a copy.
+--   5. "self" follows the rules of any parameter (see basics/ownership.marea): the "semantics"
+--      attribute names the passing mode; a structure defaults to a write borrow
+--      (reference_mutable), and a primitive or an enum is a copy.
 --   6. The call is only a normal function call with a different spelling. Dispatch is static.
 --      There is no virtual table, no inheritance and no hidden field. The layout of the
 --      structure (layout, align, pack) does not change because of its functions.
@@ -44,11 +45,11 @@ implementation Vector2
     end
 
     #[inline = force]
-    function length_squared(self: Vector2): float64
+    function length_squared(#[semantics = reference_read_only] self: Vector2): float64
         return self.x * self.x + self.y * self.y;
     end
 
-    function length(self: Vector2): float64
+    function length(#[semantics = reference_read_only] self: Vector2): float64
         return square_root(self.length_squared());
     end
 end
@@ -56,7 +57,7 @@ end
 -- Second block: change the value.
 #[visibility = public]
 implementation Vector2
-    function scale(self: mutable Vector2, factor: float64)
+    function scale(self: Vector2, factor: float64)
         self.x *= factor;
         self.y *= factor;
     end
@@ -66,12 +67,12 @@ end
 #[visibility = public]
 implementation Vector2
     #[operator = "+"]
-    function add(self: Vector2, other: Vector2): Vector2
+    function add(#[semantics = reference_read_only] self: Vector2, #[semantics = reference_read_only] other: Vector2): Vector2
         return Vector2{ x = self.x + other.x, y = self.y + other.y };
     end
 
     #[operator = "*"]
-    function multiply(self: Vector2, factor: float64): Vector2
+    function multiply(#[semantics = reference_read_only] self: Vector2, factor: float64): Vector2
         return Vector2{ x = self.x * factor, y = self.y * factor };
     end
 end
