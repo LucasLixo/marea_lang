@@ -363,10 +363,10 @@ type arguments is deferred to when the `ir` stage needs one for real.
 
 **Resolved type.** `MAREA_SemaTypedNodeGetResolvedType(node, &text, &length)` gives the canonical full text of the
 type that a node declares in the source, with its type arguments, so a later stage never sees only a head name. The
-text is built while the typed tree is built, lives in the arena and is not NUL terminated. Only six node kinds
+text is built while the typed tree is built, lives in the arena and is not NUL terminated. Six node kinds
 declare a type: `PARAMETER`, `LOCAL_DECLARATION`, `FIELD_DECLARATION`, `VARIANT_FIELD`, `CONSTANT_DECLARATION`
-and `FUNCTION_DECLARATION` (its result type). Any other node, a function with no result type and a written type that
-sema cannot spell return `MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NO_TYPE` and clear both outputs; the accessor never
+and `FUNCTION_DECLARATION` (its result type); an expression has one by the rules that follow the list. Any other node,
+a function with no result type and a written type that sema cannot spell return `MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NO_TYPE` and clear both outputs; the accessor never
 guesses. A null node, text or length is `ERROR_NULL_POINTER`. The accessor is read-only and gives the same text on
 every run. The canonical spelling:
 
@@ -384,6 +384,33 @@ every run. The canonical spelling:
   the target are kept: with `type Grid = array<Point, 4>;`, `Grid` is `array<Point,4>`. A generic alias is kept as
   written.
 - A generic parameter in scope is its own name: `Item`.
+
+**Resolved type of an expression.** The same accessor gives the type of an expression, in the same spelling. The text
+is made when the typed tree is built, after the typed children, so it uses what the children carry. A name that is
+not read as a value (a declared name, a member name, a field key, the name of a loop) has no type. The rules:
+
+| Expression | Resolved type |
+|---|---|
+| arithmetic, bitwise and power operation | the type of the operands. An operand that is a number literal (alone, in parentheses, with a sign, or in an operation of such numbers) never decides: the first other operand with a type does |
+| comparison, `and`, `or`, `not` | `boolean` |
+| shift | the type of the left operand |
+| `-` and `~` | the type of the operand |
+| `copy x`, `move x`, `(x)` | the type of `x`, with its type arguments |
+| `spawn call` | `task<T>`, where `T` is the type of the call |
+| identifier | the type of its declaration: a parameter or a local, a constant of the file or of the implementation block, a value parameter such as `Count` in `<constant Count: sinteger32>`, or a function name as its function type |
+| member access | the declared type of the field. On a value of a generic structure, the type arguments of the value replace the parameters of the structure. An enum variant (`Color.Red`) is the enum. A field of a variant of an enum is read on the enum value. `Type.NAME` is a constant of an implementation block. A method or a static function, named with no call, is its function type with the receiver first: `function(Vector2,float64)` |
+| index access | the first type argument of `array`, `slice`, `vector` or `pointer` (also under `c.`) |
+| call | the declared result type of the callee. `convert<T>(x)` is `T`. A call on the name of a structure or enum of the file is that type. A call of a method, a static function, a function value or a local alias of a function type is the result of that function |
+| structure, array or indexed literal | the written type (`Point`, `array<float32,4>`) |
+
+A value that has `owned<T>` as type gives its members and elements as `T` does. A type written for another declaration
+is read with the type arguments that fill it: a generic function takes the explicit type arguments of the call
+(`make<sinteger32, float32>(x, y)` gives `Pair<float32,sinteger32>` for a result written `Pair<Second, First>`), a
+generic structure takes the type arguments of the value, and `Self` is the implemented type. When a parameter has no
+argument to fill it, the node has no type: sema never guesses a type argument. The result of a call whose type
+arguments are only inferred (`maximum(left, right)`) is one of those cases. A node with no type returns
+`MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NO_TYPE` and clears both outputs, as for a declaration. A literal has no resolved
+type text in this rule; see the Gaps.
 
 ## Diagnostics
 
@@ -457,11 +484,25 @@ every run. The canonical spelling:
   a value (`point.drop()`) is not resolved, as sema does not know the type of the receiver. A bare name that no
   top-level function declares also raises `UNDECLARED_NAME` (3004), as a member is not a bare name.
 - The type of a library type is not tracked, so a missing `copy` or `move` there is not reported.
-- `MAREA_SemaTypedNodeGetResolvedType` covers the six declaring nodes only. An expression node (a literal, a binary or
-  unary operation, a member, an index, a call, a struct literal) still has no resolved type text; it has only the
-  type class, declaration and head name. A `Self` type and a generic parameter are spelled by their written name, not
-  by the type they stand for in one instantiation, and a name of another namespace is spelled by what is written
-  and the import alias rule, with no qualifier added.
+- `MAREA_SemaTypedNodeGetResolvedType` covers the six declaring nodes and the expressions of "Resolved type of an
+  expression". A literal has no resolved type text from this rule. A `Self` type and a generic parameter are spelled by
+  their written name, not by the type they stand for in one instantiation, and a name of another namespace is spelled
+  by what is written and the import alias rule, with no qualifier added.
+- An expression with no resolved type (checked on the 23 examples, 902 expression nodes, 175 of them not literals).
+  The cases that stay without a type: the name of a `for`, `for each`, `partition` or `with` statement, because sema
+  keeps no type for it, and every expression made from it; a call that returns nothing (`grow(second, 2.0)`, `spawn`
+  of such a call); a call, a member or a name that comes from an import or from a namespace (`stdio.puts(text)`,
+  `vulkan.present(swapchain, texture)`, `square_root(x)`), also when sema has the tree of the namespace, because the
+  typed tree never looks in another file; a method or an element of a library type (`table<K, V>`, `c.array`,
+  `task`, `slice.length`) and an intrinsic of `array<T, N>`; a method on a value whose type is a generic parameter
+  (`left.less(right)`); a call whose type arguments are only inferred; the static functions of a generic name
+  (`array<float32, 16>.filled(0.0)`); the built-in `convert`, `size_of` and `align_of` as names, and the result type
+  of `size_of<T>()` and `align_of<T>()`, which no rule gives; every `MACRO_CALL` and `GENERIC_NAME`; the name of a
+  type or a namespace used as a value; and an operation whose operands are all number literals, until the literal
+  rule gives the literals a type. The `ir` stage decides what to do with each of these.
+- A binary operation has the type of its operands even when an operator function of the structure declares another
+  result type: the result of `#[operator = "+"]` is not read. A field of a variant is read from the first variant that
+  declares the name.
 - The typed-AST hand-off substitutes a generic result only for a bare parameter with explicit type arguments; a
   result from inferred type arguments or a compound such as `c.array<Item>` keeps the raw type.
 - `DUPLICATE_SWITCH_ARM` compares a float by its text: `1.0` and `1.00` are taken for different values. A constant
