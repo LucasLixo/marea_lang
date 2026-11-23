@@ -110,7 +110,7 @@ TEST(MAREASemaErrorNodeTolerance, DeepNestingSurvives)
     std::string types{ "namespace main; constant x: " };
 
     for (int index{ 0 }; index < 300; ++index) {
-        types += "array<";
+        types += "c.array<";
     }
 
     types += "sinteger32";

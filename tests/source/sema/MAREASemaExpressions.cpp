@@ -287,7 +287,7 @@ TEST(MAREASemaExpressions, BinderShadowsAnOuterLocal)
 
     EXPECT_TRUE(MAREA_codesOf("function g() local i: string = \"a\"; for i in 0 .. 3 do local n: sinteger32 = i; end end").empty()) << "A for name must hide the outer local.";
 
-    EXPECT_TRUE(MAREA_codesOf("function g(items: array<sinteger32>) local item: string = \"a\"; for each item in items do local n: sinteger32 = item; end end").empty()) << "A for each name must hide the outer local.";
+    EXPECT_TRUE(MAREA_codesOf("function g(items: c.array<sinteger32>) local item: string = \"a\"; for each item in items do local n: sinteger32 = item; end end").empty()) << "A for each name must hide the outer local.";
 
     EXPECT_EQ(MAREA_codesOf("function g() for i in 0 .. 3 do end local n: sinteger32 = i; end"), Codes{ UNDECLARED }) << "A for name must end with its loop.";
 }
@@ -346,7 +346,7 @@ TEST(MAREASemaExpressions, KnownNamesInAHeaderOrAConstantAreNotReported)
 {
     GTEST_COUT << "Validating a declared name in a header or a constant raises nothing." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("function g(n: sinteger32, items: array<sinteger32>) for i in 0 .. n do end for each item in items do end end").empty()) << "A parameter in a header must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function g(n: sinteger32, items: c.array<sinteger32>) for i in 0 .. n do end for each item in items do end end").empty()) << "A parameter in a header must raise nothing.";
 
     EXPECT_TRUE(MAREA_codesOf("constant N: sinteger32 = 4; function g() for i in 0 .. N do end end").empty()) << "A constant in a header must raise nothing.";
 
@@ -361,9 +361,9 @@ TEST(MAREASemaExpressions, KnownNamesAreNotReported)
 
     EXPECT_TRUE(MAREA_codesOf("enum Color red; green; end function g(c: Color): sinteger32 switch c case red then return 1; end case Color.green then return 2; end end end").empty()) << "A bare variant in a case must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("function g(values: array<float32>): float32 local total: float32 = 0.0; for each value in values do total = total + value; end for i in 0 .. 3 do total = total + 1.0; end return total; end").empty()) << "A for and a for each name must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function g(values: c.array<float32>): float32 local total: float32 = 0.0; for each value in values do total = total + value; end for i in 0 .. 3 do total = total + 1.0; end return total; end").empty()) << "A for and a for each name must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("function work(a: array<float32>, k: float32) end function g(values: array<float32>, k: float32) fork_join partition values into 4 as part do spawn work(part, k); end end end").empty()) << "A partition part must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function work(a: c.array<float32>, k: float32) end function g(values: c.array<float32>, k: float32) fork_join partition values into 4 as part do spawn work(part, k); end end end").empty()) << "A partition part must raise nothing.";
 
     EXPECT_TRUE(MAREA_codesOf("function open(): string return \"a\"; end function g() with open() as file do local n: string = file; end end").empty()) << "A with name must raise nothing.";
 
@@ -683,22 +683,24 @@ TEST(MAREASemaExpressions, GenericParameterValueIsAKnownShapeNeverComparedWithAP
     EXPECT_EQ(MAREA_codesOf(HEAD + "f(v); f(s); end"), Codes{ MISMATCH }) << "A generic parameter value must not hide a real mismatch next to it.";
 }
 
-TEST(MAREASemaExpressions, OwnedTaskAndVectorValuesAreKnownShapesNeverComparedWithAPrimitive)
+TEST(MAREASemaExpressions, OwnedTaskVectorAndArrayValuesAreKnownShapesNeverComparedWithAPrimitive)
 {
-    GTEST_COUT << "Validating an owned, a task and a vector value are classified and never compared with a primitive." << std::endl;
+    GTEST_COUT << "Validating an owned, a task, a vector and an array value are classified and never compared with a primitive." << std::endl;
 
     MAREA_expectOpaqueValueAccepted("", "owned<sinteger32>", "An owned");
 
     MAREA_expectOpaqueValueAccepted("", "task<sinteger32>", "A task");
 
-    MAREA_expectOpaqueValueAccepted("", "vector<float32, 4>", "A vector");
+    MAREA_expectOpaqueValueAccepted("", "array<float32, 4>", "An array");
+
+    MAREA_expectOpaqueValueAccepted("", "vector<float32>", "A vector");
 }
 
 TEST(MAREASemaExpressions, OpaqueKindsStayUnknownAtAFieldAccess)
 {
     GTEST_COUT << "Validating a field of an opaque kind is accepted at every slot." << std::endl;
 
-    const std::string HEAD{ "enum Color red; end structure Box c: Color; o: owned<sinteger32>; v: vector<float32, 4>; end function f(a: sinteger32) end function g(b: Box) " };
+    const std::string HEAD{ "enum Color red; end structure Box c: Color; o: owned<sinteger32>; v: array<float32, 4>; end function f(a: sinteger32) end function g(b: Box) " };
 
     EXPECT_TRUE(MAREA_codesOf(HEAD + "f(b.c); f(b.o); f(b.v); local n: sinteger32 = b.c + 1; end").empty()) << "A field of an opaque kind must not be compared with a primitive.";
 }

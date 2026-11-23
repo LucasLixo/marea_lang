@@ -19,7 +19,7 @@ function show_blocks(): sinteger32
     -- temporary does not exist here
     do
         -- The array belongs to this block. It is freed at the "end". There is no free call.
-        local scratch: array<sinteger32> = array<sinteger32>.filled(8, 0);
+        local scratch: c.array<sinteger32> = c.array<sinteger32>.filled(8, 0);
         result += scratch[0];
     end
     return result;

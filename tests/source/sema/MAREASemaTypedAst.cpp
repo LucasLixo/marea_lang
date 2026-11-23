@@ -219,11 +219,11 @@ TEST(MAREASemaTypedAst, ExternalReturnedIdentifierIsTaggedExternal)
 {
     GTEST_COUT << "Validating a resolver-reported external identifier is tagged EXTERNAL with its name." << std::endl;
 
-    MAREA_ResolveCallback resolve{ [](const std::string &text, const MAREA_AstNode **) { return (text == "array") ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND; } };
+    MAREA_ResolveCallback resolve{ [](const std::string &text, const MAREA_AstNode **) { return (text == "list") ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND; } };
 
     MAREA_SemaFixture fixture(resolve);
 
-    ASSERT_EQ(fixture.MAREA_sema("namespace main; function f(a: array<sinteger32>): array<sinteger32> return copy a; end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; function f(a: list<sinteger32>): list<sinteger32> return copy a; end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
 
     const MAREA_SemaTypedNode *outRoot{ nullptr };
 
@@ -245,7 +245,7 @@ TEST(MAREASemaTypedAst, ExternalReturnedIdentifierIsTaggedExternal)
 
     ASSERT_EQ(MAREA_SemaTypedNodeGetTypeName(returned, &outText, &outLength), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "The type name must be reachable.";
 
-    EXPECT_EQ(std::string(outText, outLength), "array") << "The EXTERNAL name must be the type name text.";
+    EXPECT_EQ(std::string(outText, outLength), "list") << "The EXTERNAL name must be the type name text.";
 }
 
 TEST(MAREASemaTypedAst, NonGenericCallResultCarriesTheCalleeReturnType)

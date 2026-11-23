@@ -65,8 +65,8 @@ keyword             = "and" | "as" | "break" | "case" | "constant" | "continue" 
 
 (* Names that are predeclared but are not reserved: the primitive types (boolean, sinteger8 ... *)
 (* sinteger64, uinteger8 ... uinteger64, float32, float64, character, string), the core type constructors *)
-(* vector and pointer, and the names Self and self. The language has no standard library: array, *)
-(* table, slice, task, arenas and text are libraries written in C or in Marea, and they are *)
+(* array (two arguments, copied by value), vector (one argument, a move type) and pointer, and the names *)
+(* Self and self. The language has no standard library: table, slice, task, arenas and text are libraries written in C or in Marea, and they are *)
 (* imported like any namespace. The namespace "c" is the only reserved one. *)
 (* "public" and "private" are words of the attribute list only, the members of the key "visibility". *)
 
@@ -337,7 +337,7 @@ primary_expression  = integer_literal
 generic_name        = qualified_name, type_arguments ;
 
 (* A value with a type and a body: Point{ x = 1.0 }, table<string, sinteger32>{ ["a"] = 1 }, *)
-(* array<float32>{ 1.0, 2.0 }, vector<float32, 4>{ 1.0, 0.0, 0.0, 0.0 }. *)
+(* c.array<float32>{ 1.0, 2.0 }, array<float32, 4>{ 1.0, 0.0, 0.0, 0.0 }. *)
 literal_value       = named_type, "{", [ literal_entry, { ",", literal_entry }, [ "," ] ], "}" ;
 literal_entry       = identifier, "=", expression
                     | "[", expression, "]", "=", expression

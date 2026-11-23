@@ -59,9 +59,20 @@ TEST(MAREASemaOwnership, AssignmentOfAnExistingValueNeedsAWord)
 
     EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(a: mutable Shape, o: Outer) a = o.inner; end"), Codes{ NEEDS_WORD }) << "A field must raise ASSIGNMENT_NEEDS_COPY_OR_MOVE.";
 
-    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(a: mutable Shape, items: array<Shape>) a = items[0]; end"), Codes{ NEEDS_WORD }) << "An element must raise ASSIGNMENT_NEEDS_COPY_OR_MOVE.";
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(a: mutable Shape, items: vector<Shape>) a = items[0]; end"), Codes{ NEEDS_WORD }) << "An element must raise ASSIGNMENT_NEEDS_COPY_OR_MOVE.";
 
     EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(b: Shape) local a: Shape = b; end"), Codes{ NEEDS_WORD }) << "A local initializer must raise ASSIGNMENT_NEEDS_COPY_OR_MOVE.";
+}
+
+TEST(MAREASemaOwnership, ArrayCopiesByValueAndVectorNeedsAWord)
+{
+    GTEST_COUT << "Validating an array is assigned as a value and a vector needs copy or move." << std::endl;
+
+    EXPECT_TRUE(MAREA_codesOf("function f(a: mutable array<float32, 4>, b: array<float32, 4>) a = b; end").empty()) << "An array must be assigned without a word.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(a: mutable vector<float32>, b: vector<float32>) a = b; end"), Codes{ NEEDS_WORD }) << "A vector must raise ASSIGNMENT_NEEDS_COPY_OR_MOVE.";
+
+    EXPECT_TRUE(MAREA_codesOf("function f(a: mutable vector<float32>, b: vector<float32>) a = move b; end").empty()) << "A move of a vector must raise nothing.";
 }
 
 TEST(MAREASemaOwnership, CopyAndMoveSatisfyTheRule)
@@ -104,7 +115,7 @@ TEST(MAREASemaOwnership, UnknownTypesAreNotGuessed)
 {
     GTEST_COUT << "Validating an assignment whose type is unknown raises nothing." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("function f(a: mutable array<sinteger32>, b: array<sinteger32>) a = b; end").empty()) << "A library type must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function f(a: mutable c.array<sinteger32>, b: c.array<sinteger32>) a = b; end").empty()) << "A library type must raise nothing.";
 }
 
 TEST(MAREASemaOwnership, ReturningABorrowIsRejected)
@@ -140,20 +151,20 @@ TEST(MAREASemaOwnership, ForEachVariableCannotEscape)
 {
     GTEST_COUT << "Validating a for each variable cannot be returned and can be used inside its loop." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(items: array<Shape>): Shape for each item in items do return item; end return make(); end"), Codes{ ESCAPES }) << "A for each variable must raise REFERENCE_ESCAPES_SCOPE.";
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(items: c.array<Shape>): Shape for each item in items do return item; end return make(); end"), Codes{ ESCAPES }) << "A for each variable must raise REFERENCE_ESCAPES_SCOPE.";
 
-    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(items: array<Shape>): Shape for each item in items do local y: float32 = item.x; end return make(); end").empty()) << "Use inside the loop must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(items: c.array<Shape>): Shape for each item in items do local y: float32 = item.x; end return make(); end").empty()) << "Use inside the loop must raise nothing.";
 }
 
 TEST(MAREASemaOwnership, PartitionAndWithNamesCannotEscape)
 {
     GTEST_COUT << "Validating a partition part and a with name cannot be returned." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(items: array<Shape>): Shape fork_join partition items into 4 as part do return part; end end return make(); end"), (Codes{ ESCAPES, INVALID_JUMP })) << "A partition part returned from its body must raise REFERENCE_ESCAPES_SCOPE and INVALID_PARALLEL_JUMP.";
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(items: c.array<Shape>): Shape fork_join partition items into 4 as part do return part; end end return make(); end"), (Codes{ ESCAPES, INVALID_JUMP })) << "A partition part returned from its body must raise REFERENCE_ESCAPES_SCOPE and INVALID_PARALLEL_JUMP.";
 
-    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(items: array<Shape>) fork_join partition items into 4 as part do local o: Outer = Outer{ inner = part }; end end end"), Codes{ ESCAPES }) << "A partition part stored in a field must raise REFERENCE_ESCAPES_SCOPE only.";
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(items: c.array<Shape>) fork_join partition items into 4 as part do local o: Outer = Outer{ inner = part }; end end end"), Codes{ ESCAPES }) << "A partition part stored in a field must raise REFERENCE_ESCAPES_SCOPE only.";
 
-    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(items: array<Shape>): Shape with items as view do return view; end return make(); end"), Codes{ ESCAPES }) << "A with name must raise REFERENCE_ESCAPES_SCOPE.";
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(items: c.array<Shape>): Shape with items as view do return view; end return make(); end"), Codes{ ESCAPES }) << "A with name must raise REFERENCE_ESCAPES_SCOPE.";
 }
 
 TEST(MAREASemaOwnership, ReferenceCannotBeStoredInAField)
