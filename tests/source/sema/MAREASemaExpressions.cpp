@@ -78,7 +78,7 @@ TEST(MAREASemaExpressions, OperatorsGiveATypedResult)
 
     EXPECT_EQ(MAREA_codesOf("function g() local n: sinteger32 = 1.5 * 2.0; end"), Codes{ MISMATCH }) << "A product of two fractions for an integer local must raise TYPE_MISMATCH.";
 
-    EXPECT_EQ(MAREA_codesOf("function g(a: uinteger8) local n: boolean = -a; end"), Codes{ MISMATCH }) << "A negated name for a boolean local must raise TYPE_MISMATCH.";
+    EXPECT_EQ(MAREA_codesOf("function g(a: sinteger8) local n: boolean = -a; end"), Codes{ MISMATCH }) << "A negated name for a boolean local must raise TYPE_MISMATCH.";
 
     EXPECT_EQ(MAREA_codesOf("function g(a: sinteger32) local n: boolean = (a + 1); end"), Codes{ MISMATCH }) << "A parenthesized sum must keep its type.";
 
