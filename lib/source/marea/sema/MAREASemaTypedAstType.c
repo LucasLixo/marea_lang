@@ -359,7 +359,9 @@ static void MAREA_CALL MAREA_G_TypeTextRender(const MAREA_SemaContext *context, 
         return;
     }
 
-    if (KIND == MAREA_AST_KIND_NAMED_TYPE) {
+    // INFO: a generic name (array<float32,16> read as the receiver of a static library call) has the same shape as
+    // a NAMED_TYPE - a qualified name, then its type arguments - and is rendered the same way.
+    if ((KIND == MAREA_AST_KIND_NAMED_TYPE) || (KIND == MAREA_AST_KIND_GENERIC_NAME)) {
         MAREA_G_TypeTextRenderNamed(context, type, frame, depth, text);
 
         return;
