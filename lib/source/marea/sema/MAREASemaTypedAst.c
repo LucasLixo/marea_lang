@@ -436,6 +436,11 @@ static MAREA_SemaTypedAstExcept MAREA_CALL MAREA_G_TypedAstBuildNode(MAREA_SemaC
             result = MAREA_G_TypedAstBuildNode(context, child, node, index, &typedChild);
 
             built->children[index] = typedChild;
+
+            // INFO: the name of a for, for each, partition or with statement is typed as soon as the header children that decide its type are built.
+            if (result == MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) {
+                result = MAREA_SemaTypedAstTypeScopeNames(context, built, index);
+            }
         }
     }
 
