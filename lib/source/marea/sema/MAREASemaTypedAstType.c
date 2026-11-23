@@ -199,6 +199,75 @@ static MAREA_Boolean MAREA_CALL MAREA_G_TypeTextRenderFrameName(const MAREA_Sema
     return MAREA_BOOLEAN_FALSE;
 }
 
+// INFO: the structure, enum, opaque type or type alias that a tree declares at the top level with the name, or null.
+static const MAREA_AstNode *MAREA_CALL MAREA_G_TypeTextFindTopLevelType(const MAREA_AstNode *root, const MAREA_Character8 *name, MAREA_IntegerSize nameLength)
+{
+    const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(root);
+
+    for (MAREA_IntegerSize index = 0; index < COUNT; ++index) {
+        const MAREA_AstNode *declaration = MAREA_SemaChildAt(root, index);
+
+        const MAREA_AstKind KIND = (declaration == MAREA_NULLPTR) ? MAREA_AST_KIND_ERROR_NODE : MAREA_AstNodeGetKind(declaration);
+
+        const MAREA_Character8 *declarationName = MAREA_NULLPTR;
+
+        MAREA_IntegerSize declarationLength = 0;
+
+        if (((KIND == MAREA_AST_KIND_STRUCTURE_DECLARATION) || (KIND == MAREA_AST_KIND_ENUM_DECLARATION) || (KIND == MAREA_AST_KIND_OPAQUE_DECLARATION) || (KIND == MAREA_AST_KIND_TYPE_DECLARATION)) && (MAREA_SemaDeclarationName(declaration, &declarationName, &declarationLength) == MAREA_BOOLEAN_TRUE) && (MAREA_SemaTextEquals(declarationName, declarationLength, name, nameLength) == MAREA_BOOLEAN_TRUE)) {
+            return declaration;
+        }
+    }
+
+    return MAREA_NULLPTR;
+}
+
+// INFO: a type written in another file is read in the tree of that file: a type that the file declares is written with the namespace of the file, as this file writes it (structures.Shape), and a local alias of it is followed. Any other name (a built-in) is kept as written.
+static void MAREA_CALL MAREA_G_TypeTextRenderForeign(const MAREA_SemaContext *context, const MAREA_AstNode *type, const MAREA_SemaTypeFrame *foreign, const MAREA_SemaTypeFrame *frame, MAREA_IntegerSize depth, MAREA_G_TypeText *text)
+{
+    const MAREA_AstNode *qualified = MAREA_SemaChildAt(type, 0);
+
+    const MAREA_IntegerSize SEGMENT_COUNT = MAREA_AstNodeGetChildCount(qualified);
+
+    const MAREA_AstNode *head = MAREA_SemaChildAt(qualified, 0);
+
+    const MAREA_AstNode *arguments = MAREA_G_TypeTextFindChild(type, MAREA_AST_KIND_TYPE_ARGUMENTS);
+
+    const MAREA_AstNode *declaration = (SEGMENT_COUNT == 1) ? MAREA_G_TypeTextFindTopLevelType(foreign->foreignRoot, MAREA_AstNodeGetText(head), MAREA_AstNodeGetTextLength(head)) : MAREA_NULLPTR;
+
+    if ((declaration != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(declaration) == MAREA_AST_KIND_TYPE_DECLARATION) && (arguments == MAREA_NULLPTR) && (depth < MAREA_G_TYPED_TYPE_ALIAS_DEPTH_LIMIT) && (MAREA_G_TypeTextFindChild(declaration, MAREA_AST_KIND_GENERIC_PARAMETERS) == MAREA_NULLPTR)) {
+        const MAREA_AstNode *target = MAREA_SemaChildAt(declaration, (MAREA_AstNodeGetChildCount(declaration) - MAREA_INTEGER_SIZE(1)));
+
+        if (MAREA_G_TypeTextIsType(target) == MAREA_BOOLEAN_TRUE) {
+            MAREA_G_TypeTextRender(context, target, frame, (depth + MAREA_INTEGER_SIZE(1)), text);
+
+            return;
+        }
+    }
+
+    if (declaration != MAREA_NULLPTR) {
+        MAREA_G_TypeTextAppend(text, foreign->foreignName, foreign->foreignNameLength);
+        MAREA_G_TypeTextAppend(text, ".", MAREA_INTEGER_SIZE(1));
+    }
+
+    for (MAREA_IntegerSize index = 0; index < SEGMENT_COUNT; ++index) {
+        const MAREA_AstNode *segment = MAREA_SemaChildAt(qualified, index);
+
+        if ((segment == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(segment) != MAREA_AST_KIND_IDENTIFIER)) {
+            text->failed = MAREA_BOOLEAN_TRUE;
+
+            return;
+        }
+
+        if (index > 0) {
+            MAREA_G_TypeTextAppend(text, ".", MAREA_INTEGER_SIZE(1));
+        }
+
+        MAREA_G_TypeTextAppend(text, MAREA_AstNodeGetText(segment), MAREA_AstNodeGetTextLength(segment));
+    }
+
+    MAREA_G_TypeTextRenderArgumentList(context, arguments, frame, depth, text);
+}
+
 static void MAREA_CALL MAREA_G_TypeTextRenderNamed(const MAREA_SemaContext *context, const MAREA_AstNode *type, const MAREA_SemaTypeFrame *frame, MAREA_IntegerSize depth, MAREA_G_TypeText *text)
 {
     const MAREA_AstNode *qualified = MAREA_SemaChildAt(type, 0);
@@ -218,6 +287,14 @@ static void MAREA_CALL MAREA_G_TypeTextRenderNamed(const MAREA_SemaContext *cont
     const MAREA_IntegerSize NAME_LENGTH = MAREA_AstNodeGetTextLength(head);
 
     if ((SEGMENT_COUNT == 1) && (frame != MAREA_NULLPTR) && (MAREA_G_TypeTextFindChild(type, MAREA_AST_KIND_TYPE_ARGUMENTS) == MAREA_NULLPTR) && (MAREA_G_TypeTextRenderFrameName(context, name, NAME_LENGTH, frame, depth, text) == MAREA_BOOLEAN_TRUE)) {
+        return;
+    }
+
+    const MAREA_SemaTypeFrame *foreign = MAREA_SemaTypeFrameFindForeign(frame);
+
+    if (foreign != MAREA_NULLPTR) {
+        MAREA_G_TypeTextRenderForeign(context, type, foreign, frame, depth, text);
+
         return;
     }
 

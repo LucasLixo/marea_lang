@@ -150,6 +150,16 @@ MAREA_BEGIN_EXTERN_C
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaOwnershipMode MAREA_CALL MAREA_SemaTypedNodeGetOwnershipMode(const MAREA_SemaTypedNode *node);
 
+    /**
+     * @brief Tells whether a typed node is a name that only qualifies a member and is not a value: the name of a
+     * structure or an enum, a namespace or an import alias, or a name with no declaration that sema takes for a
+     * namespace, written before the member of a member access (Planet in Planet.Earth, stdio in stdio.puts). Such a
+     * node has no resolved type and is not an expression that is missing a type.
+     * @param node Typed node to query. Null returns false.
+     * @return True for such an IDENTIFIER, false for any other node and for a null node.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaTypedNodeIsQualifier(const MAREA_SemaTypedNode *node);
+
 MAREA_END_EXTERN_C
 
 #endif /* MAREA_INCLUDE_SEMA_MAREASEMATYPEDAST_H */
