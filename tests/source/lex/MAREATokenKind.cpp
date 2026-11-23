@@ -114,7 +114,7 @@ TEST(MAREATokenKind, KeywordLookupRejectsNonKeywords)
 {
     GTEST_COUT << "Validating MAREA_TokenKindLookupKeyword treats every non-keyword as an identifier." << std::endl;
 
-    const char *nonKeywords[]{ "Self", "self", "public", "private", "c", "integer32", "boolean", "string", "vector", "pointer", "an", "ands", "", "fork" };
+    const char *nonKeywords[]{ "Self", "self", "public", "private", "c", "sinteger32", "boolean", "string", "vector", "pointer", "an", "ands", "", "fork" };
 
     for (const char *text : nonKeywords) {
         const MAREA_TokenKind KIND{ MAREA_TokenKindLookupKeyword(text, static_cast<MAREA_IntegerSize>(std::strlen(text))) };

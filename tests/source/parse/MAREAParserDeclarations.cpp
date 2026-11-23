@@ -23,9 +23,9 @@ TEST(MAREAParserDeclarations, Constant)
 
     MAREA_ParseFixture fixture;
 
-    const std::string EXPECTED{ MAREA_lines({ "  CONSTANT_DECLARATION", "    IDENTIFIER \"MAX\"", "    NAMED_TYPE", "      QUALIFIED_NAME", "        IDENTIFIER \"integer32\"", "    INTEGER_LITERAL \"10\"" }) };
+    const std::string EXPECTED{ MAREA_lines({ "  CONSTANT_DECLARATION", "    IDENTIFIER \"MAX\"", "    NAMED_TYPE", "      QUALIFIED_NAME", "        IDENTIFIER \"sinteger32\"", "    INTEGER_LITERAL \"10\"" }) };
 
-    EXPECT_EQ(MAREA_itemsOf(fixture, "constant MAX: integer32 = 10;"), EXPECTED) << "A constant holds a name, a type and a value.";
+    EXPECT_EQ(MAREA_itemsOf(fixture, "constant MAX: sinteger32 = 10;"), EXPECTED) << "A constant holds a name, a type and a value.";
 
     EXPECT_TRUE(fixture.MAREA_codes().empty()) << "No diagnostic is expected.";
 }
@@ -84,9 +84,9 @@ TEST(MAREAParserDeclarations, EnumerationWithTagType)
 
     MAREA_ParseFixture fixture;
 
-    const std::string EXPECTED{ MAREA_lines({ "  ENUM_DECLARATION", "    IDENTIFIER \"Light\"", "    NAMED_TYPE", "      QUALIFIED_NAME", "        IDENTIFIER \"unsigned8\"", "    VARIANT_DECLARATION", "      IDENTIFIER \"Red\"" }) };
+    const std::string EXPECTED{ MAREA_lines({ "  ENUM_DECLARATION", "    IDENTIFIER \"Light\"", "    NAMED_TYPE", "      QUALIFIED_NAME", "        IDENTIFIER \"uinteger8\"", "    VARIANT_DECLARATION", "      IDENTIFIER \"Red\"" }) };
 
-    EXPECT_EQ(MAREA_itemsOf(fixture, "enum Light : unsigned8 Red; end"), EXPECTED) << "The tag type is a child after the name.";
+    EXPECT_EQ(MAREA_itemsOf(fixture, "enum Light : uinteger8 Red; end"), EXPECTED) << "The tag type is a child after the name.";
 
     EXPECT_TRUE(fixture.MAREA_codes().empty()) << "No diagnostic is expected.";
 }
@@ -108,9 +108,9 @@ TEST(MAREAParserDeclarations, FunctionParameterDefault)
 
     MAREA_ParseFixture fixture;
 
-    const std::string EXPECTED{ MAREA_lines({ "  FUNCTION_DECLARATION", "    IDENTIFIER \"f\"", "    PARAMETER_LIST", "      PARAMETER", "        IDENTIFIER \"a\"", "        NAMED_TYPE", "          QUALIFIED_NAME", "            IDENTIFIER \"integer32\"", "      PARAMETER", "        IDENTIFIER \"b\"", "        NAMED_TYPE", "          QUALIFIED_NAME", "            IDENTIFIER \"integer32\"", "        INTEGER_LITERAL \"0\"", "    BLOCK" }) };
+    const std::string EXPECTED{ MAREA_lines({ "  FUNCTION_DECLARATION", "    IDENTIFIER \"f\"", "    PARAMETER_LIST", "      PARAMETER", "        IDENTIFIER \"a\"", "        NAMED_TYPE", "          QUALIFIED_NAME", "            IDENTIFIER \"sinteger32\"", "      PARAMETER", "        IDENTIFIER \"b\"", "        NAMED_TYPE", "          QUALIFIED_NAME", "            IDENTIFIER \"sinteger32\"", "        INTEGER_LITERAL \"0\"", "    BLOCK" }) };
 
-    EXPECT_EQ(MAREA_itemsOf(fixture, "function f(a: integer32, b: integer32 = 0) end"), EXPECTED) << "The default is a child of the parameter.";
+    EXPECT_EQ(MAREA_itemsOf(fixture, "function f(a: sinteger32, b: sinteger32 = 0) end"), EXPECTED) << "The default is a child of the parameter.";
 
     EXPECT_TRUE(fixture.MAREA_codes().empty()) << "No diagnostic is expected.";
 }
@@ -134,9 +134,9 @@ TEST(MAREAParserDeclarations, Implementation)
 
     MAREA_ParseFixture fixture;
 
-    const std::string EXPECTED{ MAREA_lines({ "  IMPLEMENTATION_DECLARATION", "    GENERIC_PARAMETERS", "      GENERIC_PARAMETER", "        IDENTIFIER \"T\"", "    NAMED_TYPE", "      QUALIFIED_NAME", "        IDENTIFIER \"array\"", "      TYPE_ARGUMENTS", "        NAMED_TYPE", "          QUALIFIED_NAME", "            IDENTIFIER \"T\"", "    FUNCTION_DECLARATION", "      ATTRIBUTE", "        ATTRIBUTE_ITEM", "          IDENTIFIER \"inline\"", "          QUALIFIED_NAME", "            IDENTIFIER \"force\"", "      IDENTIFIER \"len\"", "      PARAMETER_LIST", "      NAMED_TYPE", "        QUALIFIED_NAME", "          IDENTIFIER \"integer32\"", "      BLOCK", "    CONSTANT_DECLARATION", "      IDENTIFIER \"ZERO\"", "      NAMED_TYPE", "        QUALIFIED_NAME", "          IDENTIFIER \"integer32\"", "      INTEGER_LITERAL \"0\"" }) };
+    const std::string EXPECTED{ MAREA_lines({ "  IMPLEMENTATION_DECLARATION", "    GENERIC_PARAMETERS", "      GENERIC_PARAMETER", "        IDENTIFIER \"T\"", "    NAMED_TYPE", "      QUALIFIED_NAME", "        IDENTIFIER \"array\"", "      TYPE_ARGUMENTS", "        NAMED_TYPE", "          QUALIFIED_NAME", "            IDENTIFIER \"T\"", "    FUNCTION_DECLARATION", "      ATTRIBUTE", "        ATTRIBUTE_ITEM", "          IDENTIFIER \"inline\"", "          QUALIFIED_NAME", "            IDENTIFIER \"force\"", "      IDENTIFIER \"len\"", "      PARAMETER_LIST", "      NAMED_TYPE", "        QUALIFIED_NAME", "          IDENTIFIER \"sinteger32\"", "      BLOCK", "    CONSTANT_DECLARATION", "      IDENTIFIER \"ZERO\"", "      NAMED_TYPE", "        QUALIFIED_NAME", "          IDENTIFIER \"sinteger32\"", "      INTEGER_LITERAL \"0\"" }) };
 
-    EXPECT_EQ(MAREA_itemsOf(fixture, "implementation<T> array<T> #[inline = force] function len(): integer32 end constant ZERO: integer32 = 0; end"), EXPECTED) << "Members keep their own attributes.";
+    EXPECT_EQ(MAREA_itemsOf(fixture, "implementation<T> array<T> #[inline = force] function len(): sinteger32 end constant ZERO: sinteger32 = 0; end"), EXPECTED) << "Members keep their own attributes.";
 
     EXPECT_TRUE(fixture.MAREA_codes().empty()) << "No diagnostic is expected.";
 }
@@ -147,9 +147,9 @@ TEST(MAREAParserDeclarations, FunctionWithGenericsAndWhere)
 
     MAREA_ParseFixture fixture;
 
-    const std::string EXPECTED{ MAREA_lines({ "  FUNCTION_DECLARATION", "    IDENTIFIER \"max\"", "    GENERIC_PARAMETERS", "      GENERIC_PARAMETER", "        IDENTIFIER \"T\"", "      GENERIC_PARAMETER flags=4", "        IDENTIFIER \"N\"", "        NAMED_TYPE", "          QUALIFIED_NAME", "            IDENTIFIER \"integer32\"", "    PARAMETER_LIST", "      PARAMETER", "        IDENTIFIER \"a\"", "        NAMED_TYPE", "          QUALIFIED_NAME", "            IDENTIFIER \"T\"", "      PARAMETER flags=1", "        IDENTIFIER \"b\"", "        NAMED_TYPE", "          QUALIFIED_NAME", "            IDENTIFIER \"T\"", "    NAMED_TYPE", "      QUALIFIED_NAME", "        IDENTIFIER \"T\"", "    WHERE_CLAUSE", "      CONSTRAINT", "        IDENTIFIER \"T\"", "        QUALIFIED_NAME", "          IDENTIFIER \"Comparable\"", "        QUALIFIED_NAME", "          IDENTIFIER \"Printable\"", "      CONSTRAINT", "        IDENTIFIER \"N\"", "        QUALIFIED_NAME", "          IDENTIFIER \"Sized\"", "    BLOCK" }) };
+    const std::string EXPECTED{ MAREA_lines({ "  FUNCTION_DECLARATION", "    IDENTIFIER \"max\"", "    GENERIC_PARAMETERS", "      GENERIC_PARAMETER", "        IDENTIFIER \"T\"", "      GENERIC_PARAMETER flags=4", "        IDENTIFIER \"N\"", "        NAMED_TYPE", "          QUALIFIED_NAME", "            IDENTIFIER \"sinteger32\"", "    PARAMETER_LIST", "      PARAMETER", "        IDENTIFIER \"a\"", "        NAMED_TYPE", "          QUALIFIED_NAME", "            IDENTIFIER \"T\"", "      PARAMETER flags=1", "        IDENTIFIER \"b\"", "        NAMED_TYPE", "          QUALIFIED_NAME", "            IDENTIFIER \"T\"", "    NAMED_TYPE", "      QUALIFIED_NAME", "        IDENTIFIER \"T\"", "    WHERE_CLAUSE", "      CONSTRAINT", "        IDENTIFIER \"T\"", "        QUALIFIED_NAME", "          IDENTIFIER \"Comparable\"", "        QUALIFIED_NAME", "          IDENTIFIER \"Printable\"", "      CONSTRAINT", "        IDENTIFIER \"N\"", "        QUALIFIED_NAME", "          IDENTIFIER \"Sized\"", "    BLOCK" }) };
 
-    EXPECT_EQ(MAREA_itemsOf(fixture, "function max<T, constant N: integer32>(a: T, b: mutable T): T where T: Comparable, Printable and N: Sized end"), EXPECTED) << "The function must hold every part in grammar order.";
+    EXPECT_EQ(MAREA_itemsOf(fixture, "function max<T, constant N: sinteger32>(a: T, b: mutable T): T where T: Comparable, Printable and N: Sized end"), EXPECTED) << "The function must hold every part in grammar order.";
 
     EXPECT_TRUE(fixture.MAREA_codes().empty()) << "No diagnostic is expected.";
 }
@@ -159,8 +159,8 @@ TEST(MAREAParserDeclarations, AttributesBeforeEveryKind)
     GTEST_COUT << "Validating an attribute list before every kind of item." << std::endl;
 
     const std::vector<std::pair<std::string, std::string>> CASES{
-        { "#[a] constant x: integer32 = 1;", "  CONSTANT_DECLARATION" },
-        { "#[a] type T = integer32;", "  TYPE_DECLARATION" },
+        { "#[a] constant x: sinteger32 = 1;", "  CONSTANT_DECLARATION" },
+        { "#[a] type T = sinteger32;", "  TYPE_DECLARATION" },
         { "#[a] structure S end", "  STRUCTURE_DECLARATION" },
         { "#[a] opaque structure O;", "  OPAQUE_DECLARATION" },
         { "#[a] enum E end", "  ENUM_DECLARATION" },
@@ -289,7 +289,7 @@ TEST(MAREAParserDeclarations, ImportMemberListEmpty)
 
     MAREA_ParseFixture fixture;
 
-    const std::string DUMP{ MAREA_itemsOf(fixture, "import a { }; constant MAX: integer32 = 10;") };
+    const std::string DUMP{ MAREA_itemsOf(fixture, "import a { }; constant MAX: sinteger32 = 10;") };
 
     EXPECT_EQ(fixture.MAREA_codes(), std::vector<MAREA_Uinteger32>{ MAREA_PARSE_DIAGNOSTIC_CODE_EXPECTED_TOKEN }) << "An empty list is EXPECTED_TOKEN.";
 
@@ -304,7 +304,7 @@ TEST(MAREAParserDeclarations, ImportMemberListTrailingComma)
 
     MAREA_ParseFixture fixture;
 
-    const std::string DUMP{ MAREA_itemsOf(fixture, "import a { f, }; constant MAX: integer32 = 10;") };
+    const std::string DUMP{ MAREA_itemsOf(fixture, "import a { f, }; constant MAX: sinteger32 = 10;") };
 
     EXPECT_EQ(fixture.MAREA_codes(), std::vector<MAREA_Uinteger32>{ MAREA_PARSE_DIAGNOSTIC_CODE_EXPECTED_TOKEN }) << "A trailing comma is EXPECTED_TOKEN.";
 
@@ -317,7 +317,7 @@ TEST(MAREAParserDeclarations, ImportMemberListMissingCloseBrace)
 
     MAREA_ParseFixture fixture;
 
-    const std::string DUMP{ MAREA_itemsOf(fixture, "import a { f as g; constant MAX: integer32 = 10;") };
+    const std::string DUMP{ MAREA_itemsOf(fixture, "import a { f as g; constant MAX: sinteger32 = 10;") };
 
     EXPECT_EQ(fixture.MAREA_codes(), std::vector<MAREA_Uinteger32>{ MAREA_PARSE_DIAGNOSTIC_CODE_EXPECTED_TOKEN }) << "A missing brace is EXPECTED_TOKEN.";
 
@@ -332,7 +332,7 @@ TEST(MAREAParserDeclarations, ImportMemberAliasWithoutName)
 
     MAREA_ParseFixture fixture;
 
-    const std::string DUMP{ MAREA_itemsOf(fixture, "import a { f as }; constant MAX: integer32 = 10;") };
+    const std::string DUMP{ MAREA_itemsOf(fixture, "import a { f as }; constant MAX: sinteger32 = 10;") };
 
     EXPECT_EQ(fixture.MAREA_codes(), std::vector<MAREA_Uinteger32>{ MAREA_PARSE_DIAGNOSTIC_CODE_EXPECTED_TOKEN }) << "A missing alias name is EXPECTED_TOKEN.";
 
@@ -347,7 +347,7 @@ TEST(MAREAParserDeclarations, ImportAliasAndMemberListDoNotMix)
 
     MAREA_ParseFixture fixture;
 
-    const std::string DUMP{ MAREA_itemsOf(fixture, "import a.b as c { f }; constant MAX: integer32 = 10;") };
+    const std::string DUMP{ MAREA_itemsOf(fixture, "import a.b as c { f }; constant MAX: sinteger32 = 10;") };
 
     EXPECT_EQ(fixture.MAREA_codes(), std::vector<MAREA_Uinteger32>{ MAREA_PARSE_DIAGNOSTIC_CODE_EXPECTED_TOKEN }) << "The mix is one EXPECTED_TOKEN.";
 
@@ -360,7 +360,7 @@ TEST(MAREAParserDeclarations, ImportMemberListWithoutSemicolon)
 
     MAREA_ParseFixture fixture;
 
-    const std::string DUMP{ MAREA_itemsOf(fixture, "import a { f } constant MAX: integer32 = 10;") };
+    const std::string DUMP{ MAREA_itemsOf(fixture, "import a { f } constant MAX: sinteger32 = 10;") };
 
     EXPECT_EQ(fixture.MAREA_codes(), std::vector<MAREA_Uinteger32>{ MAREA_PARSE_DIAGNOSTIC_CODE_EXPECTED_TOKEN }) << "A missing semicolon is EXPECTED_TOKEN.";
 

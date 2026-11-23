@@ -17,7 +17,7 @@ import collections.array;
 import collections.slice;
 import concurrency.task;
 
-constant WORKER_COUNT: integer32 = 4;
+constant WORKER_COUNT: sinteger32 = 4;
 
 -- A worker is a plain function. It has no knowledge of threads.
 function scale_slice(part: mutable slice<float32>, factor: float32)
