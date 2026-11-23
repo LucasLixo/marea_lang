@@ -279,6 +279,37 @@ TEST(MAREASemaTypedAst, NonGenericCallResultCarriesTheCalleeReturnType)
     EXPECT_EQ(declaration, MAREA_SemaTypedNodeGetAstNode(structureNode)) << "The call result must carry the real Shape declaration, not a guess.";
 }
 
+TEST(MAREASemaTypedAst, ConstructionCallResultCarriesTheConstructedTypeDeclaration)
+{
+    GTEST_COUT << "Validating Type(args) is typed USER with the real structure declaration, not the construct function." << std::endl;
+
+    MAREA_SemaFixture fixture;
+
+    const std::string SOURCE{ "namespace main; structure Point x: float32; y: float32; end implementation Point #[operator = \"construct\"] function make(x: float32 = 0.0, y: float32 = 0.0) end end function f(): Point return Point(1.0, 2.0); end" };
+
+    ASSERT_EQ(fixture.MAREA_sema(SOURCE), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
+
+    const MAREA_SemaTypedNode *outRoot{ nullptr };
+
+    ASSERT_EQ(MAREA_SemaBuildTypedAst(fixture.context, fixture.parser.root, &outRoot), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "A checked root with zero errors must build.";
+
+    const MAREA_SemaTypedNode *structureNode{ MAREA_findTypedNodeByKind(outRoot, MAREA_AST_KIND_STRUCTURE_DECLARATION) };
+
+    ASSERT_NE(structureNode, nullptr) << "The typed tree must carry the Point structure declaration.";
+
+    const MAREA_SemaTypedNode *callNode{ MAREA_findTypedNodeByKind(outRoot, MAREA_AST_KIND_CALL_EXPRESSION) };
+
+    ASSERT_NE(callNode, nullptr) << "The typed tree must carry the Point(1.0, 2.0) call node.";
+
+    EXPECT_EQ(MAREA_SemaTypedNodeGetTypeClass(callNode), MAREA_SEMA_TYPE_CLASS_USER) << "The construction call result must classify as USER.";
+
+    const MAREA_AstNode *declaration{ nullptr };
+
+    ASSERT_EQ(MAREA_SemaTypedNodeGetTypeDeclaration(callNode, &declaration), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "The declaration must be reachable.";
+
+    EXPECT_EQ(declaration, MAREA_SemaTypedNodeGetAstNode(structureNode)) << "The construction call result must carry the Point structure declaration, not the construct function.";
+}
+
 TEST(MAREASemaTypedAst, GenericCallResultIsTaggedGenericWithoutSubstitution)
 {
     GTEST_COUT << "Validating a generic call result is tagged GENERIC with the raw type kept, never substituted." << std::endl;
