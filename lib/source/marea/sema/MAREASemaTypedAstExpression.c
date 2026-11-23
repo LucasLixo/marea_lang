@@ -742,6 +742,12 @@ static MAREA_SemaExprType MAREA_CALL MAREA_G_TypeOfCall(MAREA_G_Resolver *resolv
         return MAREA_G_TypeOfNode(convertTarget, MAREA_NULLPTR);
     }
 
+    const MAREA_SemaExprType BUILTIN = MAREA_SemaTypedAstBuiltinCallType(resolver->context, call);
+
+    if (MAREA_G_TypeIsKnown(&BUILTIN) == MAREA_BOOLEAN_TRUE) {
+        return BUILTIN;
+    }
+
     const MAREA_AstNode *callee = MAREA_SemaChildAt(call, 0);
 
     // INFO: a call on the name of a structure or an enum is a construction, so the value has that type.
@@ -777,7 +783,7 @@ static MAREA_SemaExprType MAREA_CALL MAREA_G_TypeOfCall(MAREA_G_Resolver *resolv
 
     const MAREA_AstNode *result = MAREA_SemaReturnType(CALLEE.node);
 
-    return (result == MAREA_NULLPTR) ? MAREA_G_TypeNone() : MAREA_G_TypeOfNode(result, CALLEE.frame);
+    return (result == MAREA_NULLPTR) ? MAREA_SemaTypedAstVoidType() : MAREA_G_TypeOfNode(result, CALLEE.frame);
 }
 
 static MAREA_Boolean MAREA_CALL MAREA_G_IsNumberLiteralKind(MAREA_AstKind kind)
@@ -884,6 +890,11 @@ static MAREA_SemaExprType MAREA_CALL MAREA_G_TypeOfBinary(const MAREA_SemaTypedN
 static MAREA_SemaExprType MAREA_CALL MAREA_G_TypeOfSpawn(MAREA_G_Resolver *resolver, const MAREA_SemaTypedNode *built)
 {
     const MAREA_SemaExprType OPERAND = MAREA_G_TypeOfChild(built, 0);
+
+    // INFO: a task of void is not a type that can be written, so spawn of a call with no result keeps no type.
+    if (MAREA_SemaTypedAstTypeIsVoid(&OPERAND) == MAREA_BOOLEAN_TRUE) {
+        return MAREA_G_TypeNone();
+    }
 
     const MAREA_Character8 *text = MAREA_NULLPTR;
 
