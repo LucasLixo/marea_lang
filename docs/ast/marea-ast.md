@@ -67,7 +67,7 @@ field or member that owns it.
 | `IMPORT_DECLARATION` (flag HAS_ALIAS or HAS_MEMBERS, never both) | `QUALIFIED_NAME` (the namespace), then [`IDENTIFIER` alias] when HAS_ALIAS, or `IMPORT_MEMBER`+ when HAS_MEMBERS |
 | `IMPORT_MEMBER` (flag HAS_ALIAS) | `QUALIFIED_NAME` (the member path, one or two parts for the checker), [`IDENTIFIER` alias] |
 | `QUALIFIED_NAME` | `IDENTIFIER`+ |
-| `IDENTIFIER`, `INTEGER_LITERAL`, `FLOAT_LITERAL`, `STRING_LITERAL`, `BOOLEAN_LITERAL` | none, they have text (a string keeps its quotes and is not decoded) |
+| `IDENTIFIER`, `INTEGER_LITERAL`, `FLOAT_LITERAL`, `STRING_LITERAL`, `CHARACTER_LITERAL`, `BOOLEAN_LITERAL` | none, they have text (a string or a character keeps its quotes and is not decoded) |
 | `ATTRIBUTE`, `FILE_ATTRIBUTE` | `ATTRIBUTE_ITEM`+ |
 | `ATTRIBUTE_ITEM` | `IDENTIFIER` key [`BOOLEAN_LITERAL`, `INTEGER_LITERAL`, `STRING_LITERAL` or `QUALIFIED_NAME`] |
 | `CONSTANT_DECLARATION` | `ATTRIBUTE*`, `IDENTIFIER`, type, expr |
