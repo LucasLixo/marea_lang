@@ -14,6 +14,7 @@ namespace
     constexpr MAREA_Uinteger32 INVALID_BORROW{ MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_BORROW };
     constexpr MAREA_Uinteger32 INVALID_JUMP{ MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_PARALLEL_JUMP };
     constexpr MAREA_Uinteger32 EXCLUSIVE{ MAREA_SEMA_DIAGNOSTIC_CODE_EXCLUSIVE_BORROW_CONFLICT };
+    constexpr MAREA_Uinteger32 CONSTANT_AS_MUTABLE{ MAREA_SEMA_DIAGNOSTIC_CODE_CANNOT_BORROW_CONSTANT_AS_MUTABLE };
 
     const std::string SHAPE{ "structure Shape x: float32; end structure Outer inner: Shape; end function make(): Shape return Shape{ x = 1.0 }; end " };
 
@@ -196,6 +197,19 @@ TEST(MAREASemaOwnership, SameNameInTwoMutableArgumentsConflicts)
     EXPECT_EQ(MAREA_codesOf(TAKE + "function f(s: Shape) take(s, s); end"), Codes{ EXCLUSIVE }) << "A repeated name with a write borrow (the non-primitive default) must raise EXCLUSIVE_BORROW_CONFLICT.";
 
     EXPECT_TRUE(MAREA_codesOf(TAKE + "function f(s: Shape) other(s, s); end").empty()) << "Two read-only borrows must raise nothing.";
+}
+
+TEST(MAREASemaOwnership, ConstantBoundToAWriteBorrowParameterIsRejected)
+{
+    GTEST_COUT << "Validating a file constant passed to a write-borrow parameter raises CANNOT_BORROW_CONSTANT_AS_MUTABLE; a variable in the same position still passes." << std::endl;
+
+    const std::string TAKE{ SHAPE + "constant ORIGIN: Shape = make(); function take(a: Shape) end function other(#[semantics = reference_read_only] a: Shape) end " };
+
+    EXPECT_EQ(MAREA_codesOf(TAKE + "function f() take(ORIGIN); end"), Codes{ CONSTANT_AS_MUTABLE }) << "A constant bound to a write-borrow (the non-primitive default) must raise CANNOT_BORROW_CONSTANT_AS_MUTABLE.";
+
+    EXPECT_TRUE(MAREA_codesOf(TAKE + "function f(s: Shape) take(s); end").empty()) << "A variable bound to the same write-borrow parameter must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(TAKE + "function f() other(ORIGIN); end").empty()) << "A constant bound to a read-only borrow must raise nothing.";
 }
 
 TEST(MAREASemaOwnership, ErrorNodeInPlaceOfAssignmentOrReturnIsSkipped)
