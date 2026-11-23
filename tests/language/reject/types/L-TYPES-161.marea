@@ -1,0 +1,11 @@
+-- expect: 2001 @10
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A local with no colon before its type.
+
+namespace main;
+
+function run()
+    local value sinteger32 = 1;
+end

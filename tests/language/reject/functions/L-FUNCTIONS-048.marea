@@ -1,0 +1,16 @@
+-- expect: 3017 @14
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A value_read_only parameter of a structure.
+
+namespace main;
+
+structure Point
+    x: float64;
+    y: float64;
+end
+
+function length(#[semantics = value_read_only] point: Point): float64
+    return point.x;
+end

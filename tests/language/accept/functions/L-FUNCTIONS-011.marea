@@ -1,0 +1,15 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Unreachable ends the path of a function with a result.
+
+namespace main;
+
+function never(value: sinteger32): sinteger32
+    if value > 0 then
+        return value;
+    end
+    end
+    unreachable!();
+end

@@ -1,0 +1,14 @@
+-- expect: 3026 @11
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A break in an if that is not in a loop.
+
+namespace main;
+
+function run(flag: boolean)
+    if flag then
+        break;
+    end
+    end
+end

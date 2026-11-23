@@ -1,0 +1,17 @@
+-- expect: 3022 @9
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An if and elseif chain with no else.
+
+namespace main;
+
+function pick(value: sinteger32): sinteger32
+    if value > 0 then
+        return 1;
+    end
+    elseif value < 0 then
+        return -1;
+    end
+    end
+end

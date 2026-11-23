@@ -1,0 +1,11 @@
+-- expect: 3031 @9, 3009 @9
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An enum tag that is not a type.
+
+namespace main;
+
+enum Level : Missing
+    Low;
+end

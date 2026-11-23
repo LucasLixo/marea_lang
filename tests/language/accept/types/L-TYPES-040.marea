@@ -1,0 +1,17 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A constant of an implementation block of an enum.
+
+namespace main;
+
+enum Color
+    Red;
+    Green;
+    Blue;
+end
+
+implementation Color
+    constant COUNT: sinteger32 = 3;
+end

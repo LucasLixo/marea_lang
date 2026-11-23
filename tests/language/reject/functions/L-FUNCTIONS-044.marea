@@ -1,0 +1,11 @@
+-- expect: 3030 @9, 3030 @9
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Two parameters with a default before a required one.
+
+namespace main;
+
+function mix(first: sinteger32 = 1, second: sinteger32 = 2, third: sinteger32): sinteger32
+    return first + second + third;
+end

@@ -1,0 +1,17 @@
+-- expect: 3009 @16
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A nested field of a type that does not exist, after a valid field.
+
+namespace main;
+
+structure Point
+    x: float64;
+    y: float64;
+end
+
+structure Segment
+    start: Point;
+    finish: Missing;
+end
