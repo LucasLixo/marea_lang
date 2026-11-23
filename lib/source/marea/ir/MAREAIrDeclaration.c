@@ -84,6 +84,23 @@ MAREA_IrExcept MAREA_CALL MAREA_IrCreateNamed(MAREA_IrContext *context, MAREA_Ir
     return MAREA_IR_EXCEPT_SUCCESS;
 }
 
+const MAREA_SemaTypedNode *MAREA_CALL MAREA_IrTypedFindDefault(const MAREA_SemaTypedNode *typed)
+{
+    const MAREA_IntegerSize COUNT = MAREA_SemaTypedNodeGetChildCount(typed);
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); (index + MAREA_INTEGER_SIZE(1)) < COUNT; index = (index + MAREA_INTEGER_SIZE(1))) {
+        const MAREA_AstKind KIND = MAREA_IrTypedKind(MAREA_IrTypedChildAt(typed, index));
+
+        if ((KIND != MAREA_AST_KIND_NAMED_TYPE) && (KIND != MAREA_AST_KIND_FUNCTION_TYPE)) {
+            continue;
+        }
+
+        return MAREA_IrTypedChildAt(typed, (index + MAREA_INTEGER_SIZE(1)));
+    }
+
+    return MAREA_NULLPTR;
+}
+
 MAREA_IrExcept MAREA_CALL MAREA_IrAppendInitializer(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode *node, MAREA_Boolean *outComplete)
 {
     if (context == MAREA_NULLPTR) {
@@ -104,33 +121,27 @@ MAREA_IrExcept MAREA_CALL MAREA_IrAppendInitializer(MAREA_IrContext *context, co
 
     *outComplete = MAREA_BOOLEAN_TRUE;
 
-    const MAREA_IntegerSize COUNT = MAREA_SemaTypedNodeGetChildCount(typed);
+    const MAREA_SemaTypedNode *initializer = MAREA_IrTypedFindDefault(typed);
 
-    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); (index + MAREA_INTEGER_SIZE(1)) < COUNT; index = (index + MAREA_INTEGER_SIZE(1))) {
-        const MAREA_AstKind KIND = MAREA_IrTypedKind(MAREA_IrTypedChildAt(typed, index));
-
-        if ((KIND != MAREA_AST_KIND_NAMED_TYPE) && (KIND != MAREA_AST_KIND_FUNCTION_TYPE)) {
-            continue;
-        }
-
-        MAREA_IrNode *lowered = MAREA_NULLPTR;
-
-        MAREA_IrExcept result = MAREA_IrLowerExpression(context, MAREA_IrTypedChildAt(typed, (index + MAREA_INTEGER_SIZE(1))), &lowered);
-
-        if (result != MAREA_IR_EXCEPT_SUCCESS) {
-            return result;
-        }
-
-        if (lowered == MAREA_NULLPTR) {
-            *outComplete = MAREA_BOOLEAN_FALSE;
-
-            return MAREA_IR_EXCEPT_SUCCESS;
-        }
-
-        return MAREA_IrNodeAppendChild(context, node, lowered);
+    if (initializer == MAREA_NULLPTR) {
+        return MAREA_IR_EXCEPT_SUCCESS;
     }
 
-    return MAREA_IR_EXCEPT_SUCCESS;
+    MAREA_IrNode *lowered = MAREA_NULLPTR;
+
+    MAREA_IrExcept result = MAREA_IrLowerExpression(context, initializer, &lowered);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    if (lowered == MAREA_NULLPTR) {
+        *outComplete = MAREA_BOOLEAN_FALSE;
+
+        return MAREA_IR_EXCEPT_SUCCESS;
+    }
+
+    return MAREA_IrNodeAppendChild(context, node, lowered);
 }
 
 static MAREA_IrExcept MAREA_CALL MAREA_G_AppendNamed(MAREA_IrContext *context, MAREA_IrKind kind, const MAREA_SemaTypedNode *typed, MAREA_IrNode *parent)
@@ -141,6 +152,26 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_AppendNamed(MAREA_IrContext *context, M
 
     if (created != MAREA_IR_EXCEPT_SUCCESS) {
         return created;
+    }
+
+    return MAREA_IrNodeAppendChild(context, parent, node);
+}
+
+// INFO: a parameter whose default cannot be lowered drops the whole function, never a partial parameter list.
+static MAREA_IrExcept MAREA_CALL MAREA_G_AppendParameter(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode *parent, MAREA_Boolean *outComplete)
+{
+    MAREA_IrNode *node = MAREA_NULLPTR;
+
+    MAREA_IrExcept result = MAREA_IrCreateNamed(context, MAREA_IR_KIND_PARAMETER, typed, MAREA_NULLPTR, MAREA_INTEGER_SIZE(0), &node);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    result = MAREA_IrAppendInitializer(context, typed, node, outComplete);
+
+    if ((result != MAREA_IR_EXCEPT_SUCCESS) || (*outComplete == MAREA_BOOLEAN_FALSE)) {
+        return result;
     }
 
     return MAREA_IrNodeAppendChild(context, parent, node);
@@ -185,6 +216,9 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerOpaque(MAREA_IrContext *context, c
     return MAREA_G_AppendNamed(context, MAREA_IR_KIND_STRUCTURE_DECLARATION, typed, parent);
 }
 
+// INFO: an enum with no written tag type defaults to sinteger32, per the language spec.
+static const MAREA_Character8 MAREA_G_DefaultEnumTagType[] = "sinteger32";
+
 static MAREA_IrExcept MAREA_CALL MAREA_G_LowerEnum(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode *parent)
 {
     MAREA_IrNode *node = MAREA_NULLPTR;
@@ -193,6 +227,11 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerEnum(MAREA_IrContext *context, con
 
     if (result != MAREA_IR_EXCEPT_SUCCESS) {
         return result;
+    }
+
+    if (node->typeName == MAREA_NULLPTR) {
+        node->typeName = MAREA_G_DefaultEnumTagType;
+        node->typeNameLength = (MAREA_IntegerSize)(sizeof(MAREA_G_DefaultEnumTagType) - MAREA_INTEGER_SIZE(1));
     }
 
     const MAREA_IntegerSize VARIANT_COUNT = MAREA_SemaTypedNodeGetChildCount(typed);
@@ -314,10 +353,17 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerFunctionBody(MAREA_IrContext *cont
                 continue;
             }
 
-            result = MAREA_G_AppendNamed(context, MAREA_IR_KIND_PARAMETER, parameter, listNode);
+            MAREA_Boolean complete = MAREA_BOOLEAN_TRUE;
+
+            result = MAREA_G_AppendParameter(context, parameter, listNode, &complete);
 
             if (result != MAREA_IR_EXCEPT_SUCCESS) {
                 return result;
+            }
+
+            // INFO: a parameter default that cannot be lowered drops the whole function, never a partial one.
+            if (complete == MAREA_BOOLEAN_FALSE) {
+                return MAREA_IR_EXCEPT_SUCCESS;
             }
         }
 

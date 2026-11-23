@@ -127,6 +127,41 @@ TEST(MAREAIrDeclarations, EnumKeepsVariantsAndVariantFields)
     EXPECT_EQ(MAREA_IrNodeGetChildCount(MAREA_irChild(declaration, 1)), 0U) << "A variant without fields must have zero children.";
 }
 
+TEST(MAREAIrDeclarations, EnumWithNoTagDefaultsToSinteger32)
+{
+    GTEST_COUT << "Validating an enum with no written tag type carries sinteger32 as its type name." << std::endl;
+
+    MAREA_IrFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; enum Status Active; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+
+    EXPECT_EQ(MAREA_irTypeName(MAREA_irChild(fixture.module, 0)), "sinteger32") << "The default tag type must be sinteger32.";
+}
+
+TEST(MAREAIrDeclarations, EnumKeepsItsWrittenTagType)
+{
+    GTEST_COUT << "Validating an enum with a written tag type carries it as its type name." << std::endl;
+
+    MAREA_IrFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; enum Status : uinteger8 Active; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+
+    EXPECT_EQ(MAREA_irTypeName(MAREA_irChild(fixture.module, 0)), "uinteger8") << "The written tag type must be kept.";
+}
+
+TEST(MAREAIrDeclarations, ParameterDefaultValueIsLoweredAsAChild)
+{
+    GTEST_COUT << "Validating a parameter with a default value lowers it as its own child." << std::endl;
+
+    MAREA_IrFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; function greet(name: string, times: sinteger32 = 1) end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+
+    const MAREA_IrNode *function{ MAREA_irChild(fixture.module, 0) };
+
+    EXPECT_EQ(MAREA_irRender(MAREA_irChild(function, 0)), "(PARAMETER_LIST (PARAMETER name :string) (PARAMETER times :sinteger32 (INTEGER_LITERAL 1)))") << "The defaulted parameter must keep its default as a child.";
+}
+
 TEST(MAREAIrDeclarations, FunctionKeepsParametersAndReturnTypeName)
 {
     GTEST_COUT << "Validating a function lowers to a FUNCTION_DECLARATION with a PARAMETER_LIST and an empty BLOCK." << std::endl;
@@ -247,7 +282,7 @@ TEST(MAREAIrDeclarations, StructuresExampleKeepsItsDeclarationShells)
 
     EXPECT_EQ(MAREA_irRender(MAREA_irChild(fixture.module, 0)), "(STRUCTURE_DECLARATION Point (FIELD_DECLARATION x :float64) (FIELD_DECLARATION y :float64))") << "Point must match the source.";
 
-    EXPECT_EQ(MAREA_irRender(MAREA_irChild(fixture.module, 1)), "(ENUM_DECLARATION ShapeKind (VARIANT_DECLARATION Circle) (VARIANT_DECLARATION Rectangle))") << "ShapeKind must match the source.";
+    EXPECT_EQ(MAREA_irRender(MAREA_irChild(fixture.module, 1)), "(ENUM_DECLARATION ShapeKind :sinteger32 (VARIANT_DECLARATION Circle) (VARIANT_DECLARATION Rectangle))") << "ShapeKind must match the source, with its default tag type materialized.";
 
     EXPECT_EQ(MAREA_irRender(MAREA_irChild(fixture.module, 2)), "(STRUCTURE_DECLARATION Shape (FIELD_DECLARATION kind :ShapeKind) (FIELD_DECLARATION center :Point) (FIELD_DECLARATION width :float64) (FIELD_DECLARATION height :float64))") << "Shape must match the source.";
 

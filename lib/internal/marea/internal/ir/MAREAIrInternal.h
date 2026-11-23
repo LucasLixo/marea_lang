@@ -214,6 +214,16 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrAppendInitializer(MAREA_IrContext * context, const MAREA_SemaTypedNode *typed, MAREA_IrNode *node, MAREA_Boolean *outComplete);
 
     /**
+     * @brief Returns the typed expression right after a typed node's first type child (NAMED_TYPE or
+     * FUNCTION_TYPE): the written default of a parameter, or the written initializer of a field or a
+     * constant. The same shape also reads a function's own parameter default when filling an omitted
+     * call argument.
+     * @param typed Typed node to search. Null returns null.
+     * @return The typed default expression, or null when the node has no type child or nothing follows it.
+     */
+    MAREA_NODISCARD const MAREA_SemaTypedNode *MAREA_CALL MAREA_IrTypedFindDefault(const MAREA_SemaTypedNode *typed);
+
+    /**
      * @brief Lowers one typed BLOCK and its statements. A statement that cannot be lowered makes the
      * whole block lower to nothing, so no partial body appears.
      * @param context Context that owns the arena and sink. Must not be null.

@@ -113,6 +113,20 @@ TEST(MAREAIrExpressions, CallWithoutArgumentsKeepsAnEmptyArgumentList)
     EXPECT_EQ(MAREA_lowerInitializer("function one(): sinteger32 return 1; end", "sinteger32", "one()"), "(CALL_EXPRESSION :sinteger32 (IDENTIFIER one) (ARGUMENT_LIST))") << "The argument list must be present and empty.";
 }
 
+TEST(MAREAIrExpressions, CallFillsOmittedDefaultedArgument)
+{
+    GTEST_COUT << "Validating a call that omits a defaulted trailing argument fills it with the parameter's default expression." << std::endl;
+
+    EXPECT_EQ(MAREA_lowerInitializer("function add(a: sinteger32, b: sinteger32 = 5): sinteger32 return a + b; end", "sinteger32", "add(1)"), "(CALL_EXPRESSION :sinteger32 (IDENTIFIER add) (ARGUMENT_LIST (INTEGER_LITERAL 1) (INTEGER_LITERAL 5)))") << "The omitted argument must be filled with the default expression.";
+}
+
+TEST(MAREAIrExpressions, CallWithEveryArgumentIsUnaffectedByDefaults)
+{
+    GTEST_COUT << "Validating a call that supplies every argument is unaffected by a trailing default." << std::endl;
+
+    EXPECT_EQ(MAREA_lowerInitializer("function add(a: sinteger32, b: sinteger32 = 5): sinteger32 return a + b; end", "sinteger32", "add(1, 2)"), "(CALL_EXPRESSION :sinteger32 (IDENTIFIER add) (ARGUMENT_LIST (INTEGER_LITERAL 1) (INTEGER_LITERAL 2)))") << "An explicit argument must not be replaced by the default.";
+}
+
 TEST(MAREAIrExpressions, IndexAccessKeepsTargetAndIndex)
 {
     GTEST_COUT << "Validating an index access keeps the lowered target and the lowered index." << std::endl;
