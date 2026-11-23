@@ -424,6 +424,25 @@ TEST(MAREASemaTypedAst, PrimitiveIdentifierOwnershipIsValue)
     EXPECT_EQ(MAREA_SemaTypedNodeGetOwnershipMode(returned), MAREA_SEMA_OWNERSHIP_MODE_VALUE) << "A primitive identifier must carry ownership mode VALUE.";
 }
 
+TEST(MAREASemaTypedAst, EnumParameterOwnershipIsValue)
+{
+    GTEST_COUT << "Validating an enum parameter has ownership mode VALUE, the documented intentional exception; #[value] no longer exists." << std::endl;
+
+    MAREA_SemaFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; enum Color red; end function f(c: Color) end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
+
+    const MAREA_SemaTypedNode *outRoot{ nullptr };
+
+    ASSERT_EQ(MAREA_SemaBuildTypedAst(fixture.context, fixture.parser.root, &outRoot), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "A checked root with zero errors must build.";
+
+    const MAREA_SemaTypedNode *parameter{ MAREA_findTypedNodeByKind(outRoot, MAREA_AST_KIND_PARAMETER) };
+
+    ASSERT_NE(parameter, nullptr) << "The typed tree must carry the parameter node.";
+
+    EXPECT_EQ(MAREA_SemaTypedNodeGetOwnershipMode(parameter), MAREA_SEMA_OWNERSHIP_MODE_VALUE) << "An enum parameter must carry ownership mode VALUE.";
+}
+
 TEST(MAREASemaTypedAst, ReadOnlyBorrowParameterOwnershipIsBorrow)
 {
     GTEST_COUT << "Validating a read-only structure parameter has ownership mode BORROW." << std::endl;

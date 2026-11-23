@@ -77,7 +77,7 @@ enum
 {
     MAREA_G_RULE_ALIGN = 4,
     MAREA_G_RULE_PACK = 5,
-    MAREA_G_RULE_COUNT = 10,
+    MAREA_G_RULE_COUNT = 9,
 };
 
 // INFO: the order is fixed because the MAREA_G_RULE_ indexes above name entries of this table.
@@ -88,7 +88,9 @@ static const MAREA_G_AttributeRule MAREA_G_RULES[MAREA_G_RULE_COUNT] = {
     { .key = "layout", .members = MAREA_G_LayoutMembers, .shape = MAREA_G_ATTRIBUTE_SHAPE_MEMBER },
     { .key = "align", .members = MAREA_NULLPTR, .shape = MAREA_G_ATTRIBUTE_SHAPE_ALIGNMENT },
     { .key = "pack", .members = MAREA_NULLPTR, .shape = MAREA_G_ATTRIBUTE_SHAPE_INTEGER },
-    { .key = "value", .members = MAREA_NULLPTR, .shape = MAREA_G_ATTRIBUTE_SHAPE_FLAG },
+    // INFO: "value" is retired - removed outright, not kept as a flag. Only a primitive, a copyable
+    // array and an enum are ever copied by value; enum is a documented intentional exception (see
+    // MAREA_G_IsByValue in MAREASemaOwnership.c).
     { .key = "move_only", .members = MAREA_NULLPTR, .shape = MAREA_G_ATTRIBUTE_SHAPE_FLAG },
     { .key = "operator", .members = MAREA_G_OperatorVocabulary, .shape = MAREA_G_ATTRIBUTE_SHAPE_VOCABULARY },
     { .key = "export", .members = MAREA_NULLPTR, .shape = MAREA_G_ATTRIBUTE_SHAPE_STRING },

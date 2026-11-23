@@ -601,8 +601,10 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsSatisfied(const MAREA_SemaContext *con
             return (element == MAREA_NULLPTR) ? MAREA_BOOLEAN_TRUE : MAREA_G_IsSatisfied(context, element, contract);
         }
 
-        // INFO: an enum is a plain integer, so it is always copied.
-        return ((CLASS == MAREA_SEMA_TYPE_CLASS_USER) && ((MAREA_AstNodeGetKind(declaration) == MAREA_AST_KIND_ENUM_DECLARATION) || (MAREA_SemaAttributeIsOn(context->root, declaration, "value") == MAREA_BOOLEAN_TRUE))) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+        // INFO: an enum is a plain integer, so it is always copied - the documented, intentional
+        // exception to "a non-primitive is never a copy contract". The retired "value" attribute
+        // no longer exempts any other user type: a plain or move_only structure is never Copyable.
+        return ((CLASS == MAREA_SEMA_TYPE_CLASS_USER) && (MAREA_AstNodeGetKind(declaration) == MAREA_AST_KIND_ENUM_DECLARATION)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
     }
 
     if (MAREA_G_TextIs(contractName, CONTRACT_LENGTH, "Movable") == MAREA_BOOLEAN_TRUE) {
@@ -614,7 +616,9 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsSatisfied(const MAREA_SemaContext *con
             return MAREA_BOOLEAN_FALSE;
         }
 
-        return ((MAREA_SemaAttributeIsOn(context->root, declaration, "move_only") == MAREA_BOOLEAN_TRUE) || (MAREA_SemaAttributeIsOn(context->root, declaration, "value") == MAREA_BOOLEAN_FALSE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+        // INFO: the retired "value" attribute no longer exists, so every user type (plain,
+        // move_only or enum) is Movable now that no user type can claim a copy contract instead.
+        return MAREA_BOOLEAN_TRUE;
     }
 
     const MAREA_SemaName *entry = MAREA_SemaNameTableFind(context, contractName, CONTRACT_LENGTH);
