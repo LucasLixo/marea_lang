@@ -171,6 +171,12 @@ A `known_gap` item that shares an issue shows one hole of the compiler through m
 ### Bindings: reject
 
 | Id | Shows | Expected |
+| L-BINDINGS-022 | A literal too big for any integer type | 3033 @10 |
+| L-BINDINGS-026 | A uinteger8 literal of 256 is out of range (rule 4) | 3033 @10 |
+| L-BINDINGS-027 | A sinteger8 literal of 128 is out of range (rule 4) | 3033 @10 |
+| L-BINDINGS-028 | A sinteger8 literal of -129 is out of range (rule 4) | 3033 @10 |
+| L-BINDINGS-029 | A sinteger32 literal of 2147483648 is out of range (rule 4) | 3033 @10 |
+| L-BINDINGS-031 | A negated unsigned literal | 3033 @10 |
 |---|---|---|
 | L-BINDINGS-001 | A stray at sign is an unknown byte | 1001 @10, 2001 @10 |
 | L-BINDINGS-002 | A C style // comment is no comment, it is two divide operators | 2002 @10, 2002 @10, 2001 @10, 2001 @10, 2001 @11, 3004 @10, 3004 @10, 3004 @10 |
@@ -195,6 +201,9 @@ A `known_gap` item that shares an issue shows one hole of the compiler through m
 | L-BINDINGS-021 | A number glued to letters | 2001 @10, 3004 @10 |
 | L-BINDINGS-032 | A negated unsigned value | 3036 @11 |
 | L-BINDINGS-037 | The minimum value divided by minus one | 3037 @10 |
+| L-BINDINGS-033 | A constant division by zero | 3034 @10 |
+| L-BINDINGS-034 | A constant remainder by zero | 3034 @10 |
+| L-BINDINGS-035 | A shift count equal to the width of the type | 3035 @11 |
 | L-BINDINGS-038 | Sinteger32 plus sinteger64 is a mismatch | 3011 @12 |
 | L-BINDINGS-039 | Sinteger32 plus float64 is a mismatch | 3011 @12 |
 | L-BINDINGS-040 | A comparison of two widths is a mismatch | 3011 @12 |
@@ -243,15 +252,6 @@ A `known_gap` item that shares an issue shows one hole of the compiler through m
 
 | Id | Shows | Expected |
 |---|---|---|
-| L-BINDINGS-022 | A literal too big for any integer type | gap: #181 NEW, rule: reject |
-| L-BINDINGS-026 | A uinteger8 literal of 256 is out of range (rule 4) | gap: #181 NEW, rule: reject |
-| L-BINDINGS-027 | A sinteger8 literal of 128 is out of range (rule 4) | gap: #181 NEW, rule: reject |
-| L-BINDINGS-028 | A sinteger8 literal of -129 is out of range (rule 4) | gap: #181 NEW, rule: reject |
-| L-BINDINGS-029 | A sinteger32 literal of 2147483648 is out of range (rule 4) | gap: #181 NEW, rule: reject |
-| L-BINDINGS-031 | A negated unsigned literal | gap: #181 NEW, rule: reject |
-| L-BINDINGS-033 | A constant division by zero | gap: #183 NEW, rule: reject |
-| L-BINDINGS-034 | A constant remainder by zero | gap: #183 NEW, rule: reject |
-| L-BINDINGS-035 | A shift count equal to the width of the type | gap: #184 NEW, rule: reject |
 | L-BINDINGS-055 | A bit operator on a float | gap: #186 NEW, rule: reject |
 | L-BINDINGS-056 | A logical operator on integers | gap: #187 NEW, rule: reject |
 | L-BINDINGS-061 | A local redeclared in the same scope | gap: #188 3003, rule: reject |
@@ -1105,8 +1105,8 @@ Facts the items fix, checked by running the compiler:
   `for each` over a read-only vector, a worker and a `partition mutable` of a read-only source (issue #204). The
   default borrow of a parameter with no attribute is a write borrow in sema (issue #203, items 063 and 065).
 - Two settled rules are not enforced in the places that parallel code and generics add: a local with no initial value is
-  accepted when a worker reads it (issue #177, item 017), and a literal out of range is accepted as a `spawn` argument,
-  a default value, a struct literal field and a constant (issue #181, items 018 to 021).
+  accepted when a worker reads it (issue #177, item 017). A literal out of range gives 3033 as a `spawn` argument, a
+  default value, a struct literal field and a constant (issue #181, items 018 to 021).
 - The type of a field read through a `for each` variable is not compared (issue #246, item 070), and the type arguments
   of a library type or of a user generic structure are not compared (issue #245, items 067 to 069). The same read of a
   field through a parameter, a local or an index gives 3011.
@@ -1119,6 +1119,10 @@ generic or an alias needs a second namespace, and the runner gives an item one f
 ### Adversarial: reject
 
 | Id | Shows | Expected |
+| L-ADVERSARIAL-018 | A literal out of range is the argument of a spawn | 3033 @61 |
+| L-ADVERSARIAL-019 | A literal out of range is the default value of a parameter | 3033 @35 |
+| L-ADVERSARIAL-020 | A literal out of range is a field of a struct literal | 3033 @40 |
+| L-ADVERSARIAL-021 | A literal out of range is the value of a constant used by a generic call | 3033 @35 |
 |---|---|---|
 | L-ADVERSARIAL-005 | A value is passed to a generic function twice as a write borrow | 3019 @40 |
 | L-ADVERSARIAL-010 | A file constant is passed to a generic function as a write borrow | 3032 @41 |
@@ -1162,10 +1166,6 @@ generic or an alias needs a second namespace, and the runner gives an item one f
 | L-ADVERSARIAL-015 | A for each element is moved into an owned parameter | gap: #199 NEW, rule: reject |
 | L-ADVERSARIAL-016 | A value moved into an owned parameter is spawned afterwards | gap: #198 NEW, rule: reject |
 | L-ADVERSARIAL-017 | A local with no initial value is spawned | gap: #177 NEW, rule: reject |
-| L-ADVERSARIAL-018 | A literal out of range is the argument of a spawn | gap: #181 NEW, rule: reject |
-| L-ADVERSARIAL-019 | A literal out of range is the default value of a parameter | gap: #181 NEW, rule: reject |
-| L-ADVERSARIAL-020 | A literal out of range is a field of a struct literal | gap: #181 NEW, rule: reject |
-| L-ADVERSARIAL-021 | A literal out of range is the value of a constant used by a generic call | gap: #181 NEW, rule: reject |
 | L-ADVERSARIAL-023 | The source of a partition mutable is read in the body while the parts are written | gap: #232 NEW, rule: reject |
 | L-ADVERSARIAL-024 | A nested fork_join reads what the outer block writes | gap: #210 3020, rule: reject |
 | L-ADVERSARIAL-025 | Two workers over one for each mutable element, one writes and one reads | gap: #210 3020, rule: reject |
@@ -1242,8 +1242,8 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 
 | area | accept | reject | known_gap |
 |---|---|---|---|
-| adversarial | 0 | 23 | 49 |
-| bindings | 33 | 66 | 14 |
+| adversarial | 0 | 27 | 45 |
+| bindings | 33 | 75 | 5 |
 | coverage | 0 | 0 | 1 |
 | examples | 16 | 0 | 0 |
 | functions | 19 | 41 | 13 |
@@ -1254,7 +1254,7 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | parallel | 19 | 23 | 17 |
 | seed | 1 | 1 | 1 |
 | types | 60 | 108 | 28 |
-| total | 262 | 345 | 200 |
+| total | 262 | 358 | 187 |
 
 ## Parity plan
 
@@ -1276,6 +1276,8 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 | 1001-1006 | `lex` | [marea-lex.md](../lex/marea-lex.md) |
 | 2001-2010 | `parse` | [marea-ast.md](../ast/marea-ast.md) |
 | 3001-3032 | `sema` | [marea-sema.md](../sema/marea-sema.md) |
+| 3033 | `sema` | [marea-sema.md](../sema/marea-sema.md), `LITERAL_OUT_OF_RANGE` |
+| 3034-3035 | `sema` | [marea-sema.md](../sema/marea-sema.md), the division and shift rules of constant operands |
 | 3036-3037 | `sema` | [marea-sema.md](../sema/marea-sema.md) |
 | 4004-4006 | `ir` | [marea-ir.md](../ir/marea-ir.md), no item reaches them (see Gaps) |
 
@@ -1343,9 +1345,9 @@ Each rule is kept as a `known_gap` item with its issue, as reject codes, or as a
 | use of a moved value | known_gap items of #198 |
 | use of an uninitialized value | known_gap items of #177 |
 | write through a read-only borrow | known_gap items of #204 |
-| literal out of range | known_gap items of #181 |
-| constant division by zero | known_gap items of #183 |
-| shift count too large | known_gap items of #184 |
+| literal out of range | reject items with 3033 (L-BINDINGS-022, 026 to 029, 031, L-ADVERSARIAL-018 to 021) |
+| constant division by zero | reject items of 3034 |
+| shift count too large | reject items of 3035 |
 | recursive type by value | known_gap items of #221 (L-TYPES-029, 030) |
 | cyclic alias | known_gap items of #221 (L-TYPES-124, 125) |
 | cyclic constant | L-COVERAGE-001, issue #249 |
