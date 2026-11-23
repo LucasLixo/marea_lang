@@ -133,7 +133,7 @@ TEST(MAREALexerBasics, IdentifierNamesThatLookLikeKeywords)
 
     MAREA_LexFixture fixture;
 
-    ASSERT_EQ(fixture.MAREA_lex("integer32 Self self public private c boolean string forkjoin"), MAREA_LEX_EXCEPT_SUCCESS) << "Lexing must succeed.";
+    ASSERT_EQ(fixture.MAREA_lex("sinteger32 Self self public private c boolean string forkjoin"), MAREA_LEX_EXCEPT_SUCCESS) << "Lexing must succeed.";
 
     for (const MAREA_TokenKind KIND : fixture.MAREA_kinds()) {
         EXPECT_TRUE((KIND == MAREA_TOKEN_KIND_IDENTIFIER) || (KIND == MAREA_TOKEN_KIND_END_OF_FILE)) << "Every name here must lex as a plain identifier.";

@@ -8,10 +8,10 @@ namespace types.collections;
 import collections.array;
 import collections.table;
 
-#[public]
-function show_collections(): integer32
-    -- array<T>: elements of one type. An element of a primitive type is copied out.
-    local values: array<float32> = array<float32>{ 1.0, 2.0, 3.0 };
+#[visibility = public]
+function show_collections(): sinteger32
+    -- c.array<T>: elements of one type. An element of a primitive type is copied out.
+    local values: c.array<float32> = c.array<float32>{ 1.0, 2.0, 3.0 };
     local first: float32 = values[0];
 
     -- array<T, N>: the size is part of the type.
@@ -19,12 +19,12 @@ function show_collections(): integer32
 
     -- table<K, V>: a key type and a value type. A mixed table does not exist;
     -- use a structure when the fields have different types.
-    local scores: table<string, integer32> = table<string, integer32>{ ["ana"] = 10, ["leo"] = 7 };
+    local scores: table<string, sinteger32> = table<string, sinteger32>{ ["ana"] = 10, ["leo"] = 7 };
     scores["mia"] = 9;
-    local ana: integer32 = scores["ana"];
-    local count: integer32 = table.length(scores);
+    local ana: sinteger32 = scores["ana"];
+    local count: sinteger32 = table.length(scores);
 
-    -- vector<T, N>: N values in one SIMD register.
-    local direction: vector<float32, 4> = vector<float32, 4>{ 1.0, 0.0, 0.0, 0.0 };
+    -- array<T, N>: N values stored inline, copied like a primitive.
+    local direction: array<float32, 4> = array<float32, 4>{ 1.0, 0.0, 0.0, 0.0 };
     return count;
 end

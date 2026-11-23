@@ -9,8 +9,6 @@ namespace
 {
     using Codes = std::vector<MAREA_Uinteger32>;
 
-    constexpr MAREA_Uinteger32 INVALID_MAIN{ MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_MAIN_SIGNATURE };
-
     Codes MAREA_codesOf(const std::string &source, const std::string &path = "main.marea")
     {
         MAREA_SemaFixture fixture([](const std::string &, const MAREA_AstNode **) { return MAREA_SEMA_IMPORT_RESULT_EXTERNAL; });
@@ -25,54 +23,54 @@ namespace
 
 TEST(MAREASemaEntryPoint, ExactSignatureIsAccepted)
 {
-    GTEST_COUT << "Validating the exact main signature raises nothing." << std::endl;
+    GTEST_COUT << "Validating the former fixed main signature raises nothing." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("namespace main; function main(arguments: array<string>): integer32 return 0; end").empty()) << "The exact signature must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("namespace main; function main(arguments: c.array<string>): sinteger32 return 0; end").empty()) << "The former signature must raise nothing.";
 }
 
 TEST(MAREASemaEntryPoint, SameSignatureInAnotherNamespaceIsNotChecked)
 {
     GTEST_COUT << "Validating a function named main outside the main namespace is not checked." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("namespace tools.runner; function main(x: integer32): boolean return true; end", "tools/runner.marea").empty()) << "Another namespace must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("namespace tools.runner; function main(x: sinteger32): boolean return true; end", "tools/runner.marea").empty()) << "Another namespace must raise nothing.";
 }
 
-TEST(MAREASemaEntryPoint, WrongParameterTypeIsRejected)
+TEST(MAREASemaEntryPoint, AnyParameterTypeIsAccepted)
 {
-    GTEST_COUT << "Validating a wrong parameter type of main is rejected." << std::endl;
+    GTEST_COUT << "Validating a main with any parameter type raises nothing." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf("namespace main; function main(arguments: array<integer32>): integer32 return 0; end"), Codes{ INVALID_MAIN }) << "A wrong element type must raise INVALID_MAIN_SIGNATURE.";
+    EXPECT_TRUE(MAREA_codesOf("namespace main; function main(arguments: c.array<sinteger32>): sinteger32 return 0; end").empty()) << "Another element type must raise nothing.";
 
-    EXPECT_EQ(MAREA_codesOf("namespace main; function main(arguments: string): integer32 return 0; end"), Codes{ INVALID_MAIN }) << "A wrong type must raise INVALID_MAIN_SIGNATURE.";
+    EXPECT_TRUE(MAREA_codesOf("namespace main; function main(arguments: string): sinteger32 return 0; end").empty()) << "Another type must raise nothing.";
 }
 
-TEST(MAREASemaEntryPoint, ParameterFlagIsRejected)
+TEST(MAREASemaEntryPoint, ParameterFlagIsAccepted)
 {
-    GTEST_COUT << "Validating a mutable or reference flag on the arguments is rejected." << std::endl;
+    GTEST_COUT << "Validating a semantics attribute on a main parameter raises nothing." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf("namespace main; function main(arguments: mutable array<string>): integer32 return 0; end"), Codes{ INVALID_MAIN }) << "A mutable flag must raise INVALID_MAIN_SIGNATURE.";
+    EXPECT_TRUE(MAREA_codesOf("namespace main; function main(arguments: c.array<string>): sinteger32 return 0; end").empty()) << "The non-primitive default (reference_mutable) must raise nothing.";
 
-    EXPECT_EQ(MAREA_codesOf("namespace main; function main(arguments: reference array<string>): integer32 return 0; end"), Codes{ INVALID_MAIN }) << "A reference flag must raise INVALID_MAIN_SIGNATURE.";
+    EXPECT_TRUE(MAREA_codesOf("namespace main; function main(#[semantics = reference_read_only] arguments: c.array<string>): sinteger32 return 0; end").empty()) << "An explicit reference_read_only must raise nothing.";
 }
 
-TEST(MAREASemaEntryPoint, WrongReturnTypeIsRejected)
+TEST(MAREASemaEntryPoint, AnyReturnTypeIsAccepted)
 {
-    GTEST_COUT << "Validating a wrong or missing return type of main is rejected." << std::endl;
+    GTEST_COUT << "Validating a main with another or no return type raises nothing." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf("namespace main; function main(arguments: array<string>): integer64 return 0; end"), Codes{ INVALID_MAIN }) << "A wrong return type must raise INVALID_MAIN_SIGNATURE.";
+    EXPECT_TRUE(MAREA_codesOf("namespace main; function main(arguments: c.array<string>): sinteger64 return 0; end").empty()) << "Another return type must raise nothing.";
 
-    EXPECT_EQ(MAREA_codesOf("namespace main; function main(arguments: array<string>) end"), Codes{ INVALID_MAIN }) << "A missing return type must raise INVALID_MAIN_SIGNATURE.";
+    EXPECT_TRUE(MAREA_codesOf("namespace main; function main(arguments: c.array<string>) end").empty()) << "A missing return type must raise nothing.";
 }
 
-TEST(MAREASemaEntryPoint, WrongParameterCountOrNameIsRejected)
+TEST(MAREASemaEntryPoint, AnyParameterCountOrNameIsAccepted)
 {
-    GTEST_COUT << "Validating a main with no parameter, two parameters or another name is rejected." << std::endl;
+    GTEST_COUT << "Validating a main with no parameter, two parameters or another name raises nothing." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf("namespace main; function main(): integer32 return 0; end"), Codes{ INVALID_MAIN }) << "No parameter must raise INVALID_MAIN_SIGNATURE.";
+    EXPECT_TRUE(MAREA_codesOf("namespace main; function main(): sinteger32 return 0; end").empty()) << "No parameter must raise nothing.";
 
-    EXPECT_EQ(MAREA_codesOf("namespace main; function main(arguments: array<string>, extra: integer32): integer32 return 0; end"), Codes{ INVALID_MAIN }) << "Two parameters must raise INVALID_MAIN_SIGNATURE.";
+    EXPECT_TRUE(MAREA_codesOf("namespace main; function main(arguments: c.array<string>, extra: sinteger32): sinteger32 return 0; end").empty()) << "Two parameters must raise nothing.";
 
-    EXPECT_EQ(MAREA_codesOf("namespace main; function main(args: array<string>): integer32 return 0; end"), Codes{ INVALID_MAIN }) << "Another parameter name must raise INVALID_MAIN_SIGNATURE.";
+    EXPECT_TRUE(MAREA_codesOf("namespace main; function main(args: c.array<string>): sinteger32 return 0; end").empty()) << "Another parameter name must raise nothing.";
 }
 
 TEST(MAREASemaEntryPoint, NamespaceWithoutMainIsAccepted)
@@ -86,5 +84,5 @@ TEST(MAREASemaEntryPoint, OtherFunctionsInMainNamespaceAreNotChecked)
 {
     GTEST_COUT << "Validating only the function named main is checked." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("namespace main; function other(x: integer32): boolean return true; end").empty()) << "Another function must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("namespace main; function other(x: sinteger32): boolean return true; end").empty()) << "Another function must raise nothing.";
 }

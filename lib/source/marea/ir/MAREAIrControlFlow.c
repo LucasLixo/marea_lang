@@ -92,7 +92,8 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerLocal(MAREA_IrContext *context, co
 
     MAREA_Boolean complete = MAREA_BOOLEAN_TRUE;
 
-    result = MAREA_IrAppendInitializer(context, typed, node, &complete);
+    // INFO: a local with no written initializer is the zero-default rule's own case: it gets an explicit ZERO_VALUE.
+    result = MAREA_IrAppendInitializer(context, typed, node, MAREA_BOOLEAN_TRUE, &complete);
 
     if ((result == MAREA_IR_EXCEPT_SUCCESS) && (complete == MAREA_BOOLEAN_TRUE)) {
         *outNode = node;
@@ -881,6 +882,326 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerStatement(MAREA_IrContext *context
     }
 }
 
+// INFO: one destructible local directly declared in a block, paired with the destroy operator its type names.
+typedef struct MAREA_G_DestroyPlanEntry
+{
+    const MAREA_IrNode *local;
+    const MAREA_SemaTypedNode *function;
+} MAREA_G_DestroyPlanEntry;
+
+// INFO: true when a UNARY_EXPRESSION with the operator move, anywhere in node's subtree, names the local text:
+// INFO: syntactic and order-insensitive (the language has no lifetime analysis), so a local moved anywhere in its
+// INFO: own block, on any branch, is never destroyed at any exit of that block (see docs/ir/marea-ir.md Gaps).
+static MAREA_Boolean MAREA_CALL MAREA_G_ContainsMoveOf(const MAREA_IrNode *node, const MAREA_Character8 *text, MAREA_IntegerSize length)
+{
+    if ((node->kind == MAREA_IR_KIND_UNARY_EXPRESSION) && (node->operatorKind == MAREA_TOKEN_KIND_KEYWORD_MOVE) && (node->childCount > MAREA_INTEGER_SIZE(0))) {
+        const MAREA_IrNode *operand = node->children[0];
+
+        if ((operand->kind == MAREA_IR_KIND_IDENTIFIER) && (operand->textLength == (MAREA_Uinteger32)length) && (memcmp(operand->text, text, length) == 0)) {
+            return MAREA_BOOLEAN_TRUE;
+        }
+    }
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < node->childCount; index = (index + MAREA_INTEGER_SIZE(1))) {
+        if (MAREA_G_ContainsMoveOf(node->children[index], text, length) == MAREA_BOOLEAN_TRUE) {
+            return MAREA_BOOLEAN_TRUE;
+        }
+    }
+
+    return MAREA_BOOLEAN_FALSE;
+}
+
+// INFO: builds one DESTROY_CALL: the text is the qualified destroy function ("Type.name"), the one child an
+// INFO: IDENTIFIER naming the local, for a backend to bind as the receiver.
+static MAREA_IrExcept MAREA_CALL MAREA_G_CreateDestroyCall(MAREA_IrContext *context, const MAREA_AstNode *positionAst, const MAREA_IrNode *local, const MAREA_SemaTypedNode *destroyFunction, MAREA_IrNode **outNode)
+{
+    const MAREA_SemaTypedNode *name = MAREA_IrTypedFindChild(destroyFunction, MAREA_AST_KIND_IDENTIFIER);
+
+    if (name == MAREA_NULLPTR) {
+        return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    const MAREA_AstNode *nameAst = MAREA_SemaTypedNodeGetAstNode(name);
+
+    MAREA_IrNode *node = MAREA_NULLPTR;
+
+    MAREA_IrExcept result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_DESTROY_CALL, positionAst, &node);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    MAREA_G_KeepOnlyPosition(node);
+
+    result = MAREA_IrNodeSetQualifiedText(context, node, local->typeName, local->typeNameLength, MAREA_AstNodeGetText(nameAst), MAREA_AstNodeGetTextLength(nameAst));
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    MAREA_IrNode *reference = MAREA_NULLPTR;
+
+    result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_IDENTIFIER, positionAst, &reference);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    MAREA_G_KeepOnlyPosition(reference);
+    reference->text = local->text;
+    reference->textLength = local->textLength;
+
+    result = MAREA_IrNodeAppendChild(context, node, reference);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    *outNode = node;
+
+    return MAREA_IR_EXCEPT_SUCCESS;
+}
+
+// INFO: builds one fresh DESTROY_CALL per plan entry, in the plan's own order (already reverse declaration order).
+static MAREA_IrExcept MAREA_CALL MAREA_G_MaterializeDestroys(MAREA_IrContext *context, const MAREA_AstNode *positionAst, const MAREA_G_DestroyPlanEntry *plan, MAREA_IntegerSize planCount, MAREA_IrNode ***outNodes)
+{
+    MAREA_Null memory = MAREA_NULLPTR;
+
+    if (MAREA_ArenaAllocate(context->arena, (planCount * sizeof(MAREA_IrNode *)), MAREA_ALIGNOF(MAREA_IrNode *), &memory) != MAREA_ARENA_EXCEPT_SUCCESS) {
+        return MAREA_IR_EXCEPT_ERROR_OUT_OF_MEMORY;
+    }
+
+    MAREA_IrNode **nodes = memory;
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < planCount; index = (index + MAREA_INTEGER_SIZE(1))) {
+        nodes[index] = MAREA_NULLPTR;
+
+        const MAREA_IrExcept result = MAREA_G_CreateDestroyCall(context, positionAst, plan[index].local, plan[index].function, &nodes[index]);
+
+        if (result != MAREA_IR_EXCEPT_SUCCESS) {
+            return result;
+        }
+    }
+
+    *outNodes = nodes;
+
+    return MAREA_IR_EXCEPT_SUCCESS;
+}
+
+// INFO: replaces original, a matched exit, with a fresh BLOCK(destroy..., original): a new, independent set of
+// INFO: DESTROY_CALL nodes, never the same node instance reused at two exits.
+static MAREA_IrExcept MAREA_CALL MAREA_G_WrapWithDestroys(MAREA_IrContext *context, const MAREA_AstNode *positionAst, const MAREA_G_DestroyPlanEntry *plan, MAREA_IntegerSize planCount, MAREA_IrNode *original, MAREA_IrNode **outWrapped)
+{
+    MAREA_IrNode **destroys = MAREA_NULLPTR;
+
+    MAREA_IrExcept result = MAREA_G_MaterializeDestroys(context, positionAst, plan, planCount, &destroys);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    MAREA_IrNode *wrapper = MAREA_NULLPTR;
+
+    result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_BLOCK, positionAst, &wrapper);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    MAREA_G_KeepOnlyPosition(wrapper);
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < planCount; index = (index + MAREA_INTEGER_SIZE(1))) {
+        result = MAREA_IrNodeAppendChild(context, wrapper, destroys[index]);
+
+        if (result != MAREA_IR_EXCEPT_SUCCESS) {
+            return result;
+        }
+    }
+
+    result = MAREA_IrNodeAppendChild(context, wrapper, original);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    *outWrapped = wrapper;
+
+    return MAREA_IR_EXCEPT_SUCCESS;
+}
+
+// INFO: recurses through node's whole subtree, wrapping every matched exit with a fresh copy of plan's destroys.
+// INFO: matchReturn finds RETURN_STATEMENT and descends into a nested loop too (a return unwinds the whole
+// INFO: function); matchReturn false finds BREAK_STATEMENT and CONTINUE_STATEMENT but stops at a nested
+// INFO: WHILE_STATEMENT or FOR_EACH_STATEMENT, whose own break or continue targets that loop instead (the same
+// INFO: stopping rule MAREA_G_PrefixContinues already uses for the for-range step). Recursing generically into
+// INFO: every child, rather than matching a bare kind only at the top, is what makes repeated calls at nested
+// INFO: block levels compose correctly: an inner block's own wrap becomes this pass's new subtree to walk, so
+// INFO: an outer block's destroys end up nested inside it, and so run after the inner ones, innermost first.
+static MAREA_IrExcept MAREA_CALL MAREA_G_PrefixExits(MAREA_IrContext *context, const MAREA_AstNode *positionAst, MAREA_IrNode *node, const MAREA_G_DestroyPlanEntry *plan, MAREA_IntegerSize planCount, MAREA_Boolean matchReturn)
+{
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < node->childCount; index = (index + MAREA_INTEGER_SIZE(1))) {
+        MAREA_IrNode *child = node->children[index];
+
+        if ((matchReturn == MAREA_BOOLEAN_FALSE) && ((child->kind == MAREA_IR_KIND_WHILE_STATEMENT) || (child->kind == MAREA_IR_KIND_FOR_EACH_STATEMENT))) {
+            continue;
+        }
+
+        const MAREA_Boolean isMatch = (matchReturn == MAREA_BOOLEAN_TRUE) ? (child->kind == MAREA_IR_KIND_RETURN_STATEMENT) : ((child->kind == MAREA_IR_KIND_BREAK_STATEMENT) || (child->kind == MAREA_IR_KIND_CONTINUE_STATEMENT));
+
+        if (isMatch == MAREA_BOOLEAN_FALSE) {
+            const MAREA_IrExcept result = MAREA_G_PrefixExits(context, positionAst, child, plan, planCount, matchReturn);
+
+            if (result != MAREA_IR_EXCEPT_SUCCESS) {
+                return result;
+            }
+
+            continue;
+        }
+
+        MAREA_IrNode *wrapped = MAREA_NULLPTR;
+
+        const MAREA_IrExcept result = MAREA_G_WrapWithDestroys(context, positionAst, plan, planCount, child, &wrapped);
+
+        if (result != MAREA_IR_EXCEPT_SUCCESS) {
+            return result;
+        }
+
+        node->children[index] = wrapped;
+    }
+
+    return MAREA_IR_EXCEPT_SUCCESS;
+}
+
+// INFO: true when block's own last statement unconditionally transfers control: a RETURN, BREAK or CONTINUE, or
+// INFO: (recursively, through a wrap MAREA_G_WrapWithDestroys built) a BLOCK whose own last statement does.
+static MAREA_Boolean MAREA_CALL MAREA_G_BlockEndsInJump(const MAREA_IrNode *block)
+{
+    if (block->childCount == MAREA_INTEGER_SIZE(0)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_IrNode *last = block->children[(block->childCount - MAREA_INTEGER_SIZE(1))];
+
+    if ((last->kind == MAREA_IR_KIND_RETURN_STATEMENT) || (last->kind == MAREA_IR_KIND_BREAK_STATEMENT) || (last->kind == MAREA_IR_KIND_CONTINUE_STATEMENT)) {
+        return MAREA_BOOLEAN_TRUE;
+    }
+
+    return (last->kind == MAREA_IR_KIND_BLOCK) ? MAREA_G_BlockEndsInJump(last) : MAREA_BOOLEAN_FALSE;
+}
+
+// INFO: a local is destructible when its written type names a destroy operator in some implementation of it.
+static const MAREA_SemaTypedNode *MAREA_CALL MAREA_G_FindDestroyOperator(MAREA_IrContext *context, const MAREA_IrNode *local)
+{
+    if (local->typeName == MAREA_NULLPTR) {
+        return MAREA_NULLPTR;
+    }
+
+    return MAREA_IrFindLifecycleFunction(context, local->typeName, local->typeNameLength, MAREA_BOOLEAN_FALSE);
+}
+
+// INFO: inserts the destroy calls for every destructible local block declares directly, at every exit of block:
+// INFO: a RETURN, BREAK or CONTINUE reachable in its subtree, and the fallthrough end when block does not
+// INFO: already end in a jump. Reverse declaration order; a local moved anywhere in block is skipped everywhere
+// INFO: (see MAREA_G_ContainsMoveOf). A block with no destructible local, by far the common case, costs one
+// INFO: pass over its own direct children and nothing else.
+static MAREA_IrExcept MAREA_CALL MAREA_G_InsertDestroys(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode *block)
+{
+    if (block->childCount == MAREA_INTEGER_SIZE(0)) {
+        return MAREA_IR_EXCEPT_SUCCESS;
+    }
+
+    MAREA_Null forwardMemory = MAREA_NULLPTR;
+
+    if (MAREA_ArenaAllocate(context->arena, (block->childCount * sizeof(MAREA_G_DestroyPlanEntry)), MAREA_ALIGNOF(MAREA_G_DestroyPlanEntry), &forwardMemory) != MAREA_ARENA_EXCEPT_SUCCESS) {
+        return MAREA_IR_EXCEPT_ERROR_OUT_OF_MEMORY;
+    }
+
+    MAREA_G_DestroyPlanEntry *forward = forwardMemory;
+    MAREA_IntegerSize forwardCount = MAREA_INTEGER_SIZE(0);
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < block->childCount; index = (index + MAREA_INTEGER_SIZE(1))) {
+        const MAREA_IrNode *child = block->children[index];
+
+        if (child->kind != MAREA_IR_KIND_LOCAL_DECLARATION) {
+            continue;
+        }
+
+        const MAREA_SemaTypedNode *destroyFunction = MAREA_G_FindDestroyOperator(context, child);
+
+        if (destroyFunction == MAREA_NULLPTR) {
+            continue;
+        }
+
+        forward[forwardCount].local = child;
+        forward[forwardCount].function = destroyFunction;
+        forwardCount = (forwardCount + MAREA_INTEGER_SIZE(1));
+    }
+
+    if (forwardCount == MAREA_INTEGER_SIZE(0)) {
+        return MAREA_IR_EXCEPT_SUCCESS;
+    }
+
+    MAREA_Null planMemory = MAREA_NULLPTR;
+
+    if (MAREA_ArenaAllocate(context->arena, (forwardCount * sizeof(MAREA_G_DestroyPlanEntry)), MAREA_ALIGNOF(MAREA_G_DestroyPlanEntry), &planMemory) != MAREA_ARENA_EXCEPT_SUCCESS) {
+        return MAREA_IR_EXCEPT_ERROR_OUT_OF_MEMORY;
+    }
+
+    MAREA_G_DestroyPlanEntry *plan = planMemory;
+    MAREA_IntegerSize planCount = MAREA_INTEGER_SIZE(0);
+
+    for (MAREA_IntegerSize index = forwardCount; index > MAREA_INTEGER_SIZE(0); index = (index - MAREA_INTEGER_SIZE(1))) {
+        const MAREA_G_DestroyPlanEntry *entry = &forward[(index - MAREA_INTEGER_SIZE(1))];
+
+        if (MAREA_G_ContainsMoveOf(block, entry->local->text, entry->local->textLength) == MAREA_BOOLEAN_TRUE) {
+            continue;
+        }
+
+        plan[planCount] = *entry;
+        planCount = (planCount + MAREA_INTEGER_SIZE(1));
+    }
+
+    if (planCount == MAREA_INTEGER_SIZE(0)) {
+        return MAREA_IR_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_AstNode *positionAst = MAREA_SemaTypedNodeGetAstNode(typed);
+
+    MAREA_IrExcept result = MAREA_G_PrefixExits(context, positionAst, block, plan, planCount, MAREA_BOOLEAN_TRUE);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    result = MAREA_G_PrefixExits(context, positionAst, block, plan, planCount, MAREA_BOOLEAN_FALSE);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    if (MAREA_G_BlockEndsInJump(block) == MAREA_BOOLEAN_TRUE) {
+        return MAREA_IR_EXCEPT_SUCCESS;
+    }
+
+    MAREA_IrNode **destroys = MAREA_NULLPTR;
+
+    result = MAREA_G_MaterializeDestroys(context, positionAst, plan, planCount, &destroys);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < planCount; index = (index + MAREA_INTEGER_SIZE(1))) {
+        result = MAREA_IrNodeAppendChild(context, block, destroys[index]);
+
+        if (result != MAREA_IR_EXCEPT_SUCCESS) {
+            return result;
+        }
+    }
+
+    return MAREA_IR_EXCEPT_SUCCESS;
+}
+
 MAREA_IrExcept MAREA_CALL MAREA_IrLowerBlock(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode)
 {
     if (context == MAREA_NULLPTR) {
@@ -901,5 +1222,23 @@ MAREA_IrExcept MAREA_CALL MAREA_IrLowerBlock(MAREA_IrContext *context, const MAR
         return MAREA_IR_EXCEPT_SUCCESS;
     }
 
-    return MAREA_G_LowerKept(context, MAREA_IR_KIND_BLOCK, typed, outNode);
+    MAREA_IrNode *block = MAREA_NULLPTR;
+
+    MAREA_IrExcept result = MAREA_G_LowerKept(context, MAREA_IR_KIND_BLOCK, typed, &block);
+
+    if ((result != MAREA_IR_EXCEPT_SUCCESS) || (block == MAREA_NULLPTR)) {
+        *outNode = block;
+
+        return result;
+    }
+
+    result = MAREA_G_InsertDestroys(context, typed, block);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    *outNode = block;
+
+    return MAREA_IR_EXCEPT_SUCCESS;
 }

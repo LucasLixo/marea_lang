@@ -56,14 +56,24 @@ joined as `Type.name` and copied into the arena.
 Flags reuse the AST flag bits. `MAREA_AST_FLAG_MUTABLE` is kept on a `PARAMETER`, on a `PARTITION_STATEMENT`,
 on a `FOR_EACH_STATEMENT` and on the hidden loop variable of a for-range loop. A
 node made by the named-node path (declarations, fields, parameters, locals) drops every flag but `MUTABLE`.
+A `PARAMETER` no longer carries `MUTABLE` on its own raw AST node (the retired `mutable`/`reference`
+parameter keywords used to set it there); it is set on the `PARAMETER` IR node instead from the
+ownership mode sema already computed for it (`MAREA_SemaTypedNodeGetOwnershipMode`), which is
+`MUTABLE_BORROW` exactly when the parameter's effective `semantics` attribute is
+`reference_mutable` - the default for a non-primitive type with no attribute written. The other modes
+(`VALUE`, `BORROW`) both leave the flag clear, so the ir does not tell a by-value parameter from a read-only borrow:
+a backend reads that from the type, and there is no other flag for it (see Gaps).
 
-The type name is the head name of the written type, with no type arguments (`array<integer32>` gives
+The type name is the head name of the written type, with no type arguments (`array<sinteger32>` gives
 `array`; a dotted name is kept whole). A `FUNCTION_TYPE` gives none. It is set on: `CONSTANT_DECLARATION`,
 `FIELD_DECLARATION`, `VARIANT_FIELD`, `PARAMETER`, `LOCAL_DECLARATION` and `FUNCTION_DECLARATION`
 (its return type), read from the AST type child; on a struct `LITERAL_VALUE`, from its type child;
 and on a non-generic `CALL_EXPRESSION`, from the type name the typed tree carries for the call result,
 when it has one. A `CALL_EXPRESSION` of a built-in or of a static call on a written type (see Type operands)
 follows the same rule, and a `TYPE_NAME` or a `BUILTIN_NAME` has no type name: it holds its name as text.
+An `ENUM_DECLARATION` also carries a type name, its tag type: the written tag when the source wrote one
+(`enum Name : uinteger8 ... end` gives `uinteger8`), or the literal `sinteger32` when it wrote none, the
+default the language spec sets for a tag with no written type.
 
 ## Kinds and what is erased
 
@@ -79,7 +89,9 @@ operands). The kinds are: `MODULE`, `CONSTANT_DECLARATION`,
 `BINARY_EXPRESSION`, `UNARY_EXPRESSION`, `MEMBER_ACCESS`, `INDEX_ACCESS`, `CALL_EXPRESSION`,
 `ARGUMENT_LIST`, `LITERAL_VALUE`, `FIELD_ENTRY`, `INDEX_ENTRY`, `VALUE_ENTRY`, `QUALIFIED_NAME`,
 `UNREACHABLE_STATEMENT`, `FORK_JOIN_BLOCK`, `PARTITION_STATEMENT`, `WITH_STATEMENT`, `FOR_EACH_STATEMENT`,
-`TYPE_NAME` and `BUILTIN_NAME`. The last six come after every older kind, so no value of an older kind moved.
+`TYPE_NAME`, `BUILTIN_NAME`, `CHARACTER_LITERAL` (the text is the literal as written, with its single quotes) and
+`ZERO_VALUE` (see Zero-default creation), `CONSTRUCT_CALL` and `DESTROY_CALL` (see Construct and destroy lowering). The last
+ten come after every older kind, so no value of an older kind moved.
 
 The module keeps its declarations in source order. The typing is erased before the IR, so these make
 no node:
@@ -101,7 +113,102 @@ Other shapes:
 - A `do ... end` scope stays a `SCOPE_BLOCK` with a `BLOCK` child.
 - A `FIELD_ENTRY` of a literal is named after its field and holds the lowered value as its only child.
 - `unreachable!()` as a statement becomes `UNREACHABLE_STATEMENT`.
-- A constant, variant field or local with an initializer holds the lowered expression as its only child.
+- A constant, variant field or local with an initializer holds the lowered expression as its only child. A
+  `LOCAL_DECLARATION` with no written initializer holds a `ZERO_VALUE` instead, never no child (see
+  Zero-default creation); a `CONSTANT_DECLARATION` and a `VARIANT_FIELD` keep the no-child shape when they have
+  no initializer, because the rule does not reach them (see Zero-default creation and Gaps).
+- A `PARAMETER` with a default value holds the lowered default as its only child, the same shape a
+  constant or a variant field uses for its own initializer. A `PARAMETER` with no default keeps the no-child
+  shape: it is a required argument, not a zero (see Zero-default creation).
+- A `CALL_EXPRESSION` whose callee is the bare name of a function of the same unit fills every
+  parameter the call omitted: the `ARGUMENT_LIST` holds the lowered written arguments first, then, for
+  each trailing parameter the call did not supply, the lowered default read fresh from that parameter in
+  the callee's own typed parameter list. The ir materializes every default, so a backend never looks at
+  the callee's declaration to find one (see Gaps for what callee shape this does not cover). A parameter
+  or a local of the enclosing function that hides the module name (`MAREA_IrFunctionDeclares`, the same
+  check an import alias uses) is never matched to the module function, so a call of the local fills
+  nothing.
+
+## Zero-default creation
+
+The language spec's zero-default rule (decided 2026-11-22: no value or field is left unset at creation) covers six
+creation paths in all: a literal with an omitted field, a `local` with no initializer, `Type(args)` before
+`construct`, `array<T, N>` elements, `owned<T>` storage and a `convert` result that exposes padding. The ir lowers
+only the two it can see without a backend, both as an explicit `ZERO_VALUE`: a leaf with no text, no type name and
+no children, left for a backend to fill (see the backend contract below). The other four are a gap, recorded below
+and in Gaps; they need `cgen` or `vm` to exist first.
+
+- **A `LOCAL_DECLARATION` with no written initializer** holds one `ZERO_VALUE` as its only child, in place of the
+  no-child shape it had before this rule. `local total: sinteger32;` lowers to `(LOCAL_DECLARATION total
+  :sinteger32 (ZERO_VALUE))`.
+- **A struct `LITERAL_VALUE` field the source left unnamed** gets a synthesized `FIELD_ENTRY`, named after the
+  structure's own field and holding a `ZERO_VALUE` as its only child, appended after every `FIELD_ENTRY` the source
+  wrote, in the structure's own field declaration order. `Point{ x = 1 }`, with `Point` declaring `x` then `y`,
+  lowers to `(LITERAL_VALUE :Point (FIELD_ENTRY x (INTEGER_LITERAL 1)) (FIELD_ENTRY y (ZERO_VALUE)))`. The ir finds
+  the structure by its (de-aliased) type name among the non-generic `STRUCTURE_DECLARATION` items of the unit; a
+  generic structure, an opaque one (it has no field to miss) or a structure the unit does not declare (another
+  namespace) keeps today's shape with no synthesized field, a cross-module gap the ir already has elsewhere (see
+  Aliases and Gaps).
+- The rule stops at these two shapes. A `PARAMETER` with no default, a `CONSTANT_DECLARATION` (the grammar always
+  requires its initializer) and a `VARIANT_FIELD` with no written value all keep their own no-child shape: a
+  missing parameter default is a required argument, and a missing variant field default is a required argument of
+  the variant, neither one a zero.
+- **Backend contract (not yet implemented, recorded here for `cgen`/`vm`):** a `ZERO_VALUE` carries no type of its
+  own; a backend reads the type name of the node that holds it (the `LOCAL_DECLARATION`'s own type name, or the
+  structure field's declared type, found the same way the ir found the structure). `cgen` is expected to emit
+  `= {0}` for a type of constant size, or a `memset` otherwise; the `vm` is expected to zero the slot on
+  allocation. A parity test is expected to read the zeroed value on both backends and expect 0. None of this exists
+  yet (see Gaps): the ir only places the marker.
+
+## Construct and destroy lowering
+
+The language spec makes construction and destruction automatic. The ir makes both explicit, so a backend never
+looks for a `construct` or a `destroy` by itself. Two kinds, appended after `ZERO_VALUE`, carry them. A new kind,
+not a flag on `CALL_EXPRESSION`, because a flag would print in the dump as a raw bit mask.
+
+- **`CONSTRUCT_CALL`** is `Type(args)`. Its type name is the written name of the structure or enum that is
+  constructed. Its one child is an `ARGUMENT_LIST`: the written arguments first, then the lowered default of each
+  trailing parameter the call omitted, read from the parameter list of the type's own `construct` operator, the way
+  an ordinary call fills its defaults. A type with no `construct` gets an empty `ARGUMENT_LIST`. The ir finds the
+  structure or enum by name among the declarations of the same unit; a `Type(args)` of a type it cannot find there
+  stays an ordinary `CALL_EXPRESSION` (see Gaps). The ir does not place a zero fill in front of the call: the
+  language spec zeroes the value before `construct` runs, and that stays the backend's job, read from the type name
+  (see Zero-default creation). A local or a parameter
+  of the enclosing function that hides the type name stops the match, as for an ordinary call. `Point(1)` with
+  `construct(x: sinteger32 = 0, y: sinteger32 = 0)` lowers to `(CONSTRUCT_CALL :Point (ARGUMENT_LIST (INTEGER_LITERAL 1)
+  (INTEGER_LITERAL 0)))`.
+- **`DESTROY_CALL`** is the cleanup of one local. Its text is the qualified destroy function (`Box.drop`), and its
+  one child is an `IDENTIFIER` that names the local, for a backend to bind as the receiver. The node has no other
+  argument and no result, because sema rejects a `destroy` that takes a parameter or returns a value
+  (`LIFECYCLE_OPERATOR_BAD_SHAPE`, 3029) and a direct call of `construct` or `destroy`
+  (`LIFECYCLE_OPERATOR_CALLED_DIRECTLY`, 3027). The ir does not check either again, so these two kinds are the only
+  place where a lifecycle function is called.
+
+A local is destructible when the type name it was declared with is the type of an `implementation` that holds a
+function with `#[operator = "destroy"]`. Every `BLOCK` that declares such a local directly (a function body, a
+loop body, a branch, an `if`, a `do ... end` scope) gets the destroys of its own locals, and only of its own:
+
+- **Order.** Reverse declaration order: the local declared last is destroyed first. A nested block destroys its own
+  locals before the block that holds it does.
+- **Fall through.** The destroys are appended at the end of the block, unless the block already ends in a `return`,
+  `break` or `continue` (a jump leaves them in front of the jump instead). A loop body therefore destroys its
+  locals once per iteration.
+- **Early exit.** A `return`, `break` or `continue` that leaves the block is replaced by `BLOCK(destroy..., jump)`,
+  with a fresh `DESTROY_CALL` set for each exit (a node is never shared between two places). A `return` leaves every
+  enclosing block, so it also leaves the inner blocks of a nested loop; a `break` or `continue` is wrapped only up to
+  the nearest `WHILE_STATEMENT` or `FOR_EACH_STATEMENT`, which it targets, so it never destroys a local of a block
+  outside its own loop. The inner block wraps first, so the destroys of the inner locals run before those of the
+  outer ones. For a for-range `continue` the destroys stand in front of the step.
+- **Moved-from locals.** A local that `move x` names anywhere in its own block is never destroyed at any exit of that
+  block. The check is syntactic: the language has no lifetime analysis, so a move on one branch still skips the
+  destroy on every branch (see Gaps).
+
+```
+local a: Box = Box(); local b: Box = Box();
+(BLOCK (LOCAL_DECLARATION a :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST)))
+       (LOCAL_DECLARATION b :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST)))
+       (DESTROY_CALL Box.drop (IDENTIFIER b)) (DESTROY_CALL Box.drop (IDENTIFIER a)))
+```
 
 ## For-range desugaring
 
@@ -252,9 +359,9 @@ one alias table from the unit before it lowers a declaration:
 - A whole-path alias (`import a.b.c as d;`) stands for the last segment of its path (`c`).
 - A member alias (`import a.b { f as g, Color.red as Crimson };`) stands for the member path as written (`f`,
   `Color.red`). A two-part path is joined with a dot in the arena. A member without `as` is not an alias.
-- A local type alias without generic parameters (`type Name = Other;`, `type Name = Other<integer32>;`) stands for
+- A local type alias without generic parameters (`type Name = Other;`, `type Name = Other<sinteger32>;`) stands for
   the written head type name; the type arguments are not kept, as on any written type. An alias of a function type
-  (`type Callback = function(v: integer32): boolean;`) lowers to no type name, as the written function type does.
+  (`type Callback = function(v: sinteger32): boolean;`) lowers to no type name, as the written function type does.
   A chain of type aliases is followed up to 8 steps; an import alias ends a chain. A generic alias is not in the
   table and keeps raising 4004. A `TYPE_NAME` operand (a built-in or static call argument) named by an alias that
   carries type arguments or names a function type raises 4004, because the lowered name would lose them.
@@ -279,14 +386,14 @@ The rules:
 ## Type operands
 
 Two forms of call have a type as an operand, and the IR cannot erase it: `size_of<T>()` has no other input, and
-`array<integer32>.filled(8, 0)` names the type whose function it calls. The IR holds the written type, as a name and
+`array<sinteger32>.filled(8, 0)` names the type whose function it calls. The IR holds the written type, as a name and
 a tree of its type arguments, and nothing else. It adds no type system, no check and no runtime call: it does not
 look up the type, does not compute a size and does not choose a conversion. Each backend does that.
 
 ```
-CALL_EXPRESSION                              -- a built-in call: size_of<Light>(), convert<integer64>(count)
+CALL_EXPRESSION                              -- a built-in call: size_of<Light>(), convert<sinteger64>(count)
   BUILTIN_NAME "convert"                     -- the text is the name; the children are the type arguments
-    TYPE_NAME "integer64"
+    TYPE_NAME "sinteger64"
   ARGUMENT_LIST
     IDENTIFIER "count"
 
@@ -315,9 +422,9 @@ CALL_EXPRESSION                              -- a static call on a written type:
   arguments, and the unit binds no name of its own with that spelling. A function declared in the unit, an import
   of that last segment, an import alias, or a member of an import list (its alias, or its last segment) with that
   name is a user function, so its call stays a user generic. A call of the same name with no type argument is a
-  plain call, as before. A qualified callee (`array.convert<integer32>(1)`) is not a built-in.
+  plain call, as before. A qualified callee (`array.convert<sinteger32>(1)`) is not a built-in.
 - A call is a static call on a written type when its callee is a `MEMBER_ACCESS` on a type with type arguments
-  (`array<integer32>.filled`) and the call itself names no type argument. A type that the unit declares with
+  (`array<sinteger32>.filled`) and the call itself names no type argument. A type that the unit declares with
   generic parameters, as a structure or a type alias, is a user generic and keeps raising 4004: its declaration
   is left out of the module, so the call would point at nothing. Any other head, a built-in type such as `vector`
   or a type of another namespace such as `array`, lowers. A head with a dot is a type of another namespace.
@@ -342,11 +449,11 @@ call-stack use does not depend on the tree depth; a deep tree costs arena memory
 MODULE
   STRUCTURE_DECLARATION "Point"
     FIELD_DECLARATION "x" type=float64
-  FUNCTION_DECLARATION "f" type=integer32
+  FUNCTION_DECLARATION "f" type=sinteger32
     PARAMETER_LIST
-      PARAMETER "a" type=integer32
+      PARAMETER "a" type=sinteger32
     BLOCK
-      LOCAL_DECLARATION "b" type=integer32
+      LOCAL_DECLARATION "b" type=sinteger32
         BINARY_EXPRESSION op=PLUS
           IDENTIFIER "a"
           INTEGER_LITERAL "1"
@@ -385,7 +492,7 @@ now (see Type operands).
 
 | Code | Name | Example |
 |---|---|---|
-| 4004 | `UNINSTANTIATED_GENERIC` | a generic function, structure or `implementation`; a call with explicit type arguments that is not a built-in call (`identity<integer32>(5)`); a call whose result type is an unbound generic; a `GENERIC_NAME` that is not the receiver of a call, or whose head is a generic type of the unit; a function type as the type argument of a built-in or a static call; a call whose callee is the bare name of a function of the unit that was left out of the module, also when the callee is declared after the caller (the call and its top-level declaration are dropped, and the callers of a dropped function raise in turn). `size_of<T>()`, `align_of<T>()`, `convert<T>(x)` and `array<integer32>.filled(8, 0)` raise nothing. |
+| 4004 | `UNINSTANTIATED_GENERIC` | a generic function, structure or `implementation`; a call with explicit type arguments that is not a built-in call (`identity<sinteger32>(5)`); a call whose result type is an unbound generic; a `GENERIC_NAME` that is not the receiver of a call, or whose head is a generic type of the unit; a function type as the type argument of a built-in or a static call; a call whose callee is the bare name of a function of the unit that was left out of the module, also when the callee is declared after the caller (the call and its top-level declaration are dropped, and the callers of a dropped function raise in turn). `size_of<T>()`, `align_of<T>()`, `convert<T>(x)` and `array<sinteger32>.filled(8, 0)` raise nothing. |
 | 4005 | `UNSUPPORTED_MACRO` | `print!("hi");`, a module-level `static_assert!(true);`, a macro call inside an expression. `unreachable!();` as a statement is lowered and raises nothing. |
 
 The codes 4001, 4002 and 4003 are retired: `fork_join`, `switch` and `for each` are lowered. The numbers have no
@@ -396,6 +503,29 @@ Each diagnostic carries the position of the construct that raised it.
 
 ## Gaps
 
+- The zero-default rule (see Zero-default creation) covers only a `LOCAL_DECLARATION` with no written initializer
+  and a struct `LITERAL_VALUE` field the source left unnamed. Four more creation paths the language spec names are
+  not lowered yet, because they need a backend to exist first: the zero fill of `Type(args)` before `construct` (the call itself is a `CONSTRUCT_CALL` now), `array<T, N>`
+  elements, `owned<T>` storage and a `convert` result that exposes padding. A `PARAMETER`, a `CONSTANT_DECLARATION`
+  and a `VARIANT_FIELD` with no value are outside the rule on purpose (see Zero-default creation), not an
+  oversight.
+- A `ZERO_VALUE` names no type of its own: `cgen` and `vm` do not exist yet, so neither the `= {0}`/`memset`
+  contract for `cgen` nor the slot-zeroing contract for the `vm`, nor the parity test that is expected to read a
+  zeroed field and expect 0 on both, is implemented. This is recorded only as the expected contract (see
+  Zero-default creation).
+- The destroy insertion (see Construct and destroy lowering) has these limits. A `return` with a value is wrapped as
+  `BLOCK(destroy..., RETURN_STATEMENT(value))`, so the value is read after the destroy: a returned expression that
+  names a destroyed local reads a local that no longer lives. A backend must evaluate the value first; the ir does not
+  yet hoist it into a hidden local. The move check is syntactic and per block: a local moved on one branch, or in an inner
+  block, is never destroyed on any branch. A parameter is never destroyed (it is a borrow, or the caller owns it). The `Type{...}` literal still lowers as a `LITERAL_VALUE` and
+  does not call `construct`. The destroy of a type is found by its written name among the `implementation` blocks of
+  the same unit only: a type declared in another namespace is not found (the same cross-module gap as Aliases).
+- A `PARAMETER` has one ownership bit in the IR, the `MUTABLE` flag. A by-value parameter and a read-only borrow
+  both read as no flag, and a `semantics` value is not kept in the tree.
+- `Type(args)` lowers to a `CONSTRUCT_CALL` only when the structure or enum is declared in the same unit. A type of
+  another namespace, reached by import, stays an ordinary `CALL_EXPRESSION` and has no destroy found either, the
+  same cross-module gap as Aliases. The `Type{...}` form, which the language spec says also runs `construct` with its
+  defaults, does not lower to a `CONSTRUCT_CALL` (see the destroy bullet above).
 - Generics, and every macro other than a statement `unreachable!()`, are not lowered. The matching declaration is left out of the module, and only its first gap is reported.
 - A `FORK_JOIN_BLOCK` says that the workers end before the node ends, and a `PARTITION_STATEMENT` says that the
   parts are disjoint, but the IR holds nothing else about them: no part count check (a count of zero or less
@@ -436,9 +566,9 @@ Each diagnostic carries the position of the construct that raised it.
   built-in when the import does not bind that name.
 - A function type as a type argument of a built-in or of a static call is not lowered and raises 4004, because a
   `TYPE_NAME` has no place for its parameters and its result. A `GENERIC_NAME` that is not the receiver of a call
-  (`array<integer32>.LIMIT`) also raises 4004.
+  (`array<sinteger32>.LIMIT`) also raises 4004.
 - A static call on a generic type of another namespace lowers, but a call of a generic function of another
-  namespace with explicit type arguments (`other.maximum<integer32>(1, 2)`) still raises 4004: only the three
+  namespace with explicit type arguments (`other.maximum<sinteger32>(1, 2)`) still raises 4004: only the three
   built-ins have a call form with a type argument on the function.
 - The hidden loop variable of a for-range loop has no type name (sema gives none for a range bound). A
   backend must infer it from the first bound.
@@ -459,3 +589,9 @@ Each diagnostic carries the position of the construct that raised it.
   no test goes deeper than the example programs. The dump is not part of this gap: it walks an explicit stack.
 - `MAREA_IrLowerCompilationUnit` reports a root that is not a `COMPILATION_UNIT` with
   `MAREA_IR_EXCEPT_ERROR_NULL_POINTER`, because the except set has no other fitting value.
+- A call fills an omitted defaulted argument only when its callee is a bare `IDENTIFIER` naming a
+  `FUNCTION_DECLARATION` of the same unit, the same limit the built-in lookup already has. A call
+  through a member access (an `implementation` method), an import or a qualified name does not fill
+  one, even when sema accepted the same omission: the IR holds no scope or cross-module link to find
+  that callee's parameter list. Such a call keeps the arguments the source wrote, with no gap and no
+  diagnostic, so it lowers with fewer arguments than the callee's parameter list names.

@@ -60,7 +60,7 @@ TEST(MAREASemaTypedAst, NeverCheckedRootIsRejected)
 
     MAREA_SemaFixture fixture;
 
-    ASSERT_EQ(fixture.parser.MAREA_parse("namespace main; structure S a: integer32; end"), MAREA_PARSE_EXCEPT_SUCCESS) << "The source must parse.";
+    ASSERT_EQ(fixture.parser.MAREA_parse("namespace main; structure S a: sinteger32; end"), MAREA_PARSE_EXCEPT_SUCCESS) << "The source must parse.";
 
     const MAREA_SemaTypedNode *outRoot{ nullptr };
 
@@ -111,7 +111,7 @@ TEST(MAREASemaTypedAst, CheckedRootBuildsAMatchingShadowTree)
 
     MAREA_SemaFixture fixture;
 
-    ASSERT_EQ(fixture.MAREA_sema("namespace main; structure S a: integer32; end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; structure S a: sinteger32; end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
 
     ASSERT_EQ(fixture.MAREA_errorCount(), MAREA_INTEGER_SIZE(0)) << "The source must raise no error.";
 
@@ -146,7 +146,7 @@ TEST(MAREASemaTypedAst, OutOfRangeChildIsRejected)
 
     MAREA_SemaFixture fixture;
 
-    ASSERT_EQ(fixture.MAREA_sema("namespace main; structure S a: integer32; end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; structure S a: sinteger32; end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
 
     const MAREA_SemaTypedNode *outRoot{ nullptr };
 
@@ -165,7 +165,7 @@ TEST(MAREASemaTypedAst, PrimitiveReturnedIdentifierIsTaggedPrimitive)
 
     MAREA_SemaFixture fixture;
 
-    ASSERT_EQ(fixture.MAREA_sema("namespace main; function f(n: integer32): integer32 return n; end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; function f(n: sinteger32): sinteger32 return n; end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
 
     const MAREA_SemaTypedNode *outRoot{ nullptr };
 
@@ -219,11 +219,11 @@ TEST(MAREASemaTypedAst, ExternalReturnedIdentifierIsTaggedExternal)
 {
     GTEST_COUT << "Validating a resolver-reported external identifier is tagged EXTERNAL with its name." << std::endl;
 
-    MAREA_ResolveCallback resolve{ [](const std::string &text, const MAREA_AstNode **) { return (text == "array") ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND; } };
+    MAREA_ResolveCallback resolve{ [](const std::string &text, const MAREA_AstNode **) { return (text == "list") ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND; } };
 
     MAREA_SemaFixture fixture(resolve);
 
-    ASSERT_EQ(fixture.MAREA_sema("namespace main; function f(a: array<integer32>): array<integer32> return copy a; end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; function f(a: list<sinteger32>): list<sinteger32> return copy a; end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
 
     const MAREA_SemaTypedNode *outRoot{ nullptr };
 
@@ -245,7 +245,7 @@ TEST(MAREASemaTypedAst, ExternalReturnedIdentifierIsTaggedExternal)
 
     ASSERT_EQ(MAREA_SemaTypedNodeGetTypeName(returned, &outText, &outLength), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "The type name must be reachable.";
 
-    EXPECT_EQ(std::string(outText, outLength), "array") << "The EXTERNAL name must be the type name text.";
+    EXPECT_EQ(std::string(outText, outLength), "list") << "The EXTERNAL name must be the type name text.";
 }
 
 TEST(MAREASemaTypedAst, NonGenericCallResultCarriesTheCalleeReturnType)
@@ -279,13 +279,44 @@ TEST(MAREASemaTypedAst, NonGenericCallResultCarriesTheCalleeReturnType)
     EXPECT_EQ(declaration, MAREA_SemaTypedNodeGetAstNode(structureNode)) << "The call result must carry the real Shape declaration, not a guess.";
 }
 
+TEST(MAREASemaTypedAst, ConstructionCallResultCarriesTheConstructedTypeDeclaration)
+{
+    GTEST_COUT << "Validating Type(args) is typed USER with the real structure declaration, not the construct function." << std::endl;
+
+    MAREA_SemaFixture fixture;
+
+    const std::string SOURCE{ "namespace main; structure Point x: float32; y: float32; end implementation Point #[operator = \"construct\"] function make(x: float32 = 0.0, y: float32 = 0.0) end end function f(): Point return Point(1.0, 2.0); end" };
+
+    ASSERT_EQ(fixture.MAREA_sema(SOURCE), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
+
+    const MAREA_SemaTypedNode *outRoot{ nullptr };
+
+    ASSERT_EQ(MAREA_SemaBuildTypedAst(fixture.context, fixture.parser.root, &outRoot), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "A checked root with zero errors must build.";
+
+    const MAREA_SemaTypedNode *structureNode{ MAREA_findTypedNodeByKind(outRoot, MAREA_AST_KIND_STRUCTURE_DECLARATION) };
+
+    ASSERT_NE(structureNode, nullptr) << "The typed tree must carry the Point structure declaration.";
+
+    const MAREA_SemaTypedNode *callNode{ MAREA_findTypedNodeByKind(outRoot, MAREA_AST_KIND_CALL_EXPRESSION) };
+
+    ASSERT_NE(callNode, nullptr) << "The typed tree must carry the Point(1.0, 2.0) call node.";
+
+    EXPECT_EQ(MAREA_SemaTypedNodeGetTypeClass(callNode), MAREA_SEMA_TYPE_CLASS_USER) << "The construction call result must classify as USER.";
+
+    const MAREA_AstNode *declaration{ nullptr };
+
+    ASSERT_EQ(MAREA_SemaTypedNodeGetTypeDeclaration(callNode, &declaration), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "The declaration must be reachable.";
+
+    EXPECT_EQ(declaration, MAREA_SemaTypedNodeGetAstNode(structureNode)) << "The construction call result must carry the Point structure declaration, not the construct function.";
+}
+
 TEST(MAREASemaTypedAst, GenericCallResultIsTaggedGenericWithoutSubstitution)
 {
     GTEST_COUT << "Validating a generic call result is tagged GENERIC with the raw type kept, never substituted." << std::endl;
 
     MAREA_SemaFixture fixture;
 
-    const std::string SOURCE{ "namespace main; function same<Item>(a: Item): Item return copy a; end function f(): integer32 return same(5); end" };
+    const std::string SOURCE{ "namespace main; function same<Item>(a: Item): Item return copy a; end function f(): sinteger32 return same(5); end" };
 
     ASSERT_EQ(fixture.MAREA_sema(SOURCE), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
 
@@ -314,7 +345,7 @@ TEST(MAREASemaTypedAst, ConvertCallResultCarriesTheTargetType)
 
     MAREA_SemaFixture fixture;
 
-    const std::string SOURCE{ "namespace main; function f(x: integer32): integer64 return convert<integer64>(x); end" };
+    const std::string SOURCE{ "namespace main; function f(x: sinteger32): sinteger64 return convert<sinteger64>(x); end" };
 
     ASSERT_EQ(fixture.MAREA_sema(SOURCE), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
 
@@ -336,7 +367,7 @@ TEST(MAREASemaTypedAst, ConvertCallResultCarriesTheTargetType)
 
     ASSERT_NE(outText, nullptr) << "The conversion call must carry a type name.";
 
-    EXPECT_EQ(std::string(outText, outLength), "integer64") << "The conversion result must be the target type.";
+    EXPECT_EQ(std::string(outText, outLength), "sinteger64") << "The conversion result must be the target type.";
 }
 
 TEST(MAREASemaTypedAst, ConvertToAStructureCarriesTheStructureDeclaration)
@@ -376,7 +407,7 @@ TEST(MAREASemaTypedAst, GenericCallWithExplicitTypeArgumentIsSubstituted)
 
     MAREA_SemaFixture fixture;
 
-    const std::string SOURCE{ "namespace main; function same<Item>(a: Item): Item return copy a; end function f(): integer32 return same<integer32>(5); end" };
+    const std::string SOURCE{ "namespace main; function same<Item>(a: Item): Item return copy a; end function f(): sinteger32 return same<sinteger32>(5); end" };
 
     ASSERT_EQ(fixture.MAREA_sema(SOURCE), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
 
@@ -386,7 +417,7 @@ TEST(MAREASemaTypedAst, GenericCallWithExplicitTypeArgumentIsSubstituted)
 
     const MAREA_SemaTypedNode *callNode{ MAREA_findTypedNodeByKind(outRoot, MAREA_AST_KIND_CALL_EXPRESSION) };
 
-    ASSERT_NE(callNode, nullptr) << "The typed tree must carry the same<integer32>() call node.";
+    ASSERT_NE(callNode, nullptr) << "The typed tree must carry the same<sinteger32>() call node.";
 
     EXPECT_EQ(MAREA_SemaTypedNodeGetTypeClass(callNode), MAREA_SEMA_TYPE_CLASS_PRIMITIVE) << "The substituted result must classify as PRIMITIVE, not GENERIC.";
 
@@ -398,7 +429,7 @@ TEST(MAREASemaTypedAst, GenericCallWithExplicitTypeArgumentIsSubstituted)
 
     ASSERT_NE(outText, nullptr) << "The generic call must carry a type name.";
 
-    EXPECT_EQ(std::string(outText, outLength), "integer32") << "The generic parameter must be replaced by the type argument.";
+    EXPECT_EQ(std::string(outText, outLength), "sinteger32") << "The generic parameter must be replaced by the type argument.";
 }
 
 TEST(MAREASemaTypedAst, PrimitiveIdentifierOwnershipIsValue)
@@ -407,7 +438,7 @@ TEST(MAREASemaTypedAst, PrimitiveIdentifierOwnershipIsValue)
 
     MAREA_SemaFixture fixture;
 
-    ASSERT_EQ(fixture.MAREA_sema("namespace main; function f(n: integer32): integer32 return n; end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; function f(n: sinteger32): sinteger32 return n; end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
 
     const MAREA_SemaTypedNode *outRoot{ nullptr };
 
@@ -424,13 +455,13 @@ TEST(MAREASemaTypedAst, PrimitiveIdentifierOwnershipIsValue)
     EXPECT_EQ(MAREA_SemaTypedNodeGetOwnershipMode(returned), MAREA_SEMA_OWNERSHIP_MODE_VALUE) << "A primitive identifier must carry ownership mode VALUE.";
 }
 
-TEST(MAREASemaTypedAst, ReadOnlyBorrowParameterOwnershipIsBorrow)
+TEST(MAREASemaTypedAst, EnumParameterOwnershipIsValue)
 {
-    GTEST_COUT << "Validating a read-only structure parameter has ownership mode BORROW." << std::endl;
+    GTEST_COUT << "Validating an enum parameter has ownership mode VALUE, the documented intentional exception; #[value] no longer exists." << std::endl;
 
     MAREA_SemaFixture fixture;
 
-    ASSERT_EQ(fixture.MAREA_sema("namespace main; structure Shape x: float32; end function f(s: Shape) end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; enum Color red; end function f(c: Color) end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
 
     const MAREA_SemaTypedNode *outRoot{ nullptr };
 
@@ -440,16 +471,35 @@ TEST(MAREASemaTypedAst, ReadOnlyBorrowParameterOwnershipIsBorrow)
 
     ASSERT_NE(parameter, nullptr) << "The typed tree must carry the parameter node.";
 
-    EXPECT_EQ(MAREA_SemaTypedNodeGetOwnershipMode(parameter), MAREA_SEMA_OWNERSHIP_MODE_BORROW) << "A read-only structure parameter must carry ownership mode BORROW.";
+    EXPECT_EQ(MAREA_SemaTypedNodeGetOwnershipMode(parameter), MAREA_SEMA_OWNERSHIP_MODE_VALUE) << "An enum parameter must carry ownership mode VALUE.";
+}
+
+TEST(MAREASemaTypedAst, ReadOnlyBorrowParameterOwnershipIsBorrow)
+{
+    GTEST_COUT << "Validating a #[semantics = reference_read_only] structure parameter has ownership mode BORROW." << std::endl;
+
+    MAREA_SemaFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; structure Shape x: float32; end function f(#[semantics = reference_read_only] s: Shape) end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
+
+    const MAREA_SemaTypedNode *outRoot{ nullptr };
+
+    ASSERT_EQ(MAREA_SemaBuildTypedAst(fixture.context, fixture.parser.root, &outRoot), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "A checked root with zero errors must build.";
+
+    const MAREA_SemaTypedNode *parameter{ MAREA_findTypedNodeByKind(outRoot, MAREA_AST_KIND_PARAMETER) };
+
+    ASSERT_NE(parameter, nullptr) << "The typed tree must carry the parameter node.";
+
+    EXPECT_EQ(MAREA_SemaTypedNodeGetOwnershipMode(parameter), MAREA_SEMA_OWNERSHIP_MODE_BORROW) << "A reference_read_only structure parameter must carry ownership mode BORROW.";
 }
 
 TEST(MAREASemaTypedAst, MutableBorrowParameterOwnershipIsMutableBorrow)
 {
-    GTEST_COUT << "Validating a mutable structure parameter has ownership mode MUTABLE_BORROW." << std::endl;
+    GTEST_COUT << "Validating a plain structure parameter defaults to ownership mode MUTABLE_BORROW, since a non-primitive defaults to reference_mutable." << std::endl;
 
     MAREA_SemaFixture fixture;
 
-    ASSERT_EQ(fixture.MAREA_sema("namespace main; structure Shape x: float32; end function f(s: mutable Shape) end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; structure Shape x: float32; end function f(s: Shape) end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
 
     const MAREA_SemaTypedNode *outRoot{ nullptr };
 

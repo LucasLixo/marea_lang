@@ -47,7 +47,6 @@ namespace
         { "opaque", MAREA_TOKEN_KIND_KEYWORD_OPAQUE },
         { "or", MAREA_TOKEN_KIND_KEYWORD_OR },
         { "partition", MAREA_TOKEN_KIND_KEYWORD_PARTITION },
-        { "reference", MAREA_TOKEN_KIND_KEYWORD_REFERENCE },
         { "return", MAREA_TOKEN_KIND_KEYWORD_RETURN },
         { "spawn", MAREA_TOKEN_KIND_KEYWORD_SPAWN },
         { "structure", MAREA_TOKEN_KIND_KEYWORD_STRUCTURE },
@@ -63,16 +62,16 @@ namespace
 
 } // namespace
 
-TEST(MAREALexerKeywords, KeywordTableHas44Rows)
+TEST(MAREALexerKeywords, KeywordTableHas43Rows)
 {
-    GTEST_COUT << "Validating the test's own keyword table, written from the grammar, has 44 rows." << std::endl;
+    GTEST_COUT << "Validating the test's own keyword table, written from the grammar, has 43 rows." << std::endl;
 
-    ASSERT_EQ(sizeof(MAREA_G_KEYWORD_TABLE) / sizeof(MAREA_G_KEYWORD_TABLE[0]), 44U) << "The keyword table must have 44 rows.";
+    ASSERT_EQ(sizeof(MAREA_G_KEYWORD_TABLE) / sizeof(MAREA_G_KEYWORD_TABLE[0]), 43U) << "The keyword table must have 43 rows.";
 }
 
 TEST(MAREALexerKeywords, AllKeywordsLexToTheirKind)
 {
-    GTEST_COUT << "Validating every one of the 44 keywords lexes to its own kind." << std::endl;
+    GTEST_COUT << "Validating every one of the 43 keywords lexes to its own kind." << std::endl;
 
     for (const MAREA_KeywordRow &row : MAREA_G_KEYWORD_TABLE) {
         MAREA_LexFixture fixture;
@@ -102,6 +101,17 @@ TEST(MAREALexerKeywords, KeywordFollowedByPunctuation)
     ASSERT_EQ(secondFixture.MAREA_lex("end)"), MAREA_LEX_EXCEPT_SUCCESS) << "Lexing must succeed.";
 
     EXPECT_EQ(secondFixture.MAREA_kinds(), (std::vector<MAREA_TokenKind>{ MAREA_TOKEN_KIND_KEYWORD_END, MAREA_TOKEN_KIND_RIGHT_PAREN, MAREA_TOKEN_KIND_END_OF_FILE })) << "'end)' must lex as KEYWORD_END then RIGHT_PAREN.";
+}
+
+TEST(MAREALexerKeywords, ReferenceIsNowAnIdentifier)
+{
+    GTEST_COUT << "Validating 'reference' lexes as a plain identifier now that the keyword is retired." << std::endl;
+
+    MAREA_LexFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_lex("reference"), MAREA_LEX_EXCEPT_SUCCESS) << "Lexing must succeed.";
+
+    EXPECT_EQ(fixture.MAREA_kinds(), (std::vector<MAREA_TokenKind>{ MAREA_TOKEN_KIND_IDENTIFIER, MAREA_TOKEN_KIND_END_OF_FILE })) << "'reference' must lex as a plain identifier.";
 }
 
 TEST(MAREALexerKeywords, KeywordPrefixIsIdentifier)

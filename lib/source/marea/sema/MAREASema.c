@@ -154,6 +154,10 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaVisit(MAREA_SemaContext *context, const MA
     }
 
     if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
+        result = MAREA_SemaCheckLifecycle(context, node);
+    }
+
+    if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
         result = MAREA_SemaCheckControlFlow(context, node);
     }
 
@@ -172,7 +176,11 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaVisit(MAREA_SemaContext *context, const MA
     } else if (kind == MAREA_AST_KIND_WHERE_CLAUSE) {
         result = MAREA_SemaCheckWhereClause(context, node);
     } else if (kind == MAREA_AST_KIND_CALL_EXPRESSION) {
-        result = MAREA_SemaCheckCall(context, node);
+        result = MAREA_SemaCheckLifecycleCall(context, node);
+
+        if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
+            result = MAREA_SemaCheckCall(context, node);
+        }
     } else if ((kind == MAREA_AST_KIND_UNARY_EXPRESSION) && (MAREA_AstNodeGetOperator(node) == MAREA_TOKEN_KIND_KEYWORD_SPAWN)) {
         result = MAREA_SemaCheckSpawn(context, node);
     } else if ((kind == MAREA_AST_KIND_BREAK_STATEMENT) || (kind == MAREA_AST_KIND_CONTINUE_STATEMENT) || (kind == MAREA_AST_KIND_RETURN_STATEMENT)) {
@@ -236,12 +244,6 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckCompilationUnit(MAREA_SemaContext *co
 
     if (declarationsResult != MAREA_SEMA_EXCEPT_SUCCESS) {
         return declarationsResult;
-    }
-
-    const MAREA_SemaExcept entryResult = MAREA_SemaCheckEntryPoint(context, root);
-
-    if (entryResult != MAREA_SEMA_EXCEPT_SUCCESS) {
-        return entryResult;
     }
 
     return MAREA_SemaVisit(context, root);

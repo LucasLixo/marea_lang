@@ -19,7 +19,7 @@ namespace
         return EXTERNAL ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
     } };
 
-    const std::string PRELUDE{ "namespace main; import collections.array; structure Light x: float32; end " };
+    const std::string PRELUDE{ "namespace main; import collections.list; structure Light x: float32; end " };
 
     // INFO: renders the initializer of the constant VALUE, or a marker that says why there is none.
     std::string MAREA_lowerConstant(const std::string &type, const std::string &expression)
@@ -96,55 +96,55 @@ TEST(MAREAIrTypeArguments, SizeOfLowersToABuiltinCall)
 {
     GTEST_COUT << "Validating size_of<T>() lowers to a CALL_EXPRESSION whose callee is a BUILTIN_NAME that holds the type." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerConstant("unsigned64", "size_of<Light>()"), "(CALL_EXPRESSION (BUILTIN_NAME size_of (TYPE_NAME Light)) (ARGUMENT_LIST))") << "The type must be the only child of the name, and the call must keep its argument list last.";
+    EXPECT_EQ(MAREA_lowerConstant("uinteger64", "size_of<Light>()"), "(CALL_EXPRESSION (BUILTIN_NAME size_of (TYPE_NAME Light)) (ARGUMENT_LIST))") << "The type must be the only child of the name, and the call must keep its argument list last.";
 }
 
 TEST(MAREAIrTypeArguments, AlignOfLowersToABuiltinCall)
 {
     GTEST_COUT << "Validating align_of<T>() lowers like size_of<T>()." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerConstant("unsigned64", "align_of<Light>()"), "(CALL_EXPRESSION (BUILTIN_NAME align_of (TYPE_NAME Light)) (ARGUMENT_LIST))") << "align_of must be a built-in name too.";
+    EXPECT_EQ(MAREA_lowerConstant("uinteger64", "align_of<Light>()"), "(CALL_EXPRESSION (BUILTIN_NAME align_of (TYPE_NAME Light)) (ARGUMENT_LIST))") << "align_of must be a built-in name too.";
 }
 
 TEST(MAREAIrTypeArguments, ConvertKeepsItsTypeAndItsValue)
 {
     GTEST_COUT << "Validating convert<T>(x) keeps the target type in the callee and the value in the argument list." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerLocal("count: integer32", "integer64", "convert<integer64>(count)"), "(CALL_EXPRESSION :integer64 (BUILTIN_NAME convert (TYPE_NAME integer64)) (ARGUMENT_LIST (IDENTIFIER count)))") << "The target type must not be mixed with the value.";
+    EXPECT_EQ(MAREA_lowerLocal("count: sinteger32", "sinteger64", "convert<sinteger64>(count)"), "(CALL_EXPRESSION :sinteger64 (BUILTIN_NAME convert (TYPE_NAME sinteger64)) (ARGUMENT_LIST (IDENTIFIER count)))") << "The target type must not be mixed with the value.";
 }
 
 TEST(MAREAIrTypeArguments, BuiltinCallsNestAndJoinExpressions)
 {
     GTEST_COUT << "Validating a built-in call lowers inside another call and inside a binary expression." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerLocal("count: integer32", "float64", "convert<float64>(convert<integer64>(count))"), "(CALL_EXPRESSION :float64 (BUILTIN_NAME convert (TYPE_NAME float64)) (ARGUMENT_LIST (CALL_EXPRESSION :integer64 (BUILTIN_NAME convert (TYPE_NAME integer64)) (ARGUMENT_LIST (IDENTIFIER count)))))") << "A built-in call must lower as an argument.";
+    EXPECT_EQ(MAREA_lowerLocal("count: sinteger32", "float64", "convert<float64>(convert<sinteger64>(count))"), "(CALL_EXPRESSION :float64 (BUILTIN_NAME convert (TYPE_NAME float64)) (ARGUMENT_LIST (CALL_EXPRESSION :sinteger64 (BUILTIN_NAME convert (TYPE_NAME sinteger64)) (ARGUMENT_LIST (IDENTIFIER count)))))") << "A built-in call must lower as an argument.";
 
-    EXPECT_EQ(MAREA_lowerConstant("unsigned64", "size_of<Light>() * 2"), "(BINARY_EXPRESSION op=STAR (CALL_EXPRESSION (BUILTIN_NAME size_of (TYPE_NAME Light)) (ARGUMENT_LIST)) (INTEGER_LITERAL 2))") << "A built-in call must lower as an operand.";
+    EXPECT_EQ(MAREA_lowerConstant("uinteger64", "size_of<Light>() * 2"), "(BINARY_EXPRESSION op=STAR (CALL_EXPRESSION (BUILTIN_NAME size_of (TYPE_NAME Light)) (ARGUMENT_LIST)) (INTEGER_LITERAL 2))") << "A built-in call must lower as an operand.";
 }
 
 TEST(MAREAIrTypeArguments, TypeKeepsItsOwnTypeArguments)
 {
     GTEST_COUT << "Validating a type operand keeps its type arguments: a nested type and a value argument." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerConstant("unsigned64", "size_of<array<integer32>>()"), "(CALL_EXPRESSION (BUILTIN_NAME size_of (TYPE_NAME array (TYPE_NAME integer32))) (ARGUMENT_LIST))") << "A nested type must be a child of its head.";
+    EXPECT_EQ(MAREA_lowerConstant("uinteger64", "size_of<list<sinteger32>>()"), "(CALL_EXPRESSION (BUILTIN_NAME size_of (TYPE_NAME list (TYPE_NAME sinteger32))) (ARGUMENT_LIST))") << "A nested type must be a child of its head.";
 
-    EXPECT_EQ(MAREA_lowerConstant("unsigned64", "size_of<vector<float32, 4>>()"), "(CALL_EXPRESSION (BUILTIN_NAME size_of (TYPE_NAME vector (TYPE_NAME float32) (INTEGER_LITERAL 4))) (ARGUMENT_LIST))") << "A value argument must be an INTEGER_LITERAL child, in order.";
+    EXPECT_EQ(MAREA_lowerConstant("uinteger64", "size_of<array<float32, 4>>()"), "(CALL_EXPRESSION (BUILTIN_NAME size_of (TYPE_NAME array (TYPE_NAME float32) (INTEGER_LITERAL 4))) (ARGUMENT_LIST))") << "A value argument must be an INTEGER_LITERAL child, in order.";
 
-    EXPECT_EQ(MAREA_lowerConstant("unsigned64", "size_of<array<array<float32>>>()"), "(CALL_EXPRESSION (BUILTIN_NAME size_of (TYPE_NAME array (TYPE_NAME array (TYPE_NAME float32)))) (ARGUMENT_LIST))") << "A type must nest to any depth.";
+    EXPECT_EQ(MAREA_lowerConstant("uinteger64", "size_of<list<list<float32>>>()"), "(CALL_EXPRESSION (BUILTIN_NAME size_of (TYPE_NAME list (TYPE_NAME list (TYPE_NAME float32)))) (ARGUMENT_LIST))") << "A type must nest to any depth.";
 }
 
 TEST(MAREAIrTypeArguments, TypeKeepsADottedNameWhole)
 {
     GTEST_COUT << "Validating a dotted type name stays one text, as a type name does elsewhere." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerConstant("unsigned64", "size_of<collections.array<integer32>>()"), "(CALL_EXPRESSION (BUILTIN_NAME size_of (TYPE_NAME collections.array (TYPE_NAME integer32))) (ARGUMENT_LIST))") << "The dotted name must be kept whole in the text.";
+    EXPECT_EQ(MAREA_lowerConstant("uinteger64", "size_of<collections.list<sinteger32>>()"), "(CALL_EXPRESSION (BUILTIN_NAME size_of (TYPE_NAME collections.list (TYPE_NAME sinteger32))) (ARGUMENT_LIST))") << "The dotted name must be kept whole in the text.";
 }
 
 TEST(MAREAIrTypeArguments, StaticCallLowersToATypeQualifiedMember)
 {
-    GTEST_COUT << "Validating array<T>.filled(...) lowers to a call of a member of a TYPE_NAME." << std::endl;
+    GTEST_COUT << "Validating list<T>.filled(...) lowers to a call of a member of a TYPE_NAME." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerLocal("", "array<integer32>", "array<integer32>.filled(8, 0)"), "(CALL_EXPRESSION (MEMBER_ACCESS (TYPE_NAME array (TYPE_NAME integer32)) (IDENTIFIER filled)) (ARGUMENT_LIST (INTEGER_LITERAL 8) (INTEGER_LITERAL 0)))") << "The call must keep its callee and arguments layout, with the type as the receiver.";
+    EXPECT_EQ(MAREA_lowerLocal("", "list<sinteger32>", "list<sinteger32>.filled(8, 0)"), "(CALL_EXPRESSION (MEMBER_ACCESS (TYPE_NAME list (TYPE_NAME sinteger32)) (IDENTIFIER filled)) (ARGUMENT_LIST (INTEGER_LITERAL 8) (INTEGER_LITERAL 0)))") << "The call must keep its callee and arguments layout, with the type as the receiver.";
 }
 
 TEST(MAREAIrTypeArguments, StaticCallKeepsAValueArgument)
@@ -158,7 +158,7 @@ TEST(MAREAIrTypeArguments, StaticCallResultCanBeUsedAgain)
 {
     GTEST_COUT << "Validating a static call lowers as the receiver of a later member call and as an argument." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerLocal("", "integer32", "array<integer32>.filled(8, 0).length()"), "(CALL_EXPRESSION (MEMBER_ACCESS (CALL_EXPRESSION (MEMBER_ACCESS (TYPE_NAME array (TYPE_NAME integer32)) (IDENTIFIER filled)) (ARGUMENT_LIST (INTEGER_LITERAL 8) (INTEGER_LITERAL 0))) (IDENTIFIER length)) (ARGUMENT_LIST))") << "A static call must be a plain expression for its parent.";
+    EXPECT_EQ(MAREA_lowerLocal("", "sinteger32", "list<sinteger32>.filled(8, 0).length()"), "(CALL_EXPRESSION (MEMBER_ACCESS (CALL_EXPRESSION (MEMBER_ACCESS (TYPE_NAME list (TYPE_NAME sinteger32)) (IDENTIFIER filled)) (ARGUMENT_LIST (INTEGER_LITERAL 8) (INTEGER_LITERAL 0))) (IDENTIFIER length)) (ARGUMENT_LIST))") << "A static call must be a plain expression for its parent.";
 }
 
 TEST(MAREAIrTypeArguments, TypeAndBuiltinNodesCarryPositions)
@@ -167,7 +167,7 @@ TEST(MAREAIrTypeArguments, TypeAndBuiltinNodesCarryPositions)
 
     MAREA_IrFixture fixture(RESOLVE_EXTERNAL);
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main;\nstructure Light x: float32; end\nconstant SIZE: unsigned64 = size_of<Light>();"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main;\nstructure Light x: float32; end\nconstant SIZE: uinteger64 = size_of<Light>();"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     const MAREA_IrNode *call{ MAREA_irChild(MAREA_irChild(fixture.module, 1), 0) };
 
@@ -196,7 +196,7 @@ TEST(MAREAIrTypeArguments, BuiltinNameWithoutTypeArgumentsStaysAPlainCall)
 {
     GTEST_COUT << "Validating a call of a built-in name with no type arguments is a plain call." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerLocal("", "integer32", "size_of(1)"), "(CALL_EXPRESSION (IDENTIFIER size_of) (ARGUMENT_LIST (INTEGER_LITERAL 1)))") << "Without type arguments there is no instantiation, so the call stays as it was.";
+    EXPECT_EQ(MAREA_lowerLocal("", "sinteger32", "size_of(1)"), "(CALL_EXPRESSION (IDENTIFIER size_of) (ARGUMENT_LIST (INTEGER_LITERAL 1)))") << "Without type arguments there is no instantiation, so the call stays as it was.";
 }
 
 TEST(MAREAIrTypeArguments, NonGenericStaticCallIsUnchanged)
@@ -210,7 +210,7 @@ TEST(MAREAIrTypeArguments, FunctionOfTheUnitWithABuiltinNameStaysAGeneric)
 {
     GTEST_COUT << "Validating a generic function that the unit declares with a built-in name is a user generic, so its call keeps raising 4004." << std::endl;
 
-    const std::string SOURCE{ "namespace main; function convert<Item>(value: Item): Item where Item: Copyable return copy value; end function run(): integer32 return convert<integer32>(5); end function keep() end" };
+    const std::string SOURCE{ "namespace main; function convert<Item>(value: Item): Item where Item: Copyable return copy value; end function run(): sinteger32 return convert<sinteger32>(5); end function keep() end" };
 
     EXPECT_EQ(MAREA_codesOf(SOURCE), (Codes{ GENERIC, GENERIC })) << "The declaration and the call must each raise 4004 once.";
 
@@ -221,7 +221,7 @@ TEST(MAREAIrTypeArguments, ImportedNameWithABuiltinNameStaysAGeneric)
 {
     GTEST_COUT << "Validating a name that the unit imports with a built-in name is a user call, so it keeps raising 4004." << std::endl;
 
-    const std::string SOURCE{ "namespace main; import collections.convert; function run(): integer32 return convert<integer32>(5); end function keep() end" };
+    const std::string SOURCE{ "namespace main; import collections.convert; function run(): sinteger32 return convert<sinteger32>(5); end function keep() end" };
 
     EXPECT_EQ(MAREA_codesOf(SOURCE), Codes{ GENERIC }) << "The call must raise 4004 once.";
 
@@ -232,23 +232,23 @@ TEST(MAREAIrTypeArguments, ImportAliasWithABuiltinNameStaysAGeneric)
 {
     GTEST_COUT << "Validating an import alias with a built-in name is a user call, and an alias that hides the name frees it." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf("namespace main; import collections.helper as size_of; function run(): integer32 return size_of<integer32>(); end"), Codes{ GENERIC }) << "The alias is the name that the unit binds, so the call is a user call.";
+    EXPECT_EQ(MAREA_codesOf("namespace main; import collections.helper as size_of; function run(): sinteger32 return size_of<sinteger32>(); end"), Codes{ GENERIC }) << "The alias is the name that the unit binds, so the call is a user call.";
 
-    EXPECT_EQ(MAREA_codesOf("namespace main; import collections.size_of as measure; function run(): integer32 return size_of<integer32>(); end"), Codes{}) << "The last segment is not bound when an alias is given, so the built-in is kept.";
+    EXPECT_EQ(MAREA_codesOf("namespace main; import collections.size_of as measure; function run(): sinteger32 return size_of<sinteger32>(); end"), Codes{}) << "The last segment is not bound when an alias is given, so the built-in is kept.";
 }
 
 TEST(MAREAIrTypeArguments, QualifiedCalleeWithTypeArgumentsStaysAGeneric)
 {
     GTEST_COUT << "Validating a call of a function reached through a namespace with explicit type arguments is not a built-in." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf("namespace main; import collections.array; function run(): integer32 return array.convert<integer32>(5); end"), Codes{ GENERIC }) << "Only the bare names are built-ins.";
+    EXPECT_EQ(MAREA_codesOf("namespace main; import collections.list; function run(): sinteger32 return list.convert<sinteger32>(5); end"), Codes{ GENERIC }) << "Only the bare names are built-ins.";
 }
 
 TEST(MAREAIrTypeArguments, StaticCallOnAGenericStructureOfTheUnitStaysAGeneric)
 {
     GTEST_COUT << "Validating a static call on a generic structure of the same unit is a user generic, so it keeps raising 4004." << std::endl;
 
-    const std::string SOURCE{ "namespace main; structure Box<Item> value: Item; end implementation<Item> Box<Item> function make(): integer32 return 1; end end function run(): integer32 return Box<integer32>.make(); end function keep() end" };
+    const std::string SOURCE{ "namespace main; structure Box<Item> value: Item; end implementation<Item> Box<Item> function make(): sinteger32 return 1; end end function run(): sinteger32 return Box<sinteger32>.make(); end function keep() end" };
 
     const Codes CODES{ MAREA_codesOf(SOURCE) };
 
@@ -265,7 +265,7 @@ TEST(MAREAIrTypeArguments, StaticCallOnAGenericAliasOfTheUnitStaysAGeneric)
 {
     GTEST_COUT << "Validating a static call on a generic type alias of the same unit is a user generic too." << std::endl;
 
-    const std::string SOURCE{ "namespace main; import collections.array; type Many<Item> = array<Item>; function run(): integer32 return Many<integer32>.filled(8, 0).length(); end" };
+    const std::string SOURCE{ "namespace main; import collections.list; type Many<Item> = list<Item>; function run(): sinteger32 return Many<sinteger32>.filled(8, 0).length(); end" };
 
     const Codes CODES{ MAREA_codesOf(SOURCE) };
 
@@ -280,32 +280,32 @@ TEST(MAREAIrTypeArguments, StaticCallWithItsOwnTypeArgumentsStaysAGeneric)
 {
     GTEST_COUT << "Validating a static call that also names type arguments for the function is not lowered." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf("namespace main; import collections.array; function run(): integer32 return array<integer32>.cast<float32>(1); end"), Codes{ GENERIC }) << "A type argument of the function itself is an instantiation that no pass performs.";
+    EXPECT_EQ(MAREA_codesOf("namespace main; import collections.list; function run(): sinteger32 return list<sinteger32>.cast<float32>(1); end"), Codes{ GENERIC }) << "A type argument of the function itself is an instantiation that no pass performs.";
 }
 
 TEST(MAREAIrTypeArguments, GenericNameOutsideACallStaysAGeneric)
 {
     GTEST_COUT << "Validating a type name used as a value but not as the receiver of a call keeps raising 4004." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf("namespace main; import collections.array; constant LIMIT: integer32 = array<integer32>.LIMIT;"), Codes{ GENERIC }) << "Only the receiver of a call is lowered.";
+    EXPECT_EQ(MAREA_codesOf("namespace main; import collections.list; constant LIMIT: sinteger32 = list<sinteger32>.LIMIT;"), Codes{ GENERIC }) << "Only the receiver of a call is lowered.";
 }
 
 TEST(MAREAIrTypeArguments, FunctionTypeArgumentStaysAGeneric)
 {
     GTEST_COUT << "Validating a function type as a type argument is not lowered and raises 4004, for a built-in and for a static call." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf("namespace main; constant SIZE: unsigned64 = size_of<function(value: integer32): integer32>();"), Codes{ GENERIC }) << "A function type cannot be a TYPE_NAME, so the built-in call must raise.";
+    EXPECT_EQ(MAREA_codesOf("namespace main; constant SIZE: uinteger64 = size_of<function(value: sinteger32): sinteger32>();"), Codes{ GENERIC }) << "A function type cannot be a TYPE_NAME, so the built-in call must raise.";
 
-    EXPECT_EQ(MAREA_codesOf("namespace main; import collections.array; function run(): integer32 return array<function(value: integer32): integer32>.filled(8, 0).length(); end"), Codes{ GENERIC }) << "A function type cannot be a TYPE_NAME, so the static call must raise.";
+    EXPECT_EQ(MAREA_codesOf("namespace main; import collections.list; function run(): sinteger32 return list<function(value: sinteger32): sinteger32>.filled(8, 0).length(); end"), Codes{ GENERIC }) << "A function type cannot be a TYPE_NAME, so the static call must raise.";
 
-    EXPECT_EQ(MAREA_codesOf("namespace main; constant SIZE: unsigned64 = size_of<function(value: integer32): integer32>(); constant OTHER: integer32 = 1;"), Codes{ GENERIC }) << "The gap must be reported once and the next declaration must lower.";
+    EXPECT_EQ(MAREA_codesOf("namespace main; constant SIZE: uinteger64 = size_of<function(value: sinteger32): sinteger32>(); constant OTHER: sinteger32 = 1;"), Codes{ GENERIC }) << "The gap must be reported once and the next declaration must lower.";
 }
 
 TEST(MAREAIrTypeArguments, NestedFunctionTypeArgumentStaysAGenericOnce)
 {
     GTEST_COUT << "Validating a function type nested in a type argument is reported once and drops the declaration whole." << std::endl;
 
-    const std::string SOURCE{ "namespace main; import collections.array; constant SIZE: unsigned64 = size_of<array<function(value: integer32): integer32>>(); function keep() end" };
+    const std::string SOURCE{ "namespace main; import collections.list; constant SIZE: uinteger64 = size_of<list<function(value: sinteger32): sinteger32>>(); function keep() end" };
 
     EXPECT_EQ(MAREA_codesOf(SOURCE), Codes{ GENERIC }) << "The nested gap must be reported once.";
 
@@ -316,7 +316,7 @@ TEST(MAREAIrTypeArguments, GapInAStaticCallArgumentDropsTheDeclaration)
 {
     GTEST_COUT << "Validating a gap inside the arguments of a static call drops the declaration whole and is reported once." << std::endl;
 
-    const std::string SOURCE{ "namespace main; import collections.array; function identity<Item>(value: Item): Item where Item: Copyable return copy value; end function run(): integer32 return array<integer32>.filled(identity(5), 0).length(); end function keep() end" };
+    const std::string SOURCE{ "namespace main; import collections.list; function identity<Item>(value: Item): Item where Item: Copyable return copy value; end function run(): sinteger32 return list<sinteger32>.filled(identity(5), 0).length(); end function keep() end" };
 
     EXPECT_EQ(MAREA_codesOf(SOURCE), (Codes{ GENERIC, GENERIC })) << "The generic function and the generic call inside the static call must each raise once.";
 
@@ -327,7 +327,7 @@ TEST(MAREAIrTypeArguments, StaticCallKeepsADottedTypeName)
 {
     GTEST_COUT << "Validating a static call on a dotted type name keeps the name whole in the TYPE_NAME." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerLocal("", "array<integer32>", "collections.array<integer32>.filled(8, 0)"), "(CALL_EXPRESSION (MEMBER_ACCESS (TYPE_NAME collections.array (TYPE_NAME integer32)) (IDENTIFIER filled)) (ARGUMENT_LIST (INTEGER_LITERAL 8) (INTEGER_LITERAL 0)))") << "The receiver must keep the dotted name as one text.";
+    EXPECT_EQ(MAREA_lowerLocal("", "list<sinteger32>", "collections.list<sinteger32>.filled(8, 0)"), "(CALL_EXPRESSION (MEMBER_ACCESS (TYPE_NAME collections.list (TYPE_NAME sinteger32)) (IDENTIFIER filled)) (ARGUMENT_LIST (INTEGER_LITERAL 8) (INTEGER_LITERAL 0)))") << "The receiver must keep the dotted name as one text.";
 }
 
 TEST(MAREAIrTypeArguments, GapInABuiltinArgumentDropsTheDeclaration)
@@ -347,11 +347,11 @@ TEST(MAREAIrTypeArguments, UnitIsForgottenWhenTheLoweringEnds)
 
     MAREA_IrFixture first(RESOLVE_EXTERNAL);
 
-    ASSERT_EQ(first.MAREA_lower("namespace main; function convert(value: integer32): integer32 return value; end"), MAREA_IR_EXCEPT_SUCCESS) << "The first unit must lower.";
+    ASSERT_EQ(first.MAREA_lower("namespace main; function convert(value: sinteger32): sinteger32 return value; end"), MAREA_IR_EXCEPT_SUCCESS) << "The first unit must lower.";
 
     MAREA_IrFixture second(RESOLVE_EXTERNAL);
 
-    ASSERT_EQ(second.sema.MAREA_sema("namespace main; constant VALUE: integer32 = convert<integer32>(5);", "main.marea"), MAREA_SEMA_EXCEPT_SUCCESS) << "The second unit must pass sema.";
+    ASSERT_EQ(second.sema.MAREA_sema("namespace main; constant VALUE: sinteger32 = convert<sinteger32>(5);", "main.marea"), MAREA_SEMA_EXCEPT_SUCCESS) << "The second unit must pass sema.";
 
     const MAREA_SemaTypedNode *root{ nullptr };
 
@@ -372,7 +372,7 @@ TEST(MAREAIrTypeArguments, BuiltinCallsRaiseNothingAndKeepTheirDeclaration)
 {
     GTEST_COUT << "Validating a unit with built-in and static calls raises no ir diagnostic and keeps every declaration." << std::endl;
 
-    const std::string SOURCE{ PRELUDE + "constant SIZE: unsigned64 = size_of<Light>(); function run(count: integer32): integer64 local scratch: array<integer32> = array<integer32>.filled(8, 0); return convert<integer64>(count); end" };
+    const std::string SOURCE{ PRELUDE + "constant SIZE: uinteger64 = size_of<Light>(); function run(count: sinteger32): sinteger64 local scratch: list<sinteger32> = list<sinteger32>.filled(8, 0); return convert<sinteger64>(count); end" };
 
     EXPECT_EQ(MAREA_codesOf(SOURCE), Codes{}) << "No ir diagnostic may be raised.";
 
@@ -385,7 +385,7 @@ TEST(MAREAIrTypeArguments, DumpShowsTheNewKinds)
 
     MAREA_IrFixture fixture(RESOLVE_EXTERNAL);
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; import collections.array; function run(count: integer32) local wide: integer64 = convert<integer64>(count); local items: array<integer32> = array<integer32>.filled(8, 0); end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; import collections.list; function run(count: sinteger32) local wide: sinteger64 = convert<sinteger64>(count); local items: list<sinteger32> = list<sinteger32>.filled(8, 0); end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     const MAREA_Character8 *text{ nullptr };
 
@@ -395,9 +395,9 @@ TEST(MAREAIrTypeArguments, DumpShowsTheNewKinds)
 
     const std::string DUMP{ text, length };
 
-    EXPECT_NE(DUMP.find("      LOCAL_DECLARATION \"wide\" type=integer64\n        CALL_EXPRESSION type=integer64\n          BUILTIN_NAME \"convert\"\n            TYPE_NAME \"integer64\"\n          ARGUMENT_LIST\n            IDENTIFIER \"count\"\n"), std::string::npos) << "The built-in call must dump with its name, its type and its argument.\n"
-                                                                                                                                                                                                                                                              << DUMP;
+    EXPECT_NE(DUMP.find("      LOCAL_DECLARATION \"wide\" type=sinteger64\n        CALL_EXPRESSION type=sinteger64\n          BUILTIN_NAME \"convert\"\n            TYPE_NAME \"sinteger64\"\n          ARGUMENT_LIST\n            IDENTIFIER \"count\"\n"), std::string::npos) << "The built-in call must dump with its name, its type and its argument.\n"
+                                                                                                                                                                                                                                                                                << DUMP;
 
-    EXPECT_NE(DUMP.find("        CALL_EXPRESSION\n          MEMBER_ACCESS\n            TYPE_NAME \"array\"\n              TYPE_NAME \"integer32\"\n            IDENTIFIER \"filled\"\n          ARGUMENT_LIST\n"), std::string::npos) << "The static call must dump with its type as the receiver.\n"
+    EXPECT_NE(DUMP.find("        CALL_EXPRESSION\n          MEMBER_ACCESS\n            TYPE_NAME \"list\"\n              TYPE_NAME \"sinteger32\"\n            IDENTIFIER \"filled\"\n          ARGUMENT_LIST\n"), std::string::npos) << "The static call must dump with its type as the receiver.\n"
                                                                                                                                                                                                                                       << DUMP;
 }

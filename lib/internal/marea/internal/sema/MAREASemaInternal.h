@@ -317,6 +317,17 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD const MAREA_AstNode *MAREA_CALL MAREA_SemaAttributeFind(const MAREA_AstNode *root, const MAREA_AstNode *declaration, const MAREA_Character8 *key);
 
     /**
+     * @brief Tells whether the closest attribute of a key has one given enum member as its value. The attributes
+     * of the symbol win over the file attributes of the compilation unit that holds it.
+     * @param root COMPILATION_UNIT node that holds the declaration. May be null: only the symbol is read.
+     * @param declaration Declaration or field node. May be null.
+     * @param key Attribute key, for example "visibility".
+     * @param member Enum member, for example "public".
+     * @return True when the closest attribute with that key is a single name equal to the member.
+     */
+    MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_SemaAttributeHasMember(const MAREA_AstNode *root, const MAREA_AstNode *declaration, const MAREA_Character8 *key, const MAREA_Character8 *member);
+
+    /**
      * @brief Reads the integer value of an ATTRIBUTE_ITEM, decimal or hexadecimal.
      * @param item ATTRIBUTE_ITEM node. May be null.
      * @param outValue Receives the value. Must not be null.
@@ -439,13 +450,74 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_SemaIsReference(const MAREA_SemaContext *context, const MAREA_Character8 *text, MAREA_IntegerSize length);
 
     /**
-     * @brief Checks the ownership rules of one node: the reference word on a parameter, the copy and move
-     * rule of an assignment or local initializer, and a reference that is returned or stored in a field.
+     * @brief Checks the ownership rules of one node: the "semantics" attribute on a parameter, the copy
+     * and move rule of an assignment or local initializer, and a reference that is returned or stored in
+     * a field.
      * @param context Context of the run. Must not be null.
      * @param node Node about to be visited. Must not be null.
      * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
      */
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckOwnership(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
+     * @brief A parameter's effective passing mode: its own "semantics" attribute, or, when it has none,
+     * the default by type class.
+     */
+    typedef enum MAREA_SemaParameterSemantics
+    {
+        MAREA_SEMA_PARAMETER_SEMANTICS_VALUE_READ_ONLY = MAREA_UINTEGER_8(0),
+        MAREA_SEMA_PARAMETER_SEMANTICS_REFERENCE_READ_ONLY = MAREA_UINTEGER_8(1),
+        MAREA_SEMA_PARAMETER_SEMANTICS_REFERENCE_MUTABLE = MAREA_UINTEGER_8(2),
+    } MAREA_SemaParameterSemantics;
+
+    /**
+     * @brief Reads the effective passing mode of a PARAMETER: its own "semantics" attribute
+     * (value_read_only, reference_read_only or reference_mutable), or, when it has none, the default by
+     * type class - a primitive or the one documented by-value exception (an enum) is VALUE_READ_ONLY,
+     * anything else is REFERENCE_MUTABLE. The one place every ownership check reads a parameter's
+     * passing mode.
+     * @param context Context of the run. Must not be null.
+     * @param parameter PARAMETER node. Must not be null.
+     * @return The effective semantics.
+     */
+    MAREA_NODISCARD MAREA_SemaParameterSemantics MAREA_CALL MAREA_SemaGetParameterSemantics(const MAREA_SemaContext *context, const MAREA_AstNode *parameter);
+
+    /**
+     * @brief Tells whether a PARAMETER carries a default value expression, as opposed to only its name,
+     * type and, optionally, a trailing "semantics" attribute.
+     * @param parameter PARAMETER node. May be null.
+     * @return True when the parameter has a default value.
+     */
+    MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_SemaParameterHasDefault(const MAREA_AstNode *parameter);
+
+    /**
+     * @brief Checks one function that carries the operator construct or destroy: it stands in a concrete
+     * implementation of a structure or an enum, and it has the fixed shape (destroy has no parameter and
+     * no result, construct has no result and every parameter defaulted). Any other node is ignored.
+     * @param context Context of the run. Must not be null.
+     * @param node Node about to be visited. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckLifecycle(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
+     * @brief Rejects a direct call of a function that carries the operator construct or destroy, by name or
+     * by the static form Type.name(...). Any other call is ignored.
+     * @param context Context of the run. Must not be null.
+     * @param call CALL_EXPRESSION node. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckLifecycleCall(MAREA_SemaContext * context, const MAREA_AstNode *call);
+
+    /**
+     * @brief Finds the construct operator of a concrete structure or enum: the member of its
+     * implementation whose operator attribute is "construct". Used to resolve a call whose callee
+     * names the type, Type(args), against construct's own parameters.
+     * @param context Context of the run. Must not be null.
+     * @param typeDeclaration STRUCTURE_DECLARATION or ENUM_DECLARATION node. Must not be null.
+     * @return The FUNCTION_DECLARATION that carries construct, or null when the type declares none.
+     */
+    MAREA_NODISCARD const MAREA_AstNode *MAREA_CALL MAREA_SemaFindConstructOperator(const MAREA_SemaContext *context, const MAREA_AstNode *typeDeclaration);
 
     /**
      * @brief Checks that a call does not pass one name twice when one of the parameters is a write borrow.
@@ -492,15 +564,6 @@ MAREA_BEGIN_EXTERN_C
      * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
      */
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckControlFlow(MAREA_SemaContext * context, const MAREA_AstNode *node);
-
-    /**
-     * @brief Checks the entry point: a function named main in the namespace main has the signature
-     * (arguments: array<string>): integer32. Sema never requires a main to exist.
-     * @param context Context of the run. Must not be null.
-     * @param root COMPILATION_UNIT node. Must not be null.
-     * @return MAREA_SEMA_EXCEPT_SUCCESS, or MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER on a null argument.
-     */
-    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckEntryPoint(MAREA_SemaContext * context, const MAREA_AstNode *root);
 
     /**
      * @brief Reports TYPE_MISMATCH when the type that sema knows for an expression cannot be the primitive type

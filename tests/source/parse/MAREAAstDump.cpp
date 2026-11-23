@@ -28,13 +28,13 @@ TEST(MAREAAstDump, OperatorAndFlags)
 
     MAREA_ParseFixture fixture;
 
-    ASSERT_EQ(fixture.MAREA_parse("namespace main; constant x: integer32 = a ** b; function f(p: mutable integer32) end"), MAREA_PARSE_EXCEPT_SUCCESS) << "Parsing must succeed.";
+    ASSERT_EQ(fixture.MAREA_parse("namespace main; constant x: sinteger32 = a ** b; function f(values: c.array<sinteger32>) for each v in mutable values do end end"), MAREA_PARSE_EXCEPT_SUCCESS) << "Parsing must succeed.";
 
     const std::string DUMP{ fixture.MAREA_itemsDump() };
 
     EXPECT_NE(DUMP.find("    BINARY_EXPRESSION op=STAR_STAR\n"), std::string::npos) << "An operator must be written as op=NAME.";
 
-    EXPECT_NE(DUMP.find("      PARAMETER flags=1\n"), std::string::npos) << "Flags must be written as flags=N.";
+    EXPECT_NE(DUMP.find("FOR_EACH_STATEMENT flags=1"), std::string::npos) << "Flags must be written as flags=N.";
 
     EXPECT_EQ(DUMP.find("QUALIFIED_NAME op="), std::string::npos) << "A node without an operator must not write op=.";
 
@@ -67,6 +67,19 @@ TEST(MAREAAstDump, TextIsEscaped)
     const std::string EXPECTED{ std::string(R"(    STRING_LITERAL "\"a\\\\b\\\"\x01\x7F\"")") + "\n" };
 
     EXPECT_NE(fixture.MAREA_itemsDump().find(EXPECTED), std::string::npos) << "The escaping rule of the docs must apply.";
+}
+
+TEST(MAREAAstDump, CharacterLiteralKeepsItsQuotes)
+{
+    GTEST_COUT << "Validating a character literal is dumped with its single quotes and escapes as written." << std::endl;
+
+    MAREA_ParseFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_parse("namespace main; constant c: character = '\\n';"), MAREA_PARSE_EXCEPT_SUCCESS) << "Parsing must succeed.";
+
+    const std::string EXPECTED{ std::string(R"(    CHARACTER_LITERAL "'\\n'")") + "\n" };
+
+    EXPECT_NE(fixture.MAREA_itemsDump().find(EXPECTED), std::string::npos) << "The dump must show the text as written, with the backslash escaped.";
 }
 
 TEST(MAREAAstDump, RejectsNullArguments)
@@ -165,7 +178,7 @@ namespace
 
     std::string MAREA_chainSource(size_t length)
     {
-        std::string source{ "namespace main; constant x: integer32 = a" };
+        std::string source{ "namespace main; constant x: sinteger32 = a" };
 
         for (size_t index = 0; index < length; ++index) {
             source += " + a";

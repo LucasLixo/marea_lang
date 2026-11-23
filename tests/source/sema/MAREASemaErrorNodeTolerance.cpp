@@ -102,7 +102,7 @@ TEST(MAREASemaErrorNodeTolerance, DeepNestingSurvives)
     }
 
     for (int index{ 0 }; index < 300; ++index) {
-        ifs += "end ";
+        ifs += "end end ";
     }
 
     ifs += "end";
@@ -110,10 +110,10 @@ TEST(MAREASemaErrorNodeTolerance, DeepNestingSurvives)
     std::string types{ "namespace main; constant x: " };
 
     for (int index{ 0 }; index < 300; ++index) {
-        types += "array<";
+        types += "c.array<";
     }
 
-    types += "integer32";
+    types += "sinteger32";
 
     for (int index{ 0 }; index < 300; ++index) {
         types += ">";

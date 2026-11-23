@@ -6,10 +6,11 @@
 --   1. An opaque C type is declared with "opaque structure". Its layout is unknown. The
 --      language never reads it, so it has no field and no arithmetic. It is used only through
 --      a parameter (a borrow) or an owner.
---   2. #[destroy = function] says how to free it. The owner calls it when its scope ends, in
+--   2. A function of C frees it. The owner calls it when its scope ends, in
 --      the reverse order of creation. No GC, no finalizer, no forgotten free.
 --   3. owned<T> is the only owner of a resource. It moves, it does not copy. A function that
---      only uses the resource takes it with no word (read-only) or with "mutable" (write).
+--      only uses the resource takes it with the default write borrow (reference_mutable), or
+--      reads it only with #[semantics = reference_read_only].
 --   4. handle<T> is an integer (index and generation) for resources that a table of the engine
 --      owns. A stale handle is found at the use, not as a crash in the driver. owned<T> is for
 --      one resource of one scope, handle<T> is for a pool. Both exist.
@@ -23,22 +24,20 @@ import collections.slice;
 import c.vulkan;
 
 -- Rule 1 and 2: the opaque types come from C, with the function that frees each one.
-#[destroy = vulkan.destroy_swapchain]
 opaque structure SwapChain;
 
-#[destroy = vulkan.destroy_texture]
 opaque structure Texture;
 
 -- A structure with the exact layout of the C one, to pass by value to C.
-#[value, layout = c, align = 4]
+#[layout = c, align = 4]
 structure TextureInfo
-    width: unsigned32;
-    height: unsigned32;
-    format: unsigned32;
+    width: uinteger32;
+    height: uinteger32;
+    format: uinteger32;
 end
 
 -- Rule 3: the function gives the owner up to the caller with "return".
-function create_swapchain(width: unsigned32, height: unsigned32): owned<SwapChain>
+function create_swapchain(width: uinteger32, height: uinteger32): owned<SwapChain>
     return vulkan.create_swapchain(width, height);
 end
 
@@ -47,12 +46,12 @@ function create_texture(info: TextureInfo): owned<Texture>
 end
 
 -- A function that only uses the resources: a write borrow and a read borrow.
-function present(swapchain: mutable SwapChain, texture: Texture)
+function present(swapchain: SwapChain, #[semantics = reference_read_only] texture: Texture)
     vulkan.present(swapchain, texture);
 end
 
 -- Rule 6: a mapped buffer is a name that can not leave the block.
-function fill_texture(texture: mutable Texture, color: unsigned32)
+function fill_texture(texture: Texture, color: uinteger32)
     with vulkan.map_texture(texture) as pixels do
         for index in 0 .. slice.length(pixels) - 1 do
             pixels[index] = color;
@@ -62,14 +61,14 @@ function fill_texture(texture: mutable Texture, color: unsigned32)
 end
 
 -- Rule 5: a raw pointer, only when a C function asks for one.
-function native_handle(swapchain: SwapChain): unsigned64
+function native_handle(swapchain: SwapChain): uinteger64
     unsafe
-        local raw: pointer<unsigned8> = vulkan.native_pointer(swapchain);
-        return convert<unsigned64>(raw);
+        local raw: pointer<uinteger8> = vulkan.native_pointer(swapchain);
+        return convert<uinteger64>(raw);
     end
 end
 
-#[public]
+#[visibility = public]
 function show_frame()
     local swapchain: owned<SwapChain> = create_swapchain(1280, 720);
     local info: TextureInfo = TextureInfo{ width = 64, height = 64, format = 0 };

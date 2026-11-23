@@ -17,10 +17,10 @@ import collections.array;
 import collections.slice;
 import concurrency.task;
 
-constant WORKER_COUNT: integer32 = 4;
+constant WORKER_COUNT: sinteger32 = 4;
 
 -- A worker is a plain function. It has no knowledge of threads.
-function scale_slice(part: mutable slice<float32>, factor: float32)
+function scale_slice(part: slice<float32>, factor: float32)
     for each value in mutable part do
         value *= factor;
     end
@@ -34,8 +34,8 @@ function sum_slice(part: slice<float32>): float32
     return total;
 end
 
-#[public]
-function scale_all(values: mutable array<float32>, factor: float32)
+#[visibility = public]
+function scale_all(values: c.array<float32>, factor: float32)
     fork_join
         partition mutable values into WORKER_COUNT as part do
             spawn scale_slice(part, factor);
@@ -43,9 +43,9 @@ function scale_all(values: mutable array<float32>, factor: float32)
     end
 end
 
-#[public]
-function sum_all(values: array<float32>): float32
-    local tasks: array<task<float32>> = array<task<float32>>{};
+#[visibility = public]
+function sum_all(values: c.array<float32>): float32
+    local tasks: c.array<task<float32>> = c.array<task<float32>>{};
     fork_join
         partition values into WORKER_COUNT as part do
             tasks.append(spawn sum_slice(part));

@@ -67,7 +67,7 @@ field or member that owns it.
 | `IMPORT_DECLARATION` (flag HAS_ALIAS or HAS_MEMBERS, never both) | `QUALIFIED_NAME` (the namespace), then [`IDENTIFIER` alias] when HAS_ALIAS, or `IMPORT_MEMBER`+ when HAS_MEMBERS |
 | `IMPORT_MEMBER` (flag HAS_ALIAS) | `QUALIFIED_NAME` (the member path, one or two parts for the checker), [`IDENTIFIER` alias] |
 | `QUALIFIED_NAME` | `IDENTIFIER`+ |
-| `IDENTIFIER`, `INTEGER_LITERAL`, `FLOAT_LITERAL`, `STRING_LITERAL`, `BOOLEAN_LITERAL` | none, they have text (a string keeps its quotes and is not decoded) |
+| `IDENTIFIER`, `INTEGER_LITERAL`, `FLOAT_LITERAL`, `STRING_LITERAL`, `CHARACTER_LITERAL`, `BOOLEAN_LITERAL` | none, they have text (a string or a character keeps its quotes and is not decoded) |
 | `ATTRIBUTE`, `FILE_ATTRIBUTE` | `ATTRIBUTE_ITEM`+ |
 | `ATTRIBUTE_ITEM` | `IDENTIFIER` key [`BOOLEAN_LITERAL`, `INTEGER_LITERAL`, `STRING_LITERAL` or `QUALIFIED_NAME`] |
 | `CONSTANT_DECLARATION` | `ATTRIBUTE*`, `IDENTIFIER`, type, expr |
@@ -75,7 +75,7 @@ field or member that owns it.
 | `STRUCTURE_DECLARATION` | `ATTRIBUTE*`, `IDENTIFIER`, [`GENERIC_PARAMETERS`], `FIELD_DECLARATION*` |
 | `FIELD_DECLARATION` | `ATTRIBUTE*`, `IDENTIFIER`, type |
 | `OPAQUE_DECLARATION` | `ATTRIBUTE*`, `IDENTIFIER` |
-| `ENUM_DECLARATION` | `ATTRIBUTE*`, `IDENTIFIER`, `VARIANT_DECLARATION*` |
+| `ENUM_DECLARATION` | `ATTRIBUTE*`, `IDENTIFIER`, [tag type], `VARIANT_DECLARATION*` |
 | `VARIANT_DECLARATION` | `IDENTIFIER`, `VARIANT_FIELD*` |
 | `VARIANT_FIELD` | `IDENTIFIER`, type, [expr] |
 | `CONTRACT_DECLARATION` | `ATTRIBUTE*`, `IDENTIFIER`, `CONTRACT_FUNCTION*` |
@@ -83,7 +83,7 @@ field or member that owns it.
 | `IMPLEMENTATION_DECLARATION` | `ATTRIBUTE*`, [`GENERIC_PARAMETERS`], `NAMED_TYPE`, (`FUNCTION_DECLARATION` or `CONSTANT_DECLARATION`)* |
 | `FUNCTION_DECLARATION` | `ATTRIBUTE*`, `IDENTIFIER`, [`GENERIC_PARAMETERS`], `PARAMETER_LIST`, [type], [`WHERE_CLAUSE`], `BLOCK` |
 | `PARAMETER_LIST` | `PARAMETER*` (always present) |
-| `PARAMETER` (flag MUTABLE or REFERENCE) | `IDENTIFIER`, type |
+| `PARAMETER` | `IDENTIFIER`, type, [default expression], `ATTRIBUTE*` |
 | `GENERIC_PARAMETERS` | `GENERIC_PARAMETER`+ |
 | `GENERIC_PARAMETER` (flag CONSTANT) | `IDENTIFIER`, and a type when the flag is set |
 | `WHERE_CLAUSE` | `CONSTRAINT`+ |
@@ -125,7 +125,11 @@ field or member that owns it.
 | `MACRO_CALL` | `IDENTIFIER` (text is the macro name), `ARGUMENT_LIST` |
 | `ERROR_NODE` | none, placed at the bad token |
 
-The flag values are MUTABLE 1, REFERENCE 2, CONSTANT 4, HAS_ALIAS 8, FILE 16 and HAS_MEMBERS 32.
+The flag values are MUTABLE 1, CONSTANT 4, HAS_ALIAS 8, FILE 16 and HAS_MEMBERS 32. Bit 2
+(REFERENCE) is retired: the parser never sets it any more. A `PARAMETER`'s own `#[semantics = ...]`
+attribute, adopted last so the name, type and default keep their fixed positions (unlike every
+other declaration, whose attributes lead), is the one source sema reads for its passing mode -
+see [the sema stage doc](../sema/marea-sema.md) ("Ownership").
 The word after the namespace path of an import decides its form: `as` or `;` is the whole path
 form, `{` is the member list. For example, `import a.b { f as g, T };` dumps as:
 
@@ -143,8 +147,25 @@ form, `{` is the member list. For example, `import a.b { f as g, T };` dumps as:
         IDENTIFIER "T"
 ```
 
+The parser keeps no word list of its own for names: `array<T, 4>` and `vector<T>` are both a `NAMED_TYPE` whose
+`TYPE_ARGUMENTS` hold types or an `INTEGER_LITERAL` (the split of a fixed `array` from a growable `vector`, and
+which names are primitives such as `character`, is sema's). An `enum` tag type (`enum Light : uinteger8`) is
+any type to the parser, a type child right after the name; that it must be an integer primitive is sema's rule.
+An attribute is read as a plain list: the parser never checks a key or a value, so `#[visibility = public]`,
+`#[operator = "construct"]` (a `STRING_LITERAL` value) and `#[semantics = reference_mutable]` (a
+`QUALIFIED_NAME` value) are the same shape as an unknown key.
+
+`reference` is not a reserved word any more (it lexes as an `IDENTIFIER`), and `mutable` is read only by
+`for each` and `partition`, never on a parameter.
+
 A bare name in an expression is an `IDENTIFIER` node. `or`, `and`, comparison, bit, shift, additive,
 multiplicative operators and `**` are all `BINARY_EXPRESSION` with the token kind as operator.
+
+Creating a value has two spellings and the parser tells them apart by the next token only. `Point{ x = 1.0 }`
+is a `LITERAL_VALUE`. `Point(1.0)` is an ordinary `CALL_EXPRESSION` whose callee is an `IDENTIFIER` (or a
+`MEMBER_ACCESS` chain for a qualified type name): the parser does not know the name is a type, so deciding
+that it is a construction call is sema's job. No test builds a call on a type name on purpose; the shape is
+the same one `f(1)` has in `PostfixChains`.
 
 ## Precedence
 
@@ -159,8 +180,11 @@ operators on its left: `-a ** 2` is `-(a ** 2)`, and the right side may be unary
 - **Type arguments in an expression.** A `<` after a name starts type arguments only when a balanced
   `>` closes it and the token after that is `(` (a call) or `{` (a literal value), or `.` when the
   name is a primary (`array<float32>.filled(0.0)` is a `GENERIC_NAME`). Between the brackets only
-  type tokens are allowed: names, `.`, `,`, integers, `function`, `mutable`, `reference`, `:` and
-  balanced parentheses. A `>>` closes two levels. The scan is limited to 1024 tokens and allocates
+  type tokens are allowed: names, `.`, `,`, integers, `function`, `:` and balanced parentheses. A `#[` is not in
+  that vocabulary, so a function type with a parameter attribute inside the brackets of an expression
+  (`f<function(#[semantics = reference_mutable] a: T)>(x)`) is read as a comparison (see Gaps). A `>>`
+  closes two levels.
+  The scan is limited to 1024 tokens and allocates
   nothing. Otherwise the `<` is a comparison. `a < b > (c)` is therefore a generic call.
 - **Type arguments in a type.** A `<` always starts type arguments. A `>>` token is split in two
   closing brackets (`array<array<float32>>`).
@@ -188,8 +212,11 @@ operators on its left: `-a ** 2` is `-(a ** 2)`, and the right side may be unary
   with the next import or item. A token that cannot start a member ends the list and the top level
   recovery skips to the next `;`.
 - A block stops at `end`, at the end of the file, or at the start of a top level declaration, so an
-  unfinished body never hides the next function. `elseif`, `else`, `case` and `default` end the
-  block only inside an `if` or a `switch`; elsewhere they are reported and skipped.
+  unfinished body never hides the next function. Every branch of an `if` (the `if` branch, each
+  `elseif` and the `else`) and of a `switch` (each `case` and the `default`) has its own `end`, and one
+  more `end` closes the whole statement. The branch `end` is not a node of the tree. An `elseif`,
+  `else`, `case` or `default` inside a block, which is the old shared-end form, is reported as
+  `UNEXPECTED_TOKEN` and skipped.
 - Nesting is limited to 256 levels of expression, statement and type. Deeper input gives
   `RECURSION_TOO_DEEP` and that construct is left unparsed.
 
@@ -200,18 +227,24 @@ All are errors, from 2001 up. A diagnostic is not repeated at the same byte offs
 | Code | Name | Example |
 |---|---|---|
 | 2001 | `EXPECTED_TOKEN` | `namespace main` (no `;`), `import a { };` (empty member list), `import a { f, };`, `import a { f as };`, `import a as b { f };` |
-| 2002 | `EXPECTED_EXPRESSION` | `constant x: integer32 = 1 +;` |
+| 2002 | `EXPECTED_EXPRESSION` | `constant x: sinteger32 = 1 +;` |
 | 2003 | `EXPECTED_TYPE` | `constant x: = 1;` |
 | 2004 | `EXPECTED_DECLARATION` | `namespace main; 42;`, an import after a declaration |
-| 2005 | `UNEXPECTED_TOKEN` | a stray `end`, or `case` outside a `switch` |
+| 2005 | `UNEXPECTED_TOKEN` | a stray `end`, `case` outside a `switch`, an `else` with no `end` before it, or a default value in a function type parameter (`function(a: sinteger32 = 0)`, the tree is still built) |
 | 2006 | `CHAINED_COMPARISON` | `a < b < c` (the tree is still built) |
 | 2007 | `MISSING_NAMESPACE` | a file that does not start with `namespace` |
 | 2008 | `RECURSION_TOO_DEEP` | 300 nested parentheses, `if` blocks or type arguments |
 | 2009 | `UNTERMINATED_BLOCK` | a structure, function or other block that reaches the end of the file |
-| 2010 | `DEFAULT_ARM_NOT_LAST` | `switch a default then x = 1; case 2 then y = 2; end` (the tree is still built) |
+| 2010 | `DEFAULT_ARM_NOT_LAST` | `switch a default then x = 1; end case 2 then y = 2; end end` (the tree is still built) |
 
 ## Gaps
 
+- A function type that carries a parameter attribute (`#[semantics = ...]`) inside the type arguments of
+  an expression is not found by the type-argument scan, so `f<function(#[semantics = reference_mutable] a: T)>(x)`
+  parses as comparisons. In a type position the same text parses (`MAREAParserTypes`, `FunctionTypes`). No
+  test covers the expression case; this is read from the scan's token list in `MAREAParseExpression.c`.
+- No test builds a call on a type name (`Point(1.0)`) or an `enum` tag type that is not an integer; both
+  parse as plain calls and plain types, and the construction and tag rules are sema's.
 - The semantic rules that the grammar gives to "the checker" are not parsed: the namespace against
   the path, attribute keys and values, ownership, switch coverage.
 - An `IMPORT_MEMBER` path may have any number of parts in the tree. This is not a parser gap: only one
