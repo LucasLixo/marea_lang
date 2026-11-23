@@ -1,0 +1,13 @@
+-- gap: #183 NEW
+-- rule: reject
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A constant division by zero.
+
+namespace main;
+
+function check(): sinteger32
+    local value: sinteger32 = 1 / 0;
+    return value;
+end

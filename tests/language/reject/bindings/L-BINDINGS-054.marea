@@ -1,0 +1,15 @@
+-- expect: 2006 @13, 3011 @13
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A chained comparison is not accepted.
+
+namespace main;
+
+function check(): sinteger32
+    local a: sinteger32 = 1;
+    local b: sinteger32 = 2;
+    local c: sinteger32 = 3;
+    local ok: boolean = a < b < c;
+    return 1;
+end

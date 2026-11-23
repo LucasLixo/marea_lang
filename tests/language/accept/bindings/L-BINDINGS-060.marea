@@ -1,0 +1,12 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A file with CRLF line ends.
+
+namespace main;
+
+function check(): sinteger32
+    local value: sinteger32 = 1;
+    return value;
+end

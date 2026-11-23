@@ -1,0 +1,14 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A local that has the name of a file constant.
+
+namespace main;
+
+constant LIMIT: sinteger32 = 1;
+
+function check(): sinteger32
+    local LIMIT: sinteger32 = 2;
+    return LIMIT;
+end

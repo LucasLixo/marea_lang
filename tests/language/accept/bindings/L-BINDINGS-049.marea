@@ -1,0 +1,15 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- The wrapping operators of the grammar.
+
+namespace main;
+
+function check(): sinteger32
+    local left: uinteger8 = 200;
+    local a: uinteger8 = left +% 100;
+    local b: uinteger8 = left -% 250;
+    local c: uinteger8 = left *% 3;
+    return 1;
+end

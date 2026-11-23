@@ -1,0 +1,14 @@
+-- expect: 2002 @10, 2002 @12
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A scope block written with curly braces.
+
+namespace main;
+
+function check(): sinteger32
+    {
+        local value: sinteger32 = 1;
+    }
+    return 1;
+end
