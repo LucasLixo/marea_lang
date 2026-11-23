@@ -65,7 +65,7 @@ TEST(MAREAParserRecovery, DeepNestingOfBlocksAndTypes)
     }
 
     for (int index{ 0 }; index < 300; ++index) {
-        ifs += "end ";
+        ifs += "end end ";
     }
 
     ifs += "end";

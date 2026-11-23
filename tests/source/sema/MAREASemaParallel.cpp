@@ -155,7 +155,7 @@ TEST(MAREASemaParallel, ContinueOutOfAPartitionBodyIsRejected)
 {
     GTEST_COUT << "Validating a continue in a partition body that targets a loop outside the fork_join is rejected." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf("function f(values: array<float32>, a: boolean) while a do fork_join partition values into 2 as part do if a then continue; end end end end end"), Codes{ INVALID_JUMP }) << "A continue to a while loop must raise INVALID_PARALLEL_JUMP.";
+    EXPECT_EQ(MAREA_codesOf("function f(values: array<float32>, a: boolean) while a do fork_join partition values into 2 as part do if a then continue; end end end end end end"), Codes{ INVALID_JUMP }) << "A continue to a while loop must raise INVALID_PARALLEL_JUMP.";
 
     EXPECT_EQ(MAREA_codesOf("function f(values: array<float32>) for i in 0 .. 3 do fork_join partition values into 2 as part do continue; end end end end"), Codes{ INVALID_JUMP }) << "A continue to a for-range loop must raise INVALID_PARALLEL_JUMP.";
 
@@ -188,14 +188,14 @@ TEST(MAREASemaParallel, JumpThroughAWithOrSwitchInABodyIsRejected)
 
     EXPECT_EQ(MAREA_codesOf("function f(values: array<float32>, a: boolean) while a do fork_join partition values into 2 as part do with values as view do break; end end end end end"), Codes{ INVALID_JUMP }) << "A break through a with must raise INVALID_PARALLEL_JUMP.";
 
-    EXPECT_EQ(MAREA_codesOf("function f(values: array<float32>, a: integer32) while true do fork_join partition values into 2 as part do switch a case 1 then continue; default then end end end end end"), Codes{ INVALID_JUMP }) << "A continue in a switch arm must raise INVALID_PARALLEL_JUMP.";
+    EXPECT_EQ(MAREA_codesOf("function f(values: array<float32>, a: integer32) while true do fork_join partition values into 2 as part do switch a case 1 then continue; end default then end end end end end end"), Codes{ INVALID_JUMP }) << "A continue in a switch arm must raise INVALID_PARALLEL_JUMP.";
 }
 
 TEST(MAREASemaParallel, EveryJumpOfABodyIsReported)
 {
     GTEST_COUT << "Validating each jump that leaves a partition body is reported once." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf("function f(values: array<float32>, a: boolean) while a do fork_join partition values into 2 as part do if a then break; end continue; return; end end end end"), (Codes{ INVALID_JUMP, INVALID_JUMP, INVALID_JUMP })) << "Three jumps must raise three diagnostics.";
+    EXPECT_EQ(MAREA_codesOf("function f(values: array<float32>, a: boolean) while a do fork_join partition values into 2 as part do if a then break; end end continue; return; end end end end"), (Codes{ INVALID_JUMP, INVALID_JUMP, INVALID_JUMP })) << "Three jumps must raise three diagnostics.";
 }
 
 TEST(MAREASemaParallel, JumpInANestedPartitionIsRejectedOnce)
@@ -220,7 +220,7 @@ TEST(MAREASemaParallel, LoopInsideAPartitionBodyIsAccepted)
 {
     GTEST_COUT << "Validating a loop that lives inside a partition body can use break and continue." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("function f(values: array<float32>, a: boolean) fork_join partition values into 2 as part do while a do if a then break; end continue; end end end end").empty()) << "A while loop of the body must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function f(values: array<float32>, a: boolean) fork_join partition values into 2 as part do while a do if a then break; end end continue; end end end end").empty()) << "A while loop of the body must raise nothing.";
 
     EXPECT_TRUE(MAREA_codesOf("function f(values: array<float32>) fork_join partition values into 2 as part do for i in 0 .. 3 do continue; end end end end").empty()) << "A for-range loop of the body must raise nothing.";
 
@@ -248,7 +248,7 @@ TEST(MAREASemaParallel, JumpOutsideAnyPartitionBodyIsUnchanged)
 
     EXPECT_TRUE(MAREA_codesOf("function f(values: array<float32>, a: boolean): integer32 with values as view do return 1; end return 0; end").empty()) << "A return inside a with outside a partition must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("function f(values: array<float32>, a: boolean) while a do if a then break; end end end").empty()) << "A break in a loop must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function f(values: array<float32>, a: boolean) while a do if a then break; end end end end").empty()) << "A break in a loop must raise nothing.";
 }
 
 TEST(MAREASemaParallel, JumpNextToABrokenStatementIsStillReported)

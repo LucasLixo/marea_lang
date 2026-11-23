@@ -353,7 +353,7 @@ static MAREA_AstNode *MAREA_CALL MAREA_G_ParseFunction(MAREA_ParseState *state, 
         MAREA_ParseNodeAdd(state, declaration, MAREA_ParseWhereClause(state));
     }
 
-    MAREA_ParseNodeAdd(state, declaration, MAREA_ParseBlock(state, MAREA_BOOLEAN_FALSE));
+    MAREA_ParseNodeAdd(state, declaration, MAREA_ParseBlock(state));
 
     MAREA_ParseExpectEnd(state, "expected 'end' to close the function");
 
