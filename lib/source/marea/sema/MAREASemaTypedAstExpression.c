@@ -146,24 +146,6 @@ static MAREA_SemaTypeFrame *MAREA_CALL MAREA_G_NewFrame(MAREA_G_Resolver *resolv
     return frame;
 }
 
-// INFO: the position of a name among the generic parameters of a declaration, or the count when it is none of them.
-static MAREA_IntegerSize MAREA_CALL MAREA_G_ParameterIndex(const MAREA_AstNode *parameters, const MAREA_Character8 *name, MAREA_IntegerSize nameLength)
-{
-    const MAREA_IntegerSize COUNT = (parameters == MAREA_NULLPTR) ? MAREA_INTEGER_SIZE(0) : MAREA_AstNodeGetChildCount(parameters);
-
-    for (MAREA_IntegerSize index = 0; index < COUNT; ++index) {
-        const MAREA_AstNode *parameter = MAREA_SemaChildAt(parameters, index);
-
-        const MAREA_AstNode *identifier = (parameter == MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_SemaChildAt(parameter, 0);
-
-        if ((MAREA_G_IsKind(identifier, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_TRUE) && (MAREA_SemaTextEquals(MAREA_AstNodeGetText(identifier), MAREA_AstNodeGetTextLength(identifier), name, nameLength) == MAREA_BOOLEAN_TRUE)) {
-            return index;
-        }
-    }
-
-    return COUNT;
-}
-
 // INFO: a function with generic parameters gets a frame with the type arguments written at the call, or none; a function with no generic parameters keeps the frame of the block that holds it.
 static const MAREA_SemaTypeFrame *MAREA_CALL MAREA_G_FunctionFrame(MAREA_G_Resolver *resolver, const MAREA_AstNode *function, const MAREA_SemaTypeFrame *outer, const MAREA_AstNode *callTypeArguments)
 {
@@ -228,7 +210,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_ImplementationNamesItsParameters(const M
 
         const MAREA_AstNode *identifier = (MAREA_G_IsKind(argument, MAREA_AST_KIND_NAMED_TYPE) == MAREA_BOOLEAN_TRUE) ? MAREA_G_SingleSegment(MAREA_SemaChildAt(argument, 0)) : MAREA_NULLPTR;
 
-        if ((identifier == MAREA_NULLPTR) || (MAREA_G_FindChild(argument, MAREA_AST_KIND_TYPE_ARGUMENTS) != MAREA_NULLPTR) || (MAREA_G_ParameterIndex(parameters, MAREA_AstNodeGetText(identifier), MAREA_AstNodeGetTextLength(identifier)) != index)) {
+        if ((identifier == MAREA_NULLPTR) || (MAREA_G_FindChild(argument, MAREA_AST_KIND_TYPE_ARGUMENTS) != MAREA_NULLPTR) || (MAREA_SemaGenericParameterIndex(parameters, MAREA_AstNodeGetText(identifier), MAREA_AstNodeGetTextLength(identifier)) != index)) {
             return MAREA_BOOLEAN_FALSE;
         }
     }
@@ -342,7 +324,7 @@ static MAREA_G_Peeled MAREA_CALL MAREA_G_Peel(const MAREA_SemaContext *context, 
             MAREA_Boolean replaced = MAREA_BOOLEAN_FALSE;
 
             for (const MAREA_SemaTypeFrame *frame = type->frame; ((frame != MAREA_NULLPTR) && (replaced == MAREA_BOOLEAN_FALSE)); frame = frame->next) {
-                const MAREA_IntegerSize INDEX = MAREA_G_ParameterIndex(frame->parameters, name, NAME_LENGTH);
+                const MAREA_IntegerSize INDEX = MAREA_SemaGenericParameterIndex(frame->parameters, name, NAME_LENGTH);
 
                 if ((frame->selfDeclaration != MAREA_NULLPTR) && (MAREA_G_TextIs(name, NAME_LENGTH, "Self") == MAREA_BOOLEAN_TRUE)) {
                     *outNominal = (MAREA_G_Nominal){ .declaration = frame->selfDeclaration, .arguments = frame->selfArguments, .frame = frame->argumentFrame };
@@ -566,7 +548,7 @@ static const MAREA_AstNode *MAREA_CALL MAREA_G_FindValueParameterType(const MARE
 {
     const MAREA_AstNode *parameters = (owner == MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_G_FindChild(owner, MAREA_AST_KIND_GENERIC_PARAMETERS);
 
-    const MAREA_IntegerSize INDEX = MAREA_G_ParameterIndex(parameters, name, nameLength);
+    const MAREA_IntegerSize INDEX = MAREA_SemaGenericParameterIndex(parameters, name, nameLength);
 
     if ((parameters == MAREA_NULLPTR) || (INDEX >= MAREA_AstNodeGetChildCount(parameters))) {
         return MAREA_NULLPTR;
