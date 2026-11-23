@@ -15,7 +15,7 @@ namespace
     MAREA_ResolveCallback MAREA_externalOnly()
     {
         return [](const std::string &text, const MAREA_AstNode **) {
-            const bool EXTERNAL{ (text == "array") || (text == "table") || (text == "handle") || (text == "collections.array") || (text == "c.math.Vector3") };
+            const bool EXTERNAL{ (text == "list") || (text == "table") || (text == "handle") || (text == "collections.list") || (text == "c.math.Vector3") };
 
             return EXTERNAL ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
         };
@@ -59,9 +59,9 @@ TEST(MAREASemaTypesAndDeclarations, RetiredIntegerNamesAreUnknownTypes)
 
 TEST(MAREASemaTypesAndDeclarations, CoreGenericTypesResolve)
 {
-    GTEST_COUT << "Validating vector, pointer, owned, slice and task resolve." << std::endl;
+    GTEST_COUT << "Validating array, vector, pointer, owned, slice and task resolve." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("structure S a: vector<float32, 4>; b: pointer<sinteger32>; c: owned<string>; d: slice<uinteger8>; e: task<float32>; end").empty()) << "A core generic type must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("structure S a: array<float32, 4>; f: vector<float32>; b: pointer<sinteger32>; c: owned<string>; d: slice<uinteger8>; e: task<float32>; end").empty()) << "A core generic type must raise nothing.";
 }
 
 TEST(MAREASemaTypesAndDeclarations, CoreGenericTypeTakesAGenericParameter)
@@ -75,7 +75,7 @@ TEST(MAREASemaTypesAndDeclarations, ExternalTypesResolve)
 {
     GTEST_COUT << "Validating a type the resolver reports as EXTERNAL resolves." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("structure S a: array<sinteger32>; b: table<string, sinteger32>; c: handle<sinteger32>; d: collections.array<sinteger32>; e: c.math.Vector3; end").empty()) << "An external type must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("structure S a: list<sinteger32>; b: table<string, sinteger32>; c: handle<sinteger32>; d: collections.list<sinteger32>; e: c.math.Vector3; end").empty()) << "An external type must raise nothing.";
 }
 
 TEST(MAREASemaTypesAndDeclarations, UnknownTypeIsRejected)
@@ -295,4 +295,26 @@ TEST(MAREASemaTypesAndDeclarations, AliasesOfDifferentNamespacesDoNotMatchInACon
     EXPECT_TRUE(MAREA_codesOf("import a { T as X }; import a { T as Y }; " + BASE + IMPLEMENTATION + RUN, external).empty()) << "Two aliases of one member must stay one type.";
 
     EXPECT_EQ(MAREA_codesOf("import a.T as X; import b.T as Y; " + BASE + IMPLEMENTATION + RUN, external), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_CONTRACT_NOT_SATISFIED }) << "Whole-path aliases of two namespaces must stay two types.";
+}
+
+TEST(MAREASemaTypesAndDeclarations, EnumTagTypeMustBeAnIntegerPrimitive)
+{
+    GTEST_COUT << "Validating an enum tag is an integer primitive and defaults to sinteger32." << std::endl;
+
+    for (const char *name : { "sinteger8", "sinteger16", "sinteger32", "sinteger64", "uinteger8", "uinteger16", "uinteger32", "uinteger64" }) {
+        EXPECT_TRUE(MAREA_codesOf(std::string("enum A : ") + name + " Red; Green; end").empty()) << "The tag " << name << " must raise nothing.";
+    }
+
+    EXPECT_TRUE(MAREA_codesOf("enum A Red; Green; end").empty()) << "An enum with no tag must raise nothing.";
+}
+
+TEST(MAREASemaTypesAndDeclarations, EnumTagTypeOfAnotherKindRaisesInvalidEnumTagType)
+{
+    GTEST_COUT << "Validating a float, string, boolean, structure or generic enum tag raises INVALID_ENUM_TAG_TYPE." << std::endl;
+
+    constexpr MAREA_Uinteger32 INVALID_TAG{ MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_ENUM_TAG_TYPE };
+
+    for (const char *name : { "float32", "float64", "string", "boolean", "SomeStruct", "pointer<sinteger32>" }) {
+        EXPECT_EQ(MAREA_codesOf(std::string("structure SomeStruct a: sinteger32; end enum A : ") + name + " Red; end"), Codes{ INVALID_TAG }) << "The tag " << name << " must raise INVALID_ENUM_TAG_TYPE.";
+    }
 }

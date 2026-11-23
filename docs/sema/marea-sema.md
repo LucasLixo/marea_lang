@@ -22,7 +22,7 @@ MAREA_SemaCheckCompilationUnit(sema, root);   /* once per file, dependencies fir
 `MAREA_SemaCheckCompilationUnit` returns an error only for a null argument or an out of memory. A rule
 violation is a diagnostic in the sink. A size that does not fit in `MAREA_IntegerSize` (a diagnostic
 message, or the growth of a name table) is also an out of memory: nothing is allocated or copied.
-Every sema diagnostic is an error, in the range 3001-3030 (3027 to 3029 are reserved for the lifecycle rules).
+Every sema diagnostic is an error, in the range 3001-3031.
 The lexer file name decides the path rule, so call `MAREA_LexContextSetFileName` with a project
 relative path with forward slashes and the `.marea` extension before the lex step.
 
@@ -96,13 +96,13 @@ the same table; the attribute of the symbol wins over the file attribute, so `#!
 with `#[visibility = private]` on one symbol is not a conflict.
 
 **Types.** The built-in names are `boolean`, `sinteger8` to `sinteger64`, `uinteger8` to `uinteger64`,
-`float32`, `float64`, `character`, `string`, `vector`, `pointer`, `owned`, `slice` and `task`. A type name is also
+`float32`, `float64`, `character`, `string`, `array`, `vector`, `pointer`, `owned`, `slice` and `task`. A type name is also
 `Self` inside an `implementation` or a `contract`, a generic parameter in scope, a structure, enum,
-opaque type or alias of the file, or an import. `vector` takes two arguments, the others one, and a
+opaque type or alias of the file, or an import. `array` takes two arguments (a type and a size), the others one, and a
 user generic takes as many arguments as it has parameters. A number fills a value parameter only.
 
-**Contracts.** `Copyable` is met by a primitive, a `vector`, `pointer`, `slice` or function type, an
-enum and a `#[value]` type. `Movable` is met by `owned`, `task`, a `#[move_only]` type and a plain
+**Contracts.** `Copyable` is met by a primitive, an `array` whose element is `Copyable`, a `pointer`, `slice` or function type, an
+enum and a `#[value]` type. A `vector` is never `Copyable`. `Movable` is met by `owned`, `task`, `vector`, a `#[move_only]` type and a plain
 user type. Any other contract is met when the `implementation` blocks of the type hold every contract
 function with the same parameters and result, `Self` replaced by the type. A generic parameter meets a
 contract only when its own `where` clause lists it. The check runs at a call of a function of the file,
@@ -116,9 +116,26 @@ be declared (`UNDECLARED_NAME`) and it must fit the parameter type (`TYPE_MISMAT
 that has a required parameter after it is `DEFAULT_PARAMETER_BEFORE_REQUIRED` (3030), once per defaulted
 parameter. Sema keeps the default in the tree; it does not copy it into a call.
 
+**Construct and destroy.** A function with `#[operator = "construct"]` or `#[operator = "destroy"]` stands only
+in an `implementation` that has no generic parameter, of a structure or an enum that the file declares (a type
+that the file does not declare is accepted, as its own rules report it); the function has no generic parameter
+either. Any other place (a top-level function, a generic implementation or function, an implementation of an alias
+or another type) is `LIFECYCLE_OPERATOR_NEEDS_CONCRETE_TYPE` (3028). A `destroy` has no parameter and no return
+type, and a `construct` has no return type and a default on every parameter; any other shape is
+`LIFECYCLE_OPERATOR_BAD_SHAPE` (3029), once per function. A call of such a function is
+`LIFECYCLE_OPERATOR_CALLED_DIRECTLY` (3027): by a bare name that no local and no top-level function of another
+meaning hides, and by the static form `Type.name(...)` where `Type` is the implemented type. The automatic call
+at creation and destruction is lowered in the ir, not here.
+
+**Enum tag type.** `enum A : uinteger8` names the integer type of the discriminant. With no tag it is
+`sinteger32`. A tag must be one bare integer primitive (`sinteger8` to `sinteger64`, `uinteger8` to
+`uinteger64`); any other tag (`float32`, `string`, `boolean`, a structure, a generic or an alias) is
+`INVALID_ENUM_TAG_TYPE` (3031), once per enum. A tag name that is not a type at all also raises
+`UNKNOWN_TYPE`. Sema does not use the tag for the layout of an enum: `size_of` of an enum is unchanged.
+
 **Ownership.** A parameter with no word is a read-only borrow, `mutable` is a write borrow,
-`reference` forces a borrow of a by-value type, `owned<T>` moves in. A primitive, a `vector`, an
-enum and a `#[value]` type is by value. `=` of a name, field or element of any other type needs
+`reference` forces a borrow of a by-value type, `owned<T>` moves in. A primitive, an `array`, `pointer`, `slice`, an
+enum and a `#[value]` type is by value. A `vector` is a move type, so `=` of a `vector` name needs `copy x` or `move x`. `=` of a name, field or element of any other type needs
 `copy x` or `move x`, in an assignment and in a local initializer. A call or a literal needs no word.
 A borrow parameter, a `for each` variable, a `partition` part and a `with` name cannot be returned,
 nor be the value of a field. A new local of the same name ends the reference.
@@ -178,7 +195,7 @@ is a primitive, at a call argument of a function of the file, a local initialize
 only by name (`sinteger32` does not fit `sinteger64`), a number literal fits any number type, a fraction literal
 any float type, a character literal fits only `character` (a number is not a character, and a character is not a number: it has no arithmetic), and a structure fits no primitive. An alias of a primitive is the primitive. The mismatch is
 `TYPE_MISMATCH` (3011) on the expression. A name of an enum, of a library type or of a generic parameter, and an `owned`,
-`task` or `vector` value, are classified as their own shapes but are never compared.
+`task` or `vector` value, and an `array` value, are classified as their own shapes but are never compared.
 
 **Operands of a binary operator.** Every binary expression in a checked slot (the same slots as the names, and
 the initializer of a constant) has its two operands compared, whatever the declared type: `+`, `-`, `*`, `/`,
@@ -233,7 +250,7 @@ and the size is rounded up to the alignment. The layout may come from a file att
 is measured too, up to 8 levels deep, and only inside a `c` structure when it is `c` itself. Two `marea` structures
 (the default layout) with the same fields, `pack` and `align` have the same layout, because the backend gives the
 same input the same layout. A pair that sema cannot measure is a `TYPE_MISMATCH` (3011): a generic structure, a
-field that is not a fixed-width primitive (a `character` is one byte) or a structure of the file (`string`, `pointer`, `vector`, an enum, a
+field that is not a fixed-width primitive (a `character` is one byte) or a structure of the file (`string`, `pointer`, `array`, `vector`, an enum, a
 library type), a `pack` or `align` value that is not an integer from 1 to 4294967296, a `marea` structure inside a
 `c` structure, a `c` structure against a `marea` one, a chain of structures deeper than 8 levels (or one that holds
 itself). A structure converted to itself needs no measure and is accepted.
@@ -289,7 +306,7 @@ inferred keeps the neutral default `PRIMITIVE` with no declaration or name, the 
 fallback `MAREA_SemaInferType` already uses for the checker.
 
 **Ownership mode.** `MAREA_SemaOwnershipMode` names how a typed node carries its value, following the
-same rules "Ownership" above already states: `VALUE` (a primitive, a `vector`/`pointer`/`slice`/
+same rules "Ownership" above already states: `VALUE` (a primitive, an `array`/`pointer`/`slice`/
 `owned`/`task` core type is a different case below, an enum or a `#[value]` type), `BORROW` (a
 read-only parameter, a `for each` variable, a `partition` part or a `with` name), `MUTABLE_BORROW` (a
 `mutable` parameter), `MOVE` (an `owned<T>` or `task<T>` parameter or value), `COPY` (a `copy x`
@@ -300,7 +317,7 @@ file carries the callee's declared return type: `USER`, `EXTERNAL` or a built-in
 (with no name `convert` bound in the unit) carries the type `T`, read in the scope of the caller. When the callee is
 generic and the call gives explicit type arguments, a return type that is one generic parameter (`Item`) is
 replaced by the type argument at the same place (`same<sinteger32>(5)` is `sinteger32`). When there are no type
-arguments, or the return type is a compound of a parameter (`array<Item>`), the typed node keeps the raw type: a
+arguments, or the return type is a compound of a parameter (`c.array<Item>`), the typed node keeps the raw type: a
 bare parameter is tagged `GENERIC` with its name - never a guess, never a crash. Resolving a result from inferred
 type arguments is deferred to when the `ir` stage needs one for real.
 
@@ -334,15 +351,21 @@ type arguments is deferred to when the `ir` stage needs one for real.
 | 3024 | `INVALID_PARALLEL_JUMP` | `continue;`, `break;` or `return;` in a `partition` body when no loop of the body is the target, or directly in a `fork_join` block, outside every `partition` body, when no loop of the block is the target |
 | 3025 | `DUPLICATE_SWITCH_ARM` | a second `default` arm in a `switch`, or `case 1 then ... case 1 then ...`, `case 1, 1 then ...`, `case Color.red` twice |
 | 3026 | `JUMP_OUTSIDE_LOOP` | `break;` or `continue;` with no enclosing loop and no enclosing `partition`/`fork_join` block |
-| 3030 | `DEFAULT_PARAMETER_BEFORE_REQUIRED` | `function f(a: sinteger32 = 0, b: sinteger32)`: a parameter with a default value before one with none (3027 to 3029 are reserved) |
+| 3027 | `LIFECYCLE_OPERATOR_CALLED_DIRECTLY` | `Point.make()` or `make()` when `make` carries `#[operator = "construct"]` or `"destroy"` |
+| 3028 | `LIFECYCLE_OPERATOR_NEEDS_CONCRETE_TYPE` | a `construct` or `destroy` function at top level, in a generic implementation, with generic parameters, or in an implementation of a type that is not a structure or an enum |
+| 3029 | `LIFECYCLE_OPERATOR_BAD_SHAPE` | a `destroy` with a parameter or a return type; a `construct` with a return type or a parameter that has no default |
+| 3030 | `DEFAULT_PARAMETER_BEFORE_REQUIRED` | `function f(a: sinteger32 = 0, b: sinteger32)`: a parameter with a default value before one with none |
+| 3031 | `INVALID_ENUM_TAG_TYPE` | `enum A : float32`, `: string`, `: SomeStruct`: a tag that is not an integer primitive |
 
 ## Gaps
 
 - No check of the signature of `main` exists any more, and a driver-level replacement does not exist yet.
+- `array` and `vector` are built-in names now, so a library that exports a type named `array` is shadowed by the
+  built-in (an import never wins over a built-in name). A growable library type is spelled under the `c.{lib}`
+  namespace for now. A `vector` is still indexable in the type inference, though it is a move type.
 - Renaming on use inside one file (without an import) is not offered: a local declaration has its own name.
 - `TYPE_MISMATCH` (3011) sorts the type of an expression into a fixed set of shapes: a literal, a primitive, a
-  structure, and, known but never compared, an enum, a library type, a generic parameter and an `owned`, `task` or
-  `vector` value. Still fully unknown: a `pointer`, a `slice`, a function type, the type of a field or a file
+  structure, and, known but never compared, an enum, a library type, a generic parameter and an `owned`, `task`, `vector` or `array` value. Still fully unknown: a `pointer`, a `slice`, a function type, the type of a field or a file
   constant that is not a primitive, and the result of a generic call (see below).
 - A binary operator is not checked against what its operands may be (`a and b` with two integers raises nothing,
   as the two have the same name), and an operator that is declared for a structure is not compared.
@@ -353,17 +376,21 @@ type arguments is deferred to when the `ir` stage needs one for real.
   scope when its own header is checked, so `for i in 0 .. i` with no outer `i` raises nothing. A constant that has
   an `ERROR_NODE` below it has no name check, because the parser may leave its tokens as an expression.
 - The contract check only sees arguments whose type is cheap to know. Other arguments are not checked.
-- `operator` is checked against its vocabulary only, not the signature or the placement of a method; `export` is
-  checked for shape only.
+- `operator` is checked against its vocabulary; only `construct` and `destroy` have a placement and a shape check
+  (see "Construct and destroy"), the signature of any other operator is not checked; `export` is checked for shape
+  only.
+- `LIFECYCLE_OPERATOR_CALLED_DIRECTLY` (3027) sees a bare name and the static form `Type.name(...)` only. A call on
+  a value (`point.drop()`) is not resolved, as sema does not know the type of the receiver. A bare name that no
+  top-level function declares also raises `UNDECLARED_NAME` (3004), as a member is not a bare name.
 - The type of a library type is not tracked, so a missing `copy` or `move` there is not reported.
 - The typed-AST hand-off substitutes a generic result only for a bare parameter with explicit type arguments; a
-  result from inferred type arguments or a compound such as `array<Item>` keeps the raw type.
+  result from inferred type arguments or a compound such as `c.array<Item>` keeps the raw type.
 - `DUPLICATE_SWITCH_ARM` compares a float by its text: `1.0` and `1.00` are taken for different values. A constant
   that sema cannot read (imported, or declared with a computed expression) is compared by its name only, and a
   case value that is a call or another computed expression is never compared.
 - `convert<T>(x)` between two structures is measured in sema, as described under "Rules", for primitive fields, a
   field `align`, a structure held by value and two `marea` structures with the same fields. It is no longer accepted
-  when sema cannot measure the pair: a generic structure, a `string`, `pointer`, `vector`, enum or library field, an
+  when sema cannot measure the pair: a generic structure, a `string`, `pointer`, `array`, `vector`, enum or library field, an
   `marea` structure inside a `c` structure, a `marea` against a `c` structure, and a chain deeper than 8 levels are
   an explicit `TYPE_MISMATCH` (3011), not a silent accept. These are rejections, not real sizes: a generic
   structure and a field of another type have no size in sema, and two `marea` structures are compared by their

@@ -194,13 +194,13 @@ TEST(MAREAIrDump, ForEachDumpsItsNameFlagAndChildren)
 
     MAREA_IrFixture fixture(RESOLVE_EXTERNAL);
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; import collections.array; function run(values: mutable array<sinteger32>) for each key, value in mutable values do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; import collections.list; function run(values: mutable list<sinteger32>) for each key, value in mutable values do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     EXPECT_EQ(MAREA_dumpOf(fixture), MAREA_lines({
                                          "MODULE",
                                          "  FUNCTION_DECLARATION \"run\"",
                                          "    PARAMETER_LIST",
-                                         "      PARAMETER \"values\" type=array flags=1",
+                                         "      PARAMETER \"values\" type=list flags=1",
                                          "    BLOCK",
                                          "      FOR_EACH_STATEMENT \"value\" flags=1",
                                          "        IDENTIFIER \"key\"",

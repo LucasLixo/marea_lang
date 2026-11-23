@@ -232,7 +232,7 @@ static MAREA_G_ShapeKind MAREA_CALL MAREA_G_ShapeKindOfClass(MAREA_SemaTypeClass
     case MAREA_SEMA_TYPE_CLASS_MOVE_BUILTIN:
         return MAREA_G_SHAPE_KIND_BUILTIN;
     case MAREA_SEMA_TYPE_CLASS_COPY_BUILTIN:
-        return (MAREA_G_TextIs(name, length, "vector") == MAREA_BOOLEAN_TRUE) ? MAREA_G_SHAPE_KIND_BUILTIN : MAREA_G_SHAPE_KIND_UNKNOWN;
+        return (MAREA_G_TextIs(name, length, "array") == MAREA_BOOLEAN_TRUE) ? MAREA_G_SHAPE_KIND_BUILTIN : MAREA_G_SHAPE_KIND_UNKNOWN;
     default:
         return MAREA_G_SHAPE_KIND_UNKNOWN;
     }

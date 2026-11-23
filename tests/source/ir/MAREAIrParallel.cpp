@@ -15,7 +15,7 @@ namespace
 
     std::string MAREA_sourceOf(const std::string &prefix, const std::string &signature, const std::string &body)
     {
-        return "namespace main; import collections.array; import concurrency.task; import arenas.arena; " + prefix + " function run(" + signature + ") " + body + " end";
+        return "namespace main; import collections.list; import concurrency.task; import arenas.arena; " + prefix + " function run(" + signature + ") " + body + " end";
     }
 
     std::string MAREA_lowerBody(const std::string &prefix, const std::string &signature, const std::string &body)
@@ -63,7 +63,7 @@ namespace
         return names;
     }
 
-    const std::string WORK{ "function work(part: array<float32>) end function scale(part: mutable array<float32>, factor: float32) end" };
+    const std::string WORK{ "function work(part: list<float32>) end function scale(part: mutable list<float32>, factor: float32) end" };
 
     using Codes = std::vector<MAREA_Uinteger32>;
 } // namespace
@@ -101,7 +101,7 @@ TEST(MAREAIrParallel, SpawnResultAsAnArgumentStaysInTheCall)
     GTEST_COUT << "Validating a spawn inside a call argument, as in tasks.append(spawn f(part)), lowers in place." << std::endl;
 
     const std::string
-        rendered{ MAREA_lowerBody("function work(a: sinteger32): sinteger32 return a; end", "tasks: mutable array<task<sinteger32>>", "fork_join tasks.append(spawn work(1)); end") };
+        rendered{ MAREA_lowerBody("function work(a: sinteger32): sinteger32 return a; end", "tasks: mutable list<task<sinteger32>>", "fork_join tasks.append(spawn work(1)); end") };
 
     EXPECT_EQ(rendered, "(BLOCK (FORK_JOIN_BLOCK (BLOCK (EXPRESSION_STATEMENT (CALL_EXPRESSION (MEMBER_ACCESS (IDENTIFIER tasks) (IDENTIFIER append)) (ARGUMENT_LIST (UNARY_EXPRESSION op=KEYWORD_SPAWN (CALL_EXPRESSION :sinteger32 (IDENTIFIER work) (ARGUMENT_LIST (INTEGER_LITERAL 1))))))))))") << "The spawn must stay an argument.";
 }
@@ -110,7 +110,7 @@ TEST(MAREAIrParallel, PartitionKeepsNameValueCountAndBody)
 {
     GTEST_COUT << "Validating a read-only partition keeps the part name as text, then the value, the count and the body, with no flag." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerBody(WORK, "values: array<float32>", "fork_join partition values into 4 as part do spawn work(part); end end"), "(BLOCK (FORK_JOIN_BLOCK (BLOCK (PARTITION_STATEMENT part (IDENTIFIER values) (INTEGER_LITERAL 4) (BLOCK (EXPRESSION_STATEMENT (UNARY_EXPRESSION op=KEYWORD_SPAWN (CALL_EXPRESSION (IDENTIFIER work) (ARGUMENT_LIST (IDENTIFIER part))))))))))") << "The partition must keep its layout.";
+    EXPECT_EQ(MAREA_lowerBody(WORK, "values: list<float32>", "fork_join partition values into 4 as part do spawn work(part); end end"), "(BLOCK (FORK_JOIN_BLOCK (BLOCK (PARTITION_STATEMENT part (IDENTIFIER values) (INTEGER_LITERAL 4) (BLOCK (EXPRESSION_STATEMENT (UNARY_EXPRESSION op=KEYWORD_SPAWN (CALL_EXPRESSION (IDENTIFIER work) (ARGUMENT_LIST (IDENTIFIER part))))))))))") << "The partition must keep its layout.";
 }
 
 TEST(MAREAIrParallel, PartitionMutableKeepsTheMutableFlag)
@@ -118,7 +118,7 @@ TEST(MAREAIrParallel, PartitionMutableKeepsTheMutableFlag)
     GTEST_COUT << "Validating a mutable partition carries the MUTABLE flag on its node." << std::endl;
 
     const std::string
-        rendered{ MAREA_lowerBody(WORK, "values: mutable array<float32>", "fork_join partition mutable values into 4 as part do spawn scale(part, 2.0); end end") };
+        rendered{ MAREA_lowerBody(WORK, "values: mutable list<float32>", "fork_join partition mutable values into 4 as part do spawn scale(part, 2.0); end end") };
 
     EXPECT_NE(rendered.find("(PARTITION_STATEMENT part flags=1 (IDENTIFIER values) (INTEGER_LITERAL 4) (BLOCK"), std::string::npos) << "The flag must sit on the partition node: " << rendered;
 }
@@ -128,7 +128,7 @@ TEST(MAREAIrParallel, PartitionCountIsAnyLoweredExpression)
     GTEST_COUT << "Validating the part count of a partition is lowered like any expression, a constant name here." << std::endl;
 
     const std::string
-        rendered{ MAREA_lowerBody("constant WORKERS: sinteger32 = 4; " + WORK, "values: array<float32>", "fork_join partition values into WORKERS as part do spawn work(part); end end") };
+        rendered{ MAREA_lowerBody("constant WORKERS: sinteger32 = 4; " + WORK, "values: list<float32>", "fork_join partition values into WORKERS as part do spawn work(part); end end") };
 
     EXPECT_NE(rendered.find("(PARTITION_STATEMENT part (IDENTIFIER values) (IDENTIFIER WORKERS) (BLOCK"), std::string::npos) << "The count must be an IDENTIFIER child: " << rendered;
 }
@@ -171,7 +171,7 @@ TEST(MAREAIrParallel, ForkJoinRaisesNothingAndKeepsItsFunction)
 {
     GTEST_COUT << "Validating a fork_join, a partition and a spawn raise no ir diagnostic and their function stays in the module." << std::endl;
 
-    const std::string SOURCE{ MAREA_sourceOf("function keep() end " + WORK, "values: array<float32>", "fork_join partition values into 2 as part do spawn work(part); end end") };
+    const std::string SOURCE{ MAREA_sourceOf("function keep() end " + WORK, "values: list<float32>", "fork_join partition values into 2 as part do spawn work(part); end end") };
 
     EXPECT_EQ(MAREA_codesOf(SOURCE), Codes{}) << "No ir diagnostic may be raised.";
 
@@ -217,7 +217,7 @@ TEST(MAREAIrParallel, DumpWritesTheThreeNewKindsWithTheirNameAndFlag)
 
     MAREA_IrFixture fixture(RESOLVE_EXTERNAL);
 
-    ASSERT_EQ(fixture.MAREA_lower(MAREA_sourceOf(WORK, "values: mutable array<float32>, scratch: mutable arena", "fork_join partition mutable values into 2 as part do spawn scale(part, 1.0); end end with scratch as inner do end")), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower(MAREA_sourceOf(WORK, "values: mutable list<float32>, scratch: mutable arena", "fork_join partition mutable values into 2 as part do spawn scale(part, 1.0); end end with scratch as inner do end")), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     const MAREA_Character8 *text{ nullptr };
 

@@ -154,7 +154,7 @@ TEST(MAREAParserExpressions, LiteralValues)
         { "Point{ x = 1.0, y = 2.0 }", "(literal_value (named_type Point) (field_entry x 1.0) (field_entry y 2.0))" },
         { "table<string, sinteger32>{ [\"a\"] = 1 }", "(literal_value (named_type table (type_arguments (named_type string) (named_type sinteger32))) (index_entry \"a\" 1))" },
         { "array<float32>{ 1.0, 2.0 }", "(literal_value (named_type array (type_arguments (named_type float32))) (value_entry 1.0) (value_entry 2.0))" },
-        { "vector<float32, 4>{ 1.0, 0.0 }", "(literal_value (named_type vector (type_arguments (named_type float32) 4)) (value_entry 1.0) (value_entry 0.0))" },
+        { "array<float32, 4>{ 1.0, 0.0 }", "(literal_value (named_type array (type_arguments (named_type float32) 4)) (value_entry 1.0) (value_entry 0.0))" },
         { "Point{ x = 1, }", "(literal_value (named_type Point) (field_entry x 1))" },
         { "Point{}", "(literal_value (named_type Point))" },
         { "ns.Point{ x = 1 }", "(literal_value (named_type ns.Point) (field_entry x 1))" },
