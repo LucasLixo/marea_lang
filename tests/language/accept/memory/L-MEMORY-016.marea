@@ -1,0 +1,36 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A structure is made by its construct operator with a call form.
+
+namespace main;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+structure Box
+    inner: Point;
+    count: sinteger32;
+end
+
+structure Handle
+    id: sinteger32;
+end
+
+implementation Handle
+    #[operator = "construct"]
+    function open(id: sinteger32 = 0)
+    end
+
+    #[operator = "destroy"]
+    function close()
+    end
+end
+
+function check(): sinteger32
+    local handle: Handle = Handle(5);
+    return 1;
+end

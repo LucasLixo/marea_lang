@@ -1,0 +1,13 @@
+-- expect: 3001 @9
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A name of the namespace of a missing import.
+
+namespace main;
+
+import nowhere;
+
+function check()
+    nowhere.run();
+end

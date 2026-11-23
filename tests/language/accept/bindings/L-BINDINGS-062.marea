@@ -1,0 +1,12 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A local that has the name of a parameter.
+
+namespace main;
+
+function check(count: sinteger32): sinteger32
+    local count: sinteger32 = 2;
+    return count;
+end

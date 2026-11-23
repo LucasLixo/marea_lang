@@ -1,0 +1,17 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Two locals of the same name in two sibling scopes.
+
+namespace main;
+
+function check(): sinteger32
+    do
+        local value: sinteger32 = 1;
+    end
+    do
+        local value: sinteger32 = 2;
+    end
+    return 1;
+end

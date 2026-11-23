@@ -1,0 +1,24 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A switch over an enum with a default and a missing variant.
+
+namespace main;
+
+enum Color
+    Red;
+    Green;
+    Blue;
+end
+
+function is_red(color: Color): boolean
+    switch color
+        case Color.Red then
+            return true;
+        end
+        default then
+            return false;
+        end
+    end
+end

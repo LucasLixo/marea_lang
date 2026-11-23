@@ -1,0 +1,29 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A copy of a file constant is passed to a write-borrow parameter.
+
+namespace main;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+structure Box
+    inner: Point;
+    count: sinteger32;
+end
+
+constant ORIGIN: Point = Point{ x = 0, y = 0 };
+
+function write_point(#[semantics = reference_mutable] point: Point)
+    point.x = 1;
+end
+
+function check(): sinteger32
+    local point: Point = copy ORIGIN;
+    write_point(point);
+    return 1;
+end

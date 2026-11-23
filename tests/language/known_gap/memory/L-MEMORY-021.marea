@@ -1,0 +1,39 @@
+-- gap: #198 NEW
+-- rule: reject
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A structure is destroyed twice by moving it and keeping the old owner.
+
+namespace main;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+structure Box
+    inner: Point;
+    count: sinteger32;
+end
+
+structure Handle
+    id: sinteger32;
+end
+
+implementation Handle
+    #[operator = "construct"]
+    function open(id: sinteger32 = 0)
+    end
+
+    #[operator = "destroy"]
+    function close()
+    end
+end
+
+function check(): sinteger32
+    local first: Handle = Handle{ id = 1 };
+    local second: Handle = move first;
+    local third: Handle = move first;
+    return 1;
+end

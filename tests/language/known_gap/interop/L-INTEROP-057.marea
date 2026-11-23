@@ -1,0 +1,18 @@
+-- gap: #239 NEW
+-- rule: reject
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A structure with an opaque field held by value.
+
+namespace main;
+
+opaque structure Texture;
+
+structure Holder
+    texture: Texture;
+end
+
+function check(holder: Holder)
+    local v: sinteger32 = 1;
+end

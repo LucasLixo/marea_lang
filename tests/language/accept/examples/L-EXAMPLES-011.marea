@@ -1,0 +1,43 @@
+-- expect: ok
+-- example: examples/memory/regions.marea
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Step 14: memory. Every scope has a region of memory. Data that a scope owns lives in that
+-- region and is freed when the scope ends. No free call exists.
+-- A function that returns data gives the owner to the scope of its caller ("return value;"),
+-- and the data is made in the region of the caller. There is no arena parameter to write.
+-- An explicit arena is only for data that must live longer than its scope or be freed all at
+-- once on purpose. "arenas" and "text" are libraries, written in C or in Marea. The language
+-- has no standard library, so these names are not reserved.
+
+namespace main;
+
+import arenas.Arena;
+import text;
+
+-- The result is made in the region of the caller, and the caller owns it.
+#[visibility = public]
+function join_names(first: string, second: string): string
+    return text.concatenate(first, " ", second);
+end
+
+#[visibility = public]
+function show_regions(): sinteger32
+    local length: sinteger32 = 0;
+    do
+        local full: string = join_names("Ana", "Silva");   -- owned by this block
+        length = text.length(full);
+    end
+    -- full was freed at the "end" of the block.
+    return length;
+end
+
+-- An explicit arena: the data of the arena is freed together when the arena owner ends.
+#[visibility = public]
+function show_explicit_arena(): sinteger32
+    local pool: Arena = Arena.create();
+    local name: string = join_names("Leo", "Costa");
+    local copy_in_pool: string = pool.copy_of(name);
+    return text.length(copy_in_pool);
+end

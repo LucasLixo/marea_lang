@@ -1,0 +1,17 @@
+-- expect: 2002 @10, 2001 @16
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Two independent errors give two diagnostics and no cascade.
+
+namespace main;
+
+function first()
+    local value: sinteger32 = ;
+    return;
+end
+
+function second()
+    local other: sinteger32 = 1
+    return;
+end

@@ -1,0 +1,11 @@
+-- expect: 2007 @7, 2004 @11
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- The namespace declaration is not the first statement.
+
+function check()
+    local v: sinteger32 = 1;
+end
+
+namespace main;

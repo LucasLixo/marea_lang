@@ -1,0 +1,12 @@
+-- expect: 2004 @9
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An attribute line that ends with a semicolon.
+
+namespace main;
+
+#[visibility = public];
+function check(): sinteger32
+    return 1;
+end

@@ -1,0 +1,31 @@
+-- gap: #200 NEW
+-- rule: reject
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- from: L-TYPES-075
+-- Mutant of L-TYPES-075: copy is swapped for move in a generic return of a borrow.
+
+namespace main;
+
+contract Comparable
+    function less(self: Self, other: Self): boolean;
+end
+structure Score
+    value: sinteger32;
+end
+
+implementation Score
+    function less(self: Score, other: Score): boolean
+        return self.value < other.value;
+    end
+end
+
+function maximum<Item>(left: Item, right: Item): Item where Item: Comparable, Copyable
+    if left.less(right) then
+        return move right;
+    end
+    end
+    return copy left;
+end
+

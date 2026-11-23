@@ -1,0 +1,13 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A function of a c library called with float arguments.
+
+namespace main;
+
+import c.math;
+
+function check(): float64
+    return math.pow(2.0, 10.0);
+end

@@ -1,0 +1,12 @@
+-- expect: 2001 @10, 2002 @10, 3004 @10
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An exponent with no digit after the sign.
+
+namespace main;
+
+function check(): sinteger32
+    local value: float64 = 1e+;
+    return 1;
+end

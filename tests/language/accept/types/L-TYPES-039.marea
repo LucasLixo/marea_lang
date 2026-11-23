@@ -1,0 +1,24 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A function in an implementation block of an enum.
+
+namespace main;
+
+enum Color
+    Red;
+    Green;
+    Blue;
+end
+
+implementation Color
+    function is_red(self: Color): boolean
+        return self == Color.Red;
+    end
+end
+
+function run(): boolean
+    local color: Color = Color.Green;
+    return color.is_red();
+end

@@ -1,0 +1,21 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A function type alias used for a parameter, and a function passed as a value.
+
+namespace main;
+
+type BinaryOperation = function(left: sinteger32, right: sinteger32): sinteger32;
+
+function add(left: sinteger32, right: sinteger32): sinteger32
+    return left + right;
+end
+
+function apply(operation: BinaryOperation, left: sinteger32, right: sinteger32): sinteger32
+    return operation(left, right);
+end
+
+function run(): sinteger32
+    return apply(add, 2, 3);
+end

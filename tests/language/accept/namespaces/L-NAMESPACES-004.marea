@@ -1,0 +1,11 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- main may have no result.
+
+namespace main;
+
+function main()
+    local value: sinteger32 = 1;
+end

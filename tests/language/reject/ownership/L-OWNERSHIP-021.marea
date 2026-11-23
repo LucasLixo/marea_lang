@@ -1,0 +1,29 @@
+-- expect: 3016 @26
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A with name assigned to a local with no word.
+
+namespace main;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+structure Box
+    inner: Point;
+    count: sinteger32;
+end
+
+function make_point(): Point
+    return Point{ x = 1, y = 2 };
+end
+
+function check(): sinteger32
+    local first: Point = make_point();
+    with first as view do
+        local second: Point = view;
+    end
+    return 1;
+end

@@ -1,0 +1,11 @@
+-- expect: 3030 @9
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A parameter with a default before a parameter without one.
+
+namespace main;
+
+function scale(factor: sinteger32 = 2, value: sinteger32): sinteger32
+    return value * factor;
+end

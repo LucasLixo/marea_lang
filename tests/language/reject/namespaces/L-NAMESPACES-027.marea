@@ -1,0 +1,11 @@
+-- expect: 3002 @7
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A file cannot declare a namespace under the reserved first segment marea.
+
+namespace marea.text;
+
+function check(): sinteger32
+    return 1;
+end

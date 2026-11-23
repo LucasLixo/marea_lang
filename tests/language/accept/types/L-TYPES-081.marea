@@ -1,0 +1,19 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An operator function in an implementation.
+
+namespace main;
+
+structure Point
+    x: float64;
+    y: float64;
+end
+
+implementation Point
+    #[operator = "+"]
+    function add(#[semantics = reference_read_only] self: Point, #[semantics = reference_read_only] other: Point): Point
+        return Point{ x = self.x + other.x, y = self.y + other.y };
+    end
+end

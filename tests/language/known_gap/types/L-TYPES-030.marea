@@ -1,0 +1,16 @@
+-- gap: #221 NEW
+-- rule: reject
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Two structures that hold each other by value.
+
+namespace main;
+
+structure Left
+    other: Right;
+end
+
+structure Right
+    other: Left;
+end

@@ -1,0 +1,13 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- The assert and debug_assert macros with a condition and a message.
+
+namespace main;
+
+function divide(left: sinteger32, right: sinteger32): sinteger32
+    assert!(right != 0, "right must not be zero");
+    debug_assert!(left >= 0, "left is not negative");
+    return left / right;
+end

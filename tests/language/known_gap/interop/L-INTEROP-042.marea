@@ -1,0 +1,14 @@
+-- gap: #239 NEW
+-- rule: reject
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An operator is applied to two opaque values.
+
+namespace main;
+
+opaque structure Texture;
+
+function check(texture: Texture, other: Texture): Texture
+    return texture + other;
+end

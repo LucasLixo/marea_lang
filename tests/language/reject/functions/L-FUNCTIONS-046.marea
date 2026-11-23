@@ -1,0 +1,11 @@
+-- expect: 3009 @9
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A result type that does not exist.
+
+namespace main;
+
+function run(): Missing
+    return 1;
+end

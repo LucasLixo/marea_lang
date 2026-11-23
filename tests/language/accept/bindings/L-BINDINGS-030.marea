@@ -1,0 +1,14 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- The limits of sinteger8 and uinteger8 fit.
+
+namespace main;
+
+function check(): sinteger32
+    local low: sinteger8 = -128;
+    local high: sinteger8 = 127;
+    local top: uinteger8 = 255;
+    return 1;
+end

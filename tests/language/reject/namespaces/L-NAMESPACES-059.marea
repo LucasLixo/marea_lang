@@ -1,0 +1,13 @@
+-- expect: 3003 @9
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- The same member twice in one import list.
+
+namespace main;
+
+import c.math { pow, pow };
+
+function check()
+    local v: sinteger32 = 1;
+end

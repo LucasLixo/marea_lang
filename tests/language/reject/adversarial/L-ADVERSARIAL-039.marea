@@ -1,0 +1,25 @@
+-- expect: 3022 @18
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- from: L-TYPES-109
+-- Mutant of L-TYPES-109: the return of a generic function with a contract bound is dropped.
+
+namespace main;
+
+contract Comparable
+    function less(self: Self, other: Self): boolean;
+end
+
+contract Printable
+    function describe(self: Self): string;
+end
+
+function show<Item>(left: Item, right: Item): string where Item: Comparable, Printable, Copyable
+    if left.less(right) then
+        return right.describe();
+    end
+    end
+
+end
+

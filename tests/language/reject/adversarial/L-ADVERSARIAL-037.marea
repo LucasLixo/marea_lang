@@ -1,0 +1,30 @@
+-- expect: 3022 @18
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- from: L-TYPES-075
+-- Mutant of L-TYPES-075: the return of a method of an implementation is dropped.
+
+namespace main;
+
+contract Comparable
+    function less(self: Self, other: Self): boolean;
+end
+structure Score
+    value: sinteger32;
+end
+
+implementation Score
+    function less(self: Score, other: Score): boolean
+
+    end
+end
+
+function maximum<Item>(left: Item, right: Item): Item where Item: Comparable, Copyable
+    if left.less(right) then
+        return copy right;
+    end
+    end
+    return copy left;
+end
+

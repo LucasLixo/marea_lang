@@ -1,0 +1,18 @@
+-- expect: 2010 @14, 3025 @14
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A switch with two default arms.
+
+namespace main;
+
+function name(value: sinteger32): sinteger32
+    switch value
+        default then
+            return 1;
+        end
+        default then
+            return 2;
+        end
+    end
+end

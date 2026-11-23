@@ -1,0 +1,11 @@
+-- expect: 2004 @9, 2004 @10, 2004 @10, 2005 @11
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A user cannot declare a macro.
+
+namespace main;
+
+macro twice(value)
+    return value;
+end

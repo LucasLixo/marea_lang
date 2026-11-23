@@ -1,0 +1,14 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A shift count of another integer width fits.
+
+namespace main;
+
+function check(): sinteger32
+    local value: uinteger32 = 1;
+    local count: uinteger8 = 3;
+    local shifted: uinteger32 = value << count;
+    return 1;
+end

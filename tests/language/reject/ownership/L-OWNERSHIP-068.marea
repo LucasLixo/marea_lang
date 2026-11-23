@@ -1,0 +1,31 @@
+-- expect: 3019 @29
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- One value is passed to a write borrow and then a read borrow.
+
+namespace main;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+structure Box
+    inner: Point;
+    count: sinteger32;
+end
+
+function make_point(): Point
+    return Point{ x = 1, y = 2 };
+end
+
+function write_read(#[semantics = reference_mutable] first: Point, #[semantics = reference_read_only] second: Point)
+    first.x = second.x;
+end
+
+function check(): sinteger32
+    local point: Point = make_point();
+    write_read(point, point);
+    return 1;
+end

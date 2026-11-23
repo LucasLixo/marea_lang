@@ -1,0 +1,11 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A namespace that matches the file path, with one function.
+
+namespace main;
+
+function one(): sinteger32
+    return 1;
+end
