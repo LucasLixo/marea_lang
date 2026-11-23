@@ -80,11 +80,14 @@ refused is not bound. A plain declaration or a plain `import c.x;` is not affect
 
 **Attributes.** A fixed key table: `visibility` (`public`, `private`), `inline` (`force`, `never`,
 `auto`), `build` (`debug`, `release`), `layout` (`c`, `marea`), `align` (a power of two, not with
-`pack`), `pack` (an integer), `value` and `move_only` (booleans), `operator` (a name or a string),
+`pack`), `pack` (an integer), `value` and `move_only` (booleans), `operator` (a string of a fixed list),
 `export` (a string, the label at the C border). A key of an enum needs one of its members, and `export`
-needs a string, so a bare key of those is `INVALID_ATTRIBUTE_VALUE`. A key not in the table, such as the
+and `operator` need a string, so a bare key of those is `INVALID_ATTRIBUTE_VALUE`. The strings of `operator`
+are the operator tokens of the grammar (`+ - * / % **`, the wrapping and saturating forms, `~ & | ^ << >>`, the
+comparisons, the assignment forms), `"[]"`, `"()"`, `"convert"`, `"construct"` and `"destroy"`; any other
+string or a name is `INVALID_ATTRIBUTE_VALUE`. A key not in the table, such as the
 retired `public`, `private`, `simd` and `destroy`, is `UNKNOWN_ATTRIBUTE_KEY`. The deeper meaning of
-`operator` and `export` is not checked. A flag key with no value is true. File attributes `#![...]` use
+`operator` (the signature, the placement) and `export` is not checked. A flag key with no value is true. File attributes `#![...]` use
 the same table; the attribute of the symbol wins over the file attribute, so `#![visibility = public]`
 with `#[visibility = private]` on one symbol is not a conflict.
 
@@ -346,7 +349,8 @@ type arguments is deferred to when the `ir` stage needs one for real.
   scope when its own header is checked, so `for i in 0 .. i` with no outer `i` raises nothing. A constant that has
   an `ERROR_NODE` below it has no name check, because the parser may leave its tokens as an expression.
 - The contract check only sees arguments whose type is cheap to know. Other arguments are not checked.
-- `operator` and `export` are checked for shape only.
+- `operator` is checked against its vocabulary only, not the signature or the placement of a method; `export` is
+  checked for shape only.
 - The type of a library type is not tracked, so a missing `copy` or `move` there is not reported.
 - The typed-AST hand-off substitutes a generic result only for a bare parameter with explicit type arguments; a
   result from inferred type arguments or a compound such as `array<Item>` keeps the raw type.
