@@ -166,7 +166,7 @@ The language spec makes construction and destruction automatic. The ir makes bot
 looks for a `construct` or a `destroy` by itself. Two kinds, appended after `ZERO_VALUE`, carry them. A new kind,
 not a flag on `CALL_EXPRESSION`, because a flag would print in the dump as a raw bit mask.
 
-- **`CONSTRUCT_CALL`** is `Type(args)`. Its type name is the written name of the structure or enum that is
+- **`CONSTRUCT_CALL`** is `Type(args)` and, when the type has a `construct`, `Type{...}`. Its type name is the written name of the structure or enum that is
   constructed. Its one child is an `ARGUMENT_LIST`: the written arguments first, then the lowered default of each
   trailing parameter the call omitted, read from the parameter list of the type's own `construct` operator, the way
   an ordinary call fills its defaults. A type with no `construct` gets an empty `ARGUMENT_LIST`. The ir finds the
@@ -177,6 +177,17 @@ not a flag on `CALL_EXPRESSION`, because a flag would print in the dump as a raw
   of the enclosing function that hides the type name stops the match, as for an ordinary call. `Point(1)` with
   `construct(x: sinteger32 = 0, y: sinteger32 = 0)` lowers to `(CONSTRUCT_CALL :Point (ARGUMENT_LIST (INTEGER_LITERAL 1)
   (INTEGER_LITERAL 0)))`.
+
+  `Type{...}` sets the fields (named, in order, or none) and then runs `construct` with its defaults. A literal of a
+  non-generic structure of the same unit that has a `construct` operator lowers to a `CONSTRUCT_CALL` with two
+  children: the `ARGUMENT_LIST` of the defaults of `construct` (no argument is written, so every parameter is
+  filled), then the `LITERAL_VALUE` itself, unchanged (omitted fields are `ZERO_VALUE`), as the initial value the
+  backend runs `construct` on once the fields are set. `Point{ x = 1 }` with
+  `construct(x: sinteger32 = 7, y: sinteger32 = 8)` lowers to `(CONSTRUCT_CALL :Point (ARGUMENT_LIST (INTEGER_LITERAL
+  7) (INTEGER_LITERAL 8)) (LITERAL_VALUE :Point (FIELD_ENTRY x (INTEGER_LITERAL 1)) (FIELD_ENTRY y (ZERO_VALUE))))`.
+  A literal of a type with no `construct`, or of a type the unit does not declare, stays a plain `LITERAL_VALUE`. So
+  the optional second child is the only difference between the two shapes: `Type(args)` has one child and the
+  backend zero-fills; `Type{...}` has two and the fields come from the literal.
 - **`DESTROY_CALL`** is the cleanup of one local. Its text is the qualified destroy function (`Box.drop`), and its
   one child is an `IDENTIFIER` that names the local, for a backend to bind as the receiver. The node has no other
   argument and no result, because sema rejects a `destroy` that takes a parameter or returns a value
@@ -528,15 +539,14 @@ Each diagnostic carries the position of the construct that raised it.
   zeroed field and expect 0 on both, is implemented. This is recorded only as the expected contract (see
   Zero-default creation).
 - The destroy insertion (see Construct and destroy lowering) has these limits. The move check is syntactic and per block: a local moved on one branch, or in an inner
-  block, is never destroyed on any branch. A parameter is never destroyed (it is a borrow, or the caller owns it). The `Type{...}` literal still lowers as a `LITERAL_VALUE` and
-  does not call `construct`. The destroy of a type is found by its written name among the `implementation` blocks of
+  block, is never destroyed on any branch. A parameter is never destroyed (it is a borrow, or the caller owns it). The destroy of a type is found by its written name among the `implementation` blocks of
   the same unit only: a type declared in another namespace is not found (the same cross-module gap as Aliases).
 - A `PARAMETER` has one ownership bit in the IR, the `MUTABLE` flag. A by-value parameter and a read-only borrow
   both read as no flag, and a `semantics` value is not kept in the tree.
 - `Type(args)` lowers to a `CONSTRUCT_CALL` only when the structure or enum is declared in the same unit. A type of
   another namespace, reached by import, stays an ordinary `CALL_EXPRESSION` and has no destroy found either, the
-  same cross-module gap as Aliases. The `Type{...}` form, which the language spec says also runs `construct` with its
-  defaults, does not lower to a `CONSTRUCT_CALL` (see the destroy bullet above).
+  same cross-module gap as Aliases. A `Type{...}` literal of such a type stays a plain `LITERAL_VALUE`
+  and does not call `construct`, for the same reason.
 - Generics, and every macro other than a statement `unreachable!()`, are not lowered. The matching declaration is left out of the module, and only its first gap is reported.
 - A `FORK_JOIN_BLOCK` says that the workers end before the node ends, and a `PARTITION_STATEMENT` says that the
   parts are disjoint, but the IR holds nothing else about them: no part count check (a count of zero or less
