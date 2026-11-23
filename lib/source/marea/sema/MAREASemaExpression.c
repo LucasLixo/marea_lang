@@ -648,7 +648,9 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckOperands(MAREA_SemaContext *cont
 
     const MAREA_G_Shape right = MAREA_G_ShapeOf(context, MAREA_SemaChildAt(expression, 1), 0);
 
-    return MAREA_G_CheckPair(context, MAREA_AstNodeGetPosition(expression), MAREA_AstNodeGetOperator(expression), &left, &right, "operands of a binary operator differ in type, one is");
+    const MAREA_SemaExcept PAIR = MAREA_G_CheckPair(context, MAREA_AstNodeGetPosition(expression), MAREA_AstNodeGetOperator(expression), &left, &right, "operands of a binary operator differ in type, one is");
+
+    return (PAIR != MAREA_SEMA_EXCEPT_SUCCESS) ? PAIR : MAREA_SemaCheckConstantOperands(context, MAREA_AstNodeGetOperator(expression), MAREA_SemaChildAt(expression, 0), MAREA_SemaChildAt(expression, 1), MAREA_AstNodeGetPosition(expression));
 }
 
 // INFO: a compound assignment is the same as a = a op b, so its two sides are compared like the operands of the operator.
@@ -658,7 +660,9 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckCompound(MAREA_SemaContext *cont
 
     const MAREA_G_Shape value = MAREA_G_ShapeOf(context, MAREA_SemaChildAt(assignment, 1), 0);
 
-    return MAREA_G_CheckPair(context, MAREA_AstNodeGetPosition(assignment), MAREA_AstNodeGetOperator(assignment), &target, &value, "sides of a compound assignment differ in type, one is");
+    const MAREA_SemaExcept PAIR = MAREA_G_CheckPair(context, MAREA_AstNodeGetPosition(assignment), MAREA_AstNodeGetOperator(assignment), &target, &value, "sides of a compound assignment differ in type, one is");
+
+    return (PAIR != MAREA_SEMA_EXCEPT_SUCCESS) ? PAIR : MAREA_SemaCheckConstantOperands(context, MAREA_AstNodeGetOperator(assignment), MAREA_SemaChildAt(assignment, 0), MAREA_SemaChildAt(assignment, 1), MAREA_AstNodeGetPosition(assignment));
 }
 
 // INFO: a conversion is always written. A number goes to a number of any width and sign, a structure to a structure whose layout sema measures as the same (a layout that sema cannot measure is rejected), and any type to itself. A shape that sema does not know fits.
