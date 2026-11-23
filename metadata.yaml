@@ -8,6 +8,6 @@ label: Marea Lang
 package: dev.marea
 version:
   major: 2 # Breaks the public API
-  minor: 6 # Adds to the public API
-  patch: 6 # No public API impact
-  build: 201 # Bumped once per commit, regardless of major/minor/patch
+  minor: 7 # Adds to the public API
+  patch: 0 # No public API impact
+  build: 202 # Bumped once per commit, regardless of major/minor/patch

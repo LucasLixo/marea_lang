@@ -73,7 +73,7 @@ namespace
         { "use of a moved value", "198", "gap" },
         { "use of an uninitialized value", "177", "gap" },
         { "write through a read-only borrow", "204", "gap" },
-        { "literal out of range", "181", "gap" },
+        { "literal out of range", "0", "reject 3033" },
         { "constant division by zero", "183", "gap" },
         { "shift count too large", "184", "gap" },
         { "recursive type by value", "221", "gap" },

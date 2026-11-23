@@ -107,7 +107,7 @@ namespace
             return true;
         }
 
-        return (code >= MAREA_SEMA_DIAGNOSTIC_CODE_UNRESOLVED_IMPORT) && (code <= MAREA_SEMA_DIAGNOSTIC_CODE_CANNOT_BORROW_CONSTANT_AS_MUTABLE) && (code != 3023);
+        return (code >= MAREA_SEMA_DIAGNOSTIC_CODE_UNRESOLVED_IMPORT) && (code <= MAREA_SEMA_DIAGNOSTIC_CODE_LITERAL_OUT_OF_RANGE) && (code != 3023);
     }
 
     MAREA_Header MAREA_parseHeader(const std::string &source)
