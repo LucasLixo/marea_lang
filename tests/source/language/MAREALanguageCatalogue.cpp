@@ -107,6 +107,10 @@ namespace
             return true;
         }
 
+        if ((code == MAREA_SEMA_DIAGNOSTIC_CODE_BITWISE_OPERAND_NOT_INTEGER) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_LOGICAL_OPERAND_NOT_BOOLEAN)) {
+            return true;
+        }
+
         return (code >= MAREA_SEMA_DIAGNOSTIC_CODE_UNRESOLVED_IMPORT) && (code <= MAREA_SEMA_DIAGNOSTIC_CODE_CANNOT_BORROW_CONSTANT_AS_MUTABLE) && (code != 3023);
     }
 

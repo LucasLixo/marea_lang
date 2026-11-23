@@ -642,23 +642,48 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckPair(MAREA_SemaContext *context,
     return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH, position, prefix, known->name, known->length);
 }
 
+// INFO: the operand rule runs only when the two sides agree in type, so one node never carries TYPE_MISMATCH and an operand code together.
 static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckOperands(MAREA_SemaContext *context, const MAREA_AstNode *expression)
 {
-    const MAREA_G_Shape left = MAREA_G_ShapeOf(context, MAREA_SemaChildAt(expression, 0), 0);
+    const MAREA_AstNode *leftNode = MAREA_SemaChildAt(expression, 0);
 
-    const MAREA_G_Shape right = MAREA_G_ShapeOf(context, MAREA_SemaChildAt(expression, 1), 0);
+    const MAREA_AstNode *rightNode = MAREA_SemaChildAt(expression, 1);
 
-    return MAREA_G_CheckPair(context, MAREA_AstNodeGetPosition(expression), MAREA_AstNodeGetOperator(expression), &left, &right, "operands of a binary operator differ in type, one is");
+    const MAREA_G_Shape left = MAREA_G_ShapeOf(context, leftNode, 0);
+
+    const MAREA_G_Shape right = MAREA_G_ShapeOf(context, rightNode, 0);
+
+    const MAREA_TokenKind operatorKind = MAREA_AstNodeGetOperator(expression);
+
+    const MAREA_SemaExcept result = MAREA_G_CheckPair(context, MAREA_AstNodeGetPosition(expression), operatorKind, &left, &right, "operands of a binary operator differ in type, one is");
+
+    if ((result != MAREA_SEMA_EXCEPT_SUCCESS) || (MAREA_G_OperandsAgree(&left, &right) == MAREA_BOOLEAN_FALSE)) {
+        return result;
+    }
+
+    return MAREA_SemaCheckOperatorOperands(context, operatorKind, leftNode, rightNode, MAREA_AstNodeGetPosition(expression));
 }
 
 // INFO: a compound assignment is the same as a = a op b, so its two sides are compared like the operands of the operator.
 static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckCompound(MAREA_SemaContext *context, const MAREA_AstNode *assignment)
 {
-    const MAREA_G_Shape target = MAREA_G_ShapeOf(context, MAREA_SemaChildAt(assignment, 0), 0);
+    const MAREA_AstNode *targetNode = MAREA_SemaChildAt(assignment, 0);
 
-    const MAREA_G_Shape value = MAREA_G_ShapeOf(context, MAREA_SemaChildAt(assignment, 1), 0);
+    const MAREA_AstNode *valueNode = MAREA_SemaChildAt(assignment, 1);
 
-    return MAREA_G_CheckPair(context, MAREA_AstNodeGetPosition(assignment), MAREA_AstNodeGetOperator(assignment), &target, &value, "sides of a compound assignment differ in type, one is");
+    const MAREA_G_Shape target = MAREA_G_ShapeOf(context, targetNode, 0);
+
+    const MAREA_G_Shape value = MAREA_G_ShapeOf(context, valueNode, 0);
+
+    const MAREA_TokenKind operatorKind = MAREA_AstNodeGetOperator(assignment);
+
+    const MAREA_SemaExcept result = MAREA_G_CheckPair(context, MAREA_AstNodeGetPosition(assignment), operatorKind, &target, &value, "sides of a compound assignment differ in type, one is");
+
+    if ((result != MAREA_SEMA_EXCEPT_SUCCESS) || (MAREA_G_OperandsAgree(&target, &value) == MAREA_BOOLEAN_FALSE)) {
+        return result;
+    }
+
+    return MAREA_SemaCheckOperatorOperands(context, operatorKind, targetNode, valueNode, MAREA_AstNodeGetPosition(assignment));
 }
 
 // INFO: a conversion is always written. A number goes to a number of any width and sign, a structure to a structure whose layout sema measures as the same (a layout that sema cannot measure is rejected), and any type to itself. A shape that sema does not know fits.
@@ -773,8 +798,13 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckValue(MAREA_SemaContext *context
 
         return (result != MAREA_SEMA_EXCEPT_SUCCESS) ? result : MAREA_G_CheckConvert(context, expression);
     }
-    case MAREA_AST_KIND_PARENTHESIZED_EXPRESSION:
     case MAREA_AST_KIND_UNARY_EXPRESSION:
+    {
+        const MAREA_SemaExcept result = MAREA_G_CheckValueOfChildren(context, expression, 0, depth, checkNames);
+
+        return (result != MAREA_SEMA_EXCEPT_SUCCESS) ? result : MAREA_SemaCheckOperatorOperands(context, MAREA_AstNodeGetOperator(expression), MAREA_SemaChildAt(expression, 0), MAREA_NULLPTR, MAREA_AstNodeGetPosition(expression));
+    }
+    case MAREA_AST_KIND_PARENTHESIZED_EXPRESSION:
     case MAREA_AST_KIND_INDEX_ACCESS:
     case MAREA_AST_KIND_ARGUMENT_LIST:
     case MAREA_AST_KIND_INDEX_ENTRY:
