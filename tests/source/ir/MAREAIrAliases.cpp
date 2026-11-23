@@ -254,3 +254,56 @@ TEST(MAREAIrAliases, GenericTypeAliasStillRaises)
         EXPECT_EQ(code, 4004U) << "Only UNINSTANTIATED_GENERIC may be raised.";
     }
 }
+
+TEST(MAREAIrAliases, FunctionTypeAliasLowersLikeTheWrittenFunctionType)
+{
+    GTEST_COUT << "Validating an alias of a function type lowers as the function type itself does, so no alias name stays." << std::endl;
+
+    EXPECT_EQ(MAREA_dumpOf("namespace main; type Callback = function(v: integer32): boolean; structure Holder f: Callback; end function run(a: Callback) end"), MAREA_lines({
+                                                                                                                                                                    "MODULE",
+                                                                                                                                                                    "  STRUCTURE_DECLARATION \"Holder\"",
+                                                                                                                                                                    "    FIELD_DECLARATION \"f\"",
+                                                                                                                                                                    "  FUNCTION_DECLARATION \"run\"",
+                                                                                                                                                                    "    PARAMETER_LIST",
+                                                                                                                                                                    "      PARAMETER \"a\"",
+                                                                                                                                                                    "    BLOCK",
+                                                                                                                                                                }))
+        << "The alias name must not stay.";
+}
+
+TEST(MAREAIrAliases, FunctionTypeAliasInAChainLowersToo)
+{
+    GTEST_COUT << "Validating an alias of an alias of a function type lowers like the function type." << std::endl;
+
+    const std::string DUMP{ MAREA_dumpOf("namespace main; type Callback = function(v: integer32): boolean; type Handler = Callback; function run(a: Handler) end") };
+
+    EXPECT_TRUE(MAREA_has(DUMP, "PARAMETER \"a\"\n")) << "The parameter must carry no type name: " << DUMP;
+    EXPECT_FALSE(MAREA_has(DUMP, "Handler")) << "The alias must not appear: " << DUMP;
+    EXPECT_FALSE(MAREA_has(DUMP, "Callback")) << "The alias must not appear: " << DUMP;
+}
+
+TEST(MAREAIrAliases, TypeArgumentAliasLowersToTheHeadName)
+{
+    GTEST_COUT << "Validating an alias of a type with concrete type arguments lowers to the head name, as the written type does." << std::endl;
+
+    const std::string DUMP{ MAREA_dumpOf("namespace main; import collections.array; type Ints = array<integer32>; type More = Ints; structure Box value: Ints; end function take(e: More) local x: Ints = e; end") };
+
+    EXPECT_TRUE(MAREA_has(DUMP, "FIELD_DECLARATION \"value\" type=array")) << "The field type must be the head name: " << DUMP;
+    EXPECT_TRUE(MAREA_has(DUMP, "PARAMETER \"e\" type=array")) << "The chain must reach the head name: " << DUMP;
+    EXPECT_TRUE(MAREA_has(DUMP, "LOCAL_DECLARATION \"x\" type=array")) << "The local type must be the head name: " << DUMP;
+    EXPECT_FALSE(MAREA_has(DUMP, "Ints")) << "The alias must not appear: " << DUMP;
+    EXPECT_FALSE(MAREA_has(DUMP, "More")) << "The alias must not appear: " << DUMP;
+}
+
+TEST(MAREAIrAliases, TypeOperandThroughALossyAliasRaises)
+{
+    GTEST_COUT << "Validating a type operand named by an alias that carries type arguments raises, so no argument is lost." << std::endl;
+
+    const Codes CODES{ MAREA_codesOf("namespace main; import collections.array; type Ints = array<integer32>; constant SIZE: unsigned64 = size_of<Ints>();") };
+
+    ASSERT_FALSE(CODES.empty()) << "The operand must raise.";
+
+    for (MAREA_Uinteger32 code : CODES) {
+        EXPECT_EQ(code, 4004U) << "Only UNINSTANTIATED_GENERIC may be raised.";
+    }
+}
