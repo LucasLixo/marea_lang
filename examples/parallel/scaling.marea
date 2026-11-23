@@ -35,7 +35,7 @@ function sum_slice(part: slice<float32>): float32
 end
 
 #[visibility = public]
-function scale_all(values: mutable array<float32>, factor: float32)
+function scale_all(values: mutable c.array<float32>, factor: float32)
     fork_join
         partition mutable values into WORKER_COUNT as part do
             spawn scale_slice(part, factor);
@@ -44,8 +44,8 @@ function scale_all(values: mutable array<float32>, factor: float32)
 end
 
 #[visibility = public]
-function sum_all(values: array<float32>): float32
-    local tasks: array<task<float32>> = array<task<float32>>{};
+function sum_all(values: c.array<float32>): float32
+    local tasks: c.array<task<float32>> = c.array<task<float32>>{};
     fork_join
         partition values into WORKER_COUNT as part do
             tasks.append(spawn sum_slice(part));
