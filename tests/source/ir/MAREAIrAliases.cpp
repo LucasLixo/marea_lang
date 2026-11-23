@@ -154,6 +154,17 @@ TEST(MAREAIrAliases, LocalShadowsAnAliasOnlyInItsOwnFunction)
     EXPECT_TRUE(MAREA_has(DUMP, "IDENTIFIER \"push\"")) << "The other function must see the original: " << DUMP;
 }
 
+TEST(MAREAIrAliases, LocalShadowsAnAliasOnlyFromItsDeclarationOnward)
+{
+    GTEST_COUT << "Validating a reference before the local with the name of an alias still lowers to the original." << std::endl;
+
+    const std::string DUMP{ MAREA_dumpOf("namespace main; import collections.list { push as add }; function run(): integer32 add(1); local add: integer32 = 2; return add; end") };
+
+    EXPECT_NE(DUMP, "<lower failed>") << "The unit must lower.";
+    EXPECT_TRUE(MAREA_has(DUMP, "IDENTIFIER \"push\"")) << "The reference before the local must see the original: " << DUMP;
+    EXPECT_TRUE(MAREA_has(DUMP, "RETURN_STATEMENT\n        IDENTIFIER \"add\"")) << "The reference after the local must keep its name: " << DUMP;
+}
+
 TEST(MAREAIrAliases, LoopVariableShadowsAnAlias)
 {
     GTEST_COUT << "Validating a loop variable with the name of an alias keeps its own name." << std::endl;
