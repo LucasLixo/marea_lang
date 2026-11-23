@@ -113,17 +113,19 @@ TEST(MAREASemaGenericsAndContracts, ImplementationInSecondBlockCounts)
     EXPECT_TRUE(MAREA_codesOf(BODY).empty()) << "A second block must be searched.";
 }
 
-TEST(MAREASemaGenericsAndContracts, CopyableNeedsAValueType)
+TEST(MAREASemaGenericsAndContracts, CopyableNeedsAPrimitiveAnArrayOrAnEnum)
 {
-    GTEST_COUT << "Validating Copyable is met by a value type and primitives and missed by a plain structure." << std::endl;
+    GTEST_COUT << "Validating Copyable is met by primitives and an enum (its documented intentional exception) and missed by a plain or move_only structure." << std::endl;
 
     const std::string COPY{ "function copy_of<Item>(a: Item): Item where Item: Copyable return copy a; end " };
 
-    EXPECT_TRUE(MAREA_codesOf(COPY + "#[value] structure Point x: float32; end function run(p: Point): Point return copy_of(p); end").empty()) << "A value type must be Copyable.";
+    EXPECT_TRUE(MAREA_codesOf(COPY + "enum Color red; end function run(c: Color): Color return copy_of(c); end").empty()) << "An enum, the by-value exception, must be Copyable.";
 
     EXPECT_TRUE(MAREA_codesOf(COPY + "function run(): sinteger32 return copy_of<sinteger32>(1); end").empty()) << "A primitive must be Copyable.";
 
-    EXPECT_EQ(MAREA_codesOf(COPY + "structure Plain x: float32; end function run(p: Plain): Plain return copy_of(p); end"), Codes{ NOT_SATISFIED }) << "A plain structure must miss Copyable.";
+    EXPECT_EQ(MAREA_codesOf(COPY + "structure Plain x: float32; end function run(p: Plain): Plain return copy_of(p); end"), Codes{ NOT_SATISFIED }) << "A plain structure must miss Copyable; #[value] no longer exempts it.";
+
+    EXPECT_EQ(MAREA_codesOf(COPY + "#[move_only] structure M x: float32; end function run(m: M): M return copy_of(m); end"), Codes{ NOT_SATISFIED }) << "A move_only structure must miss Copyable.";
 }
 
 TEST(MAREASemaGenericsAndContracts, MovableNeedsAnOwnedOrMoveOnlyType)

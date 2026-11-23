@@ -84,13 +84,13 @@ unknown types and raise `UNKNOWN_TYPE`.
 
 **Attributes.** A fixed key table: `visibility` (`public`, `private`), `inline` (`force`, `never`,
 `auto`), `build` (`debug`, `release`), `layout` (`c`, `marea`), `align` (a power of two, not with
-`pack`), `pack` (an integer), `value` and `move_only` (booleans), `operator` (a string of a fixed list),
+`pack`), `pack` (an integer), `move_only` (a boolean), `operator` (a string of a fixed list),
 `export` (a string, the label at the C border). A key of an enum needs one of its members, and `export`
 and `operator` need a string, so a bare key of those is `INVALID_ATTRIBUTE_VALUE`. The strings of `operator`
 are the operator tokens of the grammar (`+ - * / % **`, the wrapping and saturating forms, `~ & | ^ << >>`, the
 comparisons, the assignment forms), `"[]"`, `"()"`, `"convert"`, `"construct"` and `"destroy"`; any other
 string or a name is `INVALID_ATTRIBUTE_VALUE`. A key not in the table, such as the
-retired `public`, `private`, `simd` and `destroy`, is `UNKNOWN_ATTRIBUTE_KEY`. The deeper meaning of
+retired `public`, `private`, `simd`, `destroy` and `value`, is `UNKNOWN_ATTRIBUTE_KEY`. The deeper meaning of
 `operator` (the signature, the placement) and `export` is not checked. A flag key with no value is true. File attributes `#![...]` use
 the same table; the attribute of the symbol wins over the file attribute, so `#![visibility = public]`
 with `#[visibility = private]` on one symbol is not a conflict.
@@ -101,8 +101,9 @@ with `#[visibility = private]` on one symbol is not a conflict.
 opaque type or alias of the file, or an import. `array` takes two arguments (a type and a size), the others one, and a
 user generic takes as many arguments as it has parameters. A number fills a value parameter only.
 
-**Contracts.** `Copyable` is met by a primitive, an `array` whose element is `Copyable`, a `pointer`, `slice` or function type, an
-enum and a `#[value]` type. A `vector` is never `Copyable`. `Movable` is met by `owned`, `task`, `vector`, a `#[move_only]` type and a plain
+**Contracts.** `Copyable` is met by a primitive, an `array` whose element is `Copyable`, a `pointer`, `slice` or function type and an
+enum; the enum case is a documented, intentional exception to "a non-primitive is never a copy contract" (no attribute exempts any
+other user type - the retired `#[value]` key does not exist). A `vector` is never `Copyable`. `Movable` is met by `owned`, `task`, `vector`, a `#[move_only]` type and a plain
 user type. Any other contract is met when the `implementation` blocks of the type hold every contract
 function with the same parameters and result, `Self` replaced by the type. A generic parameter meets a
 contract only when its own `where` clause lists it. The check runs at a call of a function of the file,
@@ -144,8 +145,9 @@ parameter is defaulted.
 `UNKNOWN_TYPE`. Sema does not use the tag for the layout of an enum: `size_of` of an enum is unchanged.
 
 **Ownership.** A parameter with no word is a read-only borrow, `mutable` is a write borrow,
-`reference` forces a borrow of a by-value type, `owned<T>` moves in. A primitive, an `array`, `pointer`, `slice`, an
-enum and a `#[value]` type is by value. A `vector` is a move type, so `=` of a `vector` name needs `copy x` or `move x`. `=` of a name, field or element of any other type needs
+`reference` forces a borrow of a by-value type, `owned<T>` moves in. A primitive, an `array`, `pointer`, `slice` and an
+enum is by value; the enum case is a documented, intentional exception (no attribute exempts any other user type - the retired
+`#[value]` key does not exist, so a structure, move_only or plain, is never by value). A `vector` is a move type, so `=` of a `vector` name needs `copy x` or `move x`. `=` of a name, field or element of any other type needs
 `copy x` or `move x`, in an assignment and in a local initializer. A call or a literal needs no word.
 A borrow parameter, a `for each` variable, a `partition` part and a `with` name cannot be returned,
 nor be the value of a field. A new local of the same name ends the reference.
@@ -319,7 +321,8 @@ fallback `MAREA_SemaInferType` already uses for the checker.
 
 **Ownership mode.** `MAREA_SemaOwnershipMode` names how a typed node carries its value, following the
 same rules "Ownership" above already states: `VALUE` (a primitive, an `array`/`pointer`/`slice`/
-`owned`/`task` core type is a different case below, an enum or a `#[value]` type), `BORROW` (a
+`owned`/`task` core type is a different case below, or an enum - the documented, intentional exception; no
+attribute exempts any other user type), `BORROW` (a
 read-only parameter, a `for each` variable, a `partition` part or a `with` name), `MUTABLE_BORROW` (a
 `mutable` parameter), `MOVE` (an `owned<T>` or `task<T>` parameter or value), `COPY` (a `copy x`
 expression). A node this cannot classify defaults to `VALUE`.
@@ -354,7 +357,7 @@ type arguments is deferred to when the `ir` stage needs one for real.
 | 3013 | `CONTRACT_NOT_SATISFIED` | `maximum(a, b)` when the type of `a` has no `less` for `where Item: Comparable` |
 | 3014 | `GENERIC_ARGUMENT_MISMATCH` | `Pair<sinteger32>` when `Pair` has two parameters, `Box<4>` |
 | 3015 | `INSTANTIATION_TOO_DEEP` | a type argument nested 65 levels |
-| 3016 | `ASSIGNMENT_NEEDS_COPY_OR_MOVE` | `a = b;` when the type is not a primitive or a `#[value]` type |
+| 3016 | `ASSIGNMENT_NEEDS_COPY_OR_MOVE` | `a = b;` when the type is not a primitive, a copyable `array` or an enum |
 | 3017 | `INVALID_BORROW` | `s: reference Shape` when `Shape` is already a borrow |
 | 3018 | `REFERENCE_ESCAPES_SCOPE` | `return s;` when `s` is a borrow parameter |
 | 3019 | `EXCLUSIVE_BORROW_CONFLICT` | `take(s, s)` when one parameter is `mutable` |

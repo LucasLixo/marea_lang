@@ -3,7 +3,7 @@
 
 #include "marea/internal/sema/MAREASemaInternal.h"
 
-static MAREA_Boolean MAREA_CALL MAREA_G_TypedAstIsValueTypeClass(const MAREA_SemaContext *context, MAREA_SemaTypeClass typeClass, const MAREA_AstNode *declaration)
+static MAREA_Boolean MAREA_CALL MAREA_G_TypedAstIsValueTypeClass(MAREA_SemaTypeClass typeClass, const MAREA_AstNode *declaration)
 {
     if ((typeClass == MAREA_SEMA_TYPE_CLASS_PRIMITIVE) || (typeClass == MAREA_SEMA_TYPE_CLASS_COPY_BUILTIN)) {
         return MAREA_BOOLEAN_TRUE;
@@ -13,12 +13,8 @@ static MAREA_Boolean MAREA_CALL MAREA_G_TypedAstIsValueTypeClass(const MAREA_Sem
         return MAREA_BOOLEAN_FALSE;
     }
 
-    // INFO: an enum is a plain integer, so it is always passed by value, same rule MAREA_G_IsByValue uses.
-    if (MAREA_AstNodeGetKind(declaration) == MAREA_AST_KIND_ENUM_DECLARATION) {
-        return MAREA_BOOLEAN_TRUE;
-    }
-
-    return MAREA_SemaAttributeIsOn(context->root, declaration, "value");
+    // INFO: an enum is always by value, the same documented exception MAREA_G_IsByValue uses; the retired "value" key exempts no other type.
+    return (MAREA_AstNodeGetKind(declaration) == MAREA_AST_KIND_ENUM_DECLARATION) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
 static MAREA_SemaOwnershipMode MAREA_CALL MAREA_G_TypedAstClassifyParameter(MAREA_SemaContext *context, const MAREA_AstNode *parameter)
@@ -31,7 +27,7 @@ static MAREA_SemaOwnershipMode MAREA_CALL MAREA_G_TypedAstClassifyParameter(MARE
 
     const MAREA_SemaTypeClass CLASS = MAREA_SemaClassifyType(context, MAREA_SemaChildAt(parameter, 1), &declaration, &name, &length);
 
-    if (MAREA_G_TypedAstIsValueTypeClass(context, CLASS, declaration) == MAREA_BOOLEAN_TRUE) {
+    if (MAREA_G_TypedAstIsValueTypeClass(CLASS, declaration) == MAREA_BOOLEAN_TRUE) {
         return MAREA_SEMA_OWNERSHIP_MODE_VALUE;
     }
 
