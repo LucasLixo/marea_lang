@@ -415,6 +415,15 @@ type arguments is deferred to when the `ir` stage needs one for real.
   and `with` header expressions and the initializer of a file constant are checked. The loop name is already in
   scope when its own header is checked, so `for i in 0 .. i` with no outer `i` raises nothing. A constant that has
   an `ERROR_NODE` below it has no name check, because the parser may leave its tokens as an expression.
+- `CANNOT_BORROW_CONSTANT_AS_MUTABLE` (3032) sees only a bare file-constant name as the argument. A field chain
+  rooted in a constant (`ORIGIN.x`) passed to a write-borrow parameter is not rejected, and a test proves only the
+  bare name.
+- An alias of an `enum` is not resolved to the enum for any comparison, because sema never compares an enum type
+  for `TYPE_MISMATCH` (see the `TYPE_MISMATCH` gap above); the aliased-enum case that a test covers is the
+  `switch` coverage of an imported enum with an alias. No test covers `type A = Color;` of a same-file enum.
+- `INVALID_ENUM_TAG_TYPE` (3031) checks only that the tag is an integer primitive. Sema does not check that the tag
+  is wide enough for the number of variants, and does not use it for the layout of the enum (`size_of` is
+  unchanged).
 - The contract check only sees arguments whose type is cheap to know. Other arguments are not checked.
 - `operator` is checked against its vocabulary; only `construct` and `destroy` have a placement and a shape check
   (see "Construct and destroy"), the signature of any other operator is not checked; `export` is checked for shape
