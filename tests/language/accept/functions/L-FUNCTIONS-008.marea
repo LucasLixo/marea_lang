@@ -1,0 +1,20 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Return value on every path of an if, elseif and else chain.
+
+namespace main;
+
+function sign(value: sinteger32): sinteger32
+    if value < 0 then
+        return -1;
+    end
+    elseif value == 0 then
+        return 0;
+    end
+    else
+        return 1;
+    end
+    end
+end

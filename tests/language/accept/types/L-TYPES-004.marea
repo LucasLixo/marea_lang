@@ -1,0 +1,19 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A field assignment of a local structure.
+
+namespace main;
+
+structure Point
+    x: float64;
+    y: float64;
+end
+
+function run(): float64
+    local point: Point = Point{ x = 0.0, y = 0.0 };
+    point.x = 5.0;
+    point.y += 1.0;
+    return point.x + point.y;
+end

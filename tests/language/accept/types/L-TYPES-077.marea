@@ -1,0 +1,22 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A static function of an implementation, called through the type.
+
+namespace main;
+
+structure Point
+    x: float64;
+    y: float64;
+end
+
+implementation Point
+    function origin(): Point
+        return Point{ x = 0.0, y = 0.0 };
+    end
+end
+
+function run(): Point
+    return Point.origin();
+end

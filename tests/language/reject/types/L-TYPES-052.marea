@@ -1,0 +1,27 @@
+-- expect: 3025 @20
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A switch that lists a variant twice in two arms.
+
+namespace main;
+
+enum Color
+    Red;
+    Green;
+    Blue;
+end
+
+function name(color: Color): sinteger32
+    switch color
+        case Color.Red then
+            return 1;
+        end
+        case Color.Red then
+            return 2;
+        end
+        default then
+            return 0;
+        end
+    end
+end

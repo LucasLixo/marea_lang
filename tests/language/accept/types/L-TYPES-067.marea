@@ -1,0 +1,22 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A switch inside a loop that uses break in an arm.
+
+namespace main;
+
+function run(): sinteger32
+    local total: sinteger32 = 0;
+    while true do
+        switch total
+            case 3 then
+                break;
+            end
+            default then
+                total += 1;
+            end
+        end
+    end
+    return total;
+end

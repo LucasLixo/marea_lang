@@ -1,0 +1,18 @@
+-- expect: 2010 @14
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A default arm that is not last.
+
+namespace main;
+
+function run(value: sinteger32)
+    switch value
+        default then
+            return;
+        end
+        case 1 then
+            return;
+        end
+    end
+end

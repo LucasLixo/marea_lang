@@ -1,0 +1,24 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Two implementation blocks of one type with different functions.
+
+namespace main;
+
+structure Point
+    x: float64;
+    y: float64;
+end
+
+implementation Point
+    function sum(self: Point): float64
+        return self.x + self.y;
+    end
+end
+
+implementation Point
+    function product(self: Point): float64
+        return self.x * self.y;
+    end
+end

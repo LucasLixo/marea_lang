@@ -1,0 +1,13 @@
+-- expect: 3031 @11
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An enum tag that is an alias of an integer.
+
+namespace main;
+
+type Small = uinteger8;
+
+enum Level : Small
+    Low;
+end

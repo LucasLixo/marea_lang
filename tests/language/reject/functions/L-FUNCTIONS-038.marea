@@ -1,0 +1,15 @@
+-- expect: 3004 @14
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A name that no scope declares, used as an argument.
+
+namespace main;
+
+function twice(value: sinteger32): sinteger32
+    return value * 2;
+end
+
+function run(): sinteger32
+    return twice(missing);
+end

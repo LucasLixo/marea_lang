@@ -1,0 +1,11 @@
+-- expect: 2001 @10, 2001 @10
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A keyword used as a field name.
+
+namespace main;
+
+structure Item
+    return: sinteger32;
+end

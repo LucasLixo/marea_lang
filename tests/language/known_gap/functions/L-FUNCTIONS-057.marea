@@ -1,0 +1,14 @@
+-- gap: #213 3011
+-- rule: reject
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A function type local given a text value.
+
+namespace main;
+
+type Callback = function(text: string);
+
+function run()
+    local callback: Callback = "x";
+end

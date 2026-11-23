@@ -1,0 +1,24 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- One case that lists many variants.
+
+namespace main;
+
+enum Color
+    Red;
+    Green;
+    Blue;
+end
+
+function is_warm(color: Color): boolean
+    switch color
+        case Color.Red, Color.Green then
+            return true;
+        end
+        case Color.Blue then
+            return false;
+        end
+    end
+end

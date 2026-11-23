@@ -1,0 +1,13 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Return value inside a scope block.
+
+namespace main;
+
+function wrapped(): sinteger32
+    do
+        return 7;
+    end
+end

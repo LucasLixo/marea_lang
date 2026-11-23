@@ -1,0 +1,16 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A generic structure with two type parameters.
+
+namespace main;
+
+structure Pair<First, Second>
+    first: First;
+    second: Second;
+end
+
+function make(): Pair<sinteger32, float64>
+    return Pair<sinteger32, float64>{ first = 1, second = 2.0 };
+end

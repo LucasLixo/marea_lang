@@ -1,0 +1,16 @@
+-- expect: 3011 @15
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An integer argument of another width.
+
+namespace main;
+
+function twice(value: sinteger32): sinteger32
+    return value * 2;
+end
+
+function run(): sinteger32
+    local wide: sinteger64 = 4;
+    return twice(wide);
+end

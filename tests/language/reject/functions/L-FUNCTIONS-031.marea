@@ -1,0 +1,15 @@
+-- expect: 3011 @14
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A text argument for an integer parameter.
+
+namespace main;
+
+function twice(value: sinteger32): sinteger32
+    return value * 2;
+end
+
+function run(): sinteger32
+    return twice("text");
+end
