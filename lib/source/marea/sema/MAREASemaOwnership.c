@@ -304,6 +304,17 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckOwnership(MAREA_SemaContext *context,
     }
 }
 
+static MAREA_Boolean MAREA_CALL MAREA_G_IsFileConstantIdentifier(const MAREA_SemaContext *context, const MAREA_AstNode *name)
+{
+    if (MAREA_SemaLocalFind(context, MAREA_AstNodeGetText(name), MAREA_AstNodeGetTextLength(name)) != MAREA_NULLPTR) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_SemaName *entry = MAREA_SemaNameTableFind(context, MAREA_AstNodeGetText(name), MAREA_AstNodeGetTextLength(name));
+
+    return ((entry != MAREA_NULLPTR) && (entry->kind == MAREA_SEMA_NAME_KIND_DECLARATION) && (entry->declaration != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(entry->declaration) == MAREA_AST_KIND_CONSTANT_DECLARATION)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
 MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckBorrowArguments(MAREA_SemaContext *context, const MAREA_AstNode *call, const MAREA_AstNode *parameters, const MAREA_AstNode *arguments)
 {
     if ((context == MAREA_NULLPTR) || (call == MAREA_NULLPTR) || (parameters == MAREA_NULLPTR) || (arguments == MAREA_NULLPTR)) {
@@ -319,6 +330,14 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckBorrowArguments(MAREA_SemaContext *co
             continue;
         }
 
+        const MAREA_AstNode *firstParameter = MAREA_SemaChildAt(parameters, first);
+
+        const MAREA_Boolean FIRST_WRITE = ((firstParameter != MAREA_NULLPTR) && (MAREA_SemaGetParameterSemantics(context, firstParameter) == MAREA_SEMA_PARAMETER_SEMANTICS_REFERENCE_MUTABLE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+
+        if ((FIRST_WRITE == MAREA_BOOLEAN_TRUE) && (MAREA_G_IsFileConstantIdentifier(context, left) == MAREA_BOOLEAN_TRUE)) {
+            return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_CANNOT_BORROW_CONSTANT_AS_MUTABLE, MAREA_AstNodeGetPosition(left), "a constant cannot be bound to a mutable borrow:", MAREA_AstNodeGetText(left), MAREA_AstNodeGetTextLength(left));
+        }
+
         for (MAREA_IntegerSize second = (first + 1); second < COUNT; ++second) {
             const MAREA_AstNode *right = MAREA_SemaChildAt(arguments, second);
 
@@ -326,15 +345,11 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckBorrowArguments(MAREA_SemaContext *co
                 continue;
             }
 
-            const MAREA_AstNode *leftParameter = MAREA_SemaChildAt(parameters, first);
-
             const MAREA_AstNode *rightParameter = MAREA_SemaChildAt(parameters, second);
-
-            const MAREA_Boolean LEFT_WRITE = ((leftParameter != MAREA_NULLPTR) && (MAREA_SemaGetParameterSemantics(context, leftParameter) == MAREA_SEMA_PARAMETER_SEMANTICS_REFERENCE_MUTABLE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 
             const MAREA_Boolean RIGHT_WRITE = ((rightParameter != MAREA_NULLPTR) && (MAREA_SemaGetParameterSemantics(context, rightParameter) == MAREA_SEMA_PARAMETER_SEMANTICS_REFERENCE_MUTABLE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 
-            if ((LEFT_WRITE == MAREA_BOOLEAN_FALSE) && (RIGHT_WRITE == MAREA_BOOLEAN_FALSE)) {
+            if ((FIRST_WRITE == MAREA_BOOLEAN_FALSE) && (RIGHT_WRITE == MAREA_BOOLEAN_FALSE)) {
                 continue;
             }
 

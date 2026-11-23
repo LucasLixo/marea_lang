@@ -22,7 +22,7 @@ MAREA_SemaCheckCompilationUnit(sema, root);   /* once per file, dependencies fir
 `MAREA_SemaCheckCompilationUnit` returns an error only for a null argument or an out of memory. A rule
 violation is a diagnostic in the sink. A size that does not fit in `MAREA_IntegerSize` (a diagnostic
 message, or the growth of a name table) is also an out of memory: nothing is allocated or copied.
-Every sema diagnostic is an error, in the range 3001-3031.
+Every sema diagnostic is an error, in the range 3001-3032.
 The lexer file name decides the path rule, so call `MAREA_LexContextSetFileName` with a project
 relative path with forward slashes and the `.marea` extension before the lex step.
 
@@ -169,7 +169,10 @@ name needs `copy x` or `move x`. `=` of a name, field or element of any other ty
 `copy x` or `move x`, in an assignment and in a local initializer. A call or a literal needs no word.
 A borrow parameter (`reference_read_only` or `reference_mutable`, explicit or by default), a
 `for each` variable, a `partition` part and a `with` name cannot be returned, nor be the value of
-a field. A new local of the same name ends the reference.
+a field. A new local of the same name ends the reference. A file constant passed as the argument of
+a `reference_mutable` (write-borrow) parameter, explicit or by default, has no writable storage to
+back the borrow, so it is rejected with `CANNOT_BORROW_CONSTANT_AS_MUTABLE` (3032); a variable
+passed to the same parameter is unaffected.
 
 **Spawn.** In `fork_join`, each argument of `spawn f(...)` is a `partition` part, a literal, a file
 constant, or a name that is not a `reference_mutable` (write-borrow) parameter and not the source of
@@ -393,6 +396,7 @@ type arguments is deferred to when the `ir` stage needs one for real.
 | 3029 | `LIFECYCLE_OPERATOR_BAD_SHAPE` | a `destroy` with a parameter or a return type; a `construct` with a return type or a parameter that has no default |
 | 3030 | `DEFAULT_PARAMETER_BEFORE_REQUIRED` | `function f(a: sinteger32 = 0, b: sinteger32)`: a parameter with a default value before one with none |
 | 3031 | `INVALID_ENUM_TAG_TYPE` | `enum A : float32`, `: string`, `: SomeStruct`: a tag that is not an integer primitive |
+| 3032 | `CANNOT_BORROW_CONSTANT_AS_MUTABLE` | `take(ORIGIN)` when `take`'s parameter's effective `semantics` is `reference_mutable` and `ORIGIN` is a file constant |
 
 ## Gaps
 
