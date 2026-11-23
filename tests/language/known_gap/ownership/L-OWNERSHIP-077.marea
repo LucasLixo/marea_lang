@@ -1,0 +1,28 @@
+-- gap: #201 3019
+-- rule: reject
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- One element is passed to two write-borrow parameters.
+
+namespace main;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+structure Box
+    inner: Point;
+    count: sinteger32;
+end
+
+function two_write(#[semantics = reference_mutable] first: Point, #[semantics = reference_mutable] second: Point)
+    first.x = 1;
+    second.x = 2;
+end
+
+function check(#[semantics = reference_mutable] points: vector<Point>): sinteger32
+    two_write(points[0], points[0]);
+    return 1;
+end

@@ -1,0 +1,32 @@
+-- gap: #201 3019
+-- rule: reject
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A value is passed to a write borrow and moved in the same call.
+
+namespace main;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+structure Box
+    inner: Point;
+    count: sinteger32;
+end
+
+function make_point(): Point
+    return Point{ x = 1, y = 2 };
+end
+
+function write_take(#[semantics = reference_mutable] first: Point, second: owned<Point>)
+    first.x = second.x;
+end
+
+function check(): sinteger32
+    local point: Point = make_point();
+    write_take(point, move point);
+    return 1;
+end

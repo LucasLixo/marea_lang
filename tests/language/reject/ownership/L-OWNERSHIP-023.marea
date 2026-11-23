@@ -1,0 +1,24 @@
+-- expect: 3016 @22
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A structure constant assigned to a local with no word.
+
+namespace main;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+structure Box
+    inner: Point;
+    count: sinteger32;
+end
+
+constant ORIGIN: Point = Point{ x = 0, y = 0 };
+
+function check(): sinteger32
+    local point: Point = ORIGIN;
+    return 1;
+end

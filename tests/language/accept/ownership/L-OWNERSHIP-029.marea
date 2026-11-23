@@ -1,0 +1,23 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A new value from a literal needs no word.
+
+namespace main;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+structure Box
+    inner: Point;
+    count: sinteger32;
+end
+
+function check(): sinteger32
+    local point: Point = Point{ x = 1, y = 2 };
+    local box: Box = Box{ inner = Point{ x = 3, y = 4 }, count = 1 };
+    return 1;
+end
