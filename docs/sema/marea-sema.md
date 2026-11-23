@@ -225,7 +225,8 @@ A borrow parameter (`reference_read_only` or `reference_mutable`, explicit or by
 a field. A new local of the same name ends the reference. A file constant passed as the argument of
 a `reference_mutable` (write-borrow) parameter, explicit or by default, has no writable storage to
 back the borrow, so it is rejected with `CANNOT_BORROW_CONSTANT_AS_MUTABLE` (3032); a variable
-passed to the same parameter is unaffected.
+passed to the same parameter is unaffected. Tracking of a moved local and a live borrow across
+statements is a design decision recorded in the last bullet of `## Gaps`.
 
 **Spawn.** In `fork_join`, each argument of `spawn f(...)` is a `partition` part, a literal, a file
 constant, or a name that is not a `reference_mutable` (write-borrow) parameter and not the source of
@@ -710,3 +711,23 @@ or rejects.
   vocabulary was never widened for attributes, so such a type argument fails to parse as one. The
   same scan already had no tolerance for the retired `mutable`/`reference` parameter keywords it
   used to allow, so this is not a new restriction, only an unaddressed one.
+- Move state and borrow liveness are not tracked across statements. Sema keeps no per-variable "moved" or
+  "borrow ended" bit, and `MAREA_SemaCheckSpawn` (`MAREASemaParallel.c`) checks one `spawn` alone, so two
+  sibling `spawn` statements of one `fork_join` are never compared. The settled design for every later
+  check (use after move, partial move, borrow liveness, cross-spawn, `partition` body) is one rule set,
+  recorded here so no check invents its own:
+  - **State table.** One new per-scope table, modeled directly on `references`
+    (`MAREA_SemaNameTable` in `MAREASemaInternal.h`): `MAREA_SemaBindReferences` (`MAREASemaOwnership.c`)
+    pushes entries on scope enter, and they pop on scope leave. The new table is pushed on scope enter,
+    popped on scope leave, and read and written inside the same `MAREA_SemaVisit` pass. There is no second
+    traversal and no control-flow graph.
+  - **Merge rule.** At a branch or loop boundary (`if`/`elseif`/`else`, the arms of a `switch`, a loop
+    body) the merge follows `MAREA_G_Terminates` (`MAREASemaControlFlow.c`), which says a path terminates
+    only when every arm agrees (`MAREA_G_IfTerminates`, `MAREA_G_SwitchTerminates`). In the same way, a
+    local is "definitely moved" after the merge, or a borrow "definitely ended", only when every arm
+    proves it on its own. A loop body is visited once, so an effect that can happen on a later iteration
+    but not on the first is treated as "maybe already happened" once the walk is past the loop.
+  - **Rounding rule.** When the effect of an arm is ambiguous, the merge always rounds toward "still
+    valid" (not moved, still borrowed), never toward "reject". A missed catch is acceptable; a false
+    rejection of valid code is not. Every later check that builds on this table must inherit this
+    rounding and must not define its own.
