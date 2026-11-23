@@ -391,7 +391,8 @@ every run. The canonical spelling:
 
 **Resolved type of an expression.** The same accessor gives the type of an expression, in the same spelling. The text
 is made when the typed tree is built, after the typed children, so it uses what the children carry. A name that is
-not read as a value (a declared name, a member name, a field key, the name of a loop) has no type. The rules:
+not read as a value (a declared name, including the name that a loop or a scope declares, a member name, a field key) has no
+type. The rules:
 
 | Expression | Resolved type |
 |---|---|
@@ -402,6 +403,7 @@ not read as a value (a declared name, a member name, a field key, the name of a 
 | `copy x`, `move x`, `(x)` | the type of `x`, with its type arguments |
 | `spawn call` | `task<T>`, where `T` is the type of the call |
 | identifier | the type of its declaration: a parameter or a local, a constant of the file or of the implementation block, a value parameter such as `Count` in `<constant Count: sinteger32>`, or a function name as its function type |
+| name of a loop or a scope | read as a value, it has the type its statement gives it. `for i in a .. b`: the type of the bounds, as for an operation (a number literal never decides, two literals give the type of the first). `for each key, value in c`: the value is the element type of `array`, `vector` or `slice` (also under `c.`), the key is `uinteger64`. `partition v into n as part`: `slice<T>`, where `T` is the element type of `v`. `with e as name`: the type of `e`. The name has no type when the type that decides it has none |
 | member access | the declared type of the field. On a value of a generic structure, the type arguments of the value replace the parameters of the structure. An enum variant (`Color.Red`) is the enum. A field of a variant of an enum is read on the enum value. `Type.NAME` is a constant of an implementation block. A method or a static function, named with no call, is its function type with the receiver first: `function(Vector2,float64)` |
 | index access | the first type argument of `array`, `slice`, `vector` or `pointer` (also under `c.`) |
 | call | the declared result type of the callee. `convert<T>(x)` is `T`. A call on the name of a structure or enum of the file is that type. A call of a method, a static function, a function value or a local alias of a function type is the result of that function. A call of one of these with no result type is `void`, and `spawn` of such a call keeps no type. `size_of<T>()` and `align_of<T>()` (with no name of the same text bound in the unit) are `uinteger64`; the names `size_of`, `align_of` and `convert` as a callee keep no type of their own |
@@ -523,10 +525,11 @@ or rejects.
   type of an expression". A `Self` type and a generic parameter are spelled by
   their written name, not by the type they stand for in one instantiation, and a name of another namespace is spelled
   by what is written and the import alias rule, with no qualifier added.
-- An expression with no resolved type (checked on the 23 examples, 902 expression nodes, 162 of them with no type).
-  The cases that stay without a type: the name of a `for`, `for each`, `partition` or `with` statement, because sema
-  keeps no type for it, and every expression made from it; `spawn` of a call that returns nothing (the
-  call itself is `void`); a call, a member or a name that comes from an import or from a namespace (`stdio.puts(text)`,
+- An expression with no resolved type (checked on the 23 examples, 902 expression nodes, 150 of them with no type).
+  The cases that stay without a type: the name of a `for`, `for each`, `partition` or `with` statement when the type
+  that decides it has none (`pixels` of `with vulkan.map_texture(texture) as pixels`, the counter of a range with a
+  bound such as `slice.length(pixels) - 1`), and every expression made from it; the key of a `for each` over any
+  other collection, as no library type of the repository has a key; a call, a member or a name that comes from an import or from a namespace (`stdio.puts(text)`,
   `vulkan.present(swapchain, texture)`, `square_root(x)`), also when sema has the tree of the namespace, because the
   typed tree never looks in another file; a method or an element of a library type (`table<K, V>`, `c.array`,
   `task`, `slice.length`) and an intrinsic of `array<T, N>`; a method on a value whose type is a generic parameter

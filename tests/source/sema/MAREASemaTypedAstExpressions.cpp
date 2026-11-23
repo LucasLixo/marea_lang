@@ -481,17 +481,21 @@ TEST(MAREASemaTypedAstExpressions, MethodNameIsAFunctionTypeWithTheReceiver)
     MAREA_expectExpressionType("namespace main; structure Vector2 x: float64; end implementation Vector2 function scale(self: Vector2, factor: float64) end end function f(v: Vector2) v.scale(2.0); end", MAREA_AST_KIND_MEMBER_ACCESS, 0, "function(Vector2,float64)");
 }
 
-TEST(MAREASemaTypedAstExpressions, NameOfALoopHasNoType)
+TEST(MAREASemaTypedAstExpressions, NameOfALoopHasTheTypeOfItsBounds)
 {
-    GTEST_COUT << "Validating the name of a for statement has no type, because sema keeps no type for it." << std::endl;
+    GTEST_COUT << "Validating the name of a for statement is typed from the bounds, and its declared name is not a value." << std::endl;
+
+    const std::string SOURCE{ "namespace main; function f(n: sinteger32): sinteger32 local total: sinteger32 = 0; for i in 0 .. n do total += i; end return total; end" };
+
+    MAREA_expectIdentifierType(SOURCE, "i", 1, "sinteger32");
 
     MAREA_SemaFixture fixture;
 
-    const MAREA_ExpressionTypeResult RESULT{ MAREA_expressionTypeOf(fixture, "namespace main; function f(n: sinteger32): sinteger32 local total: sinteger32 = 0; for i in 0 .. n do total += i; end return total; end", MAREA_AST_KIND_IDENTIFIER, 1, "i") };
+    const MAREA_ExpressionTypeResult DECLARED{ MAREA_expressionTypeOf(fixture, SOURCE, MAREA_AST_KIND_IDENTIFIER, 0, "i") };
 
-    ASSERT_TRUE(RESULT.found) << "The loop name must be read once as a value.";
+    ASSERT_TRUE(DECLARED.found) << "The declared name must be in the typed tree.";
 
-    EXPECT_EQ(RESULT.except, MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NO_TYPE) << "The loop name has no type.";
+    EXPECT_EQ(DECLARED.except, MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NO_TYPE) << "The declared name of a loop is not a value, so it has no type.";
 }
 
 TEST(MAREASemaTypedAstExpressions, NamespaceAndTypeNamesHaveNoTypeAsValues)
