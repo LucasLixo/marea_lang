@@ -194,7 +194,12 @@ TEST(MAREASemaAttributes, OperatorTakesTheFixedVocabulary)
     };
 
     for (const char *spelling : SPELLINGS) {
-        EXPECT_TRUE(MAREA_codesOf(std::string("#[operator = \"") + spelling + "\"] function a() end").empty()) << "operator \"" << spelling << "\" must raise nothing.";
+        // INFO: construct and destroy are valid only inside an implementation of a structure or an enum.
+        const bool LIFECYCLE{ (std::string(spelling) == "construct") || (std::string(spelling) == "destroy") };
+
+        const std::string SOURCE{ LIFECYCLE ? ("structure P x: sinteger32; end implementation P #[operator = \"" + std::string(spelling) + "\"] function a() end end") : ("#[operator = \"" + std::string(spelling) + "\"] function a() end") };
+
+        EXPECT_TRUE(MAREA_codesOf(SOURCE).empty()) << "operator \"" << spelling << "\" must raise nothing.";
     }
 }
 
