@@ -927,6 +927,41 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressionFitsPrimitive(MAREA_SemaContext * context, const MAREA_Character8 *primitiveName, MAREA_IntegerSize primitiveLength, const MAREA_AstNode *expression);
 
     /**
+     * @brief Reports LITERAL_OUT_OF_RANGE when an expression is an integer literal (decimal, 0x or 0b, with "_"
+     * between digits, one leading minus and any parentheses allowed) whose value does not fit the integer primitive
+     * that type names. A negated literal never fits an unsigned type, except zero. A float, string, boolean or
+     * character target is never checked here, so TYPE_MISMATCH is the only code for it. A type that is null or is
+     * not a primitive is checked against the widest range: the literal must fit uinteger64, or sinteger64 when it
+     * is negative. An expression that is not an integer literal is accepted.
+     * @param context Context of the run. Must not be null.
+     * @param type NAMED_TYPE or FUNCTION_TYPE node that the value must have. May be null.
+     * @param expression Expression node. May be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER when context is null, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckLiteralRange(MAREA_SemaContext * context, const MAREA_AstNode *type, const MAREA_AstNode *expression);
+
+    /**
+     * @brief Reports LITERAL_OUT_OF_RANGE the same way MAREA_SemaCheckLiteralRange does, against a primitive type
+     * named by fixed text, the shape of the signature of a member of an EXTERNAL namespace.
+     * @param context Context of the run. Must not be null.
+     * @param primitiveName Primitive type name, not NUL terminated. May be null, which checks the widest range.
+     * @param primitiveLength Length of primitiveName in bytes.
+     * @param expression Expression node. May be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER when context is null, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckLiteralRangePrimitive(MAREA_SemaContext * context, const MAREA_Character8 *primitiveName, MAREA_IntegerSize primitiveLength, const MAREA_AstNode *expression);
+
+    /**
+     * @brief Runs MAREA_SemaCheckLiteralRange on every field entry of a struct literal, against the type that the
+     * structure of the file declares for that field. A literal of a type that is not a structure of the file is
+     * accepted, and a field the structure does not declare is checked against the widest range.
+     * @param context Context of the run. Must not be null.
+     * @param literal LITERAL_VALUE node. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER when an argument is null, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckLiteralFields(MAREA_SemaContext * context, const MAREA_AstNode *literal);
+
+    /**
      * @brief Gives the primitive type that sema knows for a written type, the same type MAREA_SemaCheckExpressionFit
      * uses as its target. A local type alias is followed. Any type that is not a primitive gives false.
      * @param context Context of the run. Must not be null.
