@@ -72,7 +72,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsWriteBorrowParameter(const MAREA_SemaC
 
         const MAREA_Boolean shadowed = ((local != MAREA_NULLPTR) && (local->declaration != MAREA_SemaChildAt(parameter, 1))) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 
-        return ((shadowed == MAREA_BOOLEAN_FALSE) && ((MAREA_AstNodeGetFlags(parameter) & MAREA_AST_FLAG_MUTABLE) != 0)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+        return ((shadowed == MAREA_BOOLEAN_FALSE) && (MAREA_SemaGetParameterSemantics(context, parameter) == MAREA_SEMA_PARAMETER_SEMANTICS_REFERENCE_MUTABLE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
     }
 
     return MAREA_BOOLEAN_FALSE;
