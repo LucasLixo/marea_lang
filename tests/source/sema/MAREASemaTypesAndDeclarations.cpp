@@ -296,3 +296,25 @@ TEST(MAREASemaTypesAndDeclarations, AliasesOfDifferentNamespacesDoNotMatchInACon
 
     EXPECT_EQ(MAREA_codesOf("import a.T as X; import b.T as Y; " + BASE + IMPLEMENTATION + RUN, external), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_CONTRACT_NOT_SATISFIED }) << "Whole-path aliases of two namespaces must stay two types.";
 }
+
+TEST(MAREASemaTypesAndDeclarations, EnumTagTypeMustBeAnIntegerPrimitive)
+{
+    GTEST_COUT << "Validating an enum tag is an integer primitive and defaults to sinteger32." << std::endl;
+
+    for (const char *name : { "sinteger8", "sinteger16", "sinteger32", "sinteger64", "uinteger8", "uinteger16", "uinteger32", "uinteger64" }) {
+        EXPECT_TRUE(MAREA_codesOf(std::string("enum A : ") + name + " Red; Green; end").empty()) << "The tag " << name << " must raise nothing.";
+    }
+
+    EXPECT_TRUE(MAREA_codesOf("enum A Red; Green; end").empty()) << "An enum with no tag must raise nothing.";
+}
+
+TEST(MAREASemaTypesAndDeclarations, EnumTagTypeOfAnotherKindRaisesInvalidEnumTagType)
+{
+    GTEST_COUT << "Validating a float, string, boolean, structure or generic enum tag raises INVALID_ENUM_TAG_TYPE." << std::endl;
+
+    constexpr MAREA_Uinteger32 INVALID_TAG{ MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_ENUM_TAG_TYPE };
+
+    for (const char *name : { "float32", "float64", "string", "boolean", "SomeStruct", "pointer<sinteger32>" }) {
+        EXPECT_EQ(MAREA_codesOf(std::string("structure SomeStruct a: sinteger32; end enum A : ") + name + " Red; end"), Codes{ INVALID_TAG }) << "The tag " << name << " must raise INVALID_ENUM_TAG_TYPE.";
+    }
+}
