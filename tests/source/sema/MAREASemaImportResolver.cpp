@@ -5,6 +5,8 @@
 
 #include "tests/MAREASemaHelpers.hpp"
 
+#include <cstddef>
+
 namespace
 {
     void MAREA_CALL notFound(MAREA_Null, const MAREA_Character8 *, MAREA_IntegerSize, MAREA_SemaImportResult *outResult, const MAREA_AstNode **)
@@ -83,4 +85,38 @@ TEST(MAREASemaImportResolver, SetSignatureFunctionAcceptsAResolverCreatedWithNon
     EXPECT_EQ(MAREA_SemaImportResolverSetSignatureFunction(resolver, nullptr), MAREA_SEMA_IMPORT_RESOLVER_EXCEPT_SUCCESS) << "Clearing the signature function back to none must succeed.";
 
     MAREA_ArenaDestroy(arena);
+}
+
+TEST(MAREASemaSignatureParameter, FieldsKeepTheirOrder)
+{
+    GTEST_COUT << "Validating MAREA_SemaSignatureParameter keeps its fields in descending size order with no gaps." << std::endl;
+
+    constexpr std::size_t TYPE_TEXT_OFFSET{ offsetof(MAREA_SemaSignatureParameter, typeText) };
+    constexpr std::size_t TYPE_TEXT_LENGTH_OFFSET{ offsetof(MAREA_SemaSignatureParameter, typeTextLength) };
+
+    EXPECT_LT(TYPE_TEXT_OFFSET, TYPE_TEXT_LENGTH_OFFSET) << "typeText must come before typeTextLength.";
+
+    constexpr std::size_t FIELD_SIZE_SUM{ sizeof(MAREA_SemaSignatureParameter::typeText) + sizeof(MAREA_SemaSignatureParameter::typeTextLength) };
+
+    EXPECT_GE(sizeof(MAREA_SemaSignatureParameter), FIELD_SIZE_SUM) << "sizeof must be at least the sum of the field sizes.";
+}
+
+TEST(MAREASemaSignature, FieldsKeepTheirOrder)
+{
+    GTEST_COUT << "Validating MAREA_SemaSignature keeps its fields in descending size order with no gaps." << std::endl;
+
+    constexpr std::size_t PARAMETERS_OFFSET{ offsetof(MAREA_SemaSignature, parameters) };
+    constexpr std::size_t PARAMETER_COUNT_OFFSET{ offsetof(MAREA_SemaSignature, parameterCount) };
+    constexpr std::size_t RESULT_TYPE_TEXT_OFFSET{ offsetof(MAREA_SemaSignature, resultTypeText) };
+    constexpr std::size_t RESULT_TYPE_TEXT_LENGTH_OFFSET{ offsetof(MAREA_SemaSignature, resultTypeTextLength) };
+
+    EXPECT_LT(PARAMETERS_OFFSET, PARAMETER_COUNT_OFFSET) << "parameters must come before parameterCount.";
+
+    EXPECT_LT(PARAMETER_COUNT_OFFSET, RESULT_TYPE_TEXT_OFFSET) << "parameterCount must come before resultTypeText.";
+
+    EXPECT_LT(RESULT_TYPE_TEXT_OFFSET, RESULT_TYPE_TEXT_LENGTH_OFFSET) << "resultTypeText must come before resultTypeTextLength.";
+
+    constexpr std::size_t FIELD_SIZE_SUM{ sizeof(MAREA_SemaSignature::parameters) + sizeof(MAREA_SemaSignature::parameterCount) + sizeof(MAREA_SemaSignature::resultTypeText) + sizeof(MAREA_SemaSignature::resultTypeTextLength) };
+
+    EXPECT_GE(sizeof(MAREA_SemaSignature), FIELD_SIZE_SUM) << "sizeof must be at least the sum of the field sizes.";
 }

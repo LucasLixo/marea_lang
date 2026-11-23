@@ -48,7 +48,7 @@ MAREA_BEGIN_EXTERN_C
      * canonical type spelling sema itself writes (for example "float64", "string"), not NUL terminated.
      * The host owns the text and keeps it valid for as long as the resolver may answer with it.
      */
-    typedef struct MAREA_SemaSignatureParameter
+    typedef struct MAREA_ALIGNED(8) MAREA_SemaSignatureParameter
     {
         const MAREA_Character8 *typeText;
         MAREA_IntegerSize typeTextLength;
@@ -61,7 +61,7 @@ MAREA_BEGIN_EXTERN_C
      * and every text it points to must stay valid for as long as the resolver may be asked again, and
      * sema only reads them during one call, never copies or frees them.
      */
-    typedef struct MAREA_SemaSignature
+    typedef struct MAREA_ALIGNED(8) MAREA_SemaSignature
     {
         const MAREA_SemaSignatureParameter *parameters;
         MAREA_IntegerSize parameterCount;
