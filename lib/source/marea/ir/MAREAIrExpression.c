@@ -181,19 +181,20 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerAndAppend(MAREA_IrContext *context
 
 // INFO: an argument list lowers every argument the call wrote, then fills every parameter the call omitted with
 // INFO: its own default, read fresh from function's typed parameter list: the ir materializes every default.
-static MAREA_IrExcept MAREA_CALL MAREA_G_LowerArgumentsAgainst(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, const MAREA_SemaTypedNode *function, MAREA_IrNode **outNode, MAREA_Boolean *outComplete)
+// INFO: typed may be null (a Type{...} literal writes no argument); position then gives the node its source position.
+static MAREA_IrExcept MAREA_CALL MAREA_G_LowerArgumentsAgainst(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, const MAREA_AstNode *position, const MAREA_SemaTypedNode *function, MAREA_IrNode **outNode, MAREA_Boolean *outComplete)
 {
     *outComplete = MAREA_BOOLEAN_TRUE;
 
     MAREA_IrNode *node = MAREA_NULLPTR;
 
-    MAREA_IrExcept result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_ARGUMENT_LIST, MAREA_SemaTypedNodeGetAstNode(typed), &node);
+    MAREA_IrExcept result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_ARGUMENT_LIST, (typed != MAREA_NULLPTR) ? MAREA_SemaTypedNodeGetAstNode(typed) : position, &node);
 
     if (result != MAREA_IR_EXCEPT_SUCCESS) {
         return result;
     }
 
-    const MAREA_IntegerSize PROVIDED = MAREA_SemaTypedNodeGetChildCount(typed);
+    const MAREA_IntegerSize PROVIDED = (typed != MAREA_NULLPTR) ? MAREA_SemaTypedNodeGetChildCount(typed) : MAREA_INTEGER_SIZE(0);
 
     for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < PROVIDED; index = (index + MAREA_INTEGER_SIZE(1))) {
         result = MAREA_G_LowerAndAppend(context, MAREA_IrTypedChildAt(typed, index), node, outComplete);
@@ -304,7 +305,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerConstructCall(MAREA_IrContext *con
         MAREA_IrNode *loweredArguments = MAREA_NULLPTR;
         MAREA_Boolean complete = MAREA_BOOLEAN_TRUE;
 
-        result = MAREA_G_LowerArgumentsAgainst(context, arguments, constructOperator, &loweredArguments, &complete);
+        result = MAREA_G_LowerArgumentsAgainst(context, arguments, MAREA_SemaTypedNodeGetAstNode(typed), constructOperator, &loweredArguments, &complete);
 
         if (result != MAREA_IR_EXCEPT_SUCCESS) {
             return result;
@@ -392,7 +393,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerCall(MAREA_IrContext *context, con
         MAREA_IrNode *loweredArguments = MAREA_NULLPTR;
         MAREA_Boolean complete = MAREA_BOOLEAN_TRUE;
 
-        result = MAREA_G_LowerArgumentsAgainst(context, arguments, MAREA_G_FindCalleeFunction(context, callee), &loweredArguments, &complete);
+        result = MAREA_G_LowerArgumentsAgainst(context, arguments, MAREA_SemaTypedNodeGetAstNode(typed), MAREA_G_FindCalleeFunction(context, callee), &loweredArguments, &complete);
 
         if (result != MAREA_IR_EXCEPT_SUCCESS) {
             return result;
@@ -536,6 +537,64 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_AppendMissingFields(MAREA_IrContext *co
     return MAREA_IR_EXCEPT_SUCCESS;
 }
 
+// INFO: Type{...} sets the fields, then runs the type's construct with its defaults, so a literal of a structure of this unit that has a construct operator lowers to a CONSTRUCT_CALL: the defaults are its ARGUMENT_LIST and the literal is its second child, the initial value. Any other literal stays a LITERAL_VALUE.
+static MAREA_IrExcept MAREA_CALL MAREA_G_WrapLiteralInConstruct(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode *literal, MAREA_IrNode **outNode)
+{
+    const MAREA_SemaTypedNode *constructOperator = MAREA_NULLPTR;
+
+    if (MAREA_G_FindStructureOfUnit(context, literal->typeName, literal->typeNameLength) != MAREA_NULLPTR) {
+        constructOperator = MAREA_IrFindLifecycleFunction(context, literal->typeName, literal->typeNameLength, MAREA_BOOLEAN_TRUE);
+    }
+
+    if (constructOperator == MAREA_NULLPTR) {
+        *outNode = literal;
+
+        return MAREA_IR_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_AstNode *literalAst = MAREA_SemaTypedNodeGetAstNode(typed);
+
+    MAREA_IrNode *node = MAREA_NULLPTR;
+
+    MAREA_IrExcept result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_CONSTRUCT_CALL, literalAst, &node);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    node->typeName = literal->typeName;
+    node->typeNameLength = literal->typeNameLength;
+
+    MAREA_IrNode *defaults = MAREA_NULLPTR;
+    MAREA_Boolean complete = MAREA_BOOLEAN_TRUE;
+
+    result = MAREA_G_LowerArgumentsAgainst(context, MAREA_NULLPTR, literalAst, constructOperator, &defaults, &complete);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    if (complete == MAREA_BOOLEAN_FALSE) {
+        return MAREA_IR_EXCEPT_SUCCESS;
+    }
+
+    result = MAREA_IrNodeAppendChild(context, node, defaults);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    result = MAREA_IrNodeAppendChild(context, node, literal);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    *outNode = node;
+
+    return MAREA_IR_EXCEPT_SUCCESS;
+}
+
 static MAREA_IrExcept MAREA_CALL MAREA_G_LowerLiteralValue(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode)
 {
     MAREA_IrNode *node = MAREA_NULLPTR;
@@ -560,9 +619,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerLiteralValue(MAREA_IrContext *cont
         return result;
     }
 
-    *outNode = node;
-
-    return MAREA_IR_EXCEPT_SUCCESS;
+    return MAREA_G_WrapLiteralInConstruct(context, typed, node, outNode);
 }
 
 // INFO: a field entry is named after its IDENTIFIER and holds the lowered value as its only child.
