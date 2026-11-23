@@ -93,8 +93,7 @@ static const MAREA_G_AttributeRule MAREA_G_RULES[MAREA_G_RULE_COUNT] = {
     { .key = "move_only", .members = MAREA_NULLPTR, .shape = MAREA_G_ATTRIBUTE_SHAPE_FLAG },
     { .key = "operator", .members = MAREA_G_OperatorVocabulary, .shape = MAREA_G_ATTRIBUTE_SHAPE_VOCABULARY },
     { .key = "export", .members = MAREA_NULLPTR, .shape = MAREA_G_ATTRIBUTE_SHAPE_STRING },
-    // INFO: the one and only parameter-passing mechanism; MAREA_SemaGetParameterSemantics in
-    // MAREASemaOwnership.c is the one place the rest of sema reads it.
+    // INFO: the one and only parameter-passing mechanism; MAREA_SemaGetParameterSemantics is the one place the rest of sema reads it.
     { .key = "semantics", .members = MAREA_G_SemanticsMembers, .shape = MAREA_G_ATTRIBUTE_SHAPE_MEMBER },
 };
 

@@ -67,8 +67,7 @@ MAREA_SemaParameterSemantics MAREA_CALL MAREA_SemaGetParameterSemantics(const MA
         return MAREA_SEMA_PARAMETER_SEMANTICS_REFERENCE_MUTABLE;
     }
 
-    // INFO: the default by type class: a primitive or the one documented by-value exception (an enum)
-    // is VALUE_READ_ONLY, anything else is REFERENCE_MUTABLE.
+    // INFO: the default by type class: a primitive or the one documented by-value exception (an enum) is VALUE_READ_ONLY, anything else is REFERENCE_MUTABLE.
     return (MAREA_G_IsByValue(context, MAREA_SemaChildAt(parameter, 1), MAREA_BOOLEAN_FALSE) == MAREA_BOOLEAN_TRUE) ? MAREA_SEMA_PARAMETER_SEMANTICS_VALUE_READ_ONLY : MAREA_SEMA_PARAMETER_SEMANTICS_REFERENCE_MUTABLE;
 }
 

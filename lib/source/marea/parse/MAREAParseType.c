@@ -41,9 +41,7 @@ MAREA_AstNode *MAREA_CALL MAREA_ParseNamedType(MAREA_ParseState *state)
 
 static MAREA_AstNode *MAREA_CALL MAREA_G_ParseParameter(MAREA_ParseState *state, MAREA_Boolean allowDefault)
 {
-    // INFO: a parameter's "semantics" attribute is written before it, like any other attribute, but is
-    // adopted into the PARAMETER node last, after the name, type and optional default, so every existing
-    // reader of those fixed positions keeps working unchanged.
+    // INFO: a parameter's attribute is written before it, like any other attribute, but is adopted last, so every existing reader of the fixed name, type and default positions keeps working.
     MAREA_AstNode *holder = MAREA_ParseNodeBegin(state, MAREA_AST_KIND_BLOCK);
 
     MAREA_ParseAttributes(state, holder, MAREA_TOKEN_KIND_HASH_BRACKET);
