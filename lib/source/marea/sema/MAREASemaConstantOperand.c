@@ -171,7 +171,8 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckConstantOperands(MAREA_SemaContext *c
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
-    if ((WIDTH != 0U) && ((count.magnitude != 0U) && ((count.negative == MAREA_BOOLEAN_TRUE) || (count.magnitude >= WIDTH)))) {
+    // INFO: a count of -0 is zero, so it is not negative.
+    if ((WIDTH != 0U) && (count.magnitude != 0U) && ((count.negative == MAREA_BOOLEAN_TRUE) || (count.magnitude >= WIDTH))) {
         MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_SHIFT_COUNT_TOO_LARGE, position, "a shift count is negative or not below the width of the left type");
     }
 
