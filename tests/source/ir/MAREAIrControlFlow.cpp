@@ -625,6 +625,15 @@ TEST(MAREAIrControlFlow, DestructibleLocalIsDestroyedAtTheEndOfItsBlock)
     EXPECT_EQ(MAREA_lowerBody(MAREA_BOX, "", "local a: Box = Box(); local b: Box = Box();"), "(BLOCK (LOCAL_DECLARATION a :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST))) (LOCAL_DECLARATION b :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST))) (DESTROY_CALL Box.drop (IDENTIFIER b)) (DESTROY_CALL Box.drop (IDENTIFIER a)))") << "Both locals must be destroyed, last declared first.";
 }
 
+TEST(MAREAIrControlFlow, LocalInitializedFromATypeBraceLiteralIsDestroyedLikeOneFromTypeCall)
+{
+    GTEST_COUT << "Validating a local initialized from Type{...} of a type with construct is destroyed like one initialized from Type(args)." << std::endl;
+
+    const std::string CONSTRUCTED_BOX{ "structure Box x: sinteger32; end implementation Box #[operator = \"construct\"] function make(x: sinteger32 = 0) end #[operator = \"destroy\"] function drop() end end " };
+
+    EXPECT_EQ(MAREA_lowerBody(CONSTRUCTED_BOX, "", "local a: Box = Box{ x = 1 };"), "(BLOCK (LOCAL_DECLARATION a :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST (INTEGER_LITERAL 0)) (LITERAL_VALUE :Box (FIELD_ENTRY x (INTEGER_LITERAL 1))))) (DESTROY_CALL Box.drop (IDENTIFIER a)))") << "The literal local must get its DESTROY_CALL at the end of the block.";
+}
+
 TEST(MAREAIrControlFlow, NonDestructibleLocalGetsNoDestroyCall)
 {
     GTEST_COUT << "Validating a local of a type with no destroy operator gets no DESTROY_CALL." << std::endl;
