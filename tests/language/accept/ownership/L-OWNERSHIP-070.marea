@@ -1,0 +1,31 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- One value is passed to two read-borrow parameters.
+
+namespace main;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+structure Box
+    inner: Point;
+    count: sinteger32;
+end
+
+function make_point(): Point
+    return Point{ x = 1, y = 2 };
+end
+
+function two_read(#[semantics = reference_read_only] first: Point, #[semantics = reference_read_only] second: Point): sinteger32
+    return first.x + second.x;
+end
+
+function check(): sinteger32
+    local point: Point = make_point();
+    local total: sinteger32 = two_read(point, point);
+    return 1;
+end

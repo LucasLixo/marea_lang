@@ -1,0 +1,33 @@
+-- expect: 3020 @30
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A worker takes the part of a partition mutable while the source is also spawned.
+
+namespace main;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+structure Box
+    inner: Point;
+    count: sinteger32;
+end
+
+function read_point(#[semantics = reference_read_only] point: Point): sinteger32
+    return point.x;
+end
+
+function reader(part: slice<sinteger32>)
+end
+
+function run(values: slice<sinteger32>)
+    fork_join
+        partition mutable values into 2 as part do
+            spawn reader(part);
+            spawn reader(values);
+        end
+    end
+end
