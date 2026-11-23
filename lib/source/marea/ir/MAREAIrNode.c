@@ -174,6 +174,24 @@ MAREA_IntegerSize MAREA_CALL MAREA_IrNodeGetTypeNameLength(const MAREA_IrNode *n
     return node->typeNameLength;
 }
 
+const MAREA_Character8 *MAREA_CALL MAREA_IrNodeGetResolvedType(const MAREA_IrNode *node)
+{
+    if (node == MAREA_NULLPTR) {
+        return MAREA_NULLPTR;
+    }
+
+    return node->resolvedType;
+}
+
+MAREA_IntegerSize MAREA_CALL MAREA_IrNodeGetResolvedTypeLength(const MAREA_IrNode *node)
+{
+    if (node == MAREA_NULLPTR) {
+        return MAREA_INTEGER_SIZE(0);
+    }
+
+    return node->resolvedTypeLength;
+}
+
 MAREA_IrExcept MAREA_CALL MAREA_IrNodeCreate(MAREA_IrContext *context, MAREA_IrKind kind, const MAREA_AstNode *astNode, MAREA_IrNode **outNode)
 {
     if (context == MAREA_NULLPTR) {
@@ -199,6 +217,8 @@ MAREA_IrExcept MAREA_CALL MAREA_IrNodeCreate(MAREA_IrContext *context, MAREA_IrK
     node->position = MAREA_AstNodeGetPosition(astNode);
     node->text = MAREA_AstNodeGetText(astNode);
     node->typeName = MAREA_NULLPTR;
+    node->resolvedType = MAREA_NULLPTR;
+    node->resolvedTypeLength = MAREA_INTEGER_SIZE(0);
     node->children = MAREA_NULLPTR;
     node->typeNameLength = MAREA_INTEGER_SIZE(0);
     node->childCount = MAREA_INTEGER_SIZE(0);
@@ -270,6 +290,66 @@ MAREA_IrExcept MAREA_CALL MAREA_IrNodeSetTypeNameFromTyped(MAREA_IrContext *cont
     }
 
     return MAREA_IrAliasType(context, text, length, &node->typeName, &node->typeNameLength);
+}
+
+MAREA_IrExcept MAREA_CALL MAREA_IrNodeSetResolvedTypeFromTyped(MAREA_IrContext *context, MAREA_IrNode *node, const MAREA_SemaTypedNode *typedNode, MAREA_Boolean *outTyped)
+{
+    if (outTyped != MAREA_NULLPTR) {
+        *outTyped = MAREA_BOOLEAN_FALSE;
+    }
+
+    if (context == MAREA_NULLPTR) {
+        return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    if ((node == MAREA_NULLPTR) || (typedNode == MAREA_NULLPTR)) {
+        return MAREA_IR_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_Character8 *text = MAREA_NULLPTR;
+    MAREA_IntegerSize length = MAREA_INTEGER_SIZE(0);
+
+    if ((MAREA_SemaTypedNodeGetResolvedType(typedNode, &text, &length) != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) || (text == MAREA_NULLPTR)) {
+        return MAREA_IR_EXCEPT_SUCCESS;
+    }
+
+    // INFO: the text is copied, so the node never points into an arena that the context does not own.
+    MAREA_Null memory = MAREA_NULLPTR;
+
+    if (MAREA_ArenaAllocate(context->arena, length, MAREA_INTEGER_SIZE(1), &memory) != MAREA_ARENA_EXCEPT_SUCCESS) {
+        return MAREA_IR_EXCEPT_ERROR_OUT_OF_MEMORY;
+    }
+
+    memcpy(memory, text, length);
+
+    node->resolvedType = memory;
+    node->resolvedTypeLength = length;
+
+    if (outTyped != MAREA_NULLPTR) {
+        *outTyped = MAREA_BOOLEAN_TRUE;
+    }
+
+    return MAREA_IR_EXCEPT_SUCCESS;
+}
+
+void MAREA_CALL MAREA_IrNodeShareResolvedType(MAREA_IrNode *node, const MAREA_IrNode *source)
+{
+    if ((node == MAREA_NULLPTR) || (source == MAREA_NULLPTR) || (source->resolvedType == MAREA_NULLPTR)) {
+        return;
+    }
+
+    node->resolvedType = source->resolvedType;
+    node->resolvedTypeLength = source->resolvedTypeLength;
+}
+
+void MAREA_CALL MAREA_IrNodeSetResolvedTypeStatic(MAREA_IrNode *node, const MAREA_Character8 *text)
+{
+    if ((node == MAREA_NULLPTR) || (text == MAREA_NULLPTR)) {
+        return;
+    }
+
+    node->resolvedType = text;
+    node->resolvedTypeLength = strlen(text);
 }
 
 MAREA_Boolean MAREA_CALL MAREA_IrAstQualifiedNameSpan(const MAREA_AstNode *name, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength)

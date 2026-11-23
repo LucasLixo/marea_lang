@@ -106,6 +106,25 @@ MAREA_BEGIN_EXTERN_C
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_IntegerSize MAREA_CALL MAREA_IrNodeGetTypeNameLength(const MAREA_IrNode *node);
 
+    /**
+     * @brief Returns the full resolved type of a node as sema spells it, with its type arguments (for example
+     * array<sinteger32,4>), a copy in the arena of the ir context, not NUL terminated. Every expression node that
+     * comes from the source and every PARAMETER, LOCAL_DECLARATION, FIELD_DECLARATION, VARIANT_FIELD,
+     * CONSTANT_DECLARATION and FUNCTION_DECLARATION with a written type carry one. A name that only qualifies a
+     * member, a node that the ir invents, and any other kind carry none. The type name of
+     * MAREA_IrNodeGetTypeName is not changed by it.
+     * @param node Node to query. Null returns null.
+     * @return The resolved type, or null when the node has none.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_Character8 *MAREA_CALL MAREA_IrNodeGetResolvedType(const MAREA_IrNode *node);
+
+    /**
+     * @brief Returns the byte length of the resolved type of a node.
+     * @param node Node to query. Null returns 0.
+     * @return The length in bytes, 0 when the node has no resolved type.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_IntegerSize MAREA_CALL MAREA_IrNodeGetResolvedTypeLength(const MAREA_IrNode *node);
+
 MAREA_END_EXTERN_C
 
 #endif /* MAREA_INCLUDE_IR_MAREAIRNODE_H */

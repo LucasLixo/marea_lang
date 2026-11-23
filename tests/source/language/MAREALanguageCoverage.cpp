@@ -52,6 +52,7 @@ namespace
     const std::vector<MAREA_CodeExemption> EXEMPT_CODES{
         { 4004, "the catalogue runner runs lex, parse and sema only, so no item reaches the ir; remove this entry when a runner makes the ir run" },
         { 4005, "the catalogue runner runs lex, parse and sema only, so no item reaches the ir; remove this entry when a runner makes the ir run" },
+        { 4006, "the catalogue runner runs lex, parse and sema only, so no item reaches the ir; remove this entry when a runner makes the ir run" },
     };
 
     // INFO: an example that has no accept item. Each reason is checked by hand and is named in the Gaps section.

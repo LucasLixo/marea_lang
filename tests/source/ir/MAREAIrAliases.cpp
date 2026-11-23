@@ -218,13 +218,13 @@ TEST(MAREAIrAliases, TextDumpOfALoweredUnitIsExact)
                                                                                                                                               "MODULE",
                                                                                                                                               "  FUNCTION_DECLARATION \"run\"",
                                                                                                                                               "    PARAMETER_LIST",
-                                                                                                                                              "      PARAMETER \"e\" type=Item flags=1",
+                                                                                                                                              "      PARAMETER \"e\" type=Item resolved=Item flags=1",
                                                                                                                                               "    BLOCK",
                                                                                                                                               "      EXPRESSION_STATEMENT",
                                                                                                                                               "        CALL_EXPRESSION",
                                                                                                                                               "          IDENTIFIER \"push\"",
                                                                                                                                               "          ARGUMENT_LIST",
-                                                                                                                                              "            INTEGER_LITERAL \"1\"",
+                                                                                                                                              "            INTEGER_LITERAL \"1\" resolved=sinteger32",
                                                                                                                                           }))
         << "The dump must hold the original names only.";
 }
@@ -262,10 +262,10 @@ TEST(MAREAIrAliases, FunctionTypeAliasLowersLikeTheWrittenFunctionType)
     EXPECT_EQ(MAREA_dumpOf("namespace main; type Callback = function(v: sinteger32): boolean; structure Holder f: Callback; end function run(a: Callback) end"), MAREA_lines({
                                                                                                                                                                      "MODULE",
                                                                                                                                                                      "  STRUCTURE_DECLARATION \"Holder\"",
-                                                                                                                                                                     "    FIELD_DECLARATION \"f\"",
+                                                                                                                                                                     "    FIELD_DECLARATION \"f\" resolved=function(sinteger32):boolean",
                                                                                                                                                                      "  FUNCTION_DECLARATION \"run\"",
                                                                                                                                                                      "    PARAMETER_LIST",
-                                                                                                                                                                     "      PARAMETER \"a\"",
+                                                                                                                                                                     "      PARAMETER \"a\" resolved=function(sinteger32):boolean",
                                                                                                                                                                      "    BLOCK",
                                                                                                                                                                  }))
         << "The alias name must not stay.";
@@ -277,7 +277,7 @@ TEST(MAREAIrAliases, FunctionTypeAliasInAChainLowersToo)
 
     const std::string DUMP{ MAREA_dumpOf("namespace main; type Callback = function(v: sinteger32): boolean; type Handler = Callback; function run(a: Handler) end") };
 
-    EXPECT_TRUE(MAREA_has(DUMP, "PARAMETER \"a\"\n")) << "The parameter must carry no type name: " << DUMP;
+    EXPECT_TRUE(MAREA_has(DUMP, "PARAMETER \"a\" resolved=function(sinteger32):boolean\n")) << "The parameter must carry no type name: " << DUMP;
     EXPECT_FALSE(MAREA_has(DUMP, "Handler")) << "The alias must not appear: " << DUMP;
     EXPECT_FALSE(MAREA_has(DUMP, "Callback")) << "The alias must not appear: " << DUMP;
 }

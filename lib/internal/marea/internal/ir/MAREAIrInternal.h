@@ -60,8 +60,10 @@ MAREA_BEGIN_EXTERN_C
         MAREA_SourcePosition position;
         const MAREA_Character8 *text;
         const MAREA_Character8 *typeName;
+        const MAREA_Character8 *resolvedType;
         MAREA_IrNode **children;
         MAREA_IntegerSize typeNameLength;
+        MAREA_IntegerSize resolvedTypeLength;
         MAREA_IntegerSize childCount;
         MAREA_IntegerSize childCapacity;
         MAREA_Uinteger32 textLength;
@@ -98,6 +100,33 @@ MAREA_BEGIN_EXTERN_C
      * @return MAREA_IR_EXCEPT_SUCCESS, ERROR_NULL_POINTER when context is null, or ERROR_OUT_OF_MEMORY.
      */
     MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrNodeSetTypeNameFromTyped(MAREA_IrContext * context, MAREA_IrNode * node, const MAREA_SemaTypedNode *typedNode);
+
+    /**
+     * @brief Sets the resolved type of a node, a copy in the arena of the text that
+     * MAREA_SemaTypedNodeGetResolvedType gives for a typed node. A null node does nothing.
+     * @param context Context that owns the arena. Must not be null.
+     * @param node Node to change.
+     * @param typedNode Typed node whose resolved type is copied.
+     * @param outTyped Receives true when sema gave a type and the node carries it, otherwise false. May be null.
+     * @return MAREA_IR_EXCEPT_SUCCESS, ERROR_NULL_POINTER when context is null, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrNodeSetResolvedTypeFromTyped(MAREA_IrContext * context, MAREA_IrNode * node, const MAREA_SemaTypedNode *typedNode, MAREA_Boolean *outTyped);
+
+    /**
+     * @brief Gives a node the resolved type of another node. The text is shared, not copied: it lives in the arena,
+     * and no node ever changes it. A null node, a null source or a source with no resolved type does nothing.
+     * @param node Node to change.
+     * @param source Node whose resolved type is shared.
+     */
+    void MAREA_CALL MAREA_IrNodeShareResolvedType(MAREA_IrNode * node, const MAREA_IrNode *source);
+
+    /**
+     * @brief Sets the resolved type of a node to a text that outlives the arena, such as a string literal. A null
+     * node does nothing.
+     * @param node Node to change.
+     * @param text Static text of the type. Must not be null.
+     */
+    void MAREA_CALL MAREA_IrNodeSetResolvedTypeStatic(MAREA_IrNode * node, const MAREA_Character8 *text);
 
     /**
      * @brief Reads the type name of an AST type node: the text span of the qualified name of a
