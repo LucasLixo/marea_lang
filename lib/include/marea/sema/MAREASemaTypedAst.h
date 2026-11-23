@@ -122,7 +122,13 @@ MAREA_BEGIN_EXTERN_C
     /**
      * @brief Returns the canonical full text of the type a typed node declares, with its type arguments, in the
      * arena. Only a node whose type is written in the source has one: PARAMETER, LOCAL_DECLARATION,
-     * FIELD_DECLARATION, VARIANT_FIELD, CONSTANT_DECLARATION and FUNCTION_DECLARATION (its result type).
+     * FIELD_DECLARATION, VARIANT_FIELD, CONSTANT_DECLARATION and FUNCTION_DECLARATION (its result type). A literal
+     * has one too: INTEGER_LITERAL, FLOAT_LITERAL, STRING_LITERAL, CHARACTER_LITERAL and BOOLEAN_LITERAL. A string,
+     * a character and a boolean literal give string, character and boolean. A number literal gives the primitive
+     * type its context fixes (the type of the local, constant, variant field, parameter, assignment target, result,
+     * other operand, field, element or convert target it meets), else sinteger32 for an integer literal and float64
+     * for a float literal. The text of a literal is a primitive name that points into the source or is static, so it
+     * lives as long as the source text.
      *
      * The spelling is fixed: an import alias is replaced by what it stands for, a local type alias by the type it
      * names, the type arguments follow in angle brackets joined by a comma with no space (array<sinteger32,4>), a
