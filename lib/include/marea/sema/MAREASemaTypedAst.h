@@ -122,9 +122,12 @@ MAREA_BEGIN_EXTERN_C
     /**
      * @brief Returns the canonical full text of the type a typed node has, with its type arguments, in the
      * arena. A node whose type is written in the source has one: PARAMETER, LOCAL_DECLARATION,
-     * FIELD_DECLARATION, VARIANT_FIELD, CONSTANT_DECLARATION and FUNCTION_DECLARATION (its result type). So has an
-     * expression whose type sema can know: an operation, a member, an index, a call, a literal value and an
-     * identifier read as a value (the rules are in the sema doc, "Resolved type of an expression").
+     * FIELD_DECLARATION, VARIANT_FIELD, CONSTANT_DECLARATION and FUNCTION_DECLARATION (its result type). A literal
+     * has one too: a string, a character and a boolean literal give string, character and boolean, and a number
+     * literal gives the primitive type its context fixes, else sinteger32 for an integer and float64 for a float. So
+     * has an expression whose type sema can know: an operation, a member, an index, a call, a literal value and an
+     * identifier read as a value (the rules are in the sema doc, "Resolved type of a literal" and "Resolved type of
+     * an expression"). The text of a literal points into the source or is static; any other text is in the arena.
      *
      * The spelling is fixed: an import alias is replaced by what it stands for, a local type alias by the type it
      * names, the type arguments follow in angle brackets joined by a comma with no space (array<sinteger32,4>), a
