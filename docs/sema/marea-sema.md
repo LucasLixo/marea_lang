@@ -76,6 +76,42 @@ The name `c` is the reserved namespace of C. An import alias named `c` (either f
 named `c` is `NAME_ALREADY_DECLARED` with the message `name is reserved: 'c'`; an alias that is
 refused is not bound. A plain declaration or a plain `import c.x;` is not affected.
 
+### Signature of an EXTERNAL member
+
+`MAREA_SemaImportResolverSetSignatureFunction` adds an OPTIONAL second callback to a resolver created
+with `MAREA_SemaImportResolverCreate` (null by default, so every existing caller is unaffected):
+
+```c
+void signature(void *userData, const char *namespaceText, size_t namespaceLength,
+                const char *memberText, size_t memberLength,
+                MAREA_SemaImportResult *outResult, const MAREA_SemaSignature **outSignature);
+```
+
+Sema calls it only for a call whose callee names a member of a namespace the resolve function answers
+`EXTERNAL` for - never for a `FOUND` or `NOT_FOUND` namespace, and never when no signature function is
+set. The member is read the same way for a member access (`stdio.puts(text)`: namespace `c.stdio`,
+member `puts`) and for a bare name an import bound to one member (`import c.math.pow as power;` then
+`power(...)`: namespace `c.math`, member `pow`, the import's original name, not its alias). A 3-segment
+`import a.b.c;` into an `EXTERNAL` namespace never resolves its own full joined path to `NOT_FOUND` (every
+depth answers `EXTERNAL`), so its local name stays bound as a namespace with the member kept as its
+`original` text, rather than becoming an `IMPORTED_SYMBOL` the way a deeper member of a `FOUND` namespace
+does; sema reads both shapes the same way here.
+
+`outResult` answers `NOT_FOUND` when the host does not know the member (the call stays exactly as opaque
+as with no signature function at all: no diagnostic, no type) or `FOUND` with `*outSignature` filled
+(`EXTERNAL` is never a meaningful answer here). `MAREA_SemaSignature` is a plain struct, not opaque,
+because the host builds and owns it: an array of `MAREA_SemaSignatureParameter` (each a canonical type
+spelling such as `float64` or `string`, not NUL terminated) with its count, and a canonical result type
+spelling. The host keeps every text and the parameter array valid for as long as the resolver may be
+asked again; sema only reads them during one call, never copies or frees them.
+
+A call to a member with a signature is checked like a call of a file function: the argument count must
+equal `parameterCount` exactly (the host describes no default) or `ARGUMENT_COUNT_MISMATCH` (3010), and
+each argument must fit its parameter's primitive spelling or `TYPE_MISMATCH` (3011), by the same literal
+and primitive fit rule as `MAREA_SemaCheckExpressionFit`. The call is then typed with the signature's
+result spelling. The member or name itself (`puts` before the call, `power` used with no call) stays
+untyped: only the call gets the signature's result.
+
 ## Rules
 
 **Integer names.** The primitive integers are `sinteger8`, `sinteger16`, `sinteger32`, `sinteger64`, `uinteger8`,
@@ -506,8 +542,8 @@ or rejects.
 | 3007 | `CONFLICTING_ATTRIBUTES` | `#[pack = 1, align = 16]`, a key given twice (`visibility` twice included) |
 | 3008 | `INVALID_ALIGNMENT` | `#[align = 15]` |
 | 3009 | `UNKNOWN_TYPE` | `a: Missing;` in a structure |
-| 3010 | `ARGUMENT_COUNT_MISMATCH` | `add(1)` when `add` takes two parameters with no default; `f()` or `f(1, 2, 3)` when `f` has one required and one defaulted parameter; `Point(1.0, 2.0, 3.0)` when `construct` takes two; `Line(1.0)` when `Line` declares no `construct` |
-| 3011 | `TYPE_MISMATCH` | `convert<sinteger32>(text)` with a `string` name, `convert<Point>(other)` for two structures with another layout, `f("text")` when the parameter is `sinteger32`, `local x: boolean = 1;`, `local n: sinteger32 = a < b;`, `f(s)` with a `string` name `s`, `return a + 1;` in a function that returns `boolean`, `a + b` with an `sinteger32` and a `float64`, `Point("x", 2.0)` when `construct`'s first parameter is `float32` |
+| 3010 | `ARGUMENT_COUNT_MISMATCH` | `add(1)` when `add` takes two parameters with no default; `f()` or `f(1, 2, 3)` when `f` has one required and one defaulted parameter; `Point(1.0, 2.0, 3.0)` when `construct` takes two; `Line(1.0)` when `Line` declares no `construct`; `power(1.0)` when the host's signature of `c.math.pow` takes two parameters |
+| 3011 | `TYPE_MISMATCH` | `convert<sinteger32>(text)` with a `string` name, `convert<Point>(other)` for two structures with another layout, `f("text")` when the parameter is `sinteger32`, `local x: boolean = 1;`, `local n: sinteger32 = a < b;`, `f(s)` with a `string` name `s`, `return a + 1;` in a function that returns `boolean`, `a + b` with an `sinteger32` and a `float64`, `Point("x", 2.0)` when `construct`'s first parameter is `float32`; `power("two", 10.0)` when the host's signature of `c.math.pow` takes `float64, float64` |
 | 3012 | `DUPLICATE_MEMBER` | two `implementation` blocks of one type that both declare `area` |
 | 3013 | `CONTRACT_NOT_SATISFIED` | `maximum(a, b)` when the type of `a` has no `less` for `where Item: Comparable` |
 | 3014 | `GENERIC_ARGUMENT_MISMATCH` | `Pair<sinteger32>` when `Pair` has two parameters, `Box<4>` |
@@ -571,19 +607,21 @@ or rejects.
   spelled by what is written and the import alias rule, with no qualifier added; a type that a `FOUND` namespace
   declares is spelled with the last segment of that namespace instead (see "Members of a FOUND namespace").
 - An expression with no resolved type (checked on the 23 examples, 866 expression nodes, 36 of them qualifier names
-  that are not values and are counted on their own, 86 of the rest with no type). The cases that stay without a
+  that are not values and are counted on their own, 86 of the rest with no type, with no signature function given
+  to the sweep's resolver - see "Signature of an EXTERNAL member" above). The cases that stay without a
   type: the name of a `for`, `for each`, `partition` or `with` statement when the type that decides it has none
   (`pixels` of `with vulkan.map_texture(texture) as pixels`, the counter of a range with a bound such as
   `slice.length(pixels) - 1`), and every expression made from it; the key of a `for each` over any other collection,
   as no library type of the repository has a key; a call, a member or a name that comes from an `EXTERNAL` namespace
-  (`stdio.puts(text)`, `vulkan.present(swapchain, texture)`, `square_root(x)`), or from a `FOUND` namespace but is
-  not a public function or constant, or that gives no type arguments to a generic one of these (see "Members of a
-  FOUND namespace"); a method or a field read on a result typed from a `FOUND` namespace, because such a lookup stays
-  in the file being built; a method or an element of a library type (`table<K, V>`, `c.array`, `task`, `slice.length`)
-  and an intrinsic of `array<T, N>`; a method call on a generic-parameter receiver whose own where clause lists no
-  contract that declares the member, and a call of a generic function of the file whose type arguments are only
-  inferred when the unification finds nothing to bind, the bindings disagree, or the result is not itself one bound
-  bare parameter (see "Inferred type arguments" and "A method on a generic receiver" for the cases now resolved); the
+  with no signature known for it (`stdio.puts(text)`, `vulkan.present(swapchain, texture)`, `square_root(x)`), or
+  from a `FOUND` namespace but is not a public function or constant, or that gives no type arguments to a generic one
+  of these (see "Members of a FOUND namespace"); a method or a field read on a result typed from a `FOUND` namespace,
+  because such a lookup stays in the file being built; a method or an element of a library type (`table<K, V>`,
+  `c.array`, `task`, `slice.length`) and an intrinsic of `array<T, N>`; a method call on a generic-parameter receiver
+  whose own where clause lists no contract that declares the member, and a call of a generic function of the file
+  whose type arguments are only inferred when the unification finds nothing to bind, the bindings disagree, or the
+  result is not itself one bound bare parameter (see "Inferred type arguments" and "A method on a generic receiver"
+  for the cases now resolved); the
   static functions of a generic name (`array<float32, 16>.filled(0.0)`); the built-in `convert`, `size_of` and
   `align_of` as names (the call has a type, the name has none); every `MACRO_CALL` and `GENERIC_NAME`. The `ir`
   stage decides what to do with each of these.

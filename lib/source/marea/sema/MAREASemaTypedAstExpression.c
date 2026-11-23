@@ -795,6 +795,26 @@ static const MAREA_AstNode *MAREA_CALL MAREA_G_ConvertTarget(const MAREA_SemaCon
     return (MAREA_G_IsType(target) == MAREA_BOOLEAN_TRUE) ? target : MAREA_NULLPTR;
 }
 
+// INFO: a call whose callee names a member of an EXTERNAL namespace the host gave a signature for is typed with its declared result; a resolver with no signature function, or a member it does not know, leaves this empty, exactly as before.
+static MAREA_SemaExprType MAREA_CALL MAREA_G_TypeOfExternalCall(MAREA_G_Resolver *resolver, const MAREA_AstNode *callee)
+{
+    const MAREA_SemaSignature *signature = MAREA_NULLPTR;
+
+    MAREA_SemaTypedAstExcept result = MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+
+    if (MAREA_G_IsKind(callee, MAREA_AST_KIND_MEMBER_ACCESS) == MAREA_BOOLEAN_TRUE) {
+        result = MAREA_SemaTypedAstExternalMemberSignature(resolver->context, MAREA_SemaChildAt(callee, 0), MAREA_SemaChildAt(callee, 1), &signature);
+    } else if (MAREA_G_IsKind(callee, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_TRUE) {
+        result = MAREA_SemaTypedAstExternalNameSignature(resolver->context, callee, &signature);
+    }
+
+    if (result == MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_OUT_OF_MEMORY) {
+        resolver->outOfMemory = MAREA_BOOLEAN_TRUE;
+    }
+
+    return (signature == MAREA_NULLPTR) ? MAREA_G_TypeNone() : MAREA_G_TypeOfText(signature->resultTypeText, signature->resultTypeTextLength);
+}
+
 static MAREA_SemaExprType MAREA_CALL MAREA_G_TypeOfCall(MAREA_G_Resolver *resolver, const MAREA_SemaTypedNode *built)
 {
     const MAREA_AstNode *call = built->astNode;
@@ -812,6 +832,12 @@ static MAREA_SemaExprType MAREA_CALL MAREA_G_TypeOfCall(MAREA_G_Resolver *resolv
     }
 
     const MAREA_AstNode *callee = MAREA_SemaChildAt(call, 0);
+
+    const MAREA_SemaExprType EXTERNAL = MAREA_G_TypeOfExternalCall(resolver, callee);
+
+    if (MAREA_G_TypeIsKnown(&EXTERNAL) == MAREA_BOOLEAN_TRUE) {
+        return EXTERNAL;
+    }
 
     // INFO: a call on the name of a structure or an enum is a construction, so the value has that type.
     if (MAREA_G_IsKind(callee, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_TRUE) {
