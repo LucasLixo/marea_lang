@@ -109,6 +109,40 @@ MAREA_BEGIN_EXTERN_C
     } MAREA_SemaScopeMark;
 
     /**
+     * @brief The scope a type is read in when it was written for another declaration: the generic parameters of
+     * a structure, a function or an implementation block, the type arguments that fill them, and the type that
+     * Self stands for. A name that is one of the parameters is replaced by the argument at the same place.
+     * Frames are chained, innermost first, and live in the arena of the context.
+     */
+    typedef struct MAREA_SemaTypeFrame MAREA_SemaTypeFrame;
+
+    struct MAREA_SemaTypeFrame
+    {
+        const MAREA_AstNode *parameters;
+        const MAREA_AstNode *arguments;
+        const MAREA_AstNode *selfDeclaration;
+        const MAREA_AstNode *selfArguments;
+        const MAREA_SemaTypeFrame *argumentFrame;
+        const MAREA_SemaTypeFrame *next;
+    };
+
+    /**
+     * @brief What sema knows of the type of one expression, kept until the text is written. It is one of:
+     * a type node read in a frame (a NAMED_TYPE, a FUNCTION_TYPE, or a FUNCTION_DECLARATION that stands for its
+     * function type), a structure or enum declaration with the type arguments that fill it, or a fixed text.
+     * An empty value means the type is not known.
+     */
+    typedef struct MAREA_SemaExprType
+    {
+        const MAREA_AstNode *node;
+        const MAREA_AstNode *declaration;
+        const MAREA_AstNode *arguments;
+        const MAREA_SemaTypeFrame *frame;
+        const MAREA_Character8 *fixed;
+        MAREA_IntegerSize fixedLength;
+    } MAREA_SemaExprType;
+
+    /**
      * @brief Body of the opaque typed shadow node. Opened internally, not publicly, so the
      * builder (MAREASemaTypedAst.c) and the ownership classifier (MAREASemaTypedAstOwnership.c)
      * can both read and fill it; the public header keeps the type fully opaque.
@@ -119,6 +153,7 @@ MAREA_BEGIN_EXTERN_C
         const MAREA_AstNode *typeDeclaration;
         const MAREA_Character8 *typeName;
         const MAREA_Character8 *resolvedType;
+        MAREA_SemaExprType exprType;
         MAREA_SemaTypedNode **children;
         MAREA_IntegerSize typeNameLength;
         MAREA_IntegerSize resolvedTypeLength;
@@ -146,6 +181,32 @@ MAREA_BEGIN_EXTERN_C
      * @return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
      */
     MAREA_NODISCARD MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedAstResolveDeclaredType(MAREA_SemaContext * context, MAREA_SemaTypedNode * built);
+
+    /**
+     * @brief Writes the canonical text of the type of an expression, in the arena of the context, in the scope
+     * that is open now. The spelling is the one of MAREA_SemaTypedAstResolveDeclaredType; a name that a frame fills
+     * is replaced by its argument, and Self by the type the frame gives.
+     * @param context Context the node is being built with. Must not be null.
+     * @param type What sema knows of the type. Must not be null.
+     * @param outText Receives the text, or null when the type has no spelling (a parameter that no argument fills, a
+     * type sema cannot spell). Must not be null.
+     * @param outLength Receives the length of the text, 0 when there is none. Must not be null.
+     * @return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedAstRenderExprType(MAREA_SemaContext * context, const MAREA_SemaExprType *type, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength);
+
+    /**
+     * @brief Fills the resolved type of a typed node that is an expression: an operation, a literal value, or an
+     * identifier read as a value. It reads the types of the typed children, so every child must be built first.
+     * Any other node, and an expression sema cannot type, keep no text and are not an error.
+     * @param context Context the node is being built with. Must not be null.
+     * @param built Typed node whose astNode and children are set. Must not be null.
+     * @param parent AST node that holds the node, or null for the root. Tells an identifier that is a value from
+     * a declared name.
+     * @param index Position of the node among the children of parent.
+     * @return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedAstResolveExpressionType(MAREA_SemaContext * context, MAREA_SemaTypedNode * built, const MAREA_AstNode *parent, MAREA_IntegerSize index);
 
     /**
      * @brief Adds a diagnostic with the severity ERROR to the sink of the context.

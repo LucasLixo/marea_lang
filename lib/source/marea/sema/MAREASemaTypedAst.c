@@ -368,7 +368,7 @@ static void MAREA_CALL MAREA_G_TypedAstClassify(MAREA_SemaContext *context, MARE
     built->typeNameLength = length;
 }
 
-static MAREA_SemaTypedAstExcept MAREA_CALL MAREA_G_TypedAstBuildNode(MAREA_SemaContext *context, const MAREA_AstNode *node, MAREA_SemaTypedNode **outNode)
+static MAREA_SemaTypedAstExcept MAREA_CALL MAREA_G_TypedAstBuildNode(MAREA_SemaContext *context, const MAREA_AstNode *node, const MAREA_AstNode *parent, MAREA_IntegerSize position, MAREA_SemaTypedNode **outNode)
 {
     MAREA_Null memory = MAREA_NULLPTR;
 
@@ -382,6 +382,7 @@ static MAREA_SemaTypedAstExcept MAREA_CALL MAREA_G_TypedAstBuildNode(MAREA_SemaC
     built->typeDeclaration = MAREA_NULLPTR;
     built->typeName = MAREA_NULLPTR;
     built->resolvedType = MAREA_NULLPTR;
+    built->exprType = (MAREA_SemaExprType){ .node = MAREA_NULLPTR, .declaration = MAREA_NULLPTR, .arguments = MAREA_NULLPTR, .frame = MAREA_NULLPTR, .fixed = MAREA_NULLPTR, .fixedLength = 0 };
     built->children = MAREA_NULLPTR;
     built->typeNameLength = 0;
     built->resolvedTypeLength = 0;
@@ -430,10 +431,15 @@ static MAREA_SemaTypedAstExcept MAREA_CALL MAREA_G_TypedAstBuildNode(MAREA_SemaC
 
             MAREA_SemaTypedNode *typedChild = MAREA_NULLPTR;
 
-            result = MAREA_G_TypedAstBuildNode(context, child, &typedChild);
+            result = MAREA_G_TypedAstBuildNode(context, child, node, index, &typedChild);
 
             built->children[index] = typedChild;
         }
+    }
+
+    // INFO: an expression is typed after its children, because its type is made from theirs, and before its scope ends.
+    if (result == MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) {
+        result = MAREA_SemaTypedAstResolveExpressionType(context, built, parent, position);
     }
 
     MAREA_SemaScopeLeave(context, mark);
@@ -472,7 +478,7 @@ MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaBuildTypedAst(MAREA_SemaContext *c
 
     MAREA_SemaTypedNode *built = MAREA_NULLPTR;
 
-    const MAREA_SemaTypedAstExcept RESULT = MAREA_G_TypedAstBuildNode(context, root, &built);
+    const MAREA_SemaTypedAstExcept RESULT = MAREA_G_TypedAstBuildNode(context, root, MAREA_NULLPTR, 0, &built);
 
     if (RESULT != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) {
         return RESULT;
