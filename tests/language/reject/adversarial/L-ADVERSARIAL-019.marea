@@ -1,9 +1,8 @@
--- gap: #181 NEW
--- rule: reject
+-- expect: 3033 @35
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- A literal out of range is the value of a constant used by a generic call.
+-- A literal out of range is the default value of a parameter.
 
 namespace main;
 
@@ -33,12 +32,6 @@ function take_point(point: owned<Point>): sinteger32
     return point.x;
 end
 
-constant BIG: uinteger8 = 300;
-
-function same<Item>(#[semantics = reference_read_only] value: Item): Item where Item: Copyable
-    return copy value;
-end
-
-function check(): uinteger8
-    return same(BIG);
+function small(value: uinteger8 = 256): uinteger8
+    return value;
 end

@@ -1,9 +1,8 @@
--- gap: #181 NEW
--- rule: reject
+-- expect: 3033 @40
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- A literal out of range is the default value of a parameter.
+-- A literal out of range is a field of a struct literal.
 
 namespace main;
 
@@ -33,6 +32,10 @@ function take_point(point: owned<Point>): sinteger32
     return point.x;
 end
 
-function small(value: uinteger8 = 256): uinteger8
-    return value;
+structure Pixel
+    alpha: uinteger8;
+end
+
+function make_pixel(): Pixel
+    return Pixel{ alpha = 256 };
 end

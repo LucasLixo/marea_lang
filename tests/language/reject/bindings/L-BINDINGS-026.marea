@@ -1,13 +1,12 @@
--- gap: #185 NEW
--- rule: reject
+-- expect: 3033 @10
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- The minimum value divided by minus one.
+-- A uinteger8 literal of 256 is out of range (rule 4).
 
 namespace main;
 
 function check(): sinteger32
-    local quotient: sinteger32 = -2147483648 / -1;
-    return quotient;
+    local value: uinteger8 = 256;
+    return 1;
 end
