@@ -62,7 +62,7 @@ keyword             = "and" | "as" | "break" | "case" | "constant" | "continue" 
 (* vector and pointer, and the names Self and self. The language has no standard library: array, *)
 (* table, slice, task, arenas and text are libraries written in C or in Marea, and they are *)
 (* imported like any namespace. The namespace "c" is the only reserved one. *)
-(* "public" and "private" are words of the attribute list only. *)
+(* "public" and "private" are words of the attribute list only, the members of the key "visibility". *)
 
 (* Operators and separators. *)
 operator_token      = "+" | "-" | "*" | "/" | "%" | "**"
@@ -109,7 +109,8 @@ import_member        = qualified_name, [ "as", identifier ] ;
 (* #[ key = value, key, ... ] before a symbol. #![ ... ] after the namespace, for the file. *)
 (* A key without a value means "= true". *)
 (* A value is "true" or "false" when the key is not an enum key. An enum key takes one member *)
-(* of its enum as an identifier (inline = force, build = debug). An unknown key is an error. *)
+(* of its enum as an identifier (visibility = public, inline = force, layout = marea). The key *)
+(* export takes a string. An unknown key is an error. *)
 attribute           = "#[", attribute_item, { ",", attribute_item }, "]" ;
 file_attribute      = "#![", attribute_item, { ",", attribute_item }, "]" ;
 attribute_item      = identifier, [ "=", attribute_value ] ;
@@ -145,7 +146,7 @@ field_declaration   = { attribute }, identifier, ":", type, ";" ;
 (* A type of C with an unknown layout. It has no body. *)
 opaque_declaration  = "opaque", "structure", identifier, ";" ;
 
-enum_declaration    = "enum", identifier,
+enum_declaration    = "enum", identifier, [ ":", type ],
                       { variant_declaration },
                       "end" ;
 variant_declaration = identifier, [ "(", variant_field, { ",", variant_field }, ")" ], ";" ;
@@ -171,7 +172,8 @@ parameter_list      = parameter, { ",", parameter } ;
 (* are passed by value. Any other type is a read-only borrow. "mutable" is a write borrow, *)
 (* and it is exclusive. "reference" forces a borrow of a type that is passed by value. *)
 (* A reference can not be stored in a field or returned. See note 9. *)
-parameter           = identifier, ":", [ "reference" | "mutable" ], type ;
+(* A default value is allowed on a function parameter and not on a function type parameter. *)
+parameter           = identifier, ":", [ "reference" | "mutable" ], type, [ "=", expression ] ;
 
 generic_parameters  = "<", generic_parameter, { ",", generic_parameter }, ">" ;
 generic_parameter   = identifier

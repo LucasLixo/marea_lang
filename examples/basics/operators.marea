@@ -27,7 +27,7 @@
 
 namespace basics.operators;
 
-#[public]
+#[visibility = public]
 function arithmetic(left: integer32, right: integer32): integer32
     local sum: integer32 = left + right;
     local difference: integer32 = left - right;
@@ -40,7 +40,7 @@ function arithmetic(left: integer32, right: integer32): integer32
     return sum + difference + product + quotient + remainder + negative + power + negative_power;
 end
 
-#[public]
+#[visibility = public]
 function float_arithmetic(left: float64, right: float64): float64
     local quotient: float64 = left / right;
     local power: float64 = left ** 0.5;
@@ -49,7 +49,7 @@ function float_arithmetic(left: float64, right: float64): float64
 end
 
 -- Wrap around and saturate, written on purpose.
-#[public]
+#[visibility = public]
 function limits(value: unsigned8): unsigned8
     local wrapped: unsigned8 = value +% 200;       -- 100 +% 200 = 44
     local saturated: unsigned8 = value +| 200;     -- 100 +| 200 = 255
@@ -58,7 +58,7 @@ function limits(value: unsigned8): unsigned8
 end
 
 -- A compound assignment is one instruction: name op= value.
-#[public]
+#[visibility = public]
 function compound(start: integer32): integer32
     local value: integer32 = start;
     value += 2;
@@ -70,7 +70,7 @@ function compound(start: integer32): integer32
     return value;
 end
 
-#[public]
+#[visibility = public]
 function bits(value: unsigned32): unsigned32
     local inverted: unsigned32 = ~value;
     local shifted_left: unsigned32 = value << 4;
@@ -81,7 +81,7 @@ function bits(value: unsigned32): unsigned32
     return inverted + shifted_left + shifted_right + masked + combined + toggled;
 end
 
-#[public]
+#[visibility = public]
 function comparison(left: integer32, right: integer32): boolean
     local equal: boolean = left == right;
     local different: boolean = left != right;

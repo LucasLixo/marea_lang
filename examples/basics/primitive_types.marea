@@ -11,7 +11,7 @@ namespace basics.primitive_types;
 constant MAX_LEVEL: integer32 = 99;
 constant EPSILON: float64 = 0.000001;
 
-#[public]
+#[visibility = public]
 function show_primitives()
     local flag: boolean = true;
     local small: integer8 = -128;
@@ -30,7 +30,7 @@ end
 --   local too_big: unsigned8 = 256;        -- error
 -- A conversion between types is always written, and it is checked.
 -- This function has a return type, so every path ends with "return value;".
-#[public]
+#[visibility = public]
 function convert_values(count: integer32): float64
     local wide: integer64 = convert<integer64>(count);
     local ratio: float64 = convert<float64>(wide);
