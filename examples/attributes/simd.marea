@@ -1,20 +1,20 @@
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- Step 10: vector<T, N> is a type of the language core, with intrinsic functions. There is no attribute
+-- Step 10: array<T, N> is a type of the language core, with intrinsic functions. There is no attribute
 -- for it. A scalar loop gives the same result as a vector operation.
 
 namespace attributes.simd;
 
 #[visibility = public]
-function dot_product(left: vector<float32, 4>, right: vector<float32, 4>): float32
-    local product: vector<float32, 4> = left * right;
-    return product.sum();   -- sum is an intrinsic of vector<T, N>
+function dot_product(left: array<float32, 4>, right: array<float32, 4>): float32
+    local product: array<float32, 4> = left * right;
+    return product.sum();   -- sum is an intrinsic of array<T, N>
 end
 
 -- A reference version for a test: it must give the same result as the SIMD version.
 #[visibility = public]
-function dot_product_reference(left: vector<float32, 4>, right: vector<float32, 4>): float32
+function dot_product_reference(left: array<float32, 4>, right: array<float32, 4>): float32
     local total: float32 = 0.0;
     for index in 0 .. 3 do
         total += left[index] * right[index];

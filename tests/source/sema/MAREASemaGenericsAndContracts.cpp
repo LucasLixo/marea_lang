@@ -51,9 +51,9 @@ TEST(MAREASemaGenericsAndContracts, TypeParametersResolve)
 
 TEST(MAREASemaGenericsAndContracts, ValueGenericSizesAVector)
 {
-    GTEST_COUT << "Validating a value generic is usable as a vector size." << std::endl;
+    GTEST_COUT << "Validating a value generic is usable as a array size." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("structure Buffer<Item, constant Count: sinteger32> items: vector<Item, Count>; end").empty()) << "A value generic must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("structure Buffer<Item, constant Count: sinteger32> items: array<Item, Count>; end").empty()) << "A value generic must raise nothing.";
 }
 
 TEST(MAREASemaGenericsAndContracts, ContractMetByImplementation)
@@ -177,7 +177,15 @@ TEST(MAREASemaGenericsAndContracts, TypeArgumentCountMustMatch)
 
     EXPECT_EQ(MAREA_codesOf("structure H a: pointer<sinteger32, sinteger32>; end"), Codes{ ARGUMENT_MISMATCH }) << "A core generic type has a fixed count.";
 
-    EXPECT_EQ(MAREA_codesOf("structure H a: vector<float32>; end"), Codes{ ARGUMENT_MISMATCH }) << "A vector takes a type and a size.";
+    EXPECT_EQ(MAREA_codesOf("structure H a: array<float32>; end"), Codes{ ARGUMENT_MISMATCH }) << "An array takes a type and a size.";
+
+    EXPECT_EQ(MAREA_codesOf("structure H a: array<float32, 4, 4>; end"), Codes{ ARGUMENT_MISMATCH }) << "An array takes exactly two arguments.";
+
+    EXPECT_EQ(MAREA_codesOf("structure H a: vector<float32, 4>; end"), Codes{ ARGUMENT_MISMATCH }) << "A vector takes one type and no size.";
+
+    EXPECT_EQ(MAREA_codesOf("structure H a: vector; end"), Codes{ ARGUMENT_MISMATCH }) << "A vector takes one argument.";
+
+    EXPECT_TRUE(MAREA_codesOf("structure H a: array<float32, 4>; b: vector<float32>; end").empty()) << "The two valid shapes must raise nothing.";
 
     EXPECT_EQ(MAREA_codesOf("structure H a: sinteger32<float32>; end"), Codes{ ARGUMENT_MISMATCH }) << "A primitive takes no arguments.";
 }
@@ -188,7 +196,7 @@ TEST(MAREASemaGenericsAndContracts, TypeArgumentKindMustMatch)
 
     EXPECT_EQ(MAREA_codesOf("structure Box<Item> v: Item; end structure H a: Box<4>; end"), Codes{ ARGUMENT_MISMATCH }) << "A number for a type parameter must raise GENERIC_ARGUMENT_MISMATCH.";
 
-    EXPECT_TRUE(MAREA_codesOf("structure Buffer<Item, constant Count: sinteger32> v: vector<Item, Count>; end structure H a: Buffer<float32, 4>; end").empty()) << "A number for a value parameter must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("structure Buffer<Item, constant Count: sinteger32> v: array<Item, Count>; end structure H a: Buffer<float32, 4>; end").empty()) << "A number for a value parameter must raise nothing.";
 }
 
 TEST(MAREASemaGenericsAndContracts, UnknownContractIsRejected)
@@ -233,6 +241,19 @@ TEST(MAREASemaGenericsAndContracts, ErrorNodeInWhereClauseIsSkipped)
     EXPECT_TRUE(MAREA_codesOf("function f<Item>(a: Item) where Item: end").empty()) << "A constraint without a contract must raise no sema diagnostic.";
 
     EXPECT_TRUE(MAREA_codesOf("function f<Item>(a: Item) where : Copyable end").empty()) << "A constraint without a parameter must raise no sema diagnostic.";
+}
+
+TEST(MAREASemaGenericsAndContracts, ArrayIsCopyableAndVectorIsNot)
+{
+    GTEST_COUT << "Validating Copyable is met by an array of copyable elements and missed by a vector." << std::endl;
+
+    const std::string COPY{ "function copy_of<Item>(a: Item): Item where Item: Copyable return copy a; end " };
+
+    EXPECT_TRUE(MAREA_codesOf(COPY + "function run(a: array<float32, 4>): array<float32, 4> return copy_of(a); end").empty()) << "An array of primitives must be Copyable.";
+
+    EXPECT_EQ(MAREA_codesOf(COPY + "function run(a: vector<float32>): vector<float32> return copy_of(a); end"), Codes{ NOT_SATISFIED }) << "A vector must miss Copyable.";
+
+    EXPECT_EQ(MAREA_codesOf(COPY + "structure Plain x: float32; end function run(a: array<Plain, 4>): array<Plain, 4> return copy_of(a); end"), Codes{ NOT_SATISFIED }) << "An array of a plain structure must miss Copyable.";
 }
 
 TEST(MAREASemaGenericsAndContracts, EnumIsCopyableAndBuiltInTypesMeetUserContracts)
