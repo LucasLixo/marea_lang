@@ -259,15 +259,16 @@ MAREA_BEGIN_EXTERN_C
     /**
      * @brief Looks up an identifier used as a value (a function, a constant, a variant or the head of a member
      * chain). An import alias gives its original text, unless a parameter or a local of the enclosing function
-     * has the same name.
+     * has the same name and is declared at or before the reference.
      * @param context Context that holds the alias table. Must not be null.
      * @param text Identifier text.
      * @param length Byte length of text.
+     * @param offset Source offset of the reference.
      * @param outText Receives the original text. Must not be null.
      * @param outLength Receives the byte length of outText. Must not be null.
      * @return MAREA_BOOLEAN_TRUE when the identifier is an alias that applies, otherwise MAREA_BOOLEAN_FALSE.
      */
-    MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_IrAliasValue(const MAREA_IrContext *context, const MAREA_Character8 *text, MAREA_IntegerSize length, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength);
+    MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_IrAliasValue(const MAREA_IrContext *context, const MAREA_Character8 *text, MAREA_IntegerSize length, MAREA_Uinteger32 offset, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength);
 
     /**
      * @brief Lowers a written type name to its original: a chain of type aliases is followed up to 8 steps and
