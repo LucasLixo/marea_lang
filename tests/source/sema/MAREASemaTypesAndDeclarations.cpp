@@ -15,7 +15,7 @@ namespace
     MAREA_ResolveCallback MAREA_externalOnly()
     {
         return [](const std::string &text, const MAREA_AstNode **) {
-            const bool EXTERNAL{ (text == "array") || (text == "table") || (text == "handle") || (text == "collections.array") || (text == "c.math.Vector3") };
+            const bool EXTERNAL{ (text == "list") || (text == "table") || (text == "handle") || (text == "collections.list") || (text == "c.math.Vector3") };
 
             return EXTERNAL ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
         };
@@ -59,9 +59,9 @@ TEST(MAREASemaTypesAndDeclarations, RetiredIntegerNamesAreUnknownTypes)
 
 TEST(MAREASemaTypesAndDeclarations, CoreGenericTypesResolve)
 {
-    GTEST_COUT << "Validating vector, pointer, owned, slice and task resolve." << std::endl;
+    GTEST_COUT << "Validating array, vector, pointer, owned, slice and task resolve." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("structure S a: vector<float32, 4>; b: pointer<sinteger32>; c: owned<string>; d: slice<uinteger8>; e: task<float32>; end").empty()) << "A core generic type must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("structure S a: array<float32, 4>; f: vector<float32>; b: pointer<sinteger32>; c: owned<string>; d: slice<uinteger8>; e: task<float32>; end").empty()) << "A core generic type must raise nothing.";
 }
 
 TEST(MAREASemaTypesAndDeclarations, CoreGenericTypeTakesAGenericParameter)
@@ -75,7 +75,7 @@ TEST(MAREASemaTypesAndDeclarations, ExternalTypesResolve)
 {
     GTEST_COUT << "Validating a type the resolver reports as EXTERNAL resolves." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("structure S a: array<sinteger32>; b: table<string, sinteger32>; c: handle<sinteger32>; d: collections.array<sinteger32>; e: c.math.Vector3; end").empty()) << "An external type must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("structure S a: list<sinteger32>; b: table<string, sinteger32>; c: handle<sinteger32>; d: collections.list<sinteger32>; e: c.math.Vector3; end").empty()) << "An external type must raise nothing.";
 }
 
 TEST(MAREASemaTypesAndDeclarations, UnknownTypeIsRejected)

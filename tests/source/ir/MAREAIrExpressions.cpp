@@ -113,14 +113,14 @@ TEST(MAREAIrExpressions, IndexAccessKeepsTargetAndIndex)
 {
     GTEST_COUT << "Validating an index access keeps the lowered target and the lowered index." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerInitializer("constant TABLE: vector<sinteger32, 3> = vector<sinteger32, 3>{ 1, 2, 3 };", "sinteger32", "TABLE[1]"), "(INDEX_ACCESS (IDENTIFIER TABLE) (INTEGER_LITERAL 1))") << "An index access must keep both operands.";
+    EXPECT_EQ(MAREA_lowerInitializer("constant TABLE: array<sinteger32, 3> = array<sinteger32, 3>{ 1, 2, 3 };", "sinteger32", "TABLE[1]"), "(INDEX_ACCESS (IDENTIFIER TABLE) (INTEGER_LITERAL 1))") << "An index access must keep both operands.";
 }
 
 TEST(MAREAIrExpressions, ArrayLiteralKeepsValueEntries)
 {
     GTEST_COUT << "Validating a literal of values keeps one VALUE_ENTRY per value." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerInitializer("", "vector<sinteger32, 2>", "vector<sinteger32, 2>{ 5, 6 }"), "(LITERAL_VALUE :vector (VALUE_ENTRY (INTEGER_LITERAL 5)) (VALUE_ENTRY (INTEGER_LITERAL 6)))") << "Each value must be a VALUE_ENTRY.";
+    EXPECT_EQ(MAREA_lowerInitializer("", "array<sinteger32, 2>", "array<sinteger32, 2>{ 5, 6 }"), "(LITERAL_VALUE :array (VALUE_ENTRY (INTEGER_LITERAL 5)) (VALUE_ENTRY (INTEGER_LITERAL 6)))") << "Each value must be a VALUE_ENTRY.";
 }
 
 TEST(MAREAIrExpressions, IndexedLiteralKeepsIndexEntries)

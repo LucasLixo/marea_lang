@@ -70,7 +70,7 @@ TEST(MAREAParserTypes, TypeArguments)
     {
         MAREA_ParseFixture fixture;
 
-        EXPECT_EQ(MAREA_typeDump(fixture, "vector<float32, 4>"), MAREA_lines({ "NAMED_TYPE", "  QUALIFIED_NAME", "    IDENTIFIER \"vector\"", "  TYPE_ARGUMENTS", "    NAMED_TYPE", "      QUALIFIED_NAME", "        IDENTIFIER \"float32\"", "    INTEGER_LITERAL \"4\"" })) << "An integer type argument.";
+        EXPECT_EQ(MAREA_typeDump(fixture, "array<float32, 4>"), MAREA_lines({ "NAMED_TYPE", "  QUALIFIED_NAME", "    IDENTIFIER \"array\"", "  TYPE_ARGUMENTS", "    NAMED_TYPE", "      QUALIFIED_NAME", "        IDENTIFIER \"float32\"", "    INTEGER_LITERAL \"4\"" })) << "An integer type argument.";
     }
 
     {

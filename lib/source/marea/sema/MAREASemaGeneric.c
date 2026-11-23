@@ -508,11 +508,11 @@ static MAREA_SemaTypeClass MAREA_CALL MAREA_G_Classify(const MAREA_SemaContext *
         return MAREA_SEMA_TYPE_CLASS_GENERIC;
     }
 
-    if ((MAREA_G_TextIs(*outName, *outLength, "owned") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextIs(*outName, *outLength, "task") == MAREA_BOOLEAN_TRUE)) {
+    if ((MAREA_G_TextIs(*outName, *outLength, "owned") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextIs(*outName, *outLength, "task") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextIs(*outName, *outLength, "vector") == MAREA_BOOLEAN_TRUE)) {
         return MAREA_SEMA_TYPE_CLASS_MOVE_BUILTIN;
     }
 
-    if ((MAREA_G_TextIs(*outName, *outLength, "vector") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextIs(*outName, *outLength, "pointer") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextIs(*outName, *outLength, "slice") == MAREA_BOOLEAN_TRUE)) {
+    if ((MAREA_G_TextIs(*outName, *outLength, "array") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextIs(*outName, *outLength, "pointer") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextIs(*outName, *outLength, "slice") == MAREA_BOOLEAN_TRUE)) {
         return MAREA_SEMA_TYPE_CLASS_COPY_BUILTIN;
     }
 
@@ -584,8 +584,21 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsSatisfied(const MAREA_SemaContext *con
     }
 
     if (MAREA_G_TextIs(contractName, CONTRACT_LENGTH, "Copyable") == MAREA_BOOLEAN_TRUE) {
-        if ((CLASS == MAREA_SEMA_TYPE_CLASS_PRIMITIVE) || (CLASS == MAREA_SEMA_TYPE_CLASS_COPY_BUILTIN)) {
+        if (CLASS == MAREA_SEMA_TYPE_CLASS_PRIMITIVE) {
             return MAREA_BOOLEAN_TRUE;
+        }
+
+        // INFO: an array is copied element by element, so it is Copyable only when its element is. A pointer and a slice copy the handle.
+        if (CLASS == MAREA_SEMA_TYPE_CLASS_COPY_BUILTIN) {
+            if (MAREA_G_TextIs(name, nameLength, "array") == MAREA_BOOLEAN_FALSE) {
+                return MAREA_BOOLEAN_TRUE;
+            }
+
+            const MAREA_AstNode *arguments = MAREA_G_FindChild(type, MAREA_AST_KIND_TYPE_ARGUMENTS);
+
+            const MAREA_AstNode *element = (arguments == MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_SemaChildAt(arguments, 0);
+
+            return (element == MAREA_NULLPTR) ? MAREA_BOOLEAN_TRUE : MAREA_G_IsSatisfied(context, element, contract);
         }
 
         // INFO: an enum is a plain integer, so it is always copied.
