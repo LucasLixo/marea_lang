@@ -101,7 +101,7 @@ TEST(MAREAParserTypes, NestedTypeArgumentsSplitShiftRight)
 
 TEST(MAREAParserTypes, FunctionTypes)
 {
-    GTEST_COUT << "Validating function types with and without a result, and parameter flags." << std::endl;
+    GTEST_COUT << "Validating function types with and without a result, and a parameter's semantics attribute." << std::endl;
 
     {
         MAREA_ParseFixture fixture;
@@ -120,11 +120,11 @@ TEST(MAREAParserTypes, FunctionTypes)
     {
         MAREA_ParseFixture fixture;
 
-        const std::string DUMP{ MAREA_typeDump(fixture, "function(a: mutable sinteger32, b: reference sinteger32)") };
+        const std::string DUMP{ MAREA_typeDump(fixture, "function(#[semantics = reference_mutable] a: sinteger32, #[semantics = reference_read_only] b: sinteger32)") };
 
-        EXPECT_NE(DUMP.find("PARAMETER flags=1\n"), std::string::npos) << "mutable must set the MUTABLE flag.";
+        EXPECT_NE(DUMP.find("IDENTIFIER \"reference_mutable\""), std::string::npos) << "The first parameter must carry its semantics attribute.";
 
-        EXPECT_NE(DUMP.find("PARAMETER flags=2\n"), std::string::npos) << "reference must set the REFERENCE flag.";
+        EXPECT_NE(DUMP.find("IDENTIFIER \"reference_read_only\""), std::string::npos) << "The second parameter must carry its semantics attribute.";
     }
 }
 

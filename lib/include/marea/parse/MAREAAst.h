@@ -31,7 +31,8 @@ MAREA_BEGIN_EXTERN_C
     typedef enum MAREA_AstFlag
     {
         MAREA_AST_FLAG_MUTABLE = MAREA_UINTEGER_32(1),
-        MAREA_AST_FLAG_REFERENCE = MAREA_UINTEGER_32(2),
+        // INFO: bit 2 held the retired REFERENCE flag (the "reference" parameter keyword); a parameter's
+        // passing mode is the "semantics" attribute now, so the bit is not reused.
         MAREA_AST_FLAG_CONSTANT = MAREA_UINTEGER_32(4),
         MAREA_AST_FLAG_HAS_ALIAS = MAREA_UINTEGER_32(8),
         MAREA_AST_FLAG_FILE = MAREA_UINTEGER_32(16),
