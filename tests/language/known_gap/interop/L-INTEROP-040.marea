@@ -1,0 +1,14 @@
+-- gap: #239 NEW
+-- rule: reject
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An opaque structure is built with a struct literal.
+
+namespace main;
+
+opaque structure Texture;
+
+function check()
+    local texture: Texture = Texture{ };
+end

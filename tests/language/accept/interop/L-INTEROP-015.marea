@@ -1,0 +1,11 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A static_assert macro of a true constant condition.
+
+namespace main;
+
+constant SIZE: sinteger32 = 4;
+
+static_assert!(SIZE == 4, "SIZE must be 4");

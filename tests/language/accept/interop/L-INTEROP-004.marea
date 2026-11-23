@@ -1,0 +1,13 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An opaque type used through a read-only borrow parameter.
+
+namespace main;
+
+opaque structure Texture;
+
+function present(#[semantics = reference_read_only] texture: Texture)
+    local value: sinteger32 = 1;
+end

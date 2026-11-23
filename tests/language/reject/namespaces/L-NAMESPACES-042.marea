@@ -1,0 +1,13 @@
+-- expect: 3001 @9
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An import list of a namespace that no resolver knows.
+
+namespace main;
+
+import nowhere { thing };
+
+function check(): sinteger32
+    return 1;
+end

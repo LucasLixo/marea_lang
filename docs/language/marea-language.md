@@ -817,6 +817,156 @@ Known gaps of this area share their issues: #213, #214, #215, #216, #218, #219, 
 | L-TYPES-152 | a while condition of an integer type | gap: 3011, rule: reject, issue #219 |
 | L-TYPES-153 | an if condition of a text type | gap: 3011, rule: reject, issue #219 |
 
+## Namespaces and imports
+
+Namespaces, `main`, imports and the resolver outcomes, the reserved first segments `c` and `marea`, and
+visibility. The items sit in `tests/language/<class>/namespaces/`. Every item is one file named `main.marea` for the
+runner, so its namespace is `main`; a namespace of another name gives 3002 (L-NAMESPACES-024 to 027). The runner
+answers `EXTERNAL` to a `c.` name and `NOT_FOUND` to every other name, so `marea.`, a project namespace and the
+namespace itself give 3001 (L-NAMESPACES-020 to 023, 038, 039, 042, 057). `main` is an ordinary function: it has no
+fixed signature and none is required (L-NAMESPACES-002 to 006).
+
+Settled rule 5 (a `private` name used from another namespace is a reject) has no item. The runner checks one file per
+item and an item cannot import a second file, so a private name cannot be reached from another namespace. A private
+name used inside its own namespace is accepted (L-NAMESPACES-011, 012, 063, 064). An import cycle and a private enum
+import need the same second file, so they have no item either; a namespace that imports itself gives 3001
+(L-NAMESPACES-039).
+
+### Namespaces and imports: accept
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-NAMESPACES-001 | A namespace that matches the file path, with one function | ok |
+| L-NAMESPACES-002 | main is an ordinary function with no parameter and an integer result | ok |
+| L-NAMESPACES-003 | main has no fixed signature: one number parameter and a float result | ok |
+| L-NAMESPACES-004 | main may have no result | ok |
+| L-NAMESPACES-005 | A file with no main at all | ok |
+| L-NAMESPACES-006 | main takes the argument array of the future driver | ok |
+| L-NAMESPACES-007 | A c import is used by its last segment | ok |
+| L-NAMESPACES-008 | A c import renamed by as | ok |
+| L-NAMESPACES-009 | One symbol of a c library renamed by as | ok |
+| L-NAMESPACES-010 | An import list with two members, one of them renamed | ok |
+| L-NAMESPACES-011 | A public and a private function, the private one used inside the namespace | ok |
+| L-NAMESPACES-012 | A private constant and a private structure used inside the namespace | ok |
+| L-NAMESPACES-013 | Two imports with different local names | ok |
+| L-NAMESPACES-014 | The same C library imported twice under two aliases | ok |
+| L-NAMESPACES-015 | A file attribute after the namespace and a public function | ok |
+| L-NAMESPACES-063 | A private field of a public structure read inside its own namespace | ok |
+| L-NAMESPACES-064 | A private enum used inside its own namespace | ok |
+
+### Namespaces and imports: reject
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-NAMESPACES-020 | An import of a namespace that no resolver knows | 3001 @9 |
+| L-NAMESPACES-021 | A marea import with no library behind it | 3001 @9 |
+| L-NAMESPACES-022 | An import of the bare first segment marea | 3001 @9 |
+| L-NAMESPACES-023 | An import of the bare first segment c has no library | 3001 @9 |
+| L-NAMESPACES-024 | A namespace that does not match the file path | 3002 @7 |
+| L-NAMESPACES-025 | A namespace with an extra segment does not match the file path | 3002 @7 |
+| L-NAMESPACES-026 | A file cannot declare a namespace under the reserved first segment c | 3002 @7 |
+| L-NAMESPACES-027 | A file cannot declare a namespace under the reserved first segment marea | 3002 @7 |
+| L-NAMESPACES-028 | The same import twice gives a name that is already declared | 3003 @10 |
+| L-NAMESPACES-029 | Two imports end in the same local name | 3003 @10 |
+| L-NAMESPACES-030 | An alias clashes with an earlier import | 3003 @10 |
+| L-NAMESPACES-031 | An import name clashes with a function of the namespace | 3003 @11 |
+| L-NAMESPACES-032 | An alias hides the reserved namespace c | 3003 @9 |
+| L-NAMESPACES-033 | A type alias named c hides the reserved namespace c | 3003 @9 |
+| L-NAMESPACES-034 | Two functions with the same name | 3003 @13 |
+| L-NAMESPACES-035 | A function and a constant with the same name | 3003 @11 |
+| L-NAMESPACES-038 | A name of the namespace of a missing import | 3001 @9 |
+| L-NAMESPACES-039 | A namespace cannot import itself | 3001 @9 |
+| L-NAMESPACES-040 | An unknown attribute key | 3005 @9 |
+| L-NAMESPACES-041 | A visibility value that is not public or private | 3006 @9 |
+| L-NAMESPACES-042 | An import list of a namespace that no resolver knows | 3001 @9 |
+| L-NAMESPACES-050 | A call of a function that no scope declares | 3004 @10 |
+| L-NAMESPACES-055 | An import alias clashes with a function of the namespace | 3003 @11 |
+| L-NAMESPACES-056 | Two visibility values on one function conflict | 3007 @9 |
+| L-NAMESPACES-057 | A marea import with a member list and no library behind it | 3001 @9 |
+| L-NAMESPACES-059 | The same member twice in one import list | 3003 @9 |
+| L-NAMESPACES-060 | A second namespace declaration in one file | 2004 @9 |
+| L-NAMESPACES-061 | The namespace declaration is not the first statement | 2007 @7, 2004 @11 |
+
+### Namespaces and imports: known_gap
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-NAMESPACES-036 | A namespace used with no import | gap: 3004, rule: reject, issue #236 |
+| L-NAMESPACES-037 | The original name of an alias used as a namespace | gap: 3004, rule: reject, issue #236 |
+| L-NAMESPACES-051 | A user function named like a built-in macro | gap: NEW, rule: reject, issue #237 |
+| L-NAMESPACES-052 | A local named like a built-in macro | gap: NEW, rule: reject, issue #237 |
+| L-NAMESPACES-053 | An import alias that shadows a primitive type | gap: 3003, rule: reject, issue #238 |
+| L-NAMESPACES-054 | An import alias named like a built-in macro | gap: NEW, rule: reject, issue #237 |
+
+## Macros and the C border
+
+Interop with C, opaque types, owners and raw pointers of a C border, and the built-in macros. The items sit in
+`tests/language/<class>/interop/`. A `c.` import is `EXTERNAL` in the runner, so the C call itself has no signature
+and its argument and result types are not checked. The macros are checked only by name today: a macro name without
+`!` is an undeclared name (L-INTEROP-054) and a user-written `macro` is a parse error (L-INTEROP-020), but a call of
+an unknown macro, the arguments and the result of a known one are not checked (issue #241). The type `handle<T>` is
+rejected with 3009 by the type checker, so it has no accept item.
+
+### Macros and the C border: accept
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-INTEROP-001 | A function of a c library called with float arguments | ok |
+| L-INTEROP-002 | An opaque structure declared with no body | ok |
+| L-INTEROP-003 | An opaque type used through a borrow parameter | ok |
+| L-INTEROP-004 | An opaque type used through a read-only borrow parameter | ok |
+| L-INTEROP-005 | An owner of an opaque type comes from a c call and goes up with return | ok |
+| L-INTEROP-006 | An owner of an opaque type held in a local and passed as a borrow | ok |
+| L-INTEROP-007 | A structure with the exact layout of a C structure | ok |
+| L-INTEROP-008 | A raw pointer from a c call inside an unsafe block | ok |
+| L-INTEROP-009 | A mapped buffer is a name that lives in a with block | ok |
+| L-INTEROP-011 | The print macro with one value | ok |
+| L-INTEROP-012 | The log macro with a level and one value | ok |
+| L-INTEROP-013 | The format macro builds a string | ok |
+| L-INTEROP-014 | The assert and debug_assert macros with a condition and a message | ok |
+| L-INTEROP-015 | A static_assert macro of a true constant condition | ok |
+| L-INTEROP-016 | The unreachable macro after a branch that cannot run | ok |
+| L-INTEROP-017 | The place macros give the line, the file and the namespace | ok |
+| L-INTEROP-060 | An unsafe block with a plain local | ok |
+
+### Macros and the C border: reject
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-INTEROP-020 | A user cannot declare a macro | 2004 @9, 2004 @10, 2004 @10, 2005 @11 |
+| L-INTEROP-022 | An opaque structure has no body | 2001 @10, 2005 @11 |
+| L-INTEROP-023 | A parameter of a type that no declaration names | 3009 @9 |
+| L-INTEROP-024 | An import placed after a function | 2004 @13 |
+| L-INTEROP-049 | A name of a with block used after its end | 3004 @15 |
+| L-INTEROP-050 | An owner of an opaque type assigned with no move | 3016 @15 |
+| L-INTEROP-054 | A macro name called without the bang | 3004 @10 |
+| L-INTEROP-058 | An opaque structure declared twice | 3003 @11 |
+| L-INTEROP-059 | An opaque structure and a structure with the same name | 3003 @11 |
+| L-INTEROP-063 | A borrowed opaque value returned by value | 3018 @12 |
+
+### Macros and the C border: known_gap
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-INTEROP-021 | A call of a macro that the compiler does not define | gap: NEW, rule: reject, issue #241 |
+| L-INTEROP-040 | An opaque structure is built with a struct literal | gap: NEW, rule: reject, issue #239 |
+| L-INTEROP-041 | A field of an opaque structure is read | gap: NEW, rule: reject, issue #239 |
+| L-INTEROP-042 | An operator is applied to two opaque values | gap: NEW, rule: reject, issue #239 |
+| L-INTEROP-043 | A static_assert macro of a false condition | gap: NEW, rule: reject, issue #240 |
+| L-INTEROP-044 | A compile_error macro call | gap: NEW, rule: reject, issue #240 |
+| L-INTEROP-045 | A print macro with fewer values than the format text needs | gap: NEW, rule: reject, issue #241 |
+| L-INTEROP-046 | A print macro with a number as the format text | gap: 3011, rule: reject, issue #241 |
+| L-INTEROP-047 | An assert macro with a number as the condition | gap: 3011, rule: reject, issue #241 |
+| L-INTEROP-048 | A raw pointer local outside an unsafe block | gap: NEW, rule: reject, issue #190 |
+| L-INTEROP-051 | An owner of an opaque type is used after it moved | gap: NEW, rule: reject, issue #198 |
+| L-INTEROP-052 | A print macro with no argument | gap: NEW, rule: reject, issue #241 |
+| L-INTEROP-053 | An unreachable macro with an argument | gap: NEW, rule: reject, issue #241 |
+| L-INTEROP-055 | A log macro with a level that does not exist | gap: NEW, rule: reject, issue #241 |
+| L-INTEROP-056 | A macro that gives no value used as a value | gap: 3011, rule: reject, issue #241 |
+| L-INTEROP-057 | A structure with an opaque field held by value | gap: NEW, rule: reject, issue #239 |
+| L-INTEROP-061 | A format macro result returned as an integer | gap: 3011, rule: reject, issue #241 |
+| L-INTEROP-062 | An include_text macro with a number as the path | gap: NEW, rule: reject, issue #241 |
+
 ## Diagnostics
 
 The catalogue raises no diagnostic of its own. A `reject` item carries a code of another stage:

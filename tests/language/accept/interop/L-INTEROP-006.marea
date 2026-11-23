@@ -1,0 +1,20 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An owner of an opaque type held in a local and passed as a borrow.
+
+namespace main;
+
+import c.vulkan;
+
+opaque structure Texture;
+
+function present(texture: Texture)
+    vulkan.present(texture);
+end
+
+function show()
+    local texture: owned<Texture> = vulkan.create_texture();
+    present(texture);
+end

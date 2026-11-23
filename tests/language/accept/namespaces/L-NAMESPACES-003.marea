@@ -1,0 +1,11 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- main has no fixed signature: one number parameter and a float result.
+
+namespace main;
+
+function main(value: sinteger32): float64
+    return 1.5;
+end
