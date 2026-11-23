@@ -60,7 +60,9 @@ A `PARAMETER` no longer carries `MUTABLE` on its own raw AST node (the retired `
 parameter keywords used to set it there); it is set on the `PARAMETER` IR node instead from the
 ownership mode sema already computed for it (`MAREA_SemaTypedNodeGetOwnershipMode`), which is
 `MUTABLE_BORROW` exactly when the parameter's effective `semantics` attribute is
-`reference_mutable` - the default for a non-primitive type with no attribute written.
+`reference_mutable` - the default for a non-primitive type with no attribute written. The other modes
+(`VALUE`, `BORROW`) both leave the flag clear, so the ir does not tell a by-value parameter from a read-only borrow:
+a backend reads that from the type, and there is no other flag for it (see Gaps).
 
 The type name is the head name of the written type, with no type arguments (`array<sinteger32>` gives
 `array`; a dotted name is kept whole). A `FUNCTION_TYPE` gives none. It is set on: `CONSTANT_DECLARATION`,
@@ -167,12 +169,20 @@ not a flag on `CALL_EXPRESSION`, because a flag would print in the dump as a raw
 - **`CONSTRUCT_CALL`** is `Type(args)`. Its type name is the written name of the structure or enum that is
   constructed. Its one child is an `ARGUMENT_LIST`: the written arguments first, then the lowered default of each
   trailing parameter the call omitted, read from the parameter list of the type's own `construct` operator, the way
-  an ordinary call fills its defaults. A type with no `construct` gets an empty `ARGUMENT_LIST`. A local or a parameter
+  an ordinary call fills its defaults. A type with no `construct` gets an empty `ARGUMENT_LIST`. The ir finds the
+  structure or enum by name among the declarations of the same unit; a `Type(args)` of a type it cannot find there
+  stays an ordinary `CALL_EXPRESSION` (see Gaps). The ir does not place a zero fill in front of the call: the
+  language spec zeroes the value before `construct` runs, and that stays the backend's job, read from the type name
+  (see Zero-default creation). A local or a parameter
   of the enclosing function that hides the type name stops the match, as for an ordinary call. `Point(1)` with
   `construct(x: sinteger32 = 0, y: sinteger32 = 0)` lowers to `(CONSTRUCT_CALL :Point (ARGUMENT_LIST (INTEGER_LITERAL 1)
   (INTEGER_LITERAL 0)))`.
 - **`DESTROY_CALL`** is the cleanup of one local. Its text is the qualified destroy function (`Box.drop`), and its
-  one child is an `IDENTIFIER` that names the local, for a backend to bind as the receiver.
+  one child is an `IDENTIFIER` that names the local, for a backend to bind as the receiver. The node has no other
+  argument and no result, because sema rejects a `destroy` that takes a parameter or returns a value
+  (`LIFECYCLE_OPERATOR_BAD_SHAPE`, 3029) and a direct call of `construct` or `destroy`
+  (`LIFECYCLE_OPERATOR_CALLED_DIRECTLY`, 3027). The ir does not check either again, so these two kinds are the only
+  place where a lifecycle function is called.
 
 A local is destructible when the type name it was declared with is the type of an `implementation` that holds a
 function with `#[operator = "destroy"]`. Every `BLOCK` that declares such a local directly (a function body, a
@@ -510,6 +520,12 @@ Each diagnostic carries the position of the construct that raised it.
   block, is never destroyed on any branch. A parameter is never destroyed (it is a borrow, or the caller owns it). The `Type{...}` literal still lowers as a `LITERAL_VALUE` and
   does not call `construct`. The destroy of a type is found by its written name among the `implementation` blocks of
   the same unit only: a type declared in another namespace is not found (the same cross-module gap as Aliases).
+- A `PARAMETER` has one ownership bit in the IR, the `MUTABLE` flag. A by-value parameter and a read-only borrow
+  both read as no flag, and a `semantics` value is not kept in the tree.
+- `Type(args)` lowers to a `CONSTRUCT_CALL` only when the structure or enum is declared in the same unit. A type of
+  another namespace, reached by import, stays an ordinary `CALL_EXPRESSION` and has no destroy found either, the
+  same cross-module gap as Aliases. The `Type{...}` form, which the language spec says also runs `construct` with its
+  defaults, does not lower to a `CONSTRUCT_CALL` (see the destroy bullet above).
 - Generics, and every macro other than a statement `unreachable!()`, are not lowered. The matching declaration is left out of the module, and only its first gap is reported.
 - A `FORK_JOIN_BLOCK` says that the workers end before the node ends, and a `PARTITION_STATEMENT` says that the
   parts are disjoint, but the IR holds nothing else about them: no part count check (a count of zero or less

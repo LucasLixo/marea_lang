@@ -6,7 +6,7 @@ description: Global policy for agents working in the Marea Lang repository - sco
 # Marea Lang
 
 A statically-typed, high-performance scripting language of its own, for general use together with C. It is written in
-C11 on a modern CMake setup, explicit fixed-width types, `structure`, `enum` and explicit
+C11 on a modern CMake setup, with explicit fixed-width types, `structure`, `enum` and explicit
 function types checked once at compile time and fully erased before code generation, compiled from one IR to bytecode
 for a reference interpreter or to C11, with scoped memory and static ownership rules, and one C macro that registers
 a function for the language runtime, with no external generator and no hand-written glue on any side.
@@ -34,10 +34,15 @@ programs are in [examples](examples).
   backend built with clang or gcc (maximum performance). Both must give the same observable behavior, and a parity
   test runs every example through both. There is no JIT. Hot reload is not a language feature: the host reloads
   modules through a small C module API (load, unload, interface hash, find by name).
-- **No standard library.** The language core has primitives, `string` literals, `structure`, `enum`, function types,
-  `vector<T, N>`, `pointer<T>`, `owned<T>`, `slice<T>` and `task<T>`. Every other type (array, table, handle, arena,
-  text, io) is a library written in C or in the language. Only the namespace `c` is reserved, and `c.*` is a literal
-  border with C that the language never replaces. A host can replace a library or runtime function from C.
+- **No standard library.** The core has the primitives, `structure`, `enum` and function types. Every other type
+  (`array`, `vector`, `pointer`, `owned`, `slice`, `task`, `string`, and later table, handle, arena, text, io) is a
+  library, imported under one of two reserved first segments: `c.{lib}`, a thin border with C registered through the
+  one C registration macro that the language never replaces, and `marea.{lib}`, the libraries the Marea project ships,
+  written in Marea. For now `array`, `vector`, `pointer`, `owned`, `slice`, `task` and `string` all stay under
+  `c.{lib}`, until a real `marea.{lib}` library exists. A host can replace a library or runtime function from C.
+- **Entry point.** `main` is an ordinary function in `sema`: it has no fixed signature and none is required to exist,
+  so a host that drives its own lifecycle needs no `main`. The fixed shape (`arguments: array<string>`, result
+  `integer32`) belongs to a future standalone driver, which does not exist yet.
 - **Memory is scoped (regions) with static ownership rules.** Every non-primitive value has one owner. A primitive or
   a `#[value]` type passes by value; any other type is a read-only borrow, or a write borrow with `mutable`. A
   reference lives only for one call and is never stored or returned, so there is no lifetime analysis. Data goes up to
@@ -99,9 +104,9 @@ committed; create the file when it is missing.
 ## Versioning
 
 SemVer, judged against the public API: break => major, additive => minor, no API impact => patch. A pure
-structural refactor that keeps the public API byte-identical is **patch**, not major. There is no `metadata.yaml`
-yet - create it, with a `build` field as a monotonic counter independent of the other three, before the first
-version bump.
+structural refactor that keeps the public API byte-identical is **patch**, not major. The version lives in
+[metadata.yaml](metadata.yaml); its `build` field is a monotonic counter independent of the other three, bumped once
+per commit by `generate-commit`.
 
 ## Where the rules live
 
