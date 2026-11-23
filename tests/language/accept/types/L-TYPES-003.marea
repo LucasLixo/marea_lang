@@ -1,0 +1,25 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A nested struct literal and a nested field read.
+
+namespace main;
+
+structure Point
+    x: float64;
+    y: float64;
+end
+
+structure Shape
+    center: Point;
+    width: float64;
+end
+
+function make(): Shape
+    return Shape{ center = Point{ x = 1.0, y = 2.0 }, width = 3.0 };
+end
+
+function center_x(shape: Shape): float64
+    return shape.center.x;
+end

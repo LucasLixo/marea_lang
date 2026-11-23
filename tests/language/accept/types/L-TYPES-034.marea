@@ -1,0 +1,19 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An enum with a tag type of each integer width.
+
+namespace main;
+
+enum A : sinteger8
+    One;
+end
+
+enum B : uinteger16
+    One;
+end
+
+enum C : sinteger64
+    One;
+end

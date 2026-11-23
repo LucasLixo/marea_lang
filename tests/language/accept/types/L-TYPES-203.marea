@@ -1,0 +1,13 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A name that starts with a primitive type name.
+
+namespace main;
+
+function run(): sinteger32
+    local sinteger32_count: sinteger32 = 1;
+    local string_value: sinteger32 = 2;
+    return sinteger32_count + string_value;
+end

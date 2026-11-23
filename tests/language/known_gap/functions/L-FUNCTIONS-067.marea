@@ -1,0 +1,17 @@
+-- gap: #215 3011
+-- rule: reject
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- The result of a function with no result used as a value.
+
+namespace main;
+
+function log_line(text: string)
+    return;
+end
+
+function run(): sinteger32
+    local value: sinteger32 = log_line("x");
+    return value;
+end

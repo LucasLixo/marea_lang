@@ -1,0 +1,19 @@
+-- expect: 3029 @16
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A destroy function with a parameter.
+
+namespace main;
+
+structure Point
+    x: float64;
+    y: float64;
+end
+
+implementation Point
+    #[operator = "destroy"]
+    function release(value: sinteger32)
+        return;
+    end
+end

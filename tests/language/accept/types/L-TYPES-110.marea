@@ -1,0 +1,19 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A generic function with a where clause for two parameters.
+
+namespace main;
+
+contract Comparable
+    function less(self: Self, other: Self): boolean;
+end
+
+contract Hashable
+    function hash(self: Self): sinteger32;
+end
+
+function mix<Item, Key>(item: Item, key: Key): sinteger32 where Item: Comparable and Key: Hashable
+    return key.hash();
+end

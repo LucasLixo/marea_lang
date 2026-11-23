@@ -1,0 +1,17 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A function with a constant default and a file constant.
+
+namespace main;
+
+constant LIMIT: sinteger32 = 10;
+
+function clamp(value: sinteger32, limit: sinteger32 = LIMIT): sinteger32
+    if value > limit then
+        return limit;
+    end
+    end
+    return value;
+end

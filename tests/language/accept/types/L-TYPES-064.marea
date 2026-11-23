@@ -1,0 +1,18 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A switch over a character.
+
+namespace main;
+
+function name(letter: character): sinteger32
+    switch letter
+        case 'a' then
+            return 1;
+        end
+        default then
+            return 0;
+        end
+    end
+end

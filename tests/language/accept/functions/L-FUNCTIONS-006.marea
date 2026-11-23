@@ -1,0 +1,17 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A default parameter value, a call with and a call without the argument.
+
+namespace main;
+
+function scale(value: sinteger32, factor: sinteger32 = 2): sinteger32
+    return value * factor;
+end
+
+function run(): sinteger32
+    local first: sinteger32 = scale(3);
+    local second: sinteger32 = scale(3, 4);
+    return first + second;
+end

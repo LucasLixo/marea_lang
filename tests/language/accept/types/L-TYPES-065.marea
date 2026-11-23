@@ -1,0 +1,15 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A switch with only a default arm.
+
+namespace main;
+
+function name(value: sinteger32): sinteger32
+    switch value
+        default then
+            return 0;
+        end
+    end
+end

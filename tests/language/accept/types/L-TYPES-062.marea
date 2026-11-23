@@ -1,0 +1,21 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A switch over an integer with a default and many values.
+
+namespace main;
+
+function day_kind(day: sinteger32): sinteger32
+    switch day
+        case 6, 7 then
+            return 1;
+        end
+        case 1, 2, 3, 4, 5 then
+            return 2;
+        end
+        default then
+            return 0;
+        end
+    end
+end

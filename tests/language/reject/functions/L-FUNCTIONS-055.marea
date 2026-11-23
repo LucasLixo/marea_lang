@@ -1,0 +1,14 @@
+-- expect: 3011 @12
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An arithmetic operator on an integer and a float.
+
+namespace main;
+
+function run(): sinteger32
+    local count: sinteger32 = 1;
+    local ratio: float64 = 2.0;
+    local total: sinteger32 = count + ratio;
+    return total;
+end

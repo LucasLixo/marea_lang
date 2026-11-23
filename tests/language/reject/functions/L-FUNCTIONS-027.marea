@@ -1,0 +1,15 @@
+-- expect: 3010 @14
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A call with too many arguments.
+
+namespace main;
+
+function add(left: sinteger32, right: sinteger32): sinteger32
+    return left + right;
+end
+
+function run(): sinteger32
+    return add(1, 2, 3);
+end

@@ -1,0 +1,17 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An enum passed by value and compared with not equal.
+
+namespace main;
+
+enum Color
+    Red;
+    Green;
+    Blue;
+end
+
+function other(color: Color, wanted: Color): boolean
+    return color != wanted;
+end

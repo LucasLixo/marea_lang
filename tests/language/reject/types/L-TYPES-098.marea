@@ -1,0 +1,13 @@
+-- expect: 3009 @9, 3009 @10
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An implementation of a type that does not exist.
+
+namespace main;
+
+implementation Missing
+    function run(self: Missing)
+        return;
+    end
+end

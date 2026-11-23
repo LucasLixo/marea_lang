@@ -1,0 +1,11 @@
+-- expect: 3004 @9
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A default value that names an undeclared constant.
+
+namespace main;
+
+function scale(value: sinteger32, factor: sinteger32 = MISSING): sinteger32
+    return value * factor;
+end

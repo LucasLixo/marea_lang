@@ -1,0 +1,18 @@
+-- expect: 3016 @17
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A structure assigned from a name with no copy or move.
+
+namespace main;
+
+structure Point
+    x: float64;
+    y: float64;
+end
+
+function run()
+    local first: Point = Point{ x = 0.0, y = 0.0 };
+    local second: Point = Point{ x = 1.0, y = 1.0 };
+    second = first;
+end
