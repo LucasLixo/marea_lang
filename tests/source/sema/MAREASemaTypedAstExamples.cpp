@@ -236,6 +236,35 @@ namespace
             }
         }
     }
+
+    // The fixture signatures of the library members the examples use, keyed by the canonical "c.<library>" namespace.
+    const MAREA_SemaSignatureParameter MAREA_FIXTURE_FILLED_PARAMETERS[1] = { { "float32", 7 } };
+    const MAREA_SemaSignature MAREA_FIXTURE_SELF_SIGNATURE{ MAREA_FIXTURE_FILLED_PARAMETERS, 1, "Self", 4 };
+    const MAREA_SemaSignature MAREA_FIXTURE_ITEM_SIGNATURE{ nullptr, 0, "Item", 4 };
+    const MAREA_SemaSignature MAREA_FIXTURE_VOID_SIGNATURE{ MAREA_FIXTURE_FILLED_PARAMETERS, 1, "void", 4 };
+
+    void MAREA_CALL MAREA_fixtureSignatureThunk(MAREA_Null, const MAREA_Character8 *namespaceText, MAREA_IntegerSize namespaceLength, const MAREA_Character8 *memberText, MAREA_IntegerSize memberLength, MAREA_SemaImportResult *outResult, const MAREA_SemaSignature **outSignature)
+    {
+        const std::string LIBRARY(namespaceText, namespaceLength);
+
+        const std::string MEMBER(memberText, memberLength);
+
+        *outSignature = nullptr;
+
+        *outResult = MAREA_SEMA_IMPORT_RESULT_FOUND;
+
+        if ((LIBRARY == "c.array") && (MEMBER == "filled")) {
+            *outSignature = &MAREA_FIXTURE_SELF_SIGNATURE;
+        } else if ((LIBRARY == "c.array") && (MEMBER == "append")) {
+            *outSignature = &MAREA_FIXTURE_VOID_SIGNATURE;
+        } else if ((LIBRARY == "c.array") && (MEMBER == "sum")) {
+            *outSignature = &MAREA_FIXTURE_ITEM_SIGNATURE;
+        } else if ((LIBRARY == "c.task") && (MEMBER == "result")) {
+            *outSignature = &MAREA_FIXTURE_ITEM_SIGNATURE;
+        } else {
+            *outResult = MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
+        }
+    }
 } // namespace
 
 TEST(MAREASemaTypedAstExamples, EveryExpressionOfEveryExampleHasATypeOrIsCounted)
@@ -283,6 +312,8 @@ TEST(MAREASemaTypedAstExamples, EveryExpressionOfEveryExampleHasATypeOrIsCounted
     for (const MAREA_ExampleFile &file : FILES) {
         MAREA_SemaFixture fixture(RESOLVE);
 
+        ASSERT_EQ(MAREA_SemaImportResolverSetSignatureFunction(fixture.resolver, &MAREA_fixtureSignatureThunk), MAREA_SEMA_EXCEPT_SUCCESS);
+
         ASSERT_EQ(fixture.MAREA_sema(file.source, file.relativePath), MAREA_SEMA_EXCEPT_SUCCESS) << "The check of " << file.relativePath << " must succeed.";
 
         ASSERT_EQ(fixture.MAREA_errorCount(), MAREA_INTEGER_SIZE(0)) << "The example " << file.relativePath << " must check with zero errors.";
@@ -322,7 +353,7 @@ TEST(MAREASemaTypedAstExamples, EveryExpressionOfEveryExampleHasATypeOrIsCounted
     EXPECT_EQ(FILES.size(), std::size_t{ 23 }) << "The sweep must cover the 23 examples.";
 
     // The ceiling is the count that the documented no-type cases leave (see "Gaps" of the sema doc); a regression raises it. The literals are typed by their own rule and every one of them has a type, so none is in this count.
-    EXPECT_LE(total.untypedOperations, std::size_t{ 86 }) << "Expressions other than literals with no resolved type must not grow past the documented cases.";
+    EXPECT_LE(total.untypedOperations, std::size_t{ 79 }) << "Expressions other than literals with no resolved type must not grow past the documented cases.";
 
     // The names that only qualify a member are not counted above, so a qualifier that stopped being one would raise the count above or fall here.
     EXPECT_GE(total.qualifiers, std::size_t{ 36 }) << "The examples hold at least 36 names that only qualify a member.";

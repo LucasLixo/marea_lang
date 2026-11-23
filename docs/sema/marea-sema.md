@@ -112,6 +112,23 @@ and primitive fit rule as `MAREA_SemaCheckExpressionFit`. The call is then typed
 result spelling. The member or name itself (`puts` before the call, `power` used with no call) stays
 untyped: only the call gets the signature's result.
 
+### Members of a library type
+
+The same signature function also types a call on a member of a library type: array, vector, slice, pointer, owned,
+task and table, written bare or under the reserved `c`. Sema keeps one fixed shape per library (the canonical
+namespace `c.<name>` and its generic parameter names) and asks the function with that namespace and the member
+name, never with the namespace an import gave the name. Two call shapes are read: a static call on the type
+itself (`array<float32, 16>.filled(0.0)`, `c.array<sinteger32>.filled(8, 0)`) and an instance call on a value whose
+type peels down to one of these types (`tasks.append(x)`, `item.result()`, `product.sum()`), following a generic
+parameter a frame fills, `Self`, a local alias and `owned<T>`. A result spelled `Self` is the receiver's own
+type. A result spelled with a generic parameter of the library (array: `Item`, `Count`; table: `Key`, `Value`;
+the others: `Item`) is the receiver's type argument at that place, read in the receiver's own frame; a size
+argument is not a type, so `Count` leaves the call untyped. Any other spelling is the literal result, as for an
+`EXTERNAL` call. The arguments of such a call are not checked against the signature. The index of a `table<K, V>`
+is typed with `V` by the structure alone (no signature is asked), as the element of an array is. With no signature
+function, a receiver that is not one of these types or a member the function does not know, nothing changes: the
+call stays untyped and no diagnostic is raised.
+
 ## Rules
 
 **Integer names.** The primitive integers are `sinteger8`, `sinteger16`, `sinteger32`, `sinteger64`, `uinteger8`,
@@ -608,8 +625,8 @@ or rejects.
   spelled by what is written and the import alias rule, with no qualifier added; a type that a `FOUND` namespace
   declares is spelled with the last segment of that namespace instead (see "Members of a FOUND namespace").
 - An expression with no resolved type (checked on the 23 examples, 866 expression nodes, 36 of them qualifier names
-  that are not values and are counted on their own, 86 of the rest with no type, with no signature function given
-  to the sweep's resolver - see "Signature of an EXTERNAL member" above). The cases that stay without a
+  that are not values and are counted on their own, 79 of the rest with no type, with a fixture signature function that answers
+  `filled`, `append`, `sum` and `result` - see "Members of a library type" above; 84 with none). The cases that stay without a
   type: the name of a `for`, `for each`, `partition` or `with` statement when the type that decides it has none
   (`pixels` of `with vulkan.map_texture(texture) as pixels`, the counter of a range with a bound such as
   `slice.length(pixels) - 1`), and every expression made from it; the key of a `for each` over any other collection,
@@ -617,13 +634,13 @@ or rejects.
   with no signature known for it (`stdio.puts(text)`, `vulkan.present(swapchain, texture)`, `square_root(x)`), or
   from a `FOUND` namespace but is not a public function or constant, or that gives no type arguments to a generic one
   of these (see "Members of a FOUND namespace"); a method or a field read on a result typed from a `FOUND` namespace,
-  because such a lookup stays in the file being built; a method or an element of a library type (`table<K, V>`,
-  `c.array`, `task`, `slice.length`) and an intrinsic of `array<T, N>`; a method call on a generic-parameter receiver
+  because such a lookup stays in the file being built; a member of a library type the signature function does not know,
+  a static call whose receiver is a bare name (`slice.length(pixels)`, `table.length(scores)`) and a size result; a method call on a generic-parameter receiver
   whose own where clause lists no contract that declares the member, and a call of a generic function of the file
   whose type arguments are only inferred when the unification finds nothing to bind, the bindings disagree, or the
   result is not itself one bound bare parameter (see "Inferred type arguments" and "A method on a generic receiver"
   for the cases now resolved); the
-  static functions of a generic name (`array<float32, 16>.filled(0.0)`); the built-in `convert`, `size_of` and
+  built-in `convert`, `size_of` and
   `align_of` as names (the call has a type, the name has none); every `MACRO_CALL` and `GENERIC_NAME`. The `ir`
   stage decides what to do with each of these.
 - A binary operation has the type of its operands even when an operator function of the structure declares another
