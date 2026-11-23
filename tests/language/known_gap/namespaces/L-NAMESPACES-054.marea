@@ -1,0 +1,14 @@
+-- gap: #237 NEW
+-- rule: reject
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An import alias named like a built-in macro.
+
+namespace main;
+
+import c.stdio as print;
+
+function check()
+    print.puts("x");
+end

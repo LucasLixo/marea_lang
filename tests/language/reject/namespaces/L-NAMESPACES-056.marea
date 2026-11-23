@@ -1,0 +1,12 @@
+-- expect: 3007 @9
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Two visibility values on one function conflict.
+
+namespace main;
+
+#[visibility = public, visibility = private]
+function check()
+    local v: sinteger32 = 1;
+end

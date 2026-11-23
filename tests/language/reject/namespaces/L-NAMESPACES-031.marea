@@ -1,0 +1,13 @@
+-- expect: 3003 @11
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An import name clashes with a function of the namespace.
+
+namespace main;
+
+import c.stdio;
+
+function stdio(): sinteger32
+    return 1;
+end

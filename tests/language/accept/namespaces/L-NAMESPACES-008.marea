@@ -1,0 +1,13 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A c import renamed by as.
+
+namespace main;
+
+import c.stdio as output;
+
+function show()
+    output.puts("hello");
+end

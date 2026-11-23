@@ -1,0 +1,11 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- main is an ordinary function with no parameter and an integer result.
+
+namespace main;
+
+function main(): sinteger32
+    return 0;
+end

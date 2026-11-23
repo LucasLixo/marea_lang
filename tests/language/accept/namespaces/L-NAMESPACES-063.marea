@@ -1,0 +1,18 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A private field of a public structure read inside its own namespace.
+
+namespace main;
+
+#[visibility = public]
+structure Box
+    #[visibility = private]
+    value: sinteger32;
+end
+
+function check(): sinteger32
+    local box: Box = Box{ value = 1 };
+    return box.value;
+end

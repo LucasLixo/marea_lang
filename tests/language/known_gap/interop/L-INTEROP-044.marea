@@ -1,0 +1,10 @@
+-- gap: #240 NEW
+-- rule: reject
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A compile_error macro call.
+
+namespace main;
+
+compile_error!("stop");

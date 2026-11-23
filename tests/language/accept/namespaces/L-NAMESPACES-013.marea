@@ -1,0 +1,15 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Two imports with different local names.
+
+namespace main;
+
+import c.stdio;
+import c.math;
+
+function check(): float64
+    stdio.puts("x");
+    return math.sqrt(4.0);
+end
