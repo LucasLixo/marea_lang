@@ -549,3 +549,372 @@ TEST(MAREASemaTypedAst, CopyExpressionOwnershipIsCopy)
 
     EXPECT_EQ(MAREA_SemaTypedNodeGetOwnershipMode(copyExpression), MAREA_SEMA_OWNERSHIP_MODE_COPY) << "A copy expression must carry ownership mode COPY.";
 }
+
+namespace
+{
+    // Builds the typed tree of a checked source and reads the resolved type of the first node of a kind.
+    struct MAREA_ResolvedTypeResult
+    {
+        MAREA_SemaTypedAstExcept except{ MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NULL_POINTER };
+        std::string text;
+        bool found{ false };
+    };
+
+    MAREA_ResolvedTypeResult MAREA_resolvedTypeOf(MAREA_SemaFixture &fixture, const std::string &source, MAREA_AstKind kind)
+    {
+        MAREA_ResolvedTypeResult result;
+
+        if ((fixture.MAREA_sema(source) != MAREA_SEMA_EXCEPT_SUCCESS) || (fixture.MAREA_errorCount() != MAREA_INTEGER_SIZE(0))) {
+            return result;
+        }
+
+        const MAREA_SemaTypedNode *root{ nullptr };
+
+        if (MAREA_SemaBuildTypedAst(fixture.context, fixture.parser.root, &root) != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) {
+            return result;
+        }
+
+        const MAREA_SemaTypedNode *node{ MAREA_findTypedNodeByKind(root, kind) };
+
+        if (node == nullptr) {
+            return result;
+        }
+
+        result.found = true;
+
+        const MAREA_Character8 *text{ nullptr };
+
+        MAREA_IntegerSize length{ 0 };
+
+        result.except = MAREA_SemaTypedNodeGetResolvedType(node, &text, &length);
+
+        if (result.except == MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) {
+            result.text = std::string(text, length);
+        }
+
+        return result;
+    }
+
+    const MAREA_SemaImportResult MAREA_EXTERNAL_RESULT{ MAREA_SEMA_IMPORT_RESULT_EXTERNAL };
+} // namespace
+
+TEST(MAREASemaTypedAst, ResolvedTypeOfParameterKeepsTypeArgumentsWithoutSpaces)
+{
+    GTEST_COUT << "Validating a parameter with a size argument gives the canonical text with no space." << std::endl;
+
+    MAREA_SemaFixture fixture;
+
+    const MAREA_ResolvedTypeResult RESULT{ MAREA_resolvedTypeOf(fixture, "namespace main; function f(a: array<sinteger32, 4>) end", MAREA_AST_KIND_PARAMETER) };
+
+    ASSERT_TRUE(RESULT.found) << "The parameter must be in the typed tree.";
+
+    ASSERT_EQ(RESULT.except, MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "A parameter has a resolved type.";
+
+    EXPECT_EQ(RESULT.text, "array<sinteger32,4>") << "Type arguments must be joined by a comma with no space.";
+}
+
+TEST(MAREASemaTypedAst, ResolvedTypeOfLocalKeepsTypeArguments)
+{
+    GTEST_COUT << "Validating a local declaration gives the canonical text of its written type." << std::endl;
+
+    MAREA_SemaFixture fixture;
+
+    const MAREA_ResolvedTypeResult RESULT{ MAREA_resolvedTypeOf(fixture, "namespace main; function f() local a: array<sinteger32, 4>; end", MAREA_AST_KIND_LOCAL_DECLARATION) };
+
+    ASSERT_TRUE(RESULT.found) << "The local must be in the typed tree.";
+
+    ASSERT_EQ(RESULT.except, MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "A local has a resolved type.";
+
+    EXPECT_EQ(RESULT.text, "array<sinteger32,4>") << "A local must give array<sinteger32,4>.";
+}
+
+TEST(MAREASemaTypedAst, ResolvedTypeOfFieldIsItsWrittenType)
+{
+    GTEST_COUT << "Validating a structure field gives the canonical text of its type." << std::endl;
+
+    MAREA_SemaFixture fixture;
+
+    const MAREA_ResolvedTypeResult RESULT{ MAREA_resolvedTypeOf(fixture, "namespace main; structure Point x: float32; end structure Line points: vector<Point>; end", MAREA_AST_KIND_FIELD_DECLARATION) };
+
+    ASSERT_TRUE(RESULT.found) << "The field must be in the typed tree.";
+
+    ASSERT_EQ(RESULT.except, MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "A field has a resolved type.";
+
+    EXPECT_EQ(RESULT.text, "float32") << "The first field in tree order must give float32.";
+}
+
+TEST(MAREASemaTypedAst, ResolvedTypeOfFieldWithTypeArgumentIsCanonical)
+{
+    GTEST_COUT << "Validating a field whose type has a user type argument gives vector<Point>." << std::endl;
+
+    MAREA_SemaFixture fixture;
+
+    const MAREA_ResolvedTypeResult RESULT{ MAREA_resolvedTypeOf(fixture, "namespace main; structure Line points: vector<Point>; end structure Point x: float32; end", MAREA_AST_KIND_FIELD_DECLARATION) };
+
+    ASSERT_EQ(RESULT.except, MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "A field has a resolved type.";
+
+    EXPECT_EQ(RESULT.text, "vector<Point>") << "A user type argument must be kept.";
+}
+
+TEST(MAREASemaTypedAst, ResolvedTypeOfVariantFieldIsItsWrittenType)
+{
+    GTEST_COUT << "Validating an enum variant field gives the canonical text of its type." << std::endl;
+
+    MAREA_SemaFixture fixture;
+
+    const MAREA_ResolvedTypeResult RESULT{ MAREA_resolvedTypeOf(fixture, "namespace main; enum Shape Dot; Circle(radius: float32 = 1.0); end", MAREA_AST_KIND_VARIANT_FIELD) };
+
+    ASSERT_TRUE(RESULT.found) << "The variant field must be in the typed tree.";
+
+    ASSERT_EQ(RESULT.except, MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "A variant field has a resolved type.";
+
+    EXPECT_EQ(RESULT.text, "float32") << "The variant field must give float32.";
+}
+
+TEST(MAREASemaTypedAst, ResolvedTypeOfConstantIsItsWrittenType)
+{
+    GTEST_COUT << "Validating a file constant gives the canonical text of its type." << std::endl;
+
+    MAREA_SemaFixture fixture;
+
+    const MAREA_ResolvedTypeResult RESULT{ MAREA_resolvedTypeOf(fixture, "namespace main; constant MAX: sinteger32 = 100;", MAREA_AST_KIND_CONSTANT_DECLARATION) };
+
+    ASSERT_TRUE(RESULT.found) << "The constant must be in the typed tree.";
+
+    ASSERT_EQ(RESULT.except, MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "A constant has a resolved type.";
+
+    EXPECT_EQ(RESULT.text, "sinteger32") << "The constant must give sinteger32.";
+}
+
+TEST(MAREASemaTypedAst, ResolvedTypeOfFunctionIsItsResult)
+{
+    GTEST_COUT << "Validating a function declaration gives the canonical text of its result type." << std::endl;
+
+    MAREA_SemaFixture fixture;
+
+    const MAREA_ResolvedTypeResult RESULT{ MAREA_resolvedTypeOf(fixture, "namespace main; function f(n: sinteger32): array<sinteger32, 4> local a: array<sinteger32, 4>; return a; end", MAREA_AST_KIND_FUNCTION_DECLARATION) };
+
+    ASSERT_TRUE(RESULT.found) << "The function must be in the typed tree.";
+
+    ASSERT_EQ(RESULT.except, MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "A function with a result has a resolved type.";
+
+    EXPECT_EQ(RESULT.text, "array<sinteger32,4>") << "The function must give the type of its result, not of a parameter.";
+}
+
+TEST(MAREASemaTypedAst, ResolvedTypeOfFunctionWithoutResultHasNoType)
+{
+    GTEST_COUT << "Validating a function with no result type returns ERROR_NO_TYPE." << std::endl;
+
+    MAREA_SemaFixture fixture;
+
+    const MAREA_ResolvedTypeResult RESULT{ MAREA_resolvedTypeOf(fixture, "namespace main; function f(n: sinteger32) end", MAREA_AST_KIND_FUNCTION_DECLARATION) };
+
+    ASSERT_TRUE(RESULT.found) << "The function must be in the typed tree.";
+
+    EXPECT_EQ(RESULT.except, MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NO_TYPE) << "A function with no result must give ERROR_NO_TYPE.";
+
+    EXPECT_TRUE(RESULT.text.empty()) << "No text is given for a function with no result.";
+}
+
+TEST(MAREASemaTypedAst, ResolvedTypeOfNodeThatDeclaresNoTypeIsNoType)
+{
+    GTEST_COUT << "Validating a node that does not declare a type returns ERROR_NO_TYPE and clears the outputs." << std::endl;
+
+    MAREA_SemaFixture fixture;
+
+    const MAREA_ResolvedTypeResult RESULT{ MAREA_resolvedTypeOf(fixture, "namespace main; function f(n: sinteger32) return; end", MAREA_AST_KIND_BLOCK) };
+
+    ASSERT_TRUE(RESULT.found) << "The block must be in the typed tree.";
+
+    EXPECT_EQ(RESULT.except, MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NO_TYPE) << "A block must give ERROR_NO_TYPE.";
+}
+
+TEST(MAREASemaTypedAst, ResolvedTypeClearsTheOutputsOnNoType)
+{
+    GTEST_COUT << "Validating the outputs are cleared when a node has no type." << std::endl;
+
+    MAREA_SemaFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; function f(n: sinteger32) end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check.";
+
+    const MAREA_SemaTypedNode *root{ nullptr };
+
+    ASSERT_EQ(MAREA_SemaBuildTypedAst(fixture.context, fixture.parser.root, &root), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "The root must build.";
+
+    const MAREA_Character8 *text{ reinterpret_cast<const MAREA_Character8 *>(0x1) };
+
+    MAREA_IntegerSize length{ 99 };
+
+    EXPECT_EQ(MAREA_SemaTypedNodeGetResolvedType(root, &text, &length), MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NO_TYPE) << "A compilation unit declares no type.";
+
+    EXPECT_EQ(text, nullptr) << "The text must be cleared.";
+
+    EXPECT_EQ(length, MAREA_INTEGER_SIZE(0)) << "The length must be cleared.";
+}
+
+TEST(MAREASemaTypedAst, ResolvedTypeIsNullSafe)
+{
+    GTEST_COUT << "Validating a null node, text or length is rejected." << std::endl;
+
+    MAREA_SemaFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; function f(n: sinteger32) end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check.";
+
+    const MAREA_SemaTypedNode *root{ nullptr };
+
+    ASSERT_EQ(MAREA_SemaBuildTypedAst(fixture.context, fixture.parser.root, &root), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "The root must build.";
+
+    const MAREA_SemaTypedNode *parameter{ MAREA_findTypedNodeByKind(root, MAREA_AST_KIND_PARAMETER) };
+
+    ASSERT_NE(parameter, nullptr) << "The parameter must be in the typed tree.";
+
+    const MAREA_Character8 *text{ nullptr };
+
+    MAREA_IntegerSize length{ 0 };
+
+    EXPECT_EQ(MAREA_SemaTypedNodeGetResolvedType(nullptr, &text, &length), MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NULL_POINTER) << "A null node must be rejected.";
+
+    EXPECT_EQ(MAREA_SemaTypedNodeGetResolvedType(parameter, nullptr, &length), MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NULL_POINTER) << "A null text pointer must be rejected.";
+
+    EXPECT_EQ(MAREA_SemaTypedNodeGetResolvedType(parameter, &text, nullptr), MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NULL_POINTER) << "A null length pointer must be rejected.";
+}
+
+TEST(MAREASemaTypedAst, ResolvedTypeOfGenericParameterIsItsName)
+{
+    GTEST_COUT << "Validating a parameter typed by a generic parameter gives the generic name." << std::endl;
+
+    MAREA_SemaFixture fixture;
+
+    const MAREA_ResolvedTypeResult RESULT{ MAREA_resolvedTypeOf(fixture, "namespace main; function same<Item>(a: Item): Item return copy a; end", MAREA_AST_KIND_PARAMETER) };
+
+    ASSERT_TRUE(RESULT.found) << "The parameter must be in the typed tree.";
+
+    ASSERT_EQ(RESULT.except, MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "A generic parameter has a resolved type.";
+
+    EXPECT_EQ(RESULT.text, "Item") << "A generic parameter must give its own name.";
+}
+
+TEST(MAREASemaTypedAst, ResolvedTypeOfFunctionTypeParameterUsesTheFunctionSpelling)
+{
+    GTEST_COUT << "Validating a parameter of a function type gives function(a,b):r with no space and no parameter name." << std::endl;
+
+    MAREA_SemaFixture fixture;
+
+    const MAREA_ResolvedTypeResult RESULT{ MAREA_resolvedTypeOf(fixture, "namespace main; function apply(op: function(left: sinteger32, right: sinteger32): sinteger32) end", MAREA_AST_KIND_PARAMETER) };
+
+    ASSERT_TRUE(RESULT.found) << "The parameter must be in the typed tree.";
+
+    ASSERT_EQ(RESULT.except, MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "A function type parameter has a resolved type.";
+
+    EXPECT_EQ(RESULT.text, "function(sinteger32,sinteger32):sinteger32") << "A function type must use the function(...) spelling.";
+}
+
+TEST(MAREASemaTypedAst, ResolvedTypeOfFunctionTypeWithoutResultOmitsTheColon)
+{
+    GTEST_COUT << "Validating a function type with no result has no colon." << std::endl;
+
+    MAREA_SemaFixture fixture;
+
+    const MAREA_ResolvedTypeResult RESULT{ MAREA_resolvedTypeOf(fixture, "namespace main; function run(op: function(text: string)) end", MAREA_AST_KIND_PARAMETER) };
+
+    ASSERT_EQ(RESULT.except, MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "A function type parameter has a resolved type.";
+
+    EXPECT_EQ(RESULT.text, "function(string)") << "A function type with no result must end after the parenthesis.";
+}
+
+TEST(MAREASemaTypedAst, ResolvedTypeOfNestedArgumentsIsCanonical)
+{
+    GTEST_COUT << "Validating nested type arguments and a function type argument are rendered whole." << std::endl;
+
+    MAREA_SemaFixture fixture;
+
+    const MAREA_ResolvedTypeResult NESTED{ MAREA_resolvedTypeOf(fixture, "namespace main; function f(a: vector<array<sinteger32, 4>>) end", MAREA_AST_KIND_PARAMETER) };
+
+    ASSERT_EQ(NESTED.except, MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "A nested type has a resolved type.";
+
+    EXPECT_EQ(NESTED.text, "vector<array<sinteger32,4>>") << "Nested arguments must keep every level.";
+}
+
+TEST(MAREASemaTypedAst, ResolvedTypeKeepsADottedNameWhole)
+{
+    GTEST_COUT << "Validating a dotted type name is kept whole, with its arguments." << std::endl;
+
+    MAREA_SemaFixture fixture([](const std::string &, const MAREA_AstNode **) { return MAREA_EXTERNAL_RESULT; });
+
+    const MAREA_ResolvedTypeResult RESULT{ MAREA_resolvedTypeOf(fixture, "namespace main; function f(a: c.array<string>) end", MAREA_AST_KIND_PARAMETER) };
+
+    ASSERT_EQ(RESULT.except, MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "A dotted type has a resolved type.";
+
+    EXPECT_EQ(RESULT.text, "c.array<string>") << "A dotted name must be kept whole.";
+}
+
+TEST(MAREASemaTypedAst, ResolvedTypeReplacesAWholePathImportAlias)
+{
+    GTEST_COUT << "Validating an import alias is replaced by the last segment of its path, with the written arguments." << std::endl;
+
+    MAREA_SemaFixture fixture([](const std::string &, const MAREA_AstNode **) { return MAREA_EXTERNAL_RESULT; });
+
+    const MAREA_ResolvedTypeResult RESULT{ MAREA_resolvedTypeOf(fixture, "namespace main; import c.collections.list as lst; function f(a: lst<sinteger32>) end", MAREA_AST_KIND_PARAMETER) };
+
+    ASSERT_EQ(RESULT.except, MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "An aliased type has a resolved type.";
+
+    EXPECT_EQ(RESULT.text, "list<sinteger32>") << "A whole-path alias must stand for the last segment of its path.";
+}
+
+TEST(MAREASemaTypedAst, ResolvedTypeReplacesAMemberImportAlias)
+{
+    GTEST_COUT << "Validating a member alias is replaced by the member path as written." << std::endl;
+
+    MAREA_SemaFixture fixture([](const std::string &, const MAREA_AstNode **) { return MAREA_EXTERNAL_RESULT; });
+
+    const MAREA_ResolvedTypeResult RESULT{ MAREA_resolvedTypeOf(fixture, "namespace main; import a.b { Color as Hue }; function f(h: Hue) end", MAREA_AST_KIND_PARAMETER) };
+
+    ASSERT_EQ(RESULT.except, MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "An aliased member has a resolved type.";
+
+    EXPECT_EQ(RESULT.text, "Color") << "A member alias must give the member path.";
+}
+
+TEST(MAREASemaTypedAst, ResolvedTypeReplacesTheHeadOfADottedNameThatIsANamespaceAlias)
+{
+    GTEST_COUT << "Validating the head of a dotted name that is an import alias is replaced and the tail kept." << std::endl;
+
+    MAREA_SemaFixture fixture([](const std::string &, const MAREA_AstNode **) { return MAREA_EXTERNAL_RESULT; });
+
+    const MAREA_ResolvedTypeResult RESULT{ MAREA_resolvedTypeOf(fixture, "namespace main; import c.collections as lst; function f(a: lst.Item) end", MAREA_AST_KIND_PARAMETER) };
+
+    ASSERT_EQ(RESULT.except, MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "A dotted aliased type has a resolved type.";
+
+    EXPECT_EQ(RESULT.text, "collections.Item") << "A namespace alias head must be replaced.";
+}
+
+TEST(MAREASemaTypedAst, ResolvedTypeFollowsALocalTypeAlias)
+{
+    GTEST_COUT << "Validating a local type alias is replaced by the type it names, with its arguments, and a chain is followed." << std::endl;
+
+    MAREA_SemaFixture fixture;
+
+    const MAREA_ResolvedTypeResult RESULT{ MAREA_resolvedTypeOf(fixture, "namespace main; structure Point x: float32; end type Grid = array<Point, 4>; type Board = Grid; function f(b: Board) end", MAREA_AST_KIND_PARAMETER) };
+
+    ASSERT_EQ(RESULT.except, MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "An aliased type has a resolved type.";
+
+    EXPECT_EQ(RESULT.text, "array<Point,4>") << "A chain of local aliases must be followed to the full type.";
+}
+
+TEST(MAREASemaTypedAst, ResolvedTypeIsTheSameOnTwoRuns)
+{
+    GTEST_COUT << "Validating two builds of one source give the same text." << std::endl;
+
+    const std::string SOURCE{ "namespace main; function f(a: vector<array<sinteger32, 4>>, op: function(x: sinteger32): boolean) end" };
+
+    MAREA_SemaFixture first;
+
+    MAREA_SemaFixture second;
+
+    const MAREA_ResolvedTypeResult ONE{ MAREA_resolvedTypeOf(first, SOURCE, MAREA_AST_KIND_PARAMETER) };
+
+    const MAREA_ResolvedTypeResult TWO{ MAREA_resolvedTypeOf(second, SOURCE, MAREA_AST_KIND_PARAMETER) };
+
+    ASSERT_EQ(ONE.except, MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "The first run must resolve.";
+
+    EXPECT_EQ(ONE.text, TWO.text) << "Two runs must give the same text.";
+}

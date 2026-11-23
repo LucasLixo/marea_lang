@@ -361,6 +361,30 @@ arguments, or the return type is a compound of a parameter (`c.array<Item>`), th
 bare parameter is tagged `GENERIC` with its name - never a guess, never a crash. Resolving a result from inferred
 type arguments is deferred to when the `ir` stage needs one for real.
 
+**Resolved type.** `MAREA_SemaTypedNodeGetResolvedType(node, &text, &length)` gives the canonical full text of the
+type that a node declares in the source, with its type arguments, so a later stage never sees only a head name. The
+text is built while the typed tree is built, lives in the arena and is not NUL terminated. Only six node kinds
+declare a type: `PARAMETER`, `LOCAL_DECLARATION`, `FIELD_DECLARATION`, `VARIANT_FIELD`, `CONSTANT_DECLARATION`
+and `FUNCTION_DECLARATION` (its result type). Any other node, a function with no result type and a written type that
+sema cannot spell return `MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NO_TYPE` and clear both outputs; the accessor never
+guesses. A null node, text or length is `ERROR_NULL_POINTER`. The accessor is read-only and gives the same text on
+every run. The canonical spelling:
+
+- Type arguments follow the name in angle brackets, joined by a comma with no space: `array<sinteger32,4>`,
+  `vector<array<sinteger32,4>>`, `vector<Point>`. An integer argument is its text.
+- A function type is `function(` the parameter types joined by a comma `)`, then `:` and the result type when there
+  is one. A parameter name is never part of it: `function(sinteger32,sinteger32):sinteger32`, `function(string)`.
+- A dotted name is kept whole: `c.array<string>`.
+- An import alias is replaced the way the `ir` does it (see [the IR doc](../ir/marea-ir.md), "Aliases"): a whole-path
+  alias by the last segment of its path, a member alias by the member path as written, and the head of a dotted name
+  that is an import alias by that original, with the tail kept. Written type arguments are kept after it: with
+  `import c.collections.list as lst;`, `lst<sinteger32>` is `list<sinteger32>`. An import without `as` stands for itself.
+- A local type alias without generic parameters, written with no type arguments, is replaced by the type it names, and
+  a chain is followed up to 8 steps, as in the `ir`. Unlike the `ir`, which keeps only the head name, the arguments of
+  the target are kept: with `type Grid = array<Point, 4>;`, `Grid` is `array<Point,4>`. A generic alias is kept as
+  written.
+- A generic parameter in scope is its own name: `Item`.
+
 ## Diagnostics
 
 | Code | Name | Example |
@@ -433,6 +457,11 @@ type arguments is deferred to when the `ir` stage needs one for real.
   a value (`point.drop()`) is not resolved, as sema does not know the type of the receiver. A bare name that no
   top-level function declares also raises `UNDECLARED_NAME` (3004), as a member is not a bare name.
 - The type of a library type is not tracked, so a missing `copy` or `move` there is not reported.
+- `MAREA_SemaTypedNodeGetResolvedType` covers the six declaring nodes only. An expression node (a literal, a binary or
+  unary operation, a member, an index, a call, a struct literal) still has no resolved type text; it has only the
+  type class, declaration and head name. A `Self` type and a generic parameter are spelled by their written name, not
+  by the type they stand for in one instantiation, and a name of another namespace is spelled by what is written
+  and the import alias rule, with no qualifier added.
 - The typed-AST hand-off substitutes a generic result only for a bare parameter with explicit type arguments; a
   result from inferred type arguments or a compound such as `c.array<Item>` keeps the raw type.
 - `DUPLICATE_SWITCH_ARM` compares a float by its text: `1.0` and `1.00` are taken for different values. A constant
