@@ -215,11 +215,11 @@ TEST(MAREAIrDeclarations, FunctionWithoutReturnTypeHasNoTypeName)
 
 TEST(MAREAIrDeclarations, MutableParameterKeepsTheMutableFlag)
 {
-    GTEST_COUT << "Validating a mutable parameter keeps only the MUTABLE flag." << std::endl;
+    GTEST_COUT << "Validating a plain structure parameter (the non-primitive default is reference_mutable) keeps only the MUTABLE flag." << std::endl;
 
     MAREA_IrFixture fixture;
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; structure Counter n: sinteger32; end function bump(c: mutable Counter) end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; structure Counter n: sinteger32; end function bump(c: Counter) end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     const MAREA_IrNode *parameters{ MAREA_irChild(MAREA_irChild(fixture.module, 1), 0) };
 

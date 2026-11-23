@@ -772,7 +772,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressions(MAREA_SemaContext *contex
     case MAREA_AST_KIND_PARAMETER:
     {
         // INFO: the default value is the optional third child, and it must fit the type of its parameter.
-        if (MAREA_AstNodeGetChildCount(node) < 3) {
+        if (MAREA_SemaParameterHasDefault(node) == MAREA_BOOLEAN_FALSE) {
             return MAREA_SEMA_EXCEPT_SUCCESS;
         }
 
@@ -796,7 +796,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressions(MAREA_SemaContext *contex
                 continue;
             }
 
-            if (MAREA_AstNodeGetChildCount(parameter) < 3) {
+            if (MAREA_SemaParameterHasDefault(parameter) == MAREA_BOOLEAN_FALSE) {
                 requiredFollows = MAREA_BOOLEAN_TRUE;
             } else if (requiredFollows == MAREA_BOOLEAN_TRUE) {
                 const MAREA_AstNode *name = MAREA_SemaChildAt(parameter, 0);

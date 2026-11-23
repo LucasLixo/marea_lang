@@ -476,11 +476,11 @@ TEST(MAREASemaTypedAst, EnumParameterOwnershipIsValue)
 
 TEST(MAREASemaTypedAst, ReadOnlyBorrowParameterOwnershipIsBorrow)
 {
-    GTEST_COUT << "Validating a read-only structure parameter has ownership mode BORROW." << std::endl;
+    GTEST_COUT << "Validating a #[semantics = reference_read_only] structure parameter has ownership mode BORROW." << std::endl;
 
     MAREA_SemaFixture fixture;
 
-    ASSERT_EQ(fixture.MAREA_sema("namespace main; structure Shape x: float32; end function f(s: Shape) end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; structure Shape x: float32; end function f(#[semantics = reference_read_only] s: Shape) end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
 
     const MAREA_SemaTypedNode *outRoot{ nullptr };
 
@@ -490,16 +490,16 @@ TEST(MAREASemaTypedAst, ReadOnlyBorrowParameterOwnershipIsBorrow)
 
     ASSERT_NE(parameter, nullptr) << "The typed tree must carry the parameter node.";
 
-    EXPECT_EQ(MAREA_SemaTypedNodeGetOwnershipMode(parameter), MAREA_SEMA_OWNERSHIP_MODE_BORROW) << "A read-only structure parameter must carry ownership mode BORROW.";
+    EXPECT_EQ(MAREA_SemaTypedNodeGetOwnershipMode(parameter), MAREA_SEMA_OWNERSHIP_MODE_BORROW) << "A reference_read_only structure parameter must carry ownership mode BORROW.";
 }
 
 TEST(MAREASemaTypedAst, MutableBorrowParameterOwnershipIsMutableBorrow)
 {
-    GTEST_COUT << "Validating a mutable structure parameter has ownership mode MUTABLE_BORROW." << std::endl;
+    GTEST_COUT << "Validating a plain structure parameter defaults to ownership mode MUTABLE_BORROW, since a non-primitive defaults to reference_mutable." << std::endl;
 
     MAREA_SemaFixture fixture;
 
-    ASSERT_EQ(fixture.MAREA_sema("namespace main; structure Shape x: float32; end function f(s: mutable Shape) end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; structure Shape x: float32; end function f(s: Shape) end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
 
     const MAREA_SemaTypedNode *outRoot{ nullptr };
 
