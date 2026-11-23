@@ -1,0 +1,11 @@
+-- expect: 2001 @10, 2005 @11
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An opaque structure has no body.
+
+namespace main;
+
+opaque structure Texture
+    width: sinteger32;
+end

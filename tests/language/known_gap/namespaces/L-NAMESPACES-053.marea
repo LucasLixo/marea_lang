@@ -1,0 +1,14 @@
+-- gap: #238 3003
+-- rule: reject
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An import alias that shadows a primitive type.
+
+namespace main;
+
+import c.foo as sinteger32;
+
+function check()
+    local value: sinteger32 = 1;
+end

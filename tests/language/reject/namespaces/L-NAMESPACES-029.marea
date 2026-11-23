@@ -1,0 +1,14 @@
+-- expect: 3003 @10
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Two imports end in the same local name.
+
+namespace main;
+
+import c.stdio;
+import c.other.stdio;
+
+function check()
+    stdio.puts("x");
+end

@@ -1,0 +1,15 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A mapped buffer is a name that lives in a with block.
+
+namespace main;
+
+import c.vulkan;
+
+function fill(texture: sinteger32)
+    with vulkan.map_texture(texture) as pixels do
+        local count: sinteger32 = 1;
+    end
+end

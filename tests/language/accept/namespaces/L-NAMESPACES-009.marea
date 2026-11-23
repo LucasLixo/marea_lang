@@ -1,0 +1,13 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- One symbol of a c library renamed by as.
+
+namespace main;
+
+import c.math.pow as power;
+
+function ten(): float64
+    return power(2.0, 10.0);
+end

@@ -1,0 +1,21 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A private constant and a private structure used inside the namespace.
+
+namespace main;
+
+#[visibility = private]
+constant LIMIT: sinteger32 = 8;
+
+#[visibility = private]
+structure Pair
+    first: sinteger32;
+    second: sinteger32;
+end
+
+function check(): sinteger32
+    local pair: Pair = Pair{ first = 1, second = LIMIT };
+    return pair.second;
+end

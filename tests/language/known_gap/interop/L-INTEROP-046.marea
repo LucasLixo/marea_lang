@@ -1,0 +1,12 @@
+-- gap: #241 3011
+-- rule: reject
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A print macro with a number as the format text.
+
+namespace main;
+
+function check()
+    print!(1, 2);
+end

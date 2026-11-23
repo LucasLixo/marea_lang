@@ -1,0 +1,13 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An opaque structure declared with no body.
+
+namespace main;
+
+opaque structure Texture;
+
+function check(): sinteger32
+    return 1;
+end
