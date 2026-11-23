@@ -238,11 +238,5 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckCompilationUnit(MAREA_SemaContext *co
         return declarationsResult;
     }
 
-    const MAREA_SemaExcept entryResult = MAREA_SemaCheckEntryPoint(context, root);
-
-    if (entryResult != MAREA_SEMA_EXCEPT_SUCCESS) {
-        return entryResult;
-    }
-
     return MAREA_SemaVisit(context, root);
 }
