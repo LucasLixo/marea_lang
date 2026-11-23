@@ -173,17 +173,173 @@ namespace
         return (kind == MAREA_AST_KIND_BINARY_EXPRESSION) || (kind == MAREA_AST_KIND_UNARY_EXPRESSION) || (kind == MAREA_AST_KIND_PARENTHESIZED_EXPRESSION) || (kind == MAREA_AST_KIND_MEMBER_ACCESS) || (kind == MAREA_AST_KIND_INDEX_ACCESS) || (kind == MAREA_AST_KIND_CALL_EXPRESSION) || (kind == MAREA_AST_KIND_LITERAL_VALUE) || (kind == MAREA_AST_KIND_GENERIC_NAME) || (kind == MAREA_AST_KIND_MACRO_CALL);
     }
 
+    // The closed list of the classes of expression node that may stay with no resolved type (see "Gaps" of the sema doc). Every other untyped expression node fails the sweep.
+    enum MAREA_UntypedClass
+    {
+        MAREA_UNTYPED_CLASS_MACRO_SUBTREE,
+        MAREA_UNTYPED_CLASS_QUALIFYING_TYPE_NAME,
+        MAREA_UNTYPED_CLASS_BUILTIN_CALLEE_NAME,
+        MAREA_UNTYPED_CLASS_UNTYPED_FUNCTION_NAME,
+        MAREA_UNTYPED_CLASS_UNTYPED_FUNCTION_MEMBER,
+        MAREA_UNTYPED_CLASS_UNTYPED_CALL,
+        MAREA_UNTYPED_CLASS_UNTYPED_LOOP_NAME,
+        MAREA_UNTYPED_CLASS_DERIVED_OPERATION,
+        MAREA_UNTYPED_CLASS_SPAWN_OF_VOID_CALL,
+        MAREA_UNTYPED_CLASS_COUNT
+    };
+
+    struct MAREA_UntypedClassInfo
+    {
+        const char *name;
+        const char *reason;
+    };
+
+    const MAREA_UntypedClassInfo MAREA_UNTYPED_CLASS_INFO[MAREA_UNTYPED_CLASS_COUNT] = {
+        { "MACRO_SUBTREE", "a MACRO_CALL and every node below it: the ir raises 4005 for a macro, and the arguments of a macro are never read for a type" },
+        { "QUALIFYING_TYPE_NAME", "a GENERIC_NAME on the left of a member access (c.array<T>.filled): a written type that qualifies a static member, not a value" },
+        { "BUILTIN_CALLEE_NAME", "an IDENTIFIER named size_of, align_of or convert that is the callee of a call: the call has the type, the name has none" },
+        { "UNTYPED_FUNCTION_NAME", "an IDENTIFIER that is the callee of a call and has no function type: power and square_root (imported by name from an EXTERNAL namespace with no signature) and maximum (a generic function)" },
+        { "UNTYPED_FUNCTION_MEMBER", "a MEMBER_ACCESS that is the callee of a call: a function or a method of an EXTERNAL namespace or of a library type, or of a generic-parameter receiver, that has no function type (the call has its own type or none)" },
+        { "UNTYPED_CALL", "a CALL_EXPRESSION whose callee has no type: nothing gives the result (an EXTERNAL function with no signature, or a library member the signature function does not know)" },
+        { "UNTYPED_LOOP_NAME", "an IDENTIFIER pixels or index: the name of a with or for statement whose deciding expression has no type, read as a value" },
+        { "DERIVED_OPERATION", "a BINARY_EXPRESSION or INDEX_ACCESS that has an operand with no type, as the root cause is already counted on its own" },
+        { "SPAWN_OF_VOID_CALL", "a UNARY_EXPRESSION whose operand is a call typed void: spawn of such a call keeps no type" },
+    };
+
+    struct MAREA_UntypedSite
+    {
+        MAREA_AstKind kind;
+        MAREA_AstKind parentKind;
+        MAREA_IntegerSize index;
+        bool insideMacro;
+        std::string name;
+    };
+
     struct MAREA_ExpressionTally
     {
         std::size_t expressions{ 0 };
         std::size_t qualifiers{ 0 };
-        std::size_t untypedLiterals{ 0 };
-        std::size_t untypedOperations{ 0 };
-        std::map<std::string, std::size_t> untypedByKind;
-        std::map<std::string, std::size_t> untypedByDetail;
+        std::size_t classCount[MAREA_UNTYPED_CLASS_COUNT]{};
+        std::vector<std::string> unclassified;
     };
 
-    void MAREA_tallyExpressions(const MAREA_SemaTypedNode *node, MAREA_AstKind parentKind, MAREA_IntegerSize index, MAREA_IntegerSize siblings, MAREA_ExpressionTally &tally)
+    bool MAREA_nodeHasType(const MAREA_SemaTypedNode *node)
+    {
+        const MAREA_Character8 *text{ nullptr };
+
+        MAREA_IntegerSize length{ 0 };
+
+        return MAREA_SemaTypedNodeGetResolvedType(node, &text, &length) == MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+    }
+
+    std::string MAREA_nodeTypeText(const MAREA_SemaTypedNode *node)
+    {
+        const MAREA_Character8 *text{ nullptr };
+
+        MAREA_IntegerSize length{ 0 };
+
+        if (MAREA_SemaTypedNodeGetResolvedType(node, &text, &length) != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) {
+            return std::string();
+        }
+
+        return std::string(text, length);
+    }
+
+    const MAREA_SemaTypedNode *MAREA_childAt(const MAREA_SemaTypedNode *node, MAREA_IntegerSize index)
+    {
+        const MAREA_SemaTypedNode *child{ nullptr };
+
+        if (MAREA_SemaTypedNodeGetChildAt(node, index, &child) != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) {
+            return nullptr;
+        }
+
+        return child;
+    }
+
+    bool MAREA_isOneOf(const std::string &name, const std::vector<std::string> &names)
+    {
+        return std::find(names.begin(), names.end(), name) != names.end();
+    }
+
+    // Gives the class of an expression node that has no resolved type, or MAREA_UNTYPED_CLASS_COUNT when it is in none.
+    MAREA_UntypedClass MAREA_classifyUntyped(const MAREA_SemaTypedNode *node, const MAREA_UntypedSite &site)
+    {
+        const bool IS_CALLEE{ (site.parentKind == MAREA_AST_KIND_CALL_EXPRESSION) && (site.index == 0) };
+
+        if ((site.kind == MAREA_AST_KIND_MACRO_CALL) || site.insideMacro) {
+            return MAREA_UNTYPED_CLASS_MACRO_SUBTREE;
+        }
+
+        switch (site.kind) {
+        case MAREA_AST_KIND_GENERIC_NAME:
+            if ((site.parentKind == MAREA_AST_KIND_MEMBER_ACCESS) && (site.index == 0)) {
+                return MAREA_UNTYPED_CLASS_QUALIFYING_TYPE_NAME;
+            }
+
+            break;
+        case MAREA_AST_KIND_IDENTIFIER:
+            if (IS_CALLEE && MAREA_isOneOf(site.name, { "size_of", "align_of", "convert" })) {
+                return MAREA_UNTYPED_CLASS_BUILTIN_CALLEE_NAME;
+            }
+
+            if (IS_CALLEE && MAREA_isOneOf(site.name, { "power", "square_root", "maximum" })) {
+                return MAREA_UNTYPED_CLASS_UNTYPED_FUNCTION_NAME;
+            }
+
+            if (!IS_CALLEE && MAREA_isOneOf(site.name, { "pixels", "index" })) {
+                return MAREA_UNTYPED_CLASS_UNTYPED_LOOP_NAME;
+            }
+
+            break;
+        case MAREA_AST_KIND_MEMBER_ACCESS:
+            if (IS_CALLEE) {
+                return MAREA_UNTYPED_CLASS_UNTYPED_FUNCTION_MEMBER;
+            }
+
+            break;
+        case MAREA_AST_KIND_CALL_EXPRESSION:
+        {
+            const MAREA_SemaTypedNode *callee{ MAREA_childAt(node, 0) };
+
+            if ((callee != nullptr) && !MAREA_nodeHasType(callee)) {
+                return MAREA_UNTYPED_CLASS_UNTYPED_CALL;
+            }
+
+            break;
+        }
+        case MAREA_AST_KIND_BINARY_EXPRESSION:
+        case MAREA_AST_KIND_INDEX_ACCESS:
+        {
+            const MAREA_IntegerSize COUNT{ MAREA_SemaTypedNodeGetChildCount(node) };
+
+            for (MAREA_IntegerSize child{ 0 }; child < COUNT; ++child) {
+                const MAREA_SemaTypedNode *operand{ MAREA_childAt(node, child) };
+
+                if ((operand != nullptr) && !MAREA_nodeHasType(operand)) {
+                    return MAREA_UNTYPED_CLASS_DERIVED_OPERATION;
+                }
+            }
+
+            break;
+        }
+        case MAREA_AST_KIND_UNARY_EXPRESSION:
+        {
+            const MAREA_SemaTypedNode *operand{ MAREA_childAt(node, 0) };
+
+            if ((operand != nullptr) && (MAREA_nodeTypeText(operand) == "void")) {
+                return MAREA_UNTYPED_CLASS_SPAWN_OF_VOID_CALL;
+            }
+
+            break;
+        }
+        default:
+            break;
+        }
+
+        return MAREA_UNTYPED_CLASS_COUNT;
+    }
+
+    void MAREA_tallyExpressions(const MAREA_SemaTypedNode *node, MAREA_AstKind parentKind, MAREA_IntegerSize index, MAREA_IntegerSize siblings, bool insideMacro, const std::string &file, MAREA_ExpressionTally &tally)
     {
         const MAREA_AstNode *ast{ MAREA_SemaTypedNodeGetAstNode(node) };
 
@@ -203,25 +359,19 @@ namespace
         } else if (MAREA_isLiteralKind(KIND) || MAREA_isOperationKind(KIND) || IS_VALUE_IDENTIFIER) {
             ++tally.expressions;
 
-            const MAREA_Character8 *text{ nullptr };
+            if (!MAREA_nodeHasType(node)) {
+                const MAREA_Character8 *nameText{ MAREA_AstNodeGetText(ast) };
 
-            MAREA_IntegerSize length{ 0 };
+                const MAREA_SourcePosition POSITION{ MAREA_AstNodeGetPosition(ast) };
 
-            if (MAREA_SemaTypedNodeGetResolvedType(node, &text, &length) == MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NO_TYPE) {
-                const std::string KIND_NAME{ MAREA_AstKindGetName(KIND) };
+                const MAREA_UntypedSite SITE{ KIND, parentKind, index, insideMacro, (nameText != nullptr) ? std::string(nameText, MAREA_AstNodeGetTextLength(ast)) : std::string() };
 
-                if (MAREA_isLiteralKind(KIND)) {
-                    ++tally.untypedLiterals;
+                const MAREA_UntypedClass CLASS{ MAREA_classifyUntyped(node, SITE) };
+
+                if (CLASS == MAREA_UNTYPED_CLASS_COUNT) {
+                    tally.unclassified.push_back(file + ":" + std::to_string(POSITION.line) + ":" + std::to_string(POSITION.column) + " " + MAREA_AstKindGetName(KIND) + " " + (SITE.name.empty() ? std::string("-") : SITE.name) + " has no resolved type and is in no allowed class");
                 } else {
-                    ++tally.untypedOperations;
-                }
-
-                ++tally.untypedByKind[KIND_NAME];
-
-                const MAREA_Character8 *name{ MAREA_AstNodeGetText(ast) };
-
-                if ((name != nullptr) && (KIND == MAREA_AST_KIND_IDENTIFIER)) {
-                    ++tally.untypedByDetail[KIND_NAME + " " + std::string(name, MAREA_AstNodeGetTextLength(ast))];
+                    ++tally.classCount[CLASS];
                 }
             }
         }
@@ -232,7 +382,7 @@ namespace
             const MAREA_SemaTypedNode *typedChild{ nullptr };
 
             if (MAREA_SemaTypedNodeGetChildAt(node, child, &typedChild) == MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) {
-                MAREA_tallyExpressions(typedChild, KIND, child, COUNT, tally);
+                MAREA_tallyExpressions(typedChild, KIND, child, COUNT, insideMacro || (KIND == MAREA_AST_KIND_MACRO_CALL), file, tally);
             }
         }
     }
@@ -267,9 +417,9 @@ namespace
     }
 } // namespace
 
-TEST(MAREASemaTypedAstExamples, EveryExpressionOfEveryExampleHasATypeOrIsCounted)
+TEST(MAREASemaTypedAstExamples, EveryUntypedExpressionOfEveryExampleIsInAnAllowedClass)
 {
-    GTEST_COUT << "Validating the expression nodes of the 23 examples: the ones with no resolved type are counted and printed." << std::endl;
+    GTEST_COUT << "Validating every expression node of the 23 examples has a resolved type or is in the closed list of the classes allowed to have none." << std::endl;
 
     const std::vector<MAREA_ExampleFile> FILES{ MAREA_collectExamples() };
 
@@ -322,38 +472,29 @@ TEST(MAREASemaTypedAstExamples, EveryExpressionOfEveryExampleHasATypeOrIsCounted
 
         ASSERT_EQ(MAREA_SemaBuildTypedAst(fixture.context, fixture.parser.root, &root), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "The example " << file.relativePath << " must build a typed tree.";
 
-        MAREA_ExpressionTally tally;
-
-        MAREA_tallyExpressions(root, MAREA_AST_KIND_COMPILATION_UNIT, 0, 1, tally);
-
-        total.expressions += tally.expressions;
-        total.qualifiers += tally.qualifiers;
-        total.untypedLiterals += tally.untypedLiterals;
-        total.untypedOperations += tally.untypedOperations;
-
-        for (const auto &entry : tally.untypedByKind) {
-            total.untypedByKind[entry.first] += entry.second;
-        }
-
-        for (const auto &entry : tally.untypedByDetail) {
-            total.untypedByDetail[entry.first + " in " + file.relativePath] += entry.second;
-        }
+        MAREA_tallyExpressions(root, MAREA_AST_KIND_COMPILATION_UNIT, 0, 1, false, file.relativePath, total);
     }
 
-    GTEST_COUT << "Examples: " << FILES.size() << ", expression nodes: " << total.expressions << ", qualifier names (not values): " << total.qualifiers << ", with no resolved type: " << (total.untypedLiterals + total.untypedOperations) << " (literals: " << total.untypedLiterals << ", other expressions: " << total.untypedOperations << ")." << std::endl;
+    std::size_t untyped{ 0 };
 
-    for (const auto &entry : total.untypedByKind) {
-        GTEST_COUT << "No type, by kind: " << entry.first << " = " << entry.second << std::endl;
+    for (std::size_t index{ 0 }; index < std::size_t{ MAREA_UNTYPED_CLASS_COUNT }; ++index) {
+        untyped += total.classCount[index];
+
+        GTEST_COUT << "Allowed class " << MAREA_UNTYPED_CLASS_INFO[index].name << " = " << total.classCount[index] << ": " << MAREA_UNTYPED_CLASS_INFO[index].reason << std::endl;
     }
 
-    for (const auto &entry : total.untypedByDetail) {
-        GTEST_COUT << "No type, name: " << entry.first << " = " << entry.second << std::endl;
+    GTEST_COUT << "Examples: " << FILES.size() << ", expression nodes: " << total.expressions << ", qualifier names (not values): " << total.qualifiers << ", with no resolved type: " << (untyped + total.unclassified.size()) << " (in an allowed class: " << untyped << ", in none: " << total.unclassified.size() << ")." << std::endl;
+
+    for (const std::string &line : total.unclassified) {
+        ADD_FAILURE() << line;
     }
 
     EXPECT_EQ(FILES.size(), std::size_t{ 23 }) << "The sweep must cover the 23 examples.";
 
-    // The ceiling is the count that the documented no-type cases leave (see "Gaps" of the sema doc); a regression raises it. The literals are typed by their own rule and every one of them has a type, so none is in this count.
-    EXPECT_LE(total.untypedOperations, std::size_t{ 79 }) << "Expressions other than literals with no resolved type must not grow past the documented cases.";
+    // A class that no example reaches any more is stale: the list stays exact, so a class that a fix emptied is removed from the list and from "Gaps" of the sema doc.
+    for (std::size_t index{ 0 }; index < std::size_t{ MAREA_UNTYPED_CLASS_COUNT }; ++index) {
+        EXPECT_GT(total.classCount[index], std::size_t{ 0 }) << "The allowed class " << MAREA_UNTYPED_CLASS_INFO[index].name << " matches no node of the examples.";
+    }
 
     // The names that only qualify a member are not counted above, so a qualifier that stopped being one would raise the count above or fall here.
     EXPECT_GE(total.qualifiers, std::size_t{ 36 }) << "The examples hold at least 36 names that only qualify a member.";

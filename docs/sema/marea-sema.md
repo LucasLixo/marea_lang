@@ -474,6 +474,13 @@ gives the binary expression `sinteger64` and not the default `sinteger32` of its
 type of the literals below an operation, the binary, unary and parenthesized expressions below that context are typed
 again.
 
+**Nodes that stay without a type.** An expression node with no resolved type is in one of nine closed classes (a macro
+call and what it holds, a written generic type that qualifies a member, the built-in callee names, a function name or
+member that has no function type, a call of an unknown function, the name of a `with` or `for` statement that an
+untyped expression decides, an operation with an untyped operand, and `spawn` of a void call). "Gaps" lists the exact
+classes and their counts on the 23 examples, and the sweep test fails for any other untyped expression node. A literal
+is never in the list.
+
 **Qualifier names.** An `IDENTIFIER` that is the left side of a member access and only qualifies the member is not a
 value. `MAREA_SemaTypedNodeIsQualifier` is true for it, and it has no resolved type, so it is not an expression that
 misses a type. No local, parameter or generic parameter may have its name, and it is one of these: the name of a
@@ -624,25 +631,52 @@ or rejects.
   their written name, not by the type they stand for in one instantiation. A name of an `EXTERNAL` namespace is
   spelled by what is written and the import alias rule, with no qualifier added; a type that a `FOUND` namespace
   declares is spelled with the last segment of that namespace instead (see "Members of a FOUND namespace").
-- An expression with no resolved type (checked on the 23 examples, 866 expression nodes, 36 of them qualifier names
-  that are not values and are counted on their own, 79 of the rest with no type, with a fixture signature function that answers
-  `filled`, `append`, `sum` and `result` - see "Members of a library type" above; 84 with none). The cases that stay without a
-  type: the name of a `for`, `for each`, `partition` or `with` statement when the type that decides it has none
-  (`pixels` of `with vulkan.map_texture(texture) as pixels`, the counter of a range with a bound such as
-  `slice.length(pixels) - 1`), and every expression made from it; the key of a `for each` over any other collection,
-  as no library type of the repository has a key; a call, a member or a name that comes from an `EXTERNAL` namespace
-  with no signature known for it (`stdio.puts(text)`, `vulkan.present(swapchain, texture)`, `square_root(x)`), or
-  from a `FOUND` namespace but is not a public function or constant, or that gives no type arguments to a generic one
-  of these (see "Members of a FOUND namespace"); a method or a field read on a result typed from a `FOUND` namespace,
-  because such a lookup stays in the file being built; a member of a library type the signature function does not know,
-  a static call whose receiver is a bare name (`slice.length(pixels)`, `table.length(scores)`) and a size result; a method call on a generic-parameter receiver
-  whose own where clause lists no contract that declares the member, and a call of a generic function of the file
-  whose type arguments are only inferred when the unification finds nothing to bind, the bindings disagree, or the
-  result is not itself one bound bare parameter (see "Inferred type arguments" and "A method on a generic receiver"
-  for the cases now resolved); the
-  built-in `convert`, `size_of` and
-  `align_of` as names (the call has a type, the name has none); every `MACRO_CALL` and `GENERIC_NAME`. The `ir`
-  stage decides what to do with each of these.
+- An expression with no resolved type. The sweep of the 23 examples (866 expression nodes, 36 of them qualifier names
+  that are not values and are counted on their own) finds 79 expression nodes with no type, with a fixture signature
+  function that answers `filled`, `append`, `sum` and `result` (see "Members of a library type"), and every one of the
+  79 is in one of the nine classes below. The list is closed: the sweep test
+  (`tests/source/sema/MAREASemaTypedAstExamples.cpp`) fails with the file, the position and the name for any other
+  untyped expression node, and it fails for a class that no example reaches any more, so a class that a fix empties
+  leaves this list in the same change. A literal never has a place in the list: every literal has a type. The `ir`
+  stage can treat every untyped expression outside these classes as `UNTYPED_EXPRESSION` (4006).
+  - `MACRO_SUBTREE` (20): a `MACRO_CALL` (15) and every node below one (5: `info` of `log!`, the call `power(...)` of
+    `print!`, `size_of` and `align_of` of `static_assert!`). The `ir` raises 4005 for a macro.
+  - `QUALIFYING_TYPE_NAME` (2): a `GENERIC_NAME` on the left of a member access, a written type that qualifies a static
+    member (`c.array<sinteger32>.filled(8, 0)`). It is not a value, and sema does not flag it as a qualifier name,
+    which is only an `IDENTIFIER`.
+  - `BUILTIN_CALLEE_NAME` (7): the `IDENTIFIER` `size_of`, `align_of` or `convert` that is the callee of a call. The
+    call has the type; the name has none.
+  - `UNTYPED_FUNCTION_NAME` (3): an `IDENTIFIER` that is the callee of a call and has no function type: `power` and
+    `square_root`, imported by name from an `EXTERNAL` namespace that gives no signature, and `maximum`, a generic
+    function of the file (a generic function name has no function type; the call of `maximum` has its inferred type).
+  - `UNTYPED_FUNCTION_MEMBER` (23): a `MEMBER_ACCESS` that is the callee of a call, with no function type: a function
+    or method of an `EXTERNAL` namespace or of a library type (`stdio.puts`, `vulkan.present`, `tasks.append`,
+    `item.result`, `Arena.create`, `product.sum`), a static member of a written generic type, or a method on a
+    receiver of a generic parameter type (`left.less(right)`, `winner.describe()`). The call may have a type of its
+    own (`tasks.append(...)`, `left.less(right)`); the member never does.
+  - `UNTYPED_CALL` (18): a `CALL_EXPRESSION` whose callee has no type and that no rule types: a call of an `EXTERNAL`
+    function with no signature, or of a library member that the signature function does not know
+    (`stdio.puts(text)`, `vulkan.present(swapchain, texture)`, `text.length(full)`, `slice.length(pixels)`,
+    `table.length(scores)`, `square_root(x)`).
+  - `UNTYPED_LOOP_NAME` (3): the `IDENTIFIER` `pixels` or `index` read as a value, the name of a `with` or a `for`
+    statement whose deciding expression has no type (`with vulkan.map_texture(texture) as pixels`, the counter of the
+    range `0 .. slice.length(pixels) - 1`).
+  - `DERIVED_OPERATION` (2): a `BINARY_EXPRESSION` (`slice.length(pixels) - 1`) or an `INDEX_ACCESS` (`pixels[index]`)
+    that has an operand with no type. The root cause is counted on its own.
+  - `SPAWN_OF_VOID_CALL` (1): a `UNARY_EXPRESSION` `spawn` whose call is typed `void` (`spawn scale_slice(part,
+    factor)`): the task of a call that returns nothing keeps no type.
+
+  Outside these examples sema leaves a node untyped in the same cases: the name of a `for`, `for each`, `partition` or
+  `with` statement when the type that decides it has none, and every expression made from it; the key of a `for each`
+  over any collection but `array`, `vector` or `slice` (no library type of the repository has a key); a call, a member
+  or a name from an `EXTERNAL` namespace with no signature known for it, or from a `FOUND` namespace that is not a
+  public function or constant, or a generic one with no type arguments (see "Members of a FOUND namespace"); a method
+  or a field read on a result typed from a `FOUND` namespace, because such a lookup stays in the file being built; a
+  member of a library type that the signature function does not know, a static call whose receiver is a bare name and a
+  size result; a method call on a generic-parameter receiver whose own where clause lists no contract that declares
+  the member; a call of a generic function whose inferred type arguments find nothing to bind, disagree, or give a
+  result that is not itself one bound bare parameter (see "Inferred type arguments"); the built-in `convert`, `size_of`
+  and `align_of` as names; every `MACRO_CALL` and `GENERIC_NAME`.
 - A binary operation has the type of its operands even when an operator function of the structure declares another
   result type: the result of `#[operator = "+"]` is not read. A field of a variant is read from the first variant that
   declares the name.
