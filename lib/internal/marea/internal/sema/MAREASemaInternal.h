@@ -148,6 +148,27 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedAstResolveDeclaredType(MAREA_SemaContext * context, MAREA_SemaTypedNode * built);
 
     /**
+     * @brief Gives a literal node the type it has when no context fixes it: sinteger32 for an integer literal and
+     * float64 for a float literal (an assumption of the plan, the repository names no default), string for a string,
+     * character for a character and boolean for a boolean. Any other node is left as it is. The text is static.
+     * @param built Typed node whose astNode is set. May be null.
+     */
+    void MAREA_CALL MAREA_SemaTypedAstResolveLiteralDefault(MAREA_SemaTypedNode * built);
+
+    /**
+     * @brief Replaces the default type of the number literals below a typed node by the type that the node gives them
+     * as their context. The contexts are the declared type of a local, a constant or a variant field, the type of a
+     * parameter for an argument or a default value, the result type of a return, the target of an assignment, the
+     * other operand of an arithmetic, bitwise or compare expression, of a range and of a switch case, the field or
+     * element type of a literal value, and the target of a convert. A context fixes a literal only when it is a
+     * primitive that the literal fits, and a literal that a nearer context already fixed keeps its type. It is called
+     * once the children of the node are built, in the scope the node was entered with, and it adds no diagnostic.
+     * @param context Context the node is being built with. May be null.
+     * @param built Typed node with its children built. May be null.
+     */
+    void MAREA_CALL MAREA_SemaTypedAstResolveLiteralContext(const MAREA_SemaContext *context, const MAREA_SemaTypedNode *built);
+
+    /**
      * @brief Adds a diagnostic with the severity ERROR to the sink of the context.
      * @param context Context of the run. Must not be null.
      * @param code Diagnostic code.
@@ -590,6 +611,50 @@ MAREA_BEGIN_EXTERN_C
      * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER when context is null, or ERROR_OUT_OF_MEMORY.
      */
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressionFit(MAREA_SemaContext * context, const MAREA_AstNode *type, const MAREA_AstNode *expression);
+
+    /**
+     * @brief Gives the primitive type that sema knows for a written type, the same type MAREA_SemaCheckExpressionFit
+     * uses as its target. A local type alias is followed. Any type that is not a primitive gives false.
+     * @param context Context of the run. Must not be null.
+     * @param type NAMED_TYPE or FUNCTION_TYPE node. May be null.
+     * @param outName Receives the primitive name, a pointer into the source or a static text, not NUL terminated.
+     * Must not be null.
+     * @param outLength Receives the byte length of outName. Must not be null.
+     * @return MAREA_BOOLEAN_TRUE when type is a primitive, else MAREA_BOOLEAN_FALSE with both outputs cleared.
+     */
+    MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_SemaPrimitiveOfType(const MAREA_SemaContext *context, const MAREA_AstNode *type, const MAREA_Character8 **outName, MAREA_IntegerSize *outLength);
+
+    /**
+     * @brief Gives the primitive type that sema knows for an expression, the same shape the TYPE_MISMATCH checks
+     * compare. A number literal has no primitive of its own, so it gives false.
+     * @param context Context of the run. Must not be null.
+     * @param expression Expression node. May be null.
+     * @param outName Receives the primitive name, a pointer into the source or a static text, not NUL terminated.
+     * Must not be null.
+     * @param outLength Receives the byte length of outName. Must not be null.
+     * @return MAREA_BOOLEAN_TRUE when the expression has a known primitive type, else MAREA_BOOLEAN_FALSE with both
+     * outputs cleared.
+     */
+    MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_SemaPrimitiveOfExpression(const MAREA_SemaContext *context, const MAREA_AstNode *expression, const MAREA_Character8 **outName, MAREA_IntegerSize *outLength);
+
+    /**
+     * @brief Tells whether a number literal fits a primitive type under the rule of MAREA_SemaCheckExpressionFit:
+     * an integer literal fits any number type, a float literal fits float32 and float64 only.
+     * @param kind MAREA_AST_KIND_INTEGER_LITERAL or MAREA_AST_KIND_FLOAT_LITERAL. Any other kind gives false.
+     * @param name Primitive type name, not NUL terminated. Must not be null.
+     * @param length Byte length of name.
+     * @return MAREA_BOOLEAN_TRUE when the literal fits, else MAREA_BOOLEAN_FALSE.
+     */
+    MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_SemaNumberLiteralFitsPrimitive(MAREA_AstKind kind, const MAREA_Character8 *name, MAREA_IntegerSize length);
+
+    /**
+     * @brief Returns the target type of a built-in conversion: the one type argument of convert<T>(x) when the call
+     * has one argument and the unit binds no name convert of its own.
+     * @param context Context of the run. Must not be null.
+     * @param call CALL_EXPRESSION node. Must not be null.
+     * @return The type argument node, or null when the call is not a built-in conversion.
+     */
+    MAREA_NODISCARD const MAREA_AstNode *MAREA_CALL MAREA_SemaConvertTarget(const MAREA_SemaContext *context, const MAREA_AstNode *call);
 
     /**
      * @brief Checks the expressions of one statement: every bare name is declared (UNDECLARED_NAME), a plain
