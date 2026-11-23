@@ -71,9 +71,7 @@ MAREA_IrExcept MAREA_CALL MAREA_IrCreateNamed(MAREA_IrContext *context, MAREA_Ir
     }
 
     if (kind == MAREA_IR_KIND_PARAMETER) {
-        // INFO: a parameter no longer carries MUTABLE on its own AST node (the "semantics" attribute
-        // replaces the retired keyword), so its write-borrow-ness is read from the ownership mode sema
-        // already computed for it, the one place that reads the attribute or its type-class default.
+        // INFO: a parameter no longer carries MUTABLE on its own AST node, so this reads the ownership mode sema already computed from its semantics attribute or type-class default.
         node->flags = (MAREA_SemaTypedNodeGetOwnershipMode(typed) == MAREA_SEMA_OWNERSHIP_MODE_MUTABLE_BORROW) ? (MAREA_Uinteger32)MAREA_AST_FLAG_MUTABLE : MAREA_UINTEGER_32(0);
     } else {
         // INFO: only the MUTABLE flag survives; the other AST flags are erased with the type system.
