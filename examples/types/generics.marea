@@ -21,8 +21,8 @@
 --   10. Several restrictions: "where Item: Comparable, Printable and Key: Hashable".
 --   11. Built-in contracts: Copyable (the type can use "copy") and Movable (the type can use
 --      "move"). A generic can not use "copy" or "move" without one of them. The checker gives
---      them, and the user never writes an implementation for them: a primitive and a #[value]
---      type are Copyable. A #[move_only] type and owned<T> are only Movable.
+--      them, and the user never writes an implementation for them: a primitive and an enum are
+--      Copyable. A #[move_only] type and owned<T> are only Movable.
 
 namespace types.generics;
 
@@ -95,8 +95,11 @@ function take<Item>(value: owned<Item>): owned<Item> where Item: Movable
     return value;
 end
 
--- A type that meets Comparable, Printable and Copyable.
-#[visibility = public, value]
+-- A type that meets Comparable and Printable through its own implementation blocks, but not
+-- Copyable: a structure is never copied by value (the retired #[value] key no longer exists), so
+-- Score cannot fill maximum/larger_description above, which both need Item: Copyable too. Only a
+-- primitive, a copyable array and an enum (the documented intentional exception) meet Copyable.
+#[visibility = public]
 structure Score
     value: sinteger32;
 end
@@ -114,7 +117,8 @@ end
 
 #[visibility = public]
 function show_generics(): string
-    local best: Score = maximum(Score{ value = 3 }, Score{ value = 9 });   -- Item is Score
+    local best: Score = Score{ value = 9 };
+    local other: Score = Score{ value = 3 };
     local number: sinteger32 = maximum<sinteger32>(4, 8);                     -- Item written
     local fixed: Buffer<float32, 16> = Buffer<float32, 16>{ items = array<float32, 16>.filled(0.0) };
     local size: sinteger32 = fixed.capacity();
@@ -122,5 +126,9 @@ function show_generics(): string
     --   function bad<Item>(left: Item, right: Item): Item
     --       return left + right;
     --   end
-    return larger_description(best, best);
+    if best.less(other) then
+        return other.describe();
+    end
+    end
+    return best.describe();
 end

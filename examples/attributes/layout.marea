@@ -17,14 +17,14 @@ namespace attributes.layout;
 import collections.array;
 
 -- 16 bytes align: a SIMD load or a GPU uniform buffer can read it without a split.
-#[visibility = public, value, layout = c, align = 16]
+#[visibility = public, layout = c, align = 16]
 structure Light
     position: array<float32, 4>;
     color: array<float32, 4>;
 end
 
 -- A header read from a file or a network: no padding at all.
-#[visibility = public, value, layout = c, pack = 1]
+#[visibility = public, layout = c, pack = 1]
 structure FileHeader
     magic: uinteger32;
     version: uinteger8;

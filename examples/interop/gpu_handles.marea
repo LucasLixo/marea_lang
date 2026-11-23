@@ -28,7 +28,7 @@ opaque structure SwapChain;
 opaque structure Texture;
 
 -- A structure with the exact layout of the C one, to pass by value to C.
-#[value, layout = c, align = 4]
+#[layout = c, align = 4]
 structure TextureInfo
     width: uinteger32;
     height: uinteger32;

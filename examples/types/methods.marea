@@ -12,7 +12,7 @@
 --   4. A function whose first parameter is named "self" is a method: point.length().
 --      A function without "self" is a static function: Vector2.origin().
 --   5. "self" follows the rules of any parameter (see basics/ownership.marea): no word is a
---      read-only borrow, "mutable" is a write borrow, and a #[value] type is a copy.
+--      read-only borrow, "mutable" is a write borrow, and a primitive or an enum is a copy.
 --   6. The call is only a normal function call with a different spelling. Dispatch is static.
 --      There is no virtual table, no inheritance and no hidden field. The layout of the
 --      structure (layout, align, pack) does not change because of its functions.
@@ -30,7 +30,7 @@ namespace types.methods;
 
 import c.math.sqrt as square_root;
 
-#[visibility = public, value]
+#[visibility = public]
 structure Vector2
     x: float64;
     y: float64;
