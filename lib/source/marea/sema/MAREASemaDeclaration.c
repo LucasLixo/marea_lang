@@ -85,6 +85,65 @@ static MAREA_Boolean MAREA_CALL MAREA_G_HasMember(const MAREA_AstNode *implement
     return MAREA_BOOLEAN_FALSE;
 }
 
+// INFO: the integer family a tag may name. An enum with no tag is sinteger32.
+static const MAREA_Character8 *const MAREA_G_IntegerTagTypes[] = {
+    "sinteger8",
+    "sinteger16",
+    "sinteger32",
+    "sinteger64",
+    "uinteger8",
+    "uinteger16",
+    "uinteger32",
+    "uinteger64",
+};
+
+static MAREA_Boolean MAREA_CALL MAREA_G_IsIntegerTag(const MAREA_AstNode *tag)
+{
+    // INFO: a tag with type arguments has two children, so only a bare one-segment name can match.
+    if ((MAREA_AstNodeGetKind(tag) != MAREA_AST_KIND_NAMED_TYPE) || (MAREA_AstNodeGetChildCount(tag) != MAREA_INTEGER_SIZE(1))) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_AstNode *path = MAREA_SemaChildAt(tag, 0);
+
+    if ((path == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(path) != MAREA_AST_KIND_QUALIFIED_NAME) || (MAREA_AstNodeGetChildCount(path) != MAREA_INTEGER_SIZE(1))) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_AstNode *name = MAREA_SemaChildAt(path, 0);
+
+    for (MAREA_IntegerSize index = 0; index < MAREA_ARRAY_SIZE(MAREA_G_IntegerTagTypes); ++index) {
+        if ((MAREA_AstNodeGetTextLength(name) == strlen(MAREA_G_IntegerTagTypes[index])) && (memcmp(MAREA_AstNodeGetText(name), MAREA_G_IntegerTagTypes[index], MAREA_AstNodeGetTextLength(name)) == 0)) {
+            return MAREA_BOOLEAN_TRUE;
+        }
+    }
+
+    return MAREA_BOOLEAN_FALSE;
+}
+
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckEnumTag(MAREA_SemaContext *context, const MAREA_AstNode *enumeration)
+{
+    const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(enumeration);
+
+    for (MAREA_IntegerSize index = 0; index < COUNT; ++index) {
+        const MAREA_AstNode *child = MAREA_SemaChildAt(enumeration, index);
+
+        if ((child == MAREA_NULLPTR) || ((MAREA_AstNodeGetKind(child) != MAREA_AST_KIND_NAMED_TYPE) && (MAREA_AstNodeGetKind(child) != MAREA_AST_KIND_FUNCTION_TYPE))) {
+            continue;
+        }
+
+        if (MAREA_G_IsIntegerTag(child) == MAREA_BOOLEAN_TRUE) {
+            return MAREA_SEMA_EXCEPT_SUCCESS;
+        }
+
+        const MAREA_AstNode *name = MAREA_SemaChildAt(enumeration, (index > 0) ? (index - 1) : 0);
+
+        return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_ENUM_TAG_TYPE, MAREA_AstNodeGetPosition(child), "an enum tag must be an integer primitive:", MAREA_AstNodeGetText(name), MAREA_AstNodeGetTextLength(name));
+    }
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
 MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckDeclarations(MAREA_SemaContext *context, const MAREA_AstNode *root)
 {
     if ((context == MAREA_NULLPTR) || (root == MAREA_NULLPTR)) {
@@ -92,6 +151,18 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckDeclarations(MAREA_SemaContext *conte
     }
 
     const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(root);
+
+    for (MAREA_IntegerSize current = 0; current < COUNT; ++current) {
+        const MAREA_AstNode *declaration = MAREA_SemaChildAt(root, current);
+
+        if ((declaration != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(declaration) == MAREA_AST_KIND_ENUM_DECLARATION)) {
+            const MAREA_SemaExcept TAG_RESULT = MAREA_G_CheckEnumTag(context, declaration);
+
+            if (TAG_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+                return TAG_RESULT;
+            }
+        }
+    }
 
     for (MAREA_IntegerSize current = 0; current < COUNT; ++current) {
         const MAREA_AstNode *implementation = MAREA_SemaChildAt(root, current);

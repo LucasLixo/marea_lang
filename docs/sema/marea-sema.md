@@ -116,6 +116,12 @@ be declared (`UNDECLARED_NAME`) and it must fit the parameter type (`TYPE_MISMAT
 that has a required parameter after it is `DEFAULT_PARAMETER_BEFORE_REQUIRED` (3030), once per defaulted
 parameter. Sema keeps the default in the tree; it does not copy it into a call.
 
+**Enum tag type.** `enum A : uinteger8` names the integer type of the discriminant. With no tag it is
+`sinteger32`. A tag must be one bare integer primitive (`sinteger8` to `sinteger64`, `uinteger8` to
+`uinteger64`); any other tag (`float32`, `string`, `boolean`, a structure, a generic or an alias) is
+`INVALID_ENUM_TAG_TYPE` (3031), once per enum. A tag name that is not a type at all also raises
+`UNKNOWN_TYPE`. Sema does not use the tag for the layout of an enum: `size_of` of an enum is unchanged.
+
 **Ownership.** A parameter with no word is a read-only borrow, `mutable` is a write borrow,
 `reference` forces a borrow of a by-value type, `owned<T>` moves in. A primitive, a `vector`, an
 enum and a `#[value]` type is by value. `=` of a name, field or element of any other type needs
@@ -335,6 +341,7 @@ type arguments is deferred to when the `ir` stage needs one for real.
 | 3025 | `DUPLICATE_SWITCH_ARM` | a second `default` arm in a `switch`, or `case 1 then ... case 1 then ...`, `case 1, 1 then ...`, `case Color.red` twice |
 | 3026 | `JUMP_OUTSIDE_LOOP` | `break;` or `continue;` with no enclosing loop and no enclosing `partition`/`fork_join` block |
 | 3030 | `DEFAULT_PARAMETER_BEFORE_REQUIRED` | `function f(a: sinteger32 = 0, b: sinteger32)`: a parameter with a default value before one with none (3027 to 3029 are reserved) |
+| 3031 | `INVALID_ENUM_TAG_TYPE` | `enum A : float32`, `: string`, `: SomeStruct`: a tag that is not an integer primitive |
 
 ## Gaps
 
