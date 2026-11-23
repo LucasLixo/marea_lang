@@ -293,6 +293,8 @@ static MAREA_AstNode *MAREA_CALL MAREA_G_ParsePrimary(MAREA_ParseState *state)
         return MAREA_ParseNodeFromToken(state, MAREA_AST_KIND_FLOAT_LITERAL, MAREA_ParseAdvance(state));
     case MAREA_TOKEN_KIND_STRING_LITERAL:
         return MAREA_ParseNodeFromToken(state, MAREA_AST_KIND_STRING_LITERAL, MAREA_ParseAdvance(state));
+    case MAREA_TOKEN_KIND_CHARACTER_LITERAL:
+        return MAREA_ParseNodeFromToken(state, MAREA_AST_KIND_CHARACTER_LITERAL, MAREA_ParseAdvance(state));
     case MAREA_TOKEN_KIND_KEYWORD_TRUE:
     case MAREA_TOKEN_KIND_KEYWORD_FALSE:
         return MAREA_ParseNodeFromToken(state, MAREA_AST_KIND_BOOLEAN_LITERAL, MAREA_ParseAdvance(state));
