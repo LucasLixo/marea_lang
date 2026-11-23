@@ -16,6 +16,9 @@ static const MAREA_Character8 MAREA_G_BoundName[] = "$last";
 // INFO: the name of the hidden local that holds the scrutinee of a switch; the dollar sign cannot start a source identifier.
 static const MAREA_Character8 MAREA_G_SwitchName[] = "$switch";
 
+// INFO: the name of the hidden local that holds the value of a return until the destroy calls ran; the dollar sign cannot start a source identifier.
+static const MAREA_Character8 MAREA_G_ReturnName[] = "$return";
+
 // INFO: the place of the bound name among the children of a with statement (value, name, body) and of a partition statement (value, count, name, body).
 static const MAREA_IntegerSize MAREA_G_WithNameIndex = MAREA_INTEGER_SIZE(1);
 static const MAREA_IntegerSize MAREA_G_PartitionNameIndex = MAREA_INTEGER_SIZE(2);
@@ -988,8 +991,65 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_MaterializeDestroys(MAREA_IrContext *co
     return MAREA_IR_EXCEPT_SUCCESS;
 }
 
+// INFO: true when the value of a return is already the hidden local $return, so an outer wrap must not hoist it again.
+static MAREA_Boolean MAREA_CALL MAREA_G_IsReturnReference(const MAREA_IrNode *value)
+{
+    const MAREA_IntegerSize LENGTH = strlen(MAREA_G_ReturnName);
+
+    return ((value->kind == MAREA_IR_KIND_IDENTIFIER) && (value->textLength == (MAREA_Uinteger32)LENGTH) && (memcmp(value->text, MAREA_G_ReturnName, LENGTH) == 0)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
+// INFO: moves the value of a RETURN_STATEMENT into a new LOCAL_DECLARATION $return and leaves IDENTIFIER $return as the value, so
+// INFO: the value is read where the declaration stands. A return with no value, or with the value already $return, gives no declaration.
+static MAREA_IrExcept MAREA_CALL MAREA_G_HoistReturnValue(MAREA_IrContext *context, const MAREA_AstNode *positionAst, MAREA_IrNode *returnNode, MAREA_IrNode **outDeclaration)
+{
+    *outDeclaration = MAREA_NULLPTR;
+
+    if ((returnNode->kind != MAREA_IR_KIND_RETURN_STATEMENT) || (returnNode->childCount == MAREA_INTEGER_SIZE(0))) {
+        return MAREA_IR_EXCEPT_SUCCESS;
+    }
+
+    MAREA_IrNode *value = returnNode->children[0];
+
+    if (MAREA_G_IsReturnReference(value) == MAREA_BOOLEAN_TRUE) {
+        return MAREA_IR_EXCEPT_SUCCESS;
+    }
+
+    MAREA_IrNode *declaration = MAREA_NULLPTR;
+
+    MAREA_IrExcept result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_LOCAL_DECLARATION, positionAst, &declaration);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    MAREA_G_KeepOnlyPosition(declaration);
+    declaration->text = MAREA_G_ReturnName;
+    declaration->textLength = (MAREA_Uinteger32)strlen(MAREA_G_ReturnName);
+
+    MAREA_IrNode *reference = MAREA_NULLPTR;
+
+    result = MAREA_G_CreateReference(context, positionAst, MAREA_G_ReturnName, &reference);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    result = MAREA_IrNodeAppendChild(context, declaration, value);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    returnNode->children[0] = reference;
+    *outDeclaration = declaration;
+
+    return MAREA_IR_EXCEPT_SUCCESS;
+}
+
 // INFO: replaces original, a matched exit, with a fresh BLOCK(destroy..., original): a new, independent set of
-// INFO: DESTROY_CALL nodes, never the same node instance reused at two exits.
+// INFO: DESTROY_CALL nodes, never the same node instance reused at two exits. A return with a value becomes
+// INFO: BLOCK(LOCAL_DECLARATION $return (value), destroy..., RETURN_STATEMENT(IDENTIFIER $return)), so the value is read before any destroy.
 static MAREA_IrExcept MAREA_CALL MAREA_G_WrapWithDestroys(MAREA_IrContext *context, const MAREA_AstNode *positionAst, const MAREA_G_DestroyPlanEntry *plan, MAREA_IntegerSize planCount, MAREA_IrNode *original, MAREA_IrNode **outWrapped)
 {
     MAREA_IrNode **destroys = MAREA_NULLPTR;
@@ -1009,6 +1069,22 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_WrapWithDestroys(MAREA_IrContext *conte
     }
 
     MAREA_G_KeepOnlyPosition(wrapper);
+
+    MAREA_IrNode *hoisted = MAREA_NULLPTR;
+
+    result = MAREA_G_HoistReturnValue(context, positionAst, original, &hoisted);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    if (hoisted != MAREA_NULLPTR) {
+        result = MAREA_IrNodeAppendChild(context, wrapper, hoisted);
+
+        if (result != MAREA_IR_EXCEPT_SUCCESS) {
+            return result;
+        }
+    }
 
     for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < planCount; index = (index + MAREA_INTEGER_SIZE(1))) {
         result = MAREA_IrNodeAppendChild(context, wrapper, destroys[index]);

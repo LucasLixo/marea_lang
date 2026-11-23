@@ -263,6 +263,37 @@ TEST(MAREAIrExpressions, TypeConstructionCallLowersToConstructCall)
     EXPECT_EQ(MAREA_lowerInitializer(PREFIX, "Point", "Point()"), "(CONSTRUCT_CALL :Point (ARGUMENT_LIST (INTEGER_LITERAL 0) (INTEGER_LITERAL 0)))") << "No argument must fill every parameter from construct's own defaults.";
 }
 
+TEST(MAREAIrExpressions, TypeBraceLiteralOfATypeWithConstructLowersToConstructCallKeepingTheLiteral)
+{
+    GTEST_COUT << "Validating Point{...} of a type with construct lowers to a CONSTRUCT_CALL: the defaults first, then the literal as its initial value." << std::endl;
+
+    const std::string PREFIX{ "structure Point x: sinteger32; y: sinteger32; end implementation Point #[operator = \"construct\"] function make(x: sinteger32 = 7, y: sinteger32 = 8) end end " };
+
+    EXPECT_EQ(MAREA_lowerInitializer(PREFIX, "Point", "Point{ x = 1 }"), "(CONSTRUCT_CALL :Point (ARGUMENT_LIST (INTEGER_LITERAL 7) (INTEGER_LITERAL 8)) (LITERAL_VALUE :Point (FIELD_ENTRY x (INTEGER_LITERAL 1)) (FIELD_ENTRY y (ZERO_VALUE))))") << "A partially named literal must keep its fields, omitted ones zero, inside the construct call.";
+
+    EXPECT_EQ(MAREA_lowerInitializer(PREFIX, "Point", "Point{ x = 1, y = 2 }"), "(CONSTRUCT_CALL :Point (ARGUMENT_LIST (INTEGER_LITERAL 7) (INTEGER_LITERAL 8)) (LITERAL_VALUE :Point (FIELD_ENTRY x (INTEGER_LITERAL 1)) (FIELD_ENTRY y (INTEGER_LITERAL 2))))") << "A fully named literal must be wrapped the same way.";
+
+    EXPECT_EQ(MAREA_lowerInitializer(PREFIX, "Point", "Point{}"), "(CONSTRUCT_CALL :Point (ARGUMENT_LIST (INTEGER_LITERAL 7) (INTEGER_LITERAL 8)) (LITERAL_VALUE :Point (FIELD_ENTRY x (ZERO_VALUE)) (FIELD_ENTRY y (ZERO_VALUE))))") << "An empty literal must be wrapped too, every field zero.";
+}
+
+TEST(MAREAIrExpressions, NestedTypeBraceLiteralOfATypeWithConstructIsWrappedInsideTheFieldEntry)
+{
+    GTEST_COUT << "Validating a nested Point{...} field value is wrapped on its own, the outer literal of a type with no construct stays plain." << std::endl;
+
+    const std::string PREFIX{ "structure Point x: sinteger32; end implementation Point #[operator = \"construct\"] function make(x: sinteger32 = 0) end end structure Line start: Point; end " };
+
+    EXPECT_EQ(MAREA_lowerInitializer(PREFIX, "Line", "Line{ start = Point{ x = 1 } }"), "(LITERAL_VALUE :Line (FIELD_ENTRY start (CONSTRUCT_CALL :Point (ARGUMENT_LIST (INTEGER_LITERAL 0)) (LITERAL_VALUE :Point (FIELD_ENTRY x (INTEGER_LITERAL 1))))))") << "The inner literal must be wrapped; the outer one has no construct.";
+}
+
+TEST(MAREAIrExpressions, TypeBraceLiteralOfATypeWithoutConstructStaysALiteralValue)
+{
+    GTEST_COUT << "Validating Point{...} of a type that has a destroy but no construct stays a plain LITERAL_VALUE." << std::endl;
+
+    const std::string PREFIX{ "structure Point x: sinteger32; end implementation Point #[operator = \"destroy\"] function drop() end end " };
+
+    EXPECT_EQ(MAREA_lowerInitializer(PREFIX, "Point", "Point{ x = 1 }"), "(LITERAL_VALUE :Point (FIELD_ENTRY x (INTEGER_LITERAL 1)))") << "No construct, so no CONSTRUCT_CALL.";
+}
+
 TEST(MAREAIrExpressions, TypeWithNoConstructOperatorLowersToAnEmptyConstructCall)
 {
     GTEST_COUT << "Validating a type with no construct operator lowers Type() to a CONSTRUCT_CALL with no argument." << std::endl;
