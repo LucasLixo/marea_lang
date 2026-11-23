@@ -767,6 +767,48 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressions(MAREA_SemaContext *contex
     }
     case MAREA_AST_KIND_LOCAL_DECLARATION:
         return MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, 2), 0, MAREA_BOOLEAN_TRUE);
+    case MAREA_AST_KIND_PARAMETER:
+    {
+        // INFO: the default value is the optional third child, and it must fit the type of its parameter.
+        if (MAREA_AstNodeGetChildCount(node) < 3) {
+            return MAREA_SEMA_EXCEPT_SUCCESS;
+        }
+
+        const MAREA_SemaExcept valueResult = MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, 2), 0, MAREA_BOOLEAN_TRUE);
+
+        if (valueResult != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return valueResult;
+        }
+
+        return MAREA_SemaCheckExpressionFit(context, MAREA_SemaChildAt(node, 1), MAREA_SemaChildAt(node, 2));
+    }
+    case MAREA_AST_KIND_PARAMETER_LIST:
+    {
+        // INFO: a defaulted parameter is reported once when any required parameter follows it.
+        MAREA_Boolean requiredFollows = MAREA_BOOLEAN_FALSE;
+
+        for (MAREA_IntegerSize index = MAREA_AstNodeGetChildCount(node); index > 0; --index) {
+            const MAREA_AstNode *parameter = MAREA_SemaChildAt(node, (index - 1));
+
+            if ((parameter == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(parameter) != MAREA_AST_KIND_PARAMETER)) {
+                continue;
+            }
+
+            if (MAREA_AstNodeGetChildCount(parameter) < 3) {
+                requiredFollows = MAREA_BOOLEAN_TRUE;
+            } else if (requiredFollows == MAREA_BOOLEAN_TRUE) {
+                const MAREA_AstNode *name = MAREA_SemaChildAt(parameter, 0);
+
+                const MAREA_SemaExcept reportResult = MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_DEFAULT_PARAMETER_BEFORE_REQUIRED, MAREA_AstNodeGetPosition(parameter), "a default value comes before a required parameter:", MAREA_AstNodeGetText(name), MAREA_AstNodeGetTextLength(name));
+
+                if (reportResult != MAREA_SEMA_EXCEPT_SUCCESS) {
+                    return reportResult;
+                }
+            }
+        }
+
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
     case MAREA_AST_KIND_FOR_RANGE_STATEMENT:
     {
         const MAREA_SemaExcept firstResult = MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, 1), 0, MAREA_BOOLEAN_TRUE);

@@ -11,6 +11,8 @@ namespace
 
     constexpr MAREA_Uinteger32 MISMATCH{ MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH };
     constexpr MAREA_Uinteger32 UNDECLARED{ MAREA_SEMA_DIAGNOSTIC_CODE_UNDECLARED_NAME };
+    constexpr MAREA_Uinteger32 COUNT_MISMATCH{ MAREA_SEMA_DIAGNOSTIC_CODE_ARGUMENT_COUNT_MISMATCH };
+    constexpr MAREA_Uinteger32 DEFAULT_BEFORE_REQUIRED{ MAREA_SEMA_DIAGNOSTIC_CODE_DEFAULT_PARAMETER_BEFORE_REQUIRED };
 
     Codes MAREA_codesOf(const std::string &body)
     {
@@ -699,4 +701,41 @@ TEST(MAREASemaExpressions, OpaqueKindsStayUnknownAtAFieldAccess)
     const std::string HEAD{ "enum Color red; end structure Box c: Color; o: owned<integer32>; v: vector<float32, 4>; end function f(a: integer32) end function g(b: Box) " };
 
     EXPECT_TRUE(MAREA_codesOf(HEAD + "f(b.c); f(b.o); f(b.v); local n: integer32 = b.c + 1; end").empty()) << "A field of an opaque kind must not be compared with a primitive.";
+}
+
+TEST(MAREASemaExpressions, CallMayOmitDefaultedTrailingArguments)
+{
+    GTEST_COUT << "Validating a call may omit a trailing argument that has a default value." << std::endl;
+
+    const std::string HEAD{ "function f(a: integer32, b: integer32 = 0) end function g() " };
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "f(1); end").empty()) << "A call with only the required argument must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "f(1, 2); end").empty()) << "A call with every argument must raise nothing.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "f(); end"), Codes{ COUNT_MISMATCH }) << "A call with too few arguments must raise ARGUMENT_COUNT_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "f(1, 2, 3); end"), Codes{ COUNT_MISMATCH }) << "A call with too many arguments must raise ARGUMENT_COUNT_MISMATCH.";
+}
+
+TEST(MAREASemaExpressions, DefaultValueMustFitItsParameterType)
+{
+    GTEST_COUT << "Validating a default value is checked against the type of its parameter." << std::endl;
+
+    EXPECT_TRUE(MAREA_codesOf("function f(a: integer32 = 1) end").empty()) << "A default of the right type must raise nothing.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(a: integer32 = \"x\") end"), Codes{ MISMATCH }) << "A default of the wrong type must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(a: integer32 = missing) end"), Codes{ UNDECLARED }) << "An undeclared name in a default must raise UNDECLARED_NAME.";
+}
+
+TEST(MAREASemaExpressions, DefaultedParameterMustNotPrecedeARequiredOne)
+{
+    GTEST_COUT << "Validating a defaulted parameter must not come before a required parameter." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("function f(a: integer32 = 0, b: integer32) end"), Codes{ DEFAULT_BEFORE_REQUIRED }) << "A default before a required parameter must raise DEFAULT_PARAMETER_BEFORE_REQUIRED.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(a: integer32 = 0, b: integer32, c: integer32 = 1, d: integer32) end"), (Codes{ DEFAULT_BEFORE_REQUIRED, DEFAULT_BEFORE_REQUIRED })) << "Each defaulted parameter that precedes a required one must raise once.";
+
+    EXPECT_TRUE(MAREA_codesOf("function f(a: integer32, b: integer32 = 0, c: integer32 = 1) end").empty()) << "Defaults at the end must raise nothing.";
 }
