@@ -120,15 +120,14 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedNodeGetTypeName(const MAREA_SemaTypedNode *node, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength);
 
     /**
-     * @brief Returns the canonical full text of the type a typed node declares, with its type arguments, in the
-     * arena. Only a node whose type is written in the source has one: PARAMETER, LOCAL_DECLARATION,
+     * @brief Returns the canonical full text of the type a typed node has, with its type arguments, in the
+     * arena. A node whose type is written in the source has one: PARAMETER, LOCAL_DECLARATION,
      * FIELD_DECLARATION, VARIANT_FIELD, CONSTANT_DECLARATION and FUNCTION_DECLARATION (its result type). A literal
-     * has one too: INTEGER_LITERAL, FLOAT_LITERAL, STRING_LITERAL, CHARACTER_LITERAL and BOOLEAN_LITERAL. A string,
-     * a character and a boolean literal give string, character and boolean. A number literal gives the primitive
-     * type its context fixes (the type of the local, constant, variant field, parameter, assignment target, result,
-     * other operand, field, element or convert target it meets), else sinteger32 for an integer literal and float64
-     * for a float literal. The text of a literal is a primitive name that points into the source or is static, so it
-     * lives as long as the source text.
+     * has one too: a string, a character and a boolean literal give string, character and boolean, and a number
+     * literal gives the primitive type its context fixes, else sinteger32 for an integer and float64 for a float. So
+     * has an expression whose type sema can know: an operation, a member, an index, a call, a literal value and an
+     * identifier read as a value (the rules are in the sema doc, "Resolved type of a literal" and "Resolved type of
+     * an expression"). The text of a literal points into the source or is static; any other text is in the arena.
      *
      * The spelling is fixed: an import alias is replaced by what it stands for, a local type alias by the type it
      * names, the type arguments follow in angle brackets joined by a comma with no space (array<sinteger32,4>), a
@@ -139,8 +138,8 @@ MAREA_BEGIN_EXTERN_C
      * type. Must not be null.
      * @param outLength Receives the byte length of outText, 0 when outText is null. Must not be null.
      * @return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS, ERROR_NULL_POINTER when node, outText or outLength is null, or
-     * ERROR_NO_TYPE when the node declares no type or the written type is not a name or a function type sema can
-     * spell.
+     * ERROR_NO_TYPE when the node has no type, the written type is not a name or a function type sema can spell, or
+     * an expression needs a type argument that sema does not know.
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedNodeGetResolvedType(const MAREA_SemaTypedNode *node, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength);
 
