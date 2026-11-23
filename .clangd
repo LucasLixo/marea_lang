@@ -1,0 +1,130 @@
+CompileFlags:
+    CompilationDatabase: cmake-build-debug
+    Remove: [-fno-keep-inline-dllexport]
+
+Diagnostics:
+    ClangTidy:
+        Add:
+            - readability-identifier-naming
+            - readability-avoid-const-params-in-decls
+            - readability-non-const-parameter
+            - readability-braces-around-statements
+
+            # bugprone
+            - bugprone-assert-side-effect
+            - bugprone-assignment-in-if-condition
+            - bugprone-bool-pointer-implicit-conversion
+            - bugprone-dangling-handle
+            - bugprone-dynamic-static-initializers
+            - bugprone-infinite-loop
+            - bugprone-integer-division
+            - bugprone-macro-repeated-side-effects
+            - bugprone-misplaced-operator-in-strlen-in-alloc
+            - bugprone-misplaced-pointer-arithmetic-in-alloc
+            - bugprone-misplaced-widening-cast
+            - bugprone-not-null-terminated-result
+            - bugprone-posix-return
+            - bugprone-redundant-branch-condition
+            - bugprone-string-literal-with-embedded-nul
+            - bugprone-suspicious-memset-usage
+            - bugprone-suspicious-semicolon
+            - bugprone-suspicious-string-compare
+            - bugprone-too-small-loop-variable
+            - bugprone-unused-return-value
+
+            # cert / clang-diagnostic
+            - cert-err33-c
+            - clang-diagnostic-*
+
+            # google / misc / objc / performance
+            - google-readability-casting
+            - misc-misleading-bidirectional
+            - misc-misleading-identifier
+            - misc-misplaced-const
+            - misc-redundant-expression
+            - objc-*
+            - performance-type-promotion-in-math-fn
+
+            # readability
+            - readability-const-return-type
+            - readability-duplicate-include
+            - readability-inconsistent-declaration-parameter-name
+            - readability-misplaced-array-index
+            - readability-redundant-control-flow
+            - readability-redundant-declaration
+            - readability-redundant-function-ptr-dereference
+            - readability-redundant-preprocessor
+            - readability-simplify-boolean-expr
+
+        CheckOptions:
+            bugprone-assert-side-effect.AssertMacros: 'SDL_assert, SDL_assert_release, SDL_assert_paranoid, SDL_assert_always, SDL_COMPILE_TIME_ASSERT'
+            bugprone-misplaced-widening-cast.CheckImplicitCasts: 'true'
+            bugprone-not-null-terminated-result.WantToUseSafeFunctions: 'false'
+
+            # Files
+            readability-identifier-naming.ClassCase: CamelCase
+            readability-identifier-naming.ClassPrefix: MAREA_
+
+            # Types
+            readability-identifier-naming.StructCase: CamelCase
+            readability-identifier-naming.StructPrefix: MAREA_
+            readability-identifier-naming.EnumCase: CamelCase
+            readability-identifier-naming.EnumPrefix: MAREA_
+            readability-identifier-naming.TypedefCase: CamelCase
+            readability-identifier-naming.TypedefPrefix: MAREA_
+
+            # Variables
+            readability-identifier-naming.VariableCase: camelBack
+            readability-identifier-naming.LocalVariableCase: camelBack
+            readability-identifier-naming.ParameterCase: camelBack
+
+            # Class Members
+            readability-identifier-naming.MemberCase: camelBack
+            readability-identifier-naming.MemberPrefix: _
+            readability-identifier-naming.PrivateMemberPrefix: _
+            readability-identifier-naming.ProtectedMemberPrefix: _
+
+            # Struct Members
+            readability-identifier-naming.PublicMemberCase: camelBack
+
+            # Constants
+            readability-identifier-naming.ConstantCase: UPPER_CASE
+            readability-identifier-naming.EnumConstantCase: UPPER_CASE
+            readability-identifier-naming.ConstexprVariableCase: UPPER_CASE
+
+            # Functions
+            readability-identifier-naming.FunctionCase: CamelCase
+            readability-identifier-naming.FunctionPrefix: MAREA_
+            readability-identifier-naming.MethodCase: CamelBack
+            readability-identifier-naming.MethodPrefix: MAREA_
+            readability-identifier-naming.PrivateMethodPrefix: MAREA_
+            readability-identifier-naming.ProtectedMethodPrefix: MAREA_
+
+            # Namespaces
+            readability-identifier-naming.NamespaceCase: CamelCase
+
+            # Macros
+            readability-identifier-naming.MacroDefinitionCase: UPPER_CASE
+            readability-identifier-naming.MacroDefinitionPrefix: MAREA_
+
+            # Global static variables (file-local, mutable) - marea_g_ + camelBack
+            readability-identifier-naming.StaticVariableCase: camelBack
+            readability-identifier-naming.StaticVariablePrefix: 'marea_g_'
+
+            # Global static constants (file-local) - MAREA_G_ + PascalCase.
+            # clang-tidy only puts a const in the "Static" category when the static keyword
+            # is written inside a function body; a static const at file (translation-unit)
+            # scope - what every MAREA_G_ constant in this project actually is - falls into
+            # the separate "Global" category instead, so both must be set the same way.
+            readability-identifier-naming.StaticConstantCase: CamelCase
+            readability-identifier-naming.StaticConstantPrefix: 'MAREA_G_'
+            readability-identifier-naming.GlobalConstantCase: CamelCase
+            readability-identifier-naming.GlobalConstantPrefix: 'MAREA_G_'
+
+            # Function-body local const - c-style keeps ordinary names (plain camelBack),
+            # same as any other local variable; without this it falls back to ConstantCase.
+            readability-identifier-naming.LocalConstantCase: camelBack
+
+            # Functions with internal linkage (static in .c/.cpp)
+            readability-identifier-naming.StaticFunctionCase: CamelCase
+            readability-identifier-naming.StaticFunctionPrefix: 'MAREA_G_'

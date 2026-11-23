@@ -1,0 +1,13 @@
+# Metadata for the Marea Lang project.
+# Title, label and package identify the project; version.build is a monotonic counter
+# bumped once per committed change set, independent of major/minor/patch (see AGENTS.md,
+# "Versioning").
+
+title: MAREA
+label: Marea Lang
+package: dev.marea
+version:
+  major: 2 # Breaks the public API
+  minor: 5 # Adds to the public API
+  patch: 2 # No public API impact
+  build: 196 # Bumped once per commit, regardless of major/minor/patch

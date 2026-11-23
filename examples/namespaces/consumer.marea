@@ -1,0 +1,25 @@
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Step 12: namespaces, the user side.
+-- Order of a file: namespace, file attributes, imports, constants, types, functions.
+-- Imports come right after the namespace. The last part of the name is the local name.
+-- "as" renames what an import brings, a namespace or one symbol.
+-- Reserved namespace: c.* is for C libraries. A project folder named c is an error, and a file
+-- cannot declare it. The language has no standard library, so no other name is reserved.
+
+namespace namespaces.consumer;
+
+import c.stdio;                              -- C library: used as stdio.puts(...)
+import text;                                 -- a library (C or Marea): used as text.length(...)
+import namespaces.library;                   -- used as library.greet(...)
+import namespaces.library as lib;            -- same namespace, local name lib
+import namespaces.library.greet as welcome;  -- one symbol, local name welcome
+
+#[visibility = public]
+function show_imports(): sinteger32
+    stdio.puts(library.greet("one"));
+    stdio.puts(lib.greet("two"));
+    stdio.puts(welcome("three"));
+    return 0;
+end

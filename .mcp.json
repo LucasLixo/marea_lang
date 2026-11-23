@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "marea-docs": {
+      "type": "stdio",
+      "command": "lua",
+      "args": ["${CLAUDE_PROJECT_DIR:-.}/tools/marea-mcp/main.lua"]
+    }
+  }
+}

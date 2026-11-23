@@ -1,0 +1,134 @@
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Step 7d: safe generics (templates).
+-- Rules:
+--   1. A type parameter is written in <...> after the name. Its name is PascalCase and short
+--      (Item, Key). A value parameter is written with "constant": <constant Count: sinteger32>.
+--   2. The body is checked ONCE, at the definition, against the restrictions. An operation that
+--      the restriction does not give is an error in the definition, not at the call.
+--   3. A restriction is a "contract": a list of functions that a type must have. It is written
+--      after the signature with "where Item: Contract". Without "where", a parameter has no
+--      operation at all, only: store it, pass it, return it.
+--   4. A type meets a contract when its implementation blocks have the listed functions.
+--      There is no inheritance and no virtual table. Dispatch is static.
+--   5. Each use with new types makes one copy of the function (monomorphization). It has no
+--      cost at run time. "marea expand" shows the copies.
+--   6. The type is inferred at the call. It can be written: maximum<sinteger32>(1, 2).
+--   7. No partial specialization and no SFINAE.
+--   8. A function with #[export = "name"] must be concrete, because C has no generics.
+--   9. Limit of 64 levels of instantiation.
+--   10. Several restrictions: "where Item: Comparable, Printable and Key: Hashable".
+--   11. Built-in contracts: Copyable (the type can use "copy") and Movable (the type can use
+--      "move"). A generic can not use "copy" or "move" without one of them. The checker gives
+--      them, and the user never writes an implementation for them: a primitive and an enum are
+--      Copyable. A #[move_only] type and owned<T> are only Movable.
+
+namespace types.generics;
+
+import collections.array;
+
+-- A contract. The type that meets it is named in the signature as "Self".
+#[visibility = public]
+contract Comparable
+    function less(self: Self, other: Self): boolean;
+end
+
+#[visibility = public]
+contract Printable
+    function describe(self: Self): string;
+end
+
+-- A type parameter with one restriction.
+#[visibility = public]
+function maximum<Item>(left: Item, right: Item): Item where Item: Comparable, Copyable
+    if left.less(right) then
+        return copy right;
+    end
+    end
+    return copy left;
+end
+
+-- Two contracts on one parameter.
+#[visibility = public]
+function larger_description<Item>(left: Item, right: Item): string where Item: Comparable, Printable, Copyable
+    local winner: Item = maximum(left, right);
+    return winner.describe();
+end
+
+-- A reference can not be returned. The function gives a copy, so the type must be Copyable.
+#[visibility = public]
+function first_of<Item>(values: c.array<Item>): Item where Item: Copyable
+    return copy values[0];
+end
+
+-- Two type parameters, no restriction needed to keep the pair.
+#[visibility = public]
+structure Pair<First, Second>
+    first: First;
+    second: Second;
+end
+
+#[visibility = public]
+implementation<First, Second> Pair<First, Second>
+    function swap(self: owned<Pair<First, Second>>): Pair<Second, First> where First: Movable and Second: Movable
+        return Pair<Second, First>{ first = move self.second, second = move self.first };
+    end
+end
+
+-- A value parameter: the size is part of the type, known at compile time.
+#[visibility = public]
+structure Buffer<Item, constant Count: sinteger32>
+    items: array<Item, Count>;
+end
+
+#[visibility = public]
+implementation<Item, constant Count: sinteger32> Buffer<Item, Count>
+    function capacity(self: Buffer<Item, Count>): sinteger32
+        return Count;
+    end
+end
+
+-- A move-only type: the contract says that the type is moved, so a generic can not copy it.
+#[visibility = public]
+function take<Item>(value: owned<Item>): owned<Item> where Item: Movable
+    return value;
+end
+
+-- A type that meets Comparable and Printable through its own implementation blocks, but not
+-- Copyable: a structure is never copied by value (the retired #[value] key no longer exists), so
+-- Score cannot fill maximum/larger_description above, which both need Item: Copyable too. Only a
+-- primitive, a copyable array and an enum (the documented intentional exception) meet Copyable.
+#[visibility = public]
+structure Score
+    value: sinteger32;
+end
+
+#[visibility = public]
+implementation Score
+    function less(self: Score, other: Score): boolean
+        return self.value < other.value;
+    end
+
+    function describe(self: Score): string
+        return "score";
+    end
+end
+
+#[visibility = public]
+function show_generics(): string
+    local best: Score = Score{ value = 9 };
+    local other: Score = Score{ value = 3 };
+    local number: sinteger32 = maximum<sinteger32>(4, 8);                     -- Item written
+    local fixed: Buffer<float32, 16> = Buffer<float32, 16>{ items = array<float32, 16>.filled(0.0) };
+    local size: sinteger32 = fixed.capacity();
+    -- An error, found at the definition of "bad": Item has no operation "+".
+    --   function bad<Item>(left: Item, right: Item): Item
+    --       return left + right;
+    --   end
+    if best.less(other) then
+        return other.describe();
+    end
+    end
+    return best.describe();
+end
