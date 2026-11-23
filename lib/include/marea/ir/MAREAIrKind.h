@@ -29,7 +29,8 @@ MAREA_BEGIN_EXTERN_C
      * LITERAL_VALUE field the source left unnamed). CONSTRUCT_CALL and DESTROY_CALL are appended after ZERO_VALUE,
      * so no value moves: CONSTRUCT_CALL is the explicit lowering of Type(args) (the type name is the constructed
      * type, the one child is an ARGUMENT_LIST, filled with construct's own defaults as an ordinary call fills
-     * them); DESTROY_CALL is the explicit cleanup the ir inserts at a scope exit of a destructible local (the
+     * them; a Type{...} literal of a type with construct has a second child, the LITERAL_VALUE that is its initial value);
+     * DESTROY_CALL is the explicit cleanup the ir inserts at a scope exit of a destructible local (the
      * text is the qualified destroy function, "Type.name", and the one child is an IDENTIFIER naming the local
      * being destroyed). The list ends with MAREA_IR_KIND_COUNT.
      */
