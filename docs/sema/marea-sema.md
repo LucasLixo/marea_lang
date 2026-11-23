@@ -229,6 +229,15 @@ back the borrow, so it is rejected with `CANNOT_BORROW_CONSTANT_AS_MUTABLE` (303
 passed to the same parameter is unaffected. Tracking of a moved local and a live borrow across
 statements is a design decision recorded in the last bullet of `## Gaps`.
 
+**Integer literal range.** An integer literal (decimal, `0x` or `0b`, with `_` between digits, with one
+leading minus and any parentheses) must fit the integer primitive it meets: `sinteger8` to `sinteger64`, `uinteger8`
+to `uinteger64`. A literal that does not fit is rejected with `LITERAL_OUT_OF_RANGE` (3033) and is never truncated.
+A negated literal never fits an unsigned type, except `-0`. The check runs beside the `TYPE_MISMATCH` check, at
+the same sites: a local initializer, a constant, a parameter default, a return value, an assignment, a call
+argument (a `spawn` call too, and a call of an `EXTERNAL` member), and a field of a struct literal. A float or any
+non-integer target is never range checked, so a node gets 3011 or 3033, never both. A literal whose target has no
+known primitive type is checked only against the widest range: `uinteger64`, or `sinteger64` when negated.
+
 **Signed boundary.** Plain `+`, `-` and `*` wrap in two's complement, so only two shapes have no defined result. A unary minus over an
 unsigned value is rejected with `NEGATE_UNSIGNED` (3036); a negated literal is the literal range rule, not this one. A `/` or `%` whose
 left side folds to the lowest value of a signed type and whose right side folds to -1 is rejected with `SIGNED_DIVISION_OVERFLOW` (3037).
@@ -370,6 +379,13 @@ chain (`stdio.puts(text)`, which may be a namespace the file never imports) are 
 **Entry point.** Sema treats `main` as an ordinary function: any signature is accepted and no diagnostic is
 raised. Sema never requires a `main`. The code 3023 (`INVALID_MAIN_SIGNATURE`) is retired and stays reserved, never
 reused.
+
+**Constant operands.** `/`, `%`, `/=` and `%=` with a divisor that is a constant zero raise `DIVISION_BY_ZERO` (3034)
+when the left side is an integer (a primitive integer type or an integer literal). A shift or compound shift whose
+count is a constant that is negative or not below the width in bits of the left primitive integer type (`value << 32`
+for `uinteger32`) raises `SHIFT_COUNT_TOO_LARGE` (3035). A constant is an integer literal (decimal, `0x`, `0b`, `_`
+digits), one leading minus on a constant, or a parenthesized constant. A float divisor, a left side with no known
+primitive type (a literal) for a shift, and a divisor or count that is not a constant raise nothing.
 
 ## Typed AST hand-off
 
@@ -597,6 +613,9 @@ or rejects.
 | 3030 | `DEFAULT_PARAMETER_BEFORE_REQUIRED` | `function f(a: sinteger32 = 0, b: sinteger32)`: a parameter with a default value before one with none |
 | 3031 | `INVALID_ENUM_TAG_TYPE` | `enum A : float32`, `: string`, `: SomeStruct`: a tag that is not an integer primitive |
 | 3032 | `CANNOT_BORROW_CONSTANT_AS_MUTABLE` | `take(ORIGIN)` when `take`'s parameter's effective `semantics` is `reference_mutable` and `ORIGIN` is a file constant |
+| 3033 | `LITERAL_OUT_OF_RANGE` | `local a: uinteger8 = 256;`, `local b: sinteger8 = -129;`, `constant BIG: uinteger8 = 300;`, `local c: uinteger32 = -1;`: an integer literal whose value does not fit the integer type it is bound to |
+| 3034 | `DIVISION_BY_ZERO` | `x / 0`, `x % 0`, `x /= 0`, `x %= 0` for an integer: the divisor is a constant zero |
+| 3035 | `SHIFT_COUNT_TOO_LARGE` | `x << 32` for `uinteger32`, `x >>= 64` for `sinteger64`, `x << -1`: a constant shift count that is negative or not below the width of the left integer type |
 | 3036 | `NEGATE_UNSIGNED` | `-value`, `-(a + b)` or `-point.count` when the operand has a known unsigned primitive type |
 | 3037 | `SIGNED_DIVISION_OVERFLOW` | `-2147483648 / -1` or `-128 % -1` when the left side folds to the lowest value of the signed type and the right side folds to -1 |
 
@@ -621,6 +640,12 @@ or rejects.
 - `CANNOT_BORROW_CONSTANT_AS_MUTABLE` (3032) sees only a bare file-constant name as the argument. A field chain
   rooted in a constant (`ORIGIN.x`) passed to a write-borrow parameter is not rejected, and a test proves only the
   bare name.
+- `LITERAL_OUT_OF_RANGE` (3033) reads only a written integer literal. A float literal, a literal in an operand
+  (`1 + 300` bound to a `uinteger8`), a value folded from a named constant, and a literal whose target type is not a
+  primitive sema knows (it is then checked against `uinteger64` only) are not range checked.
+- `DIVISION_BY_ZERO` (3034) and `SHIFT_COUNT_TOO_LARGE` (3035) fold only an integer literal, one leading minus and
+  parentheses. A named constant is not folded, so `x / ZERO` raises nothing. A shift whose left side is a literal has
+  no width and raises nothing. A count above 64 bits is not folded.
 - An alias of an `enum` is not resolved to the enum for any comparison, because sema never compares an enum type
   for `TYPE_MISMATCH` (see the `TYPE_MISMATCH` gap above); the aliased-enum case that a test covers is the
   `switch` coverage of an imported enum with an alias. No test covers `type A = Color;` of a same-file enum.
