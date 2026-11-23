@@ -101,7 +101,22 @@ const MAREA_SemaTypedNode *MAREA_CALL MAREA_IrTypedFindDefault(const MAREA_SemaT
     return MAREA_NULLPTR;
 }
 
-MAREA_IrExcept MAREA_CALL MAREA_IrAppendInitializer(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode *node, MAREA_Boolean *outComplete)
+// INFO: the zero-default rule's own node: a leaf with no text, no type name and no children, left for a
+// INFO: backend to fill (cgen emits "= {0}" or a memset, the vm zeroes the slot).
+static MAREA_IrExcept MAREA_CALL MAREA_G_AppendZero(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode *node)
+{
+    MAREA_IrNode *zero = MAREA_NULLPTR;
+
+    MAREA_IrExcept result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_ZERO_VALUE, MAREA_SemaTypedNodeGetAstNode(typed), &zero);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    return MAREA_IrNodeAppendChild(context, node, zero);
+}
+
+MAREA_IrExcept MAREA_CALL MAREA_IrAppendInitializer(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode *node, MAREA_Boolean zeroWhenAbsent, MAREA_Boolean *outComplete)
 {
     if (context == MAREA_NULLPTR) {
         return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
@@ -124,7 +139,11 @@ MAREA_IrExcept MAREA_CALL MAREA_IrAppendInitializer(MAREA_IrContext *context, co
     const MAREA_SemaTypedNode *initializer = MAREA_IrTypedFindDefault(typed);
 
     if (initializer == MAREA_NULLPTR) {
-        return MAREA_IR_EXCEPT_SUCCESS;
+        if (zeroWhenAbsent == MAREA_BOOLEAN_FALSE) {
+            return MAREA_IR_EXCEPT_SUCCESS;
+        }
+
+        return MAREA_G_AppendZero(context, typed, node);
     }
 
     MAREA_IrNode *lowered = MAREA_NULLPTR;
@@ -168,7 +187,8 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_AppendParameter(MAREA_IrContext *contex
         return result;
     }
 
-    result = MAREA_IrAppendInitializer(context, typed, node, outComplete);
+    // INFO: a parameter with no default is a required argument, never a zero, so the zero-default rule skips it.
+    result = MAREA_IrAppendInitializer(context, typed, node, MAREA_BOOLEAN_FALSE, outComplete);
 
     if ((result != MAREA_IR_EXCEPT_SUCCESS) || (*outComplete == MAREA_BOOLEAN_FALSE)) {
         return result;
@@ -270,7 +290,8 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerEnum(MAREA_IrContext *context, con
 
             MAREA_Boolean complete = MAREA_BOOLEAN_TRUE;
 
-            result = MAREA_IrAppendInitializer(context, field, fieldNode, &complete);
+            // INFO: a variant field with no default is a required argument of the variant, never a zero, same as a parameter.
+            result = MAREA_IrAppendInitializer(context, field, fieldNode, MAREA_BOOLEAN_FALSE, &complete);
 
             if (result != MAREA_IR_EXCEPT_SUCCESS) {
                 return result;
@@ -310,7 +331,8 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerConstant(MAREA_IrContext *context,
 
     MAREA_Boolean complete = MAREA_BOOLEAN_TRUE;
 
-    result = MAREA_IrAppendInitializer(context, typed, node, &complete);
+    // INFO: the grammar makes a constant's initializer mandatory, so zeroWhenAbsent never triggers here; it stays false for clarity.
+    result = MAREA_IrAppendInitializer(context, typed, node, MAREA_BOOLEAN_FALSE, &complete);
 
     if ((result != MAREA_IR_EXCEPT_SUCCESS) || (complete == MAREA_BOOLEAN_FALSE)) {
         return result;
