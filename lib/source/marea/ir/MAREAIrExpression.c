@@ -466,7 +466,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_NodeHasField(const MAREA_IrNode *node, c
 }
 
 // INFO: one field the source did not name: a FIELD_ENTRY of the structure's own field name holding a ZERO_VALUE, positioned at the literal itself, since the omission names no position of its own.
-static MAREA_IrExcept MAREA_CALL MAREA_G_AppendZeroField(MAREA_IrContext *context, const MAREA_AstNode *literalAst, const MAREA_AstNode *nameAst, MAREA_IrNode *node)
+static MAREA_IrExcept MAREA_CALL MAREA_G_AppendZeroField(MAREA_IrContext *context, const MAREA_AstNode *literalAst, const MAREA_SemaTypedNode *field, const MAREA_AstNode *nameAst, MAREA_IrNode *node)
 {
     MAREA_IrNode *entry = MAREA_NULLPTR;
 
@@ -485,6 +485,11 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_AppendZeroField(MAREA_IrContext *contex
     MAREA_IrNode *zero = MAREA_NULLPTR;
 
     result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_ZERO_VALUE, literalAst, &zero);
+
+    // INFO: the zero fills one field, so it has the declared type of that field.
+    if (result == MAREA_IR_EXCEPT_SUCCESS) {
+        result = MAREA_IrNodeSetResolvedTypeFromTyped(context, zero, field, MAREA_NULLPTR);
+    }
 
     if (result != MAREA_IR_EXCEPT_SUCCESS) {
         return result;
@@ -529,7 +534,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_AppendMissingFields(MAREA_IrContext *co
             continue;
         }
 
-        const MAREA_IrExcept result = MAREA_G_AppendZeroField(context, literalAst, nameAst, node);
+        const MAREA_IrExcept result = MAREA_G_AppendZeroField(context, literalAst, field, nameAst, node);
 
         if (result != MAREA_IR_EXCEPT_SUCCESS) {
             return result;

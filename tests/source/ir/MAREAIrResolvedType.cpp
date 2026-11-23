@@ -56,25 +56,10 @@ namespace
         return (kind == MAREA_IR_KIND_BINARY_EXPRESSION) || (kind == MAREA_IR_KIND_UNARY_EXPRESSION) || (kind == MAREA_IR_KIND_MEMBER_ACCESS) || (kind == MAREA_IR_KIND_INDEX_ACCESS) || (kind == MAREA_IR_KIND_CALL_EXPRESSION) || (kind == MAREA_IR_KIND_INTEGER_LITERAL) || (kind == MAREA_IR_KIND_FLOAT_LITERAL) || (kind == MAREA_IR_KIND_STRING_LITERAL) || (kind == MAREA_IR_KIND_BOOLEAN_LITERAL) || (kind == MAREA_IR_KIND_CHARACTER_LITERAL);
     }
 
-    // A node the ir invents (a hidden local, or an operation made from one) is typed by the next apply, so the sweep skips it.
-    bool MAREA_mentionsHiddenLocal(const MAREA_IrNode *node)
+    // The ir invents a local named with a leading dollar sign; it must carry a type like the expressions do.
+    bool MAREA_isHiddenLocal(const MAREA_IrNode *node)
     {
-        if (MAREA_irText(node).compare(0, 1, "$") == 0) {
-            return true;
-        }
-
-        for (MAREA_IntegerSize index{ 0 }; index < MAREA_IrNodeGetChildCount(node); ++index) {
-            if (MAREA_mentionsHiddenLocal(MAREA_irChild(node, index))) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    bool MAREA_samePosition(const MAREA_IrNode *left, const MAREA_IrNode *right)
-    {
-        return (MAREA_IrNodeGetPosition(left).offset == MAREA_IrNodeGetPosition(right).offset) && (MAREA_IrNodeGetPosition(left).line == MAREA_IrNodeGetPosition(right).line);
+        return (MAREA_IrNodeGetKind(node) == MAREA_IR_KIND_LOCAL_DECLARATION) && (MAREA_irText(node).compare(0, 1, "$") == 0);
     }
 
     // An expression that sema leaves untyped on purpose (see the closed list in the sema doc): a callee, a call of an untyped callee, an operation with an untyped operand, or a spawn of a void call.
@@ -95,7 +80,7 @@ namespace
         for (MAREA_IntegerSize child{ 0 }; child < MAREA_IrNodeGetChildCount(node); ++child) {
             const MAREA_IrNode *operand{ MAREA_irChild(node, child) };
 
-            if (MAREA_isExpressionKind(MAREA_IrNodeGetKind(operand)) && (MAREA_IrNodeGetResolvedType(operand) == nullptr)) {
+            if ((MAREA_isExpressionKind(MAREA_IrNodeGetKind(operand)) || (MAREA_IrNodeGetKind(operand) == MAREA_IR_KIND_IDENTIFIER)) && (MAREA_IrNodeGetResolvedType(operand) == nullptr)) {
                 return true;
             }
         }
@@ -108,10 +93,7 @@ namespace
     {
         const MAREA_IrKind KIND{ MAREA_IrNodeGetKind(node) };
 
-        // The ir invents the literal 1 of a loop step at the position of the loop, so it takes its type from the next apply.
-        const bool INVENTED{ MAREA_mentionsHiddenLocal(node) || ((parent != nullptr) && (MAREA_IrNodeGetKind(parent) == MAREA_IR_KIND_ASSIGNMENT) && MAREA_samePosition(node, parent)) };
-
-        if (MAREA_isExpressionKind(KIND) && (MAREA_IrNodeGetResolvedType(node) == nullptr) && !INVENTED) {
+        if ((MAREA_isExpressionKind(KIND) || (KIND == MAREA_IR_KIND_ZERO_VALUE) || MAREA_isHiddenLocal(node)) && (MAREA_IrNodeGetResolvedType(node) == nullptr)) {
             if (MAREA_untypedOnPurpose(node, parent, index)) {
                 ++onPurpose;
             } else {
@@ -286,4 +268,159 @@ TEST(MAREAIrResolvedType, ExamplesTypeEveryLoweredExpression)
 
     EXPECT_TRUE(missing.empty()) << "Every expression node of a lowered example must carry a resolved type or be untyped on purpose:\n"
                                  << missing;
+}
+
+namespace
+{
+    // The text of the first dump line that starts with a prefix, or an empty string.
+    std::string MAREA_lineOf(const std::string &dump, const std::string &prefix)
+    {
+        const std::size_t START{ dump.find(prefix) };
+
+        if (START == std::string::npos) {
+            return "";
+        }
+
+        return dump.substr(START, dump.find('\n', START) - START);
+    }
+
+    std::size_t MAREA_countOf(const std::string &dump, const std::string &part)
+    {
+        std::size_t count{ 0 };
+
+        for (std::size_t at{ dump.find(part) }; at != std::string::npos; at = dump.find(part, at + 1)) {
+            ++count;
+        }
+
+        return count;
+    }
+
+    const std::string BOX{ "structure Box x: sinteger32; end implementation Box #[operator = \"destroy\"] function drop() end end " };
+} // namespace
+
+TEST(MAREAIrResolvedType, ZeroValueOfALocalCarriesTheDeclaredType)
+{
+    GTEST_COUT << "Validating the ZERO_VALUE of a local with no initializer carries the declared type." << std::endl;
+
+    MAREA_IrFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; function f() local a: sinteger32; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+
+    const std::string DUMP{ MAREA_dumpOf(fixture) };
+
+    EXPECT_NE(DUMP.find("LOCAL_DECLARATION \"a\" type=sinteger32 resolved=sinteger32\n        ZERO_VALUE resolved=sinteger32\n"), std::string::npos) << DUMP;
+}
+
+TEST(MAREAIrResolvedType, WrittenInitializerNeverGetsAZeroNextToIt)
+{
+    GTEST_COUT << "Validating a local with = or a literal holds exactly one value child and no ZERO_VALUE, and a local with none holds exactly one ZERO_VALUE." << std::endl;
+
+    MAREA_IrFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; structure Point x: sinteger32; y: float64; end function f() local a: sinteger32 = 1; local b: Point = Point{ x = 1 }; local c: sinteger32; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+
+    const MAREA_IrNode *body{ MAREA_irChild(MAREA_irChild(fixture.module, 1), 1) };
+
+    ASSERT_EQ(MAREA_IrNodeGetChildCount(body), MAREA_INTEGER_SIZE(3)) << "The body must hold the three locals.";
+
+    const MAREA_IrKind EXPECTED[]{ MAREA_IR_KIND_INTEGER_LITERAL, MAREA_IR_KIND_LITERAL_VALUE, MAREA_IR_KIND_ZERO_VALUE };
+
+    for (MAREA_IntegerSize index{ 0 }; index < 3; ++index) {
+        const MAREA_IrNode *local{ MAREA_irChild(body, index) };
+
+        ASSERT_EQ(MAREA_IrNodeGetChildCount(local), MAREA_INTEGER_SIZE(1)) << "Each local must hold exactly one value child, local " << index;
+
+        EXPECT_EQ(MAREA_IrNodeGetKind(MAREA_irChild(local, 0)), EXPECTED[index]) << "The only child of local " << index << " has the wrong kind.";
+    }
+}
+
+TEST(MAREAIrResolvedType, ZeroValueOfAnOmittedFieldCarriesTheFieldType)
+{
+    GTEST_COUT << "Validating the ZERO_VALUE of an omitted struct field carries the type of that field." << std::endl;
+
+    MAREA_IrFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; structure Point x: sinteger32; y: float64; end function f() local p: Point = Point{ x = 1 }; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+
+    const std::string DUMP{ MAREA_dumpOf(fixture) };
+
+    EXPECT_EQ(MAREA_countOf(DUMP, "ZERO_VALUE resolved=float64"), std::size_t{ 1 }) << DUMP;
+
+    EXPECT_EQ(MAREA_countOf(DUMP, "ZERO_VALUE resolved=sinteger32"), std::size_t{ 0 }) << "The named field x must not be zeroed: " << DUMP;
+}
+
+TEST(MAREAIrResolvedType, EmptyLiteralZeroesEveryFieldWithItsOwnType)
+{
+    GTEST_COUT << "Validating an empty struct literal gives each ZERO_VALUE the type of its own field." << std::endl;
+
+    MAREA_IrFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; structure Point x: sinteger32; y: float64; end function f() local p: Point = Point{}; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+
+    const std::string DUMP{ MAREA_dumpOf(fixture) };
+
+    EXPECT_EQ(MAREA_countOf(DUMP, "ZERO_VALUE resolved=sinteger32"), std::size_t{ 1 }) << DUMP;
+
+    EXPECT_EQ(MAREA_countOf(DUMP, "ZERO_VALUE resolved=float64"), std::size_t{ 1 }) << DUMP;
+}
+
+TEST(MAREAIrResolvedType, ForRangeHiddenBoundAndStepAreTyped)
+{
+    GTEST_COUT << "Validating the for-range desugaring types the loop variable, $last, every reference to them, the tests and the step literal." << std::endl;
+
+    MAREA_IrFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; function f(n: uinteger8) for index in 0 .. n do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+
+    const std::string DUMP{ MAREA_dumpOf(fixture) };
+
+    EXPECT_EQ(MAREA_lineOf(DUMP, "LOCAL_DECLARATION \"$last\""), "LOCAL_DECLARATION \"$last\" resolved=uinteger8") << "$last must have the type of the bound: " << DUMP;
+
+    EXPECT_EQ(MAREA_lineOf(DUMP, "LOCAL_DECLARATION \"index\""), "LOCAL_DECLARATION \"index\" resolved=uinteger8 flags=1") << "The loop variable must be typed: " << DUMP;
+
+    EXPECT_EQ(MAREA_countOf(DUMP, "IDENTIFIER \"$last\" resolved=uinteger8"), std::size_t{ 2 }) << "Both reads of $last must be typed: " << DUMP;
+
+    EXPECT_EQ(MAREA_countOf(DUMP, "IDENTIFIER \"index\" resolved=uinteger8"), std::size_t{ 3 }) << "Every read of the loop variable must be typed: " << DUMP;
+
+    EXPECT_EQ(MAREA_countOf(DUMP, "BINARY_EXPRESSION resolved=boolean op="), std::size_t{ 2 }) << "The loop test and the leave test must be boolean: " << DUMP;
+
+    EXPECT_NE(DUMP.find("INTEGER_LITERAL \"1\" resolved=uinteger8"), std::string::npos) << "The step literal must have the type of the variable: " << DUMP;
+}
+
+TEST(MAREAIrResolvedType, SwitchHiddenLocalAndTestsAreTyped)
+{
+    GTEST_COUT << "Validating the switch desugaring types $switch, its references and the tests built from it." << std::endl;
+
+    MAREA_IrFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; function f(v: uinteger8) switch v case 1, 2 then return; end case 3 then return; end default then return; end end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+
+    const std::string DUMP{ MAREA_dumpOf(fixture) };
+
+    EXPECT_EQ(MAREA_lineOf(DUMP, "LOCAL_DECLARATION \"$switch\""), "LOCAL_DECLARATION \"$switch\" resolved=uinteger8") << DUMP;
+
+    EXPECT_EQ(MAREA_countOf(DUMP, "IDENTIFIER \"$switch\" resolved=uinteger8"), std::size_t{ 3 }) << "Every read of $switch must be typed: " << DUMP;
+
+    EXPECT_EQ(MAREA_countOf(DUMP, "BINARY_EXPRESSION resolved=boolean op=EQUAL_EQUAL"), std::size_t{ 3 }) << "Every case test must be boolean: " << DUMP;
+
+    EXPECT_EQ(MAREA_countOf(DUMP, "BINARY_EXPRESSION resolved=boolean op=KEYWORD_OR"), std::size_t{ 1 }) << "The or of a case must be boolean: " << DUMP;
+}
+
+TEST(MAREAIrResolvedType, ReturnHoistedThroughADestroyIsTyped)
+{
+    GTEST_COUT << "Validating $return and its read carry the type of the returned value." << std::endl;
+
+    MAREA_IrFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; " + BOX + "function f(): sinteger32 local a: Box = Box(); return a.x; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+
+    const std::string DUMP{ MAREA_dumpOf(fixture) };
+
+    EXPECT_EQ(MAREA_lineOf(DUMP, "LOCAL_DECLARATION \"$return\""), "LOCAL_DECLARATION \"$return\" resolved=sinteger32") << DUMP;
+
+    EXPECT_EQ(MAREA_countOf(DUMP, "IDENTIFIER \"$return\" resolved=sinteger32"), std::size_t{ 1 }) << DUMP;
+
+    EXPECT_EQ(MAREA_lineOf(DUMP, "CONSTRUCT_CALL"), "CONSTRUCT_CALL type=Box resolved=Box") << DUMP;
+
+    EXPECT_EQ(MAREA_lineOf(DUMP, "DESTROY_CALL"), "DESTROY_CALL \"Box.drop\"") << "A DESTROY_CALL stays untyped: " << DUMP;
 }
