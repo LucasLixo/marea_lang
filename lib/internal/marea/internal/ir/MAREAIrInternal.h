@@ -204,14 +204,17 @@ MAREA_BEGIN_EXTERN_C
 
     /**
      * @brief Lowers the expression right after the type child of a typed node, when there is one, and
-     * appends it to node.
+     * appends it to node. When there is none and zeroWhenAbsent is true, appends a ZERO_VALUE instead,
+     * the zero-default rule for a LOCAL_DECLARATION with no written initializer; a PARAMETER default, a
+     * CONSTANT_DECLARATION initializer and a VARIANT_FIELD value stay outside the rule and pass false.
      * @param context Context that owns the arena. Must not be null.
      * @param typed Typed node that holds the type and the initializer. Must not be null.
-     * @param node Node that receives the lowered initializer. Must not be null.
+     * @param node Node that receives the lowered initializer or the synthesized zero. Must not be null.
+     * @param zeroWhenAbsent True to append a ZERO_VALUE when typed has no written initializer.
      * @param outComplete Receives false when the initializer lowered to nothing. Must not be null.
      * @return MAREA_IR_EXCEPT_SUCCESS, ERROR_NULL_POINTER when an argument is null, or ERROR_OUT_OF_MEMORY.
      */
-    MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrAppendInitializer(MAREA_IrContext * context, const MAREA_SemaTypedNode *typed, MAREA_IrNode *node, MAREA_Boolean *outComplete);
+    MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrAppendInitializer(MAREA_IrContext * context, const MAREA_SemaTypedNode *typed, MAREA_IrNode *node, MAREA_Boolean zeroWhenAbsent, MAREA_Boolean *outComplete);
 
     /**
      * @brief Returns the typed expression right after a typed node's first type child (NAMED_TYPE or

@@ -43,11 +43,11 @@ TEST(MAREAIrControlFlow, LocalDeclarationKeepsNameTypeNameAndInitializer)
     EXPECT_EQ(MAREA_lowerBody("", "", "local total: sinteger32 = 1 + 2;"), "(BLOCK (LOCAL_DECLARATION total :sinteger32 (BINARY_EXPRESSION op=PLUS (INTEGER_LITERAL 1) (INTEGER_LITERAL 2))))") << "The local must keep its shape.";
 }
 
-TEST(MAREAIrControlFlow, LocalDeclarationWithoutInitializerHasNoChild)
+TEST(MAREAIrControlFlow, LocalDeclarationWithoutInitializerGetsAnExplicitZero)
 {
-    GTEST_COUT << "Validating a local declaration without an initializer has no child." << std::endl;
+    GTEST_COUT << "Validating a local declaration without an initializer gets an explicit ZERO_VALUE, per the zero-default rule." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerBody("", "", "local total: sinteger32;"), "(BLOCK (LOCAL_DECLARATION total :sinteger32))") << "No initializer means no child.";
+    EXPECT_EQ(MAREA_lowerBody("", "", "local total: sinteger32;"), "(BLOCK (LOCAL_DECLARATION total :sinteger32 (ZERO_VALUE)))") << "No written initializer means an explicit zero, never no child.";
 }
 
 TEST(MAREAIrControlFlow, AssignmentKeepsOperatorAndOperands)
