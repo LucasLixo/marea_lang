@@ -96,13 +96,13 @@ the same table; the attribute of the symbol wins over the file attribute, so `#!
 with `#[visibility = private]` on one symbol is not a conflict.
 
 **Types.** The built-in names are `boolean`, `sinteger8` to `sinteger64`, `uinteger8` to `uinteger64`,
-`float32`, `float64`, `string`, `vector`, `pointer`, `owned`, `slice` and `task`. A type name is also
+`float32`, `float64`, `string`, `array`, `vector`, `pointer`, `owned`, `slice` and `task`. A type name is also
 `Self` inside an `implementation` or a `contract`, a generic parameter in scope, a structure, enum,
-opaque type or alias of the file, or an import. `vector` takes two arguments, the others one, and a
+opaque type or alias of the file, or an import. `array` takes two arguments (a type and a size), the others one, and a
 user generic takes as many arguments as it has parameters. A number fills a value parameter only.
 
-**Contracts.** `Copyable` is met by a primitive, a `vector`, `pointer`, `slice` or function type, an
-enum and a `#[value]` type. `Movable` is met by `owned`, `task`, a `#[move_only]` type and a plain
+**Contracts.** `Copyable` is met by a primitive, an `array` whose element is `Copyable`, a `pointer`, `slice` or function type, an
+enum and a `#[value]` type. A `vector` is never `Copyable`. `Movable` is met by `owned`, `task`, `vector`, a `#[move_only]` type and a plain
 user type. Any other contract is met when the `implementation` blocks of the type hold every contract
 function with the same parameters and result, `Self` replaced by the type. A generic parameter meets a
 contract only when its own `where` clause lists it. The check runs at a call of a function of the file,
@@ -117,8 +117,8 @@ that has a required parameter after it is `DEFAULT_PARAMETER_BEFORE_REQUIRED` (3
 parameter. Sema keeps the default in the tree; it does not copy it into a call.
 
 **Ownership.** A parameter with no word is a read-only borrow, `mutable` is a write borrow,
-`reference` forces a borrow of a by-value type, `owned<T>` moves in. A primitive, a `vector`, an
-enum and a `#[value]` type is by value. `=` of a name, field or element of any other type needs
+`reference` forces a borrow of a by-value type, `owned<T>` moves in. A primitive, an `array`, `pointer`, `slice`, an
+enum and a `#[value]` type is by value. A `vector` is a move type, so `=` of a `vector` name needs `copy x` or `move x`. `=` of a name, field or element of any other type needs
 `copy x` or `move x`, in an assignment and in a local initializer. A call or a literal needs no word.
 A borrow parameter, a `for each` variable, a `partition` part and a `with` name cannot be returned,
 nor be the value of a field. A new local of the same name ends the reference.
@@ -178,7 +178,7 @@ is a primitive, at a call argument of a function of the file, a local initialize
 only by name (`sinteger32` does not fit `sinteger64`), a number literal fits any number type, a fraction literal
 any float type, and a structure fits no primitive. An alias of a primitive is the primitive. The mismatch is
 `TYPE_MISMATCH` (3011) on the expression. A name of an enum, of a library type or of a generic parameter, and an `owned`,
-`task` or `vector` value, are classified as their own shapes but are never compared.
+`task` or `vector` value, and an `array` value, are classified as their own shapes but are never compared.
 
 **Operands of a binary operator.** Every binary expression in a checked slot (the same slots as the names, and
 the initializer of a constant) has its two operands compared, whatever the declared type: `+`, `-`, `*`, `/`,
@@ -234,7 +234,7 @@ and the size is rounded up to the alignment. The layout may come from a file att
 is measured too, up to 8 levels deep, and only inside a `c` structure when it is `c` itself. Two `marea` structures
 (the default layout) with the same fields, `pack` and `align` have the same layout, because the backend gives the
 same input the same layout. A pair that sema cannot measure is a `TYPE_MISMATCH` (3011): a generic structure, a
-field that is not a fixed-width primitive or a structure of the file (`string`, `pointer`, `vector`, an enum, a
+field that is not a fixed-width primitive or a structure of the file (`string`, `pointer`, `array`, `vector`, an enum, a
 library type), a `pack` or `align` value that is not an integer from 1 to 4294967296, a `marea` structure inside a
 `c` structure, a `c` structure against a `marea` one, a chain of structures deeper than 8 levels (or one that holds
 itself). A structure converted to itself needs no measure and is accepted.
@@ -290,7 +290,7 @@ inferred keeps the neutral default `PRIMITIVE` with no declaration or name, the 
 fallback `MAREA_SemaInferType` already uses for the checker.
 
 **Ownership mode.** `MAREA_SemaOwnershipMode` names how a typed node carries its value, following the
-same rules "Ownership" above already states: `VALUE` (a primitive, a `vector`/`pointer`/`slice`/
+same rules "Ownership" above already states: `VALUE` (a primitive, an `array`/`pointer`/`slice`/
 `owned`/`task` core type is a different case below, an enum or a `#[value]` type), `BORROW` (a
 read-only parameter, a `for each` variable, a `partition` part or a `with` name), `MUTABLE_BORROW` (a
 `mutable` parameter), `MOVE` (an `owned<T>` or `task<T>` parameter or value), `COPY` (a `copy x`
@@ -301,7 +301,7 @@ file carries the callee's declared return type: `USER`, `EXTERNAL` or a built-in
 (with no name `convert` bound in the unit) carries the type `T`, read in the scope of the caller. When the callee is
 generic and the call gives explicit type arguments, a return type that is one generic parameter (`Item`) is
 replaced by the type argument at the same place (`same<sinteger32>(5)` is `sinteger32`). When there are no type
-arguments, or the return type is a compound of a parameter (`array<Item>`), the typed node keeps the raw type: a
+arguments, or the return type is a compound of a parameter (`c.array<Item>`), the typed node keeps the raw type: a
 bare parameter is tagged `GENERIC` with its name - never a guess, never a crash. Resolving a result from inferred
 type arguments is deferred to when the `ir` stage needs one for real.
 
@@ -340,10 +340,12 @@ type arguments is deferred to when the `ir` stage needs one for real.
 ## Gaps
 
 - No check of the signature of `main` exists any more, and a driver-level replacement does not exist yet.
+- `array` and `vector` are built-in names now, so a library that exports a type named `array` is shadowed by the
+  built-in (an import never wins over a built-in name). A growable library type is spelled under the `c.{lib}`
+  namespace for now. A `vector` is still indexable in the type inference, though it is a move type.
 - Renaming on use inside one file (without an import) is not offered: a local declaration has its own name.
 - `TYPE_MISMATCH` (3011) sorts the type of an expression into a fixed set of shapes: a literal, a primitive, a
-  structure, and, known but never compared, an enum, a library type, a generic parameter and an `owned`, `task` or
-  `vector` value. Still fully unknown: a `pointer`, a `slice`, a function type, the type of a field or a file
+  structure, and, known but never compared, an enum, a library type, a generic parameter and an `owned`, `task`, `vector` or `array` value. Still fully unknown: a `pointer`, a `slice`, a function type, the type of a field or a file
   constant that is not a primitive, and the result of a generic call (see below).
 - A binary operator is not checked against what its operands may be (`a and b` with two integers raises nothing,
   as the two have the same name), and an operator that is declared for a structure is not compared.
@@ -358,13 +360,13 @@ type arguments is deferred to when the `ir` stage needs one for real.
   checked for shape only.
 - The type of a library type is not tracked, so a missing `copy` or `move` there is not reported.
 - The typed-AST hand-off substitutes a generic result only for a bare parameter with explicit type arguments; a
-  result from inferred type arguments or a compound such as `array<Item>` keeps the raw type.
+  result from inferred type arguments or a compound such as `c.array<Item>` keeps the raw type.
 - `DUPLICATE_SWITCH_ARM` compares a float by its text: `1.0` and `1.00` are taken for different values. A constant
   that sema cannot read (imported, or declared with a computed expression) is compared by its name only, and a
   case value that is a call or another computed expression is never compared.
 - `convert<T>(x)` between two structures is measured in sema, as described under "Rules", for primitive fields, a
   field `align`, a structure held by value and two `marea` structures with the same fields. It is no longer accepted
-  when sema cannot measure the pair: a generic structure, a `string`, `pointer`, `vector`, enum or library field, an
+  when sema cannot measure the pair: a generic structure, a `string`, `pointer`, `array`, `vector`, enum or library field, an
   `marea` structure inside a `c` structure, a `marea` against a `c` structure, and a chain deeper than 8 levels are
   an explicit `TYPE_MISMATCH` (3011), not a silent accept. These are rejections, not real sizes: a generic
   structure and a field of another type have no size in sema, and two `marea` structures are compared by their
