@@ -694,15 +694,61 @@ TEST(MAREAIrControlFlow, LoopBodyLocalIsDestroyedAtTheEndOfEveryIteration)
     EXPECT_EQ(MAREA_lowerBody(MAREA_BOX, "flag: boolean", "while flag do local b: Box = Box(); end"), "(BLOCK (WHILE_STATEMENT (IDENTIFIER flag) (BLOCK (LOCAL_DECLARATION b :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST))) (DESTROY_CALL Box.drop (IDENTIFIER b)))))") << "The destroy must sit in the loop body, never after the loop.";
 }
 
-TEST(MAREAIrControlFlow, ReturnWithAValueIsWrappedLikeAnyOtherReturn)
+TEST(MAREAIrControlFlow, ReturnWithAValueIsHoistedBeforeTheDestroys)
 {
-    GTEST_COUT << "Validating a return that carries a value is wrapped with the destroys of the locals it leaves." << std::endl;
+    GTEST_COUT << "Validating a return that carries a value reads the value into $return before the destroys of the locals it leaves." << std::endl;
+
+    EXPECT_EQ(MAREA_lowerBody(MAREA_BOX, "", "local a: Box = Box(); return 1;"), "(BLOCK (LOCAL_DECLARATION a :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST))) (BLOCK (LOCAL_DECLARATION $return (INTEGER_LITERAL 1)) (DESTROY_CALL Box.drop (IDENTIFIER a)) (RETURN_STATEMENT (IDENTIFIER $return))))") << "The value must be evaluated first, then the destroy, then the return of the hidden local.";
+}
+
+TEST(MAREAIrControlFlow, ReturnValueReadingADestroyedLocalIsEvaluatedFirst)
+{
+    GTEST_COUT << "Validating a return whose value names a destructible local evaluates that value before the destroy of the local." << std::endl;
+
+    EXPECT_EQ(MAREA_lowerBody(MAREA_BOX, "", "local a: Box = Box(); return a.x;"), "(BLOCK (LOCAL_DECLARATION a :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST))) (BLOCK (LOCAL_DECLARATION $return (MEMBER_ACCESS (IDENTIFIER a) (IDENTIFIER x))) (DESTROY_CALL Box.drop (IDENTIFIER a)) (RETURN_STATEMENT (IDENTIFIER $return))))") << "The read of a.x must come before the destroy of a.";
+}
+
+TEST(MAREAIrControlFlow, NestedReturnWithAValueIsHoistedOnceAndDestroysInnerScopeFirst)
+{
+    GTEST_COUT << "Validating a value return through two destructible scopes holds one $return, the inner destroy first." << std::endl;
 
     const std::string
 RENDERED
-{ MAREA_lowerBody(MAREA_BOX, "", "local a: Box = Box(); return 1;") };
+{ MAREA_lowerBody(MAREA_BOX, "flag: boolean", "local a: Box = Box(); if flag then local b: Box = Box(); return a.x; end end") };
 
-EXPECT_NE(RENDERED.find("(BLOCK (DESTROY_CALL Box.drop (IDENTIFIER a)) (RETURN_STATEMENT"), std::string::npos) << "The destroy must come before the return: " <<
+EXPECT_EQ(RENDERED, "(BLOCK (LOCAL_DECLARATION a :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST))) (IF_STATEMENT (IDENTIFIER flag) (BLOCK (LOCAL_DECLARATION b :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST))) (BLOCK (LOCAL_DECLARATION $return (MEMBER_ACCESS (IDENTIFIER a) (IDENTIFIER x))) (DESTROY_CALL Box.drop (IDENTIFIER b)) (BLOCK (DESTROY_CALL Box.drop (IDENTIFIER a)) (RETURN_STATEMENT (IDENTIFIER $return)))))) (DESTROY_CALL Box.drop (IDENTIFIER a)))") << "The value must be hoisted once, then b destroyed, then a, then the return: " <<
+RENDERED
+;
+
+const std::string DECLARATION{ "LOCAL_DECLARATION $return" };
+
+EXPECT_EQ(RENDERED.find(DECLARATION, (RENDERED.find(DECLARATION) + 1)), std::string::npos) << "No block may hold a second $return declaration: " <<
+RENDERED
+;
+}
+
+TEST(MAREAIrControlFlow, ReturnWithNoValueIsNotHoisted)
+{
+    GTEST_COUT << "Validating a return with no value is wrapped with the destroys only, with no $return." << std::endl;
+
+    const std::string
+RENDERED
+{ MAREA_lowerBody(MAREA_BOX, "", "local a: Box = Box(); return;") };
+
+EXPECT_EQ(RENDERED, "(BLOCK (LOCAL_DECLARATION a :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST))) (BLOCK (DESTROY_CALL Box.drop (IDENTIFIER a)) (RETURN_STATEMENT)))") << "A return with no value needs no hidden local: " <<
+RENDERED
+;
+}
+
+TEST(MAREAIrControlFlow, ReturnWithAValueInALoopBodyIsHoistedInsideTheLoop)
+{
+    GTEST_COUT << "Validating a value return in a loop body hoists inside the loop and destroys the body local then the outer one." << std::endl;
+
+    const std::string
+RENDERED
+{ MAREA_lowerBody(MAREA_BOX, "flag: boolean", "local a: Box = Box(); while flag do local b: Box = Box(); return a.x; end") };
+
+EXPECT_EQ(RENDERED, "(BLOCK (LOCAL_DECLARATION a :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST))) (WHILE_STATEMENT (IDENTIFIER flag) (BLOCK (LOCAL_DECLARATION b :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST))) (BLOCK (LOCAL_DECLARATION $return (MEMBER_ACCESS (IDENTIFIER a) (IDENTIFIER x))) (DESTROY_CALL Box.drop (IDENTIFIER b)) (BLOCK (DESTROY_CALL Box.drop (IDENTIFIER a)) (RETURN_STATEMENT (IDENTIFIER $return)))))) (DESTROY_CALL Box.drop (IDENTIFIER a)))") << "The return inside the loop must hoist inside the loop body: " <<
 RENDERED
 ;
 }
