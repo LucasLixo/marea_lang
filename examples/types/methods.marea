@@ -20,10 +20,10 @@
 --      on the implementation line is the default for all its functions, and the attribute of
 --      one function wins. A function without #[visibility = public] is private to the file.
 --   8. A callback is a field with a function type. It is data, so it is not a method.
---   9. #[operator = name] lets a method give meaning to an operator on the structure. The names:
---      add sub mul div rem negate (+ - * / % unary -), equal (== and !=), less (< <= > >=).
---      The signature is checked, for example add must be (self, other: Vector2): Vector2.
---      There is no operator that is not tied to a named method, so a reader can always find it.
+--   9. #[operator = "+"] lets a method give meaning to an operator on the structure. The value is one string
+--      of a fixed list: the operator tokens ("+", "-", "*", "/", "%", "==", "<", ...), and "[]", "()",
+--      "convert", "construct", "destroy". Any other string is an error.
+--      The signature is checked, for example "+" must be (self, other: Vector2): Vector2.
 -- The same rules work for enum (see enum_methods.marea).
 
 namespace types.methods;
@@ -65,12 +65,12 @@ end
 -- Third block: the operators.
 #[visibility = public]
 implementation Vector2
-    #[operator = add]
+    #[operator = "+"]
     function add(self: Vector2, other: Vector2): Vector2
         return Vector2{ x = self.x + other.x, y = self.y + other.y };
     end
 
-    #[operator = mul]
+    #[operator = "*"]
     function multiply(self: Vector2, factor: float64): Vector2
         return Vector2{ x = self.x * factor, y = self.y * factor };
     end

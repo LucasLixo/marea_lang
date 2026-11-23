@@ -145,13 +145,83 @@ TEST(MAREASemaAttributes, DestroyIsNoLongerAKey)
     EXPECT_EQ(MAREA_codesOf("#[destroy = my_destroy] structure S end"), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_UNKNOWN_ATTRIBUTE_KEY }) << "destroy must raise UNKNOWN_ATTRIBUTE_KEY.";
 }
 
-TEST(MAREASemaAttributes, OperatorAndExportAreShapeChecked)
+TEST(MAREASemaAttributes, OperatorTakesTheFixedVocabulary)
 {
-    GTEST_COUT << "Validating operator and export are checked for shape only." << std::endl;
+    GTEST_COUT << "Validating operator accepts every spelling of its fixed vocabulary." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("#[operator = \"add\"] function a() end").empty()) << "operator with a string must raise nothing.";
+    const char *const SPELLINGS[] = {
+        "+",
+        "-",
+        "*",
+        "/",
+        "%",
+        "**",
+        "+%",
+        "-%",
+        "*%",
+        "+|",
+        "-|",
+        "*|",
+        "~",
+        "&",
+        "|",
+        "^",
+        "<<",
+        ">>",
+        "==",
+        "!=",
+        "<",
+        "<=",
+        ">",
+        ">=",
+        "=",
+        "+=",
+        "-=",
+        "*=",
+        "/=",
+        "%=",
+        "**=",
+        "<<=",
+        ">>=",
+        "&=",
+        "|=",
+        "^=",
+        "[]",
+        "()",
+        "convert",
+        "construct",
+        "destroy",
+    };
 
-    EXPECT_TRUE(MAREA_codesOf("#[operator = add] function a() end").empty()) << "operator with a name must raise nothing.";
+    for (const char *spelling : SPELLINGS) {
+        EXPECT_TRUE(MAREA_codesOf(std::string("#[operator = \"") + spelling + "\"] function a() end").empty()) << "operator \"" << spelling << "\" must raise nothing.";
+    }
+}
+
+TEST(MAREASemaAttributes, OperatorRejectsAnythingElse)
+{
+    GTEST_COUT << "Validating operator rejects a string outside the vocabulary, a bare name and a flag." << std::endl;
+
+    const Codes INVALID{ MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_ATTRIBUTE_VALUE };
+
+    EXPECT_EQ(MAREA_codesOf("#[operator = \"add\"] function a() end"), INVALID) << "A named operator string must raise INVALID_ATTRIBUTE_VALUE.";
+
+    EXPECT_EQ(MAREA_codesOf("#[operator = add] function a() end"), INVALID) << "A bare name must raise INVALID_ATTRIBUTE_VALUE.";
+
+    EXPECT_EQ(MAREA_codesOf("#[operator = \"\"] function a() end"), INVALID) << "An empty string must raise INVALID_ATTRIBUTE_VALUE.";
+
+    EXPECT_EQ(MAREA_codesOf("#[operator = \"+++\"] function a() end"), INVALID) << "An unknown token string must raise INVALID_ATTRIBUTE_VALUE.";
+
+    EXPECT_EQ(MAREA_codesOf("#[operator = \"Convert\"] function a() end"), INVALID) << "The vocabulary is case sensitive.";
+
+    EXPECT_EQ(MAREA_codesOf("#[operator] function a() end"), INVALID) << "A bare operator must raise INVALID_ATTRIBUTE_VALUE.";
+
+    EXPECT_EQ(MAREA_codesOf("#[operator = true] function a() end"), INVALID) << "A boolean must raise INVALID_ATTRIBUTE_VALUE.";
+}
+
+TEST(MAREASemaAttributes, ExportIsShapeChecked)
+{
+    GTEST_COUT << "Validating export is checked for shape only." << std::endl;
 
     EXPECT_TRUE(MAREA_codesOf("#[export = \"a_label\"] function a() end").empty()) << "export with a string must raise nothing.";
 
