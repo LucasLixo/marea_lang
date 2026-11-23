@@ -1,0 +1,81 @@
+-- expect: ok
+-- example: examples/basics/control_flow.marea
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Step 3: control flow. One instruction per line. Every block ends with "end".
+-- The condition of "if" and "while" has no parenthesis. "then" and "do" end the condition.
+
+namespace main;
+
+import collections.array;
+
+#[visibility = public]
+function classify(score: sinteger32): string
+    if score >= 90 then
+        return "high";
+    end
+    elseif score >= 50 then
+        return "medium";
+    end
+    else
+        return "low";
+    end
+    end
+end
+
+#[visibility = public]
+function count_up(limit: sinteger32): sinteger32
+    local total: sinteger32 = 0;
+    local index: sinteger32 = 0;
+    while index < limit do
+        total += index;
+        index += 1;
+    end
+    return total;
+end
+
+-- A range "first .. last" includes both ends.
+#[visibility = public]
+function sum_range(first: sinteger32, last: sinteger32): sinteger32
+    local total: sinteger32 = 0;
+    for index in first .. last do
+        total += index;
+    end
+    return total;
+end
+
+-- "switch" works on an integer or an enum. One "case" can list many values. There is no
+-- fall through. "default" runs when no case matches.
+#[visibility = public]
+function day_kind(day: sinteger32): string
+    switch day
+        case 6, 7 then
+            return "weekend";
+        end
+        case 1, 2, 3, 4, 5 then
+            return "weekday";
+        end
+        default then
+            return "invalid";
+        end
+    end
+end
+
+-- "values" is a read-only borrow. The loop variable is a read-only borrow of one element.
+#[visibility = public]
+function sum_array(values: c.array<sinteger32>): sinteger32
+    local total: sinteger32 = 0;
+    for each value in values do
+        if value < 0 then
+            continue;
+        end
+        end
+        if value > 1000 then
+            break;
+        end
+        end
+        total += value;
+    end
+    return total;
+end

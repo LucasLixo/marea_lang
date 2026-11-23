@@ -16,9 +16,12 @@ cmake --build cmake-build-debug --target marea_tests --parallel
 ctest --test-dir cmake-build-debug --output-on-failure -R MAREALanguageCatalogue
 ```
 
-Two tests walk the folder: `EveryItemMatchesItsHeader` runs every item, and `StructureOfTheCatalogue` checks where
+Two tests of the runner walk the folder: `EveryItemMatchesItsHeader` runs every item, and `StructureOfTheCatalogue` checks where
 the items sit and how they are named. A failure names the file of the item. The other tests of the suite feed the
 runner with bad items in memory, so each failure direction is proven on every build.
+
+A second file, `tests/source/language/MAREALanguageCoverage.cpp`, checks that the catalogue is complete: the examples,
+the doc rows, the counts and the diagnostic codes (see Examples and coverage). Run it with `-R MAREALanguageCoverage`.
 
 ## Item format
 
@@ -1195,6 +1198,75 @@ generic or an alias needs a second namespace, and the runner gives an item one f
 | L-ADVERSARIAL-071 | Mutant of L-BINDINGS-036: the initial value of a local is dropped | gap: #177 NEW, rule: reject |
 | L-ADVERSARIAL-072 | Mutant of L-BINDINGS-036: the initial value of a local computed from another is dropped | gap: #177 NEW, rule: reject |
 
+## Examples and coverage
+
+The 23 files under `examples/` are the programs the project shows. 16 of them have an accept item in
+`tests/language/accept/examples/` with ids `L-EXAMPLES-nnn`: the item is the example with its `namespace` line set to
+`main` and the line `-- example: <path>` below the header. The other 7 have no accept item and are named in Gaps with
+the reason. `tests/source/language/MAREALanguageCoverage.cpp` fails when an example has no accept item whose header
+or doc row names it and is not in its exemption list, when a doc row has no file, when a file has no row, when the
+Counts table differs from the files, when a live diagnostic code has no `reject` item and no named exemption, when a
+`known_gap` code does not exist, and when a rule that the language still lacks (see Gaps) has no `known_gap` item, no
+reject code or no issue named in Gaps. Each direction is proven on every build with seed data in memory.
+
+### Examples: accept
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-EXAMPLES-001 | the example `examples/attributes/inline_and_build.marea`, with its namespace set to `main` | ok |
+| L-EXAMPLES-002 | the example `examples/attributes/layout.marea`, with its namespace set to `main` | ok |
+| L-EXAMPLES-003 | the example `examples/attributes/simd.marea`, with its namespace set to `main` | ok |
+| L-EXAMPLES-004 | the example `examples/attributes/visibility.marea`, with its namespace set to `main` | ok |
+| L-EXAMPLES-005 | the example `examples/basics/blocks.marea`, with its namespace set to `main` | ok |
+| L-EXAMPLES-006 | the example `examples/basics/control_flow.marea`, with its namespace set to `main` | ok |
+| L-EXAMPLES-007 | the example `examples/basics/functions.marea`, with its namespace set to `main` | ok |
+| L-EXAMPLES-008 | the example `examples/basics/operators.marea`, with its namespace set to `main` | ok |
+| L-EXAMPLES-009 | the example `examples/basics/primitive_types.marea`, with its namespace set to `main` | ok |
+| L-EXAMPLES-010 | the example `examples/interop/c_library.marea`, with its namespace set to `main` | ok |
+| L-EXAMPLES-011 | the example `examples/memory/regions.marea`, with its namespace set to `main` | ok |
+| L-EXAMPLES-012 | the example `examples/namespaces/library.marea`, with its namespace set to `main` | ok |
+| L-EXAMPLES-013 | the example `examples/types/collections.marea`, with its namespace set to `main` | ok |
+| L-EXAMPLES-014 | the example `examples/types/enum_methods.marea`, with its namespace set to `main` | ok |
+| L-EXAMPLES-015 | the example `examples/types/generics.marea`, with its namespace set to `main` | ok |
+| L-EXAMPLES-016 | the example `examples/types/structures.marea`, with its namespace set to `main` | ok |
+
+### Coverage: known_gap
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-COVERAGE-001 | a constant that is its own initial value, issue #249 | gap: NEW, rule: reject |
+
+## Counts
+
+The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails when a number differs.
+
+| area | accept | reject | known_gap |
+|---|---|---|---|
+| adversarial | 0 | 22 | 50 |
+| bindings | 33 | 64 | 16 |
+| coverage | 0 | 0 | 1 |
+| examples | 16 | 0 | 0 |
+| functions | 19 | 41 | 13 |
+| interop | 17 | 10 | 18 |
+| memory | 15 | 10 | 8 |
+| namespaces | 17 | 28 | 6 |
+| ownership | 65 | 35 | 45 |
+| parallel | 19 | 23 | 17 |
+| seed | 1 | 1 | 1 |
+| types | 60 | 108 | 28 |
+| total | 262 | 342 | 203 |
+
+## Parity plan
+
+The language has two backends from one IR: the bytecode interpreter and the C11 code. A parity test, not written yet
+(it needs the stages in `temp/_BYTECODE_DESIGN.md`), will run every item of `tests/language/accept/` through both
+backends and compare the observable behavior. Only an accept item is a valid program, so it is the input of the parity
+test: a `reject` item has no program to run, and a `known_gap` item is outside the contract until it moves. When a
+`known_gap` item with `-- rule: accept` moves to `accept/`, it joins the parity set. The 16 accept items of
+`examples/` are the first part of that set. An accept item has no `main` and no output in most cases, so the parity
+test also needs a way to call a function of the item and read its result; that way is a decision of the bytecode and
+cgen stages, not of the catalogue.
+
 ## Diagnostics
 
 The catalogue raises no diagnostic of its own. A `reject` item carries a code of another stage:
@@ -1204,6 +1276,7 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 | 1001-1006 | `lex` | [marea-lex.md](../lex/marea-lex.md) |
 | 2001-2010 | `parse` | [marea-ast.md](../ast/marea-ast.md) |
 | 3001-3032 | `sema` | [marea-sema.md](../sema/marea-sema.md) |
+| 4004-4005 | `ir` | [marea-ir.md](../ir/marea-ir.md), no item reaches them (see Gaps) |
 
 ## Gaps
 
@@ -1221,3 +1294,61 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
   runner gives an item one file. The mutation of the accept items was run once, by a script that is not in the
   repository, so a new accept item gets no mutants until someone runs that sweep again. A copy of a structure with a
   `destroy` operator (the `copy` of L-MEMORY-012) is accepted; no rule says whether it must be refused, so it has no item.
+
+### Open decisions and holes of the catalogue
+
+- Accepted `copy` of a structure with a `destroy` operator: the language has no rule that says whether it is allowed
+  and no item shows it (see the adversarial note above). The decision waits for the user.
+- Issue #226 (a `switch` over a `boolean` with `case true` and `case false` and no `default` is rejected with 3022)
+  cannot be an item. A known_gap item must be accepted today and a reject item states the wanted outcome, so the
+  program fits neither class. The runner has no class for a valid program that the compiler rejects.
+- Settled rule 5 (a `private` name is a reject across namespaces) and an import cycle cannot be shown with one file per
+  item. Issue #250 asks for a runner that gives an item a second file. Until then these two rules have no item.
+- Settled rule 2 (a non-primitive parameter with no attribute is a read-only borrow) is contradicted by the grammar
+  (`docs/grammar/marea.ebnf`, line 190), by the sema doc (`docs/sema/marea-sema.md`, line 210), by
+  `lib/source/marea/sema/MAREASemaOwnership.c` (line 70, the default is `REFERENCE_MUTABLE`) and by four examples that
+  write a default-borrow parameter: `examples/basics/ownership.marea`, `examples/types/methods.marea`,
+  `examples/interop/gpu_handles.marea` and `examples/parallel/scaling.marea`. The items that need the default are
+  known_gap items of #203 and #214. The decision on the rule or on the four examples waits for the user.
+
+### Examples with no accept item
+
+| Example | Why |
+|---|---|
+| `examples/basics/ownership.marea` | writes a parameter with the default borrow (settled rule 2, issues #203, #214) |
+| `examples/interop/gpu_handles.marea` | writes a parameter with the default borrow (settled rule 2, issues #203, #214) |
+| `examples/parallel/scaling.marea` | writes a slice parameter with the default borrow (settled rule 2, issues #203, #214) |
+| `examples/types/methods.marea` | a method writes `self` with the default borrow (settled rule 2, issues #203, #214) |
+| `examples/macros/builtin.marea` | imports the project namespace `attributes.layout`, and an item is one file (issue #250) |
+| `examples/main.marea` | imports eight project namespaces, and an item is one file (issue #250) |
+| `examples/namespaces/consumer.marea` | imports the project namespace `namespaces.library`, and an item is one file (issue #250) |
+
+An accept item of the first four would assert a program that a settled rule makes invalid, and it would fail the day
+the rule is enforced. The coverage test holds this list; an example that gains an item must leave it.
+
+### Diagnostic codes with no reject item
+
+Every live lex, parse and sema code (1001-1006, 2001-2010, 3001-3032 without 3023) has a `reject` item. The ir codes
+4004 and 4005 are exempt: the runner runs lex, parse and sema only, so no item can reach the ir. The exemption ends
+when a runner or an apply makes the ir run in it. The retired codes 3023 and 4001-4003 are excluded and must not
+return in a header.
+
+### Rules the language still lacks
+
+Each rule is kept as a `known_gap` item with its issue, as reject codes, or as an issue with no item:
+
+| Missing rule | Where it is kept |
+|---|---|
+| use of a moved value | known_gap items of #198 |
+| use of an uninitialized value | known_gap items of #177 |
+| write through a read-only borrow | known_gap items of #204 |
+| literal out of range | known_gap items of #181 |
+| constant division by zero | known_gap items of #183 |
+| shift count too large | known_gap items of #184 |
+| recursive type by value | known_gap items of #221 (L-TYPES-029, 030) |
+| cyclic alias | known_gap items of #221 (L-TYPES-124, 125) |
+| cyclic constant | L-COVERAGE-001, issue #249 |
+| overlapping implementation | L-TYPES-123, issue #225 |
+| unreachable switch arm | reject items of 3025 (a repeated case) and 2010 (a default that is not last) |
+| import cycle | no item, issue #250 |
+| private access across namespaces | no item, issue #250 |
