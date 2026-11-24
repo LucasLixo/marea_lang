@@ -45,7 +45,7 @@ The first line is the header. It has one of three forms:
 A `known_gap` item has `-- rule: reject` or `-- rule: accept` as its second line: the outcome the language has
 decided. A `-- rule:` line in another class is an error. The copyright header follows, then the program.
 
-The codes are the lex codes 1001-1006, the parse codes 2001-2010 and the sema codes 3001-3065 (3023 is retired).
+The codes are the lex codes 1001-1006, the parse codes 2001-2010 and the sema codes 3001-3068 (3023 is retired, and not every other number of the range is a live code).
 The `@<line>` of the form is optional for the parser of the header, but a `reject` item with a code that has no
 `@<line>` fails.
 
@@ -74,11 +74,11 @@ A `-- rule: accept` item moves to `accept/` with `-- expect: ok` in the same way
 These rules bind every item (user decision 2026-11-23).
 
 1. The header comment is `--`; `//` is a lex error (1001).
-2. A non-primitive parameter is a read-only borrow by default; writing needs `mutable`.
+2. A non-primitive parameter is a read-only borrow by default; writing needs the explicit `#[semantics = reference_mutable]`.
 3. A local `x: T;` with no initial value is an error.
 4. A literal outside the range of its type is a compile-time error and is never truncated; plain `+`, `-` and `*`
    wrap in two's complement; checked and saturating forms are explicit operators.
-5. `private` visibility is enforced across namespaces.
+5. `private` visibility is enforced across namespaces (3066, 3067, 3068, proven by `tests/source/sema/MAREASemaVisibility.cpp`). The default visibility is public.
 
 Where the compiler does not enforce a rule yet, the item is a `known_gap` with `-- rule:`.
 
@@ -272,10 +272,11 @@ with a write borrow among them), 3032 (a bare file constant as a write borrow). 
 tables below is accepted today. The holes are grouped by kind: memory, permission and aliasing. A gap that shares an
 issue shows one hole through more than one program.
 
-Settled rule 2 (the default borrow is read-only) is not what sema, the grammar and the examples say: all three give a
-non-primitive parameter with no attribute a write borrow (`reference_mutable`). The accept items of the area write
-the attribute out, so they hold under both readings. The items that depend on the default are known_gap items of issue
-#203.
+Settled rule 2 (the default borrow is read-only) holds in sema, the grammar and the examples: a parameter with no
+attribute is a read-only borrow, unless its type is by value (a primitive, an enum, `array`, `pointer`, `slice`) or
+moves in (`owned`, `task`, `vector`). A write needs the explicit `#[semantics = reference_mutable]`. Sema does not
+reject a write through a read-only borrow yet, so the items that write a parameter with no attribute stay known_gap
+items of issue #203 until the apply that adds that check.
 
 ### Ownership and borrows: accept
 
@@ -829,8 +830,10 @@ answers `EXTERNAL` to a `c.` name and `NOT_FOUND` to every other name, so `marea
 namespace itself give 3001 (L-NAMESPACES-020 to 023, 038, 039, 042, 057). `main` is an ordinary function: it has no
 fixed signature and none is required (L-NAMESPACES-002 to 006).
 
-Settled rule 5 (a `private` name used from another namespace is a reject) has no item. The runner checks one file per
-item and an item cannot import a second file, so a private name cannot be reached from another namespace. A private
+Settled rule 5 (a `private` name used from another namespace is a reject) is enforced by sema (3066, 3067 and 3068) and
+proven by `tests/source/sema/MAREASemaVisibility.cpp`, but it has no item. The runner checks one file per
+item and an item cannot import a second file, so a private name cannot be reached from another namespace until issue
+#250 lands. A private
 name used inside its own namespace is accepted (L-NAMESPACES-011, 012, 063, 064). An import cycle and a private enum
 import need the same second file, so they have no item either; a namespace that imports itself gives 3001
 (L-NAMESPACES-039).
@@ -909,8 +912,10 @@ and its argument and result types are not checked. A macro name without `!` is a
 a user-written `macro` is a parse error (L-INTEROP-020). A call of a macro that the compiler does not define is 3060
 (L-INTEROP-021), a call with the wrong arguments is 3061 (L-INTEROP-045, 046, 047, 052, 053, 055, 062), and a macro
 result used as a value of another type is 3011 (L-INTEROP-056, 061); the macro table is in
-[marea-sema.md](../sema/marea-sema.md). The type of each value that a `{}` takes is not checked. The type
-`handle<T>` is rejected with 3009 by the type checker, so it has no accept item.
+[marea-sema.md](../sema/marea-sema.md). The two compile-time macros are the exception to the argument check:
+`compile_error!` always gives 3059 (L-INTEROP-044) and a `static_assert!` over a constant false condition gives 3059
+(L-INTEROP-043); a condition the compiler cannot fold is accepted. The type of each value that a `{}` takes is not
+checked. The type `handle<T>` is rejected with 3009 by the type checker, so it has no accept item.
 
 ### Macros and the C border: accept
 
@@ -943,6 +948,8 @@ result used as a value of another type is 3011 (L-INTEROP-056, 061); the macro t
 | L-INTEROP-022 | An opaque structure has no body | 2001 @10, 2005 @11 |
 | L-INTEROP-023 | A parameter of a type that no declaration names | 3009 @9 |
 | L-INTEROP-024 | An import placed after a function | 2004 @13 |
+| L-INTEROP-043 | A static_assert macro of a false condition | 3059 @9 |
+| L-INTEROP-044 | A compile_error macro call | 3059 @9 |
 | L-INTEROP-045 | A print macro with fewer values than the format text needs | 3061 @10 |
 | L-INTEROP-046 | A print macro with a number as the format text | 3061 @10 |
 | L-INTEROP-047 | An assert macro with a number as the condition | 3061 @10 |
@@ -967,8 +974,6 @@ result used as a value of another type is 3011 (L-INTEROP-056, 061); the macro t
 | L-INTEROP-040 | An opaque structure is built with a struct literal | gap: NEW, rule: reject, issue #239 |
 | L-INTEROP-041 | A field of an opaque structure is read | gap: NEW, rule: reject, issue #239 |
 | L-INTEROP-042 | An operator is applied to two opaque values | gap: NEW, rule: reject, issue #239 |
-| L-INTEROP-043 | A static_assert macro of a false condition | gap: NEW, rule: reject, issue #240 |
-| L-INTEROP-044 | A compile_error macro call | gap: NEW, rule: reject, issue #240 |
 | L-INTEROP-051 | An owner of an opaque type is used after it moved | gap: NEW, rule: reject, issue #198 |
 | L-INTEROP-057 | A structure with an opaque field held by value | gap: NEW, rule: reject, issue #239 |
 
@@ -996,10 +1001,9 @@ Facts the items fix, checked by running the compiler:
   (items 036, 037). The rule says nothing of ownership, so this is the "simple first rule" of the sema doc, not a
   decided ownership rule.
 - A part is a name of the body only: its use after the `end` of the body is the undeclared name 3004 (item 080).
-- The accept items write `#[semantics = reference_mutable]` and `#[semantics = reference_read_only]` out, so they hold
-  under both readings of settled rule 2 (the default borrow). `examples/parallel/scaling.marea` does not: it writes the
-  elements of a parameter with no attribute (`scale_slice`, `scale_all`), which rule 2 makes a read-only borrow, and it
-  imports `collections.array` and `concurrency.task`, not the `c.{lib}` names that CLAUDE.md fixes for now.
+- A parameter with no attribute is a read-only borrow (settled rule 2), so `spawn` accepts it as a name that is not a
+  write-borrow parameter. `examples/parallel/scaling.marea` writes `#[semantics = reference_mutable]` on the two
+  parameters it writes (`scale_slice`, `scale_all`) and imports `c.array`, `c.slice` and `c.task`.
 
 ### Parallel code: accept
 
@@ -1104,8 +1108,9 @@ Facts the items fix, checked by running the compiler:
   partition, an arm of `switch` that a spawn follows, a generic function, a method call and a second move into a
   generic function (issue #198, items 001 to 004, 016, 026, 027, 030).
 - A read-only borrow that is written, or passed on to a write borrow, is accepted through a generic function, a
-  `for each` over a read-only vector, a worker and a `partition mutable` of a read-only source (issue #204). The
-  default borrow of a parameter with no attribute is a write borrow in sema (issue #203, items 063 and 065).
+  `for each` over a read-only vector, a worker and a `partition mutable` of a read-only source (issue #204). A parameter
+  with no attribute is a read-only borrow in sema, but a write through it is still accepted (issue #203, items 063 and
+  065).
 - A literal out of range gives 3033 as a `spawn` argument, a default value, a struct literal field and a constant
   (issue #181, items 018 to 021). A local with no initial value gives 3065 also when a worker reads it (item 017).
 - The type of a field read through a `for each` variable is not compared (issue #246, item 070), and the type arguments
@@ -1114,8 +1119,9 @@ Facts the items fix, checked by running the compiler:
 - A file constant passed to a generic function that takes a write borrow gives 3032, as for any function (item 010); a
   spawn of a write borrow of a call result through a generic function gives 3020 (item 029).
 
-Settled rule 5 (a `private` name is a reject across namespaces) has no item here: a private symbol reached through a
-generic or an alias needs a second namespace, and the runner gives an item one file only (see Gaps).
+Settled rule 5 (a `private` name is a reject across namespaces) is enforced (3066 to 3068) but has no item here: a
+private symbol needs a second namespace, and the runner gives an item one file only (see Gaps). A private symbol that a
+generic or an alias leads to is not checked by sema either (see the sema doc, Gaps).
 
 ### Adversarial: reject
 
@@ -1201,9 +1207,9 @@ generic or an alias needs a second namespace, and the runner gives an item one f
 
 ## Examples and coverage
 
-The 23 files under `examples/` are the programs the project shows. 16 of them have an accept item in
+The 23 files under `examples/` are the programs the project shows. 20 of them have an accept item in
 `tests/language/accept/examples/` with ids `L-EXAMPLES-nnn`: the item is the example with its `namespace` line set to
-`main` and the line `-- example: <path>` below the header. The other 7 have no accept item and are named in Gaps with
+`main` and the line `-- example: <path>` below the header. The other 3 have no accept item and are named in Gaps with
 the reason. `tests/source/language/MAREALanguageCoverage.cpp` fails when an example has no accept item whose header
 or doc row names it and is not in its exemption list, when a doc row has no file, when a file has no row, when the
 Counts table differs from the files, when a live diagnostic code has no `reject` item and no named exemption, when a
@@ -1230,6 +1236,10 @@ reject code or no issue named in Gaps. Each direction is proven on every build w
 | L-EXAMPLES-014 | the example `examples/types/enum_methods.marea`, with its namespace set to `main` | ok |
 | L-EXAMPLES-015 | the example `examples/types/generics.marea`, with its namespace set to `main` | ok |
 | L-EXAMPLES-016 | the example `examples/types/structures.marea`, with its namespace set to `main` | ok |
+| L-EXAMPLES-017 | the example `examples/basics/ownership.marea`, with its namespace set to `main` | ok |
+| L-EXAMPLES-018 | the example `examples/parallel/scaling.marea`, with its namespace set to `main` | ok |
+| L-EXAMPLES-019 | the example `examples/types/methods.marea`, with its namespace set to `main` | ok |
+| L-EXAMPLES-020 | the example `examples/interop/gpu_handles.marea`, with its namespace set to `main` | ok |
 
 ### Coverage: reject
 
@@ -1246,16 +1256,16 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | adversarial | 0 | 30 | 42 |
 | bindings | 33 | 80 | 0 |
 | coverage | 0 | 1 | 0 |
-| examples | 16 | 0 | 0 |
+| examples | 20 | 0 | 0 |
 | functions | 19 | 45 | 9 |
-| interop | 17 | 21 | 7 |
+| interop | 17 | 23 | 5 |
 | memory | 15 | 10 | 8 |
 | namespaces | 17 | 28 | 6 |
 | ownership | 65 | 40 | 40 |
 | parallel | 19 | 23 | 17 |
 | seed | 1 | 2 | 0 |
 | types | 60 | 116 | 20 |
-| total | 262 | 396 | 149 |
+| total | 266 | 398 | 147 |
 
 ## Parity plan
 
@@ -1276,7 +1286,7 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 |---|---|---|
 | 1001-1006 | `lex` | [marea-lex.md](../lex/marea-lex.md) |
 | 2001-2010 | `parse` | [marea-ast.md](../ast/marea-ast.md) |
-| 3001-3032 | `sema` | [marea-sema.md](../sema/marea-sema.md) |
+| 3001-3032 | `sema` | [marea-sema.md](../sema/marea-sema.md) (3033 to 3068 follow in the rows below) |
 | 3033 | `sema` | [marea-sema.md](../sema/marea-sema.md), `LITERAL_OUT_OF_RANGE` |
 | 3034-3035 | `sema` | [marea-sema.md](../sema/marea-sema.md), the division and shift rules of constant operands |
 | 3036-3037 | `sema` | [marea-sema.md](../sema/marea-sema.md) |
@@ -1285,8 +1295,10 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 | 3041 | `sema` | [marea-sema.md](../sema/marea-sema.md), `RAW_POINTER_OUTSIDE_UNSAFE` |
 | 3043 | `sema` | [marea-sema.md](../sema/marea-sema.md), `NON_BOOLEAN_CONDITION` |
 | 3055 | `sema` | [marea-sema.md](../sema/marea-sema.md), `CYCLIC_CONSTANT` |
+| 3059 | `sema` | [marea-sema.md](../sema/marea-sema.md), `COMPILE_TIME_ASSERTION_FAILED` |
 | 3060-3061 | `sema` | [marea-sema.md](../sema/marea-sema.md), `UNKNOWN_MACRO` and `INVALID_MACRO_ARGUMENT` |
 | 3065 | `sema` | [marea-sema.md](../sema/marea-sema.md), `LOCAL_WITHOUT_INITIAL_VALUE` |
+| 3066-3068 | `sema` | [marea-sema.md](../sema/marea-sema.md), `PRIVATE_SYMBOL_ACCESS`, `PRIVATE_TYPE_ACCESS`, `PRIVATE_FIELD_ACCESS`, no item reaches them (see Gaps) |
 | 4004-4006 | `ir` | [marea-ir.md](../ir/marea-ir.md), no item reaches them (see Gaps) |
 
 ## Gaps
@@ -1295,6 +1307,8 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
   two namespaces (settled rule 5) can use only an `EXTERNAL` import, which the runner gives to the `c.`,
   `collections.`, `concurrency.`, `arenas.` prefixes and to `text`, until a later change adds a way to give an item a
   second file.
+- The codes 3066, 3067 and 3068 (a private symbol, type or field of another namespace) have no item for the same
+  reason: they need a second namespace (issue #250). `tests/source/sema/MAREASemaVisibility.cpp` proves them.
 - The runner compares the codes of a `reject` item in the order the compiler gives them, so an item over two stages
   depends on the order of the stages (lex, then parse, then sema).
 - A known_gap item must be accepted today, so a valid program that the compiler rejects by mistake has no item. Known:
@@ -1313,33 +1327,30 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 - Issue #226 (a `switch` over a `boolean` with `case true` and `case false` and no `default` is rejected with 3022)
   cannot be an item. A known_gap item must be accepted today and a reject item states the wanted outcome, so the
   program fits neither class. The runner has no class for a valid program that the compiler rejects.
-- Settled rule 5 (a `private` name is a reject across namespaces) and an import cycle cannot be shown with one file per
+- Settled rule 5 (a `private` name is a reject across namespaces, enforced by 3066 to 3068) and an import cycle cannot be shown with one file per
   item. Issue #250 asks for a runner that gives an item a second file. Until then these two rules have no item.
-- Settled rule 2 (a non-primitive parameter with no attribute is a read-only borrow) is contradicted by the grammar
-  (`docs/grammar/marea.ebnf`, line 190), by the sema doc (`docs/sema/marea-sema.md`, line 210), by
-  `lib/source/marea/sema/MAREASemaOwnership.c` (line 70, the default is `REFERENCE_MUTABLE`) and by four examples that
-  write a default-borrow parameter: `examples/basics/ownership.marea`, `examples/types/methods.marea`,
-  `examples/interop/gpu_handles.marea` and `examples/parallel/scaling.marea`. The items that need the default are
-  known_gap items of #203 and #214. The decision on the rule or on the four examples waits for the user.
+- Settled rule 2 (a non-primitive parameter with no attribute is a read-only borrow) holds in the grammar, the sema
+  doc, `MAREA_SemaGetParameterSemantics` and the four examples that write a parameter
+  (`examples/basics/ownership.marea`, `examples/types/methods.marea`, `examples/interop/gpu_handles.marea` and
+  `examples/parallel/scaling.marea`: each names `#[semantics = reference_mutable]` on the parameter it writes). Sema
+  does not reject a write through a read-only borrow yet, so the items that write a parameter with no attribute are
+  still known_gap items of #203 and #214; the apply `reject-write-through-read-only-borrow` moves them to reject.
 
 ### Examples with no accept item
 
 | Example | Why |
 |---|---|
-| `examples/basics/ownership.marea` | writes a parameter with the default borrow (settled rule 2, issues #203, #214) |
-| `examples/interop/gpu_handles.marea` | writes a parameter with the default borrow (settled rule 2, issues #203, #214) |
-| `examples/parallel/scaling.marea` | writes a slice parameter with the default borrow (settled rule 2, issues #203, #214) |
-| `examples/types/methods.marea` | a method writes `self` with the default borrow (settled rule 2, issues #203, #214) |
 | `examples/macros/builtin.marea` | imports the project namespace `attributes.layout`, and an item is one file (issue #250) |
 | `examples/main.marea` | imports eight project namespaces, and an item is one file (issue #250) |
 | `examples/namespaces/consumer.marea` | imports the project namespace `namespaces.library`, and an item is one file (issue #250) |
 
-An accept item of the first four would assert a program that a settled rule makes invalid, and it would fail the day
-the rule is enforced. The coverage test holds this list; an example that gains an item must leave it.
+The coverage test holds this list; an example that gains an item must leave it.
 
 ### Diagnostic codes with no reject item
 
-Every live lex, parse and sema code (1001-1006, 2001-2010, 3001-3065 without 3023) has a `reject` item. The ir codes
+Every live lex, parse and sema code (1001-1006, 2001-2010, 3001-3068 without 3023 and the numbers no code uses) has a `reject` item, except 3066,
+3067 and 3068: no item can reach a second namespace (issue #250), and `tests/source/sema/MAREASemaVisibility.cpp`
+proves them. The ir codes
 4004, 4005 and 4006 are exempt: the runner runs lex, parse and sema only, so no item can reach the ir. The exemption ends
 when a runner or an apply makes the ir run in it. The retired codes 3023 and 4001-4003 are excluded and must not
 return in a header.
@@ -1362,4 +1373,4 @@ Each rule is kept as a `known_gap` item with its issue, as reject codes, or as a
 | overlapping implementation | L-TYPES-123, issue #225 |
 | unreachable switch arm | reject items of 3025 (a repeated case) and 2010 (a default that is not last) |
 | import cycle | no item, issue #250 |
-| private access across namespaces | no item, issue #250 |
+| private access across namespaces | enforced by 3066, 3067 and 3068; no item, issue #250 |
