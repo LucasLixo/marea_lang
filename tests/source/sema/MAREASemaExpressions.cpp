@@ -838,3 +838,16 @@ TEST(MAREASemaExpressions, FunctionTypeValueIsChecked)
 
     EXPECT_TRUE(MAREA_codesOf(OP + "function pick<T>(left: sinteger32, right: sinteger64): sinteger32 return left; end function run() local operation: Op = pick; end").empty()) << "A generic function must not be compared.";
 }
+
+TEST(MAREASemaExpressions, ForEachFieldIsTyped)
+{
+    GTEST_COUT << "Validating a field read through a for each variable is compared with the local that stores it." << std::endl;
+
+    const std::string POINT{ "structure Point x: sinteger32; end " };
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function check(points: owned<vector<Point>>) for each item in points do local x: sinteger8 = item.x; end end"), Codes{ MISMATCH }) << "A narrower local for a for each field must raise TYPE_MISMATCH.";
+
+    EXPECT_TRUE(MAREA_codesOf(POINT + "function check(points: owned<vector<Point>>) for each item in points do local x: sinteger32 = item.x; end end").empty()) << "An equal local for a for each field must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("function check(points: owned<vector<Unknown>>) for each item in points do local x: sinteger8 = item.x; end end").empty()) << "An element of an unknown type must raise nothing.";
+}

@@ -1,10 +1,9 @@
--- gap: #245 3011
--- rule: reject
+-- expect: 3014 @21
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- from: L-OWNERSHIP-031
--- Mutant of L-OWNERSHIP-031: one type argument of a local array is narrowed.
+-- from: L-OWNERSHIP-033
+-- Mutant of L-OWNERSHIP-033: one type argument of a local vector is narrowed.
 
 namespace main;
 
@@ -18,8 +17,8 @@ structure Box
     count: sinteger32;
 end
 
-function check(values: array<sinteger32, 4>): sinteger32
-    local second: array<sinteger8, 4> = values;
+function check(#[semantics = reference_read_only] values: vector<sinteger32>): sinteger32
+    local second: vector<sinteger8> = copy values;
     return 1;
 end
 
