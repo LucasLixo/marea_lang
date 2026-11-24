@@ -123,7 +123,8 @@ MAREA_BEGIN_EXTERN_C
      * @brief Returns the canonical full text of the type a typed node has, with its type arguments, in the
      * arena. A node whose type is written in the source has one: PARAMETER, LOCAL_DECLARATION,
      * FIELD_DECLARATION, VARIANT_FIELD, CONSTANT_DECLARATION and FUNCTION_DECLARATION (its result type). A literal
-     * has one too: a string, a character and a boolean literal give string, character and boolean, and a number
+     * has one too, and so has the declared name of a for range and of a for each (the type of the bounds, the element
+     * type of the collection and, for a key, uinteger64): a string, a character and a boolean literal give string, character and boolean, and a number
      * literal gives the primitive type its context fixes, else sinteger32 for an integer and float64 for a float. So
      * has an expression whose type sema can know: an operation, a member, an index, a call, a literal value and an
      * identifier read as a value (the rules are in the sema doc, "Resolved type of a literal" and "Resolved type of
