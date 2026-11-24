@@ -62,12 +62,12 @@ MAREA_BEGIN_EXTERN_C
      */
     struct MAREA_IrLayout
     {
-        const MAREA_Character8 *name;
-        MAREA_Uinteger64 *offsets;
-        MAREA_IntegerSize *variantFieldCounts;
         MAREA_Uinteger64 size;
         MAREA_Uinteger64 alignment;
         MAREA_Uinteger64 tagSize;
+        const MAREA_Character8 *name;
+        MAREA_Uinteger64 *offsets;
+        MAREA_IntegerSize *variantFieldCounts;
         MAREA_IntegerSize nameLength;
         MAREA_IntegerSize memberCount;
         MAREA_IrLayoutKind kind;
