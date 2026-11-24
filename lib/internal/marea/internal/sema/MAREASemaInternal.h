@@ -1142,6 +1142,27 @@ MAREA_BEGIN_EXTERN_C
      */
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckCondition(MAREA_SemaContext * context, const MAREA_AstNode *condition);
 
+    /**
+     * @brief Tells whether a name is one of the built-in macros: assert, debug_assert, unreachable, compile_error,
+     * static_assert, include_bytes, include_text, format, print, log, line, file and namespace.
+     * @param text Text of the name, not NUL terminated. May be null when length is 0.
+     * @param length Length of text in bytes.
+     * @return MAREA_BOOLEAN_TRUE for a built-in macro name, else MAREA_BOOLEAN_FALSE.
+     */
+    MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_SemaIsBuiltInMacroName(const MAREA_Character8 *text, MAREA_IntegerSize length);
+
+    /**
+     * @brief Checks one call of a built-in macro (a MACRO_CALL node). A name that no built-in macro has is
+     * UNKNOWN_MACRO. A call with the wrong number of arguments, a literal of the wrong kind for a condition or a
+     * text, a log level that is not one of trace, debug, info, warning and error, or a format text whose count of
+     * {} differs from the count of values is INVALID_MACRO_ARGUMENT. At most one diagnostic is raised for a call. A
+     * call with an ERROR_NODE below it raises nothing. The type of a value is never checked.
+     * @param context Context of the run. Must not be null.
+     * @param call MACRO_CALL node. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckMacro(MAREA_SemaContext * context, const MAREA_AstNode *call);
+
 MAREA_END_EXTERN_C
 
 #endif /* MAREA_INTERNAL_SEMA_MAREASEMAINTERNAL_H */

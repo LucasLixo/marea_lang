@@ -214,7 +214,7 @@ TEST(MAREAIrGaps, ModuleLevelMacroRaisesItsDiagnostic)
 {
     GTEST_COUT << "Validating a module-level macro statement raises 4005." << std::endl;
 
-    const Codes CODES{ MAREA_irCodesOf("namespace main; static_assert!(true); constant A: sinteger32 = 1;") };
+    const Codes CODES{ MAREA_irCodesOf("namespace main; static_assert!(true, \"x\"); constant A: sinteger32 = 1;") };
 
     EXPECT_EQ(CODES, Codes{ MACRO }) << "A module-level macro must raise UNSUPPORTED_MACRO.";
 }

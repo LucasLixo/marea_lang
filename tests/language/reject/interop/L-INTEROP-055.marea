@@ -1,12 +1,11 @@
--- gap: #241 3011
--- rule: reject
+-- expect: 3061 @10
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- An assert macro with a number as the condition.
+-- A log macro with a level that does not exist.
 
 namespace main;
 
 function check()
-    assert!(1, "x");
+    log!(loud, "x");
 end
