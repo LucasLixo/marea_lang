@@ -163,7 +163,7 @@ are the operator tokens of the grammar (`+ - * / % **`, the wrapping and saturat
 comparisons, the assignment forms), `"[]"`, `"()"`, `"convert"`, `"construct"` and `"destroy"`; any other
 string or a name is `INVALID_ATTRIBUTE_VALUE`. A key not in the table, such as the
 retired `public`, `private`, `simd`, `destroy` and `value`, is `UNKNOWN_ATTRIBUTE_KEY`. The deeper meaning of
-`operator` (the signature, the placement) and `export` is not checked. A flag key with no value is true. File attributes `#![...]` use
+`operator` (the placement) and `export` is not checked here: the signature of an operator function is `OPERATOR_SIGNATURE_MISMATCH` (3050), see Rules. A flag key with no value is true. File attributes `#![...]` use
 the same table; the attribute of the symbol wins over the file attribute, so `#![visibility = public]`
 with `#[visibility = private]` on one symbol is not a conflict. `semantics` is meaningful only on a
 `PARAMETER`, but is validated by the same generic, node-shape-agnostic attribute check as everywhere
@@ -204,6 +204,29 @@ type, and a `construct` has no return type and a default on every parameter; any
 meaning hides, by the static form `Type.name(...)` where `Type` is the implemented type, and by a call on a value
 (`point.drop()`), decided to be rejected the same way (see Gaps). The automatic call
 at creation and destruction is lowered in the ir, not here.
+
+**Operator signature.** A function with `#[operator = "<token>"]` in an `implementation` block is checked against its
+token, once per function, as `OPERATOR_SIGNATURE_MISMATCH` (3050), reported at the function. Only the parameter
+count, the presence of a result, the type of the first parameter and a boolean result are fixed:
+
+| Token | Parameters | Result | First parameter |
+|---|---|---|---|
+| `+ - * / % ** +% -% *% +\| -\| *\| & \| ^ << >>` | exactly 2 (`-` may take 1) | required | the implemented type or `Self` |
+| `== != < <= > >=` | exactly 2 | `boolean` | the implemented type or `Self` |
+| `~` | exactly 1 | required | free |
+| `= += -= *= /= %= **= <<= >>= &= \|= ^=` | exactly 2 | free | free |
+| `"[]"` | 2 or more | required | free |
+| `"()"` | 1 or more | free | free |
+| `"convert"` | exactly 1 | required | free |
+
+The other parameter types and the result of an arithmetic token stay free. A first parameter whose type is not one
+plain name is not judged. `construct` and `destroy` keep their own shape rule (3029). A top-level function with an
+operator attribute is not checked.
+
+**Type function call.** A call `value.name(...)` or `Type.name(...)` is `UNKNOWN_TYPE_FUNCTION` (3049), reported at the
+call, when the receiver is a structure or an enum declared in the file (a bare type name that no local hides, or a
+local or parameter of that type, an alias followed) and the type has no function `name` in any of its
+`implementation` blocks, no field `name` (a callback) and, for an enum, no variant `name` (`Shape.Circle(1.0)`).
 
 **Type construction call.** A call whose callee is a structure or an enum name of the file, not hidden by a local,
 resolves to that type's construct operator instead of an ordinary call: `Point(1.0, 2.0)` is checked against
@@ -765,6 +788,8 @@ or rejects.
 | 3040 | `ASSIGNMENT_TO_CONSTANT` | `LIMIT = 11;`, `LIMIT += 1;`, `ORIGIN.x = 1;`, `TABLE[0] = 1;` when the root name is a file constant and no local hides it |
 | 3041 | `RAW_POINTER_OUTSIDE_UNSAFE` | `local raw: pointer<sinteger32> = f();` with no `unsafe ... end` block around it, at any depth of nesting |
 | 3043 | `NON_BOOLEAN_CONDITION` | `if n then`, `elseif s then`, `while 1 do` when the condition has a known primitive type that is not `boolean`, or is a number, string or character literal |
+| 3049 | `UNKNOWN_TYPE_FUNCTION` | `point.length()` or `Point.origin()` when no `implementation` of `Point` declares it |
+| 3050 | `OPERATOR_SIGNATURE_MISMATCH` | `#[operator = "+"] function add(self: Point): sinteger32` |
 | 3053 | `FUNCTION_TYPE_MISMATCH` | `apply(negate)` when `negate` takes one parameter and the function type takes two |
 | 3055 | `CYCLIC_CONSTANT` | `constant A: sinteger32 = B;` with `constant B: sinteger32 = A;`, or `constant A: sinteger32 = A;`, once for each cycle, at the first constant of it in the file |
 | 3056 | `RESERVED_MACRO_NAME` | `function print() end`, `constant format: sinteger32 = 1;`, `local log: sinteger32 = 1;` or `import c.stdio as print;`: a name that is a built-in macro |
@@ -809,7 +834,11 @@ or rejects.
 - A binary operator is checked against what its operands may be only for a bitwise operator on a float, a boolean
   or a string (3038) and for `and`, `or` and `not` on a known type that is not `boolean` (3039). Every other operator
   (arithmetic on a `boolean` or a `string`, a comparison of two booleans) is not checked, a `character` operand of a
-  bitwise operator is accepted, and an operator that is declared for a structure is not compared.
+  bitwise operator is accepted, and an operator that is declared for a structure is not compared (its signature is
+  checked by 3050, the use of the operator is still not read).
+- `UNKNOWN_TYPE_FUNCTION` (3049) skips a receiver of another namespace, a library type, a generic parameter and an
+  unknown type, because sema cannot see their functions. Only a bare name or a local that is a bare name is a receiver:
+  a call on a field chain or on a call result is not checked. A function of a contract on a generic receiver is not checked.
 - `RESERVED_MACRO_NAME` (3056) is not raised for a parameter, a `for`, `for each`, `partition` or `with` name, or an
   import alias with no `as`, even when it is named like a built-in macro.
 - The `for`, `for each`, `partition`
@@ -859,8 +888,8 @@ or rejects.
   unchanged).
 - The contract check only sees arguments whose type is cheap to know. Other arguments are not checked.
 - `operator` is checked against its vocabulary; only `construct` and `destroy` have a placement and a shape check
-  (see "Construct and destroy"), the signature of any other operator is not checked; `export` is checked for shape
-  only.
+  (see "Construct and destroy"), and any other operator has a signature check in an `implementation` only (3050, see
+  "Operator signature"); `export` is checked for shape only.
 - `LIFECYCLE_OPERATOR_CALLED_DIRECTLY` (3027) today sees a bare name and the static form `Type.name(...)` only.
   Decision: a call on a value (`point.drop()`) of a lifecycle operator (`construct` or `destroy`) is also rejected
   with 3027, for consistency with those two forms; no new code. Sema does not yet implement it, as it does not
