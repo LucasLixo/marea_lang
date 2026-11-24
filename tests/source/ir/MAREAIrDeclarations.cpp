@@ -213,13 +213,30 @@ TEST(MAREAIrDeclarations, FunctionWithoutReturnTypeHasNoTypeName)
     EXPECT_EQ(MAREA_irRender(MAREA_irChild(function, 0)), "(PARAMETER_LIST)") << "The parameter list must be present and empty.";
 }
 
-TEST(MAREAIrDeclarations, MutableParameterKeepsTheMutableFlag)
+TEST(MAREAIrDeclarations, DefaultParameterHasNoMutableFlag)
 {
-    GTEST_COUT << "Validating a plain structure parameter (the non-primitive default is reference_mutable) keeps only the MUTABLE flag." << std::endl;
+    GTEST_COUT << "Validating a plain structure parameter with no attribute (the non-primitive default is reference_read_only) carries no flag." << std::endl;
 
     MAREA_IrFixture fixture;
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; structure Counter n: sinteger32; end function bump(c: Counter) end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; structure Counter n: sinteger32; end function peek(c: Counter) end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+
+    const MAREA_IrNode *parameters{ MAREA_irChild(MAREA_irChild(fixture.module, 1), 0) };
+
+    const MAREA_IrNode *parameter{ MAREA_irChild(parameters, 0) };
+
+    EXPECT_EQ(MAREA_IrNodeGetFlags(parameter), static_cast<MAREA_Uinteger32>(0)) << "A default parameter must not carry the MUTABLE flag.";
+
+    EXPECT_EQ(MAREA_irTypeName(parameter), "Counter") << "The parameter type name must be kept.";
+}
+
+TEST(MAREAIrDeclarations, MutableParameterKeepsTheMutableFlag)
+{
+    GTEST_COUT << "Validating a plain structure parameter with an explicit reference_mutable keeps only the MUTABLE flag." << std::endl;
+
+    MAREA_IrFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; structure Counter n: sinteger32; end function bump(#[semantics = reference_mutable] c: Counter) end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     const MAREA_IrNode *parameters{ MAREA_irChild(MAREA_irChild(fixture.module, 1), 0) };
 
