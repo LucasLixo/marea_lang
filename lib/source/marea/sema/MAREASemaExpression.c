@@ -769,6 +769,26 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsDeclaredName(const MAREA_SemaContext *
     return ((MAREA_G_IsBuiltInName(name) == MAREA_BOOLEAN_TRUE) || (MAREA_G_IsNamespaceRoot(context, name) == MAREA_BOOLEAN_TRUE) || (MAREA_G_FindImplementationConstant(context, name) != MAREA_NULLPTR)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
+// INFO: a name is declared before it is used, so a bare name that stands for a function of this file that starts after the use is not yet declared. A local of the same name hides the function, and a constant initializer has no function, so it keeps its freedom.
+static MAREA_Boolean MAREA_CALL MAREA_G_IsFunctionUsedBeforeDeclaration(const MAREA_SemaContext *context, const MAREA_AstNode *name)
+{
+    if ((context->function == MAREA_NULLPTR) || (MAREA_G_FindLocal(context, name) != MAREA_NULLPTR)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_SemaName *entry = MAREA_SemaNameTableFind(context, MAREA_AstNodeGetText(name), MAREA_AstNodeGetTextLength(name));
+
+    if ((entry == MAREA_NULLPTR) || (MAREA_G_IsKind(entry->declaration, MAREA_AST_KIND_FUNCTION_DECLARATION) == MAREA_BOOLEAN_FALSE)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_SourcePosition declaration = MAREA_AstNodeGetPosition(entry->declaration);
+
+    const MAREA_SourcePosition use = MAREA_AstNodeGetPosition(name);
+
+    return ((declaration.file == use.file) && (declaration.offset > use.offset)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
 static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckValue(MAREA_SemaContext *context, const MAREA_AstNode *expression, MAREA_Uinteger32 depth, MAREA_Boolean checkNames);
 
 static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckValueOfChildren(MAREA_SemaContext *context, const MAREA_AstNode *node, MAREA_IntegerSize first, MAREA_Uinteger32 depth, MAREA_Boolean checkNames)
@@ -793,8 +813,12 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckValue(MAREA_SemaContext *context
 
     switch (MAREA_AstNodeGetKind(expression)) {
     case MAREA_AST_KIND_IDENTIFIER:
-        if ((checkNames == MAREA_BOOLEAN_FALSE) || (MAREA_G_IsDeclaredName(context, expression) == MAREA_BOOLEAN_TRUE)) {
+        if (checkNames == MAREA_BOOLEAN_FALSE) {
             return MAREA_SEMA_EXCEPT_SUCCESS;
+        }
+
+        if (MAREA_G_IsDeclaredName(context, expression) == MAREA_BOOLEAN_TRUE) {
+            return (MAREA_G_IsFunctionUsedBeforeDeclaration(context, expression) == MAREA_BOOLEAN_TRUE) ? MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_UNDECLARED_NAME, MAREA_AstNodeGetPosition(expression), "function is used before its declaration", MAREA_AstNodeGetText(expression), MAREA_AstNodeGetTextLength(expression)) : MAREA_SEMA_EXCEPT_SUCCESS;
         }
 
         return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_UNDECLARED_NAME, MAREA_AstNodeGetPosition(expression), "undeclared name", MAREA_AstNodeGetText(expression), MAREA_AstNodeGetTextLength(expression));
