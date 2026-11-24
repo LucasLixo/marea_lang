@@ -392,6 +392,11 @@ MAREA_Boolean MAREA_CALL MAREA_SemaAttributeIsOn(const MAREA_AstNode *root, cons
     return (item == MAREA_NULLPTR) ? MAREA_BOOLEAN_FALSE : MAREA_G_IsOn(item);
 }
 
+MAREA_Boolean MAREA_CALL MAREA_SemaIsPrivate(const MAREA_AstNode *root, const MAREA_AstNode *declaration)
+{
+    return MAREA_SemaAttributeHasMember(root, declaration, "visibility", "private");
+}
+
 MAREA_Boolean MAREA_CALL MAREA_SemaAttributeHasMember(const MAREA_AstNode *root, const MAREA_AstNode *declaration, const MAREA_Character8 *key, const MAREA_Character8 *member)
 {
     const MAREA_AstNode *item = MAREA_SemaAttributeFind(root, declaration, key);

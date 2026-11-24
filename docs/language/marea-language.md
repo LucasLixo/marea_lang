@@ -1284,6 +1284,7 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 | 3043 | `sema` | [marea-sema.md](../sema/marea-sema.md), `NON_BOOLEAN_CONDITION` |
 | 3055 | `sema` | [marea-sema.md](../sema/marea-sema.md), `CYCLIC_CONSTANT` |
 | 3065 | `sema` | [marea-sema.md](../sema/marea-sema.md), `LOCAL_WITHOUT_INITIAL_VALUE` |
+| 3066-3068 | `sema` | [marea-sema.md](../sema/marea-sema.md), `PRIVATE_SYMBOL_ACCESS`, `PRIVATE_TYPE_ACCESS`, `PRIVATE_FIELD_ACCESS`, no item reaches them (see Gaps) |
 | 4004-4006 | `ir` | [marea-ir.md](../ir/marea-ir.md), no item reaches them (see Gaps) |
 
 ## Gaps
@@ -1292,6 +1293,8 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
   two namespaces (settled rule 5) can use only an `EXTERNAL` import, which the runner gives to the `c.`,
   `collections.`, `concurrency.`, `arenas.` prefixes and to `text`, until a later change adds a way to give an item a
   second file.
+- The codes 3066, 3067 and 3068 (a private symbol, type or field of another namespace) have no item for the same
+  reason: they need a second namespace (issue #250). `tests/source/sema/MAREASemaVisibility.cpp` proves them.
 - The runner compares the codes of a `reject` item in the order the compiler gives them, so an item over two stages
   depends on the order of the stages (lex, then parse, then sema).
 - A known_gap item must be accepted today, so a valid program that the compiler rejects by mistake has no item. Known:
