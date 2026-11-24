@@ -1,9 +1,8 @@
--- gap: #198 NEW
--- rule: reject
+-- expect: 3071 @26
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- An inner owner is used after it moved up.
+-- A structure is moved in a for loop and the owner is outside.
 
 namespace main;
 
@@ -22,11 +21,9 @@ function make_point(): Point
 end
 
 function check(): sinteger32
-    local outer: Point = make_point();
-    do
-        local inner: Point = make_point();
-        outer = move inner;
-        local x: sinteger32 = inner.x;
+    local first: Point = make_point();
+    for turn in 0 .. 2 do
+        local second: Point = move first;
     end
     return 1;
 end

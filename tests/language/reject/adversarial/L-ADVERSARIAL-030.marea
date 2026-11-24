@@ -1,0 +1,44 @@
+-- expect: 3071 @42
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A generic function returns an owned parameter and the caller keeps the old name.
+
+namespace main;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+structure Box
+    inner: Point;
+    count: sinteger32;
+end
+
+function make_point(): Point
+    return Point{ x = 1, y = 2 };
+end
+
+function read_point(#[semantics = reference_read_only] point: Point): sinteger32
+    return point.x;
+end
+
+function write_point(#[semantics = reference_mutable] point: Point)
+    point.x = 1;
+end
+
+function take_point(point: owned<Point>): sinteger32
+    return point.x;
+end
+
+function same<Item>(value: owned<Item>): owned<Item> where Item: Movable
+    return value;
+end
+
+function check(): sinteger32
+    local point: Point = make_point();
+    local first: owned<Point> = same(move point);
+    local second: owned<Point> = same(move point);
+    return 1;
+end

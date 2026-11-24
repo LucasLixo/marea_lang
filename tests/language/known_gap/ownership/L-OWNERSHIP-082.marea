@@ -20,6 +20,7 @@ end
 function check(points: owned<vector<Point>>): sinteger32
     for each item in points do
         local other: vector<Point> = move points;
+        break;
     end
     return 1;
 end

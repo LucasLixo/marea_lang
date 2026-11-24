@@ -1,9 +1,8 @@
--- gap: #198 NEW
--- rule: reject
+-- expect: 3070 @28
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- A structure is used after the box that holds it was moved.
+-- An inner owner is used after it moved up.
 
 namespace main;
 
@@ -22,8 +21,11 @@ function make_point(): Point
 end
 
 function check(): sinteger32
-    local box: Box = Box{ inner = make_point(), count = 1 };
-    local other: Box = move box;
-    local count: sinteger32 = box.count;
+    local outer: Point = make_point();
+    do
+        local inner: Point = make_point();
+        outer = move inner;
+        local x: sinteger32 = inner.x;
+    end
     return 1;
 end
