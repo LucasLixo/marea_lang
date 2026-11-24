@@ -10,6 +10,5 @@ function run(left: boolean, right: boolean): boolean
     if (left and right) or (not left) then
         return true;
     end
-    end
     return false;
 end

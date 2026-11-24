@@ -21,9 +21,7 @@ function check(selector: sinteger32): sinteger32
     switch selector
         case 1 then
             value = 1;
-        end
         default then
-        end
     end
     local copy_of: sinteger32 = value;
     return 1;

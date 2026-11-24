@@ -36,8 +36,6 @@ function reset<Item>(#[semantics = reference_read_only] box: Box, flag: Item)
     switch box.count
         case 1 then
             box.inner.x = 0;
-        end
         default then
-        end
     end
 end

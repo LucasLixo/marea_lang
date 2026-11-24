@@ -35,7 +35,6 @@ function area(shape: Shape): float64
         local radius: float64 = shape.width / 2.0;
         return 3.14159265358979 * radius * radius;
     end
-    end
     return shape.width * shape.height;
 end
 
