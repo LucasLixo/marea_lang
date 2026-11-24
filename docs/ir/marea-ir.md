@@ -24,6 +24,16 @@ MAREA_IrContextCreate(arena, sink, &ir);
 MAREA_IrLowerCompilationUnit(ir, typed, &module);
 ```
 
+The module also carries the layout table of its structures and enums (see Layout table):
+
+```c
+const MAREA_IrLayout *layout;
+MAREA_Uinteger64 size;
+
+MAREA_IrModuleFindLayout(module, "Point", 5, &layout);
+MAREA_IrLayoutGetSize(layout, &size);                      /* ERROR_UNDECIDED when sema did not measure it */
+```
+
 `MAREA_IrLowerCompilationUnit` returns `MAREA_IR_EXCEPT_ERROR_NULL_POINTER` for a null argument or for
 a typed root whose AST node is not a `COMPILATION_UNIT`, and `MAREA_IR_EXCEPT_ERROR_OUT_OF_MEMORY`
 when the arena cannot grow. A construct that cannot be lowered is not an error code: it is a
@@ -542,6 +552,45 @@ CALL_EXPRESSION                              -- a static call on a written type:
 - The nodes take their position from what they were written from: the `TYPE_NAME` from the written type, the
   `BUILTIN_NAME` from the callee name.
 
+## Layout table
+
+The module carries a table of the layouts of the structures and enums it names, so that `bytecode` and `cgen` do not
+each work them out again. The table is public, serializable data: `MAREAIrLayout.h` reads it through accessors of the
+opaque `MAREA_IrNode` of the module and of the opaque `MAREA_IrLayout` entry, and the Text dump writes it as a section
+(see Text dump). The `ir` computes no size and no offset. Each entry is a copy of the layout that `sema` records on the
+typed `STRUCTURE_DECLARATION` or `ENUM_DECLARATION` node (`MAREA_SemaTypedNodeGetLayout`), so the verdict, the reason,
+the numbers and the rules (field order, natural padding, `pack`, `align`, the enum tag and its data as a union) are
+those of `sema`.
+
+- **One entry for each lowered declaration.** Every `STRUCTURE_DECLARATION` and `ENUM_DECLARATION` child of the module has
+  one entry, in the same order. A declaration that lowering leaves out has none: a generic structure (4004), and an enum
+  dropped for a gap in a variant default. The table is built after the declarations are final, so it never names a node
+  that is not in the module. `MAREA_IrModuleGetLayoutCount` gives the count, `MAREA_IrModuleGetLayoutAt` the entry by
+  index and `MAREA_IrModuleFindLayout` the entry by name. A node that is not a `MODULE` has an empty table.
+- **What an entry holds.** The kind (`MAREA_IR_LAYOUT_KIND_STRUCTURE` or `_ENUM`), the name (a pointer into the source),
+  the verdict (`MAREA_SEMA_MEASURE_VERDICT_MEASURED` or `_UNDECIDED`), the reason when undecided, and, when measured, the
+  size, the alignment and the offset of each member. All offsets count in bytes from the start of the value. For a
+  structure a member is a field. For an enum a member is a variant: `MAREA_IrLayoutGetMemberOffset` gives its payload
+  offset (the same for every variant, because the data is a union), `MAREA_IrLayoutGetTagSize` gives the tag size (the
+  tag is at offset 0), and `MAREA_IrLayoutGetVariantFieldCount` and `MAREA_IrLayoutGetVariantFieldOffset` give the
+  fields of a variant, with absolute offsets. The enum size is `RoundUp(payload offset + largest variant, alignment)` and
+  the payload offset is `RoundUp(tag size, largest variant alignment)`; the `ir` only reads them.
+- **An undecided entry has no number.** It carries the reason and the member count, and `GetSize`, `GetAlignment`,
+  `GetTagSize`, `GetMemberOffset` and `GetVariantFieldOffset` return `MAREA_IR_LAYOUT_EXCEPT_ERROR_UNDECIDED` and do not
+  write the output. A later change that lets `sema` measure such a type turns the entry into a measured one with no change
+  of the format. The reasons are those of `sema`: `library_type`, `generic`, `function_type`, `opaque`,
+  `invalid_attribute`, `too_deep` and `unresolved`.
+- **A structure that holds a library type is undecided on purpose.** `string`, `array`, `vector`, `pointer`, `slice`,
+  `task`, `owned` and any `c.` type get their layout from the library, not from the language, so `sema` does not measure
+  them and the structure or enum that holds one is undecided with the reason `library_type`. A holder of an undecided
+  type takes its reason.
+- **An opaque structure has an entry** (it lowers to a `STRUCTURE_DECLARATION` with no field). `sema` records no layout
+  for an `OPAQUE_DECLARATION`, so the entry is undecided with the reason `opaque` and no member: its layout belongs to C.
+  This reason is the one choice the `ir` makes; it is not a computed value.
+- **Errors.** Every accessor that returns `MAREA_IrLayoutExcept` returns `ERROR_NULL_POINTER` for a null argument,
+  `ERROR_UNDECIDED` for an undecided entry (checked before the range), and `ERROR_OUT_OF_RANGE` for an index that is not
+  below the count. `MAREA_IrModuleFindLayout` returns `ERROR_NOT_FOUND` for a name no entry has.
+
 ## Text dump
 
 `MAREA_IrModuleDump` writes the tree as stable text into the arena, one node per line, in the same
@@ -569,6 +618,22 @@ MODULE
         IDENTIFIER "b" resolved=sinteger32
 ```
 
+When the module has at least one structure or enum, the tree is followed by the layout table as a section of its own,
+in the declaration order. A module with none has no section. A line has the kind (`STRUCTURE` or `ENUM`), the name in
+double quotes, then `verdict=measured`, `size=N`, `alignment=N`, for an enum `tag=N`, `members=N` and, for a structure,
+`offsets=A,B,C` (the field offsets). An enum then has one `VARIANT` line for each variant with `payload=N` and
+`fields=A,B` (the offsets of its fields, empty for a variant with no data). An undecided entry has
+`verdict=undecided reason=NAME members=N` and no number. Every number is a decimal.
+
+```
+LAYOUT_TABLE
+  STRUCTURE "P" verdict=measured size=8 alignment=4 members=2 offsets=0,4
+  ENUM "Shape" verdict=measured size=24 alignment=8 tag=1 members=2
+    VARIANT 0 payload=8 fields=8
+    VARIANT 1 payload=8 fields=8,16
+  STRUCTURE "S" verdict=undecided reason=library_type members=1
+```
+
 Lowering the same unit twice gives byte-identical text.
 
 ## Constructs the IR cannot lower
@@ -585,7 +650,8 @@ declaration is reported once: lowering of that declaration stops at the first on
 
 `tests/source/ir/MAREAIrExamples.cpp` lowers all 23 programs under `examples/` through `lex`, `parse`,
 `sema` and `ir`. Each one checks with zero errors, lowers to a `MODULE`, dumps as text and raises
-exactly the codes in its row. The 20 programs not listed raise none.
+exactly the codes in its row. The 20 programs not listed raise none. A second sweep, in `tests/source/ir/MAREAIrLayout.cpp`,
+checks that every structure and enum of each lowered module has an entry in the layout table, in order.
 
 | Program | Codes |
 |---|---|
@@ -685,10 +751,14 @@ Each diagnostic carries the position of the construct that raised it. The messag
   callee's parameter list names. Sema checks the argument count only for a bare name of the unit and for a type
   construction, so it does not reject a call through a member access that writes too few arguments for a
   function that has no default; the ir does not check it either.
-- There is no layout table. A backend needs the size, the alignment and the field offsets of every structure and
-  enum the module names. Sema measures a structure only in `MAREA_G_MeasureStructure`, a static function of
-  `lib/source/marea/sema/MAREASemaLayout.c`, to compare two structures: it works on the AST with the sema context,
-  keeps no field offset, and decides only a `#[layout = c]` structure of fixed-width primitives and nested
-  structures of the same kind (`string`, `pointer`, `array`, an enum and a `marea` layout are not measured). The
-  typed tree has no accessor for it, and the ir holds no sema context, so the ir cannot reuse it and does not
-  compute a second, different one. It needs a sema change first (see the error log).
+- The layout table (see Layout table) is as complete as `sema` makes it, and holds only what the unit declares. A
+  structure or enum that holds a library type (`string`, `array`, `vector`, `pointer`, `slice`, `task`, `owned`, a `c.`
+  type) is undecided with the reason `library_type`, on purpose: the layout of those types belongs to the library, so
+  the `ir` gives no number for them and a backend must not guess one. The same holds for a function-type field, an
+  invalid `align`, a chain of structures deeper than `sema` measures, and an enum bound by an import (its types
+  belong to another file). The `ir` reads no layout across modules: a structure of another namespace has no entry here.
+- `layout = marea` is measured as `layout = c`: `sema` reserves the value for a later reorder of the fields, and the
+  table repeats its numbers. A change of that rule in `sema` reaches the table with no change in the `ir`.
+- A field typed by an alias of a function type gets the reason `library_type` from `sema`, not `function_type`, because
+  `sema` does not look through the alias when it classifies the field. The entry is undecided either way; the `ir` keeps
+  the reason as `sema` gives it.
