@@ -1,0 +1,24 @@
+-- expect: 3069 @16
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- from: L-FUNCTIONS-014
+-- Mutant of L-FUNCTIONS-014: the write attribute is dropped from a parameter the body writes.
+
+namespace main;
+
+structure Point
+    x: float64;
+    y: float64;
+end
+
+function move_right(point: Point)
+    point.x += 1.0;
+end
+
+function run(): float64
+    local point: Point = Point{ x = 0.0, y = 0.0 };
+    move_right(point);
+    return point.x;
+end
+

@@ -165,7 +165,7 @@ TEST(MAREASemaTypedAstLiteral, OtherOperandOfABinaryExpressionFixesTheLiteral)
 
     EXPECT_EQ(MAREA_integers("namespace main; function f(a: uinteger8): uinteger8 return 2 * a; end"), Types{ "uinteger8" }) << "A literal on the left must take the type of the right operand.";
 
-    EXPECT_EQ(MAREA_integers("namespace main; function f(a: uinteger16) if a < 2 then end end end"), Types{ "uinteger16" }) << "A compare must fix the literal from the other operand.";
+    EXPECT_EQ(MAREA_integers("namespace main; function f(a: uinteger16) if a < 2 then end end"), Types{ "uinteger16" }) << "A compare must fix the literal from the other operand.";
 }
 
 TEST(MAREASemaTypedAstLiteral, OtherOperandReachesANestedSum)
@@ -225,7 +225,7 @@ TEST(MAREASemaTypedAstLiteral, SwitchSubjectFixesTheCaseLiteral)
 {
     GTEST_COUT << "Validating a case literal takes the type of the switched value." << std::endl;
 
-    EXPECT_EQ(MAREA_integers("namespace main; function f(a: uinteger8) switch a case 1, 2 then end default then end end end"), (Types{ "uinteger8", "uinteger8" })) << "Each case literal must take the type of the subject.";
+    EXPECT_EQ(MAREA_integers("namespace main; function f(a: uinteger8) switch a case 1, 2 then default then end end"), (Types{ "uinteger8", "uinteger8" })) << "Each case literal must take the type of the subject.";
 }
 
 TEST(MAREASemaTypedAstLiteral, RangeBoundTakesTheTypeOfTheOtherBound)
@@ -239,9 +239,9 @@ TEST(MAREASemaTypedAstLiteral, LiteralWithNoContextTakesTheDefault)
 {
     GTEST_COUT << "Validating a literal with no fixing context takes sinteger32 or float64." << std::endl;
 
-    EXPECT_EQ(MAREA_integers("namespace main; function f() if 1 < 2 then end end end"), (Types{ "sinteger32", "sinteger32" })) << "Two integer literals compared must take sinteger32.";
+    EXPECT_EQ(MAREA_integers("namespace main; function f() if 1 < 2 then end end"), (Types{ "sinteger32", "sinteger32" })) << "Two integer literals compared must take sinteger32.";
 
-    EXPECT_EQ(MAREA_floats("namespace main; function f() if 1.5 < 2.5 then end end end"), (Types{ "float64", "float64" })) << "Two float literals compared must take float64.";
+    EXPECT_EQ(MAREA_floats("namespace main; function f() if 1.5 < 2.5 then end end"), (Types{ "float64", "float64" })) << "Two float literals compared must take float64.";
 
     EXPECT_EQ(MAREA_integers("namespace main; function g<Item>(a: Item) end function f() g(5); end"), Types{ "sinteger32" }) << "A parameter of a generic type fixes no primitive, so the default is used.";
 
@@ -252,7 +252,7 @@ TEST(MAREASemaTypedAstLiteral, StringCharacterAndBooleanKeepTheirOwnType)
 {
     GTEST_COUT << "Validating a string, character and boolean literal always give their own primitive type." << std::endl;
 
-    const std::string SOURCE{ "namespace main; function f() local s: string = \"text\"; local c: character = 'a'; local b: boolean = true; if \"x\" == \"y\" then end end end" };
+    const std::string SOURCE{ "namespace main; function f() local s: string = \"text\"; local c: character = 'a'; local b: boolean = true; if \"x\" == \"y\" then end end" };
 
     EXPECT_EQ(MAREA_literalTypes(SOURCE, MAREA_AST_KIND_STRING_LITERAL), (Types{ "string", "string", "string" })) << "A string literal must be a string.";
 

@@ -1,0 +1,16 @@
+-- expect: 3044 @15
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A field read of a field that the structure does not have.
+
+namespace main;
+
+structure Point
+    x: float64;
+    y: float64;
+end
+
+function run(point: Point): float64
+    return point.z;
+end

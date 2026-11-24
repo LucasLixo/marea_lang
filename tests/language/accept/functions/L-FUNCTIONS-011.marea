@@ -10,6 +10,5 @@ function never(value: sinteger32): sinteger32
     if value > 0 then
         return value;
     end
-    end
     unreachable!();
 end

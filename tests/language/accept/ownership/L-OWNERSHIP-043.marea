@@ -26,7 +26,6 @@ function check(): sinteger32
         local second: Point = move first;
         return second.x;
     end
-    end
     local third: sinteger32 = first.x;
     return 1;
 end

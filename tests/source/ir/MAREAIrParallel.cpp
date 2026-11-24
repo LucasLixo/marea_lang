@@ -118,7 +118,7 @@ TEST(MAREAIrParallel, PartitionMutableKeepsTheMutableFlag)
     GTEST_COUT << "Validating a mutable partition carries the MUTABLE flag on its node." << std::endl;
 
     const std::string
-        rendered{ MAREA_lowerBody(WORK, "values: list<float32>", "fork_join partition mutable values into 4 as part do spawn scale(part, 2.0); end end") };
+        rendered{ MAREA_lowerBody(WORK, "#[semantics = reference_mutable] values: list<float32>", "fork_join partition mutable values into 4 as part do spawn scale(part, 2.0); end end") };
 
     EXPECT_NE(rendered.find("(PARTITION_STATEMENT part flags=1 (IDENTIFIER values) (INTEGER_LITERAL 4) (BLOCK"), std::string::npos) << "The flag must sit on the partition node: " << rendered;
 }
@@ -162,7 +162,7 @@ TEST(MAREAIrParallel, ContinueInsideWithTargetsTheEnclosingForRangeAndGetsItsSte
     GTEST_COUT << "Validating a continue inside a with body inside a for-range loop still runs the step of the loop first." << std::endl;
 
     const std::string
-        rendered{ MAREA_lowerBody("", "scratch: arena, a: boolean", "for index in 0 .. 3 do with scratch as inner do if a then continue; end end end end") };
+        rendered{ MAREA_lowerBody("", "scratch: arena, a: boolean", "for index in 0 .. 3 do with scratch as inner do if a then continue; end end end") };
 
     EXPECT_NE(rendered.find("(WITH_STATEMENT inner (IDENTIFIER scratch) (BLOCK (IF_STATEMENT (IDENTIFIER a) (BLOCK (BLOCK (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER index) (IDENTIFIER $last)) (BLOCK (BREAK_STATEMENT))) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER index) (INTEGER_LITERAL 1)) (CONTINUE_STATEMENT))))))"), std::string::npos) << "The continue must carry the step: " << rendered;
 }
@@ -217,7 +217,7 @@ TEST(MAREAIrParallel, DumpWritesTheThreeNewKindsWithTheirNameAndFlag)
 
     MAREA_IrFixture fixture(RESOLVE_EXTERNAL);
 
-    ASSERT_EQ(fixture.MAREA_lower(MAREA_sourceOf(WORK, "values: list<float32>, scratch: arena", "fork_join partition mutable values into 2 as part do spawn scale(part, 1.0); end end with scratch as inner do end")), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower(MAREA_sourceOf(WORK, "#[semantics = reference_mutable] values: list<float32>, scratch: arena", "fork_join partition mutable values into 2 as part do spawn scale(part, 1.0); end end with scratch as inner do end")), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     const MAREA_Character8 *text{ nullptr };
 

@@ -10,6 +10,7 @@ namespace
     using Codes = std::vector<MAREA_Uinteger32>;
 
     constexpr MAREA_Uinteger32 UNKNOWN_TYPE{ MAREA_SEMA_DIAGNOSTIC_CODE_UNKNOWN_TYPE };
+    constexpr MAREA_Uinteger32 OPAQUE_BY_VALUE{ MAREA_SEMA_DIAGNOSTIC_CODE_OPAQUE_FIELD_BY_VALUE };
     constexpr MAREA_Uinteger32 DUPLICATE_MEMBER{ MAREA_SEMA_DIAGNOSTIC_CODE_DUPLICATE_MEMBER };
 
     MAREA_ResolveCallback MAREA_externalOnly()
@@ -317,4 +318,98 @@ TEST(MAREASemaTypesAndDeclarations, EnumTagTypeOfAnotherKindRaisesInvalidEnumTag
     for (const char *name : { "float32", "float64", "string", "boolean", "SomeStruct", "pointer<sinteger32>" }) {
         EXPECT_EQ(MAREA_codesOf(std::string("structure SomeStruct a: sinteger32; end enum A : ") + name + " Red; end"), Codes{ INVALID_TAG }) << "The tag " << name << " must raise INVALID_ENUM_TAG_TYPE.";
     }
+}
+
+TEST(MAREASemaTypesAndDeclarations, OpaqueTypeHeldByValueInAFieldRaisesOpaqueFieldByValue)
+{
+    GTEST_COUT << "Validating a bare opaque type as a structure field raises OPAQUE_FIELD_BY_VALUE." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("opaque structure T; structure H t: T; end"), Codes{ OPAQUE_BY_VALUE }) << "An opaque type held by value must raise OPAQUE_FIELD_BY_VALUE.";
+
+    EXPECT_EQ(MAREA_codesOf("opaque structure T; structure H a: sinteger32; t: T; u: T; end"), (Codes{ OPAQUE_BY_VALUE, OPAQUE_BY_VALUE })) << "Each opaque field must raise once.";
+
+    EXPECT_TRUE(MAREA_codesOf("opaque structure T; structure H t: owned<T>; end").empty()) << "An owner of an opaque type in a field must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("opaque structure T; structure H t: pointer<T>; end").empty()) << "A pointer to an opaque type in a field must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("structure S a: sinteger32; end structure H s: S; end").empty()) << "An ordinary structure held by value must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("structure H t: c.math.Vector3; end").empty()) << "A type of another file is not checked.";
+}
+
+TEST(MAREASemaTypesAndDeclarations, StructureHoldingItselfByValueIsRecursiveType)
+{
+    GTEST_COUT << "Validating a structure or enum that holds itself by value raises RECURSIVE_TYPE." << std::endl;
+
+    constexpr MAREA_Uinteger32 RECURSIVE{ MAREA_SEMA_DIAGNOSTIC_CODE_RECURSIVE_TYPE };
+
+    EXPECT_EQ(MAREA_codesOf("structure Node next: Node; end"), Codes{ RECURSIVE }) << "A direct self field must raise once.";
+    EXPECT_EQ(MAREA_codesOf("structure Left other: Right; end structure Right other: Left; end"), (Codes{ RECURSIVE, RECURSIVE })) << "Two structures that hold each other must raise once each.";
+    EXPECT_EQ(MAREA_codesOf("structure A items: array<A, 2>; end"), Codes{ RECURSIVE }) << "An array holds its element inline.";
+    EXPECT_EQ(MAREA_codesOf("type Same = Node; structure Node next: Same; end"), Codes{ RECURSIVE }) << "An alias must be followed.";
+    EXPECT_EQ(MAREA_codesOf("enum Tree Leaf; Branch(inner: Tree); end"), Codes{ RECURSIVE }) << "A variant field that holds the enum by value must raise.";
+}
+
+TEST(MAREASemaTypesAndDeclarations, IndirectSelfReferenceIsAccepted)
+{
+    GTEST_COUT << "Validating an indirect self reference and a plain nesting raise nothing." << std::endl;
+
+    for (const char *wrapper : { "owned", "vector", "pointer", "slice" }) {
+        EXPECT_TRUE(MAREA_codesOf(std::string("structure Node next: ") + wrapper + "<Node>; end").empty()) << "The wrapper " << wrapper << " is indirect.";
+    }
+
+    EXPECT_TRUE(MAREA_codesOf("type A = sinteger32; type B = A;").empty()) << "A chain of aliases that ends must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("structure Outer inner: Inner; end structure Inner x: sinteger32; end").empty()) << "A later declaration is fine.";
+}
+
+TEST(MAREASemaTypesAndDeclarations, CyclicAliasIsRejected)
+{
+    GTEST_COUT << "Validating a cyclic type alias raises CYCLIC_TYPE_ALIAS once per alias on the cycle." << std::endl;
+
+    constexpr MAREA_Uinteger32 CYCLIC{ MAREA_SEMA_DIAGNOSTIC_CODE_CYCLIC_TYPE_ALIAS };
+
+    EXPECT_EQ(MAREA_codesOf("type First = Second; type Second = First;"), (Codes{ CYCLIC, CYCLIC })) << "Two aliases that lead to each other must raise twice.";
+    EXPECT_EQ(MAREA_codesOf("type Loop = Loop;"), Codes{ CYCLIC }) << "An alias of itself must raise once.";
+}
+
+TEST(MAREASemaTypesAndDeclarations, OverlappingImplementationIsRejected)
+{
+    GTEST_COUT << "Validating two implementation blocks that unify and share a member raise OVERLAPPING_IMPLEMENTATION." << std::endl;
+
+    constexpr MAREA_Uinteger32 OVERLAP{ MAREA_SEMA_DIAGNOSTIC_CODE_OVERLAPPING_IMPLEMENTATION };
+
+    const std::string BOX{ "structure Box<Item> item: Item; end " };
+
+    EXPECT_EQ(MAREA_codesOf(BOX + "implementation<Item> Box<Item> function same(self: Box<Item>): sinteger32 return 1; end end implementation Box<sinteger32> function same(self: Box<sinteger32>): sinteger32 return 2; end end"), Codes{ OVERLAP }) << "A generic block and a concrete block with one name must raise once.";
+    EXPECT_TRUE(MAREA_codesOf(BOX + "implementation<Item> Box<Item> function same(self: Box<Item>): sinteger32 return 1; end end implementation Box<sinteger32> function other(self: Box<sinteger32>): sinteger32 return 2; end end").empty()) << "Different member names must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf(BOX + "implementation Box<sinteger32> function same(self: Box<sinteger32>): sinteger32 return 1; end end implementation Box<float64> function same(self: Box<float64>): sinteger32 return 2; end end").empty()) << "Two blocks that do not unify must raise nothing.";
+}
+
+TEST(MAREASemaTypesAndDeclarations, EnumWithNoVariantIsRejected)
+{
+    GTEST_COUT << "Validating an enum with no variant raises EMPTY_ENUM once, and an enum with a variant does not." << std::endl;
+
+    constexpr MAREA_Uinteger32 EMPTY_ENUM{ MAREA_SEMA_DIAGNOSTIC_CODE_EMPTY_ENUM };
+
+    EXPECT_EQ(MAREA_codesOf("enum Empty end"), Codes{ EMPTY_ENUM }) << "An enum with no variant must raise EMPTY_ENUM.";
+    EXPECT_EQ(MAREA_codesOf("enum Small : uinteger8 end"), Codes{ EMPTY_ENUM }) << "A tagged enum with no variant must raise EMPTY_ENUM.";
+    EXPECT_TRUE(MAREA_codesOf("enum Small : uinteger8 A; end").empty()) << "A tagged enum with a variant must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("enum Color Red; Green; end").empty()) << "An enum with variants must raise nothing.";
+}
+
+TEST(MAREASemaTypesAndDeclarations, NameThatIsNotAnEnumVariantIsRejected)
+{
+    GTEST_COUT << "Validating Enum.Name raises UNKNOWN_ENUM_VARIANT unless Name is a variant, a function or a constant of the enum." << std::endl;
+
+    constexpr MAREA_Uinteger32 UNKNOWN_VARIANT{ MAREA_SEMA_DIAGNOSTIC_CODE_UNKNOWN_ENUM_VARIANT };
+
+    const std::string COLOR{ "enum Color Red; Green; end " };
+
+    EXPECT_EQ(MAREA_codesOf(COLOR + "function f(): Color return Color.Purple; end"), Codes{ UNKNOWN_VARIANT }) << "A name that is not a variant must raise UNKNOWN_ENUM_VARIANT.";
+    EXPECT_EQ(MAREA_codesOf(COLOR + "function f(): Color local c: Color = Color.Purple; return c; end"), Codes{ UNKNOWN_VARIANT }) << "A local initializer must be checked.";
+    EXPECT_TRUE(MAREA_codesOf(COLOR + "function f(): Color return Color.Red; end").empty()) << "A variant must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("enum Small : uinteger8 A; end function f(): Small return Small.A; end").empty()) << "A variant of a tagged enum must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("enum Shape Circle(radius: float32); Square; end function f(): Shape return Shape.Square; end").empty()) << "A variant with a payload must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf(COLOR + "implementation Color constant DEFAULT_VALUE: sinteger32 = 1; end function f(): sinteger32 return Color.DEFAULT_VALUE; end").empty()) << "A constant of an implementation block must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf(COLOR + "function f(Color: sinteger32): sinteger32 return Color.Purple; end").empty()) << "A parameter that hides the enum name must raise nothing.";
 }

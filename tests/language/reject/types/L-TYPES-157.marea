@@ -10,5 +10,4 @@ function run(flag: boolean)
     if flag
         return;
     end
-    end
 end

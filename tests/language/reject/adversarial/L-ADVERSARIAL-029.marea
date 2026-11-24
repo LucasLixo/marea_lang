@@ -1,4 +1,4 @@
--- expect: 3020 @60
+-- expect: 3020 @60, 3069 @60
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 

@@ -10,6 +10,5 @@ function name(value: sinteger32): sinteger32
     switch value
         default then
             return 0;
-        end
     end
 end

@@ -1,0 +1,11 @@
+-- expect: 3011 @10
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A format macro result returned as an integer.
+
+namespace main;
+
+function check(): sinteger32
+    return format!("x");
+end

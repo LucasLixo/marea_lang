@@ -1,0 +1,28 @@
+-- expect: 3072 @26
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A field is moved out and the owner is used.
+
+namespace main;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+structure Box
+    inner: Point;
+    count: sinteger32;
+end
+
+function make_point(): Point
+    return Point{ x = 1, y = 2 };
+end
+
+function check(): sinteger32
+    local box: Box = Box{ inner = make_point(), count = 1 };
+    local point: Point = move box.inner;
+    local x: sinteger32 = box.inner.x;
+    return 1;
+end

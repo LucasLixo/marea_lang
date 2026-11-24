@@ -94,17 +94,31 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaScopeEnter(MAREA_SemaContext *context, con
     outMark->genericCount = context->generics.count;
     outMark->localCount = context->locals.count;
     outMark->referenceCount = context->references.count;
+    outMark->readOnlyCount = context->readOnly.count;
+    outMark->captureCount = context->captures.count;
+    outMark->captureLocalBase = context->captureLocalBase;
+    outMark->forkBody = context->forkBody;
+    outMark->captureScope = (MAREA_AstNodeGetKind(node) == MAREA_AST_KIND_FORK_JOIN_BLOCK) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+    outMark->localStart = context->localStart;
+    outMark->functionLocalStart = context->functionLocalStart;
     outMark->function = context->function;
     outMark->implementation = context->implementation;
     outMark->selfDepth = context->selfDepth;
     outMark->forkDepth = context->forkDepth;
     outMark->partitionDepth = context->partitionDepth;
     outMark->loopDepth = context->loopDepth;
+    outMark->unsafeDepth = context->unsafeDepth;
 
     const MAREA_SemaExcept BIND_RESULT = MAREA_SemaBindReferences(context, node);
 
     if (BIND_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
         return BIND_RESULT;
+    }
+
+    const MAREA_SemaExcept READ_ONLY_RESULT = MAREA_SemaBindReadOnly(context, node);
+
+    if (READ_ONLY_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+        return READ_ONLY_RESULT;
     }
 
     const MAREA_SemaExcept BINDER_RESULT = MAREA_SemaDeclareBinders(context, node);
@@ -114,6 +128,19 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaScopeEnter(MAREA_SemaContext *context, con
     }
 
     const MAREA_AstKind KIND = MAREA_AstNodeGetKind(node);
+
+    // INFO: the parameters of a function share the scope of the top-level statements of its body, so the body block starts its scope where the function did.
+    if (KIND == MAREA_AST_KIND_FUNCTION_DECLARATION) {
+        context->functionLocalStart = outMark->localCount;
+    }
+
+    if (KIND == MAREA_AST_KIND_BLOCK) {
+        const MAREA_IntegerSize FUNCTION_COUNT = (context->function == MAREA_NULLPTR) ? 0 : MAREA_AstNodeGetChildCount(context->function);
+
+        const MAREA_Boolean IS_BODY = ((FUNCTION_COUNT > 0) && (MAREA_SemaChildAt(context->function, (FUNCTION_COUNT - 1)) == node)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+
+        context->localStart = (IS_BODY == MAREA_BOOLEAN_TRUE) ? context->functionLocalStart : context->locals.count;
+    }
 
     if ((KIND == MAREA_AST_KIND_IMPLEMENTATION_DECLARATION) || (KIND == MAREA_AST_KIND_CONTRACT_DECLARATION)) {
         context->selfDepth += 1;
@@ -125,6 +152,14 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaScopeEnter(MAREA_SemaContext *context, con
 
     if (KIND == MAREA_AST_KIND_FORK_JOIN_BLOCK) {
         context->forkDepth += 1;
+
+        // INFO: the locals declared before the block are shared by every turn of a loop in it, and its own block is the code that runs next to the workers.
+        context->captureLocalBase = context->locals.count;
+        context->forkBody = MAREA_SemaChildAt(node, 0);
+    }
+
+    if (KIND == MAREA_AST_KIND_UNSAFE_BLOCK) {
+        context->unsafeDepth += 1;
     }
 
     // INFO: the body of a partition is a barrier. A loop outside it is not a target of a jump inside it.
@@ -193,12 +228,24 @@ void MAREA_CALL MAREA_SemaScopeLeave(MAREA_SemaContext *context, MAREA_SemaScope
     context->generics.count = mark.genericCount;
     context->locals.count = mark.localCount;
     context->references.count = mark.referenceCount;
+    context->readOnly.count = mark.readOnlyCount;
+    context->captureLocalBase = mark.captureLocalBase;
+    context->forkBody = mark.forkBody;
+
+    // INFO: what a worker took stays until the whole fork_join block ends, so only the scope of the block drops it.
+    if (mark.captureScope == MAREA_BOOLEAN_TRUE) {
+        context->captures.count = mark.captureCount;
+    }
+
+    context->localStart = mark.localStart;
+    context->functionLocalStart = mark.functionLocalStart;
     context->function = mark.function;
     context->implementation = mark.implementation;
     context->selfDepth = mark.selfDepth;
     context->forkDepth = mark.forkDepth;
     context->partitionDepth = mark.partitionDepth;
     context->loopDepth = mark.loopDepth;
+    context->unsafeDepth = mark.unsafeDepth;
 }
 
 static MAREA_IntegerSize MAREA_CALL MAREA_G_BuiltinArity(const MAREA_Character8 *text, MAREA_IntegerSize length)
@@ -350,4 +397,33 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckNamedType(MAREA_SemaContext *context,
     }
 
     return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_UNKNOWN_TYPE, MAREA_AstNodeGetPosition(node), "unknown type:", joined, joinedLength);
+}
+
+MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckOpaqueField(MAREA_SemaContext *context, const MAREA_AstNode *node)
+{
+    if ((context == MAREA_NULLPTR) || (node == MAREA_NULLPTR)) {
+        return MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    for (MAREA_IntegerSize index = 0; index < MAREA_AstNodeGetChildCount(node); ++index) {
+        const MAREA_AstNode *type = MAREA_SemaChildAt(node, index);
+
+        if ((type == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(type) != MAREA_AST_KIND_NAMED_TYPE)) {
+            continue;
+        }
+
+        const MAREA_AstNode *declaration = MAREA_NULLPTR;
+
+        const MAREA_Character8 *name = MAREA_NULLPTR;
+
+        MAREA_IntegerSize length = 0;
+
+        if ((MAREA_SemaClassifyType(context, type, &declaration, &name, &length) == MAREA_SEMA_TYPE_CLASS_USER) && (declaration != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(declaration) == MAREA_AST_KIND_OPAQUE_DECLARATION)) {
+            MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_OPAQUE_FIELD_BY_VALUE, MAREA_AstNodeGetPosition(type), "an opaque type cannot be held by value in a field");
+        }
+
+        break;
+    }
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
 }

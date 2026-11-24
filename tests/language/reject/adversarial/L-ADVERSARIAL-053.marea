@@ -1,0 +1,38 @@
+-- expect: 3016 @35
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- from: L-OWNERSHIP-047
+-- Mutant of L-OWNERSHIP-047: the move word is dropped from an owned argument.
+
+namespace main;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+structure Box
+    inner: Point;
+    count: sinteger32;
+end
+
+function make_point(): Point
+    return Point{ x = 1, y = 2 };
+end
+
+function read_point(#[semantics = reference_read_only] point: Point): sinteger32
+    return point.x;
+end
+
+function take_point(point: owned<Point>): sinteger32
+    return point.x;
+end
+
+function check(): sinteger32
+    local first: Point = make_point();
+    local before: sinteger32 = read_point(first);
+    local result: sinteger32 = take_point(first);
+    return 1;
+end
+

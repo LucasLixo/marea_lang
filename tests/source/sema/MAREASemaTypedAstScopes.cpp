@@ -159,7 +159,7 @@ TEST(MAREASemaTypedAstScopes, ForEachElementOfAGenericTypeIsKeptWhole)
 {
     GTEST_COUT << "Validating the element of a collection of a generic type is spelled whole." << std::endl;
 
-    MAREA_expectScopeType("namespace main; import collections.array; import concurrency.task; function f(v: c.array<task<float32>>) for each x in v do consume(x); end end function consume(x: task<float32>) end", "x", 1, "task<float32>", MAREA_EXTERNAL_RESOLVE);
+    MAREA_expectScopeType("namespace main; import collections.array; import concurrency.task; function consume(x: task<float32>) end function f(v: c.array<task<float32>>) for each x in v do consume(x); end end", "x", 2, "task<float32>", MAREA_EXTERNAL_RESOLVE);
 }
 
 TEST(MAREASemaTypedAstScopes, ForEachKeyIsTheIndexType)
@@ -184,7 +184,7 @@ TEST(MAREASemaTypedAstScopes, PartitionPartIsASliceOfTheValue)
 {
     GTEST_COUT << "Validating a partition part is a slice of the element type of the value, whatever the collection." << std::endl;
 
-    MAREA_expectScopeType("namespace main; import collections.array; function consume(p: slice<float32>) end function f(v: c.array<float32>) fork_join partition mutable v into 4 as part do consume(part); end end end", "part", 1, "slice<float32>", MAREA_EXTERNAL_RESOLVE);
+    MAREA_expectScopeType("namespace main; import collections.array; function consume(p: slice<float32>) end function f(#[semantics = reference_mutable] v: c.array<float32>) fork_join partition mutable v into 4 as part do consume(part); end end end", "part", 1, "slice<float32>", MAREA_EXTERNAL_RESOLVE);
 
     MAREA_expectScopeType("namespace main; function consume(p: slice<uinteger8>) end function f(v: array<uinteger8, 8>) fork_join partition v into 2 as part do consume(part); end end end", "part", 1, "slice<uinteger8>");
 

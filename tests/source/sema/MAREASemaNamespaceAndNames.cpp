@@ -19,11 +19,12 @@ namespace
 
         MAREA_LibraryResolver()
         {
-            MAREA_IGNORE(library.parser.MAREA_parse("namespace a.b; #[visibility = public] function c() end function hidden() end #[visibility = public] enum Color red; green; end #[visibility = public] constant MAX: sinteger32 = 1; #[visibility = public] structure Item end"));
+            MAREA_IGNORE(library.parser.MAREA_parse("namespace a.b; #[visibility = public] function c() end #[visibility = private] function hidden() end #[visibility = public] enum Color red; green; end #[visibility = public] constant MAX: sinteger32 = 1; #[visibility = public] structure Item end"));
         }
     };
 
     constexpr MAREA_Uinteger32 UNDECLARED{ MAREA_SEMA_DIAGNOSTIC_CODE_UNDECLARED_NAME };
+    constexpr MAREA_Uinteger32 RESERVED_MACRO{ MAREA_SEMA_DIAGNOSTIC_CODE_RESERVED_MACRO_NAME };
 
     std::string MAREA_firstMessage(const MAREA_SemaFixture &fixture, MAREA_Uinteger32 code)
     {
@@ -465,4 +466,95 @@ TEST(MAREASemaNamespaceAndNames, BrokenMemberListIsTolerated)
     ASSERT_EQ(empty.MAREA_sema("namespace main; import a.b { };"), MAREA_SEMA_EXCEPT_SUCCESS) << "An empty list must still check.";
 
     EXPECT_TRUE(empty.MAREA_semaCodes().empty()) << "An empty list must raise no sema code.";
+}
+
+TEST(MAREASemaNamespaceAndNames, ChainHeadWithNoImportIsUndeclared)
+{
+    GTEST_COUT << "Validating a bare member-chain head that no import binds raises UNDECLARED_NAME." << std::endl;
+
+    const std::vector<MAREA_Uinteger32> EXPECTED{ UNDECLARED };
+
+    const char *const SOURCES[]{ "namespace main; function f() stdio.puts(\"x\"); end", "namespace main; import c.stdio as output; function f() stdio.puts(\"x\"); end" };
+
+    for (const char *source : SOURCES) {
+        MAREA_SemaFixture fixture(MAREA_externalAll());
+
+        ASSERT_EQ(fixture.MAREA_sema(source), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+
+        EXPECT_EQ(fixture.MAREA_semaCodes(), EXPECTED) << "A head with no binding must raise UNDECLARED_NAME: " << source;
+    }
+}
+
+TEST(MAREASemaNamespaceAndNames, ChainHeadThatAnImportBindsRaisesNothing)
+{
+    GTEST_COUT << "Validating a chain head bound by an import, an alias, a local, a parameter, a type or a built-in name raises nothing." << std::endl;
+
+    const char *const SOURCES[]{ "namespace main; import c.stdio; function f() stdio.puts(\"x\"); end", "namespace main; import c.stdio as output; function f() output.puts(\"x\"); end", "namespace main; enum Color red; end structure Point end function f() local a: sinteger32 = Color.red; local b: sinteger32 = Point.make(); end", "namespace main; function f(value: sinteger32) value.x(); end", "namespace main; function f() c.stdio.puts(\"x\"); main.g(); end" };
+
+    for (const char *source : SOURCES) {
+        MAREA_SemaFixture fixture(MAREA_externalAll());
+
+        ASSERT_EQ(fixture.MAREA_sema(source), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+
+        const std::vector<MAREA_Uinteger32> CODES{ fixture.MAREA_semaCodes() };
+
+        EXPECT_EQ(std::count(CODES.begin(), CODES.end(), UNDECLARED), 0) << "A bound head must not raise UNDECLARED_NAME: " << source;
+    }
+}
+
+TEST(MAREASemaNamespaceAndNames, NameLikeABuiltInMacroIsRejected)
+{
+    GTEST_COUT << "Validating a function, a constant, a structure, a type, a local and an import alias named like a built-in macro raise RESERVED_MACRO_NAME." << std::endl;
+
+    const std::vector<MAREA_Uinteger32> EXPECTED{ RESERVED_MACRO };
+
+    const char *const SOURCES[]{ "namespace main; function print(value: sinteger32) end", "namespace main; constant format: sinteger32 = 1;", "namespace main; structure format end", "namespace main; type assert = sinteger32;", "namespace main; function f() local log: sinteger32 = 1; end", "namespace main; import c.stdio as print;", "namespace main; import c.stdio { puts as line };" };
+
+    for (const char *source : SOURCES) {
+        MAREA_SemaFixture fixture(MAREA_externalAll());
+
+        ASSERT_EQ(fixture.MAREA_sema(source), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+
+        EXPECT_EQ(fixture.MAREA_semaCodes(), EXPECTED) << "A macro name must raise RESERVED_MACRO_NAME: " << source;
+    }
+
+    MAREA_SemaFixture message(MAREA_externalAll());
+
+    ASSERT_EQ(message.MAREA_sema("namespace main; function print() end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+
+    EXPECT_EQ(MAREA_firstMessage(message, RESERVED_MACRO), "name is a built-in macro: 'print'") << "The message must name the macro.";
+}
+
+TEST(MAREASemaNamespaceAndNames, NameThatOnlyContainsAMacroNameIsAccepted)
+{
+    GTEST_COUT << "Validating a name that only contains a macro name, or a library name such as array, raises nothing." << std::endl;
+
+    const char *const SOURCES[]{ "namespace main; function printer() local line_count: sinteger32 = 1; end", "namespace main; import c.array as array;", "namespace main; import c.foo as foo;" };
+
+    for (const char *source : SOURCES) {
+        MAREA_SemaFixture fixture(MAREA_externalAll());
+
+        ASSERT_EQ(fixture.MAREA_sema(source), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+
+        EXPECT_TRUE(fixture.MAREA_semaCodes().empty()) << "A name that is no macro must raise nothing: " << source;
+    }
+}
+
+TEST(MAREASemaNamespaceAndNames, AliasNamedLikeAPrimitiveTypeIsRejected)
+{
+    GTEST_COUT << "Validating an import alias named like a primitive type raises NAME_ALREADY_DECLARED." << std::endl;
+
+    const std::vector<MAREA_Uinteger32> EXPECTED{ ALREADY_DECLARED };
+
+    const char *const SOURCES[]{ "namespace main; import c.foo as sinteger32;", "namespace main; import c.foo { bar as string };" };
+
+    for (const char *source : SOURCES) {
+        MAREA_SemaFixture fixture(MAREA_externalAll());
+
+        ASSERT_EQ(fixture.MAREA_sema(source), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+
+        EXPECT_EQ(fixture.MAREA_semaCodes(), EXPECTED) << "A primitive name must raise NAME_ALREADY_DECLARED: " << source;
+
+        EXPECT_NE(MAREA_firstMessage(fixture, ALREADY_DECLARED).find("name is a primitive type:"), std::string::npos) << "The message must say the name is a primitive type: " << source;
+    }
 }

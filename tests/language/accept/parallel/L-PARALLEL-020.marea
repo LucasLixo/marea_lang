@@ -55,7 +55,6 @@ function check(#[semantics = reference_read_only] values: c.array<float32>)
                 if value > 1.0 then
                     break;
                 end
-                end
             end
         end
     end

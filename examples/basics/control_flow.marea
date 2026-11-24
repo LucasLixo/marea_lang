@@ -12,13 +12,10 @@ import collections.array;
 function classify(score: sinteger32): string
     if score >= 90 then
         return "high";
-    end
     elseif score >= 50 then
         return "medium";
-    end
     else
         return "low";
-    end
     end
 end
 
@@ -50,13 +47,10 @@ function day_kind(day: sinteger32): string
     switch day
         case 6, 7 then
             return "weekend";
-        end
         case 1, 2, 3, 4, 5 then
             return "weekday";
-        end
         default then
             return "invalid";
-        end
     end
 end
 
@@ -68,10 +62,8 @@ function sum_array(values: c.array<sinteger32>): sinteger32
         if value < 0 then
             continue;
         end
-        end
         if value > 1000 then
             break;
-        end
         end
         total += value;
     end

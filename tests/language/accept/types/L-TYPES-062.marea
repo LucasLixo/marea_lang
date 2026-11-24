@@ -10,12 +10,9 @@ function day_kind(day: sinteger32): sinteger32
     switch day
         case 6, 7 then
             return 1;
-        end
         case 1, 2, 3, 4, 5 then
             return 2;
-        end
         default then
             return 0;
-        end
     end
 end

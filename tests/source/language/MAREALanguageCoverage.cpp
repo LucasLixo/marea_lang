@@ -50,6 +50,9 @@ namespace
 
     // INFO: a live code that no source program can trigger yet. The Gaps section of the language doc names each one.
     const std::vector<MAREA_CodeExemption> EXEMPT_CODES{
+        { 3066, "no item can reach a second namespace, the runner gives an item one file (issue #250); proven by tests/source/sema/MAREASemaVisibility.cpp" },
+        { 3067, "no item can reach a second namespace, the runner gives an item one file (issue #250); proven by tests/source/sema/MAREASemaVisibility.cpp" },
+        { 3068, "no item can reach a second namespace, the runner gives an item one file (issue #250); proven by tests/source/sema/MAREASemaVisibility.cpp" },
         { 4004, "the catalogue runner runs lex, parse and sema only, so no item reaches the ir; remove this entry when a runner makes the ir run" },
         { 4005, "the catalogue runner runs lex, parse and sema only, so no item reaches the ir; remove this entry when a runner makes the ir run" },
         { 4006, "the catalogue runner runs lex, parse and sema only, so no item reaches the ir; remove this entry when a runner makes the ir run" },
@@ -57,10 +60,6 @@ namespace
 
     // INFO: an example that has no accept item. Each reason is checked by hand and is named in the Gaps section.
     const std::vector<MAREA_ExampleExemption> EXEMPT_EXAMPLES{
-        { "examples/basics/ownership.marea", "writes a parameter with the default borrow, which settled rule 2 (read-only default) forbids (issues #203, #214)" },
-        { "examples/interop/gpu_handles.marea", "writes a parameter with the default borrow, which settled rule 2 forbids (issues #203, #214)" },
-        { "examples/parallel/scaling.marea", "writes a slice parameter with the default borrow, which settled rule 2 forbids (issues #203, #214)" },
-        { "examples/types/methods.marea", "a method writes self with the default borrow, which settled rule 2 forbids (issues #203, #214)" },
         { "examples/macros/builtin.marea", "imports the project namespace attributes.layout, and an item is one file (issue #250)" },
         { "examples/main.marea", "imports eight project namespaces, and an item is one file (issue #250)" },
         { "examples/namespaces/consumer.marea", "imports the project namespace namespaces.library, and an item is one file (issue #250)" },
@@ -70,16 +69,13 @@ namespace
     // "gap" means a known_gap item with the issue exists, "reject" means the codes in how have a reject item, and
     // "none" means no item can show it today, so the Gaps section of the doc must name the issue.
     const std::vector<MAREA_MissingRule> MISSING_RULES{
-        { "use of a moved value", "198", "gap" },
-        { "use of an uninitialized value", "177", "gap" },
-        { "write through a read-only borrow", "204", "gap" },
-        { "literal out of range", "181", "gap" },
-        { "constant division by zero", "183", "gap" },
-        { "shift count too large", "184", "gap" },
-        { "recursive type by value", "221", "gap" },
-        { "cyclic alias", "221", "gap" },
-        { "cyclic constant", "249", "gap" },
-        { "overlapping implementation", "225", "gap" },
+        { "use of a moved value", "0", "reject 3070 3071" },
+        { "use of an uninitialized value", "0", "reject 3065" },
+        { "write through a read-only borrow", "0", "reject 3069" },
+        { "literal out of range", "0", "reject 3033" },
+        { "constant division by zero", "0", "reject 3034" },
+        { "shift count too large", "0", "reject 3035" },
+        { "cyclic constant", "0", "reject 3055" },
         { "unreachable switch arm", "0", "reject 3025 2010" },
         { "import cycle", "250", "none" },
         { "private access across namespaces", "250", "none" },

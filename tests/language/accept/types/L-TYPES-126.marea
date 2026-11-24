@@ -10,13 +10,10 @@ function classify(score: sinteger32): sinteger32
     local result: sinteger32 = 0;
     if score >= 90 then
         result = 3;
-    end
     elseif score >= 50 then
         result = 2;
-    end
     else
         result = 1;
-    end
     end
     return result;
 end

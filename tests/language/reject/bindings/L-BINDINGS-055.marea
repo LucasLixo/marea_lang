@@ -1,0 +1,14 @@
+-- expect: 3038 @12
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A bit operator on a float.
+
+namespace main;
+
+function check(): sinteger32
+    local left: float64 = 1.0;
+    local right: float64 = 2.0;
+    local mixed: float64 = left & right;
+    return 1;
+end

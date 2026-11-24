@@ -9,10 +9,8 @@ namespace main;
 function sign_name(value: sinteger32): string
     if value < 0 then
         return "negative";
-    end
     elseif value >= 0 then
         return "positive";
-    end
     end
     unreachable!();
 end

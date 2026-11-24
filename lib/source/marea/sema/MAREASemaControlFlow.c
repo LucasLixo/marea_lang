@@ -87,6 +87,11 @@ static MAREA_Boolean MAREA_CALL MAREA_G_BlockTerminates(const MAREA_SemaContext 
     return MAREA_BOOLEAN_FALSE;
 }
 
+MAREA_Boolean MAREA_CALL MAREA_SemaBlockTerminates(const MAREA_SemaContext *context, const MAREA_AstNode *block)
+{
+    return MAREA_G_BlockTerminates(context, block);
+}
+
 static MAREA_Boolean MAREA_CALL MAREA_G_IfTerminates(const MAREA_SemaContext *context, const MAREA_AstNode *statement)
 {
     MAREA_Boolean hasElse = MAREA_BOOLEAN_FALSE;

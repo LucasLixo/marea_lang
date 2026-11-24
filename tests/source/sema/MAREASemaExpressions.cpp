@@ -10,8 +10,14 @@ namespace
     using Codes = std::vector<MAREA_Uinteger32>;
 
     constexpr MAREA_Uinteger32 MISMATCH{ MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH };
+    constexpr MAREA_Uinteger32 UNKNOWN_FIELD{ MAREA_SEMA_DIAGNOSTIC_CODE_UNKNOWN_FIELD };
+    constexpr MAREA_Uinteger32 MISSING_FIELD{ MAREA_SEMA_DIAGNOSTIC_CODE_MISSING_FIELD };
+    constexpr MAREA_Uinteger32 DUPLICATE_MEMBER{ MAREA_SEMA_DIAGNOSTIC_CODE_DUPLICATE_MEMBER };
     constexpr MAREA_Uinteger32 UNDECLARED{ MAREA_SEMA_DIAGNOSTIC_CODE_UNDECLARED_NAME };
     constexpr MAREA_Uinteger32 COUNT_MISMATCH{ MAREA_SEMA_DIAGNOSTIC_CODE_ARGUMENT_COUNT_MISMATCH };
+    constexpr MAREA_Uinteger32 OPAQUE_MISUSE{ MAREA_SEMA_DIAGNOSTIC_CODE_OPAQUE_TYPE_MISUSE };
+    constexpr MAREA_Uinteger32 FUNCTION_TYPE_MISMATCH{ MAREA_SEMA_DIAGNOSTIC_CODE_FUNCTION_TYPE_MISMATCH };
+    constexpr MAREA_Uinteger32 INVALID_RESULT_USE{ MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_RESULT_USE };
     constexpr MAREA_Uinteger32 DEFAULT_BEFORE_REQUIRED{ MAREA_SEMA_DIAGNOSTIC_CODE_DEFAULT_PARAMETER_BEFORE_REQUIRED };
 
     Codes MAREA_codesOf(const std::string &body)
@@ -78,7 +84,7 @@ TEST(MAREASemaExpressions, OperatorsGiveATypedResult)
 
     EXPECT_EQ(MAREA_codesOf("function g() local n: sinteger32 = 1.5 * 2.0; end"), Codes{ MISMATCH }) << "A product of two fractions for an integer local must raise TYPE_MISMATCH.";
 
-    EXPECT_EQ(MAREA_codesOf("function g(a: uinteger8) local n: boolean = -a; end"), Codes{ MISMATCH }) << "A negated name for a boolean local must raise TYPE_MISMATCH.";
+    EXPECT_EQ(MAREA_codesOf("function g(a: sinteger8) local n: boolean = -a; end"), Codes{ MISMATCH }) << "A negated name for a boolean local must raise TYPE_MISMATCH.";
 
     EXPECT_EQ(MAREA_codesOf("function g(a: sinteger32) local n: boolean = (a + 1); end"), Codes{ MISMATCH }) << "A parenthesized sum must keep its type.";
 
@@ -137,7 +143,7 @@ TEST(MAREASemaExpressions, BinaryOperandMismatchIsReportedOnceAndWhereverItStand
 
     EXPECT_EQ(MAREA_codesOf(HEAD + "a + b + c; return true; end"), Codes{ MISMATCH }) << "A mismatch inside a longer chain must be reported once, with no cascade.";
 
-    EXPECT_EQ(MAREA_codesOf(HEAD + "if a < b then end end return true; end"), Codes{ MISMATCH }) << "A condition of an if statement must be checked.";
+    EXPECT_EQ(MAREA_codesOf(HEAD + "if a < b then end return true; end"), Codes{ MISMATCH }) << "A condition of an if statement must be checked.";
 
     EXPECT_EQ(MAREA_codesOf(HEAD + "while a < b do end return true; end"), Codes{ MISMATCH }) << "A condition of a while statement must be checked.";
 
@@ -211,7 +217,7 @@ TEST(MAREASemaExpressions, CompoundAssignmentNeedsTheSameTypeOnBothSides)
 {
     GTEST_COUT << "Validating a compound assignment is compared like a = a + b and a compound shift follows the shift rule." << std::endl;
 
-    const std::string HEAD{ "structure Point x: float32; end function g(a: sinteger32, c: sinteger64, f: float64, v: uinteger32, p: Point, s: string) " };
+    const std::string HEAD{ "structure Point x: float32; end function g(a: sinteger32, c: sinteger64, f: float64, v: uinteger32, #[semantics = reference_mutable] p: Point, #[semantics = reference_mutable] s: string) " };
 
     EXPECT_EQ(MAREA_codesOf(HEAD + "a += f; a -= c; f *= a; a /= f; a %= c; a **= f; end"), (Codes{ MISMATCH, MISMATCH, MISMATCH, MISMATCH, MISMATCH, MISMATCH })) << "Every compound operator must compare both sides.";
 
@@ -246,7 +252,7 @@ TEST(MAREASemaExpressions, CallResultIsTypedForAKnownFunction)
 
     EXPECT_TRUE(MAREA_codesOf("function same<Item>(a: Item): Item return copy a; end function g() local n: sinteger32 = same(4); end").empty()) << "A generic call must not be guessed.";
 
-    EXPECT_TRUE(MAREA_codesOf("function none() end function g() local n: sinteger32 = none(); end").empty()) << "A call with no result type must not be guessed.";
+    EXPECT_EQ(MAREA_codesOf("function none() end function g() local n: sinteger32 = none(); end"), Codes{ INVALID_RESULT_USE }) << "A call with no result type used as a value must raise INVALID_RESULT_USE.";
 }
 
 TEST(MAREASemaExpressions, AssignmentAndReturnAreChecked)
@@ -302,19 +308,40 @@ TEST(MAREASemaExpressions, UndeclaredNameInAnExpression)
 
     EXPECT_EQ(MAREA_codesOf("function g(a: sinteger32): sinteger32 return a + missing; end"), Codes{ UNDECLARED }) << "A missing name in an operator must raise UNDECLARED_NAME once.";
 
-    EXPECT_EQ(MAREA_codesOf("function g(a: sinteger32) if missing then end end while a < missing do end end"), (Codes{ UNDECLARED, UNDECLARED })) << "A missing name in a condition must raise UNDECLARED_NAME.";
+    EXPECT_EQ(MAREA_codesOf("function g(a: sinteger32) if missing then end while a < missing do end end"), (Codes{ UNDECLARED, UNDECLARED })) << "A missing name in a condition must raise UNDECLARED_NAME.";
 
     EXPECT_EQ(MAREA_codesOf("function f(a: sinteger32) end function g() f(missing); end"), Codes{ UNDECLARED }) << "A missing name in an argument must raise UNDECLARED_NAME.";
 
     EXPECT_EQ(MAREA_codesOf("function g(a: sinteger32) a = missing; end"), Codes{ UNDECLARED }) << "A missing name in an assignment must raise UNDECLARED_NAME.";
 
-    EXPECT_EQ(MAREA_codesOf("function g(a: sinteger32) switch missing case 1 then end end end"), Codes{ UNDECLARED }) << "A missing name as the switch value must raise UNDECLARED_NAME.";
+    EXPECT_EQ(MAREA_codesOf("function g(a: sinteger32) switch missing case 1 then end end"), Codes{ UNDECLARED }) << "A missing name as the switch value must raise UNDECLARED_NAME.";
 
     EXPECT_EQ(MAREA_codesOf("function g() local x: sinteger32 = x; end"), Codes{ UNDECLARED }) << "A local is not in scope in its own initializer.";
 
     EXPECT_EQ(MAREA_codesOf("function g() local x: sinteger32 = (missing).field; end"), Codes{ UNDECLARED }) << "A value that starts a member access and is not a bare name must be checked.";
 
     EXPECT_EQ(MAREA_codesOf("function f(a: sinteger32): sinteger32 return a; end function g() local x: sinteger32 = f(missing).field; end"), Codes{ UNDECLARED }) << "An argument below a member access must be checked.";
+}
+
+TEST(MAREASemaExpressions, MemberAccessOnALocalAfterItsScopeEnded)
+{
+    GTEST_COUT << "Validating a member chain head that was a local of an ended scope is UNDECLARED_NAME." << std::endl;
+
+    const std::string POINT{ "structure Point x: sinteger32; end function make(): Point return Point{ x = 1 }; end " };
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function g(): sinteger32 do local inner: Point = make(); end local x: sinteger32 = inner.x; return x; end"), Codes{ UNDECLARED }) << "A field read after a do block must raise UNDECLARED_NAME once.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function g() do local inner: Point = make(); local x: sinteger32 = inner.x; end end"), Codes{}) << "A read inside the block must raise nothing.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function g(a: sinteger32) while a < 1 do local inner: Point = make(); end local x: sinteger32 = inner.x; end"), Codes{ UNDECLARED }) << "A while body local must be gone after the loop.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function g(b: boolean) if b then local inner: Point = make(); end local x: sinteger32 = inner.x; end"), Codes{ UNDECLARED }) << "An if branch local must be gone after the branch.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function g() do local inner: Point = make(); end inner.area(); end"), Codes{ UNDECLARED }) << "A method call on a departed local must raise UNDECLARED_NAME.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function g() do local inner: Point = make(); end local inner: Point = make(); local x: sinteger32 = inner.x; end"), Codes{}) << "A name declared again in the outer scope must be accepted.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function h() do local inner: Point = make(); end end function g() local x: sinteger32 = inner.x; end"), Codes{ UNDECLARED }) << "A local of another function is not a declaration.";
 }
 
 TEST(MAREASemaExpressions, UndeclaredNameInAHeaderOrAConstant)
@@ -331,11 +358,11 @@ TEST(MAREASemaExpressions, UndeclaredNameInAHeaderOrAConstant)
 
     EXPECT_EQ(MAREA_codesOf("function g() with missing as handle do end end"), Codes{ UNDECLARED }) << "A missing with value must raise UNDECLARED_NAME.";
 
-    EXPECT_EQ(MAREA_codesOf("function g() partition missing into 4 as part do end end"), Codes{ UNDECLARED }) << "A missing partition value must raise UNDECLARED_NAME.";
+    EXPECT_EQ(MAREA_codesOf("function g() fork_join partition missing into 4 as part do end end end"), Codes{ UNDECLARED }) << "A missing partition value must raise UNDECLARED_NAME.";
 
-    EXPECT_EQ(MAREA_codesOf("function g() partition mutable missing into 4 as part do end end"), Codes{ UNDECLARED }) << "A missing mutable partition value must raise UNDECLARED_NAME.";
+    EXPECT_EQ(MAREA_codesOf("function g() fork_join partition mutable missing into 4 as part do end end end"), Codes{ UNDECLARED }) << "A missing mutable partition value must raise UNDECLARED_NAME.";
 
-    EXPECT_EQ(MAREA_codesOf("function g(a: sinteger32) partition a into missing as part do end end"), Codes{ UNDECLARED }) << "A missing partition count must raise UNDECLARED_NAME.";
+    EXPECT_EQ(MAREA_codesOf("function g(a: c.array<float32>) fork_join partition a into missing as part do end end end"), Codes{ UNDECLARED }) << "A missing partition count must raise UNDECLARED_NAME.";
 
     EXPECT_EQ(MAREA_codesOf("constant A: sinteger32 = missing;"), Codes{ UNDECLARED }) << "A missing name in a constant initializer must raise UNDECLARED_NAME.";
 
@@ -359,7 +386,7 @@ TEST(MAREASemaExpressions, KnownNamesAreNotReported)
 
     EXPECT_TRUE(MAREA_codesOf("constant LIMIT: sinteger32 = 9; function twice(a: sinteger32): sinteger32 return a * 2; end function g(p: sinteger32): sinteger32 local q: sinteger32 = twice(p) + LIMIT; return q; end").empty()) << "A parameter, a local, a constant and a function must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("enum Color red; green; end function g(c: Color): sinteger32 switch c case red then return 1; end case Color.green then return 2; end end end").empty()) << "A bare variant in a case must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("enum Color red; green; end function g(c: Color): sinteger32 switch c case red then return 1; case Color.green then return 2; end end").empty()) << "A bare variant in a case must raise nothing.";
 
     EXPECT_TRUE(MAREA_codesOf("function g(values: c.array<float32>): float32 local total: float32 = 0.0; for each value in values do total = total + value; end for i in 0 .. 3 do total = total + 1.0; end return total; end").empty()) << "A for and a for each name must raise nothing.";
 
@@ -373,9 +400,11 @@ TEST(MAREASemaExpressions, KnownNamesAreNotReported)
 
     EXPECT_TRUE(MAREA_codesOf("function g(a: sinteger32) c.stdio.puts(\"x\"); local b: sinteger32 = convert<sinteger32>(a); local s: uinteger64 = size_of<sinteger32>() + align_of<sinteger32>(); end").empty()) << "The reserved namespace c and the built-in calls must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("function g() stdio.puts(\"x\"); local x: sinteger32 = missing.field; end").empty()) << "The bare name that starts a member chain may be a namespace and is not checked.";
+    EXPECT_TRUE(MAREA_codesOf("import c.stdio; function g() stdio.puts(\"x\"); end").empty()) << "The bare name that starts a member chain is declared when an import binds it.";
 
-    EXPECT_TRUE(MAREA_codesOf("structure Point x: float32; end function g(p: Point): float32 return p.missing_field; end").empty()) << "A member name is not a bare name.";
+    EXPECT_EQ(MAREA_codesOf("function g() local x: sinteger32 = missing.field; end"), Codes{ UNDECLARED }) << "The bare name that starts a member chain is checked like any other name.";
+
+    EXPECT_TRUE(MAREA_codesOf("structure Point x: float32; end function g(p: Point): float32 return p.x; end").empty()) << "A member name is not a bare name.";
 }
 
 TEST(MAREASemaExpressions, ImportedAndNamespaceNamesAreNotReported)
@@ -511,7 +540,7 @@ TEST(MAREASemaExpressions, ConvertOfAnUnknownTypeIsAccepted)
 
     EXPECT_TRUE(MAREA_codesOf("function g(a: sinteger32, v: pointer<sinteger32>) local n: sinteger32 = convert<sinteger32>(v); convert<pointer<sinteger32>>(a); end").empty()) << "A pointer is a type that sema does not sort.";
 
-    EXPECT_TRUE(MAREA_codesOf("function g(a: sinteger32) local n: sinteger32 = convert<sinteger32>(a.missing); local m: sinteger32 = convert<sinteger32>(lib.get(a)); end").empty()) << "An operand of unknown type must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("import lib; function g(a: sinteger32) local n: sinteger32 = convert<sinteger32>(a.missing); local m: sinteger32 = convert<sinteger32>(lib.get(a)); end").empty()) << "An operand of unknown type must raise nothing.";
 
     EXPECT_TRUE(MAREA_codesOf("function g(a: sinteger32) local n: sinteger32 = convert<sinteger32, sinteger64>(a); local m: sinteger32 = convert<sinteger32>(a, a); local o: sinteger32 = convert<sinteger32>(); end").empty()) << "A call with not exactly one type argument and one argument is not checked here.";
 }
@@ -678,7 +707,11 @@ TEST(MAREASemaExpressions, GenericParameterValueIsAKnownShapeNeverComparedWithAP
 
     const std::string HEAD{ "function f(a: sinteger32) end function g<Item>(v: Item, w: Item, s: string) " };
 
-    EXPECT_TRUE(MAREA_codesOf(HEAD + "f(v); local n: sinteger32 = copy v; local x: boolean = v == w; local y: sinteger32 = v << 1; local z: sinteger32 = v + 1; local m: sinteger32 = convert<sinteger32>(v); end").empty()) << "A generic parameter value must not be compared with a primitive.";
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "f(v); local n: sinteger32 = copy v; local m: sinteger32 = convert<sinteger32>(v); end").empty()) << "A generic parameter value must not be compared with a primitive.";
+
+    // INFO: an operator on a generic value is the definition rule 3051, and the shape rule 3011 does not see it.
+    EXPECT_EQ(MAREA_codesOf(HEAD + "local x: boolean = v == w; end"), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_BOUND_OPERATION_NOT_GIVEN }) << "An operator on a generic value must raise only BOUND_OPERATION_NOT_GIVEN.";
+    EXPECT_EQ(MAREA_codesOf(HEAD + "local z: sinteger32 = v + 1; end"), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_BOUND_OPERATION_NOT_GIVEN }) << "An operator with a generic side must raise only BOUND_OPERATION_NOT_GIVEN.";
 
     EXPECT_EQ(MAREA_codesOf(HEAD + "f(v); f(s); end"), Codes{ MISMATCH }) << "A generic parameter value must not hide a real mismatch next to it.";
 }
@@ -768,4 +801,208 @@ TEST(MAREASemaExpressions, TypeWithNoConstructOperatorAcceptsOnlyAnEmptyCall)
     EXPECT_TRUE(MAREA_codesOf(LINE + "Line(); end").empty()) << "A call with no argument and no construct operator must raise nothing.";
 
     EXPECT_EQ(MAREA_codesOf(LINE + "Line(1.0); end"), Codes{ COUNT_MISMATCH }) << "A call with an argument, and no construct operator, must raise ARGUMENT_COUNT_MISMATCH.";
+}
+
+TEST(MAREASemaExpressions, OpaqueTypeCannotBeBuiltReadOrOperated)
+{
+    GTEST_COUT << "Validating a literal, a field read and an operator of an opaque type raise OPAQUE_TYPE_MISUSE." << std::endl;
+
+    const std::string OPAQUE{ "opaque structure T; " };
+
+    EXPECT_EQ(MAREA_codesOf(OPAQUE + "function f(a: T, b: T): T return a + b; end"), Codes{ OPAQUE_MISUSE }) << "An operator on two opaque names must raise OPAQUE_TYPE_MISUSE.";
+
+    EXPECT_EQ(MAREA_codesOf(OPAQUE + "function f(a: T, b: T): boolean return a == b; end"), Codes{ OPAQUE_MISUSE }) << "A comparison of two opaque names must raise OPAQUE_TYPE_MISUSE.";
+
+    EXPECT_EQ(MAREA_codesOf(OPAQUE + "function f(a: T): sinteger32 return a.width; end"), Codes{ OPAQUE_MISUSE }) << "A field read of an opaque name must raise OPAQUE_TYPE_MISUSE.";
+
+    EXPECT_EQ(MAREA_codesOf(OPAQUE + "function f(a: T): sinteger32 return (a).width; end"), Codes{ OPAQUE_MISUSE }) << "A field read of a parenthesized opaque name must raise OPAQUE_TYPE_MISUSE.";
+
+    EXPECT_EQ(MAREA_codesOf(OPAQUE + "function f() local t: T = T{ }; end"), Codes{ OPAQUE_MISUSE }) << "A struct literal of an opaque type must raise OPAQUE_TYPE_MISUSE.";
+}
+
+TEST(MAREASemaExpressions, OpaqueTypeUsedThroughABorrowOrAnOwnerIsAccepted)
+{
+    GTEST_COUT << "Validating an opaque type through a borrow, an owner or a C call raises nothing." << std::endl;
+
+    const std::string OPAQUE{ "opaque structure T; " };
+
+    EXPECT_TRUE(MAREA_codesOf(OPAQUE + "function f(a: T) local v: sinteger32 = 1; end").empty()) << "A borrow parameter of an opaque type must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(OPAQUE + "function g(a: T) end function f(a: T) g(a); end").empty()) << "An opaque name passed as a borrow must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(OPAQUE + "function g(a: T) end function f(a: owned<T>) g(a); end").empty()) << "An owner passed as a borrow must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(OPAQUE + "function f(a: T): sinteger32 return c.texture.width(a); end").empty()) << "A C call with an opaque argument must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("structure S width: sinteger32; end function f(a: S): sinteger32 return a.width; end").empty()) << "A field read of an ordinary structure must raise nothing.";
+}
+
+TEST(MAREASemaExpressions, FunctionTypeValueIsChecked)
+{
+    GTEST_COUT << "Validating a function type value: a literal, a function signature and a call through the value." << std::endl;
+
+    const std::string OP{ "type Op = function(left: sinteger32, right: sinteger32): sinteger32; function add(left: sinteger32, right: sinteger32): sinteger32 return left + right; end function apply(operation: Op): sinteger32 return operation(1, 2); end " };
+
+    EXPECT_EQ(MAREA_codesOf("type Callback = function(text: string); function run() local callback: Callback = \"x\"; end"), Codes{ MISMATCH }) << "A text literal for a function type local must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf("type Callback = function(); function run() local callback: Callback = 1; end"), Codes{ MISMATCH }) << "An integer literal for a function type local must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(OP + "function negate(value: sinteger32): sinteger32 return -value; end function run(): sinteger32 return apply(negate); end"), Codes{ FUNCTION_TYPE_MISMATCH }) << "A function with fewer parameters must raise FUNCTION_TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(OP + "function wide(left: sinteger32, right: sinteger32): sinteger64 return 0; end function run(): sinteger32 return apply(wide); end"), Codes{ FUNCTION_TYPE_MISMATCH }) << "A function with another result type must raise FUNCTION_TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(OP + "function other(left: string, right: sinteger32): sinteger32 return 0; end function run(): sinteger32 return apply(other); end"), Codes{ FUNCTION_TYPE_MISMATCH }) << "A function with another parameter type must raise FUNCTION_TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(OP + "function other(left: string, right: sinteger32): sinteger32 return 0; end function run() local operation: Op = other; end"), Codes{ FUNCTION_TYPE_MISMATCH }) << "A local initializer is compared too.";
+
+    EXPECT_EQ(MAREA_codesOf("type One = function(value: sinteger32): sinteger32; function apply(operation: One): sinteger32 return operation(1, 2); end"), Codes{ COUNT_MISMATCH }) << "A call through a function type value with too many arguments must raise ARGUMENT_COUNT_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf("type One = function(value: sinteger32): sinteger32; function apply(operation: One): sinteger32 return operation(\"x\"); end"), Codes{ MISMATCH }) << "A call through a function type value with a wrong argument type must raise TYPE_MISMATCH.";
+
+    EXPECT_TRUE(MAREA_codesOf(OP + "function run(): sinteger32 return apply(add); end").empty()) << "A function with the same signature must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(OP + "function pass(operation: Op): sinteger32 return apply(operation); end").empty()) << "A function type value passed on must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("type Callback = function(text: string); structure Holder callback: Callback; end function run(holder: Holder) end").empty()) << "A function type field must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(OP + "function pick<T>(left: sinteger32, right: sinteger64): sinteger32 return left; end function run() local operation: Op = pick; end").empty()) << "A generic function must not be compared.";
+}
+
+TEST(MAREASemaExpressions, ResultOfAFunctionWithNoResultIsNotAValue)
+{
+    GTEST_COUT << "Validating a value in a function with no result, and a call with no result used as a value." << std::endl;
+
+    const std::string LOG{ "function log_line(text: string) return; end function take(value: sinteger32) end " };
+
+    EXPECT_EQ(MAREA_codesOf("function run() return 1; end"), Codes{ INVALID_RESULT_USE }) << "A returned value in a function with no result must raise INVALID_RESULT_USE.";
+
+    EXPECT_EQ(MAREA_codesOf(LOG + "function run(): sinteger32 local value: sinteger32 = log_line(\"x\"); return value; end"), Codes{ INVALID_RESULT_USE }) << "A call with no result as a local initializer must raise INVALID_RESULT_USE.";
+
+    EXPECT_EQ(MAREA_codesOf(LOG + "function run(): sinteger32 local value: sinteger32 = 1; value = log_line(\"x\"); return value; end"), Codes{ INVALID_RESULT_USE }) << "A call with no result as the right side of an assignment must raise INVALID_RESULT_USE.";
+
+    EXPECT_EQ(MAREA_codesOf(LOG + "function run(): sinteger32 return log_line(\"x\"); end"), Codes{ INVALID_RESULT_USE }) << "A call with no result as a returned value must raise INVALID_RESULT_USE.";
+
+    EXPECT_EQ(MAREA_codesOf(LOG + "function run() take(log_line(\"x\")); end"), Codes{ INVALID_RESULT_USE }) << "A call with no result as an argument must raise INVALID_RESULT_USE.";
+
+    EXPECT_EQ(MAREA_codesOf(LOG + "function run(): sinteger32 local value: sinteger32 = 1 + log_line(\"x\"); return value; end"), Codes{ INVALID_RESULT_USE }) << "A call with no result as an operand must raise INVALID_RESULT_USE.";
+
+    EXPECT_TRUE(MAREA_codesOf(LOG + "function run() log_line(\"x\"); return; end").empty()) << "A call statement and a bare return must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("function give(): sinteger32 return 1; end function run(): sinteger32 local value: sinteger32 = give(); return give() + value; end").empty()) << "A call with a result used as a value must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("type Op = function(value: sinteger32): sinteger32; function run(operation: Op): sinteger32 local value: sinteger32 = operation(1); return value; end").empty()) << "A function type value that is called must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("structure Holder run: function(): sinteger32; end function run(holder: Holder): sinteger32 local value: sinteger32 = holder.run(); return value; end").empty()) << "A call through a callback field has an unknown result and must raise nothing.";
+}
+
+TEST(MAREASemaExpressions, CallOfAValueThatIsNotAFunction)
+{
+    GTEST_COUT << "Validating a call of a local that is not a function." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("function run(): sinteger32 local count: sinteger32 = 1; return count(2); end"), Codes{ MISMATCH }) << "A call of a primitive local must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf("structure Point x: float32; end function run(point: Point): sinteger32 return point(2); end"), Codes{ MISMATCH }) << "A call of a structure parameter must raise TYPE_MISMATCH.";
+
+    EXPECT_TRUE(MAREA_codesOf("type Op = function(value: sinteger32): sinteger32; function run(operation: Op): sinteger32 return operation(2); end").empty()) << "A call of a function type parameter must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("function run<T>(value: T) value(2); end").empty()) << "A call of a generic parameter must raise nothing.";
+}
+
+TEST(MAREASemaExpressions, ForEachFieldIsTyped)
+{
+    GTEST_COUT << "Validating a field read through a for each variable is compared with the local that stores it." << std::endl;
+
+    const std::string POINT{ "structure Point x: sinteger32; end " };
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function check(points: owned<vector<Point>>) for each item in points do local x: sinteger8 = item.x; end end"), Codes{ MISMATCH }) << "A narrower local for a for each field must raise TYPE_MISMATCH.";
+
+    EXPECT_TRUE(MAREA_codesOf(POINT + "function check(points: owned<vector<Point>>) for each item in points do local x: sinteger32 = item.x; end end").empty()) << "An equal local for a for each field must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("function check(points: owned<vector<Unknown>>) for each item in points do local x: sinteger8 = item.x; end end").empty()) << "An element of an unknown type must raise nothing.";
+}
+
+TEST(MAREASemaExpressions, StructLiteralFieldsMatchTheStructure)
+{
+    GTEST_COUT << "Validating a struct literal field is compared with the structure." << std::endl;
+
+    const std::string POINT{ "structure Point x: float64; y: float64; end " };
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function make(): Point return Point{ x = true, y = 0.0 }; end"), Codes{ MISMATCH }) << "A boolean for a float64 field must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function make(): Point return Point{ x = 1.0, x = 2.0, y = 3.0 }; end"), Codes{ DUPLICATE_MEMBER }) << "A field given twice must raise DUPLICATE_MEMBER.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function make(): Point return Point{ x = 1.0, y = 2.0, z = 3.0 }; end"), Codes{ UNKNOWN_FIELD }) << "A field that the structure lacks must raise UNKNOWN_FIELD.";
+
+    EXPECT_TRUE(MAREA_codesOf(POINT + "function make(): Point return Point{ x = 1.0, y = 2.0 }; end").empty()) << "A full literal must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(POINT + "function make(): Point return Point{ y = 2.0, x = 1.0 }; end").empty()) << "A literal with the fields in another order must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("structure Pair<A, B> first: A; second: B; end function make(): Pair<sinteger32, float64> return Pair<sinteger32, float64>{ first = 1, second = 2.0 }; end").empty()) << "A literal of a generic structure must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("function make(): array<sinteger32, 2> return array<sinteger32, 2>{ 1, 2 }; end").empty()) << "An array literal must raise nothing.";
+}
+
+TEST(MAREASemaExpressions, StructLiteralMustNameEveryField)
+{
+    GTEST_COUT << "Validating a struct literal names every field of its structure." << std::endl;
+
+    const std::string POINT{ "structure Point x: float64; y: float64; end " };
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function make(): Point return Point{ x = 1.0 }; end"), Codes{ MISSING_FIELD }) << "A literal that leaves y out must raise MISSING_FIELD once.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function make(): Point return Point{ y = 1.0 }; end"), Codes{ MISSING_FIELD }) << "A literal that leaves x out must raise MISSING_FIELD once.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function make(): Point return Point{}; end"), Codes{ MISSING_FIELD }) << "An empty literal of a structure with fields must raise MISSING_FIELD once.";
+
+    EXPECT_EQ(MAREA_codesOf("structure Cube x: float64; y: float64; z: float64; end function make(): Cube return Cube{ y = 1.0 }; end"), Codes{ MISSING_FIELD }) << "A literal that misses two fields must raise MISSING_FIELD once.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function make(): Point return Point{ x = 1.0, z = 2.0 }; end"), (Codes{ UNKNOWN_FIELD, MISSING_FIELD })) << "An unknown key must raise UNKNOWN_FIELD and the field it did not replace MISSING_FIELD.";
+
+    EXPECT_TRUE(MAREA_codesOf(POINT + "function make(): Point return Point{ x = 1.0, y = 2.0 }; end").empty()) << "A full literal must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(POINT + "function make(): Point return Point{ y = 2.0, x = 1.0 }; end").empty()) << "A full literal in another order must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("structure Empty end function make(): Empty return Empty{}; end").empty()) << "A structure without fields must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("function make(): slice<float32> return slice<float32>{}; end").empty()) << "A library type literal must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("structure Pair<A, B> first: A; second: B; end function make(): Pair<sinteger32, float64> return Pair<sinteger32, float64>{ first = 1 }; end").empty()) << "A literal of a generic structure must raise nothing.";
+}
+
+TEST(MAREASemaExpressions, MissingFieldMessageNamesTheFirstMissingField)
+{
+    GTEST_COUT << "Validating the MISSING_FIELD message names the first missing field in declaration order." << std::endl;
+
+    MAREA_SemaFixture fixture([](const std::string &, const MAREA_AstNode **) { return MAREA_SEMA_IMPORT_RESULT_EXTERNAL; });
+
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; structure Cube x: float64; y: float64; z: float64; end function make(): Cube return Cube{ y = 1.0 }; end"), MAREA_SEMA_EXCEPT_SUCCESS);
+
+    ASSERT_EQ(MAREA_DiagnosticSinkGetCount(fixture.parser.lexer.sink), 1U);
+
+    const MAREA_Diagnostic *diagnostic{ nullptr };
+
+    ASSERT_EQ(MAREA_DiagnosticSinkGetAt(fixture.parser.lexer.sink, 0, &diagnostic), MAREA_DIAGNOSTIC_EXCEPT_SUCCESS);
+
+    EXPECT_STREQ(MAREA_DiagnosticGetMessage(diagnostic), "struct literal misses a field 'x'") << "The message must quote the first missing field.";
+}
+
+TEST(MAREASemaExpressions, FieldAccessNeedsAFieldOfTheStructure)
+{
+    GTEST_COUT << "Validating a field read or write names a field of the structure." << std::endl;
+
+    const std::string POINT{ "structure Point x: float64; y: float64; end implementation Point function length(): float64 return 1.0; end end type Alias = Point; " };
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function run(point: Point): float64 return point.z; end"), Codes{ UNKNOWN_FIELD }) << "A read of a missing field must raise UNKNOWN_FIELD.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function run(point: Point): float64 local a: float64 = point.z; return a; end"), Codes{ UNKNOWN_FIELD }) << "A local initialised from a missing field must raise UNKNOWN_FIELD.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function run(#[semantics = reference_mutable] point: Point) point.z = 1.0; end"), Codes{ UNKNOWN_FIELD }) << "A write of a missing field must raise UNKNOWN_FIELD.";
+
+    EXPECT_TRUE(MAREA_codesOf(POINT + "function run(point: Point): float64 return point.x; end").empty()) << "A read of a real field must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(POINT + "function run(point: Point): float64 return point.length(); end").empty()) << "A method call must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(POINT + "function run(point: Alias): float64 return point.x; end").empty()) << "A read through an alias must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("function run(point: other.Point): float64 return point.z; end").empty()) << "A structure of another namespace must raise nothing.";
 }

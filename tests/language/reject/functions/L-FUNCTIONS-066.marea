@@ -1,0 +1,11 @@
+-- expect: 3054 @10
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A return with a value in a function that has no result.
+
+namespace main;
+
+function run()
+    return 1;
+end

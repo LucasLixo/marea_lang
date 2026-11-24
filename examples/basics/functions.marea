@@ -9,6 +9,8 @@
 
 namespace basics.functions;
 
+import c.stdio;
+
 -- A function type has its own name. It is a type name, so it uses PascalCase.
 #[visibility = public]
 type BinaryOperation = function(left: sinteger32, right: sinteger32): sinteger32;
@@ -35,7 +37,6 @@ end
 function log_line(text: string)
     if text == "" then
         return;
-    end
     end
     stdio.puts(text);
 end
