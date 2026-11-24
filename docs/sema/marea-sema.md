@@ -22,7 +22,7 @@ MAREA_SemaCheckCompilationUnit(sema, root);   /* once per file, dependencies fir
 `MAREA_SemaCheckCompilationUnit` returns an error only for a null argument or an out of memory. A rule
 violation is a diagnostic in the sink. A size that does not fit in `MAREA_IntegerSize` (a diagnostic
 message, or the growth of a name table) is also an out of memory: nothing is allocated or copied.
-Every sema diagnostic is an error, in the range 3001-3074. Not every number of the range is a live code: the
+Every sema diagnostic is an error, in the range 3001-3076. Not every number of the range is a live code: the
 Diagnostics table lists the live ones.
 The lexer file name decides the path rule, so call `MAREA_LexContextSetFileName` with a project
 relative path with forward slashes and the `.marea` extension before the lex step.
@@ -405,6 +405,15 @@ statement that stands directly in the block (the block body, outside every `spaw
 scanned when the visit reaches it: a use of a value that an earlier worker writes, or a write of a value that an earlier
 worker reads, is 3074 at the use. The table is cut back when the `fork_join` block ends, so two blocks in a row do not meet.
 An argument that is already `INVALID_SPAWN_ARGUMENT` is not recorded, so one mistake gives one diagnostic.
+
+**Partition body.** After the scope and shape checks, `MAREA_SemaCheckPartition` scans the body of the `partition` once, in
+source order. An assignment (also a compound one) whose target root name (the name at the base of a name, a `MEMBER_ACCESS`
+chain or an `INDEX_ACCESS` chain) is a local or a parameter that was declared before the partition is
+`PARTITION_BODY_WRITES_OUTER_NAME` (3075) at the target, because every worker runs the body. A name that the body declares
+before the write (a local, a loop variable, a `with` name, a nested part), the part of this partition, a file constant and the
+source of a `partition mutable` are not reported by this rule. In a `partition mutable`, a use of the name of its source
+(a read, a write, a `for each` collection) is `PARTITION_SOURCE_USED_IN_BODY` (3076) at each use, except in a `spawn`, which
+rule 3020 owns. A nested partition has its own scan, so a write in its body to a local of the outer body is 3075 once.
 
 **Control flow.** A function with a return type ends every path with `return value;`, through `if`,
 `elseif`, `else`, scope blocks and `switch`. A loop is never an ending path. `unreachable!()` and
@@ -931,6 +940,8 @@ or rejects.
 | 3072 | `USE_OF_PARTIALLY_MOVED_VALUE` | `local s: Shape = move o.inner; local x: float32 = o.inner.x;`, `move o.inner;` then `take(move o);`, `o.total()` after `move o.inner`, `move v[0]; ... v[0].x`, or `move item` of a `for each` element of a collection of a type that is not by value, at the access or at the name |
 | 3073 | `VALUE_CHANGED_WHILE_BORROWED` | `for each x in v do v[0] = ...; end`, `for each x in v do local o: vector<P> = move v; end`, `for each x in mutable v do v.append(...); end`, `with p as view do p.x = 2; end` or `with p as view do local o: P = move p; end`: the source of a `for each` or a `with` block is written, moved or changed by a library call (`append`, `insert`, `remove`, `clear`, `pop`, `push`, `resize`) in the body |
 | 3074 | `CONFLICTING_PARALLEL_ACCESS` | `spawn write(a); spawn write(a);`, `spawn write(a); spawn read(a);`, `spawn write(a); a.y = 5;` or a `spawn write(a);` in a loop in a `fork_join` block when `a` is declared before the block, and `partition xs ...` with a `spawn write(xs)` in the same block |
+| 3075 | `PARTITION_BODY_WRITES_OUTER_NAME` | `local c: sinteger32 = 0; fork_join partition values into 2 as part do c += 1; end end` (also `point.x = 2;` and a parameter) | `a partition body cannot write an outer name: 'c'` |
+| 3076 | `PARTITION_SOURCE_USED_IN_BODY` | `partition mutable values into 2 as part do values[0] = 1.0; end` (a read or a `for each` over the source too, except in a `spawn`, which is 3020) | `the source of a partition mutable cannot be used in the body: 'values'` |
 
 ## Gaps
 
@@ -1161,3 +1172,7 @@ or rejects.
   compared with the next turn. A local declared inside a nested block of the body statement is not in the scope table when the
   statement is scanned, so a name it hides is read as the outer one. A write in a repeating `spawn` is caught only for a value
   declared before the `fork_join` block. These misses are accepted, never rejected.
+- The partition body scan (3075, 3076) does not see a call that passes an outer local to a function that writes it (the write-borrow
+  side, issues #204 and #210). A name declared in any block of the body is the body's own for the rest of the scan (no block-end
+  tracking), so a write after the block that declared it, to an outer name of the same spelling, is accepted. A loop variable or a
+  `with` name that hides the source of a `partition mutable` makes later uses of that spelling accepted.
