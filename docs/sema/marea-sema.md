@@ -1230,8 +1230,8 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
   `string`, `array`, `vector`, `pointer`, `owned`, `slice`, `task` or any `c.{lib}` or `marea.{lib}` type makes its
   structure or enum undecided until the library gives the layout. A function type field is undecided too. The
   `marea` value of the `layout` key is measured like `c` and stays reserved so a later change can reorder the fields.
-  An enum that is imported from another file is measured with the file attributes of the importing file, because a
-  file attribute is read from the tree that sema checks. The convert check still does not compare a structure that
+  An enum that is imported from another file is undecided (`UNRESOLVED`) too, because the names and the file
+  attributes of its own file are not visible to this run. The convert check still does not compare a structure that
   holds an enum, though the layout of that enum is known now.
 - The parser's `<`-opens-type-arguments lookahead (see [the AST doc](../ast/marea-ast.md),
   "Lookahead rules") does not tolerate `#[...]` inside the parameter list of a function type used
