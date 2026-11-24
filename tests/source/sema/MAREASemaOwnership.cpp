@@ -154,7 +154,7 @@ TEST(MAREASemaOwnership, LocalShadowingABorrowIsReturnable)
 {
     GTEST_COUT << "Validating a local that shadows a borrow parameter is not confined." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(s: Shape): Shape local s: Shape = make(); return s; end").empty()) << "A shadowing local must be returnable.";
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(s: Shape): Shape do local s: Shape = make(); return s; end end").empty()) << "A shadowing local must be returnable.";
 }
 
 TEST(MAREASemaOwnership, ForEachVariableCannotEscape)
