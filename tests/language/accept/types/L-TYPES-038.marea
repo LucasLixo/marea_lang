@@ -16,9 +16,7 @@ function is_warm(color: Color): boolean
     switch color
         case Color.Red, Color.Green then
             return true;
-        end
         case Color.Blue then
             return false;
-        end
     end
 end

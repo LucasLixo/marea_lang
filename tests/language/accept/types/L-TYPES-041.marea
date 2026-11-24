@@ -17,6 +17,5 @@ function run(flag: boolean): Color
     if flag then
         color = Color.Blue;
     end
-    end
     return color;
 end

@@ -25,9 +25,7 @@ function check(): sinteger32
     switch first.x
         case 1 then
             local second: Point = copy first;
-        end
         default then
-        end
     end
     return 1;
 end

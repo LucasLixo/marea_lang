@@ -20,10 +20,8 @@ function check(flag: boolean): sinteger32
     local value: sinteger32 = 0;
     if flag then
         value = 1;
-    end
     else
         value = 2;
-    end
     end
     local copy_of: sinteger32 = value;
     return 1;

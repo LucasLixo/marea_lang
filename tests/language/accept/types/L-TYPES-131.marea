@@ -13,7 +13,6 @@ function run(): sinteger32
             if inner == 2 then
                 break;
             end
-            end
             total += 1;
         end
     end
