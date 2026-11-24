@@ -231,7 +231,9 @@ A borrow parameter (`reference_read_only` or `reference_mutable`, explicit or by
 a field. A new local of the same name ends the reference. A file constant passed as the argument of
 a `reference_mutable` (write-borrow) parameter, explicit or by default, has no writable storage to
 back the borrow, so it is rejected with `CANNOT_BORROW_CONSTANT_AS_MUTABLE` (3032); a variable
-passed to the same parameter is unaffected. Tracking of a moved local and a live borrow across
+passed to the same parameter is unaffected. An assignment (`=` or a compound form) whose target is a file constant, or a field or element path
+rooted in one (`ORIGIN.x = 1;`, `TABLE[0] = 1;`), is `ASSIGNMENT_TO_CONSTANT` (3040), raised at the target; a local,
+parameter or `for` variable of the same name hides the constant and may be assigned. Tracking of a moved local and a live borrow across
 statements is a design decision recorded in the last bullet of `## Gaps`.
 
 **Integer literal range.** An integer literal (decimal, `0x` or `0b`, with `_` between digits, with one
@@ -632,6 +634,7 @@ or rejects.
 | 3037 | `SIGNED_DIVISION_OVERFLOW` | `-2147483648 / -1` or `-128 % -1` when the left side folds to the lowest value of the signed type and the right side folds to -1 |
 | 3038 | `BITWISE_OPERAND_NOT_INTEGER` | `a & b`, `a \| b`, `a ^ b`, `~a`, `a &= b` with a `float32` or `float64`, a `boolean` or a `string` operand, or a float literal |
 | 3039 | `LOGICAL_OPERAND_NOT_BOOLEAN` | `a and b`, `a or b`, `not a` with an operand whose known type is not `boolean`, or a number, string or character literal |
+| 3040 | `ASSIGNMENT_TO_CONSTANT` | `LIMIT = 11;`, `LIMIT += 1;`, `ORIGIN.x = 1;`, `TABLE[0] = 1;` when the root name is a file constant and no local hides it |
 
 ## Gaps
 
@@ -658,6 +661,8 @@ or rejects.
 - `CANNOT_BORROW_CONSTANT_AS_MUTABLE` (3032) sees only a bare file-constant name as the argument. A field chain
   rooted in a constant (`ORIGIN.x`) passed to a write-borrow parameter is not rejected, and a test proves only the
   bare name.
+- `ASSIGNMENT_TO_CONSTANT` (3040) sees only a constant that a file declares. A constant that an `implementation`
+  declares is not rejected.
 - `LITERAL_OUT_OF_RANGE` (3033) reads only a written integer literal. A float literal, a literal in an operand
   (`1 + 300` bound to a `uinteger8`), a value folded from a named constant, and a literal whose target type is not a
   primitive sema knows (it is then checked against `uinteger64` only) are not range checked.
