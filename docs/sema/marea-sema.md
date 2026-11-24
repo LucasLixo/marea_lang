@@ -275,7 +275,8 @@ write-borrow parameter (a temporary has no storage to write back). A move-in par
 not a write borrow of a place and takes a call result. The rule runs in `MAREA_SemaCheckOwnership` and
 `MAREA_SemaCheckWriteArguments`; the typed AST pass only rebuilds the table and reports nothing.
 `value_read_only` is legal only on a primitive; writing it on anything else is `INVALID_BORROW`
-(3017). `owned<T>` moves in regardless of `semantics`. A primitive, an `array`, `pointer`, `slice`
+(3017). `owned<T>` moves in regardless of `semantics`, and a name, a field or an element given to an
+`owned<T>` parameter needs `copy` or `move` like an assignment (3016, at the argument). A primitive, an `array`, `pointer`, `slice`
 and an enum is by value for the *ownership mode* (`MAREA_SemaOwnershipMode`) no matter what
 `semantics` says - checked before `semantics` is even read, the one place `array`/`pointer`/
 `slice` differ from every other non-primitive: the ownership mode is always `VALUE`, so a
@@ -778,7 +779,7 @@ or rejects.
 | 3013 | `CONTRACT_NOT_SATISFIED` | `maximum(a, b)` when the type of `a` has no `less` for `where Item: Comparable` |
 | 3014 | `GENERIC_ARGUMENT_MISMATCH` | `Pair<sinteger32>` when `Pair` has two parameters, `Box<4>`, `local x: array<sinteger8, 4> = values;` when `values` is `array<sinteger32, 4>` |
 | 3015 | `INSTANTIATION_TOO_DEEP` | a type argument nested 65 levels |
-| 3016 | `ASSIGNMENT_NEEDS_COPY_OR_MOVE` | `a = b;` when the type is not a primitive, a copyable `array` or an enum; a library storage type (`c.array`, `c.vector`, `c.table`, `c.owned`, `c.task`) needs the word too |
+| 3016 | `ASSIGNMENT_NEEDS_COPY_OR_MOVE` | `a = b;` when the type is not a primitive, a copyable `array` or an enum; a library storage type (`c.array`, `c.vector`, `c.table`, `c.owned`, `c.task`) needs the word too; so does a name, a field or an element given to an `owned<T>` parameter, reported at the argument (`MAREA_SemaCheckOwnedArguments`; a `vector` or `task` parameter is not checked, and an argument of unknown type is accepted) |
 | 3017 | `INVALID_BORROW` | `#[semantics = value_read_only] s: Shape` when `Shape` is not a primitive |
 | 3018 | `REFERENCE_ESCAPES_SCOPE` | `return s;` when `s` is a borrow parameter |
 | 3019 | `EXCLUSIVE_BORROW_CONFLICT` | `take(s, s)` when one parameter's effective `semantics` is `reference_mutable` |

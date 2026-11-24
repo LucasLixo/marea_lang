@@ -431,7 +431,7 @@ write-borrow parameter.
 | L-OWNERSHIP-056 | A read-only borrow is moved out | gap: #200 NEW, rule: reject |
 | L-OWNERSHIP-057 | A file constant is moved out | gap: #200 NEW, rule: reject |
 | L-OWNERSHIP-126 | A borrow is appended to a vector | gap: #205 3018, rule: reject |
-| L-OWNERSHIP-142 | An existing value is given to an owned parameter with no word | gap: #208 NEW, rule: reject |
+| L-OWNERSHIP-142 | An existing value is given to an owned parameter with no word | 3016 @29 |
 
 #### Permission holes
 
@@ -1146,7 +1146,7 @@ generic or an alias leads to is not checked by sema either (see the sema doc, Ga
 | L-ADVERSARIAL-039 | Mutant of L-TYPES-109: the return of a generic function with a contract bound is dropped | 3022 @18 |
 | L-ADVERSARIAL-040 | Mutant of L-MEMORY-005: the move word is dropped when an owner goes up a scope | 3016 @28 |
 | L-ADVERSARIAL-041 | Mutant of L-MEMORY-012: the move word is dropped from a structure with a destroy operator | 3016 @37 |
-| L-ADVERSARIAL-042 | Mutant of L-OWNERSHIP-081: the copy word is dropped, so a write borrow and the same value meet in one call | 3019 @30 |
+| L-ADVERSARIAL-042 | Mutant of L-OWNERSHIP-081: the copy word is dropped, so a write borrow and the same value meet in one call | 3019 @30, 3016 @30 |
 | L-ADVERSARIAL-043 | Mutant of L-OWNERSHIP-114: the copy word is dropped from the returned borrow | 3018 @21 |
 | L-ADVERSARIAL-044 | Mutant of L-OWNERSHIP-122: the copy word is dropped from a borrow in a struct literal | 3018 @21 |
 | L-ADVERSARIAL-045 | Mutant of L-OWNERSHIP-124: the copy word is dropped from a borrow stored in a field | 3018 @26, 3016 @26 |
@@ -1192,7 +1192,7 @@ generic or an alias leads to is not checked by sema either (see the sema doc, Ga
 | L-ADVERSARIAL-050 | Mutant of L-OWNERSHIP-012: copy is swapped for move on a borrowed parameter | gap: #200 NEW, rule: reject |
 | L-ADVERSARIAL-051 | Mutant of L-OWNERSHIP-014: copy is swapped for move on a for each element | gap: #199 NEW, rule: reject |
 | L-ADVERSARIAL-052 | Mutant of L-OWNERSHIP-024: copy is swapped for move on a file constant | gap: #200 NEW, rule: reject |
-| L-ADVERSARIAL-053 | Mutant of L-OWNERSHIP-047: the move word is dropped from an owned argument | gap: #208 NEW, rule: reject |
+| L-ADVERSARIAL-053 | Mutant of L-OWNERSHIP-047: the move word is dropped from an owned argument | 3016 @35 |
 | L-ADVERSARIAL-056 | Mutant of L-OWNERSHIP-114: copy is swapped for move in a return of a borrow | gap: #200 NEW, rule: reject |
 | L-ADVERSARIAL-057 | Mutant of L-OWNERSHIP-118: copy is swapped for move in a return of a for each element | gap: #199 NEW, rule: reject |
 | L-ADVERSARIAL-058 | Mutant of L-OWNERSHIP-122: copy is swapped for move on a borrow stored in a struct literal | gap: #200 NEW, rule: reject |
@@ -1248,7 +1248,7 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 
 | area | accept | reject | known_gap |
 |---|---|---|---|
-| adversarial | 0 | 45 | 27 |
+| adversarial | 0 | 46 | 26 |
 | bindings | 33 | 80 | 0 |
 | coverage | 0 | 1 | 0 |
 | examples | 20 | 0 | 0 |
@@ -1256,11 +1256,11 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | interop | 17 | 27 | 1 |
 | memory | 15 | 11 | 7 |
 | namespaces | 17 | 34 | 0 |
-| ownership | 65 | 54 | 26 |
+| ownership | 65 | 55 | 25 |
 | parallel | 19 | 26 | 14 |
 | seed | 1 | 2 | 0 |
 | types | 60 | 119 | 17 |
-| total | 266 | 453 | 92 |
+| total | 266 | 455 | 90 |
 
 ## Parity plan
 
