@@ -192,6 +192,8 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaVisit(MAREA_SemaContext *context, const MA
         result = MAREA_SemaCheckSpawn(context, node);
     } else if ((kind == MAREA_AST_KIND_BREAK_STATEMENT) || (kind == MAREA_AST_KIND_CONTINUE_STATEMENT) || (kind == MAREA_AST_KIND_RETURN_STATEMENT)) {
         result = MAREA_SemaCheckJump(context, node);
+    } else if (kind == MAREA_AST_KIND_MACRO_CALL) {
+        result = MAREA_SemaCheckMacroEvaluation(context, node);
     }
 
     const MAREA_IntegerSize count = MAREA_AstNodeGetChildCount(node);
