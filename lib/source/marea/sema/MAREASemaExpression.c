@@ -80,14 +80,14 @@ static MAREA_Boolean MAREA_CALL MAREA_G_NodeTextIs(const MAREA_AstNode *left, co
     return MAREA_SemaTextEquals(MAREA_AstNodeGetText(left), MAREA_AstNodeGetTextLength(left), MAREA_AstNodeGetText(right), MAREA_AstNodeGetTextLength(right));
 }
 
-static MAREA_SemaExcept MAREA_CALL MAREA_G_AppendLocal(MAREA_SemaContext *context, const MAREA_AstNode *name)
+static MAREA_SemaExcept MAREA_CALL MAREA_G_AppendLocal(MAREA_SemaContext *context, const MAREA_AstNode *name, const MAREA_AstNode *type)
 {
     if (MAREA_G_IsKind(name, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_FALSE) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
-    // INFO: the entry has no type, so a name that it hides is never typed from an outer local of the same name.
-    return MAREA_SemaTableAppend(context, &context->locals, (MAREA_SemaName){ .text = MAREA_AstNodeGetText(name), .declaration = MAREA_NULLPTR, .length = MAREA_AstNodeGetTextLength(name), .kind = MAREA_SEMA_NAME_KIND_DECLARATION });
+    // INFO: the entry has the given type or none, so a name that it hides is never typed from an outer local of the same name.
+    return MAREA_SemaTableAppend(context, &context->locals, (MAREA_SemaName){ .text = MAREA_AstNodeGetText(name), .declaration = type, .length = MAREA_AstNodeGetTextLength(name), .kind = MAREA_SEMA_NAME_KIND_DECLARATION });
 }
 
 MAREA_SemaExcept MAREA_CALL MAREA_SemaDeclareBinders(MAREA_SemaContext *context, const MAREA_AstNode *node)
@@ -98,7 +98,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaDeclareBinders(MAREA_SemaContext *context,
 
     switch (MAREA_AstNodeGetKind(node)) {
     case MAREA_AST_KIND_FOR_RANGE_STATEMENT:
-        return MAREA_G_AppendLocal(context, MAREA_SemaChildAt(node, 0));
+        return MAREA_G_AppendLocal(context, MAREA_SemaChildAt(node, 0), MAREA_NULLPTR);
     case MAREA_AST_KIND_FOR_EACH_STATEMENT:
     {
         // INFO: the children are the variables, the collection and the body, so the variables end two places before the end.
@@ -108,8 +108,11 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaDeclareBinders(MAREA_SemaContext *context,
             return MAREA_SEMA_EXCEPT_SUCCESS;
         }
 
+        // INFO: the last variable holds the element, so it has the element type of the collection. With two variables the first is the index and stays untyped.
+        const MAREA_AstNode *elementType = MAREA_SemaElementType(context, MAREA_SemaChildAt(node, (count - 2)));
+
         for (MAREA_IntegerSize index = 0; index < (count - 2); ++index) {
-            const MAREA_SemaExcept result = MAREA_G_AppendLocal(context, MAREA_SemaChildAt(node, index));
+            const MAREA_SemaExcept result = MAREA_G_AppendLocal(context, MAREA_SemaChildAt(node, index), (index == (count - 3)) ? elementType : MAREA_NULLPTR);
 
             if (result != MAREA_SEMA_EXCEPT_SUCCESS) {
                 return result;
@@ -119,9 +122,9 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaDeclareBinders(MAREA_SemaContext *context,
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
     case MAREA_AST_KIND_PARTITION_STATEMENT:
-        return MAREA_G_AppendLocal(context, MAREA_SemaChildAt(node, 2));
+        return MAREA_G_AppendLocal(context, MAREA_SemaChildAt(node, 2), MAREA_NULLPTR);
     case MAREA_AST_KIND_WITH_STATEMENT:
-        return MAREA_G_AppendLocal(context, MAREA_SemaChildAt(node, 1));
+        return MAREA_G_AppendLocal(context, MAREA_SemaChildAt(node, 1), MAREA_NULLPTR);
     default:
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
@@ -579,6 +582,12 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressionFit(MAREA_SemaContext *cont
 
     if (functionType != MAREA_NULLPTR) {
         return MAREA_G_CheckFunctionTypeFit(context, functionType, expression);
+    }
+
+    if (MAREA_SemaTypeArgumentsDiffer(context, type, expression) == MAREA_BOOLEAN_TRUE) {
+        const MAREA_AstNode *head = MAREA_SemaChildAt(MAREA_SemaChildAt(type, 0), 0);
+
+        return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_GENERIC_ARGUMENT_MISMATCH, MAREA_AstNodeGetPosition(expression), "type arguments differ from the declared type of", MAREA_AstNodeGetText(head), MAREA_AstNodeGetTextLength(head));
     }
 
     const MAREA_G_Shape target = MAREA_G_ShapeOfType(context, type, MAREA_BOOLEAN_FALSE);

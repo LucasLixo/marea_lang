@@ -1,9 +1,8 @@
--- gap: #224 NEW
--- rule: reject
+-- expect: 3049 @15
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- A static call of a function that the type does not have.
+-- A method call of a function that the type does not have.
 
 namespace main;
 
@@ -12,6 +11,6 @@ structure Point
     y: float64;
 end
 
-function run(): Point
-    return Point.origin();
+function run(point: Point): float64
+    return point.length();
 end

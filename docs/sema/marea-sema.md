@@ -163,7 +163,7 @@ are the operator tokens of the grammar (`+ - * / % **`, the wrapping and saturat
 comparisons, the assignment forms), `"[]"`, `"()"`, `"convert"`, `"construct"` and `"destroy"`; any other
 string or a name is `INVALID_ATTRIBUTE_VALUE`. A key not in the table, such as the
 retired `public`, `private`, `simd`, `destroy` and `value`, is `UNKNOWN_ATTRIBUTE_KEY`. The deeper meaning of
-`operator` (the signature, the placement) and `export` is not checked. A flag key with no value is true. File attributes `#![...]` use
+`operator` (the placement) and `export` is not checked here: the signature of an operator function is `OPERATOR_SIGNATURE_MISMATCH` (3050), see Rules. A flag key with no value is true. File attributes `#![...]` use
 the same table; the attribute of the symbol wins over the file attribute, so `#![visibility = public]`
 with `#[visibility = private]` on one symbol is not a conflict. `semantics` is meaningful only on a
 `PARAMETER`, but is validated by the same generic, node-shape-agnostic attribute check as everywhere
@@ -204,6 +204,29 @@ type, and a `construct` has no return type and a default on every parameter; any
 meaning hides, by the static form `Type.name(...)` where `Type` is the implemented type, and by a call on a value
 (`point.drop()`), decided to be rejected the same way (see Gaps). The automatic call
 at creation and destruction is lowered in the ir, not here.
+
+**Operator signature.** A function with `#[operator = "<token>"]` in an `implementation` block is checked against its
+token, once per function, as `OPERATOR_SIGNATURE_MISMATCH` (3050), reported at the function. Only the parameter
+count, the presence of a result, the type of the first parameter and a boolean result are fixed:
+
+| Token | Parameters | Result | First parameter |
+|---|---|---|---|
+| `+ - * / % ** +% -% *% +\| -\| *\| & \| ^ << >>` | exactly 2 (`-` may take 1) | required | the implemented type or `Self` |
+| `== != < <= > >=` | exactly 2 | `boolean` | the implemented type or `Self` |
+| `~` | exactly 1 | required | free |
+| `= += -= *= /= %= **= <<= >>= &= \|= ^=` | exactly 2 | free | free |
+| `"[]"` | 2 or more | required | free |
+| `"()"` | 1 or more | free | free |
+| `"convert"` | exactly 1 | required | free |
+
+The other parameter types and the result of an arithmetic token stay free. A first parameter whose type is not one
+plain name is not judged. `construct` and `destroy` keep their own shape rule (3029). A top-level function with an
+operator attribute is not checked.
+
+**Type function call.** A call `value.name(...)` or `Type.name(...)` is `UNKNOWN_TYPE_FUNCTION` (3049), reported at the
+call, when the receiver is a structure or an enum declared in the file (a bare type name that no local hides, or a
+local or parameter of that type, an alias followed) and the type has no function `name` in any of its
+`implementation` blocks, no field `name` (a callback) and, for an enum, no variant `name` (`Shape.Circle(1.0)`).
 
 **Type construction call.** A call whose callee is a structure or an enum name of the file, not hidden by a local,
 resolves to that type's construct operator instead of an ordinary call: `Point(1.0, 2.0)` is checked against
@@ -259,7 +282,7 @@ and an enum is by value for the *ownership mode* (`MAREA_SemaOwnershipMode`) no 
 `semantics` attribute on one of them only ever affects whether it counts as a borrow for scope
 escape (below), never its mode. The enum case is the by-value exception among user types (no
 attribute exempts any other user type - the retired `#[value]` key does not exist, so a structure,
-move_only or plain, is never by value by itself). A `vector` is a move type, so `=` of a `vector`
+move_only or plain, is never by value by itself). A library storage type written exactly `c.array<T>`, `c.vector<T>`, `c.table<K, V>`, `c.owned<T>` or `c.task<T>` is a move type too, so `=` of one needs `copy` or `move`; `c.slice<T>`, `c.pointer<T>` and any other type that sema cannot see stay by value and are never guessed. A `vector` is a move type, so `=` of a `vector`
 name needs `copy x` or `move x`. `=` of a name, field or element of any other type needs
 `copy x` or `move x`, in an assignment and in a local initializer. A call or a literal needs no word.
 A borrow parameter (`reference_read_only`, explicit or by default, or an explicit `reference_mutable`), a
@@ -356,7 +379,17 @@ is a primitive, at a call argument of a function of the file, a local initialize
 only by name (`sinteger32` does not fit `sinteger64`), a number literal fits any number type, a fraction literal
 any float type, a character literal fits only `character` (a number is not a character, and a character is not a number: it has no arithmetic), and a structure fits no primitive. An alias of a primitive is the primitive. The mismatch is
 `TYPE_MISMATCH` (3011) on the expression. A name of an enum, of a library type or of a generic parameter, and an `owned`,
-`task` or `vector` value, and an `array` value, are classified as their own shapes but are never compared.
+`task` or `vector` value, and an `array` value, are classified as their own shapes but are never compared as a
+whole; only their type arguments are (next paragraph).
+
+The type arguments of a generic type are compared with the declared type before the primitive check, at the same
+places. When the declared type and the type of the value (a name, a field, an index, a struct literal, with one
+`copy` or `move` and any parentheses looked through) have the same head name and the same number of type arguments,
+each pair must agree: two primitives by name, two value arguments by text, two nested generic types by this rule. A
+difference is `GENERIC_ARGUMENT_MISMATCH` (3014) on the value. The variable of a `for each` has the element type of
+the collection: one `owned<...>` is peeled, then the first type argument of `vector`, `array` or `slice`; with two
+variables the second is the element and the first, the index, stays untyped. A field read through it is compared
+like a field read through a parameter (3011).
 
 **Operands of a binary operator.** Every binary expression in a checked slot (the same slots as the names, and
 the initializer of a constant) has its two operands compared, whatever the declared type: `+`, `-`, `*`, `/`,
@@ -740,12 +773,12 @@ or rejects.
 | 3008 | `INVALID_ALIGNMENT` | `#[align = 15]` |
 | 3009 | `UNKNOWN_TYPE` | `a: Missing;` in a structure |
 | 3010 | `ARGUMENT_COUNT_MISMATCH` | `add(1)` when `add` takes two parameters with no default; `f()` or `f(1, 2, 3)` when `f` has one required and one defaulted parameter; `Point(1.0, 2.0, 3.0)` when `construct` takes two; `Line(1.0)` when `Line` declares no `construct`; `power(1.0)` when the host's signature of `c.math.pow` takes two parameters |
-| 3011 | `TYPE_MISMATCH` | `convert<sinteger32>(text)` with a `string` name, `convert<Point>(other)` for two structures with another layout, `f("text")` when the parameter is `sinteger32`, `local x: boolean = 1;`, `local n: sinteger32 = a < b;`, `f(s)` with a `string` name `s`, `return a + 1;` in a function that returns `boolean`, `a + b` with an `sinteger32` and a `float64`, `count(2)` when `count` is an `sinteger32` local, `Point("x", 2.0)` when `construct`'s first parameter is `float32`; `power("two", 10.0)` when the host's signature of `c.math.pow` takes `float64, float64` |
+| 3011 | `TYPE_MISMATCH` | `convert<sinteger32>(text)` with a `string` name, `convert<Point>(other)` for two structures with another layout, `f("text")` when the parameter is `sinteger32`, `local x: boolean = 1;`, `local n: sinteger32 = a < b;`, `f(s)` with a `string` name `s`, `return a + 1;` in a function that returns `boolean`, `a + b` with an `sinteger32` and a `float64`, `count(2)` when `count` is an `sinteger32` local, `Point("x", 2.0)` when `construct`'s first parameter is `float32`; `power("two", 10.0)` when the host's signature of `c.math.pow` takes `float64, float64`; `local x: sinteger8 = item.x;` over a `for each` whose element field is `sinteger32` |
 | 3012 | `DUPLICATE_MEMBER` | two `implementation` blocks of one type that both declare `area`; a structure field, an enum variant or a contract function that is declared twice in its declaration |
 | 3013 | `CONTRACT_NOT_SATISFIED` | `maximum(a, b)` when the type of `a` has no `less` for `where Item: Comparable` |
-| 3014 | `GENERIC_ARGUMENT_MISMATCH` | `Pair<sinteger32>` when `Pair` has two parameters, `Box<4>` |
+| 3014 | `GENERIC_ARGUMENT_MISMATCH` | `Pair<sinteger32>` when `Pair` has two parameters, `Box<4>`, `local x: array<sinteger8, 4> = values;` when `values` is `array<sinteger32, 4>` |
 | 3015 | `INSTANTIATION_TOO_DEEP` | a type argument nested 65 levels |
-| 3016 | `ASSIGNMENT_NEEDS_COPY_OR_MOVE` | `a = b;` when the type is not a primitive, a copyable `array` or an enum |
+| 3016 | `ASSIGNMENT_NEEDS_COPY_OR_MOVE` | `a = b;` when the type is not a primitive, a copyable `array` or an enum; a library storage type (`c.array`, `c.vector`, `c.table`, `c.owned`, `c.task`) needs the word too |
 | 3017 | `INVALID_BORROW` | `#[semantics = value_read_only] s: Shape` when `Shape` is not a primitive |
 | 3018 | `REFERENCE_ESCAPES_SCOPE` | `return s;` when `s` is a borrow parameter |
 | 3019 | `EXCLUSIVE_BORROW_CONFLICT` | `take(s, s)` when one parameter's effective `semantics` is `reference_mutable` |
@@ -772,6 +805,8 @@ or rejects.
 | 3040 | `ASSIGNMENT_TO_CONSTANT` | `LIMIT = 11;`, `LIMIT += 1;`, `ORIGIN.x = 1;`, `TABLE[0] = 1;` when the root name is a file constant and no local hides it |
 | 3041 | `RAW_POINTER_OUTSIDE_UNSAFE` | `local raw: pointer<sinteger32> = f();` with no `unsafe ... end` block around it, at any depth of nesting |
 | 3043 | `NON_BOOLEAN_CONDITION` | `if n then`, `elseif s then`, `while 1 do` when the condition has a known primitive type that is not `boolean`, or is a number, string or character literal |
+| 3049 | `UNKNOWN_TYPE_FUNCTION` | `point.length()` or `Point.origin()` when no `implementation` of `Point` declares it |
+| 3050 | `OPERATOR_SIGNATURE_MISMATCH` | `#[operator = "+"] function add(self: Point): sinteger32` |
 | 3053 | `FUNCTION_TYPE_MISMATCH` | `apply(negate)` when `negate` takes one parameter and the function type takes two |
 | 3054 | `INVALID_RESULT_USE` | `return 1;` in a function with no result, or `local v: sinteger32 = log_line("x");` when `log_line` has no result |
 | 3055 | `CYCLIC_CONSTANT` | `constant A: sinteger32 = B;` with `constant B: sinteger32 = A;`, or `constant A: sinteger32 = A;`, once for each cycle, at the first constant of it in the file |
@@ -813,13 +848,20 @@ or rejects.
   constant that is not a primitive, and the result of a generic call (see below).
 - A call of a method or of an imported function that has no result, used as a value, is not seen: sema cannot see its
   result (`INVALID_RESULT_USE`, 3054).
+- The type arguments of a generic type are compared (3014) only for two types of one head name and one argument
+  count. A pair that mentions a generic parameter in scope, an alias, an import or an unknown type, a different head
+  (`owned<vector<T>>` into `vector<T>` is accepted), and a `for each` over a collection of unknown type, are skipped.
 - A function type is compared (3011, 3053) only for a literal and for a bare name of a function of the file. It is
   still unknown for a field, a call result and any other expression of a function type. A generic function, and a
   function type that mentions a generic parameter in scope, are never compared.
 - A binary operator is checked against what its operands may be only for a bitwise operator on a float, a boolean
   or a string (3038) and for `and`, `or` and `not` on a known type that is not `boolean` (3039). Every other operator
   (arithmetic on a `boolean` or a `string`, a comparison of two booleans) is not checked, a `character` operand of a
-  bitwise operator is accepted, and an operator that is declared for a structure is not compared.
+  bitwise operator is accepted, and an operator that is declared for a structure is not compared (its signature is
+  checked by 3050, the use of the operator is still not read).
+- `UNKNOWN_TYPE_FUNCTION` (3049) skips a receiver of another namespace, a library type, a generic parameter and an
+  unknown type, because sema cannot see their functions. Only a bare name or a local that is a bare name is a receiver:
+  a call on a field chain or on a call result is not checked. A function of a contract on a generic receiver is not checked.
 - `RESERVED_MACRO_NAME` (3056) is not raised for a parameter, a `for`, `for each`, `partition` or `with` name, or an
   import alias with no `as`, even when it is named like a built-in macro.
 - The `for`, `for each`, `partition`
@@ -869,14 +911,13 @@ or rejects.
   unchanged).
 - The contract check only sees arguments whose type is cheap to know. Other arguments are not checked.
 - `operator` is checked against its vocabulary; only `construct` and `destroy` have a placement and a shape check
-  (see "Construct and destroy"), the signature of any other operator is not checked; `export` is checked for shape
-  only.
+  (see "Construct and destroy"), and any other operator has a signature check in an `implementation` only (3050, see
+  "Operator signature"); `export` is checked for shape only.
 - `LIFECYCLE_OPERATOR_CALLED_DIRECTLY` (3027) today sees a bare name and the static form `Type.name(...)` only.
   Decision: a call on a value (`point.drop()`) of a lifecycle operator (`construct` or `destroy`) is also rejected
   with 3027, for consistency with those two forms; no new code. Sema does not yet implement it, as it does not
   know the type of the receiver. A bare name that no top-level function declares also raises `UNDECLARED_NAME`
   (3004), as a member is not a bare name.
-- The type of a library type is not tracked, so a missing `copy` or `move` there is not reported.
 - `MAREA_SemaTypedNodeGetResolvedType` covers the six declaring nodes, the literals and the expressions of "Resolved
   type of an expression". A `Self` type and a generic parameter are spelled by
   their written name, not by the type they stand for in one instantiation. A name of an `EXTERNAL` namespace is

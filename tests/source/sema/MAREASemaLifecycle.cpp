@@ -12,6 +12,7 @@ namespace
     constexpr MAREA_Uinteger32 CALLED_DIRECTLY{ MAREA_SEMA_DIAGNOSTIC_CODE_LIFECYCLE_OPERATOR_CALLED_DIRECTLY };
     constexpr MAREA_Uinteger32 NEEDS_CONCRETE_TYPE{ MAREA_SEMA_DIAGNOSTIC_CODE_LIFECYCLE_OPERATOR_NEEDS_CONCRETE_TYPE };
     constexpr MAREA_Uinteger32 BAD_SHAPE{ MAREA_SEMA_DIAGNOSTIC_CODE_LIFECYCLE_OPERATOR_BAD_SHAPE };
+    constexpr MAREA_Uinteger32 OPERATOR_MISMATCH{ MAREA_SEMA_DIAGNOSTIC_CODE_OPERATOR_SIGNATURE_MISMATCH };
     constexpr MAREA_Uinteger32 UNDECLARED{ MAREA_SEMA_DIAGNOSTIC_CODE_UNDECLARED_NAME };
     constexpr MAREA_Uinteger32 DEFAULT_BEFORE_REQUIRED{ MAREA_SEMA_DIAGNOSTIC_CODE_DEFAULT_PARAMETER_BEFORE_REQUIRED };
 
@@ -147,4 +148,36 @@ TEST(MAREASemaLifecycle, OrdinaryCallsAreNotRejected)
     EXPECT_TRUE(MAREA_codesOf(TYPE + "function run() Point.area(); end").empty()) << "A call of a plain member must raise nothing.";
 
     EXPECT_TRUE(MAREA_codesOf(TYPE + "function drop() end function run() drop(); end").empty()) << "A top level function of the same name hides the member.";
+}
+
+TEST(MAREASemaLifecycle, OperatorSignatureOutsideTheTableIsRejected)
+{
+    GTEST_COUT << "Validating an operator function whose signature does not fit its operator is rejected." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "implementation Point #[operator = \"+\"] function add(self: Point): sinteger32 return 1; end end"), Codes{ OPERATOR_MISMATCH }) << "A + with one parameter must raise OPERATOR_SIGNATURE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "implementation Point #[operator = \"+\"] function add(self: Point, a: Point, b: Point): Point return copy a; end end"), Codes{ OPERATOR_MISMATCH }) << "A + with three parameters must raise OPERATOR_SIGNATURE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "implementation Point #[operator = \"+\"] function add(self: Point, a: Point) end end"), Codes{ OPERATOR_MISMATCH }) << "A + without a result must raise OPERATOR_SIGNATURE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "implementation Point #[operator = \"+\"] function add(a: sinteger32, b: Point): Point return copy b; end end"), Codes{ OPERATOR_MISMATCH }) << "A + whose first parameter is not the type must raise OPERATOR_SIGNATURE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "implementation Point #[operator = \"==\"] function same(self: Point, other: Point): sinteger32 return 1; end end"), Codes{ OPERATOR_MISMATCH }) << "An == that does not return boolean must raise OPERATOR_SIGNATURE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "implementation Point #[operator = \"~\"] function flip(self: Point, other: Point): Point return copy self; end end"), Codes{ OPERATOR_MISMATCH }) << "A ~ with two parameters must raise OPERATOR_SIGNATURE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "implementation Point #[operator = \"[]\"] function at(self: Point): sinteger32 return 1; end end"), Codes{ OPERATOR_MISMATCH }) << "A [] with one parameter must raise OPERATOR_SIGNATURE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "implementation Point #[operator = \"+=\"] function grow(self: Point) end end"), Codes{ OPERATOR_MISMATCH }) << "A += with one parameter must raise OPERATOR_SIGNATURE_MISMATCH.";
+}
+
+TEST(MAREASemaLifecycle, OperatorSignatureInTheTableIsAccepted)
+{
+    GTEST_COUT << "Validating an operator function that fits its operator raises nothing." << std::endl;
+
+    EXPECT_TRUE(MAREA_codesOf(POINT + "implementation Point #[operator = \"+\"] function add(self: Point, other: Point): Point return copy self; end #[operator = \"*\"] function scale(self: Point, factor: float64): Point return copy self; end end").empty()) << "The + and * shapes of the methods example must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(POINT + "implementation Point #[operator = \"-\"] function negate(self: Point): Point return copy self; end #[operator = \"-\"] function subtract(self: Point, other: Point): Point return copy self; end end").empty()) << "A - with one and with two parameters must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(POINT + "implementation Point #[operator = \"==\"] function same(self: Point, other: Point): boolean return true; end #[operator = \"[]\"] function at(self: Point, index: sinteger32): sinteger32 return 1; end #[operator = \"+=\"] function grow(self: Point, other: Point) end end").empty()) << "A boolean ==, a [] with an index and a += must raise nothing.";
 }
