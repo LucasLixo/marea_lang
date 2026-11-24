@@ -53,7 +53,9 @@ MAREA_BEGIN_EXTERN_C
      *
      * An entry of the locals table is also the move state of its local: moved is true from a move of the whole
      * local until a plain assignment to it, and movedAt is the move expression that set it. The state pushes and
-     * pops with the entry, so no second table is kept in step with the scopes.
+     * pops with the entry, so no second table is kept in step with the scopes. partAt is the field or element
+     * chain (a MEMBER_ACCESS or INDEX_ACCESS node) of the first part moved out of the local, or null: only one
+     * moved part is kept per local, and a plain assignment to the part or to the whole local clears it.
      */
     typedef struct MAREA_SemaName
     {
@@ -67,6 +69,7 @@ MAREA_BEGIN_EXTERN_C
         MAREA_IntegerSize qualifierLength;
         const struct MAREA_SemaExprType *statementType;
         const MAREA_AstNode *movedAt;
+        const MAREA_AstNode *partAt;
         MAREA_Boolean moved;
     } MAREA_SemaName;
 
@@ -963,13 +966,15 @@ MAREA_BEGIN_EXTERN_C
 
     /**
      * @brief State saved around one branch statement (if, switch) or loop while its children are visited: the
-     * moved bit of every local that exists before the statement, as the arms start, and as the arms merge.
-     * Zero filled and inert for any other node.
+     * moved bit and the moved part of every local that exists before the statement, as the arms start, and as
+     * the arms merge. Zero filled and inert for any other node.
      */
     typedef struct MAREA_SemaMoveFrame
     {
         MAREA_Boolean *base;
         MAREA_Boolean *merged;
+        const MAREA_AstNode **partBase;
+        const MAREA_AstNode **partMerged;
         MAREA_IntegerSize count;
         MAREA_Boolean armSeen;
         MAREA_Boolean hasFallback;
@@ -977,7 +982,9 @@ MAREA_BEGIN_EXTERN_C
 
     /**
      * @brief Reports a read of a local that was moved: VALUE_MOVED_AGAIN when the read is the operand of a
-     * move, USE_OF_MOVED_VALUE for any other read. A plain assignment target is not a read.
+     * move, USE_OF_MOVED_VALUE for any other read. A plain assignment target is not a read. A use of a local
+     * through a path that holds, or lies inside, a part that was moved out is USE_OF_PARTIALLY_MOVED_VALUE, and
+     * so is the move of a for each element that is not by value.
      * @param context Context of the run. Must not be null.
      * @param node Node about to be visited. Must not be null. Only an identifier is checked.
      * @param parent Parent of the node, or null at the root.
@@ -988,7 +995,8 @@ MAREA_BEGIN_EXTERN_C
 
     /**
      * @brief Records the effect of a node on the move state once its children were visited: a move of a whole
-     * local marks it moved, a plain assignment to a whole local makes it live again.
+     * local marks it moved, a move of a field or an element of a local marks that part, a plain assignment to a
+     * whole local or to the moved part makes it live again.
      * @param context Context of the run. Must not be null.
      * @param node Node whose children were visited. Must not be null.
      */

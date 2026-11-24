@@ -1,9 +1,8 @@
--- gap: #199 NEW
--- rule: reject
+-- expect: 3072 @26
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- A field is moved out and then the whole structure is moved.
+-- A field is moved out and the owner is used.
 
 namespace main;
 
@@ -24,6 +23,6 @@ end
 function check(): sinteger32
     local box: Box = Box{ inner = make_point(), count = 1 };
     local point: Point = move box.inner;
-    local other: Box = move box;
+    local x: sinteger32 = box.inner.x;
     return 1;
 end
