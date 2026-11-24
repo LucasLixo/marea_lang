@@ -196,9 +196,39 @@ TEST(MAREASemaOwnership, CompoundAssignmentIsNotChecked)
 
 TEST(MAREASemaOwnership, UnknownTypesAreNotGuessed)
 {
-    GTEST_COUT << "Validating an assignment whose type is unknown raises nothing." << std::endl;
+    GTEST_COUT << "Validating an assignment whose type is a really unknown external type, a library view or an address raises nothing." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("function f(#[semantics = reference_mutable] a: c.array<sinteger32>, b: c.array<sinteger32>) a = b; end").empty()) << "A library type must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function f(#[semantics = reference_mutable] a: vulkan.Handle, b: vulkan.Handle) a = b; end").empty()) << "An unknown external type must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("function f(#[semantics = reference_mutable] a: c.slice<sinteger32>, b: c.slice<sinteger32>) a = b; end").empty()) << "A library slice, a view, must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("function f(#[semantics = reference_mutable] a: c.pointer<sinteger32>, b: c.pointer<sinteger32>) a = b; end").empty()) << "A library pointer, an address, must raise nothing.";
+}
+
+TEST(MAREASemaOwnership, LibraryStorageTypeNeedsAWord)
+{
+    GTEST_COUT << "Validating a c.array, c.vector, c.table, c.owned or c.task assigned from an existing value needs copy or move." << std::endl;
+
+    const char *const TYPES[] = { "c.array<sinteger32>", "c.vector<sinteger32>", "c.table<sinteger32, sinteger32>", "c.owned<sinteger32>", "c.task<sinteger32>" };
+
+    for (const char *type : TYPES) {
+        const std::string T{ type };
+
+        EXPECT_EQ(MAREA_codesOf("function f(#[semantics = reference_mutable] a: " + T + ", b: " + T + ") a = b; end"), Codes{ NEEDS_WORD }) << T << " assignment must raise ASSIGNMENT_NEEDS_COPY_OR_MOVE.";
+
+        EXPECT_EQ(MAREA_codesOf("function f(b: " + T + ") local a: " + T + " = b; end"), Codes{ NEEDS_WORD }) << T << " local initializer must raise ASSIGNMENT_NEEDS_COPY_OR_MOVE.";
+
+        EXPECT_TRUE(MAREA_codesOf("function f(#[semantics = reference_mutable] a: " + T + ", b: " + T + ") a = copy b; end").empty()) << T << " with copy must raise nothing.";
+
+        EXPECT_TRUE(MAREA_codesOf("function f(#[semantics = reference_mutable] a: " + T + ", b: " + T + ") a = move b; end").empty()) << T << " with move must raise nothing.";
+    }
+}
+
+TEST(MAREASemaOwnership, LibraryStorageTypeFromAFreshValueNeedsNoWord)
+{
+    GTEST_COUT << "Validating a c.array assigned from a call result raises nothing." << std::endl;
+
+    EXPECT_TRUE(MAREA_codesOf("function make(): c.array<sinteger32> return make(); end function f(#[semantics = reference_mutable] a: c.array<sinteger32>) a = make(); end").empty()) << "A call result must raise nothing.";
 }
 
 TEST(MAREASemaOwnership, ReturningABorrowIsRejected)

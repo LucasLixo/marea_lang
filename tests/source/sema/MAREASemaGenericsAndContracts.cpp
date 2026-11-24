@@ -14,6 +14,7 @@ namespace
     constexpr MAREA_Uinteger32 TOO_DEEP{ MAREA_SEMA_DIAGNOSTIC_CODE_INSTANTIATION_TOO_DEEP };
     constexpr MAREA_Uinteger32 UNDECLARED{ MAREA_SEMA_DIAGNOSTIC_CODE_UNDECLARED_NAME };
     constexpr MAREA_Uinteger32 COUNT_MISMATCH{ MAREA_SEMA_DIAGNOSTIC_CODE_ARGUMENT_COUNT_MISMATCH };
+    constexpr MAREA_Uinteger32 UNKNOWN_TYPE_FUNCTION{ MAREA_SEMA_DIAGNOSTIC_CODE_UNKNOWN_TYPE_FUNCTION };
 
     Codes MAREA_codesOf(const std::string &body)
     {
@@ -296,4 +297,81 @@ TEST(MAREASemaGenericsAndContracts, LiteralMustFitThePrimitiveType)
     EXPECT_EQ(MAREA_codesOf("function f(a: string) end function g() f('a'); end"), Codes{ MISMATCH }) << "A character for a string must raise TYPE_MISMATCH.";
 
     EXPECT_TRUE(MAREA_codesOf("function f(a: pointer<sinteger32>) end function g() f(\"text\"); end").empty()) << "A non-primitive type must not be guessed.";
+}
+
+TEST(MAREASemaGenericsAndContracts, MissingTypeFunctionIsRejected)
+{
+    GTEST_COUT << "Validating a method or static call of a function that the type does not have is rejected." << std::endl;
+
+    const std::string POINT{ "structure Point x: float64; end " };
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function run(point: Point): float64 return point.length(); end"), Codes{ UNKNOWN_TYPE_FUNCTION }) << "A method no block declares must raise UNKNOWN_TYPE_FUNCTION.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function run(): Point return Point.origin(); end"), Codes{ UNKNOWN_TYPE_FUNCTION }) << "A static call no block declares must raise UNKNOWN_TYPE_FUNCTION.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "implementation Point function area(self: Point): float64 return 1.0; end end function run(point: Point): float64 return point.length(); end"), Codes{ UNKNOWN_TYPE_FUNCTION }) << "A name the blocks do not declare must raise UNKNOWN_TYPE_FUNCTION.";
+
+    EXPECT_EQ(MAREA_codesOf("enum Color red; green; end function run(): Color return Color.mix(); end"), Codes{ UNKNOWN_TYPE_FUNCTION }) << "A static call on an enum must raise UNKNOWN_TYPE_FUNCTION.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function run() local point: Point = Point{ x = 1.0 }; point.length(); end"), Codes{ UNKNOWN_TYPE_FUNCTION }) << "A method on a local must raise UNKNOWN_TYPE_FUNCTION.";
+}
+
+TEST(MAREASemaGenericsAndContracts, DeclaredTypeFunctionIsAccepted)
+{
+    GTEST_COUT << "Validating a call of a declared function, a callback field or an enum variant raises nothing." << std::endl;
+
+    const std::string POINT{ "structure Point x: float64; end " };
+
+    EXPECT_TRUE(MAREA_codesOf(POINT + "implementation Point function area(self: Point): float64 return 1.0; end function origin(): Point return Point{ x = 0.0 }; end end function run(point: Point): float64 local other: Point = Point.origin(); return point.area(); end").empty()) << "A method and a static function of a block must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(POINT + "implementation Point function area(self: Point): float64 return 1.0; end end implementation Point function twice(self: Point): float64 return self.area(); end end").empty()) << "A function of another block must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("structure Box<Item> value: Item; end implementation<Item> Box<Item> function get(self: Box<Item>): Item return copy self.value; end end function run(box: Box<sinteger32>): sinteger32 return box.get(); end").empty()) << "A function of a generic block must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("structure Holder callback: function(sinteger32): sinteger32; end function run(holder: Holder): sinteger32 return holder.callback(1); end").empty()) << "A callback field must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("enum Shape Circle(radius: float64 = 1.0); Square; end function run(): Shape return Shape.Circle(2.0); end").empty()) << "An enum variant used as a constructor must raise nothing.";
+}
+
+TEST(MAREASemaGenericsAndContracts, UnseenReceiverIsNotChecked)
+{
+    GTEST_COUT << "Validating a call on a receiver whose functions sema cannot see raises nothing." << std::endl;
+
+    MAREA_SemaFixture fixture([](const std::string &, const MAREA_AstNode **) { return MAREA_SEMA_IMPORT_RESULT_EXTERNAL; });
+
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; import c.lib { Thing }; function run(value: Thing) value.go(); Thing.make(); end"), MAREA_SEMA_EXCEPT_SUCCESS);
+
+    EXPECT_EQ(fixture.MAREA_semaCodes(), Codes{}) << "A library type must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("function run<Item>(value: Item) value.anything(); end").empty()) << "A generic parameter must raise nothing.";
+}
+
+TEST(MAREASemaGenericsAndContracts, NarrowedTypeArgumentRaisesMismatch)
+{
+    GTEST_COUT << "Validating a generic type whose type arguments differ from the declared type raises GENERIC_ARGUMENT_MISMATCH." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("function check(values: array<sinteger32, 4>): sinteger32 local second: array<sinteger8, 4> = values; return 1; end"), Codes{ ARGUMENT_MISMATCH }) << "A narrowed array element must raise GENERIC_ARGUMENT_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf("function check(values: array<sinteger32, 4>): sinteger32 local second: array<sinteger32, 8> = values; return 1; end"), Codes{ ARGUMENT_MISMATCH }) << "A different array size must raise GENERIC_ARGUMENT_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf("function check(#[semantics = reference_read_only] values: vector<sinteger32>): sinteger32 local second: vector<sinteger8> = copy values; return 1; end"), Codes{ ARGUMENT_MISMATCH }) << "A narrowed vector element through copy must raise GENERIC_ARGUMENT_MISMATCH.";
+
+    const std::string PAIR{ "structure Pair<First, Second> first: First; second: Second; end " };
+
+    EXPECT_EQ(MAREA_codesOf(PAIR + "function make(): Pair<sinteger32, float64> return Pair<sinteger8, float64>{ first = 1, second = 2.0 }; end"), Codes{ ARGUMENT_MISMATCH }) << "A returned struct literal with a narrowed argument must raise GENERIC_ARGUMENT_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf("function take(values: array<sinteger8, 4>): sinteger32 return 1; end function check(values: array<sinteger32, 4>): sinteger32 return take(values); end"), Codes{ ARGUMENT_MISMATCH }) << "A call argument with a narrowed type argument must raise GENERIC_ARGUMENT_MISMATCH.";
+}
+
+TEST(MAREASemaGenericsAndContracts, MatchingTypeArgumentRaisesNothing)
+{
+    GTEST_COUT << "Validating equal, generic, aliased and wrapped type arguments raise nothing." << std::endl;
+
+    EXPECT_TRUE(MAREA_codesOf("function check(values: array<sinteger32, 4>): sinteger32 local second: array<sinteger32, 4> = values; return 1; end").empty()) << "Equal type arguments must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("structure Point x: sinteger32; end function check(points: owned<vector<Point>>): sinteger32 local other: vector<Point> = move points; return 1; end").empty()) << "A move of an owned vector into a vector must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("function check<Item>(values: array<Item, 4>): sinteger32 local second: array<sinteger32, 4> = values; return 1; end").empty()) << "A generic parameter argument must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("type Small = sinteger8; function check(values: array<Small, 4>): sinteger32 local second: array<sinteger8, 4> = values; return 1; end").empty()) << "An alias argument must raise nothing.";
 }
