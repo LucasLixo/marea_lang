@@ -1045,6 +1045,12 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckArguments(MAREA_SemaContext *con
             return BORROW_RESULT;
         }
 
+        const MAREA_SemaExcept ALIAS_RESULT = MAREA_SemaCheckAliasedArguments(context, node, parameters, arguments);
+
+        if (ALIAS_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return ALIAS_RESULT;
+        }
+
         const MAREA_SemaExcept WRITE_RESULT = MAREA_SemaCheckWriteArguments(context, parameters, arguments);
 
         if (WRITE_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
