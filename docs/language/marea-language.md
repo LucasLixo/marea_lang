@@ -74,7 +74,7 @@ A `-- rule: accept` item moves to `accept/` with `-- expect: ok` in the same way
 These rules bind every item (user decision 2026-11-23).
 
 1. The header comment is `--`; `//` is a lex error (1001).
-2. A non-primitive parameter is a read-only borrow by default; writing needs `mutable`.
+2. A non-primitive parameter is a read-only borrow by default; writing needs the explicit `#[semantics = reference_mutable]`.
 3. A local `x: T;` with no initial value is an error.
 4. A literal outside the range of its type is a compile-time error and is never truncated; plain `+`, `-` and `*`
    wrap in two's complement; checked and saturating forms are explicit operators.
@@ -272,10 +272,11 @@ with a write borrow among them), 3032 (a bare file constant as a write borrow). 
 tables below is accepted today. The holes are grouped by kind: memory, permission and aliasing. A gap that shares an
 issue shows one hole through more than one program.
 
-Settled rule 2 (the default borrow is read-only) is not what sema, the grammar and the examples say: all three give a
-non-primitive parameter with no attribute a write borrow (`reference_mutable`). The accept items of the area write
-the attribute out, so they hold under both readings. The items that depend on the default are known_gap items of issue
-#203.
+Settled rule 2 (the default borrow is read-only) holds in sema, the grammar and the examples: a parameter with no
+attribute is a read-only borrow, unless its type is by value (a primitive, an enum, `array`, `pointer`, `slice`) or
+moves in (`owned`, `task`, `vector`). A write needs the explicit `#[semantics = reference_mutable]`. Sema does not
+reject a write through a read-only borrow yet, so the items that write a parameter with no attribute stay known_gap
+items of issue #203 until the apply that adds that check.
 
 ### Ownership and borrows: accept
 
@@ -994,10 +995,9 @@ Facts the items fix, checked by running the compiler:
   (items 036, 037). The rule says nothing of ownership, so this is the "simple first rule" of the sema doc, not a
   decided ownership rule.
 - A part is a name of the body only: its use after the `end` of the body is the undeclared name 3004 (item 080).
-- The accept items write `#[semantics = reference_mutable]` and `#[semantics = reference_read_only]` out, so they hold
-  under both readings of settled rule 2 (the default borrow). `examples/parallel/scaling.marea` does not: it writes the
-  elements of a parameter with no attribute (`scale_slice`, `scale_all`), which rule 2 makes a read-only borrow, and it
-  imports `collections.array` and `concurrency.task`, not the `c.{lib}` names that CLAUDE.md fixes for now.
+- A parameter with no attribute is a read-only borrow (settled rule 2), so `spawn` accepts it as a name that is not a
+  write-borrow parameter. `examples/parallel/scaling.marea` writes `#[semantics = reference_mutable]` on the two
+  parameters it writes (`scale_slice`, `scale_all`) and imports `c.array`, `c.slice` and `c.task`.
 
 ### Parallel code: accept
 
@@ -1102,8 +1102,9 @@ Facts the items fix, checked by running the compiler:
   partition, an arm of `switch` that a spawn follows, a generic function, a method call and a second move into a
   generic function (issue #198, items 001 to 004, 016, 026, 027, 030).
 - A read-only borrow that is written, or passed on to a write borrow, is accepted through a generic function, a
-  `for each` over a read-only vector, a worker and a `partition mutable` of a read-only source (issue #204). The
-  default borrow of a parameter with no attribute is a write borrow in sema (issue #203, items 063 and 065).
+  `for each` over a read-only vector, a worker and a `partition mutable` of a read-only source (issue #204). A parameter
+  with no attribute is a read-only borrow in sema, but a write through it is still accepted (issue #203, items 063 and
+  065).
 - A literal out of range gives 3033 as a `spawn` argument, a default value, a struct literal field and a constant
   (issue #181, items 018 to 021). A local with no initial value gives 3065 also when a worker reads it (item 017).
 - The type of a field read through a `for each` variable is not compared (issue #246, item 070), and the type arguments
@@ -1199,9 +1200,9 @@ generic or an alias needs a second namespace, and the runner gives an item one f
 
 ## Examples and coverage
 
-The 23 files under `examples/` are the programs the project shows. 16 of them have an accept item in
+The 23 files under `examples/` are the programs the project shows. 20 of them have an accept item in
 `tests/language/accept/examples/` with ids `L-EXAMPLES-nnn`: the item is the example with its `namespace` line set to
-`main` and the line `-- example: <path>` below the header. The other 7 have no accept item and are named in Gaps with
+`main` and the line `-- example: <path>` below the header. The other 3 have no accept item and are named in Gaps with
 the reason. `tests/source/language/MAREALanguageCoverage.cpp` fails when an example has no accept item whose header
 or doc row names it and is not in its exemption list, when a doc row has no file, when a file has no row, when the
 Counts table differs from the files, when a live diagnostic code has no `reject` item and no named exemption, when a
@@ -1228,6 +1229,10 @@ reject code or no issue named in Gaps. Each direction is proven on every build w
 | L-EXAMPLES-014 | the example `examples/types/enum_methods.marea`, with its namespace set to `main` | ok |
 | L-EXAMPLES-015 | the example `examples/types/generics.marea`, with its namespace set to `main` | ok |
 | L-EXAMPLES-016 | the example `examples/types/structures.marea`, with its namespace set to `main` | ok |
+| L-EXAMPLES-017 | the example `examples/basics/ownership.marea`, with its namespace set to `main` | ok |
+| L-EXAMPLES-018 | the example `examples/parallel/scaling.marea`, with its namespace set to `main` | ok |
+| L-EXAMPLES-019 | the example `examples/types/methods.marea`, with its namespace set to `main` | ok |
+| L-EXAMPLES-020 | the example `examples/interop/gpu_handles.marea`, with its namespace set to `main` | ok |
 
 ### Coverage: reject
 
@@ -1244,7 +1249,7 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | adversarial | 0 | 30 | 42 |
 | bindings | 33 | 80 | 0 |
 | coverage | 0 | 1 | 0 |
-| examples | 16 | 0 | 0 |
+| examples | 20 | 0 | 0 |
 | functions | 19 | 45 | 9 |
 | interop | 17 | 11 | 17 |
 | memory | 15 | 10 | 8 |
@@ -1253,7 +1258,7 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | parallel | 19 | 23 | 17 |
 | seed | 1 | 2 | 0 |
 | types | 60 | 116 | 20 |
-| total | 262 | 386 | 159 |
+| total | 266 | 386 | 159 |
 
 ## Parity plan
 
@@ -1312,27 +1317,22 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
   program fits neither class. The runner has no class for a valid program that the compiler rejects.
 - Settled rule 5 (a `private` name is a reject across namespaces) and an import cycle cannot be shown with one file per
   item. Issue #250 asks for a runner that gives an item a second file. Until then these two rules have no item.
-- Settled rule 2 (a non-primitive parameter with no attribute is a read-only borrow) is contradicted by the grammar
-  (`docs/grammar/marea.ebnf`, line 190), by the sema doc (`docs/sema/marea-sema.md`, line 210), by
-  `lib/source/marea/sema/MAREASemaOwnership.c` (line 70, the default is `REFERENCE_MUTABLE`) and by four examples that
-  write a default-borrow parameter: `examples/basics/ownership.marea`, `examples/types/methods.marea`,
-  `examples/interop/gpu_handles.marea` and `examples/parallel/scaling.marea`. The items that need the default are
-  known_gap items of #203 and #214. The decision on the rule or on the four examples waits for the user.
+- Settled rule 2 (a non-primitive parameter with no attribute is a read-only borrow) holds in the grammar, the sema
+  doc, `MAREA_SemaGetParameterSemantics` and the four examples that write a parameter
+  (`examples/basics/ownership.marea`, `examples/types/methods.marea`, `examples/interop/gpu_handles.marea` and
+  `examples/parallel/scaling.marea`: each names `#[semantics = reference_mutable]` on the parameter it writes). Sema
+  does not reject a write through a read-only borrow yet, so the items that write a parameter with no attribute are
+  still known_gap items of #203 and #214; the apply `reject-write-through-read-only-borrow` moves them to reject.
 
 ### Examples with no accept item
 
 | Example | Why |
 |---|---|
-| `examples/basics/ownership.marea` | writes a parameter with the default borrow (settled rule 2, issues #203, #214) |
-| `examples/interop/gpu_handles.marea` | writes a parameter with the default borrow (settled rule 2, issues #203, #214) |
-| `examples/parallel/scaling.marea` | writes a slice parameter with the default borrow (settled rule 2, issues #203, #214) |
-| `examples/types/methods.marea` | a method writes `self` with the default borrow (settled rule 2, issues #203, #214) |
 | `examples/macros/builtin.marea` | imports the project namespace `attributes.layout`, and an item is one file (issue #250) |
 | `examples/main.marea` | imports eight project namespaces, and an item is one file (issue #250) |
 | `examples/namespaces/consumer.marea` | imports the project namespace `namespaces.library`, and an item is one file (issue #250) |
 
-An accept item of the first four would assert a program that a settled rule makes invalid, and it would fail the day
-the rule is enforced. The coverage test holds this list; an example that gains an item must leave it.
+The coverage test holds this list; an example that gains an item must leave it.
 
 ### Diagnostic codes with no reject item
 
