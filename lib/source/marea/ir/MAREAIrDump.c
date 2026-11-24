@@ -69,17 +69,18 @@ static void MAREA_CALL MAREA_G_DumpWriteText(MAREA_G_DumpBuffer *buffer, const M
     MAREA_G_DumpWrite(buffer, text, strlen(text));
 }
 
-static void MAREA_CALL MAREA_G_DumpWriteNumber(MAREA_G_DumpBuffer *buffer, MAREA_Uinteger32 value)
+// INFO: 20 digits hold the largest 64-bit value.
+static void MAREA_CALL MAREA_G_DumpWriteNumber(MAREA_G_DumpBuffer *buffer, MAREA_Uinteger64 value)
 {
-    MAREA_Character8 digits[16];
+    MAREA_Character8 digits[20];
 
     MAREA_IntegerSize count = MAREA_INTEGER_SIZE(0);
 
     do {
-        digits[count] = (MAREA_Character8)('0' + (value % MAREA_UINTEGER_32(10)));
+        digits[count] = (MAREA_Character8)('0' + (value % MAREA_UINTEGER_64(10)));
         count = (count + MAREA_INTEGER_SIZE(1));
-        value = (value / MAREA_UINTEGER_32(10));
-    } while (value != MAREA_UINTEGER_32(0));
+        value = (value / MAREA_UINTEGER_64(10));
+    } while (value != MAREA_UINTEGER_64(0));
 
     while (count > MAREA_INTEGER_SIZE(0)) {
         count = (count - MAREA_INTEGER_SIZE(1));
@@ -211,6 +212,122 @@ static void MAREA_CALL MAREA_G_DumpNode(MAREA_G_DumpBuffer *buffer, const MAREA_
     }
 }
 
+// INFO: the lower-case name of each reason of sema, in the order of the enum.
+static const MAREA_Character8 *const MAREA_G_ReasonNames[] = {
+    "none",
+    "library_type",
+    "generic",
+    "function_type",
+    "opaque",
+    "invalid_attribute",
+    "too_deep",
+    "unresolved",
+};
+
+static const MAREA_Character8 *MAREA_CALL MAREA_G_ReasonName(MAREA_SemaMeasureReason reason)
+{
+    return (((MAREA_IntegerSize)reason) < MAREA_ARRAY_SIZE(MAREA_G_ReasonNames)) ? MAREA_G_ReasonNames[reason] : "unknown";
+}
+
+// INFO: writes the offsets of a run of slots as a comma list, with nothing for an empty run.
+static void MAREA_CALL MAREA_G_DumpWriteOffsets(MAREA_G_DumpBuffer *buffer, const MAREA_IrLayout *layout, MAREA_IntegerSize variant, MAREA_IntegerSize count, MAREA_Boolean isVariantField)
+{
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < count; index = (index + MAREA_INTEGER_SIZE(1))) {
+        MAREA_Uinteger64 offset = MAREA_UINTEGER_64(0);
+
+        // INFO: a measured entry answers for every index below its counts, so the refusal never happens here.
+        const MAREA_IrLayoutExcept READ = (isVariantField == MAREA_BOOLEAN_TRUE) ? MAREA_IrLayoutGetVariantFieldOffset(layout, variant, index, &offset) : MAREA_IrLayoutGetMemberOffset(layout, index, &offset);
+
+        if (READ != MAREA_IR_LAYOUT_EXCEPT_SUCCESS) {
+            return;
+        }
+
+        if (index > MAREA_INTEGER_SIZE(0)) {
+            MAREA_G_DumpWriteText(buffer, ",");
+        }
+
+        MAREA_G_DumpWriteNumber(buffer, offset);
+    }
+}
+
+static void MAREA_CALL MAREA_G_DumpLayout(MAREA_G_DumpBuffer *buffer, const MAREA_IrLayout *layout)
+{
+    const MAREA_Boolean IS_ENUM = (layout->kind == MAREA_IR_LAYOUT_KIND_ENUM) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+
+    MAREA_G_DumpWriteText(buffer, (IS_ENUM == MAREA_BOOLEAN_TRUE) ? "  ENUM \"" : "  STRUCTURE \"");
+    MAREA_G_DumpWriteEscaped(buffer, layout->name, layout->nameLength);
+    MAREA_G_DumpWriteText(buffer, "\"");
+
+    if (layout->verdict != MAREA_SEMA_MEASURE_VERDICT_MEASURED) {
+        MAREA_G_DumpWriteText(buffer, " verdict=undecided reason=");
+        MAREA_G_DumpWriteText(buffer, MAREA_G_ReasonName(layout->reason));
+        MAREA_G_DumpWriteText(buffer, " members=");
+        MAREA_G_DumpWriteNumber(buffer, layout->memberCount);
+        MAREA_G_DumpWriteText(buffer, "\n");
+
+        return;
+    }
+
+    MAREA_G_DumpWriteText(buffer, " verdict=measured size=");
+    MAREA_G_DumpWriteNumber(buffer, layout->size);
+    MAREA_G_DumpWriteText(buffer, " alignment=");
+    MAREA_G_DumpWriteNumber(buffer, layout->alignment);
+
+    if (IS_ENUM == MAREA_BOOLEAN_TRUE) {
+        MAREA_G_DumpWriteText(buffer, " tag=");
+        MAREA_G_DumpWriteNumber(buffer, layout->tagSize);
+    }
+
+    MAREA_G_DumpWriteText(buffer, " members=");
+    MAREA_G_DumpWriteNumber(buffer, layout->memberCount);
+
+    if (IS_ENUM == MAREA_BOOLEAN_FALSE) {
+        MAREA_G_DumpWriteText(buffer, " offsets=");
+        MAREA_G_DumpWriteOffsets(buffer, layout, MAREA_INTEGER_SIZE(0), layout->memberCount, MAREA_BOOLEAN_FALSE);
+    }
+
+    MAREA_G_DumpWriteText(buffer, "\n");
+
+    for (MAREA_IntegerSize variant = MAREA_INTEGER_SIZE(0); ((IS_ENUM == MAREA_BOOLEAN_TRUE) && (variant < layout->memberCount)); variant = (variant + MAREA_INTEGER_SIZE(1))) {
+        MAREA_Uinteger64 payload = MAREA_UINTEGER_64(0);
+
+        // INFO: the payload offset is the member offset of the variant; a measured entry never refuses it.
+        if (MAREA_IrLayoutGetMemberOffset(layout, variant, &payload) != MAREA_IR_LAYOUT_EXCEPT_SUCCESS) {
+            return;
+        }
+
+        MAREA_G_DumpWriteText(buffer, "    VARIANT ");
+        MAREA_G_DumpWriteNumber(buffer, variant);
+        MAREA_G_DumpWriteText(buffer, " payload=");
+        MAREA_G_DumpWriteNumber(buffer, payload);
+        MAREA_G_DumpWriteText(buffer, " fields=");
+        MAREA_G_DumpWriteOffsets(buffer, layout, variant, MAREA_IrLayoutGetVariantFieldCount(layout, variant), MAREA_BOOLEAN_TRUE);
+        MAREA_G_DumpWriteText(buffer, "\n");
+    }
+}
+
+// INFO: the layout table follows the tree as a section of its own. A module with no entry has no section.
+static void MAREA_CALL MAREA_G_DumpLayoutTable(MAREA_G_DumpBuffer *buffer, const MAREA_IrNode *module)
+{
+    const MAREA_IntegerSize COUNT = MAREA_IrModuleGetLayoutCount(module);
+
+    if (COUNT == MAREA_INTEGER_SIZE(0)) {
+        return;
+    }
+
+    MAREA_G_DumpWriteText(buffer, "LAYOUT_TABLE\n");
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < COUNT; index = (index + MAREA_INTEGER_SIZE(1))) {
+        const MAREA_IrLayout *layout = MAREA_NULLPTR;
+
+        if (MAREA_IrModuleGetLayoutAt(module, index, &layout) != MAREA_IR_LAYOUT_EXCEPT_SUCCESS) {
+            return;
+        }
+
+        MAREA_G_DumpLayout(buffer, layout);
+    }
+}
+
 MAREA_IrExcept MAREA_CALL MAREA_IrModuleDump(MAREA_Arena *arena, const MAREA_IrNode *module, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength)
 {
     if (arena == MAREA_NULLPTR) {
@@ -234,6 +351,7 @@ MAREA_IrExcept MAREA_CALL MAREA_IrModuleDump(MAREA_Arena *arena, const MAREA_IrN
     MAREA_G_DumpReserve(&buffer, MAREA_INTEGER_SIZE(0));
 
     MAREA_G_DumpNode(&buffer, module);
+    MAREA_G_DumpLayoutTable(&buffer, module);
 
     if (buffer.failed == MAREA_BOOLEAN_TRUE) {
         return MAREA_IR_EXCEPT_ERROR_OUT_OF_MEMORY;

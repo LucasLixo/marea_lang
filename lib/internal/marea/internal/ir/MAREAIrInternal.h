@@ -11,6 +11,7 @@
     #include "marea/base/MAREASourcePosition.h"
     #include "marea/ir/MAREAIr.h"
     #include "marea/ir/MAREAIrKind.h"
+    #include "marea/ir/MAREAIrLayout.h"
     #include "marea/ir/MAREAIrNode.h"
     #include "marea/lex/MAREATokenKind.h"
     #include "marea/parse/MAREAAst.h"
@@ -54,8 +55,48 @@ MAREA_BEGIN_EXTERN_C
     };
 
     /**
+     * @brief Body of the opaque layout entry. The numbers are copies of the values of sema. offsets holds one slot for
+     * each member, then, for an enum, the offsets of the fields of the variants, one run for each variant in order,
+     * the same order sema uses. variantFieldCounts holds one count for each variant, and is null for a structure. An
+     * undecided entry has no offsets and no counts.
+     */
+    struct MAREA_IrLayout
+    {
+        const MAREA_Character8 *name;
+        MAREA_Uinteger64 *offsets;
+        MAREA_IntegerSize *variantFieldCounts;
+        MAREA_Uinteger64 size;
+        MAREA_Uinteger64 alignment;
+        MAREA_Uinteger64 tagSize;
+        MAREA_IntegerSize nameLength;
+        MAREA_IntegerSize memberCount;
+        MAREA_IrLayoutKind kind;
+        MAREA_SemaMeasureVerdict verdict;
+        MAREA_SemaMeasureReason reason;
+    };
+
+    /**
+     * @brief The layout table of one module: its entries, in the declaration order.
+     */
+    typedef struct MAREA_IrLayoutTable
+    {
+        MAREA_IrLayout *entries;
+        MAREA_IntegerSize count;
+    } MAREA_IrLayoutTable;
+
+    /**
+     * @brief One structure or enum declaration that lowering made a node of: the typed declaration that carries the
+     * layout of sema, and the IR node it lowered to.
+     */
+    typedef struct MAREA_IrLayoutSource
+    {
+        const MAREA_SemaTypedNode *typed;
+        const MAREA_IrNode *node;
+    } MAREA_IrLayoutSource;
+
+    /**
      * @brief Body of the opaque IR node. Position, text, operator and flags are copied from the AST node
-     * at creation so that a desugared node can override them.
+     * at creation so that a desugared node can override them. layouts is the layout table, set only on a MODULE.
      */
     struct MAREA_IrNode
     {
@@ -64,6 +105,7 @@ MAREA_BEGIN_EXTERN_C
         const MAREA_Character8 *typeName;
         const MAREA_Character8 *resolvedType;
         MAREA_IrNode **children;
+        const MAREA_IrLayoutTable *layouts;
         MAREA_IntegerSize typeNameLength;
         MAREA_IntegerSize resolvedTypeLength;
         MAREA_IntegerSize childCount;
@@ -205,6 +247,19 @@ MAREA_BEGIN_EXTERN_C
      * @return The AST kind.
      */
     MAREA_NODISCARD MAREA_AstKind MAREA_CALL MAREA_IrTypedKind(const MAREA_SemaTypedNode *typed);
+
+    /**
+     * @brief Builds the layout table of a module, once its declarations are final, and stores it in the module. An
+     * entry is made for each source whose node is still a child of the module; the sources and the children are in
+     * the same order. A layout that sema measured is copied as it is; an opaque structure is undecided with the
+     * opaque reason; a declaration whose layout sema did not record is undecided with the unresolved reason.
+     * @param context Context that owns the arena. Must not be null.
+     * @param module Module that receives the table. Must not be null.
+     * @param sources Declarations that were lowered, in order. May be null when count is 0.
+     * @param count Number of sources.
+     * @return MAREA_IR_EXCEPT_SUCCESS, ERROR_NULL_POINTER when context or module is null, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrLayoutTableBuild(MAREA_IrContext * context, MAREA_IrNode * module, const MAREA_IrLayoutSource *sources, MAREA_IntegerSize count);
 
     /**
      * @brief Lowers one top-level item or implementation member and appends the result to a module or a

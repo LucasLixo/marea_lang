@@ -83,6 +83,7 @@ MAREA_BEGIN_EXTERN_C
      * @brief Writes the tree under module as stable text, one node per line, into the arena. Each line is
      * the kind name indented two spaces per depth, then the text in double quotes when present, then
      * type=NAME when the node carries a type name, then resolved=TEXT when it carries a resolved type, then op=OPERATOR, then flags=NUMBER when not zero.
+     * The tree is followed by the layout table of the module (see MAREAIrLayout.h) as a section that starts with the line LAYOUT_TABLE, when the module has an entry.
      * @param arena Arena that owns the text. Must not be null.
      * @param module Root of the tree to write. Must not be null.
      * @param outText Receives a NUL-terminated copy of the text. Must not be null.

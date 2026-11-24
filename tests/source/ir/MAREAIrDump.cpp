@@ -33,7 +33,7 @@ namespace
 
 TEST(MAREAIrDump, SmallModuleHasAnExactText)
 {
-    GTEST_COUT << "Validating the dump of one structure and one function is exact." << std::endl;
+    GTEST_COUT << "Validating the dump of one structure and one function is exact, tree and layout table." << std::endl;
 
     MAREA_IrFixture fixture;
 
@@ -53,8 +53,10 @@ TEST(MAREAIrDump, SmallModuleHasAnExactText)
                                          "          INTEGER_LITERAL \"1\" resolved=sinteger32",
                                          "      RETURN_STATEMENT",
                                          "        IDENTIFIER \"b\" resolved=sinteger32",
+                                         "LAYOUT_TABLE",
+                                         "  STRUCTURE \"Point\" verdict=measured size=8 alignment=8 members=1 offsets=0",
                                      }))
-        << "The dump must match the tree line by line.";
+        << "The dump must match the tree line by line, then the layout table.";
 }
 
 TEST(MAREAIrDump, EmptyModuleIsOneLine)
