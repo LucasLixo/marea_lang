@@ -546,6 +546,24 @@ static MAREA_Boolean MAREA_CALL MAREA_G_OverlapsEarlier(const MAREA_AstNode *roo
     return MAREA_BOOLEAN_FALSE;
 }
 
+// INFO: an enum with no VARIANT_DECLARATION child has no value, so it is reported once at the enum.
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckEnumNotEmpty(MAREA_SemaContext *context, const MAREA_AstNode *enumeration)
+{
+    const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(enumeration);
+
+    for (MAREA_IntegerSize index = 0; index < COUNT; ++index) {
+        const MAREA_AstNode *child = MAREA_SemaChildAt(enumeration, index);
+
+        if ((child != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(child) == MAREA_AST_KIND_VARIANT_DECLARATION)) {
+            return MAREA_SEMA_EXCEPT_SUCCESS;
+        }
+    }
+
+    const MAREA_AstNode *name = MAREA_G_NameOf(enumeration);
+
+    return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_EMPTY_ENUM, MAREA_AstNodeGetPosition(enumeration), "enum has no variant:", (name != MAREA_NULLPTR) ? MAREA_AstNodeGetText(name) : "", (name != MAREA_NULLPTR) ? MAREA_AstNodeGetTextLength(name) : MAREA_INTEGER_SIZE(0));
+}
+
 MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckDeclarations(MAREA_SemaContext *context, const MAREA_AstNode *root)
 {
     if ((context == MAREA_NULLPTR) || (root == MAREA_NULLPTR)) {
@@ -562,6 +580,12 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckDeclarations(MAREA_SemaContext *conte
 
             if (TAG_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
                 return TAG_RESULT;
+            }
+
+            const MAREA_SemaExcept EMPTY_RESULT = MAREA_G_CheckEnumNotEmpty(context, declaration);
+
+            if (EMPTY_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+                return EMPTY_RESULT;
             }
         }
     }

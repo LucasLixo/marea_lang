@@ -286,7 +286,7 @@ static const MAREA_AstNode *MAREA_CALL MAREA_G_ImportedEnum(const MAREA_AstNode 
     return ((symbol != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(symbol) == MAREA_AST_KIND_ENUM_DECLARATION)) ? symbol : MAREA_NULLPTR;
 }
 
-static MAREA_Boolean MAREA_CALL MAREA_G_EnumHasVariant(const MAREA_AstNode *enumeration, const MAREA_Character8 *name, MAREA_IntegerSize nameLength)
+MAREA_Boolean MAREA_CALL MAREA_SemaEnumHasVariant(const MAREA_AstNode *enumeration, const MAREA_Character8 *name, MAREA_IntegerSize nameLength)
 {
     const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(enumeration);
 
@@ -459,7 +459,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_MemberResolves(const MAREA_AstNode *path
 
     const MAREA_AstNode *variant = MAREA_SemaChildAt(path, 1);
 
-    return ((MAREA_AstNodeGetKind(symbol) == MAREA_AST_KIND_ENUM_DECLARATION) && (MAREA_G_EnumHasVariant(symbol, MAREA_AstNodeGetText(variant), MAREA_AstNodeGetTextLength(variant)) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+    return ((MAREA_AstNodeGetKind(symbol) == MAREA_AST_KIND_ENUM_DECLARATION) && (MAREA_SemaEnumHasVariant(symbol, MAREA_AstNodeGetText(variant), MAREA_AstNodeGetTextLength(variant)) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
 static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckImportMember(MAREA_SemaContext *context, const MAREA_AstNode *member, const MAREA_Character8 *namespaceText, MAREA_IntegerSize namespaceLength, MAREA_SemaImportResult namespaceResult, const MAREA_AstNode *namespaceRoot)

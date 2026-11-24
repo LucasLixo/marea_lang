@@ -263,6 +263,11 @@ ordinary call.
 `INVALID_ENUM_TAG_TYPE` (3031), once per enum. A tag name that is not a type at all also raises
 `UNKNOWN_TYPE`. Sema does not use the tag for the layout of an enum: `size_of` of an enum is unchanged.
 
+**Enum variants.** An enum that declares no variant is `EMPTY_ENUM` (3047), once at the enum. `Enum.Name` is
+`UNKNOWN_ENUM_VARIANT` (3048) when `Enum` is an enum of this file, no local hides its name, and `Name` is no variant
+and no function or constant of an `implementation` block of this file for that enum. The callee of a call
+(`Color.make()`) is not checked here (see `UNKNOWN_TYPE_FUNCTION`, 3049).
+
 **Ownership.** A parameter's passing mode is its `semantics` attribute - `value_read_only` (a
 copy), `reference_read_only` (a read-only borrow) or `reference_mutable` (a write borrow, the
 `EXCLUSIVE_BORROW_CONFLICT`/`INVALID_SPAWN_ARGUMENT` axis); `MAREA_SemaGetParameterSemantics` is
@@ -847,6 +852,8 @@ or rejects.
 | 3044 | `UNKNOWN_FIELD` | `Point{ z = 1.0 }`, `point.z` or `point.z = 1.0;` when `Point` has no field `z` |
 | 3045 | `RECURSIVE_TYPE` | `structure Node next: Node; end` |
 | 3046 | `CYCLIC_TYPE_ALIAS` | `type First = Second; type Second = First;` |
+| 3047 | `EMPTY_ENUM` | `enum Empty end` |
+| 3048 | `UNKNOWN_ENUM_VARIANT` | `Color.Purple` when `Color` has no variant, function or constant `Purple` |
 | 3049 | `UNKNOWN_TYPE_FUNCTION` | `point.length()` or `Point.origin()` when no `implementation` of `Point` declares it |
 | 3050 | `OPERATOR_SIGNATURE_MISMATCH` | `#[operator = "+"] function add(self: Point): sinteger32` |
 | 3051 | `BOUND_OPERATION_NOT_GIVEN` | `left + right` or `left.size()` on a generic `Item` that no `where` bound gives |
@@ -871,6 +878,10 @@ or rejects.
 
 ## Gaps
 
+- `UNKNOWN_ENUM_VARIANT` (3048) checks a member access of an enum of this file only. A `case Color.Purple then` label
+  is not a checked slot, so a label that is not a variant is not seen. An enum of another namespace or an imported
+  enum is not checked, because its `implementation` blocks are in another file. The call form `Color.make()` is the
+  rule of 3049.
 - The array rule of `partition` (3064) rejects only a source that sema knows is a number, a primitive, a structure or an
   enum. A `slice`, a `pointer`, a library type that is not an array and a call result have no known shape, so a
   partition of them is accepted.
