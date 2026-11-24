@@ -135,11 +135,11 @@ TEST(MAREASemaGenericsAndContracts, MovableNeedsAnOwnedOrMoveOnlyType)
 
     const std::string TAKE{ "function take<Item>(a: owned<Item>): owned<Item> where Item: Movable return a; end " };
 
-    EXPECT_TRUE(MAREA_codesOf(TAKE + "function run(a: owned<sinteger32>): owned<sinteger32> return take<owned<sinteger32>>(a); end").empty()) << "owned<T> must be Movable.";
+    EXPECT_TRUE(MAREA_codesOf(TAKE + "function run(a: owned<sinteger32>): owned<sinteger32> return take<owned<sinteger32>>(move a); end").empty()) << "owned<T> must be Movable.";
 
-    EXPECT_TRUE(MAREA_codesOf(TAKE + "#[move_only] structure Token x: sinteger32; end function run(a: owned<Token>): owned<Token> return take<Token>(a); end").empty()) << "A move_only type must be Movable.";
+    EXPECT_TRUE(MAREA_codesOf(TAKE + "#[move_only] structure Token x: sinteger32; end function run(a: owned<Token>): owned<Token> return take<Token>(move a); end").empty()) << "A move_only type must be Movable.";
 
-    EXPECT_EQ(MAREA_codesOf(TAKE + "function run(a: owned<sinteger32>): owned<sinteger32> return take<sinteger32>(a); end"), Codes{ NOT_SATISFIED }) << "A primitive must miss Movable.";
+    EXPECT_EQ(MAREA_codesOf(TAKE + "function run(a: owned<sinteger32>): owned<sinteger32> return take<sinteger32>(move a); end"), Codes{ NOT_SATISFIED }) << "A primitive must miss Movable.";
 }
 
 TEST(MAREASemaGenericsAndContracts, GenericParameterSatisfiesThroughItsOwnWhereClause)

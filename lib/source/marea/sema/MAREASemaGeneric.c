@@ -1050,6 +1050,12 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckArguments(MAREA_SemaContext *con
         if (WRITE_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
             return WRITE_RESULT;
         }
+
+        const MAREA_SemaExcept OWNED_RESULT = MAREA_SemaCheckOwnedArguments(context, parameters, arguments);
+
+        if (OWNED_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return OWNED_RESULT;
+        }
     }
 
     for (MAREA_IntegerSize index = 0; index < ARGUMENT_COUNT; ++index) {

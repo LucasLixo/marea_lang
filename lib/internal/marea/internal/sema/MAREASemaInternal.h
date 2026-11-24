@@ -977,6 +977,17 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckWriteArguments(MAREA_SemaContext * context, const MAREA_AstNode *parameters, const MAREA_AstNode *arguments);
 
     /**
+     * @brief Checks that an existing value (a name, a field or an element) given to an owned parameter carries
+     * copy or move: reports ASSIGNMENT_NEEDS_COPY_OR_MOVE at the argument otherwise. A call result, a literal,
+     * an argument of an unknown type and a vector or task parameter raise nothing.
+     * @param context Context of the run. Must not be null.
+     * @param parameters PARAMETER_LIST of the callee. Must not be null.
+     * @param arguments ARGUMENT_LIST of the call. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckOwnedArguments(MAREA_SemaContext * context, const MAREA_AstNode *parameters, const MAREA_AstNode *arguments);
+
+    /**
      * @brief Checks the arguments of a spawn inside a fork_join block: each must be a part of a partition, a
      * literal, a constant, or a name that is neither a write borrow nor the source of an active mutable
      * partition. A spawn outside a fork_join block is not checked here.

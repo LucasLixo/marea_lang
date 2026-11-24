@@ -645,3 +645,42 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckWriteArguments(MAREA_SemaContext *con
 
     return MAREA_SEMA_EXCEPT_SUCCESS;
 }
+
+MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckOwnedArguments(MAREA_SemaContext *context, const MAREA_AstNode *parameters, const MAREA_AstNode *arguments)
+{
+    if ((context == MAREA_NULLPTR) || (parameters == MAREA_NULLPTR) || (arguments == MAREA_NULLPTR)) {
+        return MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(arguments);
+
+    for (MAREA_IntegerSize index = 0; index < COUNT; ++index) {
+        const MAREA_AstNode *parameter = MAREA_SemaChildAt(parameters, index);
+
+        const MAREA_AstNode *argument = MAREA_SemaChildAt(arguments, index);
+
+        if ((parameter == MAREA_NULLPTR) || (argument == MAREA_NULLPTR)) {
+            continue;
+        }
+
+        const MAREA_AstNode *declaration = MAREA_NULLPTR;
+
+        const MAREA_Character8 *name = MAREA_NULLPTR;
+
+        MAREA_IntegerSize length = 0;
+
+        // INFO: only owned is checked; a vector or task parameter can be an explicit borrow, so it is left alone.
+        if ((MAREA_SemaClassifyType(context, MAREA_SemaChildAt(parameter, 1), &declaration, &name, &length) != MAREA_SEMA_TYPE_CLASS_MOVE_BUILTIN) || (length != 5) || (memcmp(name, "owned", 5) != 0)) {
+            continue;
+        }
+
+        // INFO: a null type keeps the rule conservative: an argument of an unknown type is accepted.
+        const MAREA_SemaExcept RESULT = MAREA_G_CheckCopyOrMove(context, argument, MAREA_NULLPTR, argument);
+
+        if (RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return RESULT;
+        }
+    }
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
