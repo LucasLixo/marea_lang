@@ -212,7 +212,7 @@ type, and a `construct` has no return type and a default on every parameter; any
 `LIFECYCLE_OPERATOR_BAD_SHAPE` (3029), once per function. A call of such a function is
 `LIFECYCLE_OPERATOR_CALLED_DIRECTLY` (3027): by a bare name that no local and no top-level function of another
 meaning hides, by the static form `Type.name(...)` where `Type` is the implemented type, and by a call on a value
-(`point.drop()`), decided to be rejected the same way (see Gaps). The automatic call
+(`point.drop()`) whose inferred type is one plain type name of the file. The automatic call
 at creation and destruction is lowered in the ir, not here.
 
 **Operator signature.** A function with `#[operator = "<token>"]` in an `implementation` block is checked against its
@@ -993,11 +993,10 @@ or rejects.
 - `operator` is checked against its vocabulary; only `construct` and `destroy` have a placement and a shape check
   (see "Construct and destroy"), and any other operator has a signature check in an `implementation` only (3050, see
   "Operator signature"); `export` is checked for shape only.
-- `LIFECYCLE_OPERATOR_CALLED_DIRECTLY` (3027) today sees a bare name and the static form `Type.name(...)` only.
-  Decision: a call on a value (`point.drop()`) of a lifecycle operator (`construct` or `destroy`) is also rejected
-  with 3027, for consistency with those two forms; no new code. Sema does not yet implement it, as it does not
-  know the type of the receiver. A bare name that no top-level function declares also raises `UNDECLARED_NAME`
-  (3004), as a member is not a bare name.
+- `LIFECYCLE_OPERATOR_CALLED_DIRECTLY` (3027) on a call on a value judges only a receiver whose inferred type is one
+  plain type name of the file. A receiver of unknown type, of another file or a library, a call result that sema does
+  not type, and a receiver typed `Self` (a recorded Gap: `Self` is not resolved to the implemented type here) raise nothing (round toward valid). A bare name that no
+  top-level function declares also raises `UNDECLARED_NAME` (3004), as a member is not a bare name.
 - `MAREA_SemaTypedNodeGetResolvedType` covers the six declaring nodes, the literals and the expressions of "Resolved
   type of an expression". A `Self` type and a generic parameter are spelled by
   their written name, not by the type they stand for in one instantiation. A name of an `EXTERNAL` namespace is
