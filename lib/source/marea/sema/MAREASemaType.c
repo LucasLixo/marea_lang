@@ -100,6 +100,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaScopeEnter(MAREA_SemaContext *context, con
     outMark->forkDepth = context->forkDepth;
     outMark->partitionDepth = context->partitionDepth;
     outMark->loopDepth = context->loopDepth;
+    outMark->unsafeDepth = context->unsafeDepth;
 
     const MAREA_SemaExcept BIND_RESULT = MAREA_SemaBindReferences(context, node);
 
@@ -125,6 +126,10 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaScopeEnter(MAREA_SemaContext *context, con
 
     if (KIND == MAREA_AST_KIND_FORK_JOIN_BLOCK) {
         context->forkDepth += 1;
+    }
+
+    if (KIND == MAREA_AST_KIND_UNSAFE_BLOCK) {
+        context->unsafeDepth += 1;
     }
 
     // INFO: the body of a partition is a barrier. A loop outside it is not a target of a jump inside it.
@@ -199,6 +204,7 @@ void MAREA_CALL MAREA_SemaScopeLeave(MAREA_SemaContext *context, MAREA_SemaScope
     context->forkDepth = mark.forkDepth;
     context->partitionDepth = mark.partitionDepth;
     context->loopDepth = mark.loopDepth;
+    context->unsafeDepth = mark.unsafeDepth;
 }
 
 static MAREA_IntegerSize MAREA_CALL MAREA_G_BuiltinArity(const MAREA_Character8 *text, MAREA_IntegerSize length)
