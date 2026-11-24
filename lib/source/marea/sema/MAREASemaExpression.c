@@ -889,7 +889,15 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressions(MAREA_SemaContext *contex
     case MAREA_AST_KIND_LITERAL_VALUE:
         return MAREA_SemaCheckLiteralFields(context, node);
     case MAREA_AST_KIND_LOCAL_DECLARATION:
+    {
+        const MAREA_SemaExcept pointerResult = MAREA_SemaCheckRawPointerLocal(context, node);
+
+        if (pointerResult != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return pointerResult;
+        }
+
         return MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, 2), 0, MAREA_BOOLEAN_TRUE);
+    }
     case MAREA_AST_KIND_PARAMETER:
     {
         // INFO: the default value is the optional third child, and it must fit the type of its parameter.
