@@ -39,11 +39,16 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaContextCreate(MAREA_Arena *arena, MAREA_Di
     context->locals = (MAREA_SemaNameTable){ 0 };
     context->references = (MAREA_SemaNameTable){ 0 };
     context->readOnly = (MAREA_SemaNameTable){ 0 };
+    context->captures = (MAREA_SemaCaptureTable){ 0 };
+    context->forkBody = MAREA_NULLPTR;
+    context->captureLocalBase = 0;
     context->localStart = 0;
     context->functionLocalStart = 0;
     context->root = MAREA_NULLPTR;
     context->function = MAREA_NULLPTR;
     context->implementation = MAREA_NULLPTR;
+    context->parent = MAREA_NULLPTR;
+    context->parentIndex = 0;
     context->selfDepth = 0;
     context->instantiationDepth = 0;
     context->forkDepth = 0;
@@ -134,6 +139,19 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaVisit(MAREA_SemaContext *context, const MA
         return attributesResult;
     }
 
+    const MAREA_AstNode *parent = context->parent;
+
+    const MAREA_IntegerSize parentIndex = context->parentIndex;
+
+    // INFO: the move frame opens before the scope, so a name that a for or a partition binds is not a local of the frame.
+    MAREA_SemaMoveFrame moveFrame = { 0 };
+
+    const MAREA_SemaExcept moveResult = MAREA_SemaMoveEnter(context, node, &moveFrame);
+
+    if (moveResult != MAREA_SEMA_EXCEPT_SUCCESS) {
+        return moveResult;
+    }
+
     MAREA_SemaScopeMark mark = { 0 };
 
     const MAREA_SemaExcept scopeResult = MAREA_SemaScopeEnter(context, node, &mark);
@@ -171,6 +189,18 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaVisit(MAREA_SemaContext *context, const MA
 
     if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
         result = MAREA_SemaCheckExpressions(context, node);
+    }
+
+    if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
+        result = MAREA_SemaMoveCheckUse(context, node, parent, parentIndex);
+    }
+
+    if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
+        result = MAREA_SemaCaptureBody(context, node, parent);
+    }
+
+    if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
+        result = MAREA_SemaCheckBorrowedSource(context, node);
     }
 
     if (result != MAREA_SEMA_EXCEPT_SUCCESS) {
@@ -220,8 +250,26 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaVisit(MAREA_SemaContext *context, const MA
             continue;
         }
 
+        MAREA_SemaMoveChildEnter(context, node, child, &moveFrame);
+
+        context->parent = node;
+        context->parentIndex = index;
+
         result = MAREA_SemaVisit(context, child);
+
+        if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
+            result = MAREA_SemaMoveChildLeave(context, node, child, &moveFrame);
+        }
     }
+
+    context->parent = parent;
+    context->parentIndex = parentIndex;
+
+    if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
+        MAREA_SemaMoveRecord(context, node);
+    }
+
+    MAREA_SemaMoveLeave(context, node, &moveFrame);
 
     MAREA_SemaInstantiationLeave(context, entered);
 
@@ -250,9 +298,14 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckCompilationUnit(MAREA_SemaContext *co
     context->locals = (MAREA_SemaNameTable){ 0 };
     context->references = (MAREA_SemaNameTable){ 0 };
     context->readOnly = (MAREA_SemaNameTable){ 0 };
+    context->captures = (MAREA_SemaCaptureTable){ 0 };
+    context->forkBody = MAREA_NULLPTR;
+    context->captureLocalBase = 0;
     context->root = root;
     context->function = MAREA_NULLPTR;
     context->implementation = MAREA_NULLPTR;
+    context->parent = MAREA_NULLPTR;
+    context->parentIndex = 0;
     context->selfDepth = 0;
     context->instantiationDepth = 0;
     context->forkDepth = 0;

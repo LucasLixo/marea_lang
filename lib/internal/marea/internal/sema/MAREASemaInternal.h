@@ -50,6 +50,12 @@ MAREA_BEGIN_EXTERN_C
      * The name of a for, for each, partition or with statement also remembers the type its statement gives it,
      * once the typed tree builder has read the header of the statement (null before that, and for every other name).
      * The entry lives as long as the scope of the name, so the type ends with it.
+     *
+     * An entry of the locals table is also the move state of its local: moved is true from a move of the whole
+     * local until a plain assignment to it, and movedAt is the move expression that set it. The state pushes and
+     * pops with the entry, so no second table is kept in step with the scopes. partAt is the field or element
+     * chain (a MEMBER_ACCESS or INDEX_ACCESS node) of the first part moved out of the local, or null: only one
+     * moved part is kept per local, and a plain assignment to the part or to the whole local clears it.
      */
     typedef struct MAREA_SemaName
     {
@@ -62,6 +68,9 @@ MAREA_BEGIN_EXTERN_C
         const MAREA_Character8 *qualifier;
         MAREA_IntegerSize qualifierLength;
         const struct MAREA_SemaExprType *statementType;
+        const MAREA_AstNode *movedAt;
+        const MAREA_AstNode *partAt;
+        MAREA_Boolean moved;
     } MAREA_SemaName;
 
     /**
@@ -74,6 +83,29 @@ MAREA_BEGIN_EXTERN_C
         MAREA_IntegerSize count;
         MAREA_IntegerSize capacity;
     } MAREA_SemaNameTable;
+
+    /**
+     * @brief One value that a worker of a fork_join block, or a partition of it, has taken: the place it was
+     * taken from (a name or a chain of field accesses), whether it is a write, and identity, the declaration
+     * that tells two values of the same name apart (a null identity stands for a local with no declaration node).
+     */
+    typedef struct MAREA_SemaCapture
+    {
+        const MAREA_AstNode *identity;
+        const MAREA_AstNode *place;
+        MAREA_Boolean write;
+    } MAREA_SemaCapture;
+
+    /**
+     * @brief The values taken so far by the workers of the fork_join blocks in progress. It grows with each
+     * spawn or partition and shrinks back when its fork_join block ends. The entries live in the arena of the context.
+     */
+    typedef struct MAREA_SemaCaptureTable
+    {
+        MAREA_SemaCapture *entries;
+        MAREA_IntegerSize count;
+        MAREA_IntegerSize capacity;
+    } MAREA_SemaCaptureTable;
 
     /**
      * @brief Body of the opaque sema context: the caller services, the name tables and the scope state of
@@ -89,11 +121,16 @@ MAREA_BEGIN_EXTERN_C
         MAREA_SemaNameTable locals;
         MAREA_SemaNameTable references;
         MAREA_SemaNameTable readOnly;
+        MAREA_SemaCaptureTable captures;
+        const MAREA_AstNode *forkBody;
+        MAREA_IntegerSize captureLocalBase;
         MAREA_IntegerSize localStart;
         MAREA_IntegerSize functionLocalStart;
         const MAREA_AstNode *root;
         const MAREA_AstNode *function;
         const MAREA_AstNode *implementation;
+        const MAREA_AstNode *parent;
+        MAREA_IntegerSize parentIndex;
         MAREA_Uinteger32 selfDepth;
         MAREA_Uinteger32 instantiationDepth;
         MAREA_Uinteger32 forkDepth;
@@ -113,6 +150,10 @@ MAREA_BEGIN_EXTERN_C
         MAREA_IntegerSize localCount;
         MAREA_IntegerSize referenceCount;
         MAREA_IntegerSize readOnlyCount;
+        MAREA_IntegerSize captureCount;
+        MAREA_IntegerSize captureLocalBase;
+        const MAREA_AstNode *forkBody;
+        MAREA_Boolean captureScope;
         MAREA_IntegerSize localStart;
         MAREA_IntegerSize functionLocalStart;
         MAREA_Uinteger32 selfDepth;
@@ -906,6 +947,101 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckOwnership(MAREA_SemaContext * context, const MAREA_AstNode *node);
 
     /**
+     * @brief Tells whether a value of a type is by value: a primitive, an enum, a copy-contract library type, or
+     * (when unknownIsValue is true) a type that sema cannot see. Such a value is copied, never moved out.
+     * @param context Context of the run. Must not be null.
+     * @param type Type node. May be null, which reads as unknown.
+     * @param unknownIsValue True when a type that sema cannot see counts as by value.
+     * @return True when the type is by value.
+     */
+    MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_SemaTypeIsByValue(const MAREA_SemaContext *context, const MAREA_AstNode *type, MAREA_Boolean unknownIsValue);
+
+    /**
+     * @brief Tells whether every path of a block ends the function, by the same rule as the missing-return check.
+     * @param context Context of the run. Must not be null.
+     * @param block Block node. A null block counts as ending.
+     * @return True when the block ends the function on every path.
+     */
+    MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_SemaBlockTerminates(const MAREA_SemaContext *context, const MAREA_AstNode *block);
+
+    /**
+     * @brief State saved around one branch statement (if, switch) or loop while its children are visited: the
+     * moved bit and the moved part of every local that exists before the statement, as the arms start, and as
+     * the arms merge. Zero filled and inert for any other node.
+     */
+    typedef struct MAREA_SemaMoveFrame
+    {
+        MAREA_Boolean *base;
+        MAREA_Boolean *merged;
+        const MAREA_AstNode **partBase;
+        const MAREA_AstNode **partMerged;
+        MAREA_IntegerSize count;
+        MAREA_Boolean armSeen;
+        MAREA_Boolean hasFallback;
+    } MAREA_SemaMoveFrame;
+
+    /**
+     * @brief Reports a read of a local that was moved: VALUE_MOVED_AGAIN when the read is the operand of a
+     * move, USE_OF_MOVED_VALUE for any other read. A plain assignment target is not a read. A use of a local
+     * through a path that holds, or lies inside, a part that was moved out is USE_OF_PARTIALLY_MOVED_VALUE, and
+     * so is the move of a for each element that is not by value.
+     * @param context Context of the run. Must not be null.
+     * @param node Node about to be visited. Must not be null. Only an identifier is checked.
+     * @param parent Parent of the node, or null at the root.
+     * @param parentIndex Index of the node among the children of the parent.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaMoveCheckUse(MAREA_SemaContext * context, const MAREA_AstNode *node, const MAREA_AstNode *parent, MAREA_IntegerSize parentIndex);
+
+    /**
+     * @brief Records the effect of a node on the move state once its children were visited: a move of a whole
+     * local marks it moved, a move of a field or an element of a local marks that part, a plain assignment to a
+     * whole local or to the moved part makes it live again.
+     * @param context Context of the run. Must not be null.
+     * @param node Node whose children were visited. Must not be null.
+     */
+    void MAREA_CALL MAREA_SemaMoveRecord(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
+     * @brief Opens a frame for a branch or loop node, before its scope is entered, so the names that the scope
+     * binds are not part of the frame.
+     * @param context Context of the run. Must not be null.
+     * @param node Node about to be visited. Must not be null.
+     * @param outFrame Receives the frame. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaMoveEnter(MAREA_SemaContext * context, const MAREA_AstNode *node, MAREA_SemaMoveFrame *outFrame);
+
+    /**
+     * @brief Starts one child of a branch or loop: an arm starts from the state the branch started with.
+     * @param context Context of the run. Must not be null.
+     * @param node Branch or loop node. Must not be null.
+     * @param child Child about to be visited. May be null.
+     * @param frame Frame of the node. Must not be null.
+     */
+    void MAREA_CALL MAREA_SemaMoveChildEnter(MAREA_SemaContext * context, const MAREA_AstNode *node, const MAREA_AstNode *child, MAREA_SemaMoveFrame *frame);
+
+    /**
+     * @brief Ends one child of a branch or loop: a condition joins the base state, an arm that does not end the
+     * function joins the merge, and a loop body that moves an outer local without leaving the loop is reported.
+     * @param context Context of the run. Must not be null.
+     * @param node Branch or loop node. Must not be null.
+     * @param child Child just visited. May be null.
+     * @param frame Frame of the node. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaMoveChildLeave(MAREA_SemaContext * context, const MAREA_AstNode *node, const MAREA_AstNode *child, MAREA_SemaMoveFrame *frame);
+
+    /**
+     * @brief Closes a frame: a local is moved after a branch only when every arm that reaches the end, and
+     * the path of a missing else or default, moved it; after a loop no move of the body counts.
+     * @param context Context of the run. Must not be null.
+     * @param node Branch or loop node. Must not be null.
+     * @param frame Frame of the node. Must not be null.
+     */
+    void MAREA_CALL MAREA_SemaMoveLeave(MAREA_SemaContext * context, const MAREA_AstNode *node, MAREA_SemaMoveFrame *frame);
+
+    /**
      * @brief A parameter's effective passing mode: its own "semantics" attribute, or, when it has none,
      * the default by type class.
      */
@@ -1005,6 +1141,63 @@ MAREA_BEGIN_EXTERN_C
      * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
      */
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckSpawn(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
+     * @brief Compares one valid argument of a spawn with what the earlier workers of the same fork_join block
+     * took, then records it. Two uses of one value, or of one value and a field of it, conflict when one is a
+     * write, and CONFLICTING_PARALLEL_ACCESS is reported. A write in a spawn that repeats (inside a loop or
+     * a partition body) of a value declared before the block conflicts with itself. An argument that is not a
+     * place, or a callee that sema cannot see, is not recorded.
+     * @param context Context of the run. Must not be null.
+     * @param call CALL_EXPRESSION of the spawn. Must not be null.
+     * @param index Index of the argument in the call.
+     * @param argument The argument node. Must not be null.
+     * @param ownStart Size of the capture table before the spawn, so two arguments of one call are not compared.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCaptureArgument(MAREA_SemaContext * context, const MAREA_AstNode *call, MAREA_IntegerSize index, const MAREA_AstNode *argument, MAREA_IntegerSize ownStart);
+
+    /**
+     * @brief Compares the source of a partition with what the workers of the same fork_join block took, then
+     * records it as a write for a partition mutable and as a read for any other.
+     * @param context Context of the run. Must not be null.
+     * @param node PARTITION_STATEMENT node. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCapturePartition(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
+     * @brief Checks that the arguments of one call do not name overlapping places (a field and its owner, one
+     * field twice, one element twice, a loop element and its own collection, a value and a move of it) when one
+     * of them is a write borrow or is moved. A name passed twice is left to MAREA_SemaCheckBorrowArguments.
+     * Reports EXCLUSIVE_BORROW_CONFLICT.
+     * @param context Context of the run. Must not be null.
+     * @param call CALL_EXPRESSION node. Must not be null.
+     * @param parameters PARAMETER_LIST of the callee. Must not be null.
+     * @param arguments ARGUMENT_LIST of the call. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckAliasedArguments(MAREA_SemaContext * context, const MAREA_AstNode *call, const MAREA_AstNode *parameters, const MAREA_AstNode *arguments);
+
+    /**
+     * @brief Checks the body of a for each or a with statement against its source: while the body runs, the
+     * source is borrowed, so a write of it, a move of it and a call that changes it (append and the like) report VALUE_CHANGED_WHILE_BORROWED. Any other node is ignored.
+     * @param context Context of the run. Must not be null.
+     * @param node Node in the visit. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckBorrowedSource(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
+     * @brief Checks a statement that stands directly in a fork_join block (the code of the block, not of a
+     * worker) against what the workers started before it took: a use of a value that a worker writes, or a
+     * write of a value that a worker uses, reports CONFLICTING_PARALLEL_ACCESS. Any other node is ignored.
+     * @param context Context of the run. Must not be null.
+     * @param node Node in the visit. Must not be null.
+     * @param parent Parent of the node, null for the root.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCaptureBody(MAREA_SemaContext * context, const MAREA_AstNode *node, const MAREA_AstNode *parent);
 
     /**
      * @brief Checks a partition statement: it needs an enclosing fork_join block in the current function, or

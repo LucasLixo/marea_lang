@@ -45,7 +45,7 @@ The first line is the header. It has one of three forms:
 A `known_gap` item has `-- rule: reject` or `-- rule: accept` as its second line: the outcome the language has
 decided. A `-- rule:` line in another class is an error. The copyright header follows, then the program.
 
-The codes are the lex codes 1001-1006, the parse codes 2001-2010 and the sema codes 3001-3069 (3023 is retired, and not every other number of the range is a live code).
+The codes are the lex codes 1001-1006, the parse codes 2001-2010 and the sema codes 3001-3074 (3023 is retired, and not every other number of the range is a live code).
 The `@<line>` of the form is optional for the parser of the header, but a `reject` item with a code that has no
 `@<line>` fails.
 
@@ -267,9 +267,9 @@ path of the value changes: local, parameter, field, vector element, `for each` e
 arm of `switch`, loop.
 
 What sema enforces today is small: 3016 (an existing structure, field or element assigned with no word), 3017
-(`value_read_only` on a non-primitive), 3018 (a borrow returned or stored in a field), 3019 (a bare name passed twice
-with a write borrow among them), 3032 (a file constant, or a field or element of one, as a write borrow), 3069 (a write through a read-only
-borrow, and a write borrow of a call result or a literal). Everything else in the known_gap tables below is accepted
+(`value_read_only` on a non-primitive), 3018 (a borrow or a field of a borrow returned, stored in a field, appended to a vector, or a partition part stored outside its body), 3019 (a bare name passed twice
+with a write borrow among them, or two places of one call that overlap, a field and its owner, one field or element twice, a loop element and its own vector, a value and a move of it, when one is a write borrow), 3032 (a file constant, or a field or element of one, as a write borrow), 3069 (a write through a read-only
+borrow, and a write borrow of a call result or a literal), 3073 (the source of a `for each` or a `with` block written, moved or appended to inside its body). Everything else in the known_gap tables below is accepted
 today. The holes are grouped by kind: memory, permission and aliasing. A gap that shares an
 issue shows one hole through more than one program.
 
@@ -367,6 +367,17 @@ write-borrow parameter.
 | L-OWNERSHIP-023 | A structure constant assigned to a local with no word | 3016 @22 |
 | L-OWNERSHIP-032 | A vector assigned with no word | 3016 @20 |
 | L-OWNERSHIP-035 | A library array assigned with no word | 3016 @22 |
+| L-OWNERSHIP-036 | A structure is used after it was moved | 3070 @26 |
+| L-OWNERSHIP-038 | A structure is moved twice | 3071 @26 |
+| L-OWNERSHIP-039 | A structure is moved in a loop body, so the second turn uses a moved value | 3071 @27 |
+| L-OWNERSHIP-041 | A structure is moved in a for loop and the owner is outside | 3071 @26 |
+| L-OWNERSHIP-046 | A structure is used after it was moved into an owned parameter | 3070 @34 |
+| L-OWNERSHIP-048 | An owned parameter is used after it was moved on | 3070 @25 |
+| L-OWNERSHIP-050 | A structure is used after the box that holds it was moved | 3070 @26 |
+| L-OWNERSHIP-051 | A field is moved out and the owner is used | 3072 @26 |
+| L-OWNERSHIP-053 | A field is moved out and then the whole structure is moved | 3072 @26 |
+| L-OWNERSHIP-054 | An element of a vector is moved out and the vector is used | 3072 @21 |
+| L-OWNERSHIP-055 | A for each element is moved out of the loop owner | 3072 @21 |
 | L-OWNERSHIP-058 | A local with no initial value is read | 3065 @20 |
 | L-OWNERSHIP-060 | A local is assigned in one branch only and then read | 3065 @20 |
 | L-OWNERSHIP-062 | A local is assigned in one arm of switch only and then read | 3065 @20 |
@@ -378,6 +389,14 @@ write-borrow parameter.
 | L-OWNERSHIP-071 | A parameter is passed to two write-borrow parameters | 3019 @25 |
 | L-OWNERSHIP-072 | A for each element is passed to two write-borrow parameters | 3019 @26 |
 | L-OWNERSHIP-073 | One value is passed to two write-borrow parameters in a branch | 3019 @31 |
+| L-OWNERSHIP-074 | A field and its owner are passed to a write and a read borrow | 3019 @29 |
+| L-OWNERSHIP-076 | One field is passed to two write-borrow parameters | 3019 @30 |
+| L-OWNERSHIP-077 | One element is passed to two write-borrow parameters | 3019 @25 |
+| L-OWNERSHIP-079 | A value is passed to a write borrow and moved in the same call | 3019 @29 |
+| L-OWNERSHIP-082 | A vector is moved while a for each reads it | 3073 @21 |
+| L-OWNERSHIP-084 | An element is written while a for each reads the vector | 3073 @21 |
+| L-OWNERSHIP-086 | The source of a with block is written inside the block | 3073 @26 |
+| L-OWNERSHIP-088 | The source of a with block is moved inside the block | 3073 @26 |
 | L-OWNERSHIP-089 | A parameter with no attribute is written (rule 2: the default borrow is read-only) | 3069 @20 |
 | L-OWNERSHIP-092 | A field of an explicit read-only borrow is written | 3069 @20 |
 | L-OWNERSHIP-093 | A field of an explicit read-only borrow is changed with a compound operator | 3069 @20 |
@@ -402,6 +421,7 @@ write-borrow parameter.
 | L-OWNERSHIP-121 | A borrow is stored in a field of a literal | 3018 @20 |
 | L-OWNERSHIP-123 | A borrow is assigned to a field | 3018 @25, 3016 @25 |
 | L-OWNERSHIP-125 | A borrow is stored in an element of a vector | 3016 @20 |
+| L-OWNERSHIP-126 | A borrow is appended to a vector | 3018 @20 |
 | L-OWNERSHIP-128 | A borrow is returned through a generic function | 3018 @20 |
 | L-OWNERSHIP-129 | A write borrow of a call result | 3069 @28 |
 | L-OWNERSHIP-131 | A write borrow of a literal | 3069 @24 |
@@ -416,41 +436,16 @@ write-borrow parameter.
 
 | Id | Shows | Expected |
 |---|---|---|
-| L-OWNERSHIP-036 | A structure is used after it was moved | gap: #198 NEW, rule: reject |
-| L-OWNERSHIP-038 | A structure is moved twice | gap: #198 NEW, rule: reject |
-| L-OWNERSHIP-039 | A structure is moved in a loop body, so the second turn uses a moved value | gap: #198 NEW, rule: reject |
-| L-OWNERSHIP-041 | A structure is moved in a for loop and the owner is outside | gap: #198 NEW, rule: reject |
 | L-OWNERSHIP-042 | A structure is moved in one branch and used after the branch | gap: #198 NEW, rule: reject |
 | L-OWNERSHIP-044 | A structure is moved in one arm of switch and used after it | gap: #198 NEW, rule: reject |
-| L-OWNERSHIP-046 | A structure is used after it was moved into an owned parameter | gap: #198 NEW, rule: reject |
-| L-OWNERSHIP-048 | An owned parameter is used after it was moved on | gap: #198 NEW, rule: reject |
-| L-OWNERSHIP-050 | A structure is used after the box that holds it was moved | gap: #198 NEW, rule: reject |
-| L-OWNERSHIP-051 | A field is moved out and the owner is used | gap: #199 NEW, rule: reject |
-| L-OWNERSHIP-053 | A field is moved out and then the whole structure is moved | gap: #199 NEW, rule: reject |
-| L-OWNERSHIP-054 | An element of a vector is moved out and the vector is used | gap: #199 NEW, rule: reject |
-| L-OWNERSHIP-055 | A for each element is moved out of the loop owner | gap: #199 NEW, rule: reject |
 | L-OWNERSHIP-056 | A read-only borrow is moved out | gap: #200 NEW, rule: reject |
 | L-OWNERSHIP-057 | A file constant is moved out | gap: #200 NEW, rule: reject |
-| L-OWNERSHIP-126 | A borrow is appended to a vector | gap: #205 3018, rule: reject |
 | L-OWNERSHIP-142 | An existing value is given to an owned parameter with no word | 3016 @29 |
-
-#### Aliasing holes
-
-| Id | Shows | Expected |
-|---|---|---|
-| L-OWNERSHIP-074 | A field and its owner are passed to a write and a read borrow | gap: #201 3019, rule: reject |
-| L-OWNERSHIP-076 | One field is passed to two write-borrow parameters | gap: #201 3019, rule: reject |
-| L-OWNERSHIP-077 | One element is passed to two write-borrow parameters | gap: #201 3019, rule: reject |
-| L-OWNERSHIP-079 | A value is passed to a write borrow and moved in the same call | gap: #201 3019, rule: reject |
-| L-OWNERSHIP-082 | A vector is moved while a for each reads it | gap: #202 3019, rule: reject |
-| L-OWNERSHIP-084 | An element is written while a for each reads the vector | gap: #202 3019, rule: reject |
-| L-OWNERSHIP-086 | The source of a with block is written inside the block | gap: #202 3019, rule: reject |
-| L-OWNERSHIP-088 | The source of a with block is moved inside the block | gap: #202 3019, rule: reject |
 
 ## Memory and regions
 
 Scopes that end, data that goes up with `return value;` and `move`, `construct` and `destroy`, the explicit call of a
-lifecycle operator (3027) and structured `fork_join` with `partition` and `spawn` (3020, 3024). The items sit in
+lifecycle operator (3027) and structured `fork_join` with `partition` and `spawn` (3020, 3024, 3074). The items sit in
 `tests/language/<class>/memory/`. An accept item of `construct` and `destroy` carries the expected order in a
 `-- output:` comment for the future vm; the runner reads no output today.
 
@@ -479,13 +474,19 @@ lifecycle operator (3027) and structured `fork_join` with `partition` and `spawn
 | Id | Shows | Expected |
 |---|---|---|
 | L-MEMORY-004 | A local of a scope block is used after the block | 3004 @27 |
+| L-MEMORY-006 | An inner owner is used after it moved up | 3070 @28 |
+| L-MEMORY-007 | An outer owner is moved down into an inner scope and used after | 3070 @28 |
 | L-MEMORY-008 | A name of a nested scope block does not leave it | 3004 @28 |
-| L-MEMORY-009 | A reference stored in an outer local from an inner scope | 3016 @27 |
+| L-MEMORY-009 | A reference stored in an outer local from an inner scope | 3073 @27, 3016 @27 |
 | L-MEMORY-017 | The destroy operator is called by its bare name | 3004 @34, 3027 @34 |
 | L-MEMORY-018 | The destroy operator is called by the static form | 3027 @34 |
 | L-MEMORY-019 | The construct operator is called by the static form | 3027 @34 |
+| L-MEMORY-020 | The destroy operator is called on a value | 3027 @35 |
+| L-MEMORY-021 | A structure is destroyed twice by moving it and keeping the old owner | 3071 @36 |
 | L-MEMORY-023 | A worker spawned on a write-borrow parameter | 3020 @29 |
 | L-MEMORY-025 | A worker spawned on a call result | 3020 @29 |
+| L-MEMORY-026 | Two workers write the same local | 3074 @31 |
+| L-MEMORY-028 | A worker writes a local that the block reads at the same time | 3074 @35 |
 | L-MEMORY-029 | A return leaves the body of a partition | 3024 @22 |
 | L-MEMORY-030 | A worker is spawned outside of a fork_join block | 3062 @29 |
 | L-MEMORY-031 | A worker takes the part of a partition mutable while the source is also spawned | 3020 @30 |
@@ -493,21 +494,8 @@ lifecycle operator (3027) and structured `fork_join` with `partition` and `spawn
 
 ### Memory and regions: known_gap
 
-#### Memory holes
-
 | Id | Shows | Expected |
 |---|---|---|
-| L-MEMORY-006 | An inner owner is used after it moved up | gap: #198 NEW, rule: reject |
-| L-MEMORY-007 | An outer owner is moved down into an inner scope and used after | gap: #198 NEW, rule: reject |
-| L-MEMORY-020 | The destroy operator is called on a value | gap: #209 3027, rule: reject |
-| L-MEMORY-021 | A structure is destroyed twice by moving it and keeping the old owner | gap: #198 NEW, rule: reject |
-
-#### Aliasing holes
-
-| Id | Shows | Expected |
-|---|---|---|
-| L-MEMORY-026 | Two workers write the same local | gap: #210 3020, rule: reject |
-| L-MEMORY-028 | A worker writes a local that the block reads at the same time | gap: #210 3020, rule: reject |
 
 ## Functions and calls
 
@@ -949,6 +937,7 @@ checked. The type `handle<T>` is rejected with 3009 by the type checker, so it h
 | L-INTEROP-048 | A raw pointer local outside an unsafe block | 3041 @12 |
 | L-INTEROP-049 | A name of a with block used after its end | 3004 @15 |
 | L-INTEROP-050 | An owner of an opaque type assigned with no move | 3016 @15 |
+| L-INTEROP-051 | An owner of an opaque type is used after it moved | 3070 @16 |
 | L-INTEROP-052 | A print macro with no argument | 3061 @10 |
 | L-INTEROP-053 | An unreachable macro with an argument | 3061 @10 |
 | L-INTEROP-054 | A macro name called without the bang | 3004 @10 |
@@ -965,14 +954,13 @@ checked. The type `handle<T>` is rejected with 3009 by the type checker, so it h
 
 | Id | Shows | Expected |
 |---|---|---|
-| L-INTEROP-051 | An owner of an opaque type is used after it moved | gap: NEW, rule: reject, issue #198 |
 
 ## Parallel code
 
 `fork_join` blocks, `partition` and `partition mutable`, `spawn` and its argument rule (3020), jumps out of a parallel
-body (3024), the `task` result read after the join, and the races that compile today. The items sit in
+body (3024), two workers or a worker and the block that use one value when one writes it (3074), the `task` result read after the join, and the races that compile today. The items sit in
 `tests/language/<class>/parallel/`. Ids are `L-PARALLEL-nnn`; the numbers are not continuous, because a gap in the
-numbers groups the kinds (accept 001-020 and 079, 3020 rejects 030-039, 3024 rejects 040-051, holes 060-077).
+numbers groups the kinds (accept 001-020 and 079, 3020 rejects 030-039, 3024 rejects 040-051, 3074 rejects 060-063 and 076, holes 065-069).
 
 What sema enforces today is small, and it sits in `lib/source/marea/sema/MAREASemaParallel.c`. 3020: in a `fork_join`,
 each argument of a `spawn` is a part, a literal, a file constant, a name that is not a write-borrow parameter and not
@@ -981,10 +969,14 @@ value, `copy x`, `move x`) is rejected. 3024: a `return`, `break` or `continue` 
 directly in a `fork_join` block. 3062: a `spawn` or a `partition` with no enclosing `fork_join` block in the same
 function (L-MEMORY-030, L-PARALLEL-064, L-PARALLEL-070). 3063: the operand of a `spawn` is not a call, a macro call included
 (L-PARALLEL-071). 3064: the source of a `partition` is known not to be an array, a number, a primitive, a structure or an
-enum (L-PARALLEL-072). Nothing else about parallel code is checked: there is no
-data-race analysis. Every hole below is accepted today and is a `known_gap` item. A gap that shares an issue shows one
-hole through more than one program. #210 (two workers use the same local) was opened by the memory area and is reused
-here.
+enum (L-PARALLEL-072). 3074: a table of what the workers of one `fork_join` block took (`MAREASemaCapture.c`) is kept
+from the block start to its end, and a use that overlaps an earlier one, where one of the two writes, is rejected: two
+workers on one value, a worker and a later worker or `partition`, a spawn in a loop or a `partition` body that writes a
+value declared before the block, and a statement of the block that follows a worker and uses what it writes (or writes
+what it reads). A value and a field of it overlap, two fields do not. A nested block is compared with its outer block
+(L-PARALLEL-060 to 063 and 076, L-MEMORY-026 and 028, L-ADVERSARIAL-008, 024 and 025, issue #210). Nothing else about
+parallel code is checked: there is no full data-race analysis. Every hole below is accepted today and is a `known_gap`
+item. A gap that shares an issue shows one hole through more than one program.
 
 Facts the items fix, checked by running the compiler:
 
@@ -1048,12 +1040,18 @@ Facts the items fix, checked by running the compiler:
 | L-PARALLEL-049 | A loop outside the fork_join block is no target for a break | 3024 @54 |
 | L-PARALLEL-050 | A return in a nested fork_join | 3024 @54 |
 | L-PARALLEL-051 | A continue in a partition body inside a loop that is outside the block | 3024 @55 |
+| L-PARALLEL-060 | One part is passed to two workers that write it | 3074 @55 |
+| L-PARALLEL-061 | A worker writes a local and another worker reads it | 3074 @55 |
+| L-PARALLEL-062 | A spawn in a loop writes the same local in each turn | 3074 @55 |
+| L-PARALLEL-063 | A worker writes the local that the partition reads | 3074 @56 |
 | L-PARALLEL-064 | A worker is spawned after the end of a fork_join block | 3062 @56 |
+| L-PARALLEL-068 | A part is stored in a local of the function and outlives the body | 3018 @55 |
 | L-PARALLEL-070 | A partition is used outside of a fork_join block | 3062 @52 |
 | L-PARALLEL-071 | A spawn statement that is not a call | 3063 @54 |
 | L-PARALLEL-072 | A partition of a value that is no array | 3064 @54 |
 | L-PARALLEL-073 | A part of a partition that only reads is written | 3069 @54, 3069 @55 |
 | L-PARALLEL-075 | A read-only parameter is spawned into a function that writes it | 3069 @53 |
+| L-PARALLEL-076 | A local is written by a worker and by the body of the block | 3074 @55 |
 | L-PARALLEL-077 | A part is passed to a function that writes it, with partition and no mutable | 3069 @54 |
 | L-PARALLEL-080 | A part is used after the partition body | 3004 @56 |
 
@@ -1061,16 +1059,10 @@ Facts the items fix, checked by running the compiler:
 
 | Id | Shows | Expected |
 |---|---|---|
-| L-PARALLEL-060 | One part is passed to two workers that write it | gap: #210 3020, rule: reject |
-| L-PARALLEL-061 | A worker writes a local and another worker reads it | gap: #210 3020, rule: reject |
-| L-PARALLEL-062 | A spawn in a loop writes the same local in each turn | gap: #210 3020, rule: reject |
-| L-PARALLEL-063 | A worker writes the local that the partition reads | gap: #210 3020, rule: reject |
 | L-PARALLEL-065 | A partition body writes a local of the function, so the workers race on it | gap: #230 NEW, rule: reject |
 | L-PARALLEL-066 | A partition body adds to a local of the function | gap: #230 NEW, rule: reject |
 | L-PARALLEL-067 | A partition body writes a field of a local of the function | gap: #230 NEW, rule: reject |
-| L-PARALLEL-068 | A part is stored in a local of the function and outlives the body | gap: #231 NEW, rule: reject |
 | L-PARALLEL-069 | The source of a partition mutable is written in the body while the parts are written | gap: #232 NEW, rule: reject |
-| L-PARALLEL-076 | A local is written by a worker and by the body of the block | gap: #210 3020, rule: reject |
 
 ## Adversarial
 
@@ -1095,11 +1087,13 @@ Facts the items fix, checked by running the compiler:
   literal, else branch, method, operator, generic with a bound (items 034 to 039).
 - The word that makes an assignment explicit is checked on a name that is a plain value (3016, items 040, 041, 045), on a
   returned borrow (3018, items 043, 044, 046, 047, 048) and on one call that shares a write borrow (3019, item 042). The
-  same word swapped from `copy` to `move` is never checked against the source: a `move` of a borrow, a file constant, a
-  `for each` element or a field is accepted (issues #199 and #200, items 013, 015, 050 to 052, 056 to 060, 066).
-- The use of a value after `move` is accepted through every path tried here: a loop in a `fork_join` block, the body of a
-  partition, an arm of `switch` that a spawn follows, a generic function, a method call and a second move into a
-  generic function (issue #198, items 001 to 004, 016, 026, 027, 030).
+  same word swapped from `copy` to `move` is never checked against the source: a `move` of a borrow or a file constant
+  is accepted (issue #200, items 013, 050, 052, 056 to 060, 066). A `move` of a `for each` element, of a field or of an
+  element of an owner gives 3072 (issue #199, items 015, 051, 053 to 055, 057).
+- The use of a value after `move` gives 3070, and a second move gives 3071, through every path tried here: a loop in a
+  `fork_join` block, the body of a partition, a generic function, a method call and a second move into a generic
+  function (issue #198, items 001, 002, 004, 016, 026, 027, 030). A move in only some arms of a branch is accepted by
+  design (the merge rule rounds toward valid): item 003, an arm of `switch` that a spawn follows, stays a `known_gap`.
 - A read-only borrow that is written, or passed on to a write borrow, gives 3069 through a generic function, a
   `for each` over a read-only vector, a worker and a `partition mutable` of a read-only source (issues #203 and #204,
   items 009, 014, 031, 033, 054, 055, 061 to 065).
@@ -1120,19 +1114,33 @@ generic or an alias leads to is not checked by sema either (see the sema doc, Ga
 
 | Id | Shows | Expected |
 |---|---|---|
+| L-ADVERSARIAL-001 | A value is moved in each turn of a loop inside a fork_join block | 3071 @39 |
+| L-ADVERSARIAL-002 | An outer local is moved in the body of a partition, once for each part | 3071 @59 |
+| L-ADVERSARIAL-004 | A generic function moves its argument twice | 3071 @40 |
 | L-ADVERSARIAL-005 | A value is passed to a generic function twice as a write borrow | 3019 @40 |
+| L-ADVERSARIAL-006 | A for each mutable element and its own vector are passed to one call | 3019 @40 |
+| L-ADVERSARIAL-007 | A for each mutable appends to the vector it walks | 3073 @37 |
+| L-ADVERSARIAL-008 | A partition mutable of a field and a worker that reads the owner of that field | 3074 @73 |
 | L-ADVERSARIAL-009 | A read-only borrow is passed to a generic function that writes it | 3069 @39 |
 | L-ADVERSARIAL-010 | A file constant is passed to a generic function as a write borrow | 3032 @41 |
+| L-ADVERSARIAL-011 | A field of a borrow is returned from an arm of switch | 3018 @38 |
 | L-ADVERSARIAL-012 | A contract method stores its receiver in a write borrow | 3018 @41, 3016 @41 |
 | L-ADVERSARIAL-014 | A contract method writes its receiver with the default borrow | 3069 @41 |
+| L-ADVERSARIAL-015 | A for each element is moved into an owned parameter | 3072 @37 |
+| L-ADVERSARIAL-016 | A value moved into an owned parameter is spawned afterwards | 3070 @59 |
 | L-ADVERSARIAL-017 | A local with no initial value is spawned | 3065 @56 |
 | L-ADVERSARIAL-018 | A literal out of range is the argument of a spawn | 3033 @61 |
 | L-ADVERSARIAL-019 | A literal out of range is the default value of a parameter | 3033 @35 |
 | L-ADVERSARIAL-020 | A literal out of range is a field of a struct literal | 3033 @40 |
 | L-ADVERSARIAL-021 | A literal out of range is the value of a constant used by a generic call | 3033 @35 |
 | L-ADVERSARIAL-022 | An unsigned value is negated in an arm of switch | 3036 @38 |
+| L-ADVERSARIAL-024 | A nested fork_join reads what the outer block writes | 3074 @60 |
+| L-ADVERSARIAL-025 | Two workers over one for each mutable element, one writes and one reads | 3074 @59 |
+| L-ADVERSARIAL-026 | A value moved into a generic function is read afterwards | 3070 @42 |
+| L-ADVERSARIAL-027 | A method is called on a value that was moved | 3070 @44 |
 | L-ADVERSARIAL-028 | A return in an arm of switch stands directly in a fork_join block | 3024 @60 |
 | L-ADVERSARIAL-029 | A write borrow of a call result is spawned through a generic function | 3020 @60 |
+| L-ADVERSARIAL-030 | A generic function returns an owned parameter and the caller keeps the old name | 3071 @42 |
 | L-ADVERSARIAL-031 | A worker is spawned on an element of a read-only vector and writes it | 3069 @58 |
 | L-ADVERSARIAL-032 | A struct literal takes a borrow inside a loop in a fork_join block | 3018 @58 |
 | L-ADVERSARIAL-033 | A nested field of a read-only parameter is written in a switch arm of a generic function | 3069 @38 |
@@ -1152,8 +1160,10 @@ generic or an alias leads to is not checked by sema either (see the sema doc, Ga
 | L-ADVERSARIAL-047 | Mutant of L-TYPES-111: the owned wrapper is dropped from a generic parameter that is returned | 3018 @11 |
 | L-ADVERSARIAL-048 | Mutant of L-TYPES-075: the copy word is dropped from a generic result | 3018 @25 |
 | L-ADVERSARIAL-049 | Mutant of L-BINDINGS-092: the unsafe word is dropped | 2004 @14, 2004 @14, 2005 @15, 3022 @10 |
+| L-ADVERSARIAL-051 | Mutant of L-OWNERSHIP-014: copy is swapped for move on a for each element | 3072 @22 |
 | L-ADVERSARIAL-054 | Mutant of L-OWNERSHIP-078: the write attribute becomes read-only on the owner of the elements that two calls write | 3069 @26, 3069 @26 |
 | L-ADVERSARIAL-055 | Mutant of L-OWNERSHIP-106: the write attribute becomes read-only on a primitive parameter that the body writes | 3069 @21 |
+| L-ADVERSARIAL-057 | Mutant of L-OWNERSHIP-118: copy is swapped for move in a return of a for each element | 3072 @22 |
 | L-ADVERSARIAL-061 | Mutant of L-PARALLEL-001: the mutable word is dropped from a for each that writes its element | 3069 @40 |
 | L-ADVERSARIAL-062 | Mutant of L-PARALLEL-006: the write attribute becomes read-only on the source of a partition mutable | 3069 @54, 3069 @55 |
 | L-ADVERSARIAL-063 | Mutant of L-PARALLEL-006: the write attribute is dropped from the source of a partition mutable | 3069 @54, 3069 @55 |
@@ -1170,29 +1180,13 @@ generic or an alias leads to is not checked by sema either (see the sema doc, Ga
 
 | Id | Shows | Expected |
 |---|---|---|
-| L-ADVERSARIAL-001 | A value is moved in each turn of a loop inside a fork_join block | gap: #198 NEW, rule: reject |
-| L-ADVERSARIAL-002 | An outer local is moved in the body of a partition, once for each part | gap: #198 NEW, rule: reject |
 | L-ADVERSARIAL-003 | A value moved in an arm of switch is spawned after the switch | gap: #198 NEW, rule: reject |
-| L-ADVERSARIAL-004 | A generic function moves its argument twice | gap: #198 NEW, rule: reject |
-| L-ADVERSARIAL-006 | A for each mutable element and its own vector are passed to one call | gap: #202 3019, rule: reject |
-| L-ADVERSARIAL-007 | A for each mutable appends to the vector it walks | gap: #202 3019, rule: reject |
-| L-ADVERSARIAL-008 | A partition mutable of a field and a worker that reads the owner of that field | gap: #210 3020, rule: reject |
-| L-ADVERSARIAL-011 | A field of a borrow is returned from an arm of switch | gap: #205 3018, rule: reject |
 | L-ADVERSARIAL-013 | A contract method moves its receiver into a write borrow | gap: #200 NEW, rule: reject |
-| L-ADVERSARIAL-015 | A for each element is moved into an owned parameter | gap: #199 NEW, rule: reject |
-| L-ADVERSARIAL-016 | A value moved into an owned parameter is spawned afterwards | gap: #198 NEW, rule: reject |
 | L-ADVERSARIAL-023 | The source of a partition mutable is read in the body while the parts are written | gap: #232 NEW, rule: reject |
-| L-ADVERSARIAL-024 | A nested fork_join reads what the outer block writes | gap: #210 3020, rule: reject |
-| L-ADVERSARIAL-025 | Two workers over one for each mutable element, one writes and one reads | gap: #210 3020, rule: reject |
-| L-ADVERSARIAL-026 | A value moved into a generic function is read afterwards | gap: #198 NEW, rule: reject |
-| L-ADVERSARIAL-027 | A method is called on a value that was moved | gap: #198 NEW, rule: reject |
-| L-ADVERSARIAL-030 | A generic function returns an owned parameter and the caller keeps the old name | gap: #198 NEW, rule: reject |
 | L-ADVERSARIAL-050 | Mutant of L-OWNERSHIP-012: copy is swapped for move on a borrowed parameter | gap: #200 NEW, rule: reject |
-| L-ADVERSARIAL-051 | Mutant of L-OWNERSHIP-014: copy is swapped for move on a for each element | gap: #199 NEW, rule: reject |
 | L-ADVERSARIAL-052 | Mutant of L-OWNERSHIP-024: copy is swapped for move on a file constant | gap: #200 NEW, rule: reject |
 | L-ADVERSARIAL-053 | Mutant of L-OWNERSHIP-047: the move word is dropped from an owned argument | 3016 @35 |
 | L-ADVERSARIAL-056 | Mutant of L-OWNERSHIP-114: copy is swapped for move in a return of a borrow | gap: #200 NEW, rule: reject |
-| L-ADVERSARIAL-057 | Mutant of L-OWNERSHIP-118: copy is swapped for move in a return of a for each element | gap: #199 NEW, rule: reject |
 | L-ADVERSARIAL-058 | Mutant of L-OWNERSHIP-122: copy is swapped for move on a borrow stored in a struct literal | gap: #200 NEW, rule: reject |
 | L-ADVERSARIAL-059 | Mutant of L-OWNERSHIP-124: copy is swapped for move on a borrow stored in a field | gap: #200 NEW, rule: reject |
 | L-ADVERSARIAL-060 | Mutant of L-OWNERSHIP-127: copy is swapped for move on a borrow appended to a vector | gap: #200 NEW, rule: reject |
@@ -1246,19 +1240,19 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 
 | area | accept | reject | known_gap |
 |---|---|---|---|
-| adversarial | 0 | 46 | 26 |
+| adversarial | 0 | 62 | 10 |
 | bindings | 33 | 80 | 0 |
 | coverage | 0 | 1 | 0 |
 | examples | 20 | 0 | 0 |
 | functions | 19 | 54 | 0 |
-| interop | 17 | 27 | 1 |
-| memory | 15 | 12 | 6 |
+| interop | 17 | 28 | 0 |
+| memory | 15 | 18 | 0 |
 | namespaces | 17 | 34 | 0 |
-| ownership | 65 | 56 | 24 |
-| parallel | 19 | 30 | 10 |
+| ownership | 65 | 76 | 4 |
+| parallel | 19 | 36 | 4 |
 | seed | 1 | 2 | 0 |
 | types | 60 | 132 | 4 |
-| total | 266 | 474 | 71 |
+| total | 266 | 523 | 22 |
 
 ## Parity plan
 
@@ -1352,7 +1346,7 @@ The coverage test holds this list; an example that gains an item must leave it.
 
 ### Diagnostic codes with no reject item
 
-Every live lex, parse and sema code (1001-1006, 2001-2010, 3001-3069 without 3023 and the numbers no code uses) has a `reject` item, except 3066,
+Every live lex, parse and sema code (1001-1006, 2001-2010, 3001-3074 without 3023 and the numbers no code uses) has a `reject` item, except 3066,
 3067 and 3068: no item can reach a second namespace (issue #250), and `tests/source/sema/MAREASemaVisibility.cpp`
 proves them. The ir codes
 4004, 4005 and 4006 are exempt: the runner runs lex, parse and sema only, so no item can reach the ir. The exemption ends
@@ -1365,7 +1359,7 @@ Each rule is kept as a `known_gap` item with its issue, as reject codes, or as a
 
 | Missing rule | Where it is kept |
 |---|---|
-| use of a moved value | known_gap items of #198 |
+| use of a moved value | reject items of 3070 and 3071 (issue #198); a move in only some arms of a branch is accepted by design, so the known_gap items L-OWNERSHIP-042, L-OWNERSHIP-044 and L-ADVERSARIAL-003 stay |
 | use of an uninitialized value | reject items of 3065 (a local with no initial value, issue #177) |
 | write through a read-only borrow | reject items of 3069 (a write through a read-only borrow, issues #203, #204, #206 and #214) |
 | literal out of range | reject items with 3033 (L-BINDINGS-022, 026 to 029, 031, L-ADVERSARIAL-018 to 021) |

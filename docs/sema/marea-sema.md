@@ -22,7 +22,7 @@ MAREA_SemaCheckCompilationUnit(sema, root);   /* once per file, dependencies fir
 `MAREA_SemaCheckCompilationUnit` returns an error only for a null argument or an out of memory. A rule
 violation is a diagnostic in the sink. A size that does not fit in `MAREA_IntegerSize` (a diagnostic
 message, or the growth of a name table) is also an out of memory: nothing is allocated or copied.
-Every sema diagnostic is an error, in the range 3001-3069. Not every number of the range is a live code: the
+Every sema diagnostic is an error, in the range 3001-3074. Not every number of the range is a live code: the
 Diagnostics table lists the live ones.
 The lexer file name decides the path rule, so call `MAREA_LexContextSetFileName` with a project
 relative path with forward slashes and the `.marea` extension before the lex step.
@@ -212,7 +212,7 @@ type, and a `construct` has no return type and a default on every parameter; any
 `LIFECYCLE_OPERATOR_BAD_SHAPE` (3029), once per function. A call of such a function is
 `LIFECYCLE_OPERATOR_CALLED_DIRECTLY` (3027): by a bare name that no local and no top-level function of another
 meaning hides, by the static form `Type.name(...)` where `Type` is the implemented type, and by a call on a value
-(`point.drop()`), decided to be rejected the same way (see Gaps). The automatic call
+(`point.drop()`) whose inferred type is one plain type name of the file. The automatic call
 at creation and destruction is lowered in the ir, not here.
 
 **Operator signature.** A function with `#[operator = "<token>"]` in an `implementation` block is checked against its
@@ -309,8 +309,41 @@ an explicit `reference_mutable` (write-borrow) parameter has no writable storage
 back the borrow, so it is rejected with `CANNOT_BORROW_CONSTANT_AS_MUTABLE` (3032); a variable
 passed to the same parameter is unaffected. An assignment (`=` or a compound form) whose target is a file constant, or a field or element path
 rooted in one (`ORIGIN.x = 1;`, `TABLE[0] = 1;`), is `ASSIGNMENT_TO_CONSTANT` (3040), raised at the target; a local,
-parameter or `for` variable of the same name hides the constant and may be assigned. Tracking of a moved local and a live borrow across
+parameter or `for` variable of the same name hides the constant and may be assigned. Tracking of a live borrow across
 statements is a design decision recorded in the last bullet of `## Gaps`.
+
+**Borrowed source.** While the body of a `for each` or a `with` block runs, its source is borrowed. `MAREA_SemaCheckBorrowedSource`
+(`MAREASemaBorrowLive.c`) walks the body once, when the visit reaches the statement, and reports `VALUE_CHANGED_WHILE_BORROWED` (3073) at a
+write whose target overlaps the source, at a `move` of a place that overlaps it, and at a call of `append`, `insert`, `remove`, `clear`,
+`pop`, `push` or `resize` on it. Two places overlap when they share a root name and one path starts with the other: a value and a field of
+it overlap, two fields do not, and two elements overlap unless both indices are integer literals of two values. A `with` over a call, and
+a write through the loop name or the `with` name, are not a source use. The borrow ends with the statement, so a change after it is
+accepted. This check keeps no table of its own: the scan of the body is the whole state, and every arm of a branch inside the body
+counts, which is the conservative direction for a loop that runs once. 3019 uses the same overlap rule for the arguments of one call; a
+`for each` name stands for its source there, and a `copy x` argument is a new value, not a use of `x`.
+
+**Move state.** `move x` of a whole local or parameter whose type is not by value (not a primitive, an enum, a copy-contract library
+type, or a type that sema cannot see) marks that local moved. A later read of it is `USE_OF_MOVED_VALUE` (3070), a later `move` of it is
+`VALUE_MOVED_AGAIN` (3071), both raised at the name. A read is a name in a place that takes a value (an operand, an argument, the root
+of a member or index chain, a method receiver, a `spawn` argument, a `return`, a condition, a loop bound or collection); a declared name,
+a member name, a field key and a case label are not reads. A plain assignment `x = value;` of the whole local makes it live again, after
+its right side was read; `x.field = value;` and `x += 1;` are reads. A new local of the same name is a new, live local. The moved bit is
+a field of the entry of the `locals` table (`MAREA_SemaName`), so it pushes and pops with the scope of the local, and it is read and
+written in the one `MAREA_SemaVisit` pass (`MAREASemaMoveState.c`). A branch follows the merge rule of the design in `## Gaps`: every
+arm of an `if`/`elseif`/`else` or `switch` starts from the state the statement started with, an arm that ends the function
+(`MAREA_SemaBlockTerminates`) takes no part, a local is moved after the statement only when every arm that reaches the end moved it and
+the statement has an `else` or `default`, and a `do` block is not a branch. The body of a loop (`while`, `for`, `for each`,
+`partition`) starts from the state the loop started with, and nothing it moves counts after the loop, because it may run zero times. A
+body that moves a local declared outside the loop, and has no `break` or `return` among its own statements, would move it again on
+the next turn: `VALUE_MOVED_AGAIN` at the `move`. A move of a field or an element (`move x.inner`, `move xs[0]`) of a local that is not a borrow, when the part is not by value and sema can
+see its type, marks that part: the entry keeps the chain of the first part moved out (`partAt`), and it saves, loads and merges with the
+`moved` bit in the frame of a branch, but a part counts after a branch only when every arm that reaches the end moved the same part. A
+later use of a path that holds the moved part (`x`, passed or moved whole, or a method called on it) or lies inside it (`x.inner.y`, the
+part itself again) is `USE_OF_PARTIALLY_MOVED_VALUE` (3072), raised at the access; a path that differs from it at a field name or a
+literal index (`x.count`, `xs[1]`) is not a use. An index that is not an integer literal is never equal to another index, so it is never
+compared. A plain assignment to the part, or to a path that holds it, or to the whole local, makes the part live again. A `move` of a
+`for each` loop name, whose collection is a `vector`, `array` or `slice` (also inside `owned`) of a type that is not by value, is also
+3072 at the name, because the loop reads the collection again on the next turn; a loop with a key and a value is not read.
 
 **Integer literal range.** An integer literal (decimal, `0x` or `0b`, with `_` between digits, with one
 leading minus and any parentheses) must fit the integer primitive it meets: `sinteger8` to `sinteger64`, `uinteger8`
@@ -356,6 +389,22 @@ outside every `fork_join` block is not changed. The rule follows the grammar: `r
 (note 9), the body is run once for each part, and all spawned work ends before the `end` of the `fork_join`
 - a jump that bypasses that `end`, from inside a `partition` body or directly in the block, would skip the
 join of the spawned workers.
+
+**Shared access in one fork_join block.** `MAREASemaCapture.c` keeps one table of what the workers of the `fork_join`
+blocks in progress took. A valid argument of a `spawn` is recorded as a write when the parameter of the callee (a function of
+the file, found by name) is `reference_mutable`, as a read when it is a read-only borrow, and not at all for a by-value
+parameter, a move-in parameter or a callee that sema cannot see. A `partition` source is recorded as a write for
+`partition mutable` and as a read otherwise. Before a new entry is added, it is compared with every earlier entry of the
+block and of the blocks around it: the same value (a part and a loop name are known by the node that declared them, a local by
+its type node) and overlapping places, where one of the two is a write, is `CONFLICTING_PARALLEL_ACCESS` (3074) at the
+argument or the source. Two places overlap when the path of one (the name, then the field names; an index access ends the
+path) is the start of the path of the other, so a value and a field of it overlap and two fields do not. Two arguments of one
+`spawn` are not compared with each other (the call check owns that). A write in a `spawn` that repeats, inside a loop or a
+`partition` body, of a value declared before its `fork_join` block, is also 3074, because each turn is a new writer. A
+statement that stands directly in the block (the block body, outside every `spawn`, `partition` and nested `fork_join`) is
+scanned when the visit reaches it: a use of a value that an earlier worker writes, or a write of a value that an earlier
+worker reads, is 3074 at the use. The table is cut back when the `fork_join` block ends, so two blocks in a row do not meet.
+An argument that is already `INVALID_SPAWN_ARGUMENT` is not recorded, so one mistake gives one diagnostic.
 
 **Control flow.** A function with a return type ends every path with `return value;`, through `if`,
 `elseif`, `else`, scope blocks and `switch`. A loop is never an ending path. `unreachable!()` and
@@ -825,8 +874,8 @@ or rejects.
 | 3015 | `INSTANTIATION_TOO_DEEP` | a type argument nested 65 levels |
 | 3016 | `ASSIGNMENT_NEEDS_COPY_OR_MOVE` | `a = b;` when the type is not a primitive, a copyable `array` or an enum; a library storage type (`c.array`, `c.vector`, `c.table`, `c.owned`, `c.task`) needs the word too; so does a name, a field or an element given to an `owned<T>` parameter, reported at the argument (`MAREA_SemaCheckOwnedArguments`; a `vector` or `task` parameter is not checked, and an argument of unknown type is accepted) |
 | 3017 | `INVALID_BORROW` | `#[semantics = value_read_only] s: Shape` when `Shape` is not a primitive |
-| 3018 | `REFERENCE_ESCAPES_SCOPE` | `return s;` when `s` is a borrow parameter |
-| 3019 | `EXCLUSIVE_BORROW_CONFLICT` | `take(s, s)` when one parameter's effective `semantics` is `reference_mutable` |
+| 3018 | `REFERENCE_ESCAPES_SCOPE` | `return s;` when `s` is a borrow parameter; `return s.inner;` when the field is not a value (also in an arm of `switch`); `shapes.append(s);` (the one storing library call that sema knows by name); `kept = part;` when `kept` is not declared in the `partition` body |
+| 3019 | `EXCLUSIVE_BORROW_CONFLICT` | `take(s, s)` when one parameter's effective `semantics` is `reference_mutable`; also two arguments that name overlapping places when one is a write borrow or a `move` (`two_write(b.inner, b.inner)`, `two_write(v[0], v[0])`, `wr(b.inner, b)`, `wt(p, move p)`, `pair(item, v)` in a `for each item in mutable v`; `MAREA_SemaCheckAliasedArguments`) |
 | 3020 | `INVALID_SPAWN_ARGUMENT` | `spawn g(m)` in `fork_join` when `m`'s effective `semantics` is `reference_mutable` |
 | 3021 | `NON_EXHAUSTIVE_SWITCH` | a `switch` over an enum that misses a variant and has no `default` |
 | 3022 | `MISSING_RETURN` | `if a then return 1; end` as the whole body of a function with a return type |
@@ -876,6 +925,11 @@ or rejects.
 | 3067 | `PRIVATE_TYPE_ACCESS` | `s: b.Secret`, `b.Secret{ }` or any written `b.Secret` when the structure, enum, opaque or alias of a `FOUND` namespace is private |
 | 3068 | `PRIVATE_FIELD_ACCESS` | `box.value`, `box.value = 1` or `b.Box{ value = 1 }` when `box` is written `b.Box` and the field has `#[visibility = private]` |
 | 3069 | `WRITE_THROUGH_READ_ONLY_BORROW` | `function f(p: Point) p.x = 1; end`, `for each v in mutable xs do end` with `xs` read-only, `write_point(p)` with a read-only `p`, `write_point(make_point())` or `set(1)` for a write-borrow parameter |
+| 3070 | `USE_OF_MOVED_VALUE` | `local b: Point = move a; local c: sinteger32 = a.x;`, `take(move a); read(a);`, `spawn read(a);` or `a.sum()` after `a` was moved, also after a `do` block or after every arm of a branch moved it |
+| 3071 | `VALUE_MOVED_AGAIN` | `move a;` twice, or `move a` of a local declared outside the loop in a loop body that has no `break` or `return` of its own, at the name or at the `move` |
+| 3072 | `USE_OF_PARTIALLY_MOVED_VALUE` | `local s: Shape = move o.inner; local x: float32 = o.inner.x;`, `move o.inner;` then `take(move o);`, `o.total()` after `move o.inner`, `move v[0]; ... v[0].x`, or `move item` of a `for each` element of a collection of a type that is not by value, at the access or at the name |
+| 3073 | `VALUE_CHANGED_WHILE_BORROWED` | `for each x in v do v[0] = ...; end`, `for each x in v do local o: vector<P> = move v; end`, `for each x in mutable v do v.append(...); end`, `with p as view do p.x = 2; end` or `with p as view do local o: P = move p; end`: the source of a `for each` or a `with` block is written, moved or changed by a library call (`append`, `insert`, `remove`, `clear`, `pop`, `push`, `resize`) in the body |
+| 3074 | `CONFLICTING_PARALLEL_ACCESS` | `spawn write(a); spawn write(a);`, `spawn write(a); spawn read(a);`, `spawn write(a); a.y = 5;` or a `spawn write(a);` in a loop in a `fork_join` block when `a` is declared before the block, and `partition xs ...` with a `spawn write(xs)` in the same block |
 
 ## Gaps
 
@@ -976,11 +1030,10 @@ or rejects.
 - `operator` is checked against its vocabulary; only `construct` and `destroy` have a placement and a shape check
   (see "Construct and destroy"), and any other operator has a signature check in an `implementation` only (3050, see
   "Operator signature"); `export` is checked for shape only.
-- `LIFECYCLE_OPERATOR_CALLED_DIRECTLY` (3027) today sees a bare name and the static form `Type.name(...)` only.
-  Decision: a call on a value (`point.drop()`) of a lifecycle operator (`construct` or `destroy`) is also rejected
-  with 3027, for consistency with those two forms; no new code. Sema does not yet implement it, as it does not
-  know the type of the receiver. A bare name that no top-level function declares also raises `UNDECLARED_NAME`
-  (3004), as a member is not a bare name.
+- `LIFECYCLE_OPERATOR_CALLED_DIRECTLY` (3027) on a call on a value judges only a receiver whose inferred type is one
+  plain type name of the file. A receiver of unknown type, of another file or a library, a call result that sema does
+  not type, and a receiver typed `Self` (a recorded Gap: `Self` is not resolved to the implemented type here) raise nothing (round toward valid). A bare name that no
+  top-level function declares also raises `UNDECLARED_NAME` (3004), as a member is not a bare name.
 - `MAREA_SemaTypedNodeGetResolvedType` covers the six declaring nodes, the literals and the expressions of "Resolved
   type of an expression". A `Self` type and a generic parameter are spelled by
   their written name, not by the type they stand for in one instantiation. A name of an `EXTERNAL` namespace is
@@ -1066,9 +1119,8 @@ or rejects.
   vocabulary was never widened for attributes, so such a type argument fails to parse as one. The
   same scan already had no tolerance for the retired `mutable`/`reference` parameter keywords it
   used to allow, so this is not a new restriction, only an unaddressed one.
-- Move state and borrow liveness are not tracked across statements. Sema keeps no per-variable "moved" or
-  "borrow ended" bit, and `MAREA_SemaCheckSpawn` (`MAREASemaParallel.c`) checks one `spawn` alone, so two
-  sibling `spawn` statements of one `fork_join` are never compared. The settled design for every later
+- Borrow liveness is tracked for the body of a `for each` and a `with` block only (3073, see "Borrowed source"), by a scan of the body, not by
+  the table below. A borrow parameter is still not tracked across statements, and sema keeps no per-variable "borrow ended" bit. The settled design for every later
   check (use after move, partial move, borrow liveness, cross-spawn, `partition` body) is one rule set,
   recorded here so no check invents its own:
   - **State table.** One new per-scope table, modeled directly on `references`
@@ -1086,3 +1138,25 @@ or rejects.
     valid" (not moved, still borrowed), never toward "reject". A missed catch is acceptable; a false
     rejection of valid code is not. Every later check that builds on this table must inherit this
     rounding and must not define its own.
+- The borrowed-source check (3073) is a scan, and it has these limits. A library call that changes its receiver is seen only by the names
+  `append`, `insert`, `remove`, `clear`, `pop`, `push` and `resize`. A change made inside a called function, or through a second name for the
+  source (a `with` name that is a view of it), is not seen. A write or a move in a nested function-like body is not a case, because the language
+  has none. Two elements of one vector overlap in a call unless both indices are integer literals of two values, so `two_write(v[i], v[j])` is
+  rejected even when `i` and `j` differ at run time.
+- The move state (3070, 3071) is the first check built on that design. It covers a whole local or parameter only; the moved part
+  (3072) is a second, narrower state on the same entry. A moved `with` name is not tracked. The moved part keeps one chain per local
+  (the first), so a second moved part, a part moved with a computed index, a part whose type sema cannot see (a library type, a
+  generic), a part moved in a loop body (a second turn is not reported) and a part reached through a borrow are not tracked, and a use
+  of one of them is accepted by the rounding rule. A move in some arms of an `if` or `switch` only, and a move in a loop body that a `break` or `return` ends, are accepted by the
+  rounding rule, so `L-OWNERSHIP-042`, `L-OWNERSHIP-044` and `L-ADVERSARIAL-003` stay `known_gap`. A loop body that has a `break` or a
+  `return` among its own statements is never reported, even if the move comes after a conditional `break`. A `break` or `continue`
+  inside an arm does not end the arm for the merge, only a `return`-style end does. A name read through a function-type local is a read
+  like any other. Move state is not read across a function call: a callee that takes an `owned` parameter is seen only through the
+  `move` written at the call.
+- The shared access check (3074) is conservative. It sees only a callee that is a function of the same file, found by a bare
+  name, so a worker that calls a method, a function of another namespace or a function value records nothing. A statement of
+  the block body is compared with the workers that started in earlier statements only: a worker that starts inside the same
+  statement (a loop around a `spawn`) or later is not compared with it, and a body statement before a `spawn` in a loop is not
+  compared with the next turn. A local declared inside a nested block of the body statement is not in the scope table when the
+  statement is scanned, so a name it hides is read as the outer one. A write in a repeating `spawn` is caught only for a value
+  declared before the `fork_join` block. These misses are accepted, never rejected.
