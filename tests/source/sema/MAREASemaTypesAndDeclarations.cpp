@@ -10,6 +10,7 @@ namespace
     using Codes = std::vector<MAREA_Uinteger32>;
 
     constexpr MAREA_Uinteger32 UNKNOWN_TYPE{ MAREA_SEMA_DIAGNOSTIC_CODE_UNKNOWN_TYPE };
+    constexpr MAREA_Uinteger32 OPAQUE_BY_VALUE{ MAREA_SEMA_DIAGNOSTIC_CODE_OPAQUE_FIELD_BY_VALUE };
     constexpr MAREA_Uinteger32 DUPLICATE_MEMBER{ MAREA_SEMA_DIAGNOSTIC_CODE_DUPLICATE_MEMBER };
 
     MAREA_ResolveCallback MAREA_externalOnly()
@@ -317,4 +318,21 @@ TEST(MAREASemaTypesAndDeclarations, EnumTagTypeOfAnotherKindRaisesInvalidEnumTag
     for (const char *name : { "float32", "float64", "string", "boolean", "SomeStruct", "pointer<sinteger32>" }) {
         EXPECT_EQ(MAREA_codesOf(std::string("structure SomeStruct a: sinteger32; end enum A : ") + name + " Red; end"), Codes{ INVALID_TAG }) << "The tag " << name << " must raise INVALID_ENUM_TAG_TYPE.";
     }
+}
+
+TEST(MAREASemaTypesAndDeclarations, OpaqueTypeHeldByValueInAFieldRaisesOpaqueFieldByValue)
+{
+    GTEST_COUT << "Validating a bare opaque type as a structure field raises OPAQUE_FIELD_BY_VALUE." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("opaque structure T; structure H t: T; end"), Codes{ OPAQUE_BY_VALUE }) << "An opaque type held by value must raise OPAQUE_FIELD_BY_VALUE.";
+
+    EXPECT_EQ(MAREA_codesOf("opaque structure T; structure H a: sinteger32; t: T; u: T; end"), (Codes{ OPAQUE_BY_VALUE, OPAQUE_BY_VALUE })) << "Each opaque field must raise once.";
+
+    EXPECT_TRUE(MAREA_codesOf("opaque structure T; structure H t: owned<T>; end").empty()) << "An owner of an opaque type in a field must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("opaque structure T; structure H t: pointer<T>; end").empty()) << "A pointer to an opaque type in a field must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("structure S a: sinteger32; end structure H s: S; end").empty()) << "An ordinary structure held by value must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("structure H t: c.math.Vector3; end").empty()) << "A type of another file is not checked.";
 }

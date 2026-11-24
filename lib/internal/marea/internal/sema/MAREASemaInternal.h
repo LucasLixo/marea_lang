@@ -623,6 +623,15 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckNamedType(MAREA_SemaContext * context, const MAREA_AstNode *node);
 
     /**
+     * @brief Reports OPAQUE_FIELD_BY_VALUE on a FIELD_DECLARATION whose written type is the bare name of an
+     * opaque structure of the same file. An owner, a pointer or any other generic of it is not reported.
+     * @param context Context of the run. Must not be null.
+     * @param node FIELD_DECLARATION node. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS or ERROR_NULL_POINTER on a null argument.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckOpaqueField(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
      * @brief Gives the namespace that a name entry stands for, as the resolver knows it: a namespace import is its
      * qualifier then its own name (an alias gives the original), a symbol import is the namespace of its qualifier.
      * Two checks read a namespace this way, the typed tree builder and MAREA_SemaCheckVisibility.
@@ -995,6 +1004,27 @@ MAREA_BEGIN_EXTERN_C
      * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER when context is null, or ERROR_OUT_OF_MEMORY.
      */
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressionFit(MAREA_SemaContext * context, const MAREA_AstNode *type, const MAREA_AstNode *expression);
+
+    /**
+     * @brief Gives the FUNCTION_TYPE node that a written type stands for: the node itself, or the target of an
+     * alias chain of the file (type Callback = function(text: string);).
+     * @param context Context of the run. Must not be null.
+     * @param type NAMED_TYPE or FUNCTION_TYPE node. May be null.
+     * @return The FUNCTION_TYPE node, or null when the type is not a function type that sema can see.
+     */
+    MAREA_NODISCARD const MAREA_AstNode *MAREA_CALL MAREA_SemaResolveFunctionType(const MAREA_SemaContext *context, const MAREA_AstNode *type);
+
+    /**
+     * @brief Tells whether a function declaration has the signature of a function type: the same parameter count,
+     * the same passing mode and type of each parameter, and the same result type, compared as written (an alias
+     * renders as its original). A generic function, and a function type that mentions a generic parameter in
+     * scope, are never compared and give true, because sema never guesses.
+     * @param context Context of the run. Must not be null.
+     * @param function FUNCTION_DECLARATION node. Must not be null.
+     * @param functionType FUNCTION_TYPE node. Must not be null.
+     * @return MAREA_BOOLEAN_TRUE when the function fits or when sema cannot compare, MAREA_BOOLEAN_FALSE otherwise.
+     */
+    MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_SemaFunctionFitsFunctionType(const MAREA_SemaContext *context, const MAREA_AstNode *function, const MAREA_AstNode *functionType);
 
     /**
      * @brief Reports TYPE_MISMATCH the same way MAREA_SemaCheckExpressionFit does, against a primitive type
