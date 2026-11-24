@@ -610,6 +610,18 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_ReportRepeatedMoves(MAREA_SemaContext
     return MAREA_SEMA_EXCEPT_SUCCESS;
 }
 
+// INFO: an arm with a break among its own statements leaves the loop before the code after the branch, so it takes no part in the merge of the branch.
+static MAREA_Boolean MAREA_CALL MAREA_G_ArmBreaks(const MAREA_AstNode *block)
+{
+    for (MAREA_IntegerSize index = 0; (block != MAREA_NULLPTR) && (index < MAREA_AstNodeGetChildCount(block)); ++index) {
+        if (MAREA_AstNodeGetKind(MAREA_SemaChildAt(block, index)) == MAREA_AST_KIND_BREAK_STATEMENT) {
+            return MAREA_BOOLEAN_TRUE;
+        }
+    }
+
+    return MAREA_BOOLEAN_FALSE;
+}
+
 MAREA_SemaExcept MAREA_CALL MAREA_SemaMoveChildLeave(MAREA_SemaContext *context, const MAREA_AstNode *node, const MAREA_AstNode *child, MAREA_SemaMoveFrame *frame)
 {
     if (frame->base == MAREA_NULLPTR) {
@@ -638,7 +650,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaMoveChildLeave(MAREA_SemaContext *context,
     }
 
     // INFO: an arm that ends the function never reaches the code after the branch, so it takes no part in the merge.
-    if ((block != MAREA_NULLPTR) && (MAREA_SemaBlockTerminates(context, block) == MAREA_BOOLEAN_TRUE)) {
+    if ((block != MAREA_NULLPTR) && ((MAREA_SemaBlockTerminates(context, block) == MAREA_BOOLEAN_TRUE) || (MAREA_G_ArmBreaks(block) == MAREA_BOOLEAN_TRUE))) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
@@ -651,8 +663,9 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaMoveChildLeave(MAREA_SemaContext *context,
             frame->merged[index] = MOVED;
             frame->partMerged[index] = part;
         } else {
-            if (MOVED == MAREA_BOOLEAN_FALSE) {
-                frame->merged[index] = MAREA_BOOLEAN_FALSE;
+            // INFO: the moved bit joins with OR, so a local that any arm moved is maybe moved after the branch.
+            if (MOVED == MAREA_BOOLEAN_TRUE) {
+                frame->merged[index] = MAREA_BOOLEAN_TRUE;
             }
 
             // INFO: a part counts after the branch only when every arm that reaches the end moved the same part.
@@ -675,7 +688,7 @@ void MAREA_CALL MAREA_SemaMoveLeave(MAREA_SemaContext *context, const MAREA_AstN
 
     const MAREA_G_BranchKind BRANCH = MAREA_G_BranchKindOf(node);
 
-    // INFO: a loop body may run zero times, and an if with no else or a switch with no default has a path that moves nothing, so that path joins the merge with the base state.
+    // INFO: a loop body may run zero times, and an if with no else or a switch with no default has a path that runs no arm, so that path joins the merge with the base state by OR.
     if ((BRANCH == MAREA_G_BRANCH_KIND_LOOP) || (frame->armSeen == MAREA_BOOLEAN_FALSE)) {
         MAREA_G_Load(context, frame->base, frame->partBase, frame->count);
 
@@ -683,7 +696,7 @@ void MAREA_CALL MAREA_SemaMoveLeave(MAREA_SemaContext *context, const MAREA_AstN
     }
 
     for (MAREA_IntegerSize index = 0; index < frame->count; ++index) {
-        const MAREA_Boolean MERGED = (frame->hasFallback == MAREA_BOOLEAN_TRUE) ? frame->merged[index] : (((frame->merged[index] == MAREA_BOOLEAN_TRUE) && (frame->base[index] == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE);
+        const MAREA_Boolean MERGED = (frame->hasFallback == MAREA_BOOLEAN_TRUE) ? frame->merged[index] : (((frame->merged[index] == MAREA_BOOLEAN_TRUE) || (frame->base[index] == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE);
 
         context->locals.entries[index].moved = MERGED;
         context->locals.entries[index].partAt = ((frame->hasFallback == MAREA_BOOLEAN_TRUE) || (MAREA_G_PartsAgree(frame->partMerged[index], frame->partBase[index]) == MAREA_BOOLEAN_TRUE)) ? frame->partMerged[index] : MAREA_NULLPTR;

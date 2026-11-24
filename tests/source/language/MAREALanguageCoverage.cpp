@@ -69,7 +69,7 @@ namespace
     // "gap" means a known_gap item with the issue exists, "reject" means the codes in how have a reject item, and
     // "none" means no item can show it today, so the Gaps section of the doc must name the issue.
     const std::vector<MAREA_MissingRule> MISSING_RULES{
-        { "use of a moved value", "198", "gap" },
+        { "use of a moved value", "0", "reject 3070 3071" },
         { "use of an uninitialized value", "0", "reject 3065" },
         { "write through a read-only borrow", "0", "reject 3069" },
         { "literal out of range", "0", "reject 3033" },

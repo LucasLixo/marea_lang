@@ -371,6 +371,8 @@ write-borrow parameter.
 | L-OWNERSHIP-038 | A structure is moved twice | 3071 @26 |
 | L-OWNERSHIP-039 | A structure is moved in a loop body, so the second turn uses a moved value | 3071 @27 |
 | L-OWNERSHIP-041 | A structure is moved in a for loop and the owner is outside | 3071 @26 |
+| L-OWNERSHIP-042 | A structure is moved in one branch and used after the branch | 3070 @28 |
+| L-OWNERSHIP-044 | A structure is moved in one arm of switch and used after it | 3070 @30 |
 | L-OWNERSHIP-046 | A structure is used after it was moved into an owned parameter | 3070 @34 |
 | L-OWNERSHIP-048 | An owned parameter is used after it was moved on | 3070 @25 |
 | L-OWNERSHIP-050 | A structure is used after the box that holds it was moved | 3070 @26 |
@@ -436,8 +438,6 @@ write-borrow parameter.
 
 | Id | Shows | Expected |
 |---|---|---|
-| L-OWNERSHIP-042 | A structure is moved in one branch and used after the branch | gap: #198 NEW, rule: reject |
-| L-OWNERSHIP-044 | A structure is moved in one arm of switch and used after it | gap: #198 NEW, rule: reject |
 | L-OWNERSHIP-056 | A read-only borrow is moved out | gap: #200 NEW, rule: reject |
 | L-OWNERSHIP-057 | A file constant is moved out | gap: #200 NEW, rule: reject |
 | L-OWNERSHIP-142 | An existing value is given to an owned parameter with no word | 3016 @29 |
@@ -1096,8 +1096,10 @@ Facts the items fix, checked by running the compiler:
   element of an owner gives 3072 (issue #199, items 015, 051, 053 to 055, 057).
 - The use of a value after `move` gives 3070, and a second move gives 3071, through every path tried here: a loop in a
   `fork_join` block, the body of a partition, a generic function, a method call and a second move into a generic
-  function (issue #198, items 001, 002, 004, 016, 026, 027, 030). A move in only some arms of a branch is accepted by
-  design (the merge rule rounds toward valid): item 003, an arm of `switch` that a spawn follows, stays a `known_gap`.
+  function, and after a branch where any arm that reaches the end moved the value (issue #198, items 001, 002, 003, 004,
+  016, 026, 027, 030, 042, 044). The moved bit joins the arms by OR, so a move in only some arms counts after the
+  branch; an arm that ends in `return` or `break` is left out. A partial move (3072) still rounds toward valid: a
+  moved part counts after a branch only when every arm that reaches the end moved the same part.
 - A read-only borrow that is written, or passed on to a write borrow, gives 3069 through a generic function, a
   `for each` over a read-only vector, a worker and a `partition mutable` of a read-only source (issues #203 and #204,
   items 009, 014, 031, 033, 054, 055, 061 to 065).
@@ -1120,6 +1122,7 @@ generic or an alias leads to is not checked by sema either (see the sema doc, Ga
 |---|---|---|
 | L-ADVERSARIAL-001 | A value is moved in each turn of a loop inside a fork_join block | 3071 @39 |
 | L-ADVERSARIAL-002 | An outer local is moved in the body of a partition, once for each part | 3071 @59 |
+| L-ADVERSARIAL-003 | A value moved in an arm of switch is spawned after the switch | 3070 @63 |
 | L-ADVERSARIAL-004 | A generic function moves its argument twice | 3071 @40 |
 | L-ADVERSARIAL-005 | A value is passed to a generic function twice as a write borrow | 3019 @40 |
 | L-ADVERSARIAL-006 | A for each mutable element and its own vector are passed to one call | 3019 @40 |
@@ -1185,7 +1188,6 @@ generic or an alias leads to is not checked by sema either (see the sema doc, Ga
 
 | Id | Shows | Expected |
 |---|---|---|
-| L-ADVERSARIAL-003 | A value moved in an arm of switch is spawned after the switch | gap: #198 NEW, rule: reject |
 | L-ADVERSARIAL-013 | A contract method moves its receiver into a write borrow | gap: #200 NEW, rule: reject |
 | L-ADVERSARIAL-050 | Mutant of L-OWNERSHIP-012: copy is swapped for move on a borrowed parameter | gap: #200 NEW, rule: reject |
 | L-ADVERSARIAL-052 | Mutant of L-OWNERSHIP-024: copy is swapped for move on a file constant | gap: #200 NEW, rule: reject |
@@ -1244,7 +1246,7 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 
 | area | accept | reject | known_gap |
 |---|---|---|---|
-| adversarial | 0 | 63 | 9 |
+| adversarial | 0 | 64 | 8 |
 | bindings | 33 | 80 | 0 |
 | coverage | 0 | 1 | 0 |
 | examples | 20 | 0 | 0 |
@@ -1252,11 +1254,11 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | interop | 17 | 28 | 0 |
 | memory | 15 | 18 | 0 |
 | namespaces | 17 | 34 | 0 |
-| ownership | 65 | 76 | 4 |
+| ownership | 65 | 78 | 2 |
 | parallel | 19 | 40 | 0 |
 | seed | 1 | 2 | 0 |
 | types | 60 | 132 | 4 |
-| total | 266 | 528 | 17 |
+| total | 266 | 531 | 14 |
 
 ## Parity plan
 
@@ -1364,7 +1366,7 @@ Each rule is kept as a `known_gap` item with its issue, as reject codes, or as a
 
 | Missing rule | Where it is kept |
 |---|---|
-| use of a moved value | reject items of 3070 and 3071 (issue #198); a move in only some arms of a branch is accepted by design, so the known_gap items L-OWNERSHIP-042, L-OWNERSHIP-044 and L-ADVERSARIAL-003 stay |
+| use of a moved value | reject items of 3070 and 3071 (issue #198), a move in any arm of a branch included; a partial move (3072) still rounds toward valid |
 | use of an uninitialized value | reject items of 3065 (a local with no initial value, issue #177) |
 | write through a read-only borrow | reject items of 3069 (a write through a read-only borrow, issues #203, #204, #206 and #214) |
 | literal out of range | reject items with 3033 (L-BINDINGS-022, 026 to 029, 031, L-ADVERSARIAL-018 to 021) |
