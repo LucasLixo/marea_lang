@@ -998,7 +998,7 @@ or rejects.
 - `TYPE_MISMATCH` (3011) sorts the type of an expression into a fixed set of shapes: a literal, a primitive, a
   structure, and, known but never compared, an enum, a library type, a generic parameter and an `owned`, `task`, `vector` or `array` value. Still fully unknown: a `pointer`, a `slice`, the type of a field or a file
   constant that is not a primitive, and the result of a generic call (see below).
-- A struct literal with a missing field is rejected (3077, one report per literal, so a second missing field shows only after the first is written). The ir still lowers an omitted field to a `ZERO_VALUE` (see `docs/ir/marea-ir.md`, Zero-default creation), which no accepted program reaches for a structure of the file now; a follow-up apply removes that `ZERO_VALUE` for fields.
+- A struct literal with a missing field is rejected (3077, one report per literal, so a second missing field shows only after the first is written). The ir has no `ZERO_VALUE` any more (removed in PR #355): no accepted program has an omitted field, so the ir has nothing to fill.
 - A call of a method or of an imported function that has no result, used as a value, is not seen: sema cannot see its
   result (`INVALID_RESULT_USE`, 3054).
 - The type arguments of a generic type are compared (3014) only for two types of one head name and one argument
