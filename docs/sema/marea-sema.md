@@ -303,7 +303,8 @@ name needs `copy x` or `move x`. `=` of a name, field or element of any other ty
 `copy x` or `move x`, in an assignment and in a local initializer. A call or a literal needs no word.
 A borrow parameter (`reference_read_only`, explicit or by default, or an explicit `reference_mutable`), a
 `for each` variable, a `partition` part and a `with` name cannot be returned, nor be the value of
-a field. A new local of the same name ends the reference. A file constant passed as the argument of
+a field. A new local of the same name ends the reference. A file constant, or a field or element chain
+rooted in one (`ORIGIN.inner`, `ORIGINS[0]`), passed as the argument of
 an explicit `reference_mutable` (write-borrow) parameter has no writable storage to
 back the borrow, so it is rejected with `CANNOT_BORROW_CONSTANT_AS_MUTABLE` (3032); a variable
 passed to the same parameter is unaffected. An assignment (`=` or a compound form) whose target is a file constant, or a field or element path
@@ -839,7 +840,7 @@ or rejects.
 | 3029 | `LIFECYCLE_OPERATOR_BAD_SHAPE` | a `destroy` with a parameter or a return type; a `construct` with a return type or a parameter that has no default |
 | 3030 | `DEFAULT_PARAMETER_BEFORE_REQUIRED` | `function f(a: sinteger32 = 0, b: sinteger32)`: a parameter with a default value before one with none |
 | 3031 | `INVALID_ENUM_TAG_TYPE` | `enum A : float32`, `: string`, `: SomeStruct`: a tag that is not an integer primitive |
-| 3032 | `CANNOT_BORROW_CONSTANT_AS_MUTABLE` | `take(ORIGIN)` when `take`'s parameter's effective `semantics` is `reference_mutable` and `ORIGIN` is a file constant |
+| 3032 | `CANNOT_BORROW_CONSTANT_AS_MUTABLE` | `take(ORIGIN)` or `take(ORIGIN.inner)` or `take(ORIGINS[0])` when `take`'s parameter's effective `semantics` is `reference_mutable` and the root of the argument is a file constant |
 | 3033 | `LITERAL_OUT_OF_RANGE` | `local a: uinteger8 = 256;`, `local b: sinteger8 = -129;`, `constant BIG: uinteger8 = 300;`, `local c: uinteger32 = -1;`: an integer literal whose value does not fit the integer type it is bound to |
 | 3034 | `DIVISION_BY_ZERO` | `x / 0`, `x % 0`, `x /= 0`, `x %= 0` for an integer: the divisor is a constant zero |
 | 3035 | `SHIFT_COUNT_TOO_LARGE` | `x << 32` for `uinteger32`, `x >>= 64` for `sinteger64`, `x << -1`: a constant shift count that is negative or not below the width of the left integer type |
@@ -935,9 +936,6 @@ or rejects.
   written type is an opaque structure of the same file. A call result, an index, a field of another value and an
   opaque type of another file are not classified, and `OPAQUE_FIELD_BY_VALUE` (3058) likewise sees only a bare
   opaque name of the same file as a field type.
-- `CANNOT_BORROW_CONSTANT_AS_MUTABLE` (3032) sees only a bare file-constant name as the argument. A field chain
-  rooted in a constant (`ORIGIN.x`) passed to an explicit `reference_mutable` parameter is not rejected, and a test proves only the
-  bare name.
 - `ASSIGNMENT_TO_CONSTANT` (3040) sees only a constant that a file declares. A constant that an `implementation`
   declares is not rejected.
 - `COMPILE_TIME_ASSERTION_FAILED` (3059) decides a `static_assert!` condition only when the evaluator can fold it. A
