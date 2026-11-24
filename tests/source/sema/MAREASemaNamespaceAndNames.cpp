@@ -466,3 +466,37 @@ TEST(MAREASemaNamespaceAndNames, BrokenMemberListIsTolerated)
 
     EXPECT_TRUE(empty.MAREA_semaCodes().empty()) << "An empty list must raise no sema code.";
 }
+
+TEST(MAREASemaNamespaceAndNames, ChainHeadWithNoImportIsUndeclared)
+{
+    GTEST_COUT << "Validating a bare member-chain head that no import binds raises UNDECLARED_NAME." << std::endl;
+
+    const std::vector<MAREA_Uinteger32> EXPECTED{ UNDECLARED };
+
+    const char *const SOURCES[]{ "namespace main; function f() stdio.puts(\"x\"); end", "namespace main; import c.stdio as output; function f() stdio.puts(\"x\"); end" };
+
+    for (const char *source : SOURCES) {
+        MAREA_SemaFixture fixture(MAREA_externalAll());
+
+        ASSERT_EQ(fixture.MAREA_sema(source), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+
+        EXPECT_EQ(fixture.MAREA_semaCodes(), EXPECTED) << "A head with no binding must raise UNDECLARED_NAME: " << source;
+    }
+}
+
+TEST(MAREASemaNamespaceAndNames, ChainHeadThatAnImportBindsRaisesNothing)
+{
+    GTEST_COUT << "Validating a chain head bound by an import, an alias, a local, a parameter, a type or a built-in name raises nothing." << std::endl;
+
+    const char *const SOURCES[]{ "namespace main; import c.stdio; function f() stdio.puts(\"x\"); end", "namespace main; import c.stdio as output; function f() output.puts(\"x\"); end", "namespace main; enum Color red; end structure Point end function f() local a: sinteger32 = Color.red; local b: sinteger32 = Point.make(); end", "namespace main; function f(value: sinteger32) value.x(); end", "namespace main; function f() c.stdio.puts(\"x\"); main.g(); end" };
+
+    for (const char *source : SOURCES) {
+        MAREA_SemaFixture fixture(MAREA_externalAll());
+
+        ASSERT_EQ(fixture.MAREA_sema(source), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+
+        const std::vector<MAREA_Uinteger32> CODES{ fixture.MAREA_semaCodes() };
+
+        EXPECT_EQ(std::count(CODES.begin(), CODES.end(), UNDECLARED), 0) << "A bound head must not raise UNDECLARED_NAME: " << source;
+    }
+}
