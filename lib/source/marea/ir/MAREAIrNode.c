@@ -56,7 +56,7 @@ static const MAREA_Character8 *const MAREA_G_IrKindNames[] = {
     "TYPE_NAME",
     "BUILTIN_NAME",
     "CHARACTER_LITERAL",
-    "ZERO_VALUE",
+    MAREA_NULLPTR, // INFO: the retired value of ZERO_VALUE, kept so that no later kind moves; it names no kind.
     "CONSTRUCT_CALL",
     "DESTROY_CALL",
 };
@@ -69,7 +69,8 @@ const MAREA_Character8 *MAREA_CALL MAREA_IrKindGetName(MAREA_IrKind kind)
         return "UNKNOWN";
     }
 
-    return MAREA_G_IrKindNames[kind];
+    // INFO: the retired value has no name.
+    return (MAREA_G_IrKindNames[kind] != MAREA_NULLPTR) ? MAREA_G_IrKindNames[kind] : "UNKNOWN";
 }
 
 MAREA_IrKind MAREA_CALL MAREA_IrNodeGetKind(const MAREA_IrNode *node)

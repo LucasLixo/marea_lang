@@ -95,7 +95,7 @@ namespace
     {
         const MAREA_IrKind KIND{ MAREA_IrNodeGetKind(node) };
 
-        if ((MAREA_isExpressionKind(KIND) || (KIND == MAREA_IR_KIND_ZERO_VALUE) || MAREA_isHiddenLocal(node)) && (MAREA_IrNodeGetResolvedType(node) == nullptr)) {
+        if ((MAREA_isExpressionKind(KIND) || MAREA_isHiddenLocal(node)) && (MAREA_IrNodeGetResolvedType(node) == nullptr)) {
             if (MAREA_untypedOnPurpose(node, parent, index)) {
                 ++onPurpose;
             } else {
@@ -300,33 +300,9 @@ namespace
     const std::string BOX{ "structure Box x: sinteger32; end implementation Box #[operator = \"destroy\"] function drop() end end " };
 } // namespace
 
-// DISABLED: an omitted field is now MISSING_FIELD (3077); the ir ZERO_VALUE for fields is dead until the follow-up apply removes it
-TEST(MAREAIrResolvedType, DISABLED_WrittenInitializerNeverGetsAZeroNextToIt)
-{
-    GTEST_COUT << "Validating a local with = or a literal holds exactly one value child and no ZERO_VALUE." << std::endl;
-
-    MAREA_IrFixture fixture;
-
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; structure Point x: sinteger32; y: float64; end function f() local a: sinteger32 = 1; local b: Point = Point{ x = 1 }; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
-
-    const MAREA_IrNode *body{ MAREA_irChild(MAREA_irChild(fixture.module, 1), 1) };
-
-    ASSERT_EQ(MAREA_IrNodeGetChildCount(body), MAREA_INTEGER_SIZE(2)) << "The body must hold the two locals.";
-
-    const MAREA_IrKind EXPECTED[]{ MAREA_IR_KIND_INTEGER_LITERAL, MAREA_IR_KIND_LITERAL_VALUE };
-
-    for (MAREA_IntegerSize index{ 0 }; index < 2; ++index) {
-        const MAREA_IrNode *local{ MAREA_irChild(body, index) };
-
-        ASSERT_EQ(MAREA_IrNodeGetChildCount(local), MAREA_INTEGER_SIZE(1)) << "Each local must hold exactly one value child, local " << index;
-
-        EXPECT_EQ(MAREA_IrNodeGetKind(MAREA_irChild(local, 0)), EXPECTED[index]) << "The only child of local " << index << " has the wrong kind.";
-    }
-}
-
 TEST(MAREAIrResolvedType, LocalWithNoInitializerLowersWithNoValueChild)
 {
-    GTEST_COUT << "Validating a local with no value, which sema rejects, lowers with no child and no ZERO_VALUE." << std::endl;
+    GTEST_COUT << "Validating a local with no value, which sema rejects, lowers with no child." << std::endl;
 
     MAREA_IrFixture fixture;
 
@@ -351,41 +327,7 @@ TEST(MAREAIrResolvedType, LocalWithNoInitializerLowersWithNoValueChild)
 
     ASSERT_NE(local, nullptr) << "The local must be lowered.";
 
-    EXPECT_EQ(MAREA_IrNodeGetChildCount(local), MAREA_INTEGER_SIZE(0)) << "A local with no value must hold no child.";
-
-    EXPECT_EQ(MAREA_findKind(fixture.module, MAREA_IR_KIND_ZERO_VALUE), nullptr) << "No ZERO_VALUE may be invented for a local.";
-}
-
-// DISABLED: an omitted field is now MISSING_FIELD (3077); the ir ZERO_VALUE for fields is dead until the follow-up apply removes it
-TEST(MAREAIrResolvedType, DISABLED_ZeroValueOfAnOmittedFieldCarriesTheFieldType)
-{
-    GTEST_COUT << "Validating the ZERO_VALUE of an omitted struct field carries the type of that field." << std::endl;
-
-    MAREA_IrFixture fixture;
-
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; structure Point x: sinteger32; y: float64; end function f() local p: Point = Point{ x = 1 }; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
-
-    const std::string DUMP{ MAREA_dumpOf(fixture) };
-
-    EXPECT_EQ(MAREA_countOf(DUMP, "ZERO_VALUE resolved=float64"), std::size_t{ 1 }) << DUMP;
-
-    EXPECT_EQ(MAREA_countOf(DUMP, "ZERO_VALUE resolved=sinteger32"), std::size_t{ 0 }) << "The named field x must not be zeroed: " << DUMP;
-}
-
-// DISABLED: an omitted field is now MISSING_FIELD (3077); the ir ZERO_VALUE for fields is dead until the follow-up apply removes it
-TEST(MAREAIrResolvedType, DISABLED_EmptyLiteralZeroesEveryFieldWithItsOwnType)
-{
-    GTEST_COUT << "Validating an empty struct literal gives each ZERO_VALUE the type of its own field." << std::endl;
-
-    MAREA_IrFixture fixture;
-
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; structure Point x: sinteger32; y: float64; end function f() local p: Point = Point{}; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
-
-    const std::string DUMP{ MAREA_dumpOf(fixture) };
-
-    EXPECT_EQ(MAREA_countOf(DUMP, "ZERO_VALUE resolved=sinteger32"), std::size_t{ 1 }) << DUMP;
-
-    EXPECT_EQ(MAREA_countOf(DUMP, "ZERO_VALUE resolved=float64"), std::size_t{ 1 }) << DUMP;
+    EXPECT_EQ(MAREA_IrNodeGetChildCount(local), MAREA_INTEGER_SIZE(0)) << "A local with no value must hold no child, and so no invented value.";
 }
 
 TEST(MAREAIrResolvedType, ForRangeHiddenBoundAndStepAreTyped)
