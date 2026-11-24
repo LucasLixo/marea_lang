@@ -330,6 +330,11 @@ accepted, and a `character` operand of a bitwise operator is accepted.
 encloses it. A block nested in the `unsafe` block is enclosed too; the block ends the cover at its `end`. The context
 keeps an `unsafeDepth` counter beside `loopDepth`, and the scope mark restores it.
 
+**Local initial value.** A `local` needs a written value: `local x: sinteger32;` is `LOCAL_WITHOUT_INITIAL_VALUE` (3065),
+raised at the local, once per local. The rule is syntactic and needs no flow analysis, so a later assignment in a branch
+does not change it. The grammar still lets the parser accept the form (the initializer is optional there); sema rejects it.
+A local with an `ERROR_NODE` as its name or type is not checked.
+
 **Condition type.** The condition of an `if`, an `elseif` or a `while` must be a `boolean`: a condition with a known
 primitive type other than `boolean`, or a number, string or character literal, is `NON_BOOLEAN_CONDITION` (3043), raised
 at the condition once. `true`, `false`, a comparison, `and`, `or`, `not` and a `boolean` name pass. A `switch` subject and
@@ -651,6 +656,7 @@ or rejects.
 | 3040 | `ASSIGNMENT_TO_CONSTANT` | `LIMIT = 11;`, `LIMIT += 1;`, `ORIGIN.x = 1;`, `TABLE[0] = 1;` when the root name is a file constant and no local hides it |
 | 3041 | `RAW_POINTER_OUTSIDE_UNSAFE` | `local raw: pointer<sinteger32> = f();` with no `unsafe ... end` block around it, at any depth of nesting |
 | 3043 | `NON_BOOLEAN_CONDITION` | `if n then`, `elseif s then`, `while 1 do` when the condition has a known primitive type that is not `boolean`, or is a number, string or character literal |
+| 3065 | `LOCAL_WITHOUT_INITIAL_VALUE` | `local x: sinteger32;` with no `= value`, for a primitive, a structure, a `pointer` or an `array`, at any depth of nesting |
 
 ## Gaps
 
