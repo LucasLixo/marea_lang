@@ -50,6 +50,10 @@ MAREA_BEGIN_EXTERN_C
      * The name of a for, for each, partition or with statement also remembers the type its statement gives it,
      * once the typed tree builder has read the header of the statement (null before that, and for every other name).
      * The entry lives as long as the scope of the name, so the type ends with it.
+     *
+     * An entry of the locals table is also the move state of its local: moved is true from a move of the whole
+     * local until a plain assignment to it, and movedAt is the move expression that set it. The state pushes and
+     * pops with the entry, so no second table is kept in step with the scopes.
      */
     typedef struct MAREA_SemaName
     {
@@ -62,6 +66,8 @@ MAREA_BEGIN_EXTERN_C
         const MAREA_Character8 *qualifier;
         MAREA_IntegerSize qualifierLength;
         const struct MAREA_SemaExprType *statementType;
+        const MAREA_AstNode *movedAt;
+        MAREA_Boolean moved;
     } MAREA_SemaName;
 
     /**
@@ -94,6 +100,8 @@ MAREA_BEGIN_EXTERN_C
         const MAREA_AstNode *root;
         const MAREA_AstNode *function;
         const MAREA_AstNode *implementation;
+        const MAREA_AstNode *parent;
+        MAREA_IntegerSize parentIndex;
         MAREA_Uinteger32 selfDepth;
         MAREA_Uinteger32 instantiationDepth;
         MAREA_Uinteger32 forkDepth;
@@ -904,6 +912,96 @@ MAREA_BEGIN_EXTERN_C
      * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
      */
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckOwnership(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
+     * @brief Tells whether a value of a type is by value: a primitive, an enum, a copy-contract library type, or
+     * (when unknownIsValue is true) a type that sema cannot see. Such a value is copied, never moved out.
+     * @param context Context of the run. Must not be null.
+     * @param type Type node. May be null, which reads as unknown.
+     * @param unknownIsValue True when a type that sema cannot see counts as by value.
+     * @return True when the type is by value.
+     */
+    MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_SemaTypeIsByValue(const MAREA_SemaContext *context, const MAREA_AstNode *type, MAREA_Boolean unknownIsValue);
+
+    /**
+     * @brief Tells whether every path of a block ends the function, by the same rule as the missing-return check.
+     * @param context Context of the run. Must not be null.
+     * @param block Block node. A null block counts as ending.
+     * @return True when the block ends the function on every path.
+     */
+    MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_SemaBlockTerminates(const MAREA_SemaContext *context, const MAREA_AstNode *block);
+
+    /**
+     * @brief State saved around one branch statement (if, switch) or loop while its children are visited: the
+     * moved bit of every local that exists before the statement, as the arms start, and as the arms merge.
+     * Zero filled and inert for any other node.
+     */
+    typedef struct MAREA_SemaMoveFrame
+    {
+        MAREA_Boolean *base;
+        MAREA_Boolean *merged;
+        MAREA_IntegerSize count;
+        MAREA_Boolean armSeen;
+        MAREA_Boolean hasFallback;
+    } MAREA_SemaMoveFrame;
+
+    /**
+     * @brief Reports a read of a local that was moved: VALUE_MOVED_AGAIN when the read is the operand of a
+     * move, USE_OF_MOVED_VALUE for any other read. A plain assignment target is not a read.
+     * @param context Context of the run. Must not be null.
+     * @param node Node about to be visited. Must not be null. Only an identifier is checked.
+     * @param parent Parent of the node, or null at the root.
+     * @param parentIndex Index of the node among the children of the parent.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaMoveCheckUse(MAREA_SemaContext * context, const MAREA_AstNode *node, const MAREA_AstNode *parent, MAREA_IntegerSize parentIndex);
+
+    /**
+     * @brief Records the effect of a node on the move state once its children were visited: a move of a whole
+     * local marks it moved, a plain assignment to a whole local makes it live again.
+     * @param context Context of the run. Must not be null.
+     * @param node Node whose children were visited. Must not be null.
+     */
+    void MAREA_CALL MAREA_SemaMoveRecord(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
+     * @brief Opens a frame for a branch or loop node, before its scope is entered, so the names that the scope
+     * binds are not part of the frame.
+     * @param context Context of the run. Must not be null.
+     * @param node Node about to be visited. Must not be null.
+     * @param outFrame Receives the frame. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaMoveEnter(MAREA_SemaContext * context, const MAREA_AstNode *node, MAREA_SemaMoveFrame *outFrame);
+
+    /**
+     * @brief Starts one child of a branch or loop: an arm starts from the state the branch started with.
+     * @param context Context of the run. Must not be null.
+     * @param node Branch or loop node. Must not be null.
+     * @param child Child about to be visited. May be null.
+     * @param frame Frame of the node. Must not be null.
+     */
+    void MAREA_CALL MAREA_SemaMoveChildEnter(MAREA_SemaContext * context, const MAREA_AstNode *node, const MAREA_AstNode *child, MAREA_SemaMoveFrame *frame);
+
+    /**
+     * @brief Ends one child of a branch or loop: a condition joins the base state, an arm that does not end the
+     * function joins the merge, and a loop body that moves an outer local without leaving the loop is reported.
+     * @param context Context of the run. Must not be null.
+     * @param node Branch or loop node. Must not be null.
+     * @param child Child just visited. May be null.
+     * @param frame Frame of the node. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaMoveChildLeave(MAREA_SemaContext * context, const MAREA_AstNode *node, const MAREA_AstNode *child, MAREA_SemaMoveFrame *frame);
+
+    /**
+     * @brief Closes a frame: a local is moved after a branch only when every arm that reaches the end, and
+     * the path of a missing else or default, moved it; after a loop no move of the body counts.
+     * @param context Context of the run. Must not be null.
+     * @param node Branch or loop node. Must not be null.
+     * @param frame Frame of the node. Must not be null.
+     */
+    void MAREA_CALL MAREA_SemaMoveLeave(MAREA_SemaContext * context, const MAREA_AstNode *node, MAREA_SemaMoveFrame *frame);
 
     /**
      * @brief A parameter's effective passing mode: its own "semantics" attribute, or, when it has none,

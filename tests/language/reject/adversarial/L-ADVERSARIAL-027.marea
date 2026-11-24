@@ -1,9 +1,8 @@
--- gap: #198 NEW
--- rule: reject
+-- expect: 3070 @44
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- A value is moved in each turn of a loop inside a fork_join block.
+-- A method is called on a value that was moved.
 
 namespace main;
 
@@ -33,12 +32,14 @@ function take_point(point: owned<Point>): sinteger32
     return point.x;
 end
 
+implementation Point
+    function sum(self: Point): sinteger32
+        return self.x + self.y;
+    end
+end
+
 function check(): sinteger32
     local point: Point = make_point();
-    fork_join
-        for turn in 0 .. 3 do
-            local other: Point = move point;
-        end
-    end
-    return 1;
+    local other: Point = move point;
+    return point.sum();
 end

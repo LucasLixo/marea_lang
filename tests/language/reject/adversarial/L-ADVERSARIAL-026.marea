@@ -1,9 +1,8 @@
--- gap: #198 NEW
--- rule: reject
+-- expect: 3070 @42
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- A method is called on a value that was moved.
+-- A value moved into a generic function is read afterwards.
 
 namespace main;
 
@@ -33,14 +32,13 @@ function take_point(point: owned<Point>): sinteger32
     return point.x;
 end
 
-implementation Point
-    function sum(self: Point): sinteger32
-        return self.x + self.y;
-    end
+function same<Item>(value: owned<Item>): owned<Item> where Item: Movable
+    return value;
 end
 
 function check(): sinteger32
     local point: Point = make_point();
-    local other: Point = move point;
-    return point.sum();
+    local moved: owned<Point> = same(move point);
+    local x: sinteger32 = point.x;
+    return x;
 end

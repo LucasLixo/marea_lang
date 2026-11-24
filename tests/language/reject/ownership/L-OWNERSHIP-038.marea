@@ -1,9 +1,8 @@
--- gap: #198 NEW
--- rule: reject
+-- expect: 3071 @26
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- A structure is used after it was moved into an owned parameter.
+-- A structure is moved twice.
 
 namespace main;
 
@@ -21,17 +20,9 @@ function make_point(): Point
     return Point{ x = 1, y = 2 };
 end
 
-function read_point(#[semantics = reference_read_only] point: Point): sinteger32
-    return point.x;
-end
-
-function take_point(point: owned<Point>): sinteger32
-    return point.x;
-end
-
 function check(): sinteger32
     local first: Point = make_point();
-    local result: sinteger32 = take_point(move first);
-    local again: sinteger32 = read_point(first);
+    local second: Point = move first;
+    local third: Point = move first;
     return 1;
 end
