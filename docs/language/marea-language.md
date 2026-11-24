@@ -583,6 +583,7 @@ Function declaration and call, parameters and defaults, the result and `return v
 | L-FUNCTIONS-058 | a call of a name that no scope declares, as if it were a function value | 3004 @10 |
 | L-FUNCTIONS-059 | a default value that calls a function that no scope declares | 3004 @9 |
 | L-FUNCTIONS-065 | a return with no value in a function that has a result | 3022 @9 |
+| L-FUNCTIONS-068 | a function used before its declaration (the grammar says a name is declared before use) | 3004 @10 |
 | L-FUNCTIONS-069 | two parameters with one name | 3003 @9 |
 | L-FUNCTIONS-070 | a parameter that shares its name with a local of the body | 3003 @10 |
 | L-FUNCTIONS-072 | a non-boolean value as the result of a boolean function | 3011 @10 |
@@ -599,11 +600,10 @@ Function declaration and call, parameters and defaults, the result and `return v
 | L-FUNCTIONS-064 | a call of a function type value with too many arguments | gap: 3010, rule: reject, issue #213 |
 | L-FUNCTIONS-066 | a return with a value in a function that has no result | gap: 3011, rule: reject, issue #215 |
 | L-FUNCTIONS-067 | the result of a function with no result used as a value | gap: 3011, rule: reject, issue #215 |
-| L-FUNCTIONS-068 | a function used before its declaration (the grammar says a name is declared before use) | gap: 3004, rule: reject, issue #216 |
 | L-FUNCTIONS-071 | a call of a value that is not a function | gap: 3011, rule: reject, issue #215 |
 | L-FUNCTIONS-073 | a condition of an integer type in an if | gap: 3011, rule: reject, issue #219 |
 
-Known gaps of this area share their issues: #213, #214, #215, #216, #219, #220, #221, #222, #223, #224, #225. An issue lists the items that show it in the area; an item flips to `reject` the day its rule is implemented.
+Known gaps of this area share their issues: #213, #214, #215, #219, #220, #221, #222, #223, #224, #225. An issue lists the items that show it in the area; an item flips to `reject` the day its rule is implemented.
 
 ## Types and control flow
 
@@ -1246,7 +1246,7 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | bindings | 33 | 80 | 0 |
 | coverage | 0 | 0 | 1 |
 | examples | 16 | 0 | 0 |
-| functions | 19 | 43 | 11 |
+| functions | 19 | 44 | 10 |
 | interop | 17 | 11 | 17 |
 | memory | 15 | 10 | 8 |
 | namespaces | 17 | 28 | 6 |
@@ -1254,7 +1254,7 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | parallel | 19 | 23 | 17 |
 | seed | 1 | 1 | 1 |
 | types | 60 | 114 | 22 |
-| total | 262 | 372 | 173 |
+| total | 262 | 373 | 172 |
 
 ## Parity plan
 

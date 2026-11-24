@@ -394,6 +394,10 @@ first segment of the file namespace, or one of the built-ins `c`, `size_of`, `al
 A member name, a field key of a literal value, a type, a macro call and the bare name that starts a member
 chain (`stdio.puts(text)`, which may be a namespace the file never imports) are not checked. The local that a
 `for`, `for each`, `partition` or `with` name hides is never used to type the name.
+A function is declared before its use: a bare function name inside a function body that stands before the declaration
+of that function in the file raises `UNDECLARED_NAME` (3004) with the message "function is used before its declaration".
+There is no forward declaration. A recursive call is fine, a local of the same name hides the function, and a
+constant initializer is not checked for it.
 
 **Entry point.** Sema treats `main` as an ordinary function: any signature is accepted and no diagnostic is
 raised. Sema never requires a `main`. The code 3023 (`INVALID_MAIN_SIGNATURE`) is retired and stays reserved, never
@@ -603,7 +607,7 @@ or rejects.
 | 3001 | `UNRESOLVED_IMPORT` | `import a.b.c;` when the resolver finds neither `a.b.c` nor a public `c` in `a.b`; `import a.b { f };` when `a.b` is not found, `f` is not a public symbol of it, a two-part member is not a variant of a public enum, or the member path has more than two parts |
 | 3002 | `NAMESPACE_PATH_MISMATCH` | `namespace a.b.c;` in the file `a/b.marea` |
 | 3003 | `NAME_ALREADY_DECLARED` | `structure Item end function Item() end`, or an import (or an import alias, or a member alias) and a declaration or another import of one local name; an import alias or a `type` named `c` (message `name is reserved:`); a generic parameter that repeats an earlier one of its list or names a top-level declaration, `pick<Item, Item>`; two parameters of one name; a body local that repeats a parameter or a local of the same block |
-| 3004 | `UNDECLARED_NAME` | `where Item: Missing`, or a constraint on a name that is not a generic parameter; `local x: sinteger32 = missing;`, `missing(1);` |
+| 3004 | `UNDECLARED_NAME` | `where Item: Missing`, or a constraint on a name that is not a generic parameter; `local x: sinteger32 = missing;`, `missing(1);`; a bare function name that stands in a function body before the function is declared in the file |
 | 3005 | `UNKNOWN_ATTRIBUTE_KEY` | `#[frobnicate = true]`, `#[simd]`, `#[public]` |
 | 3006 | `INVALID_ATTRIBUTE_VALUE` | `#[inline = maybe]`, `#[build = 1]`, `#[visibility]`, `#[export]` |
 | 3007 | `CONFLICTING_ATTRIBUTES` | `#[pack = 1, align = 16]`, a key given twice (`visibility` twice included) |
@@ -644,6 +648,8 @@ or rejects.
 
 ## Gaps
 
+- Two functions that call each other cannot be written, because a function must be declared before its use and the
+  grammar has no forward declaration.
 - The name of a `for`, `for each`, `partition` or `with` statement is not checked against the names of its own
   scope: it can repeat a local of the same block, and a local of its body can repeat it.
 - No check of the signature of `main` exists any more, and a driver-level replacement does not exist yet.
