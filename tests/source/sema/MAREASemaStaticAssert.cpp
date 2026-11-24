@@ -113,6 +113,20 @@ TEST(MAREASemaStaticAssert, TrueConstantConditionRaisesNothing)
     EXPECT_EQ(MAREA_codesOfProgram(MAREA_assertOf("0x10 == 16 and 0b101 == 5 and 1_000 == 1000")), Codes{});
 }
 
+TEST(MAREASemaStaticAssert, MultiplicationFoldsAtTheEdgeAndGivesUpOnOverflow)
+{
+    GTEST_COUT << "Validating that a product that fits 64 bits is folded and one that does not is unknown." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOfProgram(MAREA_assertOf("-4611686018427387904 * 2 < 0")), Codes{});
+    EXPECT_EQ(MAREA_codesOfProgram(MAREA_assertOf("-4611686018427387904 * 2 > 0")), Codes{ FAILED });
+    EXPECT_EQ(MAREA_codesOfProgram(MAREA_assertOf("3037000499 * 3037000499 > 0")), Codes{});
+    EXPECT_EQ(MAREA_codesOfProgram(MAREA_assertOf("3037000499 * 3037000499 < 0")), Codes{ FAILED });
+    EXPECT_EQ(MAREA_codesOfProgram(MAREA_assertOf("3037000500 * 3037000500 < 0")), Codes{});
+    EXPECT_EQ(MAREA_codesOfProgram(MAREA_assertOf("4611686018427387904 * 2 < 0")), Codes{});
+    EXPECT_EQ(MAREA_codesOfProgram(MAREA_assertOf("-3037000500 * 3037000500 > 0")), Codes{});
+    EXPECT_EQ(MAREA_codesOfProgram(MAREA_assertOf("-3037000500 * -3037000500 < 0")), Codes{});
+}
+
 TEST(MAREASemaStaticAssert, FileConstantIsRead)
 {
     GTEST_COUT << "Validating that a file constant is evaluated by the condition." << std::endl;
