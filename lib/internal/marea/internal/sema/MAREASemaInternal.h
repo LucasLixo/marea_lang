@@ -645,8 +645,11 @@ MAREA_BEGIN_EXTERN_C
      * @brief Checks the use of a symbol, a type or a field of another namespace that a whole-namespace import
      * brings: a member of a FOUND namespace that is explicitly private is PRIVATE_SYMBOL_ACCESS (a MEMBER_ACCESS
      * whose base is the namespace name), and a written type ns.T that is explicitly private is
-     * PRIVATE_TYPE_ACCESS (a NAMED_TYPE). A namespace that the resolver answers EXTERNAL or NOT_FOUND, and a
-     * member that the tree does not declare, are never checked. Any other node kind raises nothing.
+     * PRIVATE_TYPE_ACCESS (a NAMED_TYPE). An explicitly private field of a non-private structure of a FOUND
+     * namespace is PRIVATE_FIELD_ACCESS, read or written through a name written as ns.T (a MEMBER_ACCESS) or set
+     * in a struct literal (a LITERAL_VALUE). A namespace that the resolver answers EXTERNAL or NOT_FOUND, a
+     * member that the tree does not declare and a value whose type is not a plain ns.T are never checked. Any
+     * other node kind raises nothing.
      * @param context Context of the run. Must not be null.
      * @param node Node to check. Must not be null.
      * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.

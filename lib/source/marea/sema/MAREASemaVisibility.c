@@ -97,6 +97,38 @@ static const MAREA_AstNode *MAREA_CALL MAREA_G_FindDeclaration(const MAREA_AstNo
     return MAREA_NULLPTR;
 }
 
+// INFO: the field of a structure with a name, or null. A structure holds no other IDENTIFIER-named child than its fields and its own name.
+static const MAREA_AstNode *MAREA_CALL MAREA_G_FindField(const MAREA_AstNode *structure, const MAREA_Character8 *name, MAREA_IntegerSize nameLength)
+{
+    const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(structure);
+
+    for (MAREA_IntegerSize index = 0; index < COUNT; ++index) {
+        const MAREA_AstNode *field = MAREA_SemaChildAt(structure, index);
+
+        if (MAREA_G_IsKind(field, MAREA_AST_KIND_FIELD_DECLARATION) == MAREA_BOOLEAN_FALSE) {
+            continue;
+        }
+
+        const MAREA_IntegerSize FIELD_COUNT = MAREA_AstNodeGetChildCount(field);
+
+        for (MAREA_IntegerSize fieldIndex = 0; fieldIndex < FIELD_COUNT; ++fieldIndex) {
+            const MAREA_AstNode *child = MAREA_SemaChildAt(field, fieldIndex);
+
+            if (MAREA_G_IsKind(child, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_FALSE) {
+                continue;
+            }
+
+            if (MAREA_SemaTextEquals(MAREA_AstNodeGetText(child), MAREA_AstNodeGetTextLength(child), name, nameLength) == MAREA_BOOLEAN_TRUE) {
+                return field;
+            }
+
+            break;
+        }
+    }
+
+    return MAREA_NULLPTR;
+}
+
 // INFO: the FOUND tree of the namespace that a bare name stands for, or null. A local hides a namespace only where the name is read as a value, and a generic parameter is never one.
 static MAREA_SemaExcept MAREA_CALL MAREA_G_NamespaceRoot(MAREA_SemaContext *context, const MAREA_AstNode *identifier, MAREA_Boolean localHides, const MAREA_AstNode **outRoot)
 {
@@ -163,7 +195,42 @@ static MAREA_IntegerSize MAREA_CALL MAREA_G_QualifiedParts(const MAREA_AstNode *
     return MAREA_AstNodeGetChildCount(name);
 }
 
-// INFO: rule 1. A member of a namespace that is explicitly private is PRIVATE_SYMBOL_ACCESS.
+// INFO: a type written ns.T whose structure is in a FOUND tree and is not private, and a field of that structure that is explicitly private. A private structure is the business of the type rule.
+static MAREA_SemaExcept MAREA_CALL MAREA_G_IsPrivateField(MAREA_SemaContext *context, const MAREA_AstNode *type, const MAREA_Character8 *fieldName, MAREA_IntegerSize fieldLength, MAREA_Boolean *outPrivate)
+{
+    *outPrivate = MAREA_BOOLEAN_FALSE;
+
+    const MAREA_AstNode *first = MAREA_NULLPTR;
+
+    const MAREA_AstNode *second = MAREA_NULLPTR;
+
+    if (MAREA_G_QualifiedParts(type, &first, &second) != MAREA_INTEGER_SIZE(2)) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_AstNode *root = MAREA_NULLPTR;
+
+    const MAREA_SemaExcept ROOT_RESULT = MAREA_G_NamespaceRoot(context, first, MAREA_BOOLEAN_FALSE, &root);
+
+    if ((ROOT_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) || (root == MAREA_NULLPTR)) {
+        return ROOT_RESULT;
+    }
+
+    const MAREA_AstNode *structure = MAREA_G_FindDeclaration(root, MAREA_AstNodeGetText(second), MAREA_AstNodeGetTextLength(second));
+
+    if ((MAREA_G_IsKind(structure, MAREA_AST_KIND_STRUCTURE_DECLARATION) == MAREA_BOOLEAN_FALSE) || (MAREA_SemaIsPrivate(root, structure) == MAREA_BOOLEAN_TRUE)) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_AstNode *field = MAREA_G_FindField(structure, fieldName, fieldLength);
+
+    // INFO: only the own attribute of a field counts, so a file attribute that hides the symbols of a file never hides a field.
+    *outPrivate = (field != MAREA_NULLPTR) ? MAREA_SemaIsPrivate(MAREA_NULLPTR, field) : MAREA_BOOLEAN_FALSE;
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
+// INFO: rules 1 and 3. A member of a namespace that is explicitly private is PRIVATE_SYMBOL_ACCESS; a field that is explicitly private, read through a name of type ns.T, is PRIVATE_FIELD_ACCESS.
 static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckMemberAccess(MAREA_SemaContext *context, const MAREA_AstNode *node)
 {
     const MAREA_AstNode *base = MAREA_SemaChildAt(node, 0);
@@ -186,17 +253,31 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckMemberAccess(MAREA_SemaContext *
         return ROOT_RESULT;
     }
 
-    if (root == MAREA_NULLPTR) {
+    if (root != MAREA_NULLPTR) {
+        const MAREA_AstNode *declaration = MAREA_G_FindDeclaration(root, memberText, MEMBER_LENGTH);
+
+        if ((declaration != MAREA_NULLPTR) && (MAREA_SemaIsPrivate(root, declaration) == MAREA_BOOLEAN_TRUE)) {
+            return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_PRIVATE_SYMBOL_ACCESS, MAREA_AstNodeGetPosition(member), "symbol is private:", memberText, MEMBER_LENGTH);
+        }
+
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
-    const MAREA_AstNode *declaration = MAREA_G_FindDeclaration(root, memberText, MEMBER_LENGTH);
+    const MAREA_SemaName *local = MAREA_SemaLocalFind(context, MAREA_AstNodeGetText(base), MAREA_AstNodeGetTextLength(base));
 
-    if ((declaration == MAREA_NULLPTR) || (MAREA_SemaIsPrivate(root, declaration) == MAREA_BOOLEAN_FALSE)) {
+    if ((local == MAREA_NULLPTR) || (local->declaration == MAREA_NULLPTR)) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
-    return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_PRIVATE_SYMBOL_ACCESS, MAREA_AstNodeGetPosition(member), "symbol is private:", memberText, MEMBER_LENGTH);
+    MAREA_Boolean isPrivate = MAREA_BOOLEAN_FALSE;
+
+    const MAREA_SemaExcept FIELD_RESULT = MAREA_G_IsPrivateField(context, local->declaration, memberText, MEMBER_LENGTH, &isPrivate);
+
+    if ((FIELD_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) || (isPrivate == MAREA_BOOLEAN_FALSE)) {
+        return FIELD_RESULT;
+    }
+
+    return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_PRIVATE_FIELD_ACCESS, MAREA_AstNodeGetPosition(member), "field is private:", memberText, MEMBER_LENGTH);
 }
 
 // INFO: rule 2. A type written ns.T whose declaration is explicitly private is PRIVATE_TYPE_ACCESS.
@@ -231,6 +312,42 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckNamedType(MAREA_SemaContext *con
     return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_PRIVATE_TYPE_ACCESS, MAREA_AstNodeGetPosition(node), "type is private:", typeText, TYPE_LENGTH);
 }
 
+// INFO: rule 3 for a struct literal: each FIELD_ENTRY that sets an explicitly private field of ns.T is PRIVATE_FIELD_ACCESS.
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckLiteral(MAREA_SemaContext *context, const MAREA_AstNode *node)
+{
+    const MAREA_AstNode *type = MAREA_SemaChildAt(node, 0);
+
+    const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(node);
+
+    for (MAREA_IntegerSize index = 1; index < COUNT; ++index) {
+        const MAREA_AstNode *entry = MAREA_SemaChildAt(node, index);
+
+        const MAREA_AstNode *name = MAREA_SemaChildAt(entry, 0);
+
+        if ((MAREA_G_IsKind(entry, MAREA_AST_KIND_FIELD_ENTRY) == MAREA_BOOLEAN_FALSE) || (MAREA_G_IsKind(name, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_FALSE)) {
+            continue;
+        }
+
+        MAREA_Boolean isPrivate = MAREA_BOOLEAN_FALSE;
+
+        const MAREA_SemaExcept FIELD_RESULT = MAREA_G_IsPrivateField(context, type, MAREA_AstNodeGetText(name), MAREA_AstNodeGetTextLength(name), &isPrivate);
+
+        if (FIELD_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return FIELD_RESULT;
+        }
+
+        if (isPrivate == MAREA_BOOLEAN_TRUE) {
+            const MAREA_SemaExcept REPORT_RESULT = MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_PRIVATE_FIELD_ACCESS, MAREA_AstNodeGetPosition(name), "field is private:", MAREA_AstNodeGetText(name), MAREA_AstNodeGetTextLength(name));
+
+            if (REPORT_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+                return REPORT_RESULT;
+            }
+        }
+    }
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
 MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckVisibility(MAREA_SemaContext *context, const MAREA_AstNode *node)
 {
     if ((context == MAREA_NULLPTR) || (node == MAREA_NULLPTR)) {
@@ -242,6 +359,8 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckVisibility(MAREA_SemaContext *context
         return MAREA_G_CheckMemberAccess(context, node);
     case MAREA_AST_KIND_NAMED_TYPE:
         return MAREA_G_CheckNamedType(context, node);
+    case MAREA_AST_KIND_LITERAL_VALUE:
+        return MAREA_G_CheckLiteral(context, node);
     default:
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
