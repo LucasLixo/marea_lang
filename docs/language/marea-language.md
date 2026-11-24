@@ -684,6 +684,8 @@ Function declaration and call, parameters and defaults, the result and `return v
 | L-TYPES-020 | a field read assigned to a local of another type | 3011 @15 |
 | L-TYPES-022 | a nested field of a type that does not exist, after a valid field | 3009 @16 |
 | L-TYPES-028 | a structure with two fields of one name | 3012 @11 |
+| L-TYPES-029 | a structure that holds itself by value | 3045 @10 |
+| L-TYPES-030 | two structures that hold each other by value | 3045 @10, 3045 @14 |
 | L-TYPES-031 | a structure with a generic parameter that is declared twice | 3003 @9 |
 | L-TYPES-043 | an enum tag of a float type | 3031 @9 |
 | L-TYPES-044 | an enum tag of the string type | 3031 @9 |
@@ -732,6 +734,8 @@ Function declaration and call, parameters and defaults, the result and `return v
 | L-TYPES-119 | a generic parameter named as another declaration | 3003 @13 |
 | L-TYPES-120 | a generic call with a wrong argument count | 3010 @14 |
 | L-TYPES-122 | two generic parameters with one name in a function | 3003 @9 |
+| L-TYPES-124 | a cyclic type alias | 3046 @9, 3046 @10 |
+| L-TYPES-125 | a type alias of itself | 3046 @9 |
 | L-TYPES-138 | a break outside a loop | 3026 @10 |
 | L-TYPES-139 | a continue outside a loop | 3026 @10 |
 | L-TYPES-140 | a break in an if that is not in a loop | 3026 @11 |
@@ -804,16 +808,12 @@ Function declaration and call, parameters and defaults, the result and `return v
 | L-TYPES-025 | a struct literal that gives one field twice | gap: NEW, rule: reject, issue #220 |
 | L-TYPES-026 | a field read of a field that the structure does not have | gap: NEW, rule: reject, issue #220 |
 | L-TYPES-027 | a field assignment of a field that the structure does not have | gap: NEW, rule: reject, issue #220 |
-| L-TYPES-029 | a structure that holds itself by value | gap: NEW, rule: reject, issue #221 |
-| L-TYPES-030 | two structures that hold each other by value | gap: NEW, rule: reject, issue #221 |
 | L-TYPES-070 | a switch arm whose value has another type than the switch value | gap: 3011, rule: reject, issue #222 |
 | L-TYPES-071 | a case value of a variant of another enum | gap: 3011, rule: reject, issue #222 |
 | L-TYPES-072 | a zero-member enum | gap: NEW, rule: reject, issue #223 |
 | L-TYPES-074 | a variant of an enum that does not exist | gap: 3004, rule: reject, issue #223 |
 | L-TYPES-121 | an unsatisfied bound inside the body of a generic function, an operation the bound does not give | gap: NEW, rule: reject, issue #225 |
 | L-TYPES-123 | two overlapping implementation blocks of a generic and a concrete type | gap: 3012, rule: reject, issue #225 |
-| L-TYPES-124 | a cyclic type alias | gap: NEW, rule: reject, issue #221 |
-| L-TYPES-125 | a type alias of itself | gap: NEW, rule: reject, issue #221 |
 | L-TYPES-147 | a for range with a bound of another type | gap: 3011, rule: reject, issue #222 |
 
 ## Namespaces and imports
@@ -1259,8 +1259,8 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | ownership | 65 | 54 | 26 |
 | parallel | 19 | 26 | 14 |
 | seed | 1 | 2 | 0 |
-| types | 60 | 119 | 17 |
-| total | 266 | 453 | 92 |
+| types | 60 | 123 | 13 |
+| total | 266 | 457 | 88 |
 
 ## Parity plan
 
@@ -1291,6 +1291,7 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 | 3040 | `sema` | [marea-sema.md](../sema/marea-sema.md), `ASSIGNMENT_TO_CONSTANT` |
 | 3041 | `sema` | [marea-sema.md](../sema/marea-sema.md), `RAW_POINTER_OUTSIDE_UNSAFE` |
 | 3043 | `sema` | [marea-sema.md](../sema/marea-sema.md), `NON_BOOLEAN_CONDITION` |
+| 3045-3046 | `sema` | [marea-sema.md](../sema/marea-sema.md), `RECURSIVE_TYPE` and `CYCLIC_TYPE_ALIAS` |
 | 3049-3050 | `sema` | [marea-sema.md](../sema/marea-sema.md), `UNKNOWN_TYPE_FUNCTION` and `OPERATOR_SIGNATURE_MISMATCH` |
 | 3053 | `sema` | [marea-sema.md](../sema/marea-sema.md), `FUNCTION_TYPE_MISMATCH` |
 | 3054 | `sema` | [marea-sema.md](../sema/marea-sema.md), `INVALID_RESULT_USE` |
@@ -1368,8 +1369,6 @@ Each rule is kept as a `known_gap` item with its issue, as reject codes, or as a
 | literal out of range | reject items with 3033 (L-BINDINGS-022, 026 to 029, 031, L-ADVERSARIAL-018 to 021) |
 | constant division by zero | reject items of 3034 |
 | shift count too large | reject items of 3035 |
-| recursive type by value | known_gap items of #221 (L-TYPES-029, 030) |
-| cyclic alias | known_gap items of #221 (L-TYPES-124, 125) |
 | cyclic constant | reject items of 3055 (L-COVERAGE-001) |
 | overlapping implementation | L-TYPES-123, issue #225 |
 | unreachable switch arm | reject items of 3025 (a repeated case) and 2010 (a default that is not last) |
