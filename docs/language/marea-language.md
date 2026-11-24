@@ -587,6 +587,7 @@ Function declaration and call, parameters and defaults, the result and `return v
 | L-FUNCTIONS-069 | two parameters with one name | 3003 @9 |
 | L-FUNCTIONS-070 | a parameter that shares its name with a local of the body | 3003 @10 |
 | L-FUNCTIONS-072 | a non-boolean value as the result of a boolean function | 3011 @10 |
+| L-FUNCTIONS-073 | a condition of an integer type in an if | 3043 @10 |
 
 ### Functions and calls: known_gap
 
@@ -601,9 +602,8 @@ Function declaration and call, parameters and defaults, the result and `return v
 | L-FUNCTIONS-066 | a return with a value in a function that has no result | gap: 3011, rule: reject, issue #215 |
 | L-FUNCTIONS-067 | the result of a function with no result used as a value | gap: 3011, rule: reject, issue #215 |
 | L-FUNCTIONS-071 | a call of a value that is not a function | gap: 3011, rule: reject, issue #215 |
-| L-FUNCTIONS-073 | a condition of an integer type in an if | gap: 3011, rule: reject, issue #219 |
 
-Known gaps of this area share their issues: #213, #214, #215, #219, #220, #221, #222, #223, #224, #225. An issue lists the items that show it in the area; an item flips to `reject` the day its rule is implemented.
+Known gaps of this area share their issues: #213, #214, #215, #220, #221, #222, #223, #224, #225. An issue lists the items that show it in the area; an item flips to `reject` the day its rule is implemented.
 
 ## Types and control flow
 
@@ -746,6 +746,8 @@ Known gaps of this area share their issues: #213, #214, #215, #219, #220, #221, 
 | L-TYPES-149 | a while condition that names an undeclared name | 3004 @10 |
 | L-TYPES-150 | an if condition that names an undeclared name | 3004 @10 |
 | L-TYPES-151 | an elseif condition that names an undeclared name | 3004 @13 |
+| L-TYPES-152 | a while condition of an integer type | 3043 @10 |
+| L-TYPES-153 | an if condition of a text type | 3043 @10 |
 | L-TYPES-156 | a local with no semicolon | 2001 @11 |
 | L-TYPES-157 | an if with no then | 2001 @11 |
 | L-TYPES-158 | a while with no do | 2001 @11 |
@@ -817,8 +819,6 @@ Known gaps of this area share their issues: #213, #214, #215, #219, #220, #221, 
 | L-TYPES-124 | a cyclic type alias | gap: NEW, rule: reject, issue #221 |
 | L-TYPES-125 | a type alias of itself | gap: NEW, rule: reject, issue #221 |
 | L-TYPES-147 | a for range with a bound of another type | gap: 3011, rule: reject, issue #222 |
-| L-TYPES-152 | a while condition of an integer type | gap: 3011, rule: reject, issue #219 |
-| L-TYPES-153 | an if condition of a text type | gap: 3011, rule: reject, issue #219 |
 
 ## Namespaces and imports
 
@@ -1246,15 +1246,15 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | bindings | 33 | 80 | 0 |
 | coverage | 0 | 0 | 1 |
 | examples | 16 | 0 | 0 |
-| functions | 19 | 44 | 10 |
+| functions | 19 | 45 | 9 |
 | interop | 17 | 11 | 17 |
 | memory | 15 | 10 | 8 |
 | namespaces | 17 | 28 | 6 |
 | ownership | 65 | 35 | 45 |
 | parallel | 19 | 23 | 17 |
 | seed | 1 | 1 | 1 |
-| types | 60 | 114 | 22 |
-| total | 262 | 373 | 172 |
+| types | 60 | 116 | 20 |
+| total | 262 | 376 | 169 |
 
 ## Parity plan
 
@@ -1282,6 +1282,7 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 | 3038-3039 | `sema` | [marea-sema.md](../sema/marea-sema.md) |
 | 3040 | `sema` | [marea-sema.md](../sema/marea-sema.md), `ASSIGNMENT_TO_CONSTANT` |
 | 3041 | `sema` | [marea-sema.md](../sema/marea-sema.md), `RAW_POINTER_OUTSIDE_UNSAFE` |
+| 3043 | `sema` | [marea-sema.md](../sema/marea-sema.md), `NON_BOOLEAN_CONDITION` |
 | 4004-4006 | `ir` | [marea-ir.md](../ir/marea-ir.md), no item reaches them (see Gaps) |
 
 ## Gaps

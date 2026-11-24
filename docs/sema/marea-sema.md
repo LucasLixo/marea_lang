@@ -330,6 +330,11 @@ accepted, and a `character` operand of a bitwise operator is accepted.
 encloses it. A block nested in the `unsafe` block is enclosed too; the block ends the cover at its `end`. The context
 keeps an `unsafeDepth` counter beside `loopDepth`, and the scope mark restores it.
 
+**Condition type.** The condition of an `if`, an `elseif` or a `while` must be a `boolean`: a condition with a known
+primitive type other than `boolean`, or a number, string or character literal, is `NON_BOOLEAN_CONDITION` (3043), raised
+at the condition once. `true`, `false`, a comparison, `and`, `or`, `not` and a `boolean` name pass. A `switch` subject and
+an expression statement are not conditions and are not checked.
+
 **No implicit numeric conversion (decision of the user).** A calculation never converts a
 number by itself: the two operands of an arithmetic or a comparison operator have the same primitive type, and
 `**` follows the same rule as `+`. An integer base with a float exponent is `TYPE_MISMATCH`, whatever the declared type of the result, and the result of a power has the type of its operands.
@@ -644,6 +649,7 @@ or rejects.
 | 3039 | `LOGICAL_OPERAND_NOT_BOOLEAN` | `a and b`, `a or b`, `not a` with an operand whose known type is not `boolean`, or a number, string or character literal |
 | 3040 | `ASSIGNMENT_TO_CONSTANT` | `LIMIT = 11;`, `LIMIT += 1;`, `ORIGIN.x = 1;`, `TABLE[0] = 1;` when the root name is a file constant and no local hides it |
 | 3041 | `RAW_POINTER_OUTSIDE_UNSAFE` | `local raw: pointer<sinteger32> = f();` with no `unsafe ... end` block around it, at any depth of nesting |
+| 3043 | `NON_BOOLEAN_CONDITION` | `if n then`, `elseif s then`, `while 1 do` when the condition has a known primitive type that is not `boolean`, or is a number, string or character literal |
 
 ## Gaps
 
@@ -676,6 +682,8 @@ or rejects.
   declares is not rejected.
 - `RAW_POINTER_OUTSIDE_UNSAFE` (3041) checks only a `local` whose type is spelled `pointer<T>`. A `pointer` in a
   parameter, a return type or a structure field is not checked (issue #190), and a type alias of a pointer is not resolved.
+- `NON_BOOLEAN_CONDITION` (3043) judges only a literal and a primitive that sema knows. A condition of an unknown type
+  (a call, a generic value, a field of an imported type) raises nothing.
 - `LITERAL_OUT_OF_RANGE` (3033) reads only a written integer literal. A float literal, a literal in an operand
   (`1 + 300` bound to a `uinteger8`), a value folded from a named constant, and a literal whose target type is not a
   primitive sema knows (it is then checked against `uinteger64` only) are not range checked.
