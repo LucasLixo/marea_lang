@@ -16,6 +16,10 @@ namespace
 
     constexpr MAREA_Uinteger32 OUTSIDE_BLOCK{ MAREA_SEMA_DIAGNOSTIC_CODE_PARALLEL_CONSTRUCT_OUTSIDE_FORK_JOIN };
 
+    constexpr MAREA_Uinteger32 SPAWN_NEEDS_CALL{ MAREA_SEMA_DIAGNOSTIC_CODE_SPAWN_NEEDS_CALL };
+
+    constexpr MAREA_Uinteger32 PARTITION_NOT_ARRAY{ MAREA_SEMA_DIAGNOSTIC_CODE_PARTITION_SOURCE_NOT_ARRAY };
+
     constexpr MAREA_Uinteger32 INVALID_JUMP{ MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_PARALLEL_JUMP };
 
     const std::string HEAD{ "constant WORKERS: sinteger32 = 4; function work(part: slice<float32>, factor: float32) end " };
@@ -332,4 +336,44 @@ TEST(MAREASemaParallel, LoopOutsideTheWholeForkJoinBlockDoesNotValidateAJump)
     EXPECT_EQ(MAREA_codesOf("function f(values: c.array<float32>, a: boolean) while a do fork_join break; end end end"), Codes{ INVALID_JUMP }) << "A break directly in the fork_join block must not reach an outer loop; it must raise INVALID_PARALLEL_JUMP.";
 
     EXPECT_EQ(MAREA_codesOf("function f(values: c.array<float32>, a: boolean) while a do fork_join continue; end end end"), Codes{ INVALID_JUMP }) << "A continue directly in the fork_join block must not reach an outer loop; it must raise INVALID_PARALLEL_JUMP.";
+}
+
+TEST(MAREASemaParallel, SpawnOfAValueThatIsNotACallIsRejected)
+{
+    GTEST_COUT << "Validating a spawn whose operand is not a call raises SPAWN_NEEDS_CALL." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("structure Point x: sinteger32; end function f(point: Point) fork_join spawn point; end end"), Codes{ SPAWN_NEEDS_CALL }) << "A spawn of a name must raise 3063.";
+
+    EXPECT_EQ(MAREA_codesOf("function f() fork_join spawn 1; end end"), Codes{ SPAWN_NEEDS_CALL }) << "A spawn of a literal must raise 3063.";
+
+    EXPECT_EQ(MAREA_codesOf("function f() fork_join spawn print!(\"x\"); end end"), Codes{ SPAWN_NEEDS_CALL }) << "A spawn of a macro call must raise 3063.";
+
+    EXPECT_TRUE(MAREA_codesOf("function f(values: c.array<float32>, k: float32) fork_join partition values into 4 as part do spawn work(part, k); end end end").empty()) << "A spawn of a call must raise nothing.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(a: sinteger32) spawn a; end"), Codes{ OUTSIDE_BLOCK }) << "A spawn outside a block must raise only 3062.";
+}
+
+TEST(MAREASemaParallel, PartitionOfAValueThatIsNotAnArrayIsRejected)
+{
+    GTEST_COUT << "Validating a partition of a value that is known not to be an array raises PARTITION_SOURCE_NOT_ARRAY." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("function f() local count: sinteger32 = 4; fork_join partition count into 2 as part do end end end"), Codes{ PARTITION_NOT_ARRAY }) << "A partition of a primitive must raise 3064.";
+
+    EXPECT_EQ(MAREA_codesOf("structure Point x: sinteger32; end function f(point: Point) fork_join partition point into 2 as part do end end end"), Codes{ PARTITION_NOT_ARRAY }) << "A partition of a structure must raise 3064.";
+
+    EXPECT_EQ(MAREA_codesOf("enum Kind A; B; end function f(kind: Kind) fork_join partition kind into 2 as part do end end end"), Codes{ PARTITION_NOT_ARRAY }) << "A partition of an enum must raise 3064.";
+
+    EXPECT_EQ(MAREA_codesOf("function f() fork_join partition 4 into 2 as part do end end end"), Codes{ PARTITION_NOT_ARRAY }) << "A partition of a number must raise 3064.";
+
+    EXPECT_TRUE(MAREA_codesOf("function f(values: c.array<float32>) fork_join partition values into 2 as part do end end end").empty()) << "A partition of a library array must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("function f(values: array<float32, 4>) fork_join partition values into 2 as part do end end end").empty()) << "A partition of an array must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("function f(values: vector<float32>) fork_join partition values into 2 as part do end end end").empty()) << "A partition of a vector must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("function f(values: slice<float32>) fork_join partition values into 2 as part do end end end").empty()) << "A partition of a slice must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("function f(values: Unknown) fork_join partition values into 2 as part do end end end").empty()) << "A partition of an unclassified value must raise nothing.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(count: sinteger32) partition count into 2 as part do end end"), Codes{ OUTSIDE_BLOCK }) << "A partition outside a block must raise only 3062.";
 }

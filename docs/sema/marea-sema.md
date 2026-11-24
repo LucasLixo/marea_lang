@@ -321,6 +321,12 @@ constant, or a name that is not a `reference_mutable` (write-borrow) parameter a
 an active `partition mutable`, or a field access (`a.b`, nested too) whose base meets the same rule. Any other expression
 (a call, an index, a computed value) is rejected. This is a simple first rule.
 
+**Spawn and partition shape.** After the scope check, the operand of a `spawn` must be a call: any other operand (a name,
+a literal, a macro call such as `print!("x")`) is rejected with `SPAWN_NEEDS_CALL` (3063) at the operand. The source of a
+`partition` is rejected with `PARTITION_SOURCE_NOT_ARRAY` (3064) at the source when sema knows it is not an array: a number
+literal, a primitive (a `string` too), a structure or an enum. Any other shape is accepted, so a `c.array`, an `array`, a
+`vector`, a `slice`, a `pointer` and a call result raise nothing. A construct that fails the scope check raises no shape code.
+
 **Parallel bodies.** The body of a `partition` runs once for each part, so it is a worker body and ends
 only at its own `end`. A `return`, a `break` or a `continue` in it that would leave the body is rejected
 with `INVALID_PARALLEL_JUMP` (3024), one diagnostic for each jump. A `break` or `continue` that targets a
@@ -833,6 +839,8 @@ or rejects.
 | 3060 | `UNKNOWN_MACRO` | `shout!("hello");` when `shout` is none of the 13 built-in macros, at the call |
 | 3061 | `INVALID_MACRO_ARGUMENT` | `print!();`, `print!(1, 2);`, `print!("{} {}", 1);`, `assert!(1, "x");`, `unreachable!(1);`, `log!(loud, "x");`, `include_text!(1);`: the wrong count of arguments, a literal of the wrong kind, a log level that is not one of the five, or a count of `{}` that differs from the count of values, at the offending argument |
 | 3062 | `PARALLEL_CONSTRUCT_OUTSIDE_FORK_JOIN` | `function f(a: sinteger32) spawn g(a); end` or `partition values into 2 as part do end` with no `fork_join` block around it, also a `spawn` after the `end` of a block: raised at the `spawn` or `partition` and nothing else for that construct |
+| 3063 | `SPAWN_NEEDS_CALL` | `fork_join spawn point; end` or `spawn print!("x");`: the operand of a `spawn` is not a call, at the operand |
+| 3064 | `PARTITION_SOURCE_NOT_ARRAY` | `partition count into 2 as part do end` when `count` is a primitive, a structure, an enum or a number literal, at the source |
 | 3065 | `LOCAL_WITHOUT_INITIAL_VALUE` | `local x: sinteger32;` with no `= value`, for a primitive, a structure, a `pointer` or an `array`, at any depth of nesting |
 | 3066 | `PRIVATE_SYMBOL_ACCESS` | `b.hidden()` or `b.LIMIT` after `import a.b;` (or an alias) when the member is a top-level declaration of a `FOUND` namespace with `#[visibility = private]` |
 | 3067 | `PRIVATE_TYPE_ACCESS` | `s: b.Secret`, `b.Secret{ }` or any written `b.Secret` when the structure, enum, opaque or alias of a `FOUND` namespace is private |
@@ -841,6 +849,9 @@ or rejects.
 
 ## Gaps
 
+- The array rule of `partition` (3064) rejects only a source that sema knows is a number, a primitive, a structure or an
+  enum. A `slice`, a `pointer`, a library type that is not an array and a call result have no known shape, so a
+  partition of them is accepted.
 - A write through a method call on a read-only receiver, and a library call that mutates (`values.append(x)`), are
   not seen: sema does not know which calls mutate. The rule 3069 reads only a written assignment, a mutable loop or
   partition and a write-borrow argument.
