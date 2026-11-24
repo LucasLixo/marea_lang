@@ -1,9 +1,8 @@
--- gap: #210 3020
--- rule: reject
+-- expect: 3074 @56
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- A spawn in a loop writes the same local in each turn.
+-- A worker writes the local that the partition reads.
 
 namespace main;
 
@@ -49,11 +48,12 @@ function sum_slice(#[semantics = reference_read_only] part: c.slice<float32>): f
     return total;
 end
 
-function run(): sinteger32
-    local point: Point = make_point();
+function run(#[semantics = reference_read_only] values: c.array<float32>): sinteger32
+    local copy_of: c.array<float32> = copy values;
     fork_join
-        for index in 0 .. 3 do
-            spawn write_point(point);
+        partition copy_of into 2 as part do
+            spawn sum_slice(part);
+            spawn scale_slice(copy_of, 2.0);
         end
     end
     return 1;

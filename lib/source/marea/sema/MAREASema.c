@@ -39,6 +39,9 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaContextCreate(MAREA_Arena *arena, MAREA_Di
     context->locals = (MAREA_SemaNameTable){ 0 };
     context->references = (MAREA_SemaNameTable){ 0 };
     context->readOnly = (MAREA_SemaNameTable){ 0 };
+    context->captures = (MAREA_SemaCaptureTable){ 0 };
+    context->forkBody = MAREA_NULLPTR;
+    context->captureLocalBase = 0;
     context->localStart = 0;
     context->functionLocalStart = 0;
     context->root = MAREA_NULLPTR;
@@ -192,6 +195,10 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaVisit(MAREA_SemaContext *context, const MA
         result = MAREA_SemaMoveCheckUse(context, node, parent, parentIndex);
     }
 
+    if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
+        result = MAREA_SemaCaptureBody(context, node, parent);
+    }
+
     if (result != MAREA_SEMA_EXCEPT_SUCCESS) {
         // INFO: an out-of-memory result from the ownership check ends the visit of this node.
     } else if (kind == MAREA_AST_KIND_NAMED_TYPE) {
@@ -287,6 +294,9 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckCompilationUnit(MAREA_SemaContext *co
     context->locals = (MAREA_SemaNameTable){ 0 };
     context->references = (MAREA_SemaNameTable){ 0 };
     context->readOnly = (MAREA_SemaNameTable){ 0 };
+    context->captures = (MAREA_SemaCaptureTable){ 0 };
+    context->forkBody = MAREA_NULLPTR;
+    context->captureLocalBase = 0;
     context->root = root;
     context->function = MAREA_NULLPTR;
     context->implementation = MAREA_NULLPTR;
