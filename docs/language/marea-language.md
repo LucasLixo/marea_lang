@@ -486,6 +486,7 @@ lifecycle operator (3027) and structured `fork_join` with `partition` and `spawn
 | L-MEMORY-017 | The destroy operator is called by its bare name | 3004 @34, 3027 @34 |
 | L-MEMORY-018 | The destroy operator is called by the static form | 3027 @34 |
 | L-MEMORY-019 | The construct operator is called by the static form | 3027 @34 |
+| L-MEMORY-020 | The destroy operator is called on a value | 3027 @35 |
 | L-MEMORY-021 | A structure is destroyed twice by moving it and keeping the old owner | 3071 @36 |
 | L-MEMORY-023 | A worker spawned on a write-borrow parameter | 3020 @29 |
 | L-MEMORY-025 | A worker spawned on a call result | 3020 @29 |
@@ -495,12 +496,6 @@ lifecycle operator (3027) and structured `fork_join` with `partition` and `spawn
 | L-MEMORY-032 | A field of a scope block local is read after the block | 3004 @27 |
 
 ### Memory and regions: known_gap
-
-#### Memory holes
-
-| Id | Shows | Expected |
-|---|---|---|
-| L-MEMORY-020 | The destroy operator is called on a value | gap: #209 3027, rule: reject |
 
 #### Aliasing holes
 
@@ -1253,13 +1248,13 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | examples | 20 | 0 | 0 |
 | functions | 19 | 54 | 0 |
 | interop | 17 | 28 | 0 |
-| memory | 15 | 15 | 3 |
+| memory | 15 | 16 | 2 |
 | namespaces | 17 | 34 | 0 |
 | ownership | 65 | 63 | 17 |
 | parallel | 19 | 30 | 10 |
 | seed | 1 | 2 | 0 |
 | types | 60 | 132 | 4 |
-| total | 266 | 492 | 53 |
+| total | 266 | 493 | 52 |
 
 ## Parity plan
 
