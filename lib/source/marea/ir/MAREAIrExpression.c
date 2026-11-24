@@ -126,7 +126,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_SameText(const MAREA_AstNode *left, cons
     return (memcmp(MAREA_AstNodeGetText(left), MAREA_AstNodeGetText(right), MAREA_AstNodeGetTextLength(left)) == 0) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
-// INFO: a call fills a default only for a plain function of the same unit; any other callee shape fills nothing, the same limit the built-in lookup already has.
+// INFO: a bare callee fills a default only for a plain function of the same unit, the same limit the built-in lookup already has. A callee through a member access is looked up by MAREA_G_FindMemberFunction.
 // INFO: a parameter or a local of the enclosing function with the callee's name hides the module function, so its own call is never filled either.
 static const MAREA_SemaTypedNode *MAREA_CALL MAREA_G_FindCalleeFunction(const MAREA_IrContext *context, const MAREA_SemaTypedNode *callee)
 {
@@ -159,6 +159,121 @@ static const MAREA_SemaTypedNode *MAREA_CALL MAREA_G_FindCalleeFunction(const MA
     return MAREA_NULLPTR;
 }
 
+// INFO: true when the parameter list of function starts with a parameter named self, the mark of a method.
+static MAREA_Boolean MAREA_CALL MAREA_G_FirstParameterIsSelf(const MAREA_SemaTypedNode *function)
+{
+    const MAREA_SemaTypedNode *parameters = MAREA_IrTypedFindChild(function, MAREA_AST_KIND_PARAMETER_LIST);
+
+    const MAREA_SemaTypedNode *first = MAREA_IrTypedFindChild(parameters, MAREA_AST_KIND_PARAMETER);
+
+    const MAREA_SemaTypedNode *name = MAREA_IrTypedFindChild(first, MAREA_AST_KIND_IDENTIFIER);
+
+    if (name == MAREA_NULLPTR) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_AstNode *nameAst = MAREA_SemaTypedNodeGetAstNode(name);
+
+    return ((MAREA_AstNodeGetTextLength(nameAst) == MAREA_INTEGER_SIZE(4)) && (memcmp(MAREA_AstNodeGetText(nameAst), "self", MAREA_INTEGER_SIZE(4)) == 0)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
+// INFO: the function named member in an implementation block of the unit that is written for typeName. A generic block is left out: the ir lowers none of its functions.
+static const MAREA_SemaTypedNode *MAREA_CALL MAREA_G_FindImplementedFunction(const MAREA_IrContext *context, const MAREA_Character8 *typeName, MAREA_IntegerSize typeNameLength, const MAREA_AstNode *member)
+{
+    const MAREA_IntegerSize COUNT = MAREA_SemaTypedNodeGetChildCount(context->unit);
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < COUNT; index = (index + MAREA_INTEGER_SIZE(1))) {
+        const MAREA_SemaTypedNode *block = MAREA_IrTypedChildAt(context->unit, index);
+
+        if ((MAREA_IrTypedKind(block) != MAREA_AST_KIND_IMPLEMENTATION_DECLARATION) || (MAREA_IrTypedFindChild(block, MAREA_AST_KIND_GENERIC_PARAMETERS) != MAREA_NULLPTR)) {
+            continue;
+        }
+
+        const MAREA_SemaTypedNode *typeNode = MAREA_IrTypedFindChild(block, MAREA_AST_KIND_NAMED_TYPE);
+
+        const MAREA_Character8 *implementedName = MAREA_NULLPTR;
+        MAREA_IntegerSize implementedLength = MAREA_INTEGER_SIZE(0);
+
+        if ((typeNode == MAREA_NULLPTR) || (MAREA_IrAstTypeName(MAREA_SemaTypedNodeGetAstNode(typeNode), &implementedName, &implementedLength) == MAREA_BOOLEAN_FALSE) || (implementedLength != typeNameLength) || (memcmp(implementedName, typeName, typeNameLength) != 0)) {
+            continue;
+        }
+
+        const MAREA_IntegerSize MEMBER_COUNT = MAREA_SemaTypedNodeGetChildCount(block);
+
+        for (MAREA_IntegerSize memberIndex = MAREA_INTEGER_SIZE(0); memberIndex < MEMBER_COUNT; memberIndex = (memberIndex + MAREA_INTEGER_SIZE(1))) {
+            const MAREA_SemaTypedNode *function = MAREA_IrTypedChildAt(block, memberIndex);
+
+            if (MAREA_IrTypedKind(function) != MAREA_AST_KIND_FUNCTION_DECLARATION) {
+                continue;
+            }
+
+            const MAREA_SemaTypedNode *name = MAREA_IrTypedFindChild(function, MAREA_AST_KIND_IDENTIFIER);
+
+            if ((name != MAREA_NULLPTR) && (MAREA_G_SameText(member, MAREA_SemaTypedNodeGetAstNode(name)) == MAREA_BOOLEAN_TRUE)) {
+                return function;
+            }
+        }
+    }
+
+    return MAREA_NULLPTR;
+}
+
+// INFO: a call through a member access, recv.name(...) or Type.name(...), finds name in the implementation blocks of the unit. A type name written before the member is a static call and passes every parameter. A value is a method call: its type must be a plain name, with no type argument, and the function must start with self, which the receiver supplies, so one parameter is skipped. A receiver of another unit has no implementation here, so it fills nothing.
+static const MAREA_SemaTypedNode *MAREA_CALL MAREA_G_FindMemberFunction(const MAREA_IrContext *context, const MAREA_SemaTypedNode *callee, MAREA_IntegerSize *outSkipped)
+{
+    const MAREA_SemaTypedNode *receiver = MAREA_IrTypedChildAt(callee, MAREA_INTEGER_SIZE(0));
+
+    const MAREA_SemaTypedNode *member = MAREA_IrTypedChildAt(callee, MAREA_INTEGER_SIZE(1));
+
+    if ((receiver == MAREA_NULLPTR) || (member == MAREA_NULLPTR) || (MAREA_IrTypedKind(member) != MAREA_AST_KIND_IDENTIFIER)) {
+        return MAREA_NULLPTR;
+    }
+
+    const MAREA_Character8 *typeName = MAREA_NULLPTR;
+    MAREA_IntegerSize typeNameLength = MAREA_INTEGER_SIZE(0);
+
+    const MAREA_Boolean IS_STATIC = MAREA_SemaTypedNodeIsQualifier(receiver);
+
+    if (IS_STATIC == MAREA_BOOLEAN_TRUE) {
+        const MAREA_AstNode *receiverAst = MAREA_SemaTypedNodeGetAstNode(receiver);
+
+        typeName = MAREA_AstNodeGetText(receiverAst);
+        typeNameLength = MAREA_AstNodeGetTextLength(receiverAst);
+    } else if ((MAREA_SemaTypedNodeGetResolvedType(receiver, &typeName, &typeNameLength) != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) || (typeName == MAREA_NULLPTR) || (memchr(typeName, '<', typeNameLength) != MAREA_NULLPTR)) {
+        return MAREA_NULLPTR;
+    }
+
+    const MAREA_SemaTypedNode *function = MAREA_G_FindImplementedFunction(context, typeName, typeNameLength, MAREA_SemaTypedNodeGetAstNode(member));
+
+    if (function == MAREA_NULLPTR) {
+        return MAREA_NULLPTR;
+    }
+
+    if (IS_STATIC == MAREA_BOOLEAN_TRUE) {
+        return function;
+    }
+
+    if (MAREA_G_FirstParameterIsSelf(function) == MAREA_BOOLEAN_FALSE) {
+        return MAREA_NULLPTR;
+    }
+
+    *outSkipped = MAREA_INTEGER_SIZE(1);
+
+    return function;
+}
+
+// INFO: the function whose parameter list a call is filled against, and how many leading parameters the call supplies on its own (the self of a method call).
+static const MAREA_SemaTypedNode *MAREA_CALL MAREA_G_FindCallee(const MAREA_IrContext *context, const MAREA_SemaTypedNode *callee, MAREA_IntegerSize *outSkipped)
+{
+    *outSkipped = MAREA_INTEGER_SIZE(0);
+
+    if (MAREA_IrTypedKind(callee) == MAREA_AST_KIND_MEMBER_ACCESS) {
+        return MAREA_G_FindMemberFunction(context, callee, outSkipped);
+    }
+
+    return MAREA_G_FindCalleeFunction(context, callee);
+}
+
 // INFO: lowers one expression and appends it to node; a result that lowers to nothing marks the caller incomplete.
 static MAREA_IrExcept MAREA_CALL MAREA_G_LowerAndAppend(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode *node, MAREA_Boolean *outComplete)
 {
@@ -182,7 +297,8 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerAndAppend(MAREA_IrContext *context
 // INFO: an argument list lowers every argument the call wrote, then fills every parameter the call omitted with
 // INFO: its own default, read fresh from function's typed parameter list: the ir materializes every default.
 // INFO: typed may be null (a Type{...} literal writes no argument); position then gives the node its source position.
-static MAREA_IrExcept MAREA_CALL MAREA_G_LowerArgumentsAgainst(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, const MAREA_AstNode *position, const MAREA_SemaTypedNode *function, MAREA_IrNode **outNode, MAREA_Boolean *outComplete)
+// INFO: skipped is the number of leading parameters that the call supplies without writing them, the self of a method call.
+static MAREA_IrExcept MAREA_CALL MAREA_G_LowerArgumentsAgainst(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, const MAREA_AstNode *position, const MAREA_SemaTypedNode *function, MAREA_IntegerSize skipped, MAREA_IrNode **outNode, MAREA_Boolean *outComplete)
 {
     *outComplete = MAREA_BOOLEAN_TRUE;
 
@@ -218,7 +334,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerArgumentsAgainst(MAREA_IrContext *
                 continue;
             }
 
-            if (supplied < PROVIDED) {
+            if (supplied < (skipped + PROVIDED)) {
                 supplied = (supplied + MAREA_INTEGER_SIZE(1));
 
                 continue;
@@ -305,7 +421,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerConstructCall(MAREA_IrContext *con
         MAREA_IrNode *loweredArguments = MAREA_NULLPTR;
         MAREA_Boolean complete = MAREA_BOOLEAN_TRUE;
 
-        result = MAREA_G_LowerArgumentsAgainst(context, arguments, MAREA_SemaTypedNodeGetAstNode(typed), constructOperator, &loweredArguments, &complete);
+        result = MAREA_G_LowerArgumentsAgainst(context, arguments, MAREA_SemaTypedNodeGetAstNode(typed), constructOperator, MAREA_INTEGER_SIZE(0), &loweredArguments, &complete);
 
         if (result != MAREA_IR_EXCEPT_SUCCESS) {
             return result;
@@ -395,7 +511,11 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerCall(MAREA_IrContext *context, con
         MAREA_IrNode *loweredArguments = MAREA_NULLPTR;
         MAREA_Boolean complete = MAREA_BOOLEAN_TRUE;
 
-        result = MAREA_G_LowerArgumentsAgainst(context, arguments, MAREA_SemaTypedNodeGetAstNode(typed), MAREA_G_FindCalleeFunction(context, callee), &loweredArguments, &complete);
+        MAREA_IntegerSize skipped = MAREA_INTEGER_SIZE(0);
+
+        const MAREA_SemaTypedNode *calleeFunction = MAREA_G_FindCallee(context, callee, &skipped);
+
+        result = MAREA_G_LowerArgumentsAgainst(context, arguments, MAREA_SemaTypedNodeGetAstNode(typed), calleeFunction, skipped, &loweredArguments, &complete);
 
         if (result != MAREA_IR_EXCEPT_SUCCESS) {
             return result;
@@ -482,7 +602,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_WrapLiteralInConstruct(MAREA_IrContext 
     MAREA_IrNode *defaults = MAREA_NULLPTR;
     MAREA_Boolean complete = MAREA_BOOLEAN_TRUE;
 
-    result = MAREA_G_LowerArgumentsAgainst(context, MAREA_NULLPTR, literalAst, constructOperator, &defaults, &complete);
+    result = MAREA_G_LowerArgumentsAgainst(context, MAREA_NULLPTR, literalAst, constructOperator, MAREA_INTEGER_SIZE(0), &defaults, &complete);
 
     if (result != MAREA_IR_EXCEPT_SUCCESS) {
         return result;
