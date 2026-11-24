@@ -1026,6 +1026,16 @@ MAREA_BEGIN_EXTERN_C
     MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckConstantOperands(MAREA_SemaContext * context, MAREA_TokenKind operatorKind, const MAREA_AstNode *left, const MAREA_AstNode *right, MAREA_SourcePosition position);
 
     /**
+     * @brief Reports ASSIGNMENT_TO_CONSTANT for an assignment (= or a compound form) whose target is a file
+     * constant, or a MEMBER_ACCESS or INDEX_ACCESS path whose root identifier is one. A local, parameter or for
+     * variable of the same name hides the constant, so it raises nothing.
+     * @param context Context of the run. Must not be null.
+     * @param assignment ASSIGNMENT node: child 0 is the target. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, or ERROR_NULL_POINTER when an argument is null.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckConstantAssignment(MAREA_SemaContext * context, const MAREA_AstNode *assignment);
+
+    /**
      * @brief Tells whether a number literal fits a primitive type under the rule of MAREA_SemaCheckExpressionFit:
      * an integer literal fits any number type, a float literal fits float32 and float64 only.
      * @param kind MAREA_AST_KIND_INTEGER_LITERAL or MAREA_AST_KIND_FLOAT_LITERAL. Any other kind gives false.

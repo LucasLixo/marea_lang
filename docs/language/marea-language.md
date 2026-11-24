@@ -233,6 +233,7 @@ A `known_gap` item that shares an issue shows one hole of the compiler through m
 | L-BINDINGS-080 | A constant declared twice | 3003 @10 |
 | L-BINDINGS-081 | A constant that holds the wrong type | 3011 @9 |
 | L-BINDINGS-082 | A constant with no initial value | 2001 @9 |
+| L-BINDINGS-084 | A constant assigned inside a function | 3040 @12 |
 | L-BINDINGS-085 | A constant declared inside a function | 2001 @10, 2004 @11, 2004 @11, 2005 @12, 3022 @9 |
 | L-BINDINGS-086 | A function and a constant with the same name | 3003 @11 |
 | L-BINDINGS-089 | A scope block with no end | 2009 @14 |
@@ -255,7 +256,6 @@ A `known_gap` item that shares an issue shows one hole of the compiler through m
 
 | Id | Shows | Expected |
 |---|---|---|
-| L-BINDINGS-084 | A constant assigned inside a function | gap: #189 NEW, rule: reject |
 | L-BINDINGS-094 | A raw pointer local outside an unsafe block | gap: #190 NEW, rule: reject |
 
 ## Ownership and borrows
@@ -1243,7 +1243,7 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | area | accept | reject | known_gap |
 |---|---|---|---|
 | adversarial | 0 | 27 | 45 |
-| bindings | 33 | 78 | 2 |
+| bindings | 33 | 79 | 1 |
 | coverage | 0 | 0 | 1 |
 | examples | 16 | 0 | 0 |
 | functions | 19 | 43 | 11 |
@@ -1254,7 +1254,7 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | parallel | 19 | 23 | 17 |
 | seed | 1 | 1 | 1 |
 | types | 60 | 114 | 22 |
-| total | 262 | 369 | 176 |
+| total | 262 | 370 | 175 |
 
 ## Parity plan
 
@@ -1280,6 +1280,7 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 | 3034-3035 | `sema` | [marea-sema.md](../sema/marea-sema.md), the division and shift rules of constant operands |
 | 3036-3037 | `sema` | [marea-sema.md](../sema/marea-sema.md) |
 | 3038-3039 | `sema` | [marea-sema.md](../sema/marea-sema.md) |
+| 3040 | `sema` | [marea-sema.md](../sema/marea-sema.md), `ASSIGNMENT_TO_CONSTANT` |
 | 4004-4006 | `ir` | [marea-ir.md](../ir/marea-ir.md), no item reaches them (see Gaps) |
 
 ## Gaps
