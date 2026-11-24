@@ -39,7 +39,8 @@ MAREA_BEGIN_EXTERN_C
      * @brief Body of the opaque ir context: the arena and the sink it was created with, and the typed root
      * of the unit that is being lowered, which tells whether the unit binds a name of its own. The root is null
      * when no unit is being lowered. The alias table is built once per unit; function is the typed function that
-     * is being lowered, or null at module level.
+     * is being lowered, or null at module level. loopCount is the number of for-range loops that the function
+     * being lowered has started so far; it names their hidden bounds apart and restarts at zero for each function.
      */
     struct MAREA_IrContext
     {
@@ -49,6 +50,7 @@ MAREA_BEGIN_EXTERN_C
         const MAREA_SemaTypedNode *function;
         MAREA_IrAlias *aliases;
         MAREA_IntegerSize aliasCount;
+        MAREA_IntegerSize loopCount;
     };
 
     /**
@@ -119,6 +121,15 @@ MAREA_BEGIN_EXTERN_C
      * @param source Node whose resolved type is shared.
      */
     void MAREA_CALL MAREA_IrNodeShareResolvedType(MAREA_IrNode * node, const MAREA_IrNode *source);
+
+    /**
+     * @brief Sets the type name of a node to the head of its resolved type: the text before the first type
+     * argument, a dotted name kept whole (`array<sinteger32,4>` gives `array`). The name points into the resolved
+     * type, so it lives as long as that text does. A node with no resolved type, or a function type, which has
+     * no head name, is left without a type name. A null node does nothing.
+     * @param node Node to change.
+     */
+    void MAREA_CALL MAREA_IrNodeSetTypeNameFromResolved(MAREA_IrNode * node);
 
     /**
      * @brief Sets the resolved type of a node to a text that outlives the arena, such as a string literal. A null

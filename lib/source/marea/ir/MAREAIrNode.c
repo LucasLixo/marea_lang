@@ -56,7 +56,7 @@ static const MAREA_Character8 *const MAREA_G_IrKindNames[] = {
     "TYPE_NAME",
     "BUILTIN_NAME",
     "CHARACTER_LITERAL",
-    "ZERO_VALUE",
+    MAREA_NULLPTR, // INFO: the retired value of ZERO_VALUE, kept so that no later kind moves; it names no kind.
     "CONSTRUCT_CALL",
     "DESTROY_CALL",
 };
@@ -69,7 +69,8 @@ const MAREA_Character8 *MAREA_CALL MAREA_IrKindGetName(MAREA_IrKind kind)
         return "UNKNOWN";
     }
 
-    return MAREA_G_IrKindNames[kind];
+    // INFO: the retired value has no name.
+    return (MAREA_G_IrKindNames[kind] != MAREA_NULLPTR) ? MAREA_G_IrKindNames[kind] : "UNKNOWN";
 }
 
 MAREA_IrKind MAREA_CALL MAREA_IrNodeGetKind(const MAREA_IrNode *node)
@@ -340,6 +341,31 @@ void MAREA_CALL MAREA_IrNodeShareResolvedType(MAREA_IrNode *node, const MAREA_Ir
 
     node->resolvedType = source->resolvedType;
     node->resolvedTypeLength = source->resolvedTypeLength;
+}
+
+void MAREA_CALL MAREA_IrNodeSetTypeNameFromResolved(MAREA_IrNode *node)
+{
+    if ((node == MAREA_NULLPTR) || (node->resolvedType == MAREA_NULLPTR)) {
+        return;
+    }
+
+    static const MAREA_Character8 FUNCTION_HEAD[] = "function(";
+
+    const MAREA_IntegerSize HEAD_LENGTH = strlen(FUNCTION_HEAD);
+
+    // INFO: a function type has no head name, as a written FUNCTION_TYPE has none.
+    if ((node->resolvedTypeLength >= HEAD_LENGTH) && (memcmp(node->resolvedType, FUNCTION_HEAD, HEAD_LENGTH) == 0)) {
+        return;
+    }
+
+    MAREA_IntegerSize length = MAREA_INTEGER_SIZE(0);
+
+    while ((length < node->resolvedTypeLength) && (node->resolvedType[length] != '<')) {
+        length = (length + MAREA_INTEGER_SIZE(1));
+    }
+
+    node->typeName = node->resolvedType;
+    node->typeNameLength = length;
 }
 
 void MAREA_CALL MAREA_IrNodeSetResolvedTypeStatic(MAREA_IrNode *node, const MAREA_Character8 *text)

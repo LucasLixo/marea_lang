@@ -451,99 +451,6 @@ static const MAREA_SemaTypedNode *MAREA_CALL MAREA_G_FindStructureOfUnit(const M
     return MAREA_NULLPTR;
 }
 
-// INFO: true when node already holds a FIELD_ENTRY of this name, one the literal's source wrote itself.
-static MAREA_Boolean MAREA_CALL MAREA_G_NodeHasField(const MAREA_IrNode *node, const MAREA_Character8 *text, MAREA_IntegerSize length)
-{
-    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < node->childCount; index = (index + MAREA_INTEGER_SIZE(1))) {
-        const MAREA_IrNode *child = node->children[index];
-
-        if ((child->textLength == (MAREA_Uinteger32)length) && (memcmp(child->text, text, length) == 0)) {
-            return MAREA_BOOLEAN_TRUE;
-        }
-    }
-
-    return MAREA_BOOLEAN_FALSE;
-}
-
-// INFO: one field the source did not name: a FIELD_ENTRY of the structure's own field name holding a ZERO_VALUE, positioned at the literal itself, since the omission names no position of its own.
-static MAREA_IrExcept MAREA_CALL MAREA_G_AppendZeroField(MAREA_IrContext *context, const MAREA_AstNode *literalAst, const MAREA_SemaTypedNode *field, const MAREA_AstNode *nameAst, MAREA_IrNode *node)
-{
-    MAREA_IrNode *entry = MAREA_NULLPTR;
-
-    MAREA_IrExcept result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_FIELD_ENTRY, literalAst, &entry);
-
-    if (result != MAREA_IR_EXCEPT_SUCCESS) {
-        return result;
-    }
-
-    result = MAREA_IrNodeSetQualifiedText(context, entry, MAREA_NULLPTR, MAREA_INTEGER_SIZE(0), MAREA_AstNodeGetText(nameAst), MAREA_AstNodeGetTextLength(nameAst));
-
-    if (result != MAREA_IR_EXCEPT_SUCCESS) {
-        return result;
-    }
-
-    MAREA_IrNode *zero = MAREA_NULLPTR;
-
-    result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_ZERO_VALUE, literalAst, &zero);
-
-    // INFO: the zero fills one field, so it has the declared type of that field.
-    if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_IrNodeSetResolvedTypeFromTyped(context, zero, field, MAREA_NULLPTR);
-    }
-
-    if (result != MAREA_IR_EXCEPT_SUCCESS) {
-        return result;
-    }
-
-    result = MAREA_IrNodeAppendChild(context, entry, zero);
-
-    if (result != MAREA_IR_EXCEPT_SUCCESS) {
-        return result;
-    }
-
-    return MAREA_IrNodeAppendChild(context, node, entry);
-}
-
-// INFO: every field of the literal's structure that the source did not name gets a synthesized zero field, appended after the fields the source wrote, in the structure's own declaration order.
-static MAREA_IrExcept MAREA_CALL MAREA_G_AppendMissingFields(MAREA_IrContext *context, const MAREA_AstNode *literalAst, MAREA_IrNode *node)
-{
-    const MAREA_SemaTypedNode *structure = MAREA_G_FindStructureOfUnit(context, node->typeName, node->typeNameLength);
-
-    if (structure == MAREA_NULLPTR) {
-        return MAREA_IR_EXCEPT_SUCCESS;
-    }
-
-    const MAREA_IntegerSize COUNT = MAREA_SemaTypedNodeGetChildCount(structure);
-
-    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < COUNT; index = (index + MAREA_INTEGER_SIZE(1))) {
-        const MAREA_SemaTypedNode *field = MAREA_IrTypedChildAt(structure, index);
-
-        if (MAREA_IrTypedKind(field) != MAREA_AST_KIND_FIELD_DECLARATION) {
-            continue;
-        }
-
-        const MAREA_SemaTypedNode *name = MAREA_IrTypedFindChild(field, MAREA_AST_KIND_IDENTIFIER);
-
-        if (name == MAREA_NULLPTR) {
-            continue;
-        }
-
-        const MAREA_AstNode *nameAst = MAREA_SemaTypedNodeGetAstNode(name);
-
-        if (MAREA_G_NodeHasField(node, MAREA_AstNodeGetText(nameAst), MAREA_AstNodeGetTextLength(nameAst)) == MAREA_BOOLEAN_TRUE) {
-            continue;
-        }
-
-        const MAREA_IrExcept result = MAREA_G_AppendZeroField(context, literalAst, field, nameAst, node);
-
-        if (result != MAREA_IR_EXCEPT_SUCCESS) {
-            return result;
-        }
-    }
-
-    return MAREA_IR_EXCEPT_SUCCESS;
-}
-
 // INFO: Type{...} sets the fields, then runs the type's construct with its defaults, so a literal of a structure of this unit that has a construct operator lowers to a CONSTRUCT_CALL: the defaults are its ARGUMENT_LIST and the literal is its second child, the initial value. Any other literal stays a LITERAL_VALUE.
 static MAREA_IrExcept MAREA_CALL MAREA_G_WrapLiteralInConstruct(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode *literal, MAREA_IrNode **outNode)
 {
@@ -620,12 +527,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerLiteralValue(MAREA_IrContext *cont
         return result;
     }
 
-    result = MAREA_G_AppendMissingFields(context, MAREA_SemaTypedNodeGetAstNode(typed), node);
-
-    if (result != MAREA_IR_EXCEPT_SUCCESS) {
-        return result;
-    }
-
+    // INFO: sema rejects a literal that leaves a field out (MISSING_FIELD), so the ir adds no value for one.
     return MAREA_G_WrapLiteralInConstruct(context, typed, node, outNode);
 }
 

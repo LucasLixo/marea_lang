@@ -58,11 +58,12 @@ from the source (`IDENTIFIER`, the five literals, `BINARY_EXPRESSION`, `UNARY_EX
 `INDEX_ACCESS`, `CALL_EXPRESSION` or the `CONSTRUCT_CALL` it became, `LITERAL_VALUE`) and every `PARAMETER`,
 `LOCAL_DECLARATION`, `FIELD_DECLARATION`, `VARIANT_FIELD`, `CONSTANT_DECLARATION` and `FUNCTION_DECLARATION` with a
 written type. A name that only qualifies a member (`Planet` in `Planet.Earth`) has none and is not a gap. The nodes
-that the ir invents carry one too: a `ZERO_VALUE` has the type of the structure field it fills; the hidden locals
-`$last` (the type of the last bound), `$switch` (the type of the scrutinee) and `$return` (the type of the returned
+that the ir invents carry one too: the hidden locals
+`$lastN` (the type of the last bound), `$switch` (the type of the scrutinee) and `$return` (the type of the returned
 value) have the type they hold, and every `IDENTIFIER` that reads one shares it; the loop variable of a for-range loop
-has the type sema gave its name (else the type of the first value), and the step literal `1` its type; the tests the
-desugaring builds (`<=`, `==` and `or`) are `boolean`. The `ASSIGNMENT` of the step and every `DESTROY_CALL` stay
+has the type sema gave its name (else the type of the first value), and the step literal `1` its type; a
+`FOR_EACH_STATEMENT` has the type sema gave its value name, and its key the type sema gave it (see For-each
+lowering); the tests the desugaring builds (`<=`, `==` and `or`) are `boolean`. The `ASSIGNMENT` of the step and every `DESTROY_CALL` stay
 untyped: they are statements, not values.
 
 Some expressions stay untyped on purpose, because sema leaves them untyped (the closed list in the sema doc, "Gaps").
@@ -93,6 +94,10 @@ The type name is the head name of the written type, with no type arguments (`arr
 and on a non-generic `CALL_EXPRESSION`, from the type name the typed tree carries for the call result,
 when it has one. A `CALL_EXPRESSION` of a built-in or of a static call on a written type (see Type operands)
 follows the same rule, and a `TYPE_NAME` or a `BUILTIN_NAME` has no type name: it holds its name as text.
+The loop variable and `$lastN` of a for-range loop, a `FOR_EACH_STATEMENT` (its value) and the key of a for-each loop
+have no written type, so their type name is the head of their resolved type, the text before the first type
+argument (see For-range desugaring and For-each lowering); a function type has none. The other hidden locals
+(`$switch`, `$return`) keep no type name.
 An `ENUM_DECLARATION` also carries a type name, its tag type: the written tag when the source wrote one
 (`enum Name : uinteger8 ... end` gives `uinteger8`), or the literal `sinteger32` when it wrote none, the
 default the language spec sets for a tag with no written type.
@@ -111,9 +116,13 @@ operands). The kinds are: `MODULE`, `CONSTANT_DECLARATION`,
 `BINARY_EXPRESSION`, `UNARY_EXPRESSION`, `MEMBER_ACCESS`, `INDEX_ACCESS`, `CALL_EXPRESSION`,
 `ARGUMENT_LIST`, `LITERAL_VALUE`, `FIELD_ENTRY`, `INDEX_ENTRY`, `VALUE_ENTRY`, `QUALIFIED_NAME`,
 `UNREACHABLE_STATEMENT`, `FORK_JOIN_BLOCK`, `PARTITION_STATEMENT`, `WITH_STATEMENT`, `FOR_EACH_STATEMENT`,
-`TYPE_NAME`, `BUILTIN_NAME`, `CHARACTER_LITERAL` (the text is the literal as written, with its single quotes) and
-`ZERO_VALUE` (see Zero-default creation), `CONSTRUCT_CALL` and `DESTROY_CALL` (see Construct and destroy lowering). The last
-ten come after every older kind, so no value of an older kind moved.
+`TYPE_NAME`, `BUILTIN_NAME`, `CHARACTER_LITERAL` (the text is the literal as written, with its single quotes),
+`CONSTRUCT_CALL` and `DESTROY_CALL` (see Construct and destroy lowering). The kinds from `UNREACHABLE_STATEMENT` on come
+after every older kind, so no value of an older kind moved. One value is retired: the one right after `CHARACTER_LITERAL`, which was `ZERO_VALUE`
+(see Zero-default creation). It is not an enumerator any more, and no value moved to fill it: `CONSTRUCT_CALL` is
+declared as `MAREA_IR_KIND_CHARACTER_LITERAL + 2`, `DESTROY_CALL` follows it, and `MAREA_IR_KIND_COUNT` is unchanged.
+`MAREA_IrKindGetName` gives `UNKNOWN` for the retired value, as for a value out of range, so a loop over the values
+below `MAREA_IR_KIND_COUNT` meets one value that names no kind.
 
 The module keeps its declarations in source order. The typing is erased before the IR, so these make
 no node:
@@ -138,7 +147,7 @@ Other shapes:
 - A constant, variant field or local with an initializer holds the lowered expression as its only child. A
   `CONSTANT_DECLARATION`, a `VARIANT_FIELD` and a `LOCAL_DECLARATION` with no initializer keep the no-child shape.
   Sema rejects a local with no initializer (3065), so the ir sees that shape only from an AST sema refused, and it
-  adds no `ZERO_VALUE` for it (see Zero-default creation).
+  adds no value for it (see Zero-default creation).
 - A `PARAMETER` with a default value holds the lowered default as its only child, the same shape a
   constant or a variant field uses for its own initializer. A `PARAMETER` with no default keeps the no-child
   shape: it is a required argument, not a zero (see Zero-default creation).
@@ -156,33 +165,31 @@ Other shapes:
 The language spec's zero-default rule (decided 2026-11-22: no value or field is left unset at creation) covers six
 creation paths in all: a literal with an omitted field, a `local` with no initializer, `Type(args)` before
 `construct`, `array<T, N>` elements, `owned<T>` storage and a `convert` result that exposes padding. The ir lowers
-only the one it can see without a backend, as an explicit `ZERO_VALUE`: a leaf with no text, no type name and
-no children, left for a backend to fill (see the backend contract below). A `local` with no initializer is no
-longer a creation path: sema rejects it (3065), so the ir does not lower it to a zero. The other four are a gap,
-recorded below and in Gaps; they need `cgen` or `vm` to exist first.
-- **A struct `LITERAL_VALUE` field the source left unnamed** gets a synthesized `FIELD_ENTRY`, named after the
-  structure's own field and holding a `ZERO_VALUE` as its only child, appended after every `FIELD_ENTRY` the source
-  wrote, in the structure's own field declaration order. `Point{ x = 1 }`, with `Point` declaring `x` then `y`,
-  lowers to `(LITERAL_VALUE :Point (FIELD_ENTRY x (INTEGER_LITERAL 1)) (FIELD_ENTRY y (ZERO_VALUE)))`. The ir finds
-  the structure by its (de-aliased) type name among the non-generic `STRUCTURE_DECLARATION` items of the unit; a
-  generic structure, an opaque one (it has no field to miss) or a structure the unit does not declare (another
-  namespace) keeps today's shape with no synthesized field, a cross-module gap the ir already has elsewhere (see
-  Aliases and Gaps).
-- The rule stops at this one shape. A `PARAMETER` with no default, a `CONSTANT_DECLARATION` (the grammar always
-  requires its initializer), a `VARIANT_FIELD` with no written value and a `LOCAL_DECLARATION` with no initializer
-  (sema rejects it) all keep their own no-child shape: a missing parameter default is a required argument, and a
-  missing variant field default is a required argument of the variant, neither one a zero.
-- **Backend contract (not yet implemented, recorded here for `cgen`/`vm`):** a `ZERO_VALUE` carries the resolved type
-  of what it fills (the structure field's declared type), so a backend can
-  size it. `cgen` is expected to emit
-  `= {0}` for a type of constant size, or a `memset` otherwise; the `vm` is expected to zero the slot on
-  allocation. A parity test is expected to read the zeroed value on both backends and expect 0. None of this exists
-  yet (see Gaps): the ir only places the marker.
+none of them to a zero node, and it has no such kind. It had one, `ZERO_VALUE`, for the first two. It is removed
+(the value it held is retired, see Kinds and what is erased): sema now rejects both paths, so no accepted program
+reaches them.
+
+- **A `local` with no initializer** is rejected by sema (`LOCAL_WITHOUT_INITIAL_VALUE`, 3065).
+- **A struct literal that omits a field** is rejected by sema (`MISSING_FIELD`, 3077, for `Point{ x = 1 }` and
+  `Point{}`, reported at the first missing field). `MAREA_SemaBuildTypedAst`, the only input of the ir, refuses a
+  tree with a sema error (`ERROR_NOT_CHECKED`), so the ir never sees such a literal, and a `LITERAL_VALUE` holds
+  exactly the `FIELD_ENTRY` items the source wrote. A test checks it.
+- The rule stops there. A `PARAMETER` with no default, a `CONSTANT_DECLARATION` (the grammar always requires its
+  initializer), a `VARIANT_FIELD` with no written value and a `LOCAL_DECLARATION` with no initializer (sema rejects
+  it) all keep their own no-child shape: a missing parameter default is a required argument, and a missing variant
+  field default is a required argument of the variant, neither one a zero.
+- **The other four paths are a gap**, recorded in Gaps: `Type(args)` before `construct`, `array<T, N>` elements,
+  `owned<T>` storage and a `convert` result that exposes padding. They need `cgen` or `vm` to exist first, and a
+  backend zero-fills them from the type. `cgen` is expected to emit `= {0}` for a type of constant size, or a
+  `memset` otherwise; the `vm` is expected to zero the slot on allocation. A parity test is expected to read the
+  zeroed value on both backends and expect 0. None of this exists yet: the ir places no marker for it, and a
+  `CONSTRUCT_CALL` or a `LOCAL_DECLARATION` carries the type name and the resolved type a backend sizes the zero
+  from.
 
 ## Construct and destroy lowering
 
 The language spec makes construction and destruction automatic. The ir makes both explicit, so a backend never
-looks for a `construct` or a `destroy` by itself. Two kinds, appended after `ZERO_VALUE`, carry them. A new kind,
+looks for a `construct` or a `destroy` by itself. Two kinds, appended after the retired value that `ZERO_VALUE` held, carry them. A new kind,
 not a flag on `CALL_EXPRESSION`, because a flag would print in the dump as a raw bit mask.
 
 - **`CONSTRUCT_CALL`** is `Type(args)` and, when the type has a `construct`, `Type{...}`. Its type name is the written name of the structure or enum that is
@@ -200,10 +207,10 @@ not a flag on `CALL_EXPRESSION`, because a flag would print in the dump as a raw
   `Type{...}` sets the fields (named, in order, or none) and then runs `construct` with its defaults. A literal of a
   non-generic structure of the same unit that has a `construct` operator lowers to a `CONSTRUCT_CALL` with two
   children: the `ARGUMENT_LIST` of the defaults of `construct` (no argument is written, so every parameter is
-  filled), then the `LITERAL_VALUE` itself, unchanged (omitted fields are `ZERO_VALUE`), as the initial value the
-  backend runs `construct` on once the fields are set. `Point{ x = 1 }` with
+  filled), then the `LITERAL_VALUE` itself, unchanged (sema requires every field to be named), as the initial value the
+  backend runs `construct` on once the fields are set. `Point{ x = 1, y = 2 }` with
   `construct(x: sinteger32 = 7, y: sinteger32 = 8)` lowers to `(CONSTRUCT_CALL :Point (ARGUMENT_LIST (INTEGER_LITERAL
-  7) (INTEGER_LITERAL 8)) (LITERAL_VALUE :Point (FIELD_ENTRY x (INTEGER_LITERAL 1)) (FIELD_ENTRY y (ZERO_VALUE))))`.
+  7) (INTEGER_LITERAL 8)) (LITERAL_VALUE :Point (FIELD_ENTRY x (INTEGER_LITERAL 1)) (FIELD_ENTRY y (INTEGER_LITERAL 2))))`.
   A literal of a type with no `construct`, or of a type the unit does not declare, stays a plain `LITERAL_VALUE`. So
   the optional second child is the only difference between the two shapes: `Type(args)` has one child and the
   backend zero-fills; `Type{...}` has two and the fields come from the literal.
@@ -231,7 +238,7 @@ loop body, a branch, an `if`, a `do ... end` scope) gets the destroys of its own
   outer ones. For a for-range `continue` the destroys stand in front of the step.
 - **Value of a return.** A `return` with a value is wrapped as `BLOCK(LOCAL_DECLARATION $return (value), destroy...,
   RETURN_STATEMENT(IDENTIFIER $return))`, so the value is read before any destroy runs and `return b.size;` never
-  reads a destroyed `b`. The hidden local `$return` has no type name and no flag, like `$last`, and its resolved type
+  reads a destroyed `b`. The hidden local `$return` has no type name and no flag, like `$switch`, and its resolved type
   is the resolved type of the value it holds. A `return` through two destructible scopes hoists once: the outer wrap
   sees the value `IDENTIFIER $return` and does not declare it again, so the outer destroys stand between the inner
   destroys and the `return`. A `return` with no value, a `break` and a `continue` are wrapped as before, with no
@@ -261,24 +268,36 @@ local a: Box = Box(); return a.x;
 ```
 BLOCK
   LOCAL_DECLARATION "name" (flags MUTABLE)   -- child: first
-  LOCAL_DECLARATION "$last"                  -- child: last
+  LOCAL_DECLARATION "$last0"                 -- child: last
   WHILE_STATEMENT
-    BINARY_EXPRESSION op=LESS_EQUAL          -- children: IDENTIFIER name, IDENTIFIER "$last"
+    BINARY_EXPRESSION op=LESS_EQUAL          -- children: IDENTIFIER name, IDENTIFIER "$last0"
     BLOCK                                    -- the lowered body, then the step
       ...
       IF_STATEMENT                           -- the step, part 1: leave at the last value
-        BINARY_EXPRESSION op=EQUAL_EQUAL     -- children: IDENTIFIER name, IDENTIFIER "$last"
+        BINARY_EXPRESSION op=EQUAL_EQUAL     -- children: IDENTIFIER name, IDENTIFIER "$last0"
         BLOCK
           BREAK_STATEMENT
       ASSIGNMENT op=PLUS_EQUAL               -- the step, part 2: children IDENTIFIER name, INTEGER_LITERAL "1"
 ```
 
-The bound is inclusive (`<=`), because the grammar says a range includes both ends. The hidden loop
-variable and `$last` have no type name, but carry a resolved type: `$last` the type of `last`, the variable the type
-sema gave its name (else the type of `first`); each read of them, the step literal `1`, and the two tests are typed
-too (the tests are `boolean`). The `last` expression is lowered once, into `$last`, which is set
-before the loop; the loop never evaluates it again. The name `$last` cannot be a source identifier,
+The bound is inclusive (`<=`), because the grammar says a range includes both ends. The loop variable and
+`$last0` carry a type name and a resolved type, as a local of the source does: `$last0` the type of `last`, the
+variable the type sema gave its name (else the type of `first`). The resolved type is read with
+`MAREA_SemaTypedNodeGetResolvedType` on child 0 of the typed `FOR_RANGE_STATEMENT` (the counter; the bounds are
+children 1 and 2), and the type name is its head, the text before the first type argument, so a bound of type
+`uinteger8` gives `type=uinteger8 resolved=uinteger8`. Each read of the two, the step literal `1` and the two tests
+are typed too (the reads and the literal have a resolved type only, the tests are `boolean`). When sema gives the
+counter no type, the variable takes the type of `first`, and a bound with no type leaves its local with neither,
+never a guess. The `last` expression is lowered once, into `$last0`, which is set
+before the loop; the loop never evaluates it again. The name `$last0` cannot be a source identifier,
 so it never clashes with a user name. The hidden local carries no flag.
+
+The name is `$last` and the number of the loop in its function, counted in source order from zero, the outer loop
+before the loops in its body (`$last0`, `$last1`, ...). So two for-range loops of one function never share the
+name of their hidden bound, whether one stands in the other or they follow each other, and a backend that keys the
+locals of a function by name alone keeps them apart. The count starts again at zero in each function, so a function
+lowers the same wherever it stands in the unit. The step of a loop, also the one a `continue` gets, reads the bound of
+its own loop. Only the hidden bound of a for-range loop is numbered: `$switch` and `$return` are not (see Gaps).
 
 The step leaves the loop at the last value before it adds one. So the increment never runs past `last`,
 and a loop whose `last` is the maximum of its integer type still ends. A range with `first` greater
@@ -287,7 +306,7 @@ than `last` runs zero times, because the condition fails at once.
 A `continue` that targets the loop would skip the step at the end of the body. So each such
 `continue` becomes `BLOCK(step, CONTINUE_STATEMENT)`, where the step is the same `IF_STATEMENT` and
 `ASSIGNMENT` pair. A `continue` inside a nested `while`, `FOR_EACH_STATEMENT` or for-range loop targets that
-loop and stays as it is (the nested for-range loop adds its own step and its own `$last`).
+loop and stays as it is (the nested for-range loop adds its own step and its own `$lastN`).
 
 ## Switch desugaring
 
@@ -317,11 +336,19 @@ tests run in source order and the first one that holds runs its block.
 - A `default` arm is the `ELSE_CLAUSE`, wherever it stands among the arms. A `switch` with a `default` and
   no `case` has no test: the lowered `default` block follows the hidden local. A `switch` with no arm keeps
   only the hidden local, so its scrutinee is still evaluated.
-- A `switch` over an enum with no `default` ends with an `ELSE_CLAUSE` that holds a `BLOCK` with one
-  `UNREACHABLE_STATEMENT`, the node that `unreachable!()` lowers to. Sema reports `NON_EXHAUSTIVE_SWITCH` for
-  such a `switch` that misses a variant, so a unit that reached the IR covers them all. The IR does not count
-  the variants again. A `switch` over any other type with no `default` has no `ELSE_CLAUSE`, because it can
-  fall through when no case matches.
+- **A `switch` with no `default` (decided).** The missing else is explicit only when the `switch` is proven
+  exhaustive, that is, over an enum (a type alias of the enum counts, as sema sees through it). It ends with an
+  `ELSE_CLAUSE` that holds a `BLOCK` with one `UNREACHABLE_STATEMENT`, the node that `unreachable!()` lowers to.
+  Sema reports `NON_EXHAUSTIVE_SWITCH` for such a `switch` that misses a variant, so a unit that reached the IR
+  covers them all, and the IR does not count the variants again. A backend that checks that every path of a
+  function with a result type returns reads the chain like any `if`: each arm must end the path, and the
+  `UNREACHABLE_STATEMENT` ends the else, as `unreachable!()` ends a path in sema. A `switch` over any other type
+  (an integer, a `boolean`, a type of an `EXTERNAL` library that sema does not know) with no `default` has no
+  `ELSE_CLAUSE`: it can fall through when no case matches. Sema does not take an integer or `boolean` switch for an
+  ending path (it accepts only a `default` or an enum; for a scrutinee of a type it does not know it gives the
+  benefit of the doubt, which is no proof). An explicit `UNREACHABLE_STATEMENT` there would turn a legal
+  fall-through into a trap, and would let a check of the returns pass where sema's rule fails. The absence of the
+  else is the explicit form of that path, and a backend reads it as a path that continues after the `switch`.
 - The scrutinee and each case value are lowered like any expression, so a case value that is an enum
   variant stays a `MEMBER_ACCESS`. The synthetic nodes take only a position from the source: the comparison
   is positioned at its case value, the `IF_STATEMENT` or `ELSEIF_CLAUSE` at its arm.
@@ -356,8 +383,22 @@ with one name is the value. With two names the first is the key and the second i
   each element. It is the one flag the node keeps. No local carries it for the loop, so on a
   `LOCAL_DECLARATION` it only marks the hidden loop variable of a for-range loop.
 - The names are the text of the node (the value) and the text of the `IDENTIFIER` child (the key), not locals,
-  because they declare names and do not read them; the key is a child because a node has one text. Neither
-  variable has a type name, because sema types no loop variable.
+  because they declare names and do not read them; the key is a child because a node has one text.
+- **Types of the two names.** Sema gives both names a type (`MAREA_SemaTypedNodeGetResolvedType`, see the sema doc,
+  "Loop names and collection"): the value is the element type of the collection, and the key, when written, is
+  `uinteger64`. The `FOR_EACH_STATEMENT` carries the type of its value, as a resolved type and as a type name, the
+  same way a `LOCAL_DECLARATION` carries the type of its name. The key child carries the type of the key the same
+  way. The type name is the head of the resolved type, the text before the first type argument (a dotted name is
+  kept whole), and the resolved type keeps the type arguments: for `rows: array<array<sinteger32,4>,2>` the value is
+  `type=array resolved=array<sinteger32,4>`. A function type as the element type has a resolved type and no type name,
+  as a written function type has none. When sema gives a name no type (a collection of a library it does not know,
+  such as `list`), the node or the key has neither, never a guess. The collection child is a lowered expression, so it
+  has its own resolved type (`array<float32,4>`), and a backend reads the element type from the value instead of
+  inferring it from the collection.
+- **No hidden locals.** The IR adds no `$each`, `$count` or `$index` local for the walk, and no step: the node is
+  the loop, and the types above are what a backend needs to give the value and the key a slot. A desugaring to
+  hidden locals would fix one way to walk the collection in the IR, and the way depends on the type of the
+  collection (a position for an array, a key for a table), so it stays a decision of the backend (see Gaps).
 - A `continue` or `break` in the body targets the `FOR_EACH_STATEMENT`, so it stays as it is. The node is a
   loop, so a `continue` of an enclosing for-range loop still gets its step, and the walk that puts the step
   there stops at a nested `FOR_EACH_STATEMENT`, as it stops at a nested `while`.
@@ -552,27 +593,33 @@ Each diagnostic carries the position of the construct that raised it. The messag
 
 ## Gaps
 
-- The `ZERO_VALUE` for an omitted struct field is unreachable: an omitted field is now `MISSING_FIELD` (3077) in sema, so no accepted program reaches it. It awaits removal in a follow-up apply, and the five tests of it are `DISABLED_` until then.
 - The resolved type is read from sema as it is, so it is as complete as sema makes it. In the 23 examples, 45 expression
   nodes of the lowered trees have no resolved type, all of them untyped on purpose (calls of `EXTERNAL` functions
   and library members with no signature, their callees, and the operations and `spawn` derived from them); the
   sweep test `MAREAIrResolvedType.ExamplesTypeEveryLoweredExpression` lists none other. The `ir` cannot tell a
   name sema left untyped on purpose from one it missed, so an `IDENTIFIER` with no type never raises 4006. The
   nodes that the ir invents are typed, except the step `ASSIGNMENT` and the `DESTROY_CALL`, which are statements.
-- The zero-default rule (see Zero-default creation) covers only a struct `LITERAL_VALUE` field the source left
-  unnamed. A `LOCAL_DECLARATION` with no written initializer is rejected by sema (3065) and gets no zero. Four more creation paths the language spec names are
-  not lowered yet, because they need a backend to exist first: the zero fill of `Type(args)` before `construct` (the call itself is a `CONSTRUCT_CALL` now), `array<T, N>`
+- The zero-default rule (see Zero-default creation) has no node in the ir: a `LOCAL_DECLARATION` with no written
+  initializer is rejected by sema (3065) and a struct literal that omits a field is rejected by sema (3077). Four
+  creation paths the language spec names are not lowered yet, because they need a backend to exist first: the zero fill of `Type(args)` before `construct` (the call itself is a `CONSTRUCT_CALL` now), `array<T, N>`
   elements, `owned<T>` storage and a `convert` result that exposes padding. A `PARAMETER`, a `CONSTANT_DECLARATION`
   and a `VARIANT_FIELD` with no value are outside the rule on purpose (see Zero-default creation), not an
   oversight.
-- A `FOR_EACH_STATEMENT` does not say what kind of collection it walks, or what the key is for it. Sema gives
-  no type for the collection, so a backend must find the type itself, and must reject, or handle in its own
-  way, a collection it cannot walk. The IR does not check that a loop with a key walks a collection that has
-  one.
-- The two loop variables of a `FOR_EACH_STATEMENT` have no type name, like the for-range `$last`, because sema
-  types no loop variable. A backend must infer them from the collection.
-- `MAREA_G_LowerSwitch` still keeps only the last `default` arm and drops the others with no diagnostic. This
-  is defensive only. Sema rejects a second `default` arm, and a repeated `case` value, with
+- A `FOR_EACH_STATEMENT` does not say how its collection is walked, or what the key is for it beyond its type. The
+  collection has its own resolved type, and the value and the key carry theirs when sema gives one (see For-each
+  lowering), but sema types them only for `array`, `vector` and `slice` (also under `c.`). For any other collection
+  (`list`, a user type) the value and the key have no type, and a backend must find the type itself, and must
+  reject, or handle in its own way, a collection it cannot walk. The IR does not check that a loop with a key walks
+  a collection that has one.
+- A for-each loop has no hidden locals (`$each`, `$count`, `$index`) and no step: the walk is one node. A backend
+  that wants a counted loop builds it from the type of the collection. A desugaring to hidden locals would be a new
+  IR form, a decision not taken yet.
+- The hidden bound of a for-range loop is numbered, but `$switch` and `$return` are not: two `switch` statements
+  that nest, or a `return` hoisted in an outer scope after an inner one, declare the same name in nested `BLOCK`
+  scopes of one function. A backend that keys the locals of a function by name alone must still scope them by
+  `BLOCK`, or the ir must number these names the same way. No backend needs it yet.
+- `MAREA_G_LowerSwitch` keeps only the last `default` arm and drops the others with no diagnostic. This
+  is defensive code that no accepted program reaches. Sema rejects a second `default` arm, and a repeated `case` value, with
   `DUPLICATE_SWITCH_ARM` (3025, issue #50, PR #51), and `MAREA_SemaBuildTypedAst`, the only input of the IR,
   refuses a tree with a sema error (`ERROR_NOT_CHECKED`). No caller that goes through sema can reach either
   shape (a test checks it). The IR adds no diagnostic for it.

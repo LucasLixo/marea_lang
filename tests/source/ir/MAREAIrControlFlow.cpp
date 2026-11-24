@@ -27,6 +27,17 @@ namespace
 
         return MAREA_irRender(MAREA_irChild(function, MAREA_IrNodeGetChildCount(function) - 1));
     }
+
+    std::size_t MAREA_countOf(const std::string &text, const std::string &part)
+    {
+        std::size_t count{ 0 };
+
+        for (std::size_t at{ text.find(part) }; at != std::string::npos; at = text.find(part, at + 1)) {
+            ++count;
+        }
+
+        return count;
+    }
 } // namespace
 
 TEST(MAREAIrControlFlow, EmptyBodyIsAnEmptyBlock)
@@ -107,35 +118,114 @@ TEST(MAREAIrControlFlow, ForRangeDesugarsToABlockWithAWhileAndAnIncrement)
 {
     GTEST_COUT << "Validating a for-range loop desugars to a hidden local, a while with an inclusive bound and an increment." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerBody("", "first: sinteger32, last: sinteger32", "local total: sinteger32 = 0; for index in first .. last do total += index; end"), "(BLOCK (LOCAL_DECLARATION total :sinteger32 (INTEGER_LITERAL 0)) (BLOCK (LOCAL_DECLARATION index flags=1 (IDENTIFIER first)) (LOCAL_DECLARATION $last (IDENTIFIER last)) (WHILE_STATEMENT (BINARY_EXPRESSION op=LESS_EQUAL (IDENTIFIER index) (IDENTIFIER $last)) (BLOCK (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER total) (IDENTIFIER index)) (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER index) (IDENTIFIER $last)) (BLOCK (BREAK_STATEMENT))) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER index) (INTEGER_LITERAL 1))))))") << "The loop must desugar with an inclusive upper bound.";
+    EXPECT_EQ(MAREA_lowerBody("", "first: sinteger32, last: sinteger32", "local total: sinteger32 = 0; for index in first .. last do total += index; end"), "(BLOCK (LOCAL_DECLARATION total :sinteger32 (INTEGER_LITERAL 0)) (BLOCK (LOCAL_DECLARATION index :sinteger32 flags=1 (IDENTIFIER first)) (LOCAL_DECLARATION $last0 :sinteger32 (IDENTIFIER last)) (WHILE_STATEMENT (BINARY_EXPRESSION op=LESS_EQUAL (IDENTIFIER index) (IDENTIFIER $last0)) (BLOCK (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER total) (IDENTIFIER index)) (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER index) (IDENTIFIER $last0)) (BLOCK (BREAK_STATEMENT))) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER index) (INTEGER_LITERAL 1))))))") << "The loop must desugar with an inclusive upper bound.";
 }
 
 TEST(MAREAIrControlFlow, ForRangeWithLiteralBoundsKeepsBoth)
 {
     GTEST_COUT << "Validating a for-range loop with literal bounds, as in the simd example, keeps both bounds." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerBody("", "", "for index in 0 .. 3 do end"), "(BLOCK (BLOCK (LOCAL_DECLARATION index flags=1 (INTEGER_LITERAL 0)) (LOCAL_DECLARATION $last (INTEGER_LITERAL 3)) (WHILE_STATEMENT (BINARY_EXPRESSION op=LESS_EQUAL (IDENTIFIER index) (IDENTIFIER $last)) (BLOCK (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER index) (IDENTIFIER $last)) (BLOCK (BREAK_STATEMENT))) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER index) (INTEGER_LITERAL 1))))))") << "An empty body must still carry the increment.";
+    EXPECT_EQ(MAREA_lowerBody("", "", "for index in 0 .. 3 do end"), "(BLOCK (BLOCK (LOCAL_DECLARATION index :sinteger32 flags=1 (INTEGER_LITERAL 0)) (LOCAL_DECLARATION $last0 :sinteger32 (INTEGER_LITERAL 3)) (WHILE_STATEMENT (BINARY_EXPRESSION op=LESS_EQUAL (IDENTIFIER index) (IDENTIFIER $last0)) (BLOCK (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER index) (IDENTIFIER $last0)) (BLOCK (BREAK_STATEMENT))) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER index) (INTEGER_LITERAL 1))))))") << "An empty body must still carry the increment.";
 }
 
 TEST(MAREAIrControlFlow, ForRangeContinueRunsTheIncrementFirst)
 {
     GTEST_COUT << "Validating a continue in a for-range body is preceded by the increment, so the loop still ends." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerBody("", "a: boolean", "for index in 0 .. 3 do if a then continue; end end"), "(BLOCK (BLOCK (LOCAL_DECLARATION index flags=1 (INTEGER_LITERAL 0)) (LOCAL_DECLARATION $last (INTEGER_LITERAL 3)) (WHILE_STATEMENT (BINARY_EXPRESSION op=LESS_EQUAL (IDENTIFIER index) (IDENTIFIER $last)) (BLOCK (IF_STATEMENT (IDENTIFIER a) (BLOCK (BLOCK (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER index) (IDENTIFIER $last)) (BLOCK (BREAK_STATEMENT))) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER index) (INTEGER_LITERAL 1)) (CONTINUE_STATEMENT)))) (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER index) (IDENTIFIER $last)) (BLOCK (BREAK_STATEMENT))) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER index) (INTEGER_LITERAL 1))))))") << "Every continue that targets the for-range loop must run the increment first.";
+    EXPECT_EQ(MAREA_lowerBody("", "a: boolean", "for index in 0 .. 3 do if a then continue; end end"), "(BLOCK (BLOCK (LOCAL_DECLARATION index :sinteger32 flags=1 (INTEGER_LITERAL 0)) (LOCAL_DECLARATION $last0 :sinteger32 (INTEGER_LITERAL 3)) (WHILE_STATEMENT (BINARY_EXPRESSION op=LESS_EQUAL (IDENTIFIER index) (IDENTIFIER $last0)) (BLOCK (IF_STATEMENT (IDENTIFIER a) (BLOCK (BLOCK (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER index) (IDENTIFIER $last0)) (BLOCK (BREAK_STATEMENT))) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER index) (INTEGER_LITERAL 1)) (CONTINUE_STATEMENT)))) (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER index) (IDENTIFIER $last0)) (BLOCK (BREAK_STATEMENT))) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER index) (INTEGER_LITERAL 1))))))") << "Every continue that targets the for-range loop must run the increment first.";
 }
 
 TEST(MAREAIrControlFlow, ForRangeContinueOfAnInnerWhileIsLeftAlone)
 {
     GTEST_COUT << "Validating a continue that targets an inner while loop gets no increment of the outer for-range loop." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerBody("", "a: boolean", "for index in 0 .. 3 do while a do continue; end end"), "(BLOCK (BLOCK (LOCAL_DECLARATION index flags=1 (INTEGER_LITERAL 0)) (LOCAL_DECLARATION $last (INTEGER_LITERAL 3)) (WHILE_STATEMENT (BINARY_EXPRESSION op=LESS_EQUAL (IDENTIFIER index) (IDENTIFIER $last)) (BLOCK (WHILE_STATEMENT (IDENTIFIER a) (BLOCK (CONTINUE_STATEMENT))) (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER index) (IDENTIFIER $last)) (BLOCK (BREAK_STATEMENT))) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER index) (INTEGER_LITERAL 1))))))") << "A continue of an inner loop must stay as it is.";
+    EXPECT_EQ(MAREA_lowerBody("", "a: boolean", "for index in 0 .. 3 do while a do continue; end end"), "(BLOCK (BLOCK (LOCAL_DECLARATION index :sinteger32 flags=1 (INTEGER_LITERAL 0)) (LOCAL_DECLARATION $last0 :sinteger32 (INTEGER_LITERAL 3)) (WHILE_STATEMENT (BINARY_EXPRESSION op=LESS_EQUAL (IDENTIFIER index) (IDENTIFIER $last0)) (BLOCK (WHILE_STATEMENT (IDENTIFIER a) (BLOCK (CONTINUE_STATEMENT))) (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER index) (IDENTIFIER $last0)) (BLOCK (BREAK_STATEMENT))) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER index) (INTEGER_LITERAL 1))))))") << "A continue of an inner loop must stay as it is.";
 }
 
 TEST(MAREAIrControlFlow, ForRangeContinueOfNestedForRangeLoopsUsesEachOwnIncrement)
 {
     GTEST_COUT << "Validating each continue in nested for-range loops runs the increment of its own loop only." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerBody("", "", "for outer in 0 .. 1 do for inner in 0 .. 2 do continue; end continue; end"), "(BLOCK (BLOCK (LOCAL_DECLARATION outer flags=1 (INTEGER_LITERAL 0)) (LOCAL_DECLARATION $last (INTEGER_LITERAL 1)) (WHILE_STATEMENT (BINARY_EXPRESSION op=LESS_EQUAL (IDENTIFIER outer) (IDENTIFIER $last)) (BLOCK (BLOCK (LOCAL_DECLARATION inner flags=1 (INTEGER_LITERAL 0)) (LOCAL_DECLARATION $last (INTEGER_LITERAL 2)) (WHILE_STATEMENT (BINARY_EXPRESSION op=LESS_EQUAL (IDENTIFIER inner) (IDENTIFIER $last)) (BLOCK (BLOCK (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER inner) (IDENTIFIER $last)) (BLOCK (BREAK_STATEMENT))) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER inner) (INTEGER_LITERAL 1)) (CONTINUE_STATEMENT)) (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER inner) (IDENTIFIER $last)) (BLOCK (BREAK_STATEMENT))) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER inner) (INTEGER_LITERAL 1))))) (BLOCK (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER outer) (IDENTIFIER $last)) (BLOCK (BREAK_STATEMENT))) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER outer) (INTEGER_LITERAL 1)) (CONTINUE_STATEMENT)) (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER outer) (IDENTIFIER $last)) (BLOCK (BREAK_STATEMENT))) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER outer) (INTEGER_LITERAL 1))))))") << "Each loop must increment its own variable before its own continue.";
+    EXPECT_EQ(MAREA_lowerBody("", "", "for outer in 0 .. 1 do for inner in 0 .. 2 do continue; end continue; end"), "(BLOCK (BLOCK (LOCAL_DECLARATION outer :sinteger32 flags=1 (INTEGER_LITERAL 0)) (LOCAL_DECLARATION $last0 :sinteger32 (INTEGER_LITERAL 1)) (WHILE_STATEMENT (BINARY_EXPRESSION op=LESS_EQUAL (IDENTIFIER outer) (IDENTIFIER $last0)) (BLOCK (BLOCK (LOCAL_DECLARATION inner :sinteger32 flags=1 (INTEGER_LITERAL 0)) (LOCAL_DECLARATION $last1 :sinteger32 (INTEGER_LITERAL 2)) (WHILE_STATEMENT (BINARY_EXPRESSION op=LESS_EQUAL (IDENTIFIER inner) (IDENTIFIER $last1)) (BLOCK (BLOCK (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER inner) (IDENTIFIER $last1)) (BLOCK (BREAK_STATEMENT))) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER inner) (INTEGER_LITERAL 1)) (CONTINUE_STATEMENT)) (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER inner) (IDENTIFIER $last1)) (BLOCK (BREAK_STATEMENT))) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER inner) (INTEGER_LITERAL 1))))) (BLOCK (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER outer) (IDENTIFIER $last0)) (BLOCK (BREAK_STATEMENT))) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER outer) (INTEGER_LITERAL 1)) (CONTINUE_STATEMENT)) (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER outer) (IDENTIFIER $last0)) (BLOCK (BREAK_STATEMENT))) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER outer) (INTEGER_LITERAL 1))))))") << "Each loop must increment its own variable before its own continue.";
+}
+
+TEST(MAREAIrControlFlow, ForRangeNestedLoopsKeepADistinctHiddenBoundEach)
+{
+    GTEST_COUT << "Validating two nested for-range loops name their hidden bounds apart, and each test reads the bound of its own loop." << std::endl;
+
+    EXPECT_EQ(MAREA_lowerBody("", "", "for outer in 0 .. 1 do for inner in 0 .. 2 do end end"), "(BLOCK (BLOCK (LOCAL_DECLARATION outer :sinteger32 flags=1 (INTEGER_LITERAL 0)) (LOCAL_DECLARATION $last0 :sinteger32 (INTEGER_LITERAL 1)) (WHILE_STATEMENT (BINARY_EXPRESSION op=LESS_EQUAL (IDENTIFIER outer) (IDENTIFIER $last0)) (BLOCK (BLOCK (LOCAL_DECLARATION inner :sinteger32 flags=1 (INTEGER_LITERAL 0)) (LOCAL_DECLARATION $last1 :sinteger32 (INTEGER_LITERAL 2)) (WHILE_STATEMENT (BINARY_EXPRESSION op=LESS_EQUAL (IDENTIFIER inner) (IDENTIFIER $last1)) (BLOCK (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER inner) (IDENTIFIER $last1)) (BLOCK (BREAK_STATEMENT))) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER inner) (INTEGER_LITERAL 1))))) (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER outer) (IDENTIFIER $last0)) (BLOCK (BREAK_STATEMENT))) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER outer) (INTEGER_LITERAL 1))))))") << "The outer loop must take the first number, so a reader sees the loops in source order.";
+}
+
+TEST(MAREAIrControlFlow, ForRangeLoopsOneAfterTheOtherKeepADistinctHiddenBoundEach)
+{
+    GTEST_COUT << "Validating two for-range loops in a row never share a hidden bound name inside one function." << std::endl;
+
+    const std::string rendered{ MAREA_lowerBody("", "", "for first in 0 .. 1 do end for second in 0 .. 2 do end for third in 0 .. 3 do end") };
+
+    EXPECT_NE(rendered.find("(LOCAL_DECLARATION $last0 "), std::string::npos) << rendered;
+
+    EXPECT_NE(rendered.find("(LOCAL_DECLARATION $last1 "), std::string::npos) << rendered;
+
+    EXPECT_NE(rendered.find("(LOCAL_DECLARATION $last2 "), std::string::npos) << rendered;
+
+    EXPECT_EQ(rendered.find("$last "), std::string::npos) << "The bare name must not remain: " << rendered;
+
+    EXPECT_EQ(rendered.find("$last)"), std::string::npos) << "The bare name must not remain: " << rendered;
+}
+
+TEST(MAREAIrControlFlow, ForRangeHiddenBoundNumberKeepsEveryDigitOfALargeLoopCount)
+{
+    GTEST_COUT << "Validating the hidden bound name of the tenth and the hundred and first loop of a function keeps all its digits, in order, and ends the name." << std::endl;
+
+    std::string body;
+
+    for (int index{ 0 }; index < 101; ++index) {
+        body += "for v" + std::to_string(index) + " in 0 .. 1 do end ";
+    }
+
+    const std::string rendered{ MAREA_lowerBody("", "", body) };
+
+    EXPECT_NE(rendered.find("(LOCAL_DECLARATION $last9 "), std::string::npos) << "The tenth loop must be $last9.";
+
+    EXPECT_NE(rendered.find("(LOCAL_DECLARATION $last10 "), std::string::npos) << "The eleventh loop must be $last10, not $last01 or $last1.";
+
+    EXPECT_NE(rendered.find("(LOCAL_DECLARATION $last99 "), std::string::npos) << "The hundredth loop must be $last99.";
+
+    EXPECT_NE(rendered.find("(LOCAL_DECLARATION $last100 "), std::string::npos) << "The hundred and first loop must be $last100.";
+
+    EXPECT_EQ(rendered.find("$last01"), std::string::npos) << "The digits must not be written backwards.";
+
+    EXPECT_EQ(MAREA_countOf(rendered, "(LOCAL_DECLARATION $last"), std::size_t{ 101 }) << "Every loop must have a hidden bound of its own.";
+}
+
+TEST(MAREAIrControlFlow, ForRangeHiddenBoundNumberStartsAgainInEachFunction)
+{
+    GTEST_COUT << "Validating the number of a hidden bound counts the loops of one function, so a function lowers the same wherever it stands in the unit." << std::endl;
+
+    MAREA_IrFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; function one() for a in 0 .. 1 do for b in 0 .. 1 do end end end function two() for c in 0 .. 1 do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+
+    const std::string FIRST{ MAREA_irRender(MAREA_irChild(MAREA_irChild(fixture.module, 0), 1)) };
+
+    const std::string SECOND{ MAREA_irRender(MAREA_irChild(MAREA_irChild(fixture.module, 1), 1)) };
+
+    EXPECT_NE(FIRST.find("$last1"), std::string::npos) << "The first function has two loops: " << FIRST;
+
+    EXPECT_EQ(SECOND.find("$last1"), std::string::npos) << "The second function must start again at zero: " << SECOND;
+
+    EXPECT_NE(SECOND.find("(LOCAL_DECLARATION $last0 "), std::string::npos) << SECOND;
+}
+
+TEST(MAREAIrControlFlow, ForRangeContinueStepOfANestedLoopReadsItsOwnHiddenBound)
+{
+    GTEST_COUT << "Validating the step that a continue gets reads the hidden bound of the loop the continue targets." << std::endl;
+
+    const std::string rendered{ MAREA_lowerBody("", "", "for outer in 0 .. 1 do for inner in 0 .. 2 do continue; end continue; end") };
+
+    EXPECT_NE(rendered.find("(BLOCK (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER inner) (IDENTIFIER $last1)) (BLOCK (BREAK_STATEMENT))) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER inner) (INTEGER_LITERAL 1)) (CONTINUE_STATEMENT))"), std::string::npos) << rendered;
+
+    EXPECT_NE(rendered.find("(BLOCK (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER outer) (IDENTIFIER $last0)) (BLOCK (BREAK_STATEMENT))) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER outer) (INTEGER_LITERAL 1)) (CONTINUE_STATEMENT))"), std::string::npos) << rendered;
 }
 
 TEST(MAREAIrControlFlow, ForRangeEvaluatesTheLastBoundOnce)
@@ -144,7 +234,7 @@ TEST(MAREAIrControlFlow, ForRangeEvaluatesTheLastBoundOnce)
 
     const std::string rendered{ MAREA_lowerBody("function bound(): sinteger32 return 3; end", "", "for index in 0 .. bound() do end") };
 
-    EXPECT_NE(rendered.find("(LOCAL_DECLARATION $last (CALL_EXPRESSION"), std::string::npos) << "The bound call must sit in the hidden local: " << rendered;
+    EXPECT_NE(rendered.find("(LOCAL_DECLARATION $last0 :sinteger32 (CALL_EXPRESSION"), std::string::npos) << "The bound call must sit in the hidden local: " << rendered;
 
     EXPECT_EQ(rendered.find("(IDENTIFIER bound)", rendered.find("(WHILE_STATEMENT")), std::string::npos) << "The loop must not call the bound again: " << rendered;
 }
@@ -153,7 +243,7 @@ TEST(MAREAIrControlFlow, ForRangeLeavesBeforeTheIncrementAtTheLastValue)
 {
     GTEST_COUT << "Validating the loop breaks when the variable equals the hidden bound, so the increment never passes the type maximum." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerBody("", "", "for index in 254 .. 255 do end"), "(BLOCK (BLOCK (LOCAL_DECLARATION index flags=1 (INTEGER_LITERAL 254)) (LOCAL_DECLARATION $last (INTEGER_LITERAL 255)) (WHILE_STATEMENT (BINARY_EXPRESSION op=LESS_EQUAL (IDENTIFIER index) (IDENTIFIER $last)) (BLOCK (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER index) (IDENTIFIER $last)) (BLOCK (BREAK_STATEMENT))) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER index) (INTEGER_LITERAL 1))))))") << "The break must come before the increment.";
+    EXPECT_EQ(MAREA_lowerBody("", "", "for index in 254 .. 255 do end"), "(BLOCK (BLOCK (LOCAL_DECLARATION index :sinteger32 flags=1 (INTEGER_LITERAL 254)) (LOCAL_DECLARATION $last0 :sinteger32 (INTEGER_LITERAL 255)) (WHILE_STATEMENT (BINARY_EXPRESSION op=LESS_EQUAL (IDENTIFIER index) (IDENTIFIER $last0)) (BLOCK (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER index) (IDENTIFIER $last0)) (BLOCK (BREAK_STATEMENT))) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER index) (INTEGER_LITERAL 1))))))") << "The break must come before the increment.";
 }
 
 TEST(MAREAIrControlFlow, ForRangeIncrementTextIsOne)
@@ -255,6 +345,63 @@ TEST(MAREAIrControlFlow, SwitchOverANonEnumWithoutDefaultKeepsNoElse)
     EXPECT_EQ(MAREA_lowerBody("", "a: sinteger32", "switch a case 1 then return; end").find("UNREACHABLE_STATEMENT"), std::string::npos) << "An integer switch is not exhaustive, so it must not be marked.";
 }
 
+TEST(MAREAIrControlFlow, SwitchOverAnEnumThroughATypeAliasEndsWithAnUnreachableElse)
+{
+    GTEST_COUT << "Validating an enum switch whose scrutinee is typed by an alias of the enum is still proven exhaustive and ends with the unreachable else." << std::endl;
+
+    const std::string rendered{ MAREA_lowerBody("enum Color red; green; end type Shade = Color;", "c: Shade", "switch c case Color.red then return; case Color.green then return; end") };
+
+    EXPECT_NE(rendered.find("(ELSE_CLAUSE (BLOCK (UNREACHABLE_STATEMENT)))"), std::string::npos) << rendered;
+}
+
+TEST(MAREAIrControlFlow, SwitchOverAnEnumWithManyValuesPerCaseEndsWithOneUnreachableElse)
+{
+    GTEST_COUT << "Validating an enum switch whose cases hold several variants each gets exactly one unreachable else, at the end of the chain." << std::endl;
+
+    const std::string rendered{ MAREA_lowerBody("enum Color red; green; blue; end", "c: Color", "switch c case Color.red, Color.green then return; case Color.blue then return; end") };
+
+    EXPECT_EQ(MAREA_countOf(rendered, "UNREACHABLE_STATEMENT"), std::size_t{ 1 }) << rendered;
+
+    const std::string CLOSING{ "(ELSE_CLAUSE (BLOCK (UNREACHABLE_STATEMENT))))))" };
+
+    EXPECT_EQ(rendered.rfind(CLOSING), rendered.size() - CLOSING.size()) << "The else must close the chain: " << rendered;
+}
+
+TEST(MAREAIrControlFlow, EnumSwitchThatReturnsOnEveryPathLeavesNoPathWithoutAnEnd)
+{
+    GTEST_COUT << "Validating a function that returns in every arm of an enum switch has an end on every path of the lowered chain: each arm returns and the else is unreachable." << std::endl;
+
+    MAREA_IrFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; enum Color red; green; end function f(c: Color): sinteger32 switch c case Color.red then return 1; case Color.green then return 2; end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+
+    const std::string rendered{ MAREA_irRender(MAREA_irChild(MAREA_irChild(fixture.module, 1), 1)) };
+
+    EXPECT_EQ(MAREA_countOf(rendered, "(RETURN_STATEMENT"), std::size_t{ 2 }) << rendered;
+
+    EXPECT_EQ(MAREA_countOf(rendered, "(ELSE_CLAUSE (BLOCK (UNREACHABLE_STATEMENT)))"), std::size_t{ 1 }) << "The one path with no return must end in the marker: " << rendered;
+}
+
+TEST(MAREAIrControlFlow, SwitchOverAnEnumWithOnlyADefaultHasNoUnreachableMarker)
+{
+    GTEST_COUT << "Validating an enum switch with only a default keeps no chain and so no unreachable marker." << std::endl;
+
+    const std::string rendered{ MAREA_lowerBody("enum Color red; green; end", "c: Color", "switch c default then return; end") };
+
+    EXPECT_EQ(rendered, "(BLOCK (BLOCK (LOCAL_DECLARATION $switch (IDENTIFIER c)) (BLOCK (RETURN_STATEMENT))))") << "The default block must follow the hidden local, with no marker.";
+}
+
+TEST(MAREAIrControlFlow, SwitchOverAnExternalTypeWithoutDefaultKeepsNoElse)
+{
+    GTEST_COUT << "Validating a switch whose scrutinee has a type sema does not know has no unreachable else, as the other no-default switches that can fall through." << std::endl;
+
+    const std::string rendered{ MAREA_lowerBody("import collections.size;", "a: size", "switch a case 1 then return; end") };
+
+    EXPECT_NE(rendered.find("(IF_STATEMENT"), std::string::npos) << "The switch must lower: " << rendered;
+
+    EXPECT_EQ(rendered.find("ELSE_CLAUSE"), std::string::npos) << "Nothing proves an external type exhaustive: " << rendered;
+}
+
 TEST(MAREAIrControlFlow, SwitchWithTwoDefaultsOrARepeatedCaseNeverReachesLowering)
 {
     GTEST_COUT << "Validating that a switch with two defaults, or a repeated case, gets a sema error and no typed tree, so the lowering cannot see it." << std::endl;
@@ -287,7 +434,7 @@ TEST(MAREAIrControlFlow, SwitchArmBreakAndContinueTargetTheEnclosingLoop)
 
     const std::string rendered{ MAREA_lowerBody("", "a: sinteger32", "for index in 0 .. 3 do switch a case 1 then continue; end end") };
 
-    EXPECT_NE(rendered.find("(BLOCK (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER index) (IDENTIFIER $last)) (BLOCK (BREAK_STATEMENT))) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER index) (INTEGER_LITERAL 1)) (CONTINUE_STATEMENT))"), std::string::npos) << "The continue inside the arm must carry the step of the for-range loop: " << rendered;
+    EXPECT_NE(rendered.find("(BLOCK (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER index) (IDENTIFIER $last0)) (BLOCK (BREAK_STATEMENT))) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER index) (INTEGER_LITERAL 1)) (CONTINUE_STATEMENT))"), std::string::npos) << "The continue inside the arm must carry the step of the for-range loop: " << rendered;
 }
 
 TEST(MAREAIrControlFlow, SwitchArmWithAnUnsupportedStatementDropsTheFunction)
@@ -400,7 +547,7 @@ TEST(MAREAIrControlFlow, ForEachInsideAForRangeKeepsItsContinueAndTheRangeContin
 
     EXPECT_NE(rendered.find("(FOR_EACH_STATEMENT value (IDENTIFIER values) (BLOCK (CONTINUE_STATEMENT)))"), std::string::npos) << "The continue of the for each must stay bare: " << rendered;
 
-    const std::string STEP{ "(IDENTIFIER index) (IDENTIFIER $last)) (BLOCK (BREAK_STATEMENT))) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER index) (INTEGER_LITERAL 1))" };
+    const std::string STEP{ "(IDENTIFIER index) (IDENTIFIER $last0)) (BLOCK (BREAK_STATEMENT))) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER index) (INTEGER_LITERAL 1))" };
 
     const auto FIRST{ rendered.find(STEP) };
 
@@ -579,7 +726,7 @@ TEST(MAREAIrControlFlow, SimdExampleDesugarsItsForRangeLoop)
 
         const std::string rendered{ MAREA_irRender(declaration) };
 
-        EXPECT_NE(rendered.find("(LOCAL_DECLARATION index flags=1 (INTEGER_LITERAL 0)) (LOCAL_DECLARATION $last (INTEGER_LITERAL 3)) (WHILE_STATEMENT (BINARY_EXPRESSION op=LESS_EQUAL (IDENTIFIER index) (IDENTIFIER $last))"), std::string::npos) << "The loop must be desugared: " << rendered;
+        EXPECT_NE(rendered.find("(LOCAL_DECLARATION index :sinteger32 flags=1 (INTEGER_LITERAL 0)) (LOCAL_DECLARATION $last0 :sinteger32 (INTEGER_LITERAL 3)) (WHILE_STATEMENT (BINARY_EXPRESSION op=LESS_EQUAL (IDENTIFIER index) (IDENTIFIER $last0))"), std::string::npos) << "The loop must be desugared: " << rendered;
     }
 
     EXPECT_TRUE(found) << "The function dot_product_reference must be lowered.";
@@ -599,7 +746,7 @@ TEST(MAREAIrControlFlow, ControlFlowExampleKeepsItsIfAndWhileShapes)
         if (MAREA_irText(MAREA_irChild(fixture.module, index)) == "sum_range") {
             sumRange = true;
 
-            EXPECT_NE(MAREA_irRender(MAREA_irChild(fixture.module, index)).find("(LOCAL_DECLARATION $last (IDENTIFIER last))"), std::string::npos) << "The range must include its last value.";
+            EXPECT_NE(MAREA_irRender(MAREA_irChild(fixture.module, index)).find("(LOCAL_DECLARATION $last0 :sinteger32 (IDENTIFIER last))"), std::string::npos) << "The range must include its last value.";
         }
     }
 
