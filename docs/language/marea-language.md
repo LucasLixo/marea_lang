@@ -682,7 +682,12 @@ Function declaration and call, parameters and defaults, the result and `return v
 | L-TYPES-018 | a generic structure used with too many type arguments | 3014 @13 |
 | L-TYPES-019 | a local of an undeclared structure | 3009 @10, 3009 @10 |
 | L-TYPES-020 | a field read assigned to a local of another type | 3011 @15 |
+| L-TYPES-021 | a struct literal field of another type than the field | 3011 @15 |
 | L-TYPES-022 | a nested field of a type that does not exist, after a valid field | 3009 @16 |
+| L-TYPES-024 | a struct literal with a field that the structure does not have | 3044 @15 |
+| L-TYPES-025 | a struct literal that gives one field twice | 3012 @15 |
+| L-TYPES-026 | a field read of a field that the structure does not have | 3044 @15 |
+| L-TYPES-027 | a field assignment of a field that the structure does not have | 3044 @15 |
 | L-TYPES-028 | a structure with two fields of one name | 3012 @11 |
 | L-TYPES-029 | a structure that holds itself by value | 3045 @10 |
 | L-TYPES-030 | two structures that hold each other by value | 3045 @10, 3045 @14 |
@@ -802,12 +807,7 @@ Function declaration and call, parameters and defaults, the result and `return v
 
 | Id | Shows | Expected |
 |---|---|---|
-| L-TYPES-021 | a struct literal field of another type than the field | gap: 3011, rule: reject, issue #220 |
-| L-TYPES-023 | a struct literal with a missing field | gap: NEW, rule: reject, issue #220 |
-| L-TYPES-024 | a struct literal with a field that the structure does not have | gap: NEW, rule: reject, issue #220 |
-| L-TYPES-025 | a struct literal that gives one field twice | gap: NEW, rule: reject, issue #220 |
-| L-TYPES-026 | a field read of a field that the structure does not have | gap: NEW, rule: reject, issue #220 |
-| L-TYPES-027 | a field assignment of a field that the structure does not have | gap: NEW, rule: reject, issue #220 |
+| L-TYPES-023 | a struct literal with a missing field | gap: NEW, rule: reject, issue #220; stays open because the zero-default rule of the ir accepts an omitted field |
 | L-TYPES-070 | a switch arm whose value has another type than the switch value | gap: 3011, rule: reject, issue #222 |
 | L-TYPES-071 | a case value of a variant of another enum | gap: 3011, rule: reject, issue #222 |
 | L-TYPES-072 | a zero-member enum | gap: NEW, rule: reject, issue #223 |
@@ -1260,8 +1260,8 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | ownership | 65 | 55 | 25 |
 | parallel | 19 | 28 | 12 |
 | seed | 1 | 2 | 0 |
-| types | 60 | 123 | 13 |
-| total | 266 | 462 | 83 |
+| types | 60 | 128 | 8 |
+| total | 266 | 467 | 78 |
 
 ## Parity plan
 
