@@ -50,6 +50,9 @@ namespace
 
     // INFO: a live code that no source program can trigger yet. The Gaps section of the language doc names each one.
     const std::vector<MAREA_CodeExemption> EXEMPT_CODES{
+        { 3066, "no item can reach a second namespace, the runner gives an item one file (issue #250); proven by tests/source/sema/MAREASemaVisibility.cpp" },
+        { 3067, "no item can reach a second namespace, the runner gives an item one file (issue #250); proven by tests/source/sema/MAREASemaVisibility.cpp" },
+        { 3068, "no item can reach a second namespace, the runner gives an item one file (issue #250); proven by tests/source/sema/MAREASemaVisibility.cpp" },
         { 4004, "the catalogue runner runs lex, parse and sema only, so no item reaches the ir; remove this entry when a runner makes the ir run" },
         { 4005, "the catalogue runner runs lex, parse and sema only, so no item reaches the ir; remove this entry when a runner makes the ir run" },
         { 4006, "the catalogue runner runs lex, parse and sema only, so no item reaches the ir; remove this entry when a runner makes the ir run" },

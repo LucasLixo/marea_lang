@@ -621,6 +621,42 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckNamedType(MAREA_SemaContext * context, const MAREA_AstNode *node);
 
     /**
+     * @brief Gives the namespace that a name entry stands for, as the resolver knows it: a namespace import is its
+     * qualifier then its own name (an alias gives the original), a symbol import is the namespace of its qualifier.
+     * Two checks read a namespace this way, the typed tree builder and MAREA_SemaCheckVisibility.
+     * @param context Context of the run. Must not be null.
+     * @param entry Name entry. Must not be null.
+     * @param outText Receives the text of the namespace, in the source or in the arena. Must not be null.
+     * @param outLength Receives the length of outText. Must not be null.
+     * @return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaNamespaceOf(MAREA_SemaContext * context, const MAREA_SemaName *entry, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength);
+
+    /**
+     * @brief Gives the tree of a namespace, only when the resolver answers FOUND for it.
+     * @param context Context of the run. May be null, which gives null.
+     * @param text Text of the namespace, not NUL terminated. May be null, which gives null.
+     * @param length Length of text in bytes.
+     * @return The tree, or null when the resolver answers EXTERNAL or NOT_FOUND.
+     */
+    MAREA_NODISCARD const MAREA_AstNode *MAREA_CALL MAREA_SemaFoundRoot(const MAREA_SemaContext *context, const MAREA_Character8 *text, MAREA_IntegerSize length);
+
+    /**
+     * @brief Checks the use of a symbol, a type or a field of another namespace that a whole-namespace import
+     * brings: a member of a FOUND namespace that is explicitly private is PRIVATE_SYMBOL_ACCESS (a MEMBER_ACCESS
+     * whose base is the namespace name), and a written type ns.T that is explicitly private is
+     * PRIVATE_TYPE_ACCESS (a NAMED_TYPE). An explicitly private field of a non-private structure of a FOUND
+     * namespace is PRIVATE_FIELD_ACCESS, read or written through a name written as ns.T (a MEMBER_ACCESS) or set
+     * in a struct literal (a LITERAL_VALUE). A namespace that the resolver answers EXTERNAL or NOT_FOUND, a
+     * member that the tree does not declare and a value whose type is not a plain ns.T are never checked. Any
+     * other node kind raises nothing.
+     * @param context Context of the run. Must not be null.
+     * @param node Node to check. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckVisibility(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
      * @brief Checks the declarations of a compilation unit that need the whole file: a member name that two
      * implementation blocks of one concrete type both declare is DUPLICATE_MEMBER.
      * @param context Context of the run. Must not be null.
@@ -668,6 +704,15 @@ MAREA_BEGIN_EXTERN_C
      * @return True when the closest attribute with that key is a single name equal to the member.
      */
     MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_SemaAttributeHasMember(const MAREA_AstNode *root, const MAREA_AstNode *declaration, const MAREA_Character8 *key, const MAREA_Character8 *member);
+
+    /**
+     * @brief Tells whether a declaration is explicitly private. The default visibility is public, so a
+     * declaration with no visibility attribute is not private.
+     * @param root COMPILATION_UNIT node that holds the declaration. May be null: only the declaration is read.
+     * @param declaration Declaration or field node. May be null, which gives false.
+     * @return True only when the closest visibility attribute is private.
+     */
+    MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_SemaIsPrivate(const MAREA_AstNode *root, const MAREA_AstNode *declaration);
 
     /**
      * @brief Reads the integer value of an ATTRIBUTE_ITEM, decimal or hexadecimal.
