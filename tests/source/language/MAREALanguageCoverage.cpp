@@ -57,10 +57,6 @@ namespace
 
     // INFO: an example that has no accept item. Each reason is checked by hand and is named in the Gaps section.
     const std::vector<MAREA_ExampleExemption> EXEMPT_EXAMPLES{
-        { "examples/basics/ownership.marea", "writes a parameter with the default borrow, which settled rule 2 (read-only default) forbids (issues #203, #214)" },
-        { "examples/interop/gpu_handles.marea", "writes a parameter with the default borrow, which settled rule 2 forbids (issues #203, #214)" },
-        { "examples/parallel/scaling.marea", "writes a slice parameter with the default borrow, which settled rule 2 forbids (issues #203, #214)" },
-        { "examples/types/methods.marea", "a method writes self with the default borrow, which settled rule 2 forbids (issues #203, #214)" },
         { "examples/macros/builtin.marea", "imports the project namespace attributes.layout, and an item is one file (issue #250)" },
         { "examples/main.marea", "imports eight project namespaces, and an item is one file (issue #250)" },
         { "examples/namespaces/consumer.marea", "imports the project namespace namespaces.library, and an item is one file (issue #250)" },
