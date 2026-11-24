@@ -22,7 +22,7 @@ MAREA_SemaCheckCompilationUnit(sema, root);   /* once per file, dependencies fir
 `MAREA_SemaCheckCompilationUnit` returns an error only for a null argument or an out of memory. A rule
 violation is a diagnostic in the sink. A size that does not fit in `MAREA_IntegerSize` (a diagnostic
 message, or the growth of a name table) is also an out of memory: nothing is allocated or copied.
-Every sema diagnostic is an error, in the range 3001-3032 and 3036-3037.
+Every sema diagnostic is an error, in the range 3001-3068 (3023 is retired, and a number that no row of the Diagnostics table names is not used).
 The lexer file name decides the path rule, so call `MAREA_LexContextSetFileName` with a project
 relative path with forward slashes and the `.marea` extension before the lex step.
 
@@ -42,8 +42,8 @@ void resolve(void *userData, const char *text, size_t length,
 | `FOUND` | The namespace has a tree. `*outRoot` is its `COMPILATION_UNIT`. |
 | `EXTERNAL` | The namespace exists but sema has no tree for it (every `c.*` namespace, and the libraries that are not written yet). |
 
-`import a.b.c;` asks for `a.b.c`. On `NOT_FOUND` sema asks for `a.b` and looks for a `#[visibility = public]`
-top-level symbol `c` there. Both answers `NOT_FOUND` is `UNRESOLVED_IMPORT`. A name from an
+`import a.b.c;` asks for `a.b.c`. On `NOT_FOUND` sema asks for `a.b` and looks for a top-level symbol `c` that is not `#[visibility = private]`
+there. Both answers `NOT_FOUND` is `UNRESOLVED_IMPORT`. A name from an
 `EXTERNAL` namespace is opaque: it meets every contract, takes any arguments and gives no diagnostic.
 The local name of an import is its alias, or its last segment. A type name that no local rule knows
 is given to the resolver as a last step.
@@ -52,12 +52,12 @@ is given to the resolver as a last step.
 binds one local name per member: its alias, or the last segment of its path. A member path has one
 or two segments; a longer path is `UNRESOLVED_IMPORT`. For a `NOT_FOUND` namespace every member is
 unresolved. For `EXTERNAL` every member of one or two segments is accepted. For `FOUND` the first
-segment must be a `#[visibility = public]` top-level symbol of the tree, and a two-segment member needs that symbol
+segment must be a top-level symbol of the tree that is not `#[visibility = private]`, and a two-segment member needs that symbol
 to be an `enum` with that variant. An unresolved member still binds its local name, so one error
 does not start a chain of `UNDECLARED_NAME`. A member alias that is a parse error (`f as }`) is
 skipped without a diagnostic.
 
-An import of a `#[visibility = public]` `enum` from a `FOUND` namespace (a one-segment member, or a whole path whose
+An import of a non-private `enum` from a `FOUND` namespace (a one-segment member, or a whole path whose
 parent is `FOUND`) also keeps that enum declaration with its local name, alias included. The type
 class of that name is then `USER`, so a `switch` over it raises `NON_EXHAUSTIVE_SWITCH` like a
 same-file enum. Any other import, and every `EXTERNAL` one, keeps no declaration and stays `EXTERNAL`.
@@ -345,6 +345,19 @@ not followed. A constant that only uses a cycle without being on it is not repor
 declaration checks and before the visit, with a visit state kept in the arena and an explicit stack, so a long chain
 needs no recursion.
 
+**Visibility across namespaces.** The default visibility is public: only an explicit `#[visibility = private]` hides a
+symbol, a type or a field from another file (a file attribute `#![visibility = private]` hides every symbol of the file,
+but never a field, which reads only its own attribute). A whole-namespace import (`import a.b;`, or `import a.b as x;`)
+brings no names, so three uses reach into the tree that the resolver answers `FOUND` for. `b.hidden()` or `b.LIMIT`,
+where the member is a top-level declaration that is private, is `PRIVATE_SYMBOL_ACCESS` (3066) at the member. A type
+written `b.Secret`, in a parameter, local, field, return, generic argument or struct literal, where the structure,
+enum, opaque or alias is private, is `PRIVATE_TYPE_ACCESS` (3067) at the type. A private field of a structure that is
+not private, read or written as `box.value` where `box` is a local or parameter written `b.Box`, or set in a literal
+`b.Box{ value = 1 }`, is `PRIVATE_FIELD_ACCESS` (3068) at the field name; a private structure is 3067 at its written
+type and never also 3068. A local or a generic parameter that hides the namespace name is no namespace access. A
+namespace that the resolver answers `EXTERNAL` or `NOT_FOUND` is never checked, and neither is a field of the same
+file. An import of one symbol or a member list is checked the same way: a private symbol is `UNRESOLVED_IMPORT`.
+
 **Condition type.** The condition of an `if`, an `elseif` or a `while` must be a `boolean`: a condition with a known
 primitive type other than `boolean`, or a number, string or character literal, is `NON_BOOLEAN_CONDITION` (3043), raised
 at the condition once. `true`, `false`, a comparison, `and`, `or`, `not` and a `boolean` name pass. A `switch` subject and
@@ -559,14 +572,14 @@ typed by the rules above (an enum variant, a constant or a static function of th
 
 **Members of a FOUND namespace.** When the name on the left of a member access stands for a namespace that the
 resolver answers `FOUND` (an import with or without an alias), the member is typed from the tree that the resolver gave.
-Only a `#[visibility = public]` function (its function type, so a call gives the declared result) and a public
+Only a function that is not `#[visibility = private]` (its function type, so a call gives the declared result) and a
 constant (its declared type) are typed. A bare name that an import bound to one such symbol (`import a.b.c as d;`,
 `import a.b { c };`) is typed the same way. A type written in that other file is read in that file, never in this one.
 A structure, an enum, an opaque type or an alias that the file declares is spelled with the last segment of its
 namespace (`shapes.Box`, as a file writes `structures.Shape`), a local alias is followed to its target, and any other
 name (a built-in) is kept as written. For a generic function the type arguments written on the call fill the
 parameters, and a call with none has no type. A field or a method that is read on such a result has no type, because
-the name would be looked up in this file. A type, an enum variant and a symbol that is not public have no type here,
+the name would be looked up in this file. A type, an enum variant and a symbol that is private have no type here,
 and neither has a member of an `EXTERNAL` namespace.
 
 **Inferred type arguments.** A call of a generic function of the file, by its bare name, with no written type
@@ -624,7 +637,7 @@ or rejects.
 
 | Code | Name | Example |
 |---|---|---|
-| 3001 | `UNRESOLVED_IMPORT` | `import a.b.c;` when the resolver finds neither `a.b.c` nor a public `c` in `a.b`; `import a.b { f };` when `a.b` is not found, `f` is not a public symbol of it, a two-part member is not a variant of a public enum, or the member path has more than two parts |
+| 3001 | `UNRESOLVED_IMPORT` | `import a.b.c;` when the resolver finds neither `a.b.c` nor a `c` that is not private in `a.b`; `import a.b { f };` when `a.b` is not found, `f` is a private symbol of it or is missing, a two-part member is not a variant of an enum that is not private, or the member path has more than two parts |
 | 3002 | `NAMESPACE_PATH_MISMATCH` | `namespace a.b.c;` in the file `a/b.marea` |
 | 3003 | `NAME_ALREADY_DECLARED` | `structure Item end function Item() end`, or an import (or an import alias, or a member alias) and a declaration or another import of one local name; an import alias or a `type` named `c` (message `name is reserved:`); a generic parameter that repeats an earlier one of its list or names a top-level declaration, `pick<Item, Item>`; two parameters of one name; a body local that repeats a parameter or a local of the same block |
 | 3004 | `UNDECLARED_NAME` | `where Item: Missing`, or a constraint on a name that is not a generic parameter; `local x: sinteger32 = missing;`, `missing(1);`; a bare function name that stands in a function body before the function is declared in the file |
@@ -668,8 +681,16 @@ or rejects.
 | 3043 | `NON_BOOLEAN_CONDITION` | `if n then`, `elseif s then`, `while 1 do` when the condition has a known primitive type that is not `boolean`, or is a number, string or character literal |
 | 3055 | `CYCLIC_CONSTANT` | `constant A: sinteger32 = B;` with `constant B: sinteger32 = A;`, or `constant A: sinteger32 = A;`, once for each cycle, at the first constant of it in the file |
 | 3065 | `LOCAL_WITHOUT_INITIAL_VALUE` | `local x: sinteger32;` with no `= value`, for a primitive, a structure, a `pointer` or an `array`, at any depth of nesting |
+| 3066 | `PRIVATE_SYMBOL_ACCESS` | `b.hidden()` or `b.LIMIT` after `import a.b;` (or an alias) when the member is a top-level declaration of a `FOUND` namespace with `#[visibility = private]` |
+| 3067 | `PRIVATE_TYPE_ACCESS` | `s: b.Secret`, `b.Secret{ }` or any written `b.Secret` when the structure, enum, opaque or alias of a `FOUND` namespace is private |
+| 3068 | `PRIVATE_FIELD_ACCESS` | `box.value`, `box.value = 1` or `b.Box{ value = 1 }` when `box` is written `b.Box` and the field has `#[visibility = private]` |
 
 ## Gaps
+
+- The visibility check (3066 to 3068) reads only a bare namespace name and a bare name with a written type `ns.T`. It does
+  not check a member that the tree does not declare, a field of a value that is not a plain `ns.T` name (a call result,
+  an index, a chain such as `a.b.c`), a field of a type that an imported symbol gives (`import a.b.Box;`), or a private
+  symbol that a generic or an alias leads to.
 
 - Two functions that call each other cannot be written, because a function must be declared before its use and the
   grammar has no forward declaration.
