@@ -9,12 +9,9 @@ namespace main;
 function sign(value: sinteger32): sinteger32
     if value < 0 then
         return -1;
-    end
     elseif value == 0 then
         return 0;
-    end
     else
         return 1;
-    end
     end
 end

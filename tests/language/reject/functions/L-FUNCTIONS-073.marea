@@ -10,6 +10,5 @@ function run(value: sinteger32): sinteger32
     if value then
         return 1;
     end
-    end
     return 0;
 end

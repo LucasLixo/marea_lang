@@ -761,8 +761,8 @@ Function declaration and call, parameters and defaults, the result and `return v
 | L-TYPES-171 | a stray word at the top level | 2004 @9, 2004 @9 |
 | L-TYPES-172 | a statement keyword used as a top level item | 2004 @9, 2004 @9 |
 | L-TYPES-173 | an extra end after a function | 2005 @12 |
-| L-TYPES-174 | an else with no end before it, the old shared end form | 2005 @12, 2009 @16 |
-| L-TYPES-175 | a case arm outside a switch | 2005 @10, 2001 @10, 2005 @13 |
+| L-TYPES-174 | an end before the else, the old form that closed each branch | 2001 @13, 2004 @14, 2004 @14, 2005 @15, 2005 @16 |
+| L-TYPES-175 | a case arm outside a switch | 2001 @10, 2004 @10, 2004 @11, 2004 @11, 2005 @12, 2005 @13 |
 | L-TYPES-176 | a function type parameter with a default value | 2005 @9 |
 | L-TYPES-177 | a chained comparison | 2006 @10, 3011 @10 |
 | L-TYPES-178 | a chained equality | 2006 @10, 3011 @10 |

@@ -18,6 +18,5 @@ function show<Item>(left: Item, right: Item): string where Item: Comparable, Pri
     if left.less(right) then
         return right.describe();
     end
-    end
     return left.describe();
 end

@@ -12,10 +12,8 @@ function sum_array(values: c.array<sinteger32>): sinteger32
         if value < 0 then
             continue;
         end
-        end
         if value > 1000 then
             break;
-        end
         end
         total += value;
     end

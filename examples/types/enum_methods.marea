@@ -11,8 +11,8 @@
 --      is Planet.GRAVITY.
 --   4. The variants are the only values of the type. The constructor is private to the enum.
 --   5. "switch" on an enum checks that every variant is handled, or that a "default" exists.
---      A missing one is a compile error. Each arm starts with "case" and has its own "end".
---      One more "end" closes the "switch". An arm does not fall through to the next.
+--      A missing one is a compile error. Each arm starts with "case" and has no "end" of its own.
+--      One "end" closes the whole "switch". An arm does not fall through to the next.
 --   6. The enum is a plain integer (the variant index) plus the constant table, so it is
 --      always passed by value and a function on it has no cost beyond a table read.
 
@@ -51,13 +51,10 @@ implementation Planet
         switch self
             case Planet.Mercury then
                 return "Mercury";
-            end
             case Planet.Earth then
                 return "Earth";
-            end
             case Planet.Jupiter then
                 return "Jupiter";
-            end
         end
     end
 end

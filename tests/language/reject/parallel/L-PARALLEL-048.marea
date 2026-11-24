@@ -54,10 +54,8 @@ function run(#[semantics = reference_read_only] values: c.array<float32>, mode: 
             switch mode
                 case 1 then
                     return;
-                end
                 default then
                     local unused: sinteger32 = 0;
-                end
             end
         end
     end

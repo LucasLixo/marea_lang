@@ -10,5 +10,4 @@ function run(text: string)
     if text then
         return;
     end
-    end
 end

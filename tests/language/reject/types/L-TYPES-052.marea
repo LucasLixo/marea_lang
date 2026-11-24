@@ -1,4 +1,4 @@
--- expect: 3025 @20
+-- expect: 3025 @19
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
@@ -16,12 +16,9 @@ function name(color: Color): sinteger32
     switch color
         case Color.Red then
             return 1;
-        end
         case Color.Red then
             return 2;
-        end
         default then
             return 0;
-        end
     end
 end

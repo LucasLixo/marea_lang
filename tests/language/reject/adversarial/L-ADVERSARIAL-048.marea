@@ -24,7 +24,6 @@ function maximum<Item>(left: Item, right: Item): Item where Item: Comparable, Co
     if left.less(right) then
         return right;
     end
-    end
     return copy left;
 end
 

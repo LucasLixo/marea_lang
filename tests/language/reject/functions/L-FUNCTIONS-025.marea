@@ -9,9 +9,7 @@ namespace main;
 function pick(flag: boolean): sinteger32
     if flag then
         return 1;
-    end
     else
         local unused: sinteger32 = 2;
-    end
     end
 end

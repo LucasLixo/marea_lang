@@ -10,5 +10,4 @@ function log_line(text: string)
     if text == "" then
         return;
     end
-    end
 end
