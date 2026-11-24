@@ -1,9 +1,8 @@
--- gap: #177 NEW
--- rule: reject
+-- expect: 3065 @20
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- A local is assigned in one branch only and then read.
+-- A local is assigned in one arm of switch only and then read.
 
 namespace main;
 
@@ -17,11 +16,14 @@ structure Box
     count: sinteger32;
 end
 
-function check(flag: boolean): sinteger32
+function check(selector: sinteger32): sinteger32
     local value: sinteger32;
-    if flag then
-        value = 1;
-    end
+    switch selector
+        case 1 then
+            value = 1;
+        end
+        default then
+        end
     end
     local copy_of: sinteger32 = value;
     return 1;

@@ -298,34 +298,21 @@ namespace
     const std::string BOX{ "structure Box x: sinteger32; end implementation Box #[operator = \"destroy\"] function drop() end end " };
 } // namespace
 
-TEST(MAREAIrResolvedType, ZeroValueOfALocalCarriesTheDeclaredType)
-{
-    GTEST_COUT << "Validating the ZERO_VALUE of a local with no initializer carries the declared type." << std::endl;
-
-    MAREA_IrFixture fixture;
-
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; function f() local a: sinteger32; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
-
-    const std::string DUMP{ MAREA_dumpOf(fixture) };
-
-    EXPECT_NE(DUMP.find("LOCAL_DECLARATION \"a\" type=sinteger32 resolved=sinteger32\n        ZERO_VALUE resolved=sinteger32\n"), std::string::npos) << DUMP;
-}
-
 TEST(MAREAIrResolvedType, WrittenInitializerNeverGetsAZeroNextToIt)
 {
-    GTEST_COUT << "Validating a local with = or a literal holds exactly one value child and no ZERO_VALUE, and a local with none holds exactly one ZERO_VALUE." << std::endl;
+    GTEST_COUT << "Validating a local with = or a literal holds exactly one value child and no ZERO_VALUE." << std::endl;
 
     MAREA_IrFixture fixture;
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; structure Point x: sinteger32; y: float64; end function f() local a: sinteger32 = 1; local b: Point = Point{ x = 1 }; local c: sinteger32; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; structure Point x: sinteger32; y: float64; end function f() local a: sinteger32 = 1; local b: Point = Point{ x = 1 }; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     const MAREA_IrNode *body{ MAREA_irChild(MAREA_irChild(fixture.module, 1), 1) };
 
-    ASSERT_EQ(MAREA_IrNodeGetChildCount(body), MAREA_INTEGER_SIZE(3)) << "The body must hold the three locals.";
+    ASSERT_EQ(MAREA_IrNodeGetChildCount(body), MAREA_INTEGER_SIZE(2)) << "The body must hold the two locals.";
 
-    const MAREA_IrKind EXPECTED[]{ MAREA_IR_KIND_INTEGER_LITERAL, MAREA_IR_KIND_LITERAL_VALUE, MAREA_IR_KIND_ZERO_VALUE };
+    const MAREA_IrKind EXPECTED[]{ MAREA_IR_KIND_INTEGER_LITERAL, MAREA_IR_KIND_LITERAL_VALUE };
 
-    for (MAREA_IntegerSize index{ 0 }; index < 3; ++index) {
+    for (MAREA_IntegerSize index{ 0 }; index < 2; ++index) {
         const MAREA_IrNode *local{ MAREA_irChild(body, index) };
 
         ASSERT_EQ(MAREA_IrNodeGetChildCount(local), MAREA_INTEGER_SIZE(1)) << "Each local must hold exactly one value child, local " << index;

@@ -619,7 +619,7 @@ TEST(MAREASemaTypedAst, ResolvedTypeOfLocalKeepsTypeArguments)
 
     MAREA_SemaFixture fixture;
 
-    const MAREA_ResolvedTypeResult RESULT{ MAREA_resolvedTypeOf(fixture, "namespace main; function f() local a: array<sinteger32, 4>; end", MAREA_AST_KIND_LOCAL_DECLARATION) };
+    const MAREA_ResolvedTypeResult RESULT{ MAREA_resolvedTypeOf(fixture, "namespace main; function f() local a: array<sinteger32, 4> = array<sinteger32, 4>{ 0, 0, 0, 0 }; end", MAREA_AST_KIND_LOCAL_DECLARATION) };
 
     ASSERT_TRUE(RESULT.found) << "The local must be in the typed tree.";
 
@@ -692,7 +692,7 @@ TEST(MAREASemaTypedAst, ResolvedTypeOfFunctionIsItsResult)
 
     MAREA_SemaFixture fixture;
 
-    const MAREA_ResolvedTypeResult RESULT{ MAREA_resolvedTypeOf(fixture, "namespace main; function f(n: sinteger32): array<sinteger32, 4> local a: array<sinteger32, 4>; return a; end", MAREA_AST_KIND_FUNCTION_DECLARATION) };
+    const MAREA_ResolvedTypeResult RESULT{ MAREA_resolvedTypeOf(fixture, "namespace main; function f(n: sinteger32): array<sinteger32, 4> local a: array<sinteger32, 4> = array<sinteger32, 4>{ 0, 0, 0, 0 }; return a; end", MAREA_AST_KIND_FUNCTION_DECLARATION) };
 
     ASSERT_TRUE(RESULT.found) << "The function must be in the typed tree.";
 

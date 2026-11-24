@@ -1,9 +1,8 @@
--- gap: #177 NEW
--- rule: reject
+-- expect: 3065 @20
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- A local with no initial value is read.
+-- A local is assigned in a loop only and then read.
 
 namespace main;
 
@@ -19,6 +18,9 @@ end
 
 function check(): sinteger32
     local value: sinteger32;
+    for turn in 0 .. 2 do
+        value = turn;
+    end
     local copy_of: sinteger32 = value;
     return 1;
 end
