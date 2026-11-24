@@ -1114,9 +1114,10 @@ Facts the items fix, checked by running the compiler:
   items 009, 014, 031, 033, 054, 055, 061 to 065).
 - A literal out of range gives 3033 as a `spawn` argument, a default value, a struct literal field and a constant
   (issue #181, items 018 to 021). A local with no initial value gives 3065 also when a worker reads it (item 017).
-- The type of a field read through a `for each` variable is not compared (issue #246, item 070), and the type arguments
-  of a library type or of a user generic structure are not compared (issue #245, items 067 to 069). The same read of a
-  field through a parameter, a local or an index gives 3011.
+- The type of a field read through a `for each` variable is compared now (item 070, 3011), as for a parameter, a local
+  or an index, and the type arguments of a library type or of a user generic structure are compared with the declared
+  type (items 067 to 069, 3014). A pair that mentions a generic parameter, an alias or an import, and a different head
+  such as `owned<vector<T>>` into `vector<T>`, is still accepted.
 - A file constant passed to a generic function that takes a write borrow gives 3032, as for any function (item 010); a
   spawn of a write borrow of a call result through a generic function gives 3020 (item 029).
 
@@ -1167,6 +1168,10 @@ generic or an alias leads to is not checked by sema either (see the sema doc, Ga
 | L-ADVERSARIAL-063 | Mutant of L-PARALLEL-006: the write attribute is dropped from the source of a partition mutable | 3069 @54, 3069 @55 |
 | L-ADVERSARIAL-064 | Mutant of L-FUNCTIONS-014: the write attribute becomes read-only on a parameter the body writes | 3069 @16 |
 | L-ADVERSARIAL-065 | Mutant of L-FUNCTIONS-014: the write attribute is dropped from a parameter the body writes | 3069 @16 |
+| L-ADVERSARIAL-067 | Mutant of L-OWNERSHIP-031: one type argument of a local array is narrowed | 3014 @21 |
+| L-ADVERSARIAL-068 | Mutant of L-OWNERSHIP-033: one type argument of a local vector is narrowed | 3014 @21 |
+| L-ADVERSARIAL-069 | Mutant of L-TYPES-011: one type argument of a returned generic struct literal is narrowed | 3014 @16 |
+| L-ADVERSARIAL-070 | Mutant of L-OWNERSHIP-083: a field of a for each element is stored in a narrower local | 3011 @22 |
 | L-ADVERSARIAL-071 | Mutant of L-BINDINGS-036: the initial value of a local is dropped | 3065 @11 |
 | L-ADVERSARIAL-072 | Mutant of L-BINDINGS-036: the initial value of a local computed from another is dropped | 3065 @12 |
 
@@ -1201,10 +1206,6 @@ generic or an alias leads to is not checked by sema either (see the sema doc, Ga
 | L-ADVERSARIAL-059 | Mutant of L-OWNERSHIP-124: copy is swapped for move on a borrow stored in a field | gap: #200 NEW, rule: reject |
 | L-ADVERSARIAL-060 | Mutant of L-OWNERSHIP-127: copy is swapped for move on a borrow appended to a vector | gap: #200 NEW, rule: reject |
 | L-ADVERSARIAL-066 | Mutant of L-TYPES-075: copy is swapped for move in a generic return of a borrow | gap: #200 NEW, rule: reject |
-| L-ADVERSARIAL-067 | Mutant of L-OWNERSHIP-031: one type argument of a local array is narrowed | gap: #245 3011, rule: reject |
-| L-ADVERSARIAL-068 | Mutant of L-OWNERSHIP-033: one type argument of a local vector is narrowed | gap: #245 3011, rule: reject |
-| L-ADVERSARIAL-069 | Mutant of L-TYPES-011: one type argument of a returned generic struct literal is narrowed | gap: #245 3011, rule: reject |
-| L-ADVERSARIAL-070 | Mutant of L-OWNERSHIP-083: a field of a for each element is stored in a narrower local | gap: #246 3011, rule: reject |
 
 ## Examples and coverage
 
@@ -1254,7 +1255,7 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 
 | area | accept | reject | known_gap |
 |---|---|---|---|
-| adversarial | 0 | 41 | 31 |
+| adversarial | 0 | 45 | 27 |
 | bindings | 33 | 80 | 0 |
 | coverage | 0 | 1 | 0 |
 | examples | 20 | 0 | 0 |
@@ -1266,7 +1267,7 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | parallel | 19 | 26 | 14 |
 | seed | 1 | 2 | 0 |
 | types | 60 | 116 | 20 |
-| total | 266 | 442 | 103 |
+| total | 266 | 446 | 99 |
 
 ## Parity plan
 
