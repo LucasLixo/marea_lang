@@ -539,3 +539,69 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckBorrowArguments(MAREA_SemaContext *co
 
     return MAREA_SEMA_EXCEPT_SUCCESS;
 }
+
+static MAREA_Boolean MAREA_CALL MAREA_G_IsTemporary(const MAREA_AstNode *argument)
+{
+    switch (MAREA_AstNodeGetKind(argument)) {
+    case MAREA_AST_KIND_CALL_EXPRESSION:
+    case MAREA_AST_KIND_LITERAL_VALUE:
+    case MAREA_AST_KIND_INTEGER_LITERAL:
+    case MAREA_AST_KIND_FLOAT_LITERAL:
+    case MAREA_AST_KIND_STRING_LITERAL:
+    case MAREA_AST_KIND_CHARACTER_LITERAL:
+    case MAREA_AST_KIND_BOOLEAN_LITERAL:
+        return MAREA_BOOLEAN_TRUE;
+    default:
+        return MAREA_BOOLEAN_FALSE;
+    }
+}
+
+MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckWriteArguments(MAREA_SemaContext *context, const MAREA_AstNode *parameters, const MAREA_AstNode *arguments)
+{
+    if ((context == MAREA_NULLPTR) || (parameters == MAREA_NULLPTR) || (arguments == MAREA_NULLPTR)) {
+        return MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(arguments);
+
+    for (MAREA_IntegerSize index = 0; index < COUNT; ++index) {
+        const MAREA_AstNode *parameter = MAREA_SemaChildAt(parameters, index);
+
+        const MAREA_AstNode *argument = MAREA_SemaChildAt(arguments, index);
+
+        if ((parameter == MAREA_NULLPTR) || (argument == MAREA_NULLPTR) || (MAREA_SemaGetParameterSemantics(context, parameter) != MAREA_SEMA_PARAMETER_SEMANTICS_REFERENCE_MUTABLE)) {
+            continue;
+        }
+
+        const MAREA_AstNode *declaration = MAREA_NULLPTR;
+
+        const MAREA_Character8 *name = MAREA_NULLPTR;
+
+        MAREA_IntegerSize length = 0;
+
+        // INFO: an owned, task or vector parameter takes its argument by move, so it is not a write borrow of a place.
+        if (MAREA_SemaClassifyType(context, MAREA_SemaChildAt(parameter, 1), &declaration, &name, &length) == MAREA_SEMA_TYPE_CLASS_MOVE_BUILTIN) {
+            continue;
+        }
+
+        if (MAREA_G_IsTemporary(argument) == MAREA_BOOLEAN_TRUE) {
+            MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_WRITE_THROUGH_READ_ONLY_BORROW, MAREA_AstNodeGetPosition(argument), "a write borrow of a temporary, which has no storage to write back");
+
+            continue;
+        }
+
+        const MAREA_AstNode *root = MAREA_G_RootOf(argument);
+
+        if ((root == MAREA_NULLPTR) || (MAREA_SemaIsReadOnly(context, argument) == MAREA_BOOLEAN_FALSE)) {
+            continue;
+        }
+
+        const MAREA_SemaExcept READ_ONLY_RESULT = MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_WRITE_THROUGH_READ_ONLY_BORROW, MAREA_AstNodeGetPosition(argument), "a read-only borrow is passed to a write borrow:", MAREA_AstNodeGetText(root), MAREA_AstNodeGetTextLength(root));
+
+        if (READ_ONLY_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return READ_ONLY_RESULT;
+        }
+    }
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
