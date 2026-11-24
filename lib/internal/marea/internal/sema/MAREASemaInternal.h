@@ -1033,8 +1033,9 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaMoveChildLeave(MAREA_SemaContext * context, const MAREA_AstNode *node, const MAREA_AstNode *child, MAREA_SemaMoveFrame *frame);
 
     /**
-     * @brief Closes a frame: a local is moved after a branch only when every arm that reaches the end, and
-     * the path of a missing else or default, moved it; after a loop no move of the body counts.
+     * @brief Closes a frame: a local is moved after a branch when any arm that reaches the end (no return, no break among its statements) moved it, or
+     * when it was moved before a branch that has no else or default; after a loop no move of the body counts.
+     * The moved part still counts only when every such arm moved the same part.
      * @param context Context of the run. Must not be null.
      * @param node Branch or loop node. Must not be null.
      * @param frame Frame of the node. Must not be null.

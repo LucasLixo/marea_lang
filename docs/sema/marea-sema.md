@@ -331,13 +331,14 @@ its right side was read; `x.field = value;` and `x += 1;` are reads. A new local
 a field of the entry of the `locals` table (`MAREA_SemaName`), so it pushes and pops with the scope of the local, and it is read and
 written in the one `MAREA_SemaVisit` pass (`MAREASemaMoveState.c`). A branch follows the merge rule of the design in `## Gaps`: every
 arm of an `if`/`elseif`/`else` or `switch` starts from the state the statement started with, an arm that ends the function
-(`MAREA_SemaBlockTerminates`) takes no part, a local is moved after the statement only when every arm that reaches the end moved it and
-the statement has an `else` or `default`, and a `do` block is not a branch. The body of a loop (`while`, `for`, `for each`,
+(`MAREA_SemaBlockTerminates`), or has a `break` among its own statements, takes no part, a local is moved after the statement when any arm that
+reaches the end moved it (OR over the arms), or when it was moved before a statement that has no `else` or `default`, and a local that every
+arm of a statement with an `else` or `default` made live again is live; a `do` block is not a branch. The body of a loop (`while`, `for`, `for each`,
 `partition`) starts from the state the loop started with, and nothing it moves counts after the loop, because it may run zero times. A
 body that moves a local declared outside the loop, and has no `break` or `return` among its own statements, would move it again on
 the next turn: `VALUE_MOVED_AGAIN` at the `move`. A move of a field or an element (`move x.inner`, `move xs[0]`) of a local that is not a borrow, when the part is not by value and sema can
 see its type, marks that part: the entry keeps the chain of the first part moved out (`partAt`), and it saves, loads and merges with the
-`moved` bit in the frame of a branch, but a part counts after a branch only when every arm that reaches the end moved the same part. A
+`moved` bit in the frame of a branch, but a part counts after a branch only when every arm that reaches the end moved the same part, so a partial move still rounds toward valid. A
 later use of a path that holds the moved part (`x`, passed or moved whole, or a method called on it) or lies inside it (`x.inner.y`, the
 part itself again) is `USE_OF_PARTIALLY_MOVED_VALUE` (3072), raised at the access; a path that differs from it at a field name or a
 literal index (`x.count`, `xs[1]`) is not a use. An index that is not an integer literal is never equal to another index, so it is never
@@ -938,7 +939,7 @@ or rejects.
 | 3067 | `PRIVATE_TYPE_ACCESS` | `s: b.Secret`, `b.Secret{ }` or any written `b.Secret` when the structure, enum, opaque or alias of a `FOUND` namespace is private |
 | 3068 | `PRIVATE_FIELD_ACCESS` | `box.value`, `box.value = 1` or `b.Box{ value = 1 }` when `box` is written `b.Box` and the field has `#[visibility = private]` |
 | 3069 | `WRITE_THROUGH_READ_ONLY_BORROW` | `function f(p: Point) p.x = 1; end`, `for each v in mutable xs do end` with `xs` read-only, `write_point(p)` with a read-only `p`, `write_point(make_point())` or `set(1)` for a write-borrow parameter |
-| 3070 | `USE_OF_MOVED_VALUE` | `local b: Point = move a; local c: sinteger32 = a.x;`, `take(move a); read(a);`, `spawn read(a);` or `a.sum()` after `a` was moved, also after a `do` block or after every arm of a branch moved it |
+| 3070 | `USE_OF_MOVED_VALUE` | `local b: Point = move a; local c: sinteger32 = a.x;`, `take(move a); read(a);`, `spawn read(a);` or `a.sum()` after `a` was moved, also after a `do` block or after a branch where any arm that reaches the end moved it |
 | 3071 | `VALUE_MOVED_AGAIN` | `move a;` twice, or `move a` of a local declared outside the loop in a loop body that has no `break` or `return` of its own, at the name or at the `move` |
 | 3072 | `USE_OF_PARTIALLY_MOVED_VALUE` | `local s: Shape = move o.inner; local x: float32 = o.inner.x;`, `move o.inner;` then `take(move o);`, `o.total()` after `move o.inner`, `move v[0]; ... v[0].x`, or `move item` of a `for each` element of a collection of a type that is not by value, at the access or at the name |
 | 3073 | `VALUE_CHANGED_WHILE_BORROWED` | `for each x in v do v[0] = ...; end`, `for each x in v do local o: vector<P> = move v; end`, `for each x in mutable v do v.append(...); end`, `with p as view do p.x = 2; end` or `with p as view do local o: P = move p; end`: the source of a `for each` or a `with` block is written, moved or changed by a library call (`append`, `insert`, `remove`, `clear`, `pop`, `push`, `resize`) in the body |
@@ -1146,14 +1147,14 @@ or rejects.
     traversal and no control-flow graph.
   - **Merge rule.** At a branch or loop boundary (`if`/`elseif`/`else`, the arms of a `switch`, a loop
     body) the merge follows `MAREA_G_Terminates` (`MAREASemaControlFlow.c`), which says a path terminates
-    only when every arm agrees (`MAREA_G_IfTerminates`, `MAREA_G_SwitchTerminates`). In the same way, a
-    local is "definitely moved" after the merge, or a borrow "definitely ended", only when every arm
-    proves it on its own. A loop body is visited once, so an effect that can happen on a later iteration
+    only when every arm agrees (`MAREA_G_IfTerminates`, `MAREA_G_SwitchTerminates`). The moved bit of a
+    local is a "maybe moved" join: OR over the arms that reach the end, and OR with the base state when the
+    statement has no `else` or `default`. A borrow "definitely ended" still needs every arm to prove it. A loop body is visited once, so an effect that can happen on a later iteration
     but not on the first is treated as "maybe already happened" once the walk is past the loop.
-  - **Rounding rule.** When the effect of an arm is ambiguous, the merge always rounds toward "still
-    valid" (not moved, still borrowed), never toward "reject". A missed catch is acceptable; a false
-    rejection of valid code is not. Every later check that builds on this table must inherit this
-    rounding and must not define its own.
+  - **Rounding rule.** The moved part (3072) and a borrow state, when the effect of an arm is ambiguous, round
+    toward "still valid" (no part moved, still borrowed), never toward "reject": a part counts after a branch
+    only when every arm that reaches the end moved the same part. The whole-local moved bit is the exception, a
+    maybe-moved join by OR (issue #198, decision of the user), because a move on one path is a real move.
 - The borrowed-source check (3073) is a scan, and it has these limits. A library call that changes its receiver is seen only by the names
   `append`, `insert`, `remove`, `clear`, `pop`, `push` and `resize`. A change made inside a called function, or through a second name for the
   source (a `with` name that is a view of it), is not seen. A write or a move in a nested function-like body is not a case, because the language
@@ -1163,10 +1164,11 @@ or rejects.
   (3072) is a second, narrower state on the same entry. A moved `with` name is not tracked. The moved part keeps one chain per local
   (the first), so a second moved part, a part moved with a computed index, a part whose type sema cannot see (a library type, a
   generic), a part moved in a loop body (a second turn is not reported) and a part reached through a borrow are not tracked, and a use
-  of one of them is accepted by the rounding rule. A move in some arms of an `if` or `switch` only, and a move in a loop body that a `break` or `return` ends, are accepted by the
-  rounding rule, so `L-OWNERSHIP-042`, `L-OWNERSHIP-044` and `L-ADVERSARIAL-003` stay `known_gap`. A loop body that has a `break` or a
-  `return` among its own statements is never reported, even if the move comes after a conditional `break`. A `break` or `continue`
-  inside an arm does not end the arm for the merge, only a `return`-style end does. A name read through a function-type local is a read
+  of one of them is accepted by the rounding rule. A move in some arms of an `if` or `switch` counts after the statement
+  (items `L-OWNERSHIP-042`, `L-OWNERSHIP-044` and `L-ADVERSARIAL-003` are reject items); a move in a loop body never counts after the loop.
+  A loop body that has a `break` or a `return` among its own statements is never reported, even if the move comes after a conditional
+  `break`. An arm with a `break` among its own statements leaves the loop, so it takes no part in the merge of the branch; a `continue`
+  inside an arm does not end the arm for the merge. A name read through a function-type local is a read
   like any other. Move state is not read across a function call: a callee that takes an `owned` parameter is seen only through the
   `move` written at the call.
 - The shared access check (3074) is conservative. It sees only a callee that is a function of the same file, found by a bare
