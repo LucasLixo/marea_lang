@@ -13,6 +13,7 @@
     #include "marea/parse/MAREAAstKind.h"
     #include "marea/sema/MAREASema.h"
     #include "marea/sema/MAREASemaImportResolver.h"
+    #include "marea/sema/MAREASemaLayout.h"
     #include "marea/sema/MAREASemaTypedAst.h"
 
 MAREA_BEGIN_EXTERN_C
@@ -205,6 +206,21 @@ MAREA_BEGIN_EXTERN_C
     } MAREA_SemaExprType;
 
     /**
+     * @brief Body of the opaque layout of a structure or an enum. The offsets of the members come first, then the
+     * offsets of the fields of every variant, one run after the other.
+     */
+    struct MAREA_SemaTypeLayout
+    {
+        MAREA_Uinteger64 *offsets;
+        MAREA_IntegerSize *variantFieldCounts;
+        MAREA_Uinteger64 size;
+        MAREA_Uinteger64 alignment;
+        MAREA_Uinteger64 tagSize;
+        MAREA_IntegerSize memberCount;
+        MAREA_SemaMeasureReason reason;
+    };
+
+    /**
      * @brief Body of the opaque typed shadow node. Opened internally, not publicly, so the
      * builder (MAREASemaTypedAst.c) and the ownership classifier (MAREASemaTypedAstOwnership.c)
      * can both read and fill it; the public header keeps the type fully opaque.
@@ -213,6 +229,7 @@ MAREA_BEGIN_EXTERN_C
     {
         const MAREA_AstNode *astNode;
         const MAREA_AstNode *typeDeclaration;
+        const MAREA_SemaTypeLayout *layout;
         const MAREA_Character8 *typeName;
         const MAREA_Character8 *resolvedType;
         MAREA_SemaExprType exprType;
@@ -808,6 +825,18 @@ MAREA_BEGIN_EXTERN_C
      * @return The verdict. The same declaration on both sides is always compatible.
      */
     MAREA_NODISCARD MAREA_SemaLayoutVerdict MAREA_CALL MAREA_SemaCompareStructureLayout(const MAREA_SemaContext *context, const MAREA_AstNode *from, const MAREA_AstNode *to);
+
+    /**
+     * @brief Measures a structure or an enum of the file and records the result in the arena: the size, the
+     * alignment, the offset of each field and of the payload of each variant. A type that sema cannot measure gets
+     * an undecided layout with its reason, not an error. The measure follows the rules in MAREASemaLayout.h.
+     * @param context Context of the run, with the tree that holds declaration as its root. Must not be null.
+     * @param declaration STRUCTURE_DECLARATION or ENUM_DECLARATION node. Must not be null.
+     * @param outLayout Receives the layout, valid for the arena lifetime. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument or on a node of another kind, or
+     * ERROR_OUT_OF_MEMORY when the arena cannot grow.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaMeasureDeclaration(MAREA_SemaContext * context, const MAREA_AstNode *declaration, const MAREA_SemaTypeLayout **outLayout);
 
     /**
      * @brief Checks a WHERE_CLAUSE: every constraint names a generic parameter in scope and known contracts.
