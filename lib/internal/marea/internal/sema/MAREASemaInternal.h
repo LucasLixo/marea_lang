@@ -615,6 +615,15 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckNamedType(MAREA_SemaContext * context, const MAREA_AstNode *node);
 
     /**
+     * @brief Reports OPAQUE_FIELD_BY_VALUE on a FIELD_DECLARATION whose written type is the bare name of an
+     * opaque structure of the same file. An owner, a pointer or any other generic of it is not reported.
+     * @param context Context of the run. Must not be null.
+     * @param node FIELD_DECLARATION node. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS or ERROR_NULL_POINTER on a null argument.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckOpaqueField(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
      * @brief Checks the declarations of a compilation unit that need the whole file: a member name that two
      * implementation blocks of one concrete type both declare is DUPLICATE_MEMBER.
      * @param context Context of the run. Must not be null.

@@ -22,7 +22,7 @@ MAREA_SemaCheckCompilationUnit(sema, root);   /* once per file, dependencies fir
 `MAREA_SemaCheckCompilationUnit` returns an error only for a null argument or an out of memory. A rule
 violation is a diagnostic in the sink. A size that does not fit in `MAREA_IntegerSize` (a diagnostic
 message, or the growth of a name table) is also an out of memory: nothing is allocated or copied.
-Every sema diagnostic is an error, in the range 3001-3032.
+Every sema diagnostic is an error, in the range 3001-3032 and 3057-3058.
 The lexer file name decides the path rule, so call `MAREA_LexContextSetFileName` with a project
 relative path with forward slashes and the `.marea` extension before the lex step.
 
@@ -267,6 +267,12 @@ and a second `default` is an arm that the IR would drop. The place of the `defau
 sema itself: the grammar puts `default_arm` last, and the parser now enforces that placement
 (`DEFAULT_ARM_NOT_LAST`, 2010), so a `default` that is not the last arm never reaches sema through a
 program the parser accepts.
+
+**Opaque structures.** An `opaque structure` has no known layout, so sema refuses to build it, to read a field of it,
+to apply an operator to it and to hold it by value in a structure. A struct literal of an opaque type, a field read
+and a binary operation whose operand is an opaque name raise `OPAQUE_TYPE_MISUSE` (3057), and a `FIELD_DECLARATION`
+whose type is the bare name of an opaque structure raises `OPAQUE_FIELD_BY_VALUE` (3058). `owned<T>`,
+`pointer<T>`, a borrow and a C call stay legal.
 
 **Expressions.** Sema gives an expression a type only when it is cheap to know, and never guesses. A
 literal has its own type. A name has the declared type of its local, parameter or file constant. A field, or an
@@ -589,6 +595,8 @@ or rejects.
 | 3030 | `DEFAULT_PARAMETER_BEFORE_REQUIRED` | `function f(a: sinteger32 = 0, b: sinteger32)`: a parameter with a default value before one with none |
 | 3031 | `INVALID_ENUM_TAG_TYPE` | `enum A : float32`, `: string`, `: SomeStruct`: a tag that is not an integer primitive |
 | 3032 | `CANNOT_BORROW_CONSTANT_AS_MUTABLE` | `take(ORIGIN)` when `take`'s parameter's effective `semantics` is `reference_mutable` and `ORIGIN` is a file constant |
+| 3057 | `OPAQUE_TYPE_MISUSE` | `Texture{ }`, `texture.width` or `texture + other` when `texture` is a local or a parameter of an `opaque structure` of the same file |
+| 3058 | `OPAQUE_FIELD_BY_VALUE` | `structure Holder texture: Texture; end` with `Texture` an `opaque structure` of the same file |
 
 ## Gaps
 
@@ -600,6 +608,10 @@ or rejects.
 - `TYPE_MISMATCH` (3011) sorts the type of an expression into a fixed set of shapes: a literal, a primitive, a
   structure, and, known but never compared, an enum, a library type, a generic parameter and an `owned`, `task`, `vector` or `array` value. Still fully unknown: a `pointer`, a `slice`, a function type, the type of a field or a file
   constant that is not a primitive, and the result of a generic call (see below).
+- `OPAQUE_TYPE_MISUSE` (3057) sees only an operand or a base that is a bare name, or one in parentheses, whose
+  written type is an opaque structure of the same file. A call result, an index, a field of another value and an
+  opaque type of another file are not classified, and `OPAQUE_FIELD_BY_VALUE` (3058) likewise sees only a bare
+  opaque name of the same file as a field type.
 - A binary operator is not checked against what its operands may be (`a and b` with two integers raises nothing,
   as the two have the same name), and an operator that is declared for a structure is not compared.
 - `UNDECLARED_NAME` (3004) is not raised for the bare name that starts a member chain. The bare chain head is
