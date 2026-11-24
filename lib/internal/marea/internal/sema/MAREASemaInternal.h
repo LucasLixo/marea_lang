@@ -82,6 +82,29 @@ MAREA_BEGIN_EXTERN_C
     } MAREA_SemaNameTable;
 
     /**
+     * @brief One value that a worker of a fork_join block, or a partition of it, has taken: the place it was
+     * taken from (a name or a chain of field accesses), whether it is a write, and identity, the declaration
+     * that tells two values of the same name apart (a null identity stands for a local with no declaration node).
+     */
+    typedef struct MAREA_SemaCapture
+    {
+        const MAREA_AstNode *identity;
+        const MAREA_AstNode *place;
+        MAREA_Boolean write;
+    } MAREA_SemaCapture;
+
+    /**
+     * @brief The values taken so far by the workers of the fork_join blocks in progress. It grows with each
+     * spawn or partition and shrinks back when its fork_join block ends. The entries live in the arena of the context.
+     */
+    typedef struct MAREA_SemaCaptureTable
+    {
+        MAREA_SemaCapture *entries;
+        MAREA_IntegerSize count;
+        MAREA_IntegerSize capacity;
+    } MAREA_SemaCaptureTable;
+
+    /**
      * @brief Body of the opaque sema context: the caller services, the name tables and the scope state of
      * the visit in progress.
      */
@@ -95,6 +118,9 @@ MAREA_BEGIN_EXTERN_C
         MAREA_SemaNameTable locals;
         MAREA_SemaNameTable references;
         MAREA_SemaNameTable readOnly;
+        MAREA_SemaCaptureTable captures;
+        const MAREA_AstNode *forkBody;
+        MAREA_IntegerSize captureLocalBase;
         MAREA_IntegerSize localStart;
         MAREA_IntegerSize functionLocalStart;
         const MAREA_AstNode *root;
@@ -121,6 +147,10 @@ MAREA_BEGIN_EXTERN_C
         MAREA_IntegerSize localCount;
         MAREA_IntegerSize referenceCount;
         MAREA_IntegerSize readOnlyCount;
+        MAREA_IntegerSize captureCount;
+        MAREA_IntegerSize captureLocalBase;
+        const MAREA_AstNode *forkBody;
+        MAREA_Boolean captureScope;
         MAREA_IntegerSize localStart;
         MAREA_IntegerSize functionLocalStart;
         MAREA_Uinteger32 selfDepth;
@@ -1103,6 +1133,41 @@ MAREA_BEGIN_EXTERN_C
      * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
      */
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckSpawn(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
+     * @brief Compares one valid argument of a spawn with what the earlier workers of the same fork_join block
+     * took, then records it. Two uses of one value, or of one value and a field of it, conflict when one is a
+     * write, and CONFLICTING_PARALLEL_ACCESS is reported. A write in a spawn that repeats (inside a loop or
+     * a partition body) of a value declared before the block conflicts with itself. An argument that is not a
+     * place, or a callee that sema cannot see, is not recorded.
+     * @param context Context of the run. Must not be null.
+     * @param call CALL_EXPRESSION of the spawn. Must not be null.
+     * @param index Index of the argument in the call.
+     * @param argument The argument node. Must not be null.
+     * @param ownStart Size of the capture table before the spawn, so two arguments of one call are not compared.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCaptureArgument(MAREA_SemaContext * context, const MAREA_AstNode *call, MAREA_IntegerSize index, const MAREA_AstNode *argument, MAREA_IntegerSize ownStart);
+
+    /**
+     * @brief Compares the source of a partition with what the workers of the same fork_join block took, then
+     * records it as a write for a partition mutable and as a read for any other.
+     * @param context Context of the run. Must not be null.
+     * @param node PARTITION_STATEMENT node. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCapturePartition(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
+     * @brief Checks a statement that stands directly in a fork_join block (the code of the block, not of a
+     * worker) against what the workers started before it took: a use of a value that a worker writes, or a
+     * write of a value that a worker uses, reports CONFLICTING_PARALLEL_ACCESS. Any other node is ignored.
+     * @param context Context of the run. Must not be null.
+     * @param node Node in the visit. Must not be null.
+     * @param parent Parent of the node, null for the root.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCaptureBody(MAREA_SemaContext * context, const MAREA_AstNode *node, const MAREA_AstNode *parent);
 
     /**
      * @brief Checks a partition statement: it needs an enclosing fork_join block in the current function, or

@@ -45,7 +45,7 @@ The first line is the header. It has one of three forms:
 A `known_gap` item has `-- rule: reject` or `-- rule: accept` as its second line: the outcome the language has
 decided. A `-- rule:` line in another class is an error. The copyright header follows, then the program.
 
-The codes are the lex codes 1001-1006, the parse codes 2001-2010 and the sema codes 3001-3071 (3023 is retired, and not every other number of the range is a live code).
+The codes are the lex codes 1001-1006, the parse codes 2001-2010 and the sema codes 3001-3074 (3023 is retired, and not every other number of the range is a live code).
 The `@<line>` of the form is optional for the parser of the header, but a `reject` item with a code that has no
 `@<line>` fails.
 
@@ -450,7 +450,7 @@ write-borrow parameter.
 ## Memory and regions
 
 Scopes that end, data that goes up with `return value;` and `move`, `construct` and `destroy`, the explicit call of a
-lifecycle operator (3027) and structured `fork_join` with `partition` and `spawn` (3020, 3024). The items sit in
+lifecycle operator (3027) and structured `fork_join` with `partition` and `spawn` (3020, 3024, 3074). The items sit in
 `tests/language/<class>/memory/`. An accept item of `construct` and `destroy` carries the expected order in a
 `-- output:` comment for the future vm; the runner reads no output today.
 
@@ -490,6 +490,8 @@ lifecycle operator (3027) and structured `fork_join` with `partition` and `spawn
 | L-MEMORY-021 | A structure is destroyed twice by moving it and keeping the old owner | 3071 @36 |
 | L-MEMORY-023 | A worker spawned on a write-borrow parameter | 3020 @29 |
 | L-MEMORY-025 | A worker spawned on a call result | 3020 @29 |
+| L-MEMORY-026 | Two workers write the same local | 3074 @31 |
+| L-MEMORY-028 | A worker writes a local that the block reads at the same time | 3074 @35 |
 | L-MEMORY-029 | A return leaves the body of a partition | 3024 @22 |
 | L-MEMORY-030 | A worker is spawned outside of a fork_join block | 3062 @29 |
 | L-MEMORY-031 | A worker takes the part of a partition mutable while the source is also spawned | 3020 @30 |
@@ -497,12 +499,8 @@ lifecycle operator (3027) and structured `fork_join` with `partition` and `spawn
 
 ### Memory and regions: known_gap
 
-#### Aliasing holes
-
 | Id | Shows | Expected |
 |---|---|---|
-| L-MEMORY-026 | Two workers write the same local | gap: #210 3020, rule: reject |
-| L-MEMORY-028 | A worker writes a local that the block reads at the same time | gap: #210 3020, rule: reject |
 
 ## Functions and calls
 
@@ -965,9 +963,9 @@ checked. The type `handle<T>` is rejected with 3009 by the type checker, so it h
 ## Parallel code
 
 `fork_join` blocks, `partition` and `partition mutable`, `spawn` and its argument rule (3020), jumps out of a parallel
-body (3024), the `task` result read after the join, and the races that compile today. The items sit in
+body (3024), two workers or a worker and the block that use one value when one writes it (3074), the `task` result read after the join, and the races that compile today. The items sit in
 `tests/language/<class>/parallel/`. Ids are `L-PARALLEL-nnn`; the numbers are not continuous, because a gap in the
-numbers groups the kinds (accept 001-020 and 079, 3020 rejects 030-039, 3024 rejects 040-051, holes 060-077).
+numbers groups the kinds (accept 001-020 and 079, 3020 rejects 030-039, 3024 rejects 040-051, 3074 rejects 060-063 and 076, holes 065-069).
 
 What sema enforces today is small, and it sits in `lib/source/marea/sema/MAREASemaParallel.c`. 3020: in a `fork_join`,
 each argument of a `spawn` is a part, a literal, a file constant, a name that is not a write-borrow parameter and not
@@ -976,10 +974,14 @@ value, `copy x`, `move x`) is rejected. 3024: a `return`, `break` or `continue` 
 directly in a `fork_join` block. 3062: a `spawn` or a `partition` with no enclosing `fork_join` block in the same
 function (L-MEMORY-030, L-PARALLEL-064, L-PARALLEL-070). 3063: the operand of a `spawn` is not a call, a macro call included
 (L-PARALLEL-071). 3064: the source of a `partition` is known not to be an array, a number, a primitive, a structure or an
-enum (L-PARALLEL-072). Nothing else about parallel code is checked: there is no
-data-race analysis. Every hole below is accepted today and is a `known_gap` item. A gap that shares an issue shows one
-hole through more than one program. #210 (two workers use the same local) was opened by the memory area and is reused
-here.
+enum (L-PARALLEL-072). 3074: a table of what the workers of one `fork_join` block took (`MAREASemaCapture.c`) is kept
+from the block start to its end, and a use that overlaps an earlier one, where one of the two writes, is rejected: two
+workers on one value, a worker and a later worker or `partition`, a spawn in a loop or a `partition` body that writes a
+value declared before the block, and a statement of the block that follows a worker and uses what it writes (or writes
+what it reads). A value and a field of it overlap, two fields do not. A nested block is compared with its outer block
+(L-PARALLEL-060 to 063 and 076, L-MEMORY-026 and 028, L-ADVERSARIAL-008, 024 and 025, issue #210). Nothing else about
+parallel code is checked: there is no full data-race analysis. Every hole below is accepted today and is a `known_gap`
+item. A gap that shares an issue shows one hole through more than one program.
 
 Facts the items fix, checked by running the compiler:
 
@@ -1043,12 +1045,17 @@ Facts the items fix, checked by running the compiler:
 | L-PARALLEL-049 | A loop outside the fork_join block is no target for a break | 3024 @54 |
 | L-PARALLEL-050 | A return in a nested fork_join | 3024 @54 |
 | L-PARALLEL-051 | A continue in a partition body inside a loop that is outside the block | 3024 @55 |
+| L-PARALLEL-060 | One part is passed to two workers that write it | 3074 @55 |
+| L-PARALLEL-061 | A worker writes a local and another worker reads it | 3074 @55 |
+| L-PARALLEL-062 | A spawn in a loop writes the same local in each turn | 3074 @55 |
+| L-PARALLEL-063 | A worker writes the local that the partition reads | 3074 @56 |
 | L-PARALLEL-064 | A worker is spawned after the end of a fork_join block | 3062 @56 |
 | L-PARALLEL-070 | A partition is used outside of a fork_join block | 3062 @52 |
 | L-PARALLEL-071 | A spawn statement that is not a call | 3063 @54 |
 | L-PARALLEL-072 | A partition of a value that is no array | 3064 @54 |
 | L-PARALLEL-073 | A part of a partition that only reads is written | 3069 @54, 3069 @55 |
 | L-PARALLEL-075 | A read-only parameter is spawned into a function that writes it | 3069 @53 |
+| L-PARALLEL-076 | A local is written by a worker and by the body of the block | 3074 @55 |
 | L-PARALLEL-077 | A part is passed to a function that writes it, with partition and no mutable | 3069 @54 |
 | L-PARALLEL-080 | A part is used after the partition body | 3004 @56 |
 
@@ -1056,16 +1063,11 @@ Facts the items fix, checked by running the compiler:
 
 | Id | Shows | Expected |
 |---|---|---|
-| L-PARALLEL-060 | One part is passed to two workers that write it | gap: #210 3020, rule: reject |
-| L-PARALLEL-061 | A worker writes a local and another worker reads it | gap: #210 3020, rule: reject |
-| L-PARALLEL-062 | A spawn in a loop writes the same local in each turn | gap: #210 3020, rule: reject |
-| L-PARALLEL-063 | A worker writes the local that the partition reads | gap: #210 3020, rule: reject |
 | L-PARALLEL-065 | A partition body writes a local of the function, so the workers race on it | gap: #230 NEW, rule: reject |
 | L-PARALLEL-066 | A partition body adds to a local of the function | gap: #230 NEW, rule: reject |
 | L-PARALLEL-067 | A partition body writes a field of a local of the function | gap: #230 NEW, rule: reject |
 | L-PARALLEL-068 | A part is stored in a local of the function and outlives the body | gap: #231 NEW, rule: reject |
 | L-PARALLEL-069 | The source of a partition mutable is written in the body while the parts are written | gap: #232 NEW, rule: reject |
-| L-PARALLEL-076 | A local is written by a worker and by the body of the block | gap: #210 3020, rule: reject |
 
 ## Adversarial
 
@@ -1120,6 +1122,7 @@ generic or an alias leads to is not checked by sema either (see the sema doc, Ga
 | L-ADVERSARIAL-002 | An outer local is moved in the body of a partition, once for each part | 3071 @59 |
 | L-ADVERSARIAL-004 | A generic function moves its argument twice | 3071 @40 |
 | L-ADVERSARIAL-005 | A value is passed to a generic function twice as a write borrow | 3019 @40 |
+| L-ADVERSARIAL-008 | A partition mutable of a field and a worker that reads the owner of that field | 3074 @73 |
 | L-ADVERSARIAL-009 | A read-only borrow is passed to a generic function that writes it | 3069 @39 |
 | L-ADVERSARIAL-010 | A file constant is passed to a generic function as a write borrow | 3032 @41 |
 | L-ADVERSARIAL-012 | A contract method stores its receiver in a write borrow | 3018 @41, 3016 @41 |
@@ -1131,6 +1134,8 @@ generic or an alias leads to is not checked by sema either (see the sema doc, Ga
 | L-ADVERSARIAL-020 | A literal out of range is a field of a struct literal | 3033 @40 |
 | L-ADVERSARIAL-021 | A literal out of range is the value of a constant used by a generic call | 3033 @35 |
 | L-ADVERSARIAL-022 | An unsigned value is negated in an arm of switch | 3036 @38 |
+| L-ADVERSARIAL-024 | A nested fork_join reads what the outer block writes | 3074 @60 |
+| L-ADVERSARIAL-025 | Two workers over one for each mutable element, one writes and one reads | 3074 @59 |
 | L-ADVERSARIAL-026 | A value moved into a generic function is read afterwards | 3070 @42 |
 | L-ADVERSARIAL-027 | A method is called on a value that was moved | 3070 @44 |
 | L-ADVERSARIAL-028 | A return in an arm of switch stands directly in a fork_join block | 3024 @60 |
@@ -1176,13 +1181,10 @@ generic or an alias leads to is not checked by sema either (see the sema doc, Ga
 | L-ADVERSARIAL-003 | A value moved in an arm of switch is spawned after the switch | gap: #198 NEW, rule: reject |
 | L-ADVERSARIAL-006 | A for each mutable element and its own vector are passed to one call | gap: #202 3019, rule: reject |
 | L-ADVERSARIAL-007 | A for each mutable appends to the vector it walks | gap: #202 3019, rule: reject |
-| L-ADVERSARIAL-008 | A partition mutable of a field and a worker that reads the owner of that field | gap: #210 3020, rule: reject |
 | L-ADVERSARIAL-011 | A field of a borrow is returned from an arm of switch | gap: #205 3018, rule: reject |
 | L-ADVERSARIAL-013 | A contract method moves its receiver into a write borrow | gap: #200 NEW, rule: reject |
 | L-ADVERSARIAL-015 | A for each element is moved into an owned parameter | gap: #199 NEW, rule: reject |
 | L-ADVERSARIAL-023 | The source of a partition mutable is read in the body while the parts are written | gap: #232 NEW, rule: reject |
-| L-ADVERSARIAL-024 | A nested fork_join reads what the outer block writes | gap: #210 3020, rule: reject |
-| L-ADVERSARIAL-025 | Two workers over one for each mutable element, one writes and one reads | gap: #210 3020, rule: reject |
 | L-ADVERSARIAL-050 | Mutant of L-OWNERSHIP-012: copy is swapped for move on a borrowed parameter | gap: #200 NEW, rule: reject |
 | L-ADVERSARIAL-051 | Mutant of L-OWNERSHIP-014: copy is swapped for move on a for each element | gap: #199 NEW, rule: reject |
 | L-ADVERSARIAL-052 | Mutant of L-OWNERSHIP-024: copy is swapped for move on a file constant | gap: #200 NEW, rule: reject |
@@ -1242,19 +1244,19 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 
 | area | accept | reject | known_gap |
 |---|---|---|---|
-| adversarial | 0 | 53 | 19 |
+| adversarial | 0 | 56 | 16 |
 | bindings | 33 | 80 | 0 |
 | coverage | 0 | 1 | 0 |
 | examples | 20 | 0 | 0 |
 | functions | 19 | 54 | 0 |
 | interop | 17 | 28 | 0 |
-| memory | 15 | 16 | 2 |
+| memory | 15 | 18 | 0 |
 | namespaces | 17 | 34 | 0 |
 | ownership | 65 | 63 | 17 |
-| parallel | 19 | 30 | 10 |
+| parallel | 19 | 35 | 5 |
 | seed | 1 | 2 | 0 |
 | types | 60 | 132 | 4 |
-| total | 266 | 493 | 52 |
+| total | 266 | 503 | 42 |
 
 ## Parity plan
 
@@ -1348,7 +1350,7 @@ The coverage test holds this list; an example that gains an item must leave it.
 
 ### Diagnostic codes with no reject item
 
-Every live lex, parse and sema code (1001-1006, 2001-2010, 3001-3071 without 3023 and the numbers no code uses) has a `reject` item, except 3066,
+Every live lex, parse and sema code (1001-1006, 2001-2010, 3001-3074 without 3023 and the numbers no code uses) has a `reject` item, except 3066,
 3067 and 3068: no item can reach a second namespace (issue #250), and `tests/source/sema/MAREASemaVisibility.cpp`
 proves them. The ir codes
 4004, 4005 and 4006 are exempt: the runner runs lex, parse and sema only, so no item can reach the ir. The exemption ends
