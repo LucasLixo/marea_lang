@@ -213,7 +213,7 @@ TEST(MAREASemaExpressions, CompoundAssignmentNeedsTheSameTypeOnBothSides)
 {
     GTEST_COUT << "Validating a compound assignment is compared like a = a + b and a compound shift follows the shift rule." << std::endl;
 
-    const std::string HEAD{ "structure Point x: float32; end function g(a: sinteger32, c: sinteger64, f: float64, v: uinteger32, p: Point, s: string) " };
+    const std::string HEAD{ "structure Point x: float32; end function g(a: sinteger32, c: sinteger64, f: float64, v: uinteger32, #[semantics = reference_mutable] p: Point, #[semantics = reference_mutable] s: string) " };
 
     EXPECT_EQ(MAREA_codesOf(HEAD + "a += f; a -= c; f *= a; a /= f; a %= c; a **= f; end"), (Codes{ MISMATCH, MISMATCH, MISMATCH, MISMATCH, MISMATCH, MISMATCH })) << "Every compound operator must compare both sides.";
 

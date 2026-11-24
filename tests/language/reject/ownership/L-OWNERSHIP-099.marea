@@ -1,10 +1,8 @@
--- gap: #204 NEW
--- rule: reject
+-- expect: 3069 @26
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- from: L-OWNERSHIP-106
--- Mutant of L-OWNERSHIP-106: the write attribute becomes read-only on a primitive parameter that the body writes.
+-- A with name is written.
 
 namespace main;
 
@@ -18,7 +16,14 @@ structure Box
     count: sinteger32;
 end
 
-function check(#[semantics = reference_read_only] count: sinteger32)
-    count = 1;
+function make_point(): Point
+    return Point{ x = 1, y = 2 };
 end
 
+function check(): sinteger32
+    local point: Point = make_point();
+    with point as view do
+        view.x = 1;
+    end
+    return 1;
+end

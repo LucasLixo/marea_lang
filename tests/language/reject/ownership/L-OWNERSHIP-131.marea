@@ -1,9 +1,8 @@
--- gap: #204 NEW
--- rule: reject
+-- expect: 3069 @24
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- A with name is written.
+-- A write borrow of a literal.
 
 namespace main;
 
@@ -17,14 +16,11 @@ structure Box
     count: sinteger32;
 end
 
-function make_point(): Point
-    return Point{ x = 1, y = 2 };
+function write_point(#[semantics = reference_mutable] point: Point)
+    point.x = 1;
 end
 
 function check(): sinteger32
-    local point: Point = make_point();
-    with point as view do
-        view.x = 1;
-    end
+    write_point(Point{ x = 1, y = 2 });
     return 1;
 end
