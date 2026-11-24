@@ -463,6 +463,10 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerForRange(MAREA_IrContext *context,
 
     MAREA_IrNodeShareResolvedType(bound, last);
 
+    // INFO: a local of the source has a type name, so the hidden loop locals have one too, the head of their resolved type.
+    MAREA_IrNodeSetTypeNameFromResolved(local);
+    MAREA_IrNodeSetTypeNameFromResolved(bound);
+
     step.variable = local;
     step.bound = bound;
 
@@ -915,7 +919,32 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerForEach(MAREA_IrContext *context, 
         return MAREA_IR_EXCEPT_SUCCESS;
     }
 
-    return MAREA_G_LowerBoundScope(context, MAREA_IR_KIND_FOR_EACH_STATEMENT, typed, (COUNT - MAREA_INTEGER_SIZE(3)), outNode);
+    const MAREA_IntegerSize NAME_INDEX = (COUNT - MAREA_INTEGER_SIZE(3));
+
+    MAREA_IrNode *node = MAREA_NULLPTR;
+
+    MAREA_IrExcept result = MAREA_G_LowerBoundScope(context, MAREA_IR_KIND_FOR_EACH_STATEMENT, typed, NAME_INDEX, &node);
+
+    if ((result != MAREA_IR_EXCEPT_SUCCESS) || (node == MAREA_NULLPTR)) {
+        return result;
+    }
+
+    // INFO: the node declares the value, so it has the type sema gave that name; the key, the first child of a loop with two names, was lowered as a read and has its type already.
+    result = MAREA_IrNodeSetResolvedTypeFromTyped(context, node, MAREA_IrTypedChildAt(typed, NAME_INDEX), MAREA_NULLPTR);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    MAREA_IrNodeSetTypeNameFromResolved(node);
+
+    if (NAME_INDEX > MAREA_INTEGER_SIZE(0)) {
+        MAREA_IrNodeSetTypeNameFromResolved(node->children[0]);
+    }
+
+    *outNode = node;
+
+    return MAREA_IR_EXCEPT_SUCCESS;
 }
 
 static MAREA_IrExcept MAREA_CALL MAREA_G_LowerStatement(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode)

@@ -123,6 +123,15 @@ MAREA_BEGIN_EXTERN_C
     void MAREA_CALL MAREA_IrNodeShareResolvedType(MAREA_IrNode * node, const MAREA_IrNode *source);
 
     /**
+     * @brief Sets the type name of a node to the head of its resolved type: the text before the first type
+     * argument, a dotted name kept whole (`array<sinteger32,4>` gives `array`). The name points into the resolved
+     * type, so it lives as long as that text does. A node with no resolved type, or a function type, which has
+     * no head name, is left without a type name. A null node does nothing.
+     * @param node Node to change.
+     */
+    void MAREA_CALL MAREA_IrNodeSetTypeNameFromResolved(MAREA_IrNode * node);
+
+    /**
      * @brief Sets the resolved type of a node to a text that outlives the arena, such as a string literal. A null
      * node does nothing.
      * @param node Node to change.

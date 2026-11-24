@@ -398,9 +398,9 @@ TEST(MAREAIrResolvedType, ForRangeHiddenBoundAndStepAreTyped)
 
     const std::string DUMP{ MAREA_dumpOf(fixture) };
 
-    EXPECT_EQ(MAREA_lineOf(DUMP, "LOCAL_DECLARATION \"$last0\""), "LOCAL_DECLARATION \"$last0\" resolved=uinteger8") << "$last0 must have the type of the bound: " << DUMP;
+    EXPECT_EQ(MAREA_lineOf(DUMP, "LOCAL_DECLARATION \"$last0\""), "LOCAL_DECLARATION \"$last0\" type=uinteger8 resolved=uinteger8") << "$last0 must have the type of the bound: " << DUMP;
 
-    EXPECT_EQ(MAREA_lineOf(DUMP, "LOCAL_DECLARATION \"index\""), "LOCAL_DECLARATION \"index\" resolved=uinteger8 flags=1") << "The loop variable must be typed: " << DUMP;
+    EXPECT_EQ(MAREA_lineOf(DUMP, "LOCAL_DECLARATION \"index\""), "LOCAL_DECLARATION \"index\" type=uinteger8 resolved=uinteger8 flags=1") << "The loop variable must be typed: " << DUMP;
 
     EXPECT_EQ(MAREA_countOf(DUMP, "IDENTIFIER \"$last0\" resolved=uinteger8"), std::size_t{ 2 }) << "Both reads of $last0 must be typed: " << DUMP;
 
@@ -409,6 +409,143 @@ TEST(MAREAIrResolvedType, ForRangeHiddenBoundAndStepAreTyped)
     EXPECT_EQ(MAREA_countOf(DUMP, "BINARY_EXPRESSION resolved=boolean op="), std::size_t{ 2 }) << "The loop test and the leave test must be boolean: " << DUMP;
 
     EXPECT_NE(DUMP.find("INTEGER_LITERAL \"1\" resolved=uinteger8"), std::string::npos) << "The step literal must have the type of the variable: " << DUMP;
+}
+
+TEST(MAREAIrResolvedType, ForRangeLoopVariableAndHiddenBoundCarryTheTypeName)
+{
+    GTEST_COUT << "Validating the loop variable and the hidden bound of a for-range loop carry a type name, the head of their resolved type, as every other local does." << std::endl;
+
+    MAREA_IrFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; function f(n: uinteger8) for index in 0 .. n do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+
+    const std::string DUMP{ MAREA_dumpOf(fixture) };
+
+    EXPECT_EQ(MAREA_lineOf(DUMP, "LOCAL_DECLARATION \"$last0\""), "LOCAL_DECLARATION \"$last0\" type=uinteger8 resolved=uinteger8") << DUMP;
+
+    EXPECT_EQ(MAREA_lineOf(DUMP, "LOCAL_DECLARATION \"index\""), "LOCAL_DECLARATION \"index\" type=uinteger8 resolved=uinteger8 flags=1") << DUMP;
+
+    EXPECT_EQ(MAREA_countOf(DUMP, "IDENTIFIER \"index\" resolved=uinteger8"), std::size_t{ 3 }) << "A read of a loop variable must stay without a type name, as every read does: " << DUMP;
+}
+
+TEST(MAREAIrResolvedType, ForEachValueCarriesTheElementTypeOfTheCollection)
+{
+    GTEST_COUT << "Validating a for-each loop with one name has the element type sema gave the value, as type name and resolved type." << std::endl;
+
+    MAREA_IrFixture fixture(RESOLVE_C);
+
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; import c.array; function f(values: array<float32,4>) for each value in values do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+
+    const MAREA_IrNode *loop{ MAREA_findKind(fixture.module, MAREA_IR_KIND_FOR_EACH_STATEMENT) };
+
+    ASSERT_NE(loop, nullptr) << "The loop must lower.";
+
+    EXPECT_EQ(MAREA_irTypeName(loop), "float32") << "The value must have a type name.";
+
+    EXPECT_EQ(MAREA_resolved(loop), "float32") << "The value must have a resolved type.";
+
+    EXPECT_EQ(MAREA_IrNodeGetChildCount(loop), std::size_t{ 2 }) << "A loop with one name must keep two children.";
+
+    EXPECT_EQ(MAREA_resolved(MAREA_irChild(loop, 0)), "array<float32,4>") << "The collection must keep its own full type.";
+}
+
+TEST(MAREAIrResolvedType, ForEachKeyIsTypedUinteger64AndTheValueByTheElement)
+{
+    GTEST_COUT << "Validating a for-each loop with two names types the key uinteger64 and the value with the element type." << std::endl;
+
+    MAREA_IrFixture fixture(RESOLVE_C);
+
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; import c.vector; function f(values: vector<uinteger8>) for each key, value in values do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+
+    const MAREA_IrNode *loop{ MAREA_findKind(fixture.module, MAREA_IR_KIND_FOR_EACH_STATEMENT) };
+
+    ASSERT_NE(loop, nullptr) << "The loop must lower.";
+
+    const MAREA_IrNode *key{ MAREA_irChild(loop, 0) };
+
+    EXPECT_EQ(MAREA_irText(key), "key") << "The key must stay the first child.";
+
+    EXPECT_EQ(MAREA_irTypeName(key), "uinteger64") << "The key must have a type name.";
+
+    EXPECT_EQ(MAREA_resolved(key), "uinteger64") << "The key must have a resolved type.";
+
+    EXPECT_EQ(MAREA_irTypeName(loop), "uinteger8") << "The value must have a type name.";
+
+    EXPECT_EQ(MAREA_resolved(loop), "uinteger8") << "The value must have a resolved type.";
+
+    EXPECT_EQ(MAREA_resolved(MAREA_irChild(loop, 1)), "vector<uinteger8>") << "The collection must keep its own full type.";
+}
+
+TEST(MAREAIrResolvedType, ForEachValueOfAnElementWithTypeArgumentsKeepsTheHeadAndTheFullType)
+{
+    GTEST_COUT << "Validating an element type with type arguments gives its head as the type name and its full text as the resolved type." << std::endl;
+
+    MAREA_IrFixture fixture(RESOLVE_C);
+
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; import c.array; function f(rows: array<array<sinteger32,4>,2>) for each row in rows do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+
+    const MAREA_IrNode *loop{ MAREA_findKind(fixture.module, MAREA_IR_KIND_FOR_EACH_STATEMENT) };
+
+    ASSERT_NE(loop, nullptr) << "The loop must lower.";
+
+    EXPECT_EQ(MAREA_irTypeName(loop), "array") << "The type name must be the head.";
+
+    EXPECT_EQ(MAREA_resolved(loop), "array<sinteger32,4>") << "The resolved type must keep the type arguments.";
+}
+
+TEST(MAREAIrResolvedType, ForEachValueOfAFunctionTypeHasAResolvedTypeAndNoTypeName)
+{
+    GTEST_COUT << "Validating an element of a function type keeps its full resolved type and gets no type name, as a written function type has none." << std::endl;
+
+    MAREA_IrFixture fixture(RESOLVE_C);
+
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; import c.array; type Step = function(value: sinteger32): sinteger32; function f(steps: array<Step,2>) for each step in steps do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+
+    const MAREA_IrNode *loop{ MAREA_findKind(fixture.module, MAREA_IR_KIND_FOR_EACH_STATEMENT) };
+
+    ASSERT_NE(loop, nullptr) << "The loop must lower.";
+
+    EXPECT_EQ(MAREA_resolved(loop), "function(sinteger32):sinteger32") << "The resolved type must keep the whole function type.";
+
+    EXPECT_EQ(MAREA_IrNodeGetTypeName(loop), nullptr) << "A function type has no head name.";
+}
+
+TEST(MAREAIrResolvedType, ForEachValueOfADottedElementTypeKeepsTheDottedHead)
+{
+    GTEST_COUT << "Validating an element type with a dotted name keeps the whole dotted name as the type name." << std::endl;
+
+    MAREA_IrFixture fixture(RESOLVE_C);
+
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; import c.array; function f(rows: array<c.array<sinteger32>,2>) for each row in rows do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+
+    const MAREA_IrNode *loop{ MAREA_findKind(fixture.module, MAREA_IR_KIND_FOR_EACH_STATEMENT) };
+
+    ASSERT_NE(loop, nullptr) << "The loop must lower.";
+
+    EXPECT_EQ(MAREA_irTypeName(loop), "c.array") << "The dotted head must stay whole.";
+
+    EXPECT_EQ(MAREA_resolved(loop), "c.array<sinteger32>") << "The resolved type must keep the type arguments.";
+}
+
+TEST(MAREAIrResolvedType, ForEachNamesStayWithoutATypeWhenSemaGivesNone)
+{
+    GTEST_COUT << "Validating a collection of a library sema does not know leaves the key and the value untyped, never guessed." << std::endl;
+
+    MAREA_IrFixture fixture(RESOLVE_C);
+
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; import c.collections.list; function f(values: list<sinteger32>) for each key, value in values do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+
+    const MAREA_IrNode *loop{ MAREA_findKind(fixture.module, MAREA_IR_KIND_FOR_EACH_STATEMENT) };
+
+    ASSERT_NE(loop, nullptr) << "The loop must lower.";
+
+    EXPECT_EQ(MAREA_IrNodeGetTypeName(loop), nullptr) << "The value must have no type name.";
+
+    EXPECT_EQ(MAREA_IrNodeGetResolvedType(loop), nullptr) << "The value must have no resolved type.";
+
+    EXPECT_EQ(MAREA_IrNodeGetTypeName(MAREA_irChild(loop, 0)), nullptr) << "The key must have no type name.";
+
+    EXPECT_EQ(MAREA_IrNodeGetResolvedType(MAREA_irChild(loop, 0)), nullptr) << "The key must have no resolved type.";
 }
 
 TEST(MAREAIrResolvedType, SwitchHiddenLocalAndTestsAreTyped)
