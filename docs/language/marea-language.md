@@ -492,6 +492,7 @@ lifecycle operator (3027) and structured `fork_join` with `partition` and `spawn
 | L-MEMORY-023 | A worker spawned on a write-borrow parameter | 3020 @29 |
 | L-MEMORY-025 | A worker spawned on a call result | 3020 @29 |
 | L-MEMORY-029 | A return leaves the body of a partition | 3024 @22 |
+| L-MEMORY-030 | A worker is spawned outside of a fork_join block | 3062 @29 |
 | L-MEMORY-031 | A worker takes the part of a partition mutable while the source is also spawned | 3020 @30 |
 | L-MEMORY-032 | A field of a scope block local is read after the block | 3004 @27 |
 
@@ -505,7 +506,6 @@ lifecycle operator (3027) and structured `fork_join` with `partition` and `spawn
 | L-MEMORY-007 | An outer owner is moved down into an inner scope and used after | gap: #198 NEW, rule: reject |
 | L-MEMORY-020 | The destroy operator is called on a value | gap: #209 3027, rule: reject |
 | L-MEMORY-021 | A structure is destroyed twice by moving it and keeping the old owner | gap: #198 NEW, rule: reject |
-| L-MEMORY-030 | A worker is spawned outside of a fork_join block | gap: #211 NEW, rule: reject |
 
 #### Aliasing holes
 
@@ -983,10 +983,11 @@ What sema enforces today is small, and it sits in `lib/source/marea/sema/MAREASe
 each argument of a `spawn` is a part, a literal, a file constant, a name that is not a write-borrow parameter and not
 the source of a `partition mutable`, or a field of such a name; any other expression (a call, an index, a computed
 value, `copy x`, `move x`) is rejected. 3024: a `return`, `break` or `continue` that leaves a `partition` body or stands
-directly in a `fork_join` block. Nothing else about parallel code is checked: there is no data-race analysis. Every
-hole below is accepted today and is a `known_gap` item. A gap that shares an issue shows one hole through more than one
-program. #210 (two workers use the same local) and #211 (a spawn outside a `fork_join`) were opened by the memory area
-and are reused here.
+directly in a `fork_join` block. 3062: a `spawn` or a `partition` with no enclosing `fork_join` block in the same
+function (L-MEMORY-030, L-PARALLEL-064, L-PARALLEL-070). Nothing else about parallel code is checked: there is no
+data-race analysis. Every hole below is accepted today and is a `known_gap` item. A gap that shares an issue shows one
+hole through more than one program. #210 (two workers use the same local) was opened by the memory area and is reused
+here.
 
 Facts the items fix, checked by running the compiler:
 
@@ -1050,6 +1051,8 @@ Facts the items fix, checked by running the compiler:
 | L-PARALLEL-049 | A loop outside the fork_join block is no target for a break | 3024 @54 |
 | L-PARALLEL-050 | A return in a nested fork_join | 3024 @54 |
 | L-PARALLEL-051 | A continue in a partition body inside a loop that is outside the block | 3024 @55 |
+| L-PARALLEL-064 | A worker is spawned after the end of a fork_join block | 3062 @56 |
+| L-PARALLEL-070 | A partition is used outside of a fork_join block | 3062 @52 |
 | L-PARALLEL-073 | A part of a partition that only reads is written | 3069 @54, 3069 @55 |
 | L-PARALLEL-075 | A read-only parameter is spawned into a function that writes it | 3069 @53 |
 | L-PARALLEL-077 | A part is passed to a function that writes it, with partition and no mutable | 3069 @54 |
@@ -1063,13 +1066,11 @@ Facts the items fix, checked by running the compiler:
 | L-PARALLEL-061 | A worker writes a local and another worker reads it | gap: #210 3020, rule: reject |
 | L-PARALLEL-062 | A spawn in a loop writes the same local in each turn | gap: #210 3020, rule: reject |
 | L-PARALLEL-063 | A worker writes the local that the partition reads | gap: #210 3020, rule: reject |
-| L-PARALLEL-064 | A worker is spawned after the end of a fork_join block | gap: #211 NEW, rule: reject |
 | L-PARALLEL-065 | A partition body writes a local of the function, so the workers race on it | gap: #230 NEW, rule: reject |
 | L-PARALLEL-066 | A partition body adds to a local of the function | gap: #230 NEW, rule: reject |
 | L-PARALLEL-067 | A partition body writes a field of a local of the function | gap: #230 NEW, rule: reject |
 | L-PARALLEL-068 | A part is stored in a local of the function and outlives the body | gap: #231 NEW, rule: reject |
 | L-PARALLEL-069 | The source of a partition mutable is written in the body while the parts are written | gap: #232 NEW, rule: reject |
-| L-PARALLEL-070 | A partition is used outside of a fork_join block | gap: #233 NEW, rule: reject |
 | L-PARALLEL-071 | A spawn statement that is not a call | gap: #234 NEW, rule: reject |
 | L-PARALLEL-072 | A partition of a value that is no array | gap: #235 NEW, rule: reject |
 | L-PARALLEL-076 | A local is written by a worker and by the body of the block | gap: #210 3020, rule: reject |
@@ -1254,13 +1255,13 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | examples | 20 | 0 | 0 |
 | functions | 19 | 54 | 0 |
 | interop | 17 | 27 | 1 |
-| memory | 15 | 11 | 7 |
+| memory | 15 | 12 | 6 |
 | namespaces | 17 | 34 | 0 |
 | ownership | 65 | 54 | 26 |
-| parallel | 19 | 26 | 14 |
+| parallel | 19 | 28 | 12 |
 | seed | 1 | 2 | 0 |
 | types | 60 | 119 | 17 |
-| total | 266 | 453 | 92 |
+| total | 266 | 456 | 89 |
 
 ## Parity plan
 
@@ -1297,6 +1298,7 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 | 3055 | `sema` | [marea-sema.md](../sema/marea-sema.md), `CYCLIC_CONSTANT` |
 | 3059 | `sema` | [marea-sema.md](../sema/marea-sema.md), `COMPILE_TIME_ASSERTION_FAILED` |
 | 3060-3061 | `sema` | [marea-sema.md](../sema/marea-sema.md), `UNKNOWN_MACRO` and `INVALID_MACRO_ARGUMENT` |
+| 3062 | `sema` | [marea-sema.md](../sema/marea-sema.md), `PARALLEL_CONSTRUCT_OUTSIDE_FORK_JOIN` |
 | 3065 | `sema` | [marea-sema.md](../sema/marea-sema.md), `LOCAL_WITHOUT_INITIAL_VALUE` |
 | 3066-3068 | `sema` | [marea-sema.md](../sema/marea-sema.md), `PRIVATE_SYMBOL_ACCESS`, `PRIVATE_TYPE_ACCESS`, `PRIVATE_FIELD_ACCESS`, no item reaches them (see Gaps) |
 | 3069 | `sema` | [marea-sema.md](../sema/marea-sema.md), `WRITE_THROUGH_READ_ONLY_BORROW` |
