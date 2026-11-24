@@ -98,6 +98,13 @@ The loop variable and `$lastN` of a for-range loop, a `FOR_EACH_STATEMENT` (its 
 have no written type, so their type name is the head of their resolved type, the text before the first type
 argument (see For-range desugaring and For-each lowering); a function type has none. The other hidden locals
 (`$switch`, `$return`) keep no type name.
+The head name is all the type name keeps, by design. The type arguments and a function type are not lost on a
+declaration: the same node carries the full type as its resolved type (`array<sinteger32,4>`,
+`function(sinteger32):sinteger32`), read from sema, and the text dump prints it as `resolved=` next to `type=`. A
+function type, written or reached by an alias, has a resolved type and no type name. A declaration that has a type
+name always has a resolved type that starts with it, and every parameter, local, field, variant field and constant has one (a test checks
+all 23 examples); where sema gives no type, the ir leaves the node with none and never guesses one. A function with
+no result type has neither.
 An `ENUM_DECLARATION` also carries a type name, its tag type: the written tag when the source wrote one
 (`enum Name : uinteger8 ... end` gives `uinteger8`), or the literal `sinteger32` when it wrote none, the
 default the language spec sets for a tag with no written type.
@@ -159,6 +166,19 @@ Other shapes:
   or a local of the enclosing function that hides the module name (`MAREA_IrFunctionDeclares`, the same
   check an import alias uses) is never matched to the module function, so a call of the local fills
   nothing.
+- A call through a member access fills the same way when the function is declared in an `implementation` block of
+  the same unit. The ir finds it by the name of the receiver type and the name of the member, with no scope and no
+  link to another unit:
+  - `Type.name(...)`, where the receiver is a structure or enum name that sema marks as a qualifier
+    (`MAREA_SemaTypedNodeIsQualifier`): a static call. Every parameter is a written argument or a default, so
+    `Vector2.make(1.0)` fills the defaults after the first parameter. `Vector2.scale(v)`, which writes `self`
+    itself, fills the ones after `self`.
+  - `value.name(...)`, where the resolved type of the receiver (`MAREA_SemaTypedNodeGetResolvedType`) is a plain
+    name with no type argument: a method call. The function must have `self` as its first parameter, which the
+    receiver supplies, so the written arguments start at the second parameter. A function with no `self` called
+    through a value, a callback field of a function type, and a receiver with no resolved type fill nothing.
+  - A block `implementation` with generic parameters is never matched, and neither is a receiver type that
+    carries type arguments (the ir lowers none of their functions, see Diagnostics 4004).
 
 ## Zero-default creation
 
@@ -642,10 +662,6 @@ Each diagnostic carries the position of the construct that raised it. The messag
   built-ins have a call form with a type argument on the function.
 - `LOCAL_DECLARATION` never carries the `MUTABLE` flag, except the hidden loop variable of a for-range loop: the
   AST has no write-target flag for a local.
-- The sema typed tree gives a type name only for a call result, a struct literal and a few expression
-  shapes, so the type name of a declaration is the head name written in the source. A type argument,
-  and any `FUNCTION_TYPE`, is lost on a declaration; only the operand of a built-in or of a static call keeps its
-  type arguments.
 - There is no linking between modules: an imported name is lowered to its original name, but the IR does not look
   at the namespace that holds it.
 - A local hides an import alias from its declaration to the end of the function, also after the end of the nested
@@ -657,9 +673,22 @@ Each diagnostic carries the position of the construct that raised it. The messag
   no test goes deeper than the example programs. The dump is not part of this gap: it walks an explicit stack.
 - `MAREA_IrLowerCompilationUnit` reports a root that is not a `COMPILATION_UNIT` with
   `MAREA_IR_EXCEPT_ERROR_NULL_POINTER`, because the except set has no other fitting value.
-- A call fills an omitted defaulted argument only when its callee is a bare `IDENTIFIER` naming a
-  `FUNCTION_DECLARATION` of the same unit, the same limit the built-in lookup already has. A call
-  through a member access (an `implementation` method), an import or a qualified name does not fill
-  one, even when sema accepted the same omission: the IR holds no scope or cross-module link to find
-  that callee's parameter list. Such a call keeps the arguments the source wrote, with no gap and no
-  diagnostic, so it lowers with fewer arguments than the callee's parameter list names.
+- A call fills an omitted defaulted argument only when the ir finds the parameter list of its callee in the same
+  unit: a bare `IDENTIFIER` naming a `FUNCTION_DECLARATION`, or a member access on a type (static call) or on a
+  value of a plain type (method call) whose function is in an `implementation` block of the unit (see Node model).
+  A call through an import or a namespace alias (`other.add(1)`, or a member alias) is not filled, even when sema
+  accepted the omission: the callee is declared in another unit, the typed tree of this unit does not hold its
+  parameter list, and the ir links no module. Nor is a call of `Self.name(...)`, a static call whose receiver is a
+  local type alias (`Alias.make(1)`; a value of an aliased type is found, because sema spells its type in full), a method of a receiver with type
+  arguments, or a function reached only through a value of a function type (it has no default). Such a call keeps
+  the arguments the source wrote, with no gap and no diagnostic, so it lowers with fewer arguments than the
+  callee's parameter list names. Sema checks the argument count only for a bare name of the unit and for a type
+  construction, so it does not reject a call through a member access that writes too few arguments for a
+  function that has no default; the ir does not check it either.
+- There is no layout table. A backend needs the size, the alignment and the field offsets of every structure and
+  enum the module names. Sema measures a structure only in `MAREA_G_MeasureStructure`, a static function of
+  `lib/source/marea/sema/MAREASemaLayout.c`, to compare two structures: it works on the AST with the sema context,
+  keeps no field offset, and decides only a `#[layout = c]` structure of fixed-width primitives and nested
+  structures of the same kind (`string`, `pointer`, `array`, an enum and a `marea` layout are not measured). The
+  typed tree has no accessor for it, and the ir holds no sema context, so the ir cannot reuse it and does not
+  compute a second, different one. It needs a sema change first (see the error log).
