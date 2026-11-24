@@ -1,12 +1,13 @@
--- gap: #237 NEW
--- rule: reject
+-- expect: 3056 @9, 3004 @12
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- A local named like a built-in macro.
+-- An import alias named like a built-in macro.
 
 namespace main;
 
+import c.stdio as print;
+
 function check()
-    local log: sinteger32 = 1;
+    print.puts("x");
 end

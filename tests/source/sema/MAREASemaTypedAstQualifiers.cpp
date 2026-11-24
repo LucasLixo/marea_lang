@@ -247,11 +247,11 @@ TEST(MAREASemaTypedAstQualifiers, ExternalNamespaceIsAQualifierAndItsMembersKeep
 
 TEST(MAREASemaTypedAstQualifiers, NameWithNoDeclarationBeforeAMemberIsAQualifier)
 {
-    GTEST_COUT << "Validating that a name with no declaration before a member is a qualifier, as sema takes it for a namespace." << std::endl;
+    GTEST_COUT << "Validating that a name that an import binds before a member is a qualifier." << std::endl;
 
     MAREA_QualifierFixture fixture;
 
-    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nfunction f(text: string) stdio.puts(text); end\n")) << "The source must check and build.";
+    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nimport c.stdio;\nfunction f(text: string) stdio.puts(text); end\n")) << "The source must check and build.";
 
     const MAREA_SemaTypedNode *member{ MAREA_nth(fixture, MAREA_AST_KIND_MEMBER_ACCESS, 0) };
 

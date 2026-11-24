@@ -43,6 +43,19 @@ static MAREA_Boolean MAREA_CALL MAREA_G_TextIs(const MAREA_Character8 *text, MAR
     return MAREA_SemaTextEquals(text, length, expected, strlen(expected));
 }
 
+MAREA_Boolean MAREA_CALL MAREA_SemaIsPrimitiveTypeName(const MAREA_Character8 *text, MAREA_IntegerSize length)
+{
+    static const MAREA_Character8 *const PRIMITIVES[] = { "boolean", "sinteger8", "sinteger16", "sinteger32", "sinteger64", "uinteger8", "uinteger16", "uinteger32", "uinteger64", "float32", "float64", "character", "string" };
+
+    for (MAREA_IntegerSize index = 0; index < MAREA_ARRAY_SIZE(PRIMITIVES); ++index) {
+        if (MAREA_G_TextIs(text, length, PRIMITIVES[index]) == MAREA_BOOLEAN_TRUE) {
+            return MAREA_BOOLEAN_TRUE;
+        }
+    }
+
+    return MAREA_BOOLEAN_FALSE;
+}
+
 static MAREA_Boolean MAREA_CALL MAREA_G_IsType(const MAREA_AstNode *node)
 {
     if (node == MAREA_NULLPTR) {
@@ -117,6 +130,15 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaDeclareLocal(MAREA_SemaContext *context, c
 
     if ((name == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(name) != MAREA_AST_KIND_IDENTIFIER) || (MAREA_G_IsType(type) == MAREA_BOOLEAN_FALSE)) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    // INFO: a local named like a built-in macro is reported and still declared, so its uses raise nothing more.
+    if (MAREA_SemaIsBuiltInMacroName(MAREA_AstNodeGetText(name), MAREA_AstNodeGetTextLength(name)) == MAREA_BOOLEAN_TRUE) {
+        const MAREA_SemaExcept MACRO_RESULT = MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_RESERVED_MACRO_NAME, MAREA_AstNodeGetPosition(name), "name is a built-in macro:", MAREA_AstNodeGetText(name), MAREA_AstNodeGetTextLength(name));
+
+        if (MACRO_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return MACRO_RESULT;
+        }
     }
 
     // INFO: a new local of the same name as a reference is a new owner, so the reference no longer holds.
@@ -594,12 +616,8 @@ static MAREA_SemaTypeClass MAREA_CALL MAREA_G_Classify(const MAREA_SemaContext *
         return MAREA_SEMA_TYPE_CLASS_COPY_BUILTIN;
     }
 
-    static const MAREA_Character8 *const PRIMITIVES[] = { "boolean", "sinteger8", "sinteger16", "sinteger32", "sinteger64", "uinteger8", "uinteger16", "uinteger32", "uinteger64", "float32", "float64", "character", "string" };
-
-    for (MAREA_IntegerSize index = 0; index < MAREA_ARRAY_SIZE(PRIMITIVES); ++index) {
-        if (MAREA_G_TextIs(*outName, *outLength, PRIMITIVES[index]) == MAREA_BOOLEAN_TRUE) {
-            return MAREA_SEMA_TYPE_CLASS_PRIMITIVE;
-        }
+    if (MAREA_SemaIsPrimitiveTypeName(*outName, *outLength) == MAREA_BOOLEAN_TRUE) {
+        return MAREA_SEMA_TYPE_CLASS_PRIMITIVE;
     }
 
     const MAREA_SemaName *entry = MAREA_SemaNameTableFind(context, *outName, *outLength);
