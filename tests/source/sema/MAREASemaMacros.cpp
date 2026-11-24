@@ -157,8 +157,8 @@ TEST(MAREASemaMacros, CompileErrorAndStaticAssertGetOnlyTheShapeCheck)
 
     EXPECT_EQ(MAREA_codesOfProgram("namespace main;\nstatic_assert!(1, \"x\");\n"), Codes{ INVALID_ARGUMENT });
     EXPECT_EQ(MAREA_codesOfProgram("namespace main;\nstatic_assert!(true, \"x\");\n"), Codes{});
-    EXPECT_EQ(MAREA_codesOfStatement("compile_error!(1);"), Codes{ INVALID_ARGUMENT });
-    EXPECT_EQ(MAREA_codesOfStatement("compile_error!();"), Codes{ INVALID_ARGUMENT });
+    EXPECT_EQ(MAREA_codesOfStatement("compile_error!(1);"), (Codes{ INVALID_ARGUMENT, MAREA_SEMA_DIAGNOSTIC_CODE_COMPILE_TIME_ASSERTION_FAILED }));
+    EXPECT_EQ(MAREA_codesOfStatement("compile_error!();"), (Codes{ INVALID_ARGUMENT, MAREA_SEMA_DIAGNOSTIC_CODE_COMPILE_TIME_ASSERTION_FAILED }));
 }
 
 TEST(MAREASemaMacros, FormatNeedsAFormatText)
