@@ -321,6 +321,27 @@ TEST(MAREASemaOwnership, ConstantBoundToAWriteBorrowParameterIsRejected)
     EXPECT_TRUE(MAREA_codesOf(TAKE + "function f() other(ORIGIN); end").empty()) << "A constant bound to a read-only borrow must raise nothing.";
 }
 
+TEST(MAREASemaOwnership, FieldOrElementOfAConstantBoundToAWriteBorrowParameterIsRejected)
+{
+    GTEST_COUT << "Validating a field or element chain rooted in a file constant passed to a write-borrow parameter raises CANNOT_BORROW_CONSTANT_AS_MUTABLE once." << std::endl;
+
+    const std::string TAKE{ SHAPE + "constant ORIGIN: Outer = Outer{ inner = make() }; constant ORIGINS: c.array<Shape> = {}; function take(#[semantics = reference_mutable] a: Shape) end function take_number(#[semantics = reference_mutable] a: float32) end function other(#[semantics = reference_read_only] a: Shape) end function plain(a: Shape) end " };
+
+    EXPECT_EQ(MAREA_codesOf(TAKE + "function f() take(ORIGIN.inner); end"), Codes{ CONSTANT_AS_MUTABLE }) << "A field of a constant bound to a write borrow must raise CANNOT_BORROW_CONSTANT_AS_MUTABLE.";
+
+    EXPECT_EQ(MAREA_codesOf(TAKE + "function f() take_number(ORIGIN.inner.x); end"), Codes{ CONSTANT_AS_MUTABLE }) << "A nested field of a constant bound to a write borrow must raise CANNOT_BORROW_CONSTANT_AS_MUTABLE.";
+
+    EXPECT_EQ(MAREA_codesOf(TAKE + "function f() take(ORIGINS[0]); end"), Codes{ CONSTANT_AS_MUTABLE }) << "An element of a constant array bound to a write borrow must raise CANNOT_BORROW_CONSTANT_AS_MUTABLE.";
+
+    EXPECT_TRUE(MAREA_codesOf(TAKE + "function f(#[semantics = reference_mutable] o: Outer) take(o.inner); end").empty()) << "A field of a variable bound to a write borrow must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(TAKE + "function f() other(ORIGIN.inner); end").empty()) << "A field of a constant bound to a read-only borrow must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(TAKE + "function f() plain(ORIGIN.inner); end").empty()) << "A field of a constant bound to a default parameter must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(TAKE + "function f(#[semantics = reference_mutable] ORIGIN: Outer) take(ORIGIN.inner); end").empty()) << "A local that hides the constant name must raise nothing.";
+}
+
 TEST(MAREASemaOwnership, ErrorNodeInPlaceOfAssignmentOrReturnIsSkipped)
 {
     GTEST_COUT << "Validating a broken assignment or return raises no sema diagnostic." << std::endl;
