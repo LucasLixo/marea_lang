@@ -956,7 +956,7 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckValue(MAREA_SemaContext *context
         return MAREA_G_CheckValueOfChildren(context, expression, 0, depth, checkNames);
     case MAREA_AST_KIND_MEMBER_ACCESS:
     {
-        // INFO: the name that starts a member chain may be a namespace or a type that the file never imports, as stdio in the functions example, so only a value that is not a bare name is checked.
+        // INFO: the name that starts a member chain is checked like any other name, so a namespace that no import binds, or that only its original name reaches through an alias, is undeclared.
         const MAREA_AstNode *base = MAREA_SemaChildAt(expression, 0);
 
         if (MAREA_G_IsOpaqueName(context, base) == MAREA_BOOLEAN_TRUE) {
@@ -965,7 +965,7 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckValue(MAREA_SemaContext *context
             return MAREA_SEMA_EXCEPT_SUCCESS;
         }
 
-        return (MAREA_G_IsKind(base, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_TRUE) ? MAREA_SEMA_EXCEPT_SUCCESS : MAREA_G_CheckValue(context, base, (depth + 1), checkNames);
+        return MAREA_G_CheckValue(context, base, (depth + 1), checkNames);
     }
     case MAREA_AST_KIND_LITERAL_VALUE:
         if (MAREA_G_IsOpaqueType(context, MAREA_SemaChildAt(expression, 0)) == MAREA_BOOLEAN_TRUE) {

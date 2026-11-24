@@ -1273,6 +1273,15 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_SemaIsBuiltInMacroName(const MAREA_Character8 *text, MAREA_IntegerSize length);
 
     /**
+     * @brief Tells whether a name is one of the 13 primitive type names: boolean, sinteger8 to sinteger64, uinteger8 to
+     * uinteger64, float32, float64, character and string.
+     * @param text Text of the name, not NUL terminated.
+     * @param length Length of text in bytes.
+     * @return MAREA_BOOLEAN_TRUE for a primitive type name, else MAREA_BOOLEAN_FALSE.
+     */
+    MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_SemaIsPrimitiveTypeName(const MAREA_Character8 *text, MAREA_IntegerSize length);
+
+    /**
      * @brief What a built-in macro gives as a value, as far as sema types it.
      */
     typedef enum MAREA_SemaMacroValue

@@ -375,7 +375,9 @@ TEST(MAREASemaExpressions, KnownNamesAreNotReported)
 
     EXPECT_TRUE(MAREA_codesOf("function g(a: sinteger32) c.stdio.puts(\"x\"); local b: sinteger32 = convert<sinteger32>(a); local s: uinteger64 = size_of<sinteger32>() + align_of<sinteger32>(); end").empty()) << "The reserved namespace c and the built-in calls must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("function g() stdio.puts(\"x\"); local x: sinteger32 = missing.field; end").empty()) << "The bare name that starts a member chain may be a namespace and is not checked.";
+    EXPECT_TRUE(MAREA_codesOf("import c.stdio; function g() stdio.puts(\"x\"); end").empty()) << "The bare name that starts a member chain is declared when an import binds it.";
+
+    EXPECT_EQ(MAREA_codesOf("function g() local x: sinteger32 = missing.field; end"), Codes{ UNDECLARED }) << "The bare name that starts a member chain is checked like any other name.";
 
     EXPECT_TRUE(MAREA_codesOf("structure Point x: float32; end function g(p: Point): float32 return p.missing_field; end").empty()) << "A member name is not a bare name.";
 }
@@ -513,7 +515,7 @@ TEST(MAREASemaExpressions, ConvertOfAnUnknownTypeIsAccepted)
 
     EXPECT_TRUE(MAREA_codesOf("function g(a: sinteger32, v: pointer<sinteger32>) local n: sinteger32 = convert<sinteger32>(v); convert<pointer<sinteger32>>(a); end").empty()) << "A pointer is a type that sema does not sort.";
 
-    EXPECT_TRUE(MAREA_codesOf("function g(a: sinteger32) local n: sinteger32 = convert<sinteger32>(a.missing); local m: sinteger32 = convert<sinteger32>(lib.get(a)); end").empty()) << "An operand of unknown type must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("import lib; function g(a: sinteger32) local n: sinteger32 = convert<sinteger32>(a.missing); local m: sinteger32 = convert<sinteger32>(lib.get(a)); end").empty()) << "An operand of unknown type must raise nothing.";
 
     EXPECT_TRUE(MAREA_codesOf("function g(a: sinteger32) local n: sinteger32 = convert<sinteger32, sinteger64>(a); local m: sinteger32 = convert<sinteger32>(a, a); local o: sinteger32 = convert<sinteger32>(); end").empty()) << "A call with not exactly one type argument and one argument is not checked here.";
 }

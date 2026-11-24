@@ -493,6 +493,7 @@ lifecycle operator (3027) and structured `fork_join` with `partition` and `spawn
 | L-MEMORY-025 | A worker spawned on a call result | 3020 @29 |
 | L-MEMORY-029 | A return leaves the body of a partition | 3024 @22 |
 | L-MEMORY-031 | A worker takes the part of a partition mutable while the source is also spawned | 3020 @30 |
+| L-MEMORY-032 | A field of a scope block local is read after the block | 3004 @27 |
 
 ### Memory and regions: known_gap
 
@@ -505,7 +506,6 @@ lifecycle operator (3027) and structured `fork_join` with `partition` and `spawn
 | L-MEMORY-020 | The destroy operator is called on a value | gap: #209 3027, rule: reject |
 | L-MEMORY-021 | A structure is destroyed twice by moving it and keeping the old owner | gap: #198 NEW, rule: reject |
 | L-MEMORY-030 | A worker is spawned outside of a fork_join block | gap: #211 NEW, rule: reject |
-| L-MEMORY-032 | A field of a scope block local is read after the block | gap: #212 3004, rule: reject |
 
 #### Aliasing holes
 
@@ -882,12 +882,18 @@ import need the same second file, so they have no item either; a namespace that 
 | L-NAMESPACES-033 | A type alias named c hides the reserved namespace c | 3003 @9 |
 | L-NAMESPACES-034 | Two functions with the same name | 3003 @13 |
 | L-NAMESPACES-035 | A function and a constant with the same name | 3003 @11 |
+| L-NAMESPACES-036 | A namespace used with no import | 3004 @10 |
+| L-NAMESPACES-037 | The original name of an alias used as a namespace | 3004 @12 |
 | L-NAMESPACES-038 | A name of the namespace of a missing import | 3001 @9 |
 | L-NAMESPACES-039 | A namespace cannot import itself | 3001 @9 |
 | L-NAMESPACES-040 | An unknown attribute key | 3005 @9 |
 | L-NAMESPACES-041 | A visibility value that is not public or private | 3006 @9 |
 | L-NAMESPACES-042 | An import list of a namespace that no resolver knows | 3001 @9 |
 | L-NAMESPACES-050 | A call of a function that no scope declares | 3004 @10 |
+| L-NAMESPACES-051 | A user function named like a built-in macro | 3056 @9 |
+| L-NAMESPACES-052 | A local named like a built-in macro | 3056 @10 |
+| L-NAMESPACES-053 | An import alias that shadows a primitive type | 3003 @9 |
+| L-NAMESPACES-054 | An import alias named like a built-in macro | 3056 @9, 3004 @12 |
 | L-NAMESPACES-055 | An import alias clashes with a function of the namespace | 3003 @11 |
 | L-NAMESPACES-056 | Two visibility values on one function conflict | 3007 @9 |
 | L-NAMESPACES-057 | A marea import with a member list and no library behind it | 3001 @9 |
@@ -899,12 +905,6 @@ import need the same second file, so they have no item either; a namespace that 
 
 | Id | Shows | Expected |
 |---|---|---|
-| L-NAMESPACES-036 | A namespace used with no import | gap: 3004, rule: reject, issue #236 |
-| L-NAMESPACES-037 | The original name of an alias used as a namespace | gap: 3004, rule: reject, issue #236 |
-| L-NAMESPACES-051 | A user function named like a built-in macro | gap: NEW, rule: reject, issue #237 |
-| L-NAMESPACES-052 | A local named like a built-in macro | gap: NEW, rule: reject, issue #237 |
-| L-NAMESPACES-053 | An import alias that shadows a primitive type | gap: 3003, rule: reject, issue #238 |
-| L-NAMESPACES-054 | An import alias named like a built-in macro | gap: NEW, rule: reject, issue #237 |
 
 ## Macros and the C border
 
@@ -1260,13 +1260,13 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | examples | 20 | 0 | 0 |
 | functions | 19 | 51 | 3 |
 | interop | 17 | 27 | 1 |
-| memory | 15 | 10 | 8 |
-| namespaces | 17 | 28 | 6 |
+| memory | 15 | 11 | 7 |
+| namespaces | 17 | 34 | 0 |
 | ownership | 65 | 53 | 27 |
 | parallel | 19 | 26 | 14 |
 | seed | 1 | 2 | 0 |
 | types | 60 | 116 | 20 |
-| total | 266 | 435 | 110 |
+| total | 266 | 442 | 103 |
 
 ## Parity plan
 
@@ -1288,6 +1288,7 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 | 1001-1006 | `lex` | [marea-lex.md](../lex/marea-lex.md) |
 | 2001-2010 | `parse` | [marea-ast.md](../ast/marea-ast.md) |
 | 3001-3032 | `sema` | [marea-sema.md](../sema/marea-sema.md) (3033 to 3069 follow in the rows below) |
+| 3056 | `sema` | [marea-sema.md](../sema/marea-sema.md), `RESERVED_MACRO_NAME` |
 | 3057-3058 | `sema` | [marea-sema.md](../sema/marea-sema.md), `OPAQUE_TYPE_MISUSE` and `OPAQUE_FIELD_BY_VALUE` |
 | 3033 | `sema` | [marea-sema.md](../sema/marea-sema.md), `LITERAL_OUT_OF_RANGE` |
 | 3034-3035 | `sema` | [marea-sema.md](../sema/marea-sema.md), the division and shift rules of constant operands |
