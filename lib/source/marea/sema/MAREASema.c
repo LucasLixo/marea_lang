@@ -38,6 +38,8 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaContextCreate(MAREA_Arena *arena, MAREA_Di
     context->generics = (MAREA_SemaNameTable){ 0 };
     context->locals = (MAREA_SemaNameTable){ 0 };
     context->references = (MAREA_SemaNameTable){ 0 };
+    context->localStart = 0;
+    context->functionLocalStart = 0;
     context->root = MAREA_NULLPTR;
     context->function = MAREA_NULLPTR;
     context->implementation = MAREA_NULLPTR;
@@ -149,6 +151,10 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaVisit(MAREA_SemaContext *context, const MA
     }
 
     MAREA_Boolean entered = MAREA_BOOLEAN_FALSE;
+
+    if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
+        result = MAREA_SemaCheckDuplicateNames(context, node);
+    }
 
     if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
         result = MAREA_SemaCheckOwnership(context, node);

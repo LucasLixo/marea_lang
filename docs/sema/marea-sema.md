@@ -135,6 +135,11 @@ call stays untyped and no diagnostic is raised.
 `uinteger16`, `uinteger32` and `uinteger64`. The older names `integerN` and `unsignedN` are retired: they are
 unknown types and raise `UNKNOWN_TYPE`.
 
+**One name, one scope.** A name that is declared twice in one scope raises `NAME_ALREADY_DECLARED` (3003) at the
+second one, or `DUPLICATE_MEMBER` (3012) for a member of a structure, an enum or a contract. The parameters of a
+function share the scope of the top-level statements of its body. A name in an inner block that hides a name of an
+outer block is accepted, and so is a `for`, `for each`, `partition` or `with` name.
+
 **Attributes.** A fixed key table: `visibility` (`public`, `private`), `inline` (`force`, `never`,
 `auto`), `build` (`debug`, `release`), `layout` (`c`, `marea`), `align` (a power of two, not with
 `pack`), `pack` (an integer), `move_only` (a boolean), `operator` (a string of a fixed list),
@@ -226,7 +231,9 @@ A borrow parameter (`reference_read_only` or `reference_mutable`, explicit or by
 a field. A new local of the same name ends the reference. A file constant passed as the argument of
 a `reference_mutable` (write-borrow) parameter, explicit or by default, has no writable storage to
 back the borrow, so it is rejected with `CANNOT_BORROW_CONSTANT_AS_MUTABLE` (3032); a variable
-passed to the same parameter is unaffected. Tracking of a moved local and a live borrow across
+passed to the same parameter is unaffected. An assignment (`=` or a compound form) whose target is a file constant, or a field or element path
+rooted in one (`ORIGIN.x = 1;`, `TABLE[0] = 1;`), is `ASSIGNMENT_TO_CONSTANT` (3040), raised at the target; a local,
+parameter or `for` variable of the same name hides the constant and may be assigned. Tracking of a moved local and a live borrow across
 statements is a design decision recorded in the last bullet of `## Gaps`.
 
 **Integer literal range.** An integer literal (decimal, `0x` or `0b`, with `_` between digits, with one
@@ -594,7 +601,7 @@ or rejects.
 |---|---|---|
 | 3001 | `UNRESOLVED_IMPORT` | `import a.b.c;` when the resolver finds neither `a.b.c` nor a public `c` in `a.b`; `import a.b { f };` when `a.b` is not found, `f` is not a public symbol of it, a two-part member is not a variant of a public enum, or the member path has more than two parts |
 | 3002 | `NAMESPACE_PATH_MISMATCH` | `namespace a.b.c;` in the file `a/b.marea` |
-| 3003 | `NAME_ALREADY_DECLARED` | `structure Item end function Item() end`, or an import (or an import alias, or a member alias) and a declaration or another import of one local name; an import alias or a `type` named `c` (message `name is reserved:`) |
+| 3003 | `NAME_ALREADY_DECLARED` | `structure Item end function Item() end`, or an import (or an import alias, or a member alias) and a declaration or another import of one local name; an import alias or a `type` named `c` (message `name is reserved:`); a generic parameter that repeats an earlier one of its list or names a top-level declaration, `pick<Item, Item>`; two parameters of one name; a body local that repeats a parameter or a local of the same block |
 | 3004 | `UNDECLARED_NAME` | `where Item: Missing`, or a constraint on a name that is not a generic parameter; `local x: sinteger32 = missing;`, `missing(1);` |
 | 3005 | `UNKNOWN_ATTRIBUTE_KEY` | `#[frobnicate = true]`, `#[simd]`, `#[public]` |
 | 3006 | `INVALID_ATTRIBUTE_VALUE` | `#[inline = maybe]`, `#[build = 1]`, `#[visibility]`, `#[export]` |
@@ -603,7 +610,7 @@ or rejects.
 | 3009 | `UNKNOWN_TYPE` | `a: Missing;` in a structure |
 | 3010 | `ARGUMENT_COUNT_MISMATCH` | `add(1)` when `add` takes two parameters with no default; `f()` or `f(1, 2, 3)` when `f` has one required and one defaulted parameter; `Point(1.0, 2.0, 3.0)` when `construct` takes two; `Line(1.0)` when `Line` declares no `construct`; `power(1.0)` when the host's signature of `c.math.pow` takes two parameters |
 | 3011 | `TYPE_MISMATCH` | `convert<sinteger32>(text)` with a `string` name, `convert<Point>(other)` for two structures with another layout, `f("text")` when the parameter is `sinteger32`, `local x: boolean = 1;`, `local n: sinteger32 = a < b;`, `f(s)` with a `string` name `s`, `return a + 1;` in a function that returns `boolean`, `a + b` with an `sinteger32` and a `float64`, `Point("x", 2.0)` when `construct`'s first parameter is `float32`; `power("two", 10.0)` when the host's signature of `c.math.pow` takes `float64, float64` |
-| 3012 | `DUPLICATE_MEMBER` | two `implementation` blocks of one type that both declare `area` |
+| 3012 | `DUPLICATE_MEMBER` | two `implementation` blocks of one type that both declare `area`; a structure field, an enum variant or a contract function that is declared twice in its declaration |
 | 3013 | `CONTRACT_NOT_SATISFIED` | `maximum(a, b)` when the type of `a` has no `less` for `where Item: Comparable` |
 | 3014 | `GENERIC_ARGUMENT_MISMATCH` | `Pair<sinteger32>` when `Pair` has two parameters, `Box<4>` |
 | 3015 | `INSTANTIATION_TOO_DEEP` | a type argument nested 65 levels |
@@ -631,10 +638,13 @@ or rejects.
 | 3037 | `SIGNED_DIVISION_OVERFLOW` | `-2147483648 / -1` or `-128 % -1` when the left side folds to the lowest value of the signed type and the right side folds to -1 |
 | 3038 | `BITWISE_OPERAND_NOT_INTEGER` | `a & b`, `a \| b`, `a ^ b`, `~a`, `a &= b` with a `float32` or `float64`, a `boolean` or a `string` operand, or a float literal |
 | 3039 | `LOGICAL_OPERAND_NOT_BOOLEAN` | `a and b`, `a or b`, `not a` with an operand whose known type is not `boolean`, or a number, string or character literal |
+| 3040 | `ASSIGNMENT_TO_CONSTANT` | `LIMIT = 11;`, `LIMIT += 1;`, `ORIGIN.x = 1;`, `TABLE[0] = 1;` when the root name is a file constant and no local hides it |
 | 3041 | `RAW_POINTER_OUTSIDE_UNSAFE` | `local raw: pointer<sinteger32> = f();` with no `unsafe ... end` block around it, at any depth of nesting |
 
 ## Gaps
 
+- The name of a `for`, `for each`, `partition` or `with` statement is not checked against the names of its own
+  scope: it can repeat a local of the same block, and a local of its body can repeat it.
 - No check of the signature of `main` exists any more, and a driver-level replacement does not exist yet.
 - `array` and `vector` are built-in names now, so a library that exports a type named `array` is shadowed by the
   built-in (an import never wins over a built-in name). A growable library type is spelled under the `c.{lib}`
@@ -656,6 +666,8 @@ or rejects.
 - `CANNOT_BORROW_CONSTANT_AS_MUTABLE` (3032) sees only a bare file-constant name as the argument. A field chain
   rooted in a constant (`ORIGIN.x`) passed to a write-borrow parameter is not rejected, and a test proves only the
   bare name.
+- `ASSIGNMENT_TO_CONSTANT` (3040) sees only a constant that a file declares. A constant that an `implementation`
+  declares is not rejected.
 - `RAW_POINTER_OUTSIDE_UNSAFE` (3041) checks only a `local` whose type is spelled `pointer<T>`. A `pointer` in a
   parameter, a return type or a structure field is not checked (issue #190), and a type alias of a pointer is not resolved.
 - `LITERAL_OUT_OF_RANGE` (3033) reads only a written integer literal. A float literal, a literal in an operand

@@ -1,15 +1,13 @@
--- gap: #189 NEW
--- rule: reject
+-- expect: 3003 @11
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- A constant assigned inside a function.
+-- A local redeclared in the same scope.
 
 namespace main;
 
-constant LIMIT: sinteger32 = 10;
-
 function check(): sinteger32
-    LIMIT = 11;
-    return LIMIT;
+    local value: sinteger32 = 1;
+    local value: sinteger32 = 2;
+    return value;
 end

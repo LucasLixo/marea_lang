@@ -88,6 +88,8 @@ MAREA_BEGIN_EXTERN_C
         MAREA_SemaNameTable generics;
         MAREA_SemaNameTable locals;
         MAREA_SemaNameTable references;
+        MAREA_IntegerSize localStart;
+        MAREA_IntegerSize functionLocalStart;
         const MAREA_AstNode *root;
         const MAREA_AstNode *function;
         const MAREA_AstNode *implementation;
@@ -109,6 +111,8 @@ MAREA_BEGIN_EXTERN_C
         MAREA_IntegerSize genericCount;
         MAREA_IntegerSize localCount;
         MAREA_IntegerSize referenceCount;
+        MAREA_IntegerSize localStart;
+        MAREA_IntegerSize functionLocalStart;
         MAREA_Uinteger32 selfDepth;
         MAREA_Uinteger32 forkDepth;
         MAREA_Uinteger32 partitionDepth;
@@ -1024,6 +1028,16 @@ MAREA_BEGIN_EXTERN_C
     MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckConstantOperands(MAREA_SemaContext * context, MAREA_TokenKind operatorKind, const MAREA_AstNode *left, const MAREA_AstNode *right, MAREA_SourcePosition position);
 
     /**
+     * @brief Reports ASSIGNMENT_TO_CONSTANT for an assignment (= or a compound form) whose target is a file
+     * constant, or a MEMBER_ACCESS or INDEX_ACCESS path whose root identifier is one. A local, parameter or for
+     * variable of the same name hides the constant, so it raises nothing.
+     * @param context Context of the run. Must not be null.
+     * @param assignment ASSIGNMENT node: child 0 is the target. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, or ERROR_NULL_POINTER when an argument is null.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckConstantAssignment(MAREA_SemaContext * context, const MAREA_AstNode *assignment);
+
+    /**
      * @brief Tells whether a number literal fits a primitive type under the rule of MAREA_SemaCheckExpressionFit:
      * an integer literal fits any number type, a float literal fits float32 and float64 only.
      * @param kind MAREA_AST_KIND_INTEGER_LITERAL or MAREA_AST_KIND_FLOAT_LITERAL. Any other kind gives false.
@@ -1053,6 +1067,16 @@ MAREA_BEGIN_EXTERN_C
      * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
      */
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressions(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
+     * @brief Reports NAME_ALREADY_DECLARED for a name that is declared twice in one scope: a generic parameter
+     * that repeats an earlier one or names a top-level declaration, a repeated parameter, and a local that repeats
+     * a parameter or a local of the same block. A name that hides one of an outer block raises nothing.
+     * @param context Context of the run. Must not be null.
+     * @param node Node about to be visited. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckDuplicateNames(MAREA_SemaContext * context, const MAREA_AstNode *node);
 
     /**
      * @brief Records the name of a for, for each, partition or with statement in the local scope with no type, so

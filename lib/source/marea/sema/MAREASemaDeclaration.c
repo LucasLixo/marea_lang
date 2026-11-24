@@ -144,6 +144,78 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckEnumTag(MAREA_SemaContext *conte
     return MAREA_SEMA_EXCEPT_SUCCESS;
 }
 
+// INFO: the first identifier child is the name of a field, a variant, a contract function, a generic parameter or a parameter.
+static const MAREA_AstNode *MAREA_CALL MAREA_G_NameOf(const MAREA_AstNode *member)
+{
+    const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(member);
+
+    for (MAREA_IntegerSize index = 0; index < COUNT; ++index) {
+        const MAREA_AstNode *child = MAREA_SemaChildAt(member, index);
+
+        if ((child != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(child) == MAREA_AST_KIND_IDENTIFIER)) {
+            return child;
+        }
+    }
+
+    return MAREA_NULLPTR;
+}
+
+static MAREA_Boolean MAREA_CALL MAREA_G_SameName(const MAREA_AstNode *left, const MAREA_AstNode *right)
+{
+    return ((left != MAREA_NULLPTR) && (right != MAREA_NULLPTR) && (MAREA_SemaTextEquals(MAREA_AstNodeGetText(left), MAREA_AstNodeGetTextLength(left), MAREA_AstNodeGetText(right), MAREA_AstNodeGetTextLength(right)) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
+// INFO: true when an earlier child of the list, of the same kind, has the name of the child at the given index.
+static MAREA_Boolean MAREA_CALL MAREA_G_RepeatsEarlier(const MAREA_AstNode *list, MAREA_IntegerSize index, MAREA_AstKind kind)
+{
+    const MAREA_AstNode *name = MAREA_G_NameOf(MAREA_SemaChildAt(list, index));
+
+    for (MAREA_IntegerSize earlier = 0; ((name != MAREA_NULLPTR) && (earlier < index)); ++earlier) {
+        const MAREA_AstNode *other = MAREA_SemaChildAt(list, earlier);
+
+        if ((other != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(other) == kind) && (MAREA_G_SameName(name, MAREA_G_NameOf(other)) == MAREA_BOOLEAN_TRUE)) {
+            return MAREA_BOOLEAN_TRUE;
+        }
+    }
+
+    return MAREA_BOOLEAN_FALSE;
+}
+
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckMembers(MAREA_SemaContext *context, const MAREA_AstNode *declaration)
+{
+    const MAREA_AstKind DECLARATION_KIND = MAREA_AstNodeGetKind(declaration);
+
+    MAREA_AstKind memberKind = MAREA_AST_KIND_CONTRACT_FUNCTION;
+
+    if (DECLARATION_KIND == MAREA_AST_KIND_STRUCTURE_DECLARATION) {
+        memberKind = MAREA_AST_KIND_FIELD_DECLARATION;
+    } else if (DECLARATION_KIND == MAREA_AST_KIND_ENUM_DECLARATION) {
+        memberKind = MAREA_AST_KIND_VARIANT_DECLARATION;
+    } else if (DECLARATION_KIND != MAREA_AST_KIND_CONTRACT_DECLARATION) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(declaration);
+
+    for (MAREA_IntegerSize index = 0; index < COUNT; ++index) {
+        const MAREA_AstNode *member = MAREA_SemaChildAt(declaration, index);
+
+        if ((member == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(member) != memberKind) || (MAREA_G_RepeatsEarlier(declaration, index, memberKind) == MAREA_BOOLEAN_FALSE)) {
+            continue;
+        }
+
+        const MAREA_AstNode *name = MAREA_G_NameOf(member);
+
+        const MAREA_SemaExcept RESULT = MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_DUPLICATE_MEMBER, MAREA_AstNodeGetPosition(name), "member is already declared:", MAREA_AstNodeGetText(name), MAREA_AstNodeGetTextLength(name));
+
+        if (RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return RESULT;
+        }
+    }
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
 MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckDeclarations(MAREA_SemaContext *context, const MAREA_AstNode *root)
 {
     if ((context == MAREA_NULLPTR) || (root == MAREA_NULLPTR)) {
@@ -160,6 +232,18 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckDeclarations(MAREA_SemaContext *conte
 
             if (TAG_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
                 return TAG_RESULT;
+            }
+        }
+    }
+
+    for (MAREA_IntegerSize current = 0; current < COUNT; ++current) {
+        const MAREA_AstNode *declaration = MAREA_SemaChildAt(root, current);
+
+        if (declaration != MAREA_NULLPTR) {
+            const MAREA_SemaExcept MEMBER_RESULT = MAREA_G_CheckMembers(context, declaration);
+
+            if (MEMBER_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+                return MEMBER_RESULT;
             }
         }
     }
@@ -206,6 +290,58 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckDeclarations(MAREA_SemaContext *conte
                 if (RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
                     return RESULT;
                 }
+            }
+        }
+    }
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
+MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckDuplicateNames(MAREA_SemaContext *context, const MAREA_AstNode *node)
+{
+    if ((context == MAREA_NULLPTR) || (node == MAREA_NULLPTR)) {
+        return MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    const MAREA_AstKind KIND = MAREA_AstNodeGetKind(node);
+
+    const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(node);
+
+    if ((KIND == MAREA_AST_KIND_PARAMETER_LIST) || (KIND == MAREA_AST_KIND_GENERIC_PARAMETERS)) {
+        const MAREA_AstKind ITEM_KIND = (KIND == MAREA_AST_KIND_PARAMETER_LIST) ? MAREA_AST_KIND_PARAMETER : MAREA_AST_KIND_GENERIC_PARAMETER;
+
+        for (MAREA_IntegerSize index = 0; index < COUNT; ++index) {
+            const MAREA_AstNode *name = MAREA_G_NameOf(MAREA_SemaChildAt(node, index));
+
+            if (name == MAREA_NULLPTR) {
+                continue;
+            }
+
+            const MAREA_Boolean REPEATED = MAREA_G_RepeatsEarlier(node, index, ITEM_KIND);
+
+            const MAREA_Boolean TOP_LEVEL = ((KIND == MAREA_AST_KIND_GENERIC_PARAMETERS) && (MAREA_SemaNameTableFind(context, MAREA_AstNodeGetText(name), MAREA_AstNodeGetTextLength(name)) != MAREA_NULLPTR)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+
+            if ((REPEATED == MAREA_BOOLEAN_TRUE) || (TOP_LEVEL == MAREA_BOOLEAN_TRUE)) {
+                const MAREA_SemaExcept RESULT = MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_NAME_ALREADY_DECLARED, MAREA_AstNodeGetPosition(name), "name is already declared:", MAREA_AstNodeGetText(name), MAREA_AstNodeGetTextLength(name));
+
+                if (RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+                    return RESULT;
+                }
+            }
+        }
+
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    if (KIND == MAREA_AST_KIND_LOCAL_DECLARATION) {
+        const MAREA_AstNode *name = MAREA_G_NameOf(node);
+
+        // INFO: the table holds the names of the current function, so only the parameters and the entries of this block are compared.
+        for (MAREA_IntegerSize index = context->localStart; ((name != MAREA_NULLPTR) && (index < context->locals.count)); ++index) {
+            const MAREA_SemaName *entry = &context->locals.entries[index];
+
+            if (MAREA_SemaTextEquals(entry->text, entry->length, MAREA_AstNodeGetText(name), MAREA_AstNodeGetTextLength(name)) == MAREA_BOOLEAN_TRUE) {
+                return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_NAME_ALREADY_DECLARED, MAREA_AstNodeGetPosition(name), "name is already declared:", MAREA_AstNodeGetText(name), MAREA_AstNodeGetTextLength(name));
             }
         }
     }

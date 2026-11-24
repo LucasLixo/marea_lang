@@ -148,7 +148,7 @@ A `known_gap` item that shares an issue shows one hole of the compiler through m
 | L-BINDINGS-053 | The comparison and logical operators | ok |
 | L-BINDINGS-057 | The conversion between widths is written | ok |
 | L-BINDINGS-060 | A file with CRLF line ends | ok |
-| L-BINDINGS-062 | A local that has the name of a parameter | ok |
+| L-BINDINGS-062 | A local of an inner block that has the name of a parameter | ok |
 | L-BINDINGS-063 | A local in a nested scope that has the name of an outer local | ok |
 | L-BINDINGS-064 | Two locals of the same name in two sibling scopes | ok |
 | L-BINDINGS-065 | A local that has the name of a file constant | ok |
@@ -218,6 +218,7 @@ A `known_gap` item that shares an issue shows one hole of the compiler through m
 | L-BINDINGS-056 | A logical operator on integers | 3039 @12 |
 | L-BINDINGS-058 | An implicit widening is a mismatch | 3011 @11 |
 | L-BINDINGS-059 | A string converted to a number is a mismatch | 3011 @11 |
+| L-BINDINGS-061 | A local redeclared in the same scope | 3003 @11 |
 | L-BINDINGS-066 | A name used before its declaration | 3004 @10 |
 | L-BINDINGS-067 | A name used inside its own initializer | 3004 @10 |
 | L-BINDINGS-068 | A name used after the scope that declared it | 3004 @13 |
@@ -232,6 +233,7 @@ A `known_gap` item that shares an issue shows one hole of the compiler through m
 | L-BINDINGS-080 | A constant declared twice | 3003 @10 |
 | L-BINDINGS-081 | A constant that holds the wrong type | 3011 @9 |
 | L-BINDINGS-082 | A constant with no initial value | 2001 @9 |
+| L-BINDINGS-084 | A constant assigned inside a function | 3040 @12 |
 | L-BINDINGS-085 | A constant declared inside a function | 2001 @10, 2004 @11, 2004 @11, 2005 @12, 3022 @9 |
 | L-BINDINGS-086 | A function and a constant with the same name | 3003 @11 |
 | L-BINDINGS-089 | A scope block with no end | 2009 @14 |
@@ -255,8 +257,6 @@ A `known_gap` item that shares an issue shows one hole of the compiler through m
 
 | Id | Shows | Expected |
 |---|---|---|
-| L-BINDINGS-061 | A local redeclared in the same scope | gap: #188 3003, rule: reject |
-| L-BINDINGS-084 | A constant assigned inside a function | gap: #189 NEW, rule: reject |
 
 ## Ownership and borrows
 
@@ -583,6 +583,8 @@ Function declaration and call, parameters and defaults, the result and `return v
 | L-FUNCTIONS-058 | a call of a name that no scope declares, as if it were a function value | 3004 @10 |
 | L-FUNCTIONS-059 | a default value that calls a function that no scope declares | 3004 @9 |
 | L-FUNCTIONS-065 | a return with no value in a function that has a result | 3022 @9 |
+| L-FUNCTIONS-069 | two parameters with one name | 3003 @9 |
+| L-FUNCTIONS-070 | a parameter that shares its name with a local of the body | 3003 @10 |
 | L-FUNCTIONS-072 | a non-boolean value as the result of a boolean function | 3011 @10 |
 
 ### Functions and calls: known_gap
@@ -598,12 +600,10 @@ Function declaration and call, parameters and defaults, the result and `return v
 | L-FUNCTIONS-066 | a return with a value in a function that has no result | gap: 3011, rule: reject, issue #215 |
 | L-FUNCTIONS-067 | the result of a function with no result used as a value | gap: 3011, rule: reject, issue #215 |
 | L-FUNCTIONS-068 | a function used before its declaration (the grammar says a name is declared before use) | gap: 3004, rule: reject, issue #216 |
-| L-FUNCTIONS-069 | two parameters with one name | gap: 3003, rule: reject, issue #218 |
-| L-FUNCTIONS-070 | a parameter that shares its name with a local of the body | gap: 3003, rule: reject, issue #218 |
 | L-FUNCTIONS-071 | a call of a value that is not a function | gap: 3011, rule: reject, issue #215 |
 | L-FUNCTIONS-073 | a condition of an integer type in an if | gap: 3011, rule: reject, issue #219 |
 
-Known gaps of this area share their issues: #213, #214, #215, #216, #218, #219, #220, #221, #222, #223, #224, #225. An issue lists the items that show it in the area; an item flips to `reject` the day its rule is implemented.
+Known gaps of this area share their issues: #213, #214, #215, #216, #219, #220, #221, #222, #223, #224, #225. An issue lists the items that show it in the area; an item flips to `reject` the day its rule is implemented.
 
 ## Types and control flow
 
@@ -687,6 +687,8 @@ Known gaps of this area share their issues: #213, #214, #215, #216, #218, #219, 
 | L-TYPES-019 | a local of an undeclared structure | 3009 @10, 3009 @10 |
 | L-TYPES-020 | a field read assigned to a local of another type | 3011 @15 |
 | L-TYPES-022 | a nested field of a type that does not exist, after a valid field | 3009 @16 |
+| L-TYPES-028 | a structure with two fields of one name | 3012 @11 |
+| L-TYPES-031 | a structure with a generic parameter that is declared twice | 3003 @9 |
 | L-TYPES-043 | an enum tag of a float type | 3031 @9 |
 | L-TYPES-044 | an enum tag of the string type | 3031 @9 |
 | L-TYPES-045 | an enum tag of the boolean type | 3031 @9 |
@@ -705,6 +707,7 @@ Known gaps of this area share their issues: #213, #214, #215, #216, #218, #219, 
 | L-TYPES-058 | a switch with a repeated value and a missing variant gives both codes | 3025 @20, 3021 @16 |
 | L-TYPES-060 | a switch value of a name that no scope declares | 3004 @10 |
 | L-TYPES-061 | a switch arm that returns the wrong type | 3011 @12 |
+| L-TYPES-073 | an enum with one variant declared twice | 3012 @11 |
 | L-TYPES-084 | two implementation blocks that declare one function | 3012 @21 |
 | L-TYPES-085 | one implementation block that declares one function twice | 3012 @19 |
 | L-TYPES-086 | a generic call with a type that does not meet the contract | 3013 @24, 3013 @24 |
@@ -720,13 +723,16 @@ Known gaps of this area share their issues: #213, #214, #215, #216, #218, #219, 
 | L-TYPES-096 | a construct function with a parameter that has no default | 3029 @16 |
 | L-TYPES-097 | a type call with too many arguments for a type that has no construct | 3010 @15 |
 | L-TYPES-098 | an implementation of a type that does not exist | 3009 @9, 3009 @10 |
+| L-TYPES-099 | a contract that lists one function twice | 3012 @11 |
 | L-TYPES-103 | an implementation constant used outside its block | 3004 @19 |
 | L-TYPES-114 | a generic argument count that does not match | 3014 @13 |
 | L-TYPES-115 | a generic type with no argument where one is needed | 3014 @13 |
 | L-TYPES-116 | a number given for a type parameter | 3014 @13 |
 | L-TYPES-117 | a type nested 65 levels deep | 3015 @13 |
 | L-TYPES-118 | a generic function with a bound that the argument type does not meet | 3013 @24, 3013 @24 |
+| L-TYPES-119 | a generic parameter named as another declaration | 3003 @13 |
 | L-TYPES-120 | a generic call with a wrong argument count | 3010 @14 |
+| L-TYPES-122 | two generic parameters with one name in a function | 3003 @9 |
 | L-TYPES-138 | a break outside a loop | 3026 @10 |
 | L-TYPES-139 | a continue outside a loop | 3026 @10 |
 | L-TYPES-140 | a break in an if that is not in a loop | 3026 @11 |
@@ -797,22 +803,16 @@ Known gaps of this area share their issues: #213, #214, #215, #216, #218, #219, 
 | L-TYPES-025 | a struct literal that gives one field twice | gap: NEW, rule: reject, issue #220 |
 | L-TYPES-026 | a field read of a field that the structure does not have | gap: NEW, rule: reject, issue #220 |
 | L-TYPES-027 | a field assignment of a field that the structure does not have | gap: NEW, rule: reject, issue #220 |
-| L-TYPES-028 | a structure with two fields of one name | gap: 3012, rule: reject, issue #218 |
 | L-TYPES-029 | a structure that holds itself by value | gap: NEW, rule: reject, issue #221 |
 | L-TYPES-030 | two structures that hold each other by value | gap: NEW, rule: reject, issue #221 |
-| L-TYPES-031 | a structure with a generic parameter that is declared twice | gap: 3003, rule: reject, issue #218 |
 | L-TYPES-070 | a switch arm whose value has another type than the switch value | gap: 3011, rule: reject, issue #222 |
 | L-TYPES-071 | a case value of a variant of another enum | gap: 3011, rule: reject, issue #222 |
 | L-TYPES-072 | a zero-member enum | gap: NEW, rule: reject, issue #223 |
-| L-TYPES-073 | an enum with one variant declared twice | gap: 3012, rule: reject, issue #218 |
 | L-TYPES-074 | a variant of an enum that does not exist | gap: 3004, rule: reject, issue #223 |
-| L-TYPES-099 | a contract that lists one function twice | gap: 3012, rule: reject, issue #218 |
 | L-TYPES-100 | a method call of a function that the type does not have | gap: NEW, rule: reject, issue #224 |
 | L-TYPES-101 | a static call of a function that the type does not have | gap: NEW, rule: reject, issue #224 |
 | L-TYPES-102 | an operator function whose signature does not match the operator | gap: NEW, rule: reject, issue #224 |
-| L-TYPES-119 | a generic parameter named as another declaration | gap: 3003, rule: reject, issue #218 |
 | L-TYPES-121 | an unsatisfied bound inside the body of a generic function, an operation the bound does not give | gap: NEW, rule: reject, issue #225 |
-| L-TYPES-122 | two generic parameters with one name in a function | gap: 3003, rule: reject, issue #218 |
 | L-TYPES-123 | two overlapping implementation blocks of a generic and a concrete type | gap: 3012, rule: reject, issue #225 |
 | L-TYPES-124 | a cyclic type alias | gap: NEW, rule: reject, issue #221 |
 | L-TYPES-125 | a type alias of itself | gap: NEW, rule: reject, issue #221 |
@@ -1243,18 +1243,18 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | area | accept | reject | known_gap |
 |---|---|---|---|
 | adversarial | 0 | 27 | 45 |
-| bindings | 33 | 78 | 2 |
+| bindings | 33 | 80 | 0 |
 | coverage | 0 | 0 | 1 |
 | examples | 16 | 0 | 0 |
-| functions | 19 | 41 | 13 |
+| functions | 19 | 43 | 11 |
 | interop | 17 | 11 | 17 |
 | memory | 15 | 10 | 8 |
 | namespaces | 17 | 28 | 6 |
 | ownership | 65 | 35 | 45 |
 | parallel | 19 | 23 | 17 |
 | seed | 1 | 1 | 1 |
-| types | 60 | 108 | 28 |
-| total | 262 | 362 | 183 |
+| types | 60 | 114 | 22 |
+| total | 262 | 372 | 173 |
 
 ## Parity plan
 
@@ -1280,6 +1280,7 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 | 3034-3035 | `sema` | [marea-sema.md](../sema/marea-sema.md), the division and shift rules of constant operands |
 | 3036-3037 | `sema` | [marea-sema.md](../sema/marea-sema.md) |
 | 3038-3039 | `sema` | [marea-sema.md](../sema/marea-sema.md) |
+| 3040 | `sema` | [marea-sema.md](../sema/marea-sema.md), `ASSIGNMENT_TO_CONSTANT` |
 | 3041 | `sema` | [marea-sema.md](../sema/marea-sema.md), `RAW_POINTER_OUTSIDE_UNSAFE` |
 | 4004-4006 | `ir` | [marea-ir.md](../ir/marea-ir.md), no item reaches them (see Gaps) |
 

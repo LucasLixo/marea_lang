@@ -995,6 +995,12 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressions(MAREA_SemaContext *contex
             return valueResult;
         }
 
+        const MAREA_SemaExcept constantResult = MAREA_SemaCheckConstantAssignment(context, node);
+
+        if (constantResult != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return constantResult;
+        }
+
         if (MAREA_AstNodeGetOperator(node) != MAREA_TOKEN_KIND_EQUAL) {
             return MAREA_G_CheckCompound(context, node);
         }
