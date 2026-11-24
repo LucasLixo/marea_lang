@@ -888,6 +888,10 @@ import need the same second file, so they have no item either; a namespace that 
 | L-NAMESPACES-041 | A visibility value that is not public or private | 3006 @9 |
 | L-NAMESPACES-042 | An import list of a namespace that no resolver knows | 3001 @9 |
 | L-NAMESPACES-050 | A call of a function that no scope declares | 3004 @10 |
+| L-NAMESPACES-051 | A user function named like a built-in macro | 3056 @9 |
+| L-NAMESPACES-052 | A local named like a built-in macro | 3056 @10 |
+| L-NAMESPACES-053 | An import alias that shadows a primitive type | 3003 @9 |
+| L-NAMESPACES-054 | An import alias named like a built-in macro | 3056 @9, 3004 @12 |
 | L-NAMESPACES-055 | An import alias clashes with a function of the namespace | 3003 @11 |
 | L-NAMESPACES-056 | Two visibility values on one function conflict | 3007 @9 |
 | L-NAMESPACES-057 | A marea import with a member list and no library behind it | 3001 @9 |
@@ -899,10 +903,6 @@ import need the same second file, so they have no item either; a namespace that 
 
 | Id | Shows | Expected |
 |---|---|---|
-| L-NAMESPACES-051 | A user function named like a built-in macro | gap: NEW, rule: reject, issue #237 |
-| L-NAMESPACES-052 | A local named like a built-in macro | gap: NEW, rule: reject, issue #237 |
-| L-NAMESPACES-053 | An import alias that shadows a primitive type | gap: 3003, rule: reject, issue #238 |
-| L-NAMESPACES-054 | An import alias named like a built-in macro | gap: NEW, rule: reject, issue #237 |
 
 ## Macros and the C border
 
@@ -1260,12 +1260,12 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | functions | 19 | 45 | 9 |
 | interop | 17 | 23 | 5 |
 | memory | 15 | 11 | 7 |
-| namespaces | 17 | 30 | 4 |
+| namespaces | 17 | 34 | 0 |
 | ownership | 65 | 40 | 40 |
 | parallel | 19 | 23 | 17 |
 | seed | 1 | 2 | 0 |
 | types | 60 | 116 | 20 |
-| total | 266 | 401 | 144 |
+| total | 266 | 405 | 140 |
 
 ## Parity plan
 
@@ -1295,6 +1295,7 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 | 3041 | `sema` | [marea-sema.md](../sema/marea-sema.md), `RAW_POINTER_OUTSIDE_UNSAFE` |
 | 3043 | `sema` | [marea-sema.md](../sema/marea-sema.md), `NON_BOOLEAN_CONDITION` |
 | 3055 | `sema` | [marea-sema.md](../sema/marea-sema.md), `CYCLIC_CONSTANT` |
+| 3056 | `sema` | [marea-sema.md](../sema/marea-sema.md), `RESERVED_MACRO_NAME` |
 | 3059 | `sema` | [marea-sema.md](../sema/marea-sema.md), `COMPILE_TIME_ASSERTION_FAILED` |
 | 3060-3061 | `sema` | [marea-sema.md](../sema/marea-sema.md), `UNKNOWN_MACRO` and `INVALID_MACRO_ARGUMENT` |
 | 3065 | `sema` | [marea-sema.md](../sema/marea-sema.md), `LOCAL_WITHOUT_INITIAL_VALUE` |
