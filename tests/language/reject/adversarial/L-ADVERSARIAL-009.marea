@@ -1,9 +1,8 @@
--- gap: #204 NEW
--- rule: reject
+-- expect: 3069 @39
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- A nested field of a read-only parameter is written in a switch arm of a generic function.
+-- A read-only borrow is passed to a generic function that writes it.
 
 namespace main;
 
@@ -33,12 +32,10 @@ function take_point(point: owned<Point>): sinteger32
     return point.x;
 end
 
-function reset<Item>(#[semantics = reference_read_only] box: Box, flag: Item)
-    switch box.count
-        case 1 then
-            box.inner.x = 0;
-        end
-        default then
-        end
-    end
+function bump<Item>(#[semantics = reference_mutable] value: Item)
+end
+
+function check(#[semantics = reference_read_only] point: Point): sinteger32
+    bump(point);
+    return 1;
 end

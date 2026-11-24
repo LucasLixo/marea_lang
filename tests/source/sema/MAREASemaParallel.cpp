@@ -34,7 +34,7 @@ TEST(MAREASemaParallel, PartitionPartIsAValidArgument)
 {
     GTEST_COUT << "Validating a partition part is a valid spawn argument." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("function f(values: c.array<float32>, k: float32) fork_join partition mutable values into 4 as part do spawn work(part, k); end end end").empty()) << "A part and a read-only parameter must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function f(#[semantics = reference_mutable] values: c.array<float32>, k: float32) fork_join partition mutable values into 4 as part do spawn work(part, k); end end end").empty()) << "A part and a read-only parameter must raise nothing.";
 }
 
 TEST(MAREASemaParallel, LiteralsAndConstantsAreValidArguments)
@@ -79,7 +79,7 @@ TEST(MAREASemaParallel, SourceOfAnActiveMutablePartitionIsRejected)
 {
     GTEST_COUT << "Validating the source of an active partition mutable cannot be spawned over." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf("function g(a: c.array<float32>) end function f(values: c.array<float32>) fork_join partition mutable values into 4 as part do spawn g(values); end end end"), Codes{ INVALID_SPAWN }) << "The source of a mutable partition must raise INVALID_SPAWN_ARGUMENT.";
+    EXPECT_EQ(MAREA_codesOf("function g(a: c.array<float32>) end function f(#[semantics = reference_mutable] values: c.array<float32>) fork_join partition mutable values into 4 as part do spawn g(values); end end end"), Codes{ INVALID_SPAWN }) << "The source of a mutable partition must raise INVALID_SPAWN_ARGUMENT.";
 
     EXPECT_TRUE(MAREA_codesOf("function g(a: c.array<float32>) end function f(#[semantics = reference_read_only] values: c.array<float32>) fork_join partition values into 4 as part do spawn g(values); end end end").empty()) << "The source of a read-only partition must raise nothing.";
 }
@@ -106,7 +106,7 @@ TEST(MAREASemaParallel, FieldOfAnUnsafeNameIsRejected)
 
     EXPECT_EQ(MAREA_codesOf("function g(a: float32) end function f(#[semantics = reference_mutable] m: c.array<float32>, values: c.array<float32>) fork_join partition values into 4 as part do spawn g(m.size); end end end"), Codes{ INVALID_SPAWN }) << "A field of a write borrow must raise INVALID_SPAWN_ARGUMENT.";
 
-    EXPECT_EQ(MAREA_codesOf("function g(a: float32) end function f(values: c.array<float32>) fork_join partition mutable values into 4 as part do spawn g(values.size); end end end"), Codes{ INVALID_SPAWN }) << "A field of a mutable partition source must raise INVALID_SPAWN_ARGUMENT.";
+    EXPECT_EQ(MAREA_codesOf("function g(a: float32) end function f(#[semantics = reference_mutable] values: c.array<float32>) fork_join partition mutable values into 4 as part do spawn g(values.size); end end end"), Codes{ INVALID_SPAWN }) << "A field of a mutable partition source must raise INVALID_SPAWN_ARGUMENT.";
 }
 
 TEST(MAREASemaParallel, SpawnOutsideForkJoinIsNotChecked)
@@ -172,7 +172,7 @@ TEST(MAREASemaParallel, BreakOutOfAPartitionBodyIsRejected)
 
     EXPECT_EQ(MAREA_codesOf("function f(values: c.array<float32>, a: boolean) while a do fork_join partition values into 2 as part do break; end end end end"), Codes{ INVALID_JUMP }) << "A break to a while loop must raise INVALID_PARALLEL_JUMP.";
 
-    EXPECT_EQ(MAREA_codesOf("function f(values: c.array<float32>) for i in 0 .. 3 do fork_join partition mutable values into 2 as part do break; end end end end"), Codes{ INVALID_JUMP }) << "A break of a mutable partition must raise INVALID_PARALLEL_JUMP.";
+    EXPECT_EQ(MAREA_codesOf("function f(#[semantics = reference_mutable] values: c.array<float32>) for i in 0 .. 3 do fork_join partition mutable values into 2 as part do break; end end end end"), Codes{ INVALID_JUMP }) << "A break of a mutable partition must raise INVALID_PARALLEL_JUMP.";
 }
 
 TEST(MAREASemaParallel, ReturnInAPartitionBodyIsRejected)

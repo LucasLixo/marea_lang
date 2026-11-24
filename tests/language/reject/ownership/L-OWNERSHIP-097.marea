@@ -1,9 +1,8 @@
--- gap: #204 NEW
--- rule: reject
+-- expect: 3069 @24
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- A read-only borrow is passed on to a write-borrow parameter.
+-- A whole read-only borrow is assigned.
 
 namespace main;
 
@@ -17,10 +16,10 @@ structure Box
     count: sinteger32;
 end
 
-function write_point(#[semantics = reference_mutable] point: Point)
-    point.x = 1;
+function make_point(): Point
+    return Point{ x = 1, y = 2 };
 end
 
 function check(#[semantics = reference_read_only] point: Point)
-    write_point(point);
+    point = make_point();
 end

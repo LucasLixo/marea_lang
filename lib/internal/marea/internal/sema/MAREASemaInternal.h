@@ -88,6 +88,7 @@ MAREA_BEGIN_EXTERN_C
         MAREA_SemaNameTable generics;
         MAREA_SemaNameTable locals;
         MAREA_SemaNameTable references;
+        MAREA_SemaNameTable readOnly;
         MAREA_IntegerSize localStart;
         MAREA_IntegerSize functionLocalStart;
         const MAREA_AstNode *root;
@@ -111,6 +112,7 @@ MAREA_BEGIN_EXTERN_C
         MAREA_IntegerSize genericCount;
         MAREA_IntegerSize localCount;
         MAREA_IntegerSize referenceCount;
+        MAREA_IntegerSize readOnlyCount;
         MAREA_IntegerSize localStart;
         MAREA_IntegerSize functionLocalStart;
         MAREA_Uinteger32 selfDepth;
@@ -837,6 +839,25 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaBindReferences(MAREA_SemaContext * context, const MAREA_AstNode *node);
 
     /**
+     * @brief Records the writability of the names a node binds: a parameter of a function, the variables
+     * of a for each statement, the part of a partition and the name of a with statement. An entry with a
+     * declaration is a read-only borrow, an entry without one is writable. Reports nothing.
+     * @param context Context of the run. Must not be null.
+     * @param node Node about to be visited. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaBindReadOnly(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
+     * @brief Tells whether an expression is rooted in a read-only borrow. The root is the identifier at the
+     * bottom of its member-access and index-access chain; a root that is not recorded is writable.
+     * @param context Context of the run. Must not be null.
+     * @param expression Expression node. May be null.
+     * @return True when the closest binding of the root name is a read-only borrow.
+     */
+    MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_SemaIsReadOnly(const MAREA_SemaContext *context, const MAREA_AstNode *expression);
+
+    /**
      * @brief Tells whether a name is a reference that cannot leave its scope.
      * @param context Context of the run. Must not be null.
      * @param text Text of the name, not NUL terminated.
@@ -924,6 +945,16 @@ MAREA_BEGIN_EXTERN_C
      * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
      */
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckBorrowArguments(MAREA_SemaContext * context, const MAREA_AstNode *call, const MAREA_AstNode *parameters, const MAREA_AstNode *arguments);
+
+    /**
+     * @brief Checks that a write-borrow parameter is given a writable place: a read-only borrow is rejected,
+     * and so is a call result or a literal, which has no storage to write back.
+     * @param context Context of the run. Must not be null.
+     * @param parameters PARAMETER_LIST of the callee. Must not be null.
+     * @param arguments ARGUMENT_LIST of the call. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckWriteArguments(MAREA_SemaContext * context, const MAREA_AstNode *parameters, const MAREA_AstNode *arguments);
 
     /**
      * @brief Checks the arguments of a spawn inside a fork_join block: each must be a part of a partition, a

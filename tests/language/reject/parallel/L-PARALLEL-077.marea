@@ -1,9 +1,8 @@
--- gap: #204 NEW
--- rule: reject
+-- expect: 3069 @54
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- A part of a partition that only reads is written.
+-- A part is passed to a function that writes it, with partition and no mutable.
 
 namespace main;
 
@@ -52,9 +51,7 @@ end
 function run(#[semantics = reference_read_only] values: c.array<float32>)
     fork_join
         partition values into 2 as part do
-            for each value in mutable part do
-                value = 1.0;
-            end
+            spawn scale_slice(part, 2.0);
         end
     end
 end

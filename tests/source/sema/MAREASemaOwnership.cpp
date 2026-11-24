@@ -129,11 +129,11 @@ TEST(MAREASemaOwnership, AssignmentOfAnExistingValueNeedsAWord)
 {
     GTEST_COUT << "Validating assigning a name, a field or an element of a plain type needs copy or move." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(a: Shape, b: Shape) a = b; end"), Codes{ NEEDS_WORD }) << "A name must raise ASSIGNMENT_NEEDS_COPY_OR_MOVE.";
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(#[semantics = reference_mutable] a: Shape, b: Shape) a = b; end"), Codes{ NEEDS_WORD }) << "A name must raise ASSIGNMENT_NEEDS_COPY_OR_MOVE.";
 
-    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(a: Shape, o: Outer) a = o.inner; end"), Codes{ NEEDS_WORD }) << "A field must raise ASSIGNMENT_NEEDS_COPY_OR_MOVE.";
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(#[semantics = reference_mutable] a: Shape, o: Outer) a = o.inner; end"), Codes{ NEEDS_WORD }) << "A field must raise ASSIGNMENT_NEEDS_COPY_OR_MOVE.";
 
-    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(a: Shape, items: vector<Shape>) a = items[0]; end"), Codes{ NEEDS_WORD }) << "An element must raise ASSIGNMENT_NEEDS_COPY_OR_MOVE.";
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(#[semantics = reference_mutable] a: Shape, items: vector<Shape>) a = items[0]; end"), Codes{ NEEDS_WORD }) << "An element must raise ASSIGNMENT_NEEDS_COPY_OR_MOVE.";
 
     EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(b: Shape) local a: Shape = b; end"), Codes{ NEEDS_WORD }) << "A local initializer must raise ASSIGNMENT_NEEDS_COPY_OR_MOVE.";
 }
@@ -153,9 +153,9 @@ TEST(MAREASemaOwnership, CopyAndMoveSatisfyTheRule)
 {
     GTEST_COUT << "Validating copy and move satisfy the assignment rule." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(a: Shape, b: Shape) a = copy b; end").empty()) << "copy must satisfy the rule.";
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(#[semantics = reference_mutable] a: Shape, b: Shape) a = copy b; end").empty()) << "copy must satisfy the rule.";
 
-    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(a: Shape, b: owned<Shape>) a = move b; end").empty()) << "move must satisfy the rule.";
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(#[semantics = reference_mutable] a: Shape, b: owned<Shape>) a = move b; end").empty()) << "move must satisfy the rule.";
 
     EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(b: Shape) local a: Shape = copy b; end").empty()) << "copy in a local initializer must satisfy the rule.";
 }
@@ -173,18 +173,18 @@ TEST(MAREASemaOwnership, StructureIsNeverCopiedByValue)
 {
     GTEST_COUT << "Validating a structure, even one marked move_only or an ordinary one, is never assigned by plain equal sign; only a primitive, a copyable array and an enum are." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(a: Shape, b: Shape) a = b; end"), Codes{ NEEDS_WORD }) << "An ordinary structure must still raise ASSIGNMENT_NEEDS_COPY_OR_MOVE; #[value] no longer exempts it.";
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(#[semantics = reference_mutable] a: Shape, b: Shape) a = b; end"), Codes{ NEEDS_WORD }) << "An ordinary structure must still raise ASSIGNMENT_NEEDS_COPY_OR_MOVE; #[value] no longer exempts it.";
 
-    EXPECT_EQ(MAREA_codesOf("#[move_only] structure M x: float32; end function f(a: M, b: M) a = b; end"), Codes{ NEEDS_WORD }) << "A move-only structure must raise ASSIGNMENT_NEEDS_COPY_OR_MOVE on the bare equal sign.";
+    EXPECT_EQ(MAREA_codesOf("#[move_only] structure M x: float32; end function f(#[semantics = reference_mutable] a: M, b: M) a = b; end"), Codes{ NEEDS_WORD }) << "A move-only structure must raise ASSIGNMENT_NEEDS_COPY_OR_MOVE on the bare equal sign.";
 }
 
 TEST(MAREASemaOwnership, NewValuesNeedNoWord)
 {
     GTEST_COUT << "Validating a call or a literal on the right side needs no word." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(a: Shape) a = make(); end").empty()) << "A call must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(#[semantics = reference_mutable] a: Shape) a = make(); end").empty()) << "A call must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(a: Shape) a = Shape{ x = 2.0 }; end").empty()) << "A literal must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(#[semantics = reference_mutable] a: Shape) a = Shape{ x = 2.0 }; end").empty()) << "A literal must raise nothing.";
 }
 
 TEST(MAREASemaOwnership, CompoundAssignmentIsNotChecked)
@@ -198,7 +198,7 @@ TEST(MAREASemaOwnership, UnknownTypesAreNotGuessed)
 {
     GTEST_COUT << "Validating an assignment whose type is unknown raises nothing." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("function f(a: c.array<sinteger32>, b: c.array<sinteger32>) a = b; end").empty()) << "A library type must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function f(#[semantics = reference_mutable] a: c.array<sinteger32>, b: c.array<sinteger32>) a = b; end").empty()) << "A library type must raise nothing.";
 }
 
 TEST(MAREASemaOwnership, ReturningABorrowIsRejected)
@@ -258,7 +258,7 @@ TEST(MAREASemaOwnership, ReferenceCannotBeStoredInAField)
 
     EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(s: Shape): Outer return Outer{ inner = s }; end"), Codes{ ESCAPES }) << "A literal field must raise REFERENCE_ESCAPES_SCOPE.";
 
-    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(s: Shape, o: Outer) o.inner = s; end"), (Codes{ ESCAPES, NEEDS_WORD })) << "A field assignment must raise REFERENCE_ESCAPES_SCOPE.";
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(s: Shape, #[semantics = reference_mutable] o: Outer) o.inner = s; end"), (Codes{ ESCAPES, NEEDS_WORD })) << "A field assignment must raise REFERENCE_ESCAPES_SCOPE.";
 
     EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(s: Shape): Outer return Outer{ inner = copy s }; end").empty()) << "A copy in a field must raise nothing.";
 }
@@ -269,7 +269,7 @@ TEST(MAREASemaOwnership, SameNameInTwoMutableArgumentsConflicts)
 
     const std::string TAKE{ SHAPE + "function take(#[semantics = reference_mutable] a: Shape, #[semantics = reference_mutable] b: Shape) end function other(#[semantics = reference_read_only] a: Shape, #[semantics = reference_read_only] b: Shape) end function plain(a: Shape, b: Shape) end " };
 
-    EXPECT_EQ(MAREA_codesOf(TAKE + "function f(s: Shape) take(s, s); end"), Codes{ EXCLUSIVE }) << "A repeated name with an explicit write borrow must raise EXCLUSIVE_BORROW_CONFLICT.";
+    EXPECT_EQ(MAREA_codesOf(TAKE + "function f(#[semantics = reference_mutable] s: Shape) take(s, s); end"), Codes{ EXCLUSIVE }) << "A repeated name with an explicit write borrow must raise EXCLUSIVE_BORROW_CONFLICT.";
 
     EXPECT_TRUE(MAREA_codesOf(TAKE + "function f(s: Shape) plain(s, s); end").empty()) << "A repeated name with default parameters (read-only borrows) must raise nothing.";
 
@@ -286,7 +286,7 @@ TEST(MAREASemaOwnership, ConstantBoundToAWriteBorrowParameterIsRejected)
 
     EXPECT_TRUE(MAREA_codesOf(TAKE + "function f() plain(ORIGIN); end").empty()) << "A constant bound to a default parameter (a read-only borrow) must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf(TAKE + "function f(s: Shape) take(s); end").empty()) << "A variable bound to the same write-borrow parameter must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf(TAKE + "function f(#[semantics = reference_mutable] s: Shape) take(s); end").empty()) << "A variable bound to the same write-borrow parameter must raise nothing.";
 
     EXPECT_TRUE(MAREA_codesOf(TAKE + "function f() other(ORIGIN); end").empty()) << "A constant bound to a read-only borrow must raise nothing.";
 }
@@ -295,7 +295,7 @@ TEST(MAREASemaOwnership, ErrorNodeInPlaceOfAssignmentOrReturnIsSkipped)
 {
     GTEST_COUT << "Validating a broken assignment or return raises no sema diagnostic." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(a: Shape) a = ; end").empty()) << "A broken assignment must raise no sema diagnostic.";
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(#[semantics = reference_mutable] a: Shape) a = ; end").empty()) << "A broken assignment must raise no sema diagnostic.";
 
     EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(a: Shape): Shape return + ; end").empty()) << "A broken return must raise no sema diagnostic.";
 }

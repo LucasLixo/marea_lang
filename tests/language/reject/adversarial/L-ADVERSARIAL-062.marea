@@ -1,10 +1,9 @@
--- gap: #203 NEW
--- rule: reject
+-- expect: 3069 @54, 3069 @55
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
 -- from: L-PARALLEL-006
--- Mutant of L-PARALLEL-006: the write attribute is dropped from the source of a partition mutable.
+-- Mutant of L-PARALLEL-006: the write attribute becomes read-only on the source of a partition mutable.
 
 namespace main;
 
@@ -50,7 +49,7 @@ function sum_slice(#[semantics = reference_read_only] part: c.slice<float32>): f
     return total;
 end
 
-function check(values: c.array<float32>, factor: float32)
+function check(#[semantics = reference_read_only] values: c.array<float32>, factor: float32)
     fork_join
         partition mutable values into WORKER_COUNT as part do
             spawn scale_slice(part, factor);
