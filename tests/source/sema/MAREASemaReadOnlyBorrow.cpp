@@ -80,3 +80,31 @@ TEST(MAREASemaReadOnlyBorrow, WithNameOverAnExistingValueIsReadOnly)
 
     EXPECT_EQ(MAREA_codesOf("function f() with make_point() as v do v.x = 1; end end"), NONE) << "A with over a call is writable.";
 }
+
+TEST(MAREASemaReadOnlyBorrow, MutableForEachNeedsAWritableSource)
+{
+    GTEST_COUT << "Validating that for each in mutable over a read-only source reports once and over a writable one reports nothing." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("function f(#[semantics = reference_read_only] xs: c.array<Point>) for each v in mutable xs do end end"), ONE) << "A read-only source must be rejected.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(xs: c.array<Point>) for each v in mutable xs do end end"), ONE) << "A default read-only source must be rejected.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(#[semantics = reference_mutable] xs: c.array<Point>) for each v in mutable xs do v.x = 1; end end"), NONE) << "A mutable source must be accepted and its variable written.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(#[semantics = reference_read_only] b: Box) for each v in mutable b.inner do end end"), ONE) << "A field of a read-only name is read-only.";
+}
+
+TEST(MAREASemaReadOnlyBorrow, PartitionMutableNeedsAWritableSource)
+{
+    GTEST_COUT << "Validating that partition mutable over a read-only source reports once and the part of a writable one may be written." << std::endl;
+
+    const std::string HEAD{ "import c.slice; import c.task; function scale(#[semantics = reference_mutable] part: c.slice<float32>) end " };
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "function f(#[semantics = reference_read_only] values: c.array<float32>) fork_join partition mutable values into 2 as part do end end end"), ONE) << "A read-only source must be rejected.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "function f(#[semantics = reference_mutable] values: c.array<float32>) fork_join partition mutable values into 2 as part do for each v in mutable part do v = 1.0; end end end end"), NONE) << "A writable source must be accepted.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "function f(#[semantics = reference_mutable] values: c.array<float32>) fork_join partition mutable values into 2 as part do scale(part); end end end"), NONE) << "A writable part may be passed to a write borrow.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "function f(#[semantics = reference_mutable] values: c.array<float32>) fork_join partition values into 2 as part do for each v in mutable part do end end end end"), ONE) << "The part of a partition with no mutable is read-only.";
+}

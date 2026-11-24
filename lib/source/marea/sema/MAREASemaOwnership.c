@@ -365,6 +365,22 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckParameter(MAREA_SemaContext *con
     return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_BORROW, MAREA_AstNodeGetPosition(parameter), "value_read_only is legal only for a primitive:", MAREA_AstNodeGetText(parameterName), MAREA_AstNodeGetTextLength(parameterName));
 }
 
+// INFO: a mutable loop or partition binds a read-only name exactly when its source is read-only, so the bound name is the test and the report goes to the source.
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckMutableSource(MAREA_SemaContext *context, const MAREA_AstNode *bound, const MAREA_AstNode *source)
+{
+    if ((MAREA_G_IsIdentifier(bound) == MAREA_BOOLEAN_FALSE) || (MAREA_SemaIsReadOnly(context, bound) == MAREA_BOOLEAN_FALSE)) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_AstNode *root = MAREA_G_RootOf(source);
+
+    if (root == MAREA_NULLPTR) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_WRITE_THROUGH_READ_ONLY_BORROW, MAREA_AstNodeGetPosition(source), "a mutable view of a read-only borrow:", MAREA_AstNodeGetText(root), MAREA_AstNodeGetTextLength(root));
+}
+
 MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckOwnership(MAREA_SemaContext *context, const MAREA_AstNode *node)
 {
     if ((context == MAREA_NULLPTR) || (node == MAREA_NULLPTR)) {
@@ -430,6 +446,23 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckOwnership(MAREA_SemaContext *context,
 
         return MAREA_G_CheckCopyOrMove(context, node, MAREA_SemaInferType(context, target), value);
     }
+    case MAREA_AST_KIND_FOR_EACH_STATEMENT:
+    {
+        const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(node);
+
+        if ((COUNT < 2) || ((MAREA_AstNodeGetFlags(node) & MAREA_AST_FLAG_MUTABLE) == 0)) {
+            return MAREA_SEMA_EXCEPT_SUCCESS;
+        }
+
+        // INFO: the binder of this node was just pushed, and it is read-only only when the source is, so the first loop name tells.
+        return MAREA_G_CheckMutableSource(context, MAREA_SemaChildAt(node, 0), MAREA_SemaChildAt(node, (COUNT - 2)));
+    }
+    case MAREA_AST_KIND_PARTITION_STATEMENT:
+        if ((MAREA_AstNodeGetFlags(node) & MAREA_AST_FLAG_MUTABLE) == 0) {
+            return MAREA_SEMA_EXCEPT_SUCCESS;
+        }
+
+        return MAREA_G_CheckMutableSource(context, MAREA_SemaChildAt(node, 2), MAREA_SemaChildAt(node, 0));
     case MAREA_AST_KIND_LOCAL_DECLARATION:
     {
         const MAREA_SemaExcept LITERAL_RESULT = MAREA_SemaCheckExpressionFit(context, MAREA_SemaChildAt(node, 1), MAREA_SemaChildAt(node, 2));
