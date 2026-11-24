@@ -63,10 +63,11 @@ TEST(MAREASemaStaticAssert, CompileErrorInAFunctionBodyRaisesTheCode)
 
 TEST(MAREASemaStaticAssert, CompileErrorWithAnyArgumentsStillRaisesTheCode)
 {
-    GTEST_COUT << "Validating that compile_error raises the code whatever its arguments are." << std::endl;
+    GTEST_COUT << "Validating that compile_error raises the code whatever its arguments, and that a wrong shape adds the macro shape code." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOfProgram("namespace main; compile_error!();"), Codes{ FAILED });
-    EXPECT_EQ(MAREA_codesOfProgram("namespace main; compile_error!(1, 2);"), Codes{ FAILED });
+    EXPECT_EQ(MAREA_codesOfProgram("namespace main; compile_error!(\"\");"), Codes{ FAILED });
+    EXPECT_EQ(MAREA_codesOfProgram("namespace main; compile_error!();"), (Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_MACRO_ARGUMENT, FAILED }));
+    EXPECT_EQ(MAREA_codesOfProgram("namespace main; compile_error!(1, 2);"), (Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_MACRO_ARGUMENT, FAILED }));
 }
 
 TEST(MAREASemaStaticAssert, CompileErrorIsReportedAtTheCall)
@@ -164,12 +165,12 @@ TEST(MAREASemaStaticAssert, CyclicConstantsAreUnknown)
     EXPECT_EQ(std::count(CODES.begin(), CODES.end(), FAILED), 0);
 }
 
-TEST(MAREASemaStaticAssert, WrongArgumentCountIsSkippedInSilence)
+TEST(MAREASemaStaticAssert, WrongArgumentCountIsLeftToTheMacroShapeRule)
 {
     GTEST_COUT << "Validating that a static_assert with a wrong argument count is left to the macro shape rule." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOfProgram("namespace main; static_assert!(1 == 2);"), Codes{});
-    EXPECT_EQ(MAREA_codesOfProgram("namespace main; static_assert!(1 == 2, \"a\", \"b\");"), Codes{});
+    EXPECT_EQ(MAREA_codesOfProgram("namespace main; static_assert!(1 == 2);"), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_MACRO_ARGUMENT });
+    EXPECT_EQ(MAREA_codesOfProgram("namespace main; static_assert!(1 == 2, \"a\", \"b\");"), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_MACRO_ARGUMENT });
 }
 
 TEST(MAREASemaStaticAssert, OtherMacrosAreNotEvaluated)

@@ -347,7 +347,7 @@ declaration checks and before the visit, with a visit state kept in the arena an
 needs no recursion.
 
 **Compile-time macros.** A `compile_error!(...)` call always raises `COMPILE_TIME_ASSERTION_FAILED` (3059) at the
-call, in a function body and at the top level, whatever its arguments are. A `static_assert!(condition, "text")` call
+call, in a function body and at the top level, whatever its arguments are (a wrong argument shape adds 3061 before it). A `static_assert!(condition, "text")` call
 with two arguments raises 3059 when its condition is a constant that evaluates to false. A small evaluator reads the
 condition: boolean and integer literals (decimal, `0x`, `0b`, `_`), a file constant (read through its initial value,
 with a depth limit of 32, so a cyclic constant ends as unknown), parentheses, unary `not` and unary minus, `and`, `or`,
