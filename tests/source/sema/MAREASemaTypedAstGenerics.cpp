@@ -105,7 +105,7 @@ namespace
     const std::string PRINTABLE{ "contract Printable function describe(self: Self): string; end " };
 
     const std::string MAXIMUM{ "function maximum<Item>(left: Item, right: Item): Item where Item: Comparable, Copyable "
-                               "if left.less(right) then return copy right; end end return copy left; end " };
+                               "if left.less(right) then return copy right; end return copy left; end " };
 } // namespace
 
 TEST(MAREASemaTypedAstGenerics, BareGenericResultIsInferredFromTheArgument)
