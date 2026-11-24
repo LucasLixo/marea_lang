@@ -11,6 +11,8 @@
 
 namespace main;
 
+import c.stdio;
+
 -- A function type has its own name. It is a type name, so it uses PascalCase.
 #[visibility = public]
 type BinaryOperation = function(left: sinteger32, right: sinteger32): sinteger32;

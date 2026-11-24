@@ -469,8 +469,10 @@ below them: operands, arguments, indexes, entries of a literal value) must be de
 `for`, `for each`, `partition` or `with` statement (hidden from the end of that statement), a declaration or
 import of the file, a generic parameter in scope, a constant of an `implementation` block inside that block only, the
 first segment of the file namespace, or one of the built-ins `c`, `size_of`, `align_of`, `convert` and `Self`.
-A member name, a field key of a literal value, a type, a macro call and the bare name that starts a member
-chain (`stdio.puts(text)`, which may be a namespace the file never imports) are not checked. The local that a
+A member name, a field key of a literal value, a type and a macro call are not checked. The bare name that
+starts a member chain (`stdio.puts(text)`) is checked like any other name, so a namespace that no import binds,
+or that only the original name of an alias reaches (`import c.stdio as output;` then `stdio.puts(text)`), raises
+`UNDECLARED_NAME` (3004). The local that a
 `for`, `for each`, `partition` or `with` name hides is never used to type the name.
 A function is declared before its use: a bare function name inside a function body that stands before the declaration
 of that function in the file raises `UNDECLARED_NAME` (3004) with the message "function is used before its declaration".
@@ -686,7 +688,7 @@ or rejects.
 | 3001 | `UNRESOLVED_IMPORT` | `import a.b.c;` when the resolver finds neither `a.b.c` nor a `c` that is not private in `a.b`; `import a.b { f };` when `a.b` is not found, `f` is a private symbol of it or is missing, a two-part member is not a variant of an enum that is not private, or the member path has more than two parts |
 | 3002 | `NAMESPACE_PATH_MISMATCH` | `namespace a.b.c;` in the file `a/b.marea` |
 | 3003 | `NAME_ALREADY_DECLARED` | `structure Item end function Item() end`, or an import (or an import alias, or a member alias) and a declaration or another import of one local name; an import alias or a `type` named `c` (message `name is reserved:`); a generic parameter that repeats an earlier one of its list or names a top-level declaration, `pick<Item, Item>`; two parameters of one name; a body local that repeats a parameter or a local of the same block |
-| 3004 | `UNDECLARED_NAME` | `where Item: Missing`, or a constraint on a name that is not a generic parameter; `local x: sinteger32 = missing;`, `missing(1);`; a bare function name that stands in a function body before the function is declared in the file |
+| 3004 | `UNDECLARED_NAME` | `where Item: Missing`, or a constraint on a name that is not a generic parameter; `local x: sinteger32 = missing;`, `missing(1);`, `missing.field`, `stdio.puts(x)` with no import of `stdio`; a bare function name that stands in a function body before the function is declared in the file |
 | 3005 | `UNKNOWN_ATTRIBUTE_KEY` | `#[frobnicate = true]`, `#[simd]`, `#[public]` |
 | 3006 | `INVALID_ATTRIBUTE_VALUE` | `#[inline = maybe]`, `#[build = 1]`, `#[visibility]`, `#[export]` |
 | 3007 | `CONFLICTING_ATTRIBUTES` | `#[pack = 1, align = 16]`, a key given twice (`visibility` twice included) |
@@ -757,9 +759,7 @@ or rejects.
   or a string (3038) and for `and`, `or` and `not` on a known type that is not `boolean` (3039). Every other operator
   (arithmetic on a `boolean` or a `string`, a comparison of two booleans) is not checked, a `character` operand of a
   bitwise operator is accepted, and an operator that is declared for a structure is not compared.
-- `UNDECLARED_NAME` (3004) is not raised for the bare name that starts a member chain. The bare chain head is
-  skipped because the `basics/functions` example calls `stdio.puts(text)` with no `import`, so the name may be a
-  namespace; a later step can check it once that example imports what it uses. The `for`, `for each`, `partition`
+- The `for`, `for each`, `partition`
   and `with` header expressions and the initializer of a file constant are checked. The loop name is already in
   scope when its own header is checked, so `for i in 0 .. i` with no outer `i` raises nothing. A constant that has
   an `ERROR_NODE` below it has no name check, because the parser may leave its tokens as an expression.

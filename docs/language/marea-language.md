@@ -491,6 +491,7 @@ lifecycle operator (3027) and structured `fork_join` with `partition` and `spawn
 | L-MEMORY-025 | A worker spawned on a call result | 3020 @29 |
 | L-MEMORY-029 | A return leaves the body of a partition | 3024 @22 |
 | L-MEMORY-031 | A worker takes the part of a partition mutable while the source is also spawned | 3020 @30 |
+| L-MEMORY-032 | A field of a scope block local is read after the block | 3004 @27 |
 
 ### Memory and regions: known_gap
 
@@ -503,7 +504,6 @@ lifecycle operator (3027) and structured `fork_join` with `partition` and `spawn
 | L-MEMORY-020 | The destroy operator is called on a value | gap: #209 3027, rule: reject |
 | L-MEMORY-021 | A structure is destroyed twice by moving it and keeping the old owner | gap: #198 NEW, rule: reject |
 | L-MEMORY-030 | A worker is spawned outside of a fork_join block | gap: #211 NEW, rule: reject |
-| L-MEMORY-032 | A field of a scope block local is read after the block | gap: #212 3004, rule: reject |
 
 #### Aliasing holes
 
@@ -880,6 +880,8 @@ import need the same second file, so they have no item either; a namespace that 
 | L-NAMESPACES-033 | A type alias named c hides the reserved namespace c | 3003 @9 |
 | L-NAMESPACES-034 | Two functions with the same name | 3003 @13 |
 | L-NAMESPACES-035 | A function and a constant with the same name | 3003 @11 |
+| L-NAMESPACES-036 | A namespace used with no import | 3004 @10 |
+| L-NAMESPACES-037 | The original name of an alias used as a namespace | 3004 @12 |
 | L-NAMESPACES-038 | A name of the namespace of a missing import | 3001 @9 |
 | L-NAMESPACES-039 | A namespace cannot import itself | 3001 @9 |
 | L-NAMESPACES-040 | An unknown attribute key | 3005 @9 |
@@ -897,8 +899,6 @@ import need the same second file, so they have no item either; a namespace that 
 
 | Id | Shows | Expected |
 |---|---|---|
-| L-NAMESPACES-036 | A namespace used with no import | gap: 3004, rule: reject, issue #236 |
-| L-NAMESPACES-037 | The original name of an alias used as a namespace | gap: 3004, rule: reject, issue #236 |
 | L-NAMESPACES-051 | A user function named like a built-in macro | gap: NEW, rule: reject, issue #237 |
 | L-NAMESPACES-052 | A local named like a built-in macro | gap: NEW, rule: reject, issue #237 |
 | L-NAMESPACES-053 | An import alias that shadows a primitive type | gap: 3003, rule: reject, issue #238 |
@@ -1259,13 +1259,13 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | examples | 20 | 0 | 0 |
 | functions | 19 | 45 | 9 |
 | interop | 17 | 23 | 5 |
-| memory | 15 | 10 | 8 |
-| namespaces | 17 | 28 | 6 |
+| memory | 15 | 11 | 7 |
+| namespaces | 17 | 30 | 4 |
 | ownership | 65 | 40 | 40 |
 | parallel | 19 | 23 | 17 |
 | seed | 1 | 2 | 0 |
 | types | 60 | 116 | 20 |
-| total | 266 | 398 | 147 |
+| total | 266 | 401 | 144 |
 
 ## Parity plan
 
