@@ -85,6 +85,37 @@ static MAREA_Boolean MAREA_CALL MAREA_G_ReadInteger(const MAREA_Character8 *text
     return MAREA_BOOLEAN_TRUE;
 }
 
+// INFO: the product is built from the two magnitudes in an unsigned 64-bit integer, so no signed step can overflow. A product that does not fit a signed 64-bit integer gives unknown.
+static MAREA_G_Value MAREA_CALL MAREA_G_Multiply(MAREA_Sinteger64 left, MAREA_Sinteger64 right)
+{
+    if ((left == 0) || (right == 0)) {
+        return MAREA_G_FromInteger(0);
+    }
+
+    const MAREA_Uinteger64 LEFT_MAGNITUDE = (left < 0) ? (MAREA_Uinteger64)0 - (MAREA_Uinteger64)left : (MAREA_Uinteger64)left;
+
+    const MAREA_Uinteger64 RIGHT_MAGNITUDE = (right < 0) ? (MAREA_Uinteger64)0 - (MAREA_Uinteger64)right : (MAREA_Uinteger64)right;
+
+    if (LEFT_MAGNITUDE > (UINT64_MAX / RIGHT_MAGNITUDE)) {
+        return MAREA_G_Unknown();
+    }
+
+    const MAREA_Uinteger64 MAGNITUDE = (LEFT_MAGNITUDE * RIGHT_MAGNITUDE);
+
+    const MAREA_Boolean NEGATIVE = ((left < 0) != (right < 0)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+
+    if (NEGATIVE == MAREA_BOOLEAN_TRUE) {
+        // INFO: the magnitude 2^63 is the lowest signed value, so it fits only with a negative sign.
+        if (MAGNITUDE > ((MAREA_Uinteger64)INT64_MAX + 1)) {
+            return MAREA_G_Unknown();
+        }
+
+        return MAREA_G_FromInteger((MAGNITUDE == ((MAREA_Uinteger64)INT64_MAX + 1)) ? INT64_MIN : -(MAREA_Sinteger64)MAGNITUDE);
+    }
+
+    return (MAGNITUDE > (MAREA_Uinteger64)INT64_MAX) ? MAREA_G_Unknown() : MAREA_G_FromInteger((MAREA_Sinteger64)MAGNITUDE);
+}
+
 // INFO: one arithmetic step over 64-bit integers. Overflow, a division by zero and INT64_MIN / -1 give unknown, never a diagnostic: the rules of the constant arithmetic belong to other checks.
 static MAREA_G_Value MAREA_CALL MAREA_G_Arithmetic(MAREA_TokenKind operatorKind, MAREA_Sinteger64 left, MAREA_Sinteger64 right)
 {
@@ -102,19 +133,7 @@ static MAREA_G_Value MAREA_CALL MAREA_G_Arithmetic(MAREA_TokenKind operatorKind,
 
         return MAREA_G_FromInteger(left - right);
     case MAREA_TOKEN_KIND_STAR:
-        if ((left == 0) || (right == 0)) {
-            return MAREA_G_FromInteger(0);
-        }
-
-        if (((left == -1) && (right == INT64_MIN)) || ((right == -1) && (left == INT64_MIN))) {
-            return MAREA_G_Unknown();
-        }
-
-        if (((left > 0) && (right > 0) && (left > (INT64_MAX / right))) || ((left < 0) && (right < 0) && (left < (INT64_MAX / right))) || ((left > 0) && (right < 0) && (right < (INT64_MIN / left))) || ((left < 0) && (right > 0) && (left < (INT64_MIN / right)))) {
-            return MAREA_G_Unknown();
-        }
-
-        return MAREA_G_FromInteger(left * right);
+        return MAREA_G_Multiply(left, right);
     case MAREA_TOKEN_KIND_SLASH:
     case MAREA_TOKEN_KIND_PERCENT:
         if ((right == 0) || ((left == INT64_MIN) && (right == -1))) {
