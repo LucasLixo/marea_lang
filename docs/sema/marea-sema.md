@@ -213,8 +213,11 @@ parameter is defaulted.
 copy), `reference_read_only` (a read-only borrow) or `reference_mutable` (a write borrow, the
 `EXCLUSIVE_BORROW_CONFLICT`/`INVALID_SPAWN_ARGUMENT` axis); `MAREA_SemaGetParameterSemantics` is
 the one place the rest of sema reads it. With no attribute written, a primitive defaults to
-`value_read_only` and any other type defaults to `reference_mutable` - the former `mutable`/
-`reference` keywords are retired, `mutable` stays reserved only for `for each` and `partition`.
+`value_read_only`, `owned<T>`, `task<T>` and `vector<T>` default to `reference_mutable` (they move
+in and are never a borrow), and any other type defaults to `reference_read_only` - settled rule 2. A
+write borrow needs the explicit `reference_mutable`. The former `mutable`/`reference` keywords are
+retired, `mutable` stays reserved only for `for each` and `partition`. Sema does not reject a write
+through a read-only borrow yet: the next apply of the handoff adds that check.
 `value_read_only` is legal only on a primitive; writing it on anything else is `INVALID_BORROW`
 (3017). `owned<T>` moves in regardless of `semantics`. A primitive, an `array`, `pointer`, `slice`
 and an enum is by value for the *ownership mode* (`MAREA_SemaOwnershipMode`) no matter what
@@ -226,10 +229,10 @@ attribute exempts any other user type - the retired `#[value]` key does not exis
 move_only or plain, is never by value by itself). A `vector` is a move type, so `=` of a `vector`
 name needs `copy x` or `move x`. `=` of a name, field or element of any other type needs
 `copy x` or `move x`, in an assignment and in a local initializer. A call or a literal needs no word.
-A borrow parameter (`reference_read_only` or `reference_mutable`, explicit or by default), a
+A borrow parameter (`reference_read_only`, explicit or by default, or an explicit `reference_mutable`), a
 `for each` variable, a `partition` part and a `with` name cannot be returned, nor be the value of
 a field. A new local of the same name ends the reference. A file constant passed as the argument of
-a `reference_mutable` (write-borrow) parameter, explicit or by default, has no writable storage to
+an explicit `reference_mutable` (write-borrow) parameter has no writable storage to
 back the borrow, so it is rejected with `CANNOT_BORROW_CONSTANT_AS_MUTABLE` (3032); a variable
 passed to the same parameter is unaffected. An assignment (`=` or a compound form) whose target is a file constant, or a field or element path
 rooted in one (`ORIGIN.x = 1;`, `TABLE[0] = 1;`), is `ASSIGNMENT_TO_CONSTANT` (3040), raised at the target; a local,
@@ -475,8 +478,9 @@ same rules "Ownership" above already states: `VALUE` (a primitive, an `array`/`p
 core type - checked before `semantics`, so no attribute changes it - or an enum, the documented,
 intentional exception; no attribute exempts any other user type), `BORROW` (a parameter whose
 effective `semantics` is `reference_read_only`, a `for each` variable, a `partition` part or a
-`with` name), `MUTABLE_BORROW` (a parameter whose effective `semantics` is `reference_mutable`,
-explicit or by default), `MOVE` (an `owned<T>` or `task<T>` parameter or value), `COPY` (a `copy x`
+`with` name; this is also a parameter with no attribute, whose type is not by value and does not
+move in), `MUTABLE_BORROW` (a parameter whose effective `semantics` is an explicit
+`reference_mutable`), `MOVE` (an `owned<T>` or `task<T>` parameter or value), `COPY` (a `copy x`
 expression). A node this cannot classify defaults to `VALUE`.
 
 **Call results.** A call expression's typed node carries the type the call returns. A call of a function of the
@@ -712,7 +716,7 @@ or rejects.
   scope when its own header is checked, so `for i in 0 .. i` with no outer `i` raises nothing. A constant that has
   an `ERROR_NODE` below it has no name check, because the parser may leave its tokens as an expression.
 - `CANNOT_BORROW_CONSTANT_AS_MUTABLE` (3032) sees only a bare file-constant name as the argument. A field chain
-  rooted in a constant (`ORIGIN.x`) passed to a write-borrow parameter is not rejected, and a test proves only the
+  rooted in a constant (`ORIGIN.x`) passed to an explicit `reference_mutable` parameter is not rejected, and a test proves only the
   bare name.
 - `ASSIGNMENT_TO_CONSTANT` (3040) sees only a constant that a file declares. A constant that an `implementation`
   declares is not rejected.
