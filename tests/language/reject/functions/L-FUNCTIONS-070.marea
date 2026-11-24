@@ -1,14 +1,12 @@
--- gap: #188 3003
--- rule: reject
+-- expect: 3003 @10
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- A local redeclared in the same scope.
+-- A parameter that shares its name with a local of the body.
 
 namespace main;
 
-function check(): sinteger32
+function run(value: sinteger32): sinteger32
     local value: sinteger32 = 1;
-    local value: sinteger32 = 2;
     return value;
 end

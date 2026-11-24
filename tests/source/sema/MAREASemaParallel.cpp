@@ -70,7 +70,7 @@ TEST(MAREASemaParallel, LocalShadowingAWriteBorrowIsAccepted)
 {
     GTEST_COUT << "Validating a local that shadows a write-borrowed parameter is not a write borrow." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("function g(a: c.array<float32>) end function f(m: c.array<float32>, values: c.array<float32>) local m: c.array<float32> = c.array<float32>{}; fork_join partition values into 4 as part do spawn g(m); end end end").empty()) << "A shadowing local must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function g(a: c.array<float32>) end function f(m: c.array<float32>, values: c.array<float32>) do local m: c.array<float32> = c.array<float32>{}; fork_join partition values into 4 as part do spawn g(m); end end end end").empty()) << "A shadowing local must raise nothing.";
 }
 
 TEST(MAREASemaParallel, SourceOfAnActiveMutablePartitionIsRejected)
