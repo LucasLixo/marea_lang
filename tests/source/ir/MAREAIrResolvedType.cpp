@@ -300,7 +300,8 @@ namespace
     const std::string BOX{ "structure Box x: sinteger32; end implementation Box #[operator = \"destroy\"] function drop() end end " };
 } // namespace
 
-TEST(MAREAIrResolvedType, WrittenInitializerNeverGetsAZeroNextToIt)
+// DISABLED: an omitted field is now MISSING_FIELD (3077); the ir ZERO_VALUE for fields is dead until the follow-up apply removes it
+TEST(MAREAIrResolvedType, DISABLED_WrittenInitializerNeverGetsAZeroNextToIt)
 {
     GTEST_COUT << "Validating a local with = or a literal holds exactly one value child and no ZERO_VALUE." << std::endl;
 
@@ -355,7 +356,8 @@ TEST(MAREAIrResolvedType, LocalWithNoInitializerLowersWithNoValueChild)
     EXPECT_EQ(MAREA_findKind(fixture.module, MAREA_IR_KIND_ZERO_VALUE), nullptr) << "No ZERO_VALUE may be invented for a local.";
 }
 
-TEST(MAREAIrResolvedType, ZeroValueOfAnOmittedFieldCarriesTheFieldType)
+// DISABLED: an omitted field is now MISSING_FIELD (3077); the ir ZERO_VALUE for fields is dead until the follow-up apply removes it
+TEST(MAREAIrResolvedType, DISABLED_ZeroValueOfAnOmittedFieldCarriesTheFieldType)
 {
     GTEST_COUT << "Validating the ZERO_VALUE of an omitted struct field carries the type of that field." << std::endl;
 
@@ -370,7 +372,8 @@ TEST(MAREAIrResolvedType, ZeroValueOfAnOmittedFieldCarriesTheFieldType)
     EXPECT_EQ(MAREA_countOf(DUMP, "ZERO_VALUE resolved=sinteger32"), std::size_t{ 0 }) << "The named field x must not be zeroed: " << DUMP;
 }
 
-TEST(MAREAIrResolvedType, EmptyLiteralZeroesEveryFieldWithItsOwnType)
+// DISABLED: an omitted field is now MISSING_FIELD (3077); the ir ZERO_VALUE for fields is dead until the follow-up apply removes it
+TEST(MAREAIrResolvedType, DISABLED_EmptyLiteralZeroesEveryFieldWithItsOwnType)
 {
     GTEST_COUT << "Validating an empty struct literal gives each ZERO_VALUE the type of its own field." << std::endl;
 

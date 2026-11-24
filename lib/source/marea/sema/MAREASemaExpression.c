@@ -1010,7 +1010,7 @@ static const MAREA_AstNode *MAREA_CALL MAREA_G_StructureField(const MAREA_AstNod
     return MAREA_NULLPTR;
 }
 
-// INFO: a literal of a structure of this file has its keys and values compared with the fields: a key that no field has is UNKNOWN_FIELD, a key seen before is DUPLICATE_MEMBER and a value is fitted to the declared type. A missing field is not reported, because the ir gives it the zero value.
+// INFO: a literal of a structure of this file has its keys and values compared with the fields: a key that no field has is UNKNOWN_FIELD, a key seen before is DUPLICATE_MEMBER and a value is fitted to the declared type. A field that no entry names is MISSING_FIELD, one report per literal for the first such field in declaration order, checked after the entries.
 static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckLiteralFields(MAREA_SemaContext *context, const MAREA_AstNode *literal)
 {
     const MAREA_AstNode *structure = MAREA_G_StructureOfType(context, MAREA_SemaChildAt(literal, 0));
@@ -1060,6 +1060,39 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckLiteralFields(MAREA_SemaContext 
 
         if (fit != MAREA_SEMA_EXCEPT_SUCCESS) {
             return fit;
+        }
+    }
+
+    // INFO: a generic structure is skipped, because its fields are not seen through the type arguments.
+    if (MAREA_G_FindChild(structure, MAREA_AST_KIND_GENERIC_PARAMETERS) != MAREA_NULLPTR) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    for (MAREA_IntegerSize index = 0; index < MAREA_AstNodeGetChildCount(structure); ++index) {
+        const MAREA_AstNode *field = MAREA_SemaChildAt(structure, index);
+
+        const MAREA_AstNode *fieldName = ((field != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(field) == MAREA_AST_KIND_FIELD_DECLARATION)) ? MAREA_G_FindChild(field, MAREA_AST_KIND_IDENTIFIER) : MAREA_NULLPTR;
+
+        if (fieldName == MAREA_NULLPTR) {
+            continue;
+        }
+
+        MAREA_Boolean named = MAREA_BOOLEAN_FALSE;
+
+        for (MAREA_IntegerSize at = 1; at < MAREA_AstNodeGetChildCount(literal); ++at) {
+            const MAREA_AstNode *entry = MAREA_SemaChildAt(literal, at);
+
+            const MAREA_AstNode *key = ((entry != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(entry) == MAREA_AST_KIND_FIELD_ENTRY)) ? MAREA_SemaChildAt(entry, 0) : MAREA_NULLPTR;
+
+            if ((key != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(key) == MAREA_AST_KIND_IDENTIFIER) && (MAREA_SemaTextEquals(MAREA_AstNodeGetText(key), MAREA_AstNodeGetTextLength(key), MAREA_AstNodeGetText(fieldName), MAREA_AstNodeGetTextLength(fieldName)) == MAREA_BOOLEAN_TRUE)) {
+                named = MAREA_BOOLEAN_TRUE;
+
+                break;
+            }
+        }
+
+        if (named == MAREA_BOOLEAN_FALSE) {
+            return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_MISSING_FIELD, MAREA_AstNodeGetPosition(literal), "struct literal misses a field", MAREA_AstNodeGetText(fieldName), MAREA_AstNodeGetTextLength(fieldName));
         }
     }
 
