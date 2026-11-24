@@ -24,10 +24,10 @@ MAREA_BEGIN_EXTERN_C
      * TYPE_NAME or an INTEGER_LITERAL), and a BUILTIN_NAME is the callee of a built-in call with explicit type
      * arguments (the text is the name; the children are the type arguments, each a TYPE_NAME or an
      * INTEGER_LITERAL). CHARACTER_LITERAL is appended after them so no value moves (the text is the literal as written, with its
-     * single quotes). ZERO_VALUE is appended last of all: a leaf with no text, no type name and no children, the
-     * explicit zero of the zero-default rule (a LOCAL_DECLARATION with no written initializer, or a struct
-     * LITERAL_VALUE field the source left unnamed). CONSTRUCT_CALL and DESTROY_CALL are appended after ZERO_VALUE,
-     * so no value moves: CONSTRUCT_CALL is the explicit lowering of Type(args) (the type name is the constructed
+     * single quotes). The value after CHARACTER_LITERAL is retired: it was ZERO_VALUE, a kind that no accepted program
+     * could reach once sema rejected a local with no initializer and a struct literal that omits a field. It stays
+     * unused, so that no kind that follows it changes its value, and MAREA_IrKindGetName names it "UNKNOWN".
+     * CONSTRUCT_CALL and DESTROY_CALL follow it, so no value moves: CONSTRUCT_CALL is the explicit lowering of Type(args) (the type name is the constructed
      * type, the one child is an ARGUMENT_LIST, filled with construct's own defaults as an ordinary call fills
      * them; a Type{...} literal of a type with construct has a second child, the LITERAL_VALUE that is its initial value);
      * DESTROY_CALL is the explicit cleanup the ir inserts at a scope exit of a destructible local (the
@@ -82,8 +82,7 @@ MAREA_BEGIN_EXTERN_C
         MAREA_IR_KIND_TYPE_NAME,
         MAREA_IR_KIND_BUILTIN_NAME,
         MAREA_IR_KIND_CHARACTER_LITERAL,
-        MAREA_IR_KIND_ZERO_VALUE,
-        MAREA_IR_KIND_CONSTRUCT_CALL,
+        MAREA_IR_KIND_CONSTRUCT_CALL = (MAREA_IR_KIND_CHARACTER_LITERAL + 2),
         MAREA_IR_KIND_DESTROY_CALL,
 
         MAREA_IR_KIND_COUNT
@@ -92,7 +91,7 @@ MAREA_BEGIN_EXTERN_C
     /**
      * @brief Returns the stable upper-case name of an IR kind, for example "MODULE".
      * @param kind Kind to name.
-     * @return The name, or "UNKNOWN" when kind is out of range.
+     * @return The name, or "UNKNOWN" when kind is out of range or is the retired value after CHARACTER_LITERAL.
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_Character8 *MAREA_CALL MAREA_IrKindGetName(MAREA_IrKind kind);
 

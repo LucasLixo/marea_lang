@@ -172,7 +172,7 @@ TEST(MAREAIrDeclarations, ParameterWithoutDefaultStaysOutsideTheZeroDefaultRule)
 
     const MAREA_IrNode *function{ MAREA_irChild(fixture.module, 0) };
 
-    EXPECT_EQ(MAREA_irRender(MAREA_irChild(function, 0)), "(PARAMETER_LIST (PARAMETER name :string))") << "A required parameter must keep zero children, not a synthesized ZERO_VALUE.";
+    EXPECT_EQ(MAREA_irRender(MAREA_irChild(function, 0)), "(PARAMETER_LIST (PARAMETER name :string))") << "A required parameter must keep zero children, not a synthesized default.";
 }
 
 TEST(MAREAIrDeclarations, FunctionKeepsParametersAndReturnTypeName)
