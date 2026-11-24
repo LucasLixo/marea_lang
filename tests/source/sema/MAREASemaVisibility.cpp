@@ -10,14 +10,15 @@ namespace
     constexpr MAREA_Uinteger32 UNRESOLVED{ MAREA_SEMA_DIAGNOSTIC_CODE_UNRESOLVED_IMPORT };
     constexpr MAREA_Uinteger32 PRIVATE_SYMBOL{ MAREA_SEMA_DIAGNOSTIC_CODE_PRIVATE_SYMBOL_ACCESS };
     constexpr MAREA_Uinteger32 PRIVATE_TYPE{ MAREA_SEMA_DIAGNOSTIC_CODE_PRIVATE_TYPE_ACCESS };
+    constexpr MAREA_Uinteger32 PRIVATE_FIELD{ MAREA_SEMA_DIAGNOSTIC_CODE_PRIVATE_FIELD_ACCESS };
 
-    // INFO: the library of every test: a public, a private and an attribute-less function, a public structure with a public and a private field, a private structure and a public constant.
+    // INFO: the library of every test: a public, a private and an attribute-less function, a public structure with a public, a private and an attribute-less field, a private structure and a public constant.
     constexpr const char *LIBRARY{
         "namespace a.b;"
         "#[visibility = public] function shown() end "
         "#[visibility = private] function hidden() end "
         "function plain() end "
-        "#[visibility = public] structure Box value: sinteger32; #[visibility = private] secret: sinteger32; end "
+        "#[visibility = public] structure Box open: sinteger32; #[visibility = private] value: sinteger32; other: sinteger32; end "
         "#[visibility = private] structure Secret end "
         "#[visibility = public] constant LIMIT: sinteger32 = 1;"
     };
@@ -74,7 +75,7 @@ namespace
     }
 
     const std::vector<MAREA_Uinteger32> NONE{};
-}
+} // namespace
 
 TEST(MAREASemaVisibility, PrivateFunctionOfAnotherNamespaceIsRejected)
 {
@@ -196,4 +197,71 @@ TEST(MAREASemaVisibility, LocalHidesTheNamespaceName)
     GTEST_COUT << "Validating a local that hides the namespace name is not a namespace access." << std::endl;
 
     EXPECT_EQ(MAREA_codesOf("namespace main; import a.b; function f(b: sinteger32) b.hidden(); end"), NONE) << "A local must hide the namespace name.";
+}
+
+TEST(MAREASemaVisibility, PrivateFieldReadOfAnotherNamespaceIsRejected)
+{
+    GTEST_COUT << "Validating a read of a private field of a structure of another namespace raises PRIVATE_FIELD_ACCESS." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("namespace main; import a.b; function f(box: b.Box): sinteger32 return box.value; end"), std::vector<MAREA_Uinteger32>{ PRIVATE_FIELD }) << "A private field must raise PRIVATE_FIELD_ACCESS.";
+}
+
+TEST(MAREASemaVisibility, PrivateFieldMessageNamesTheField)
+{
+    GTEST_COUT << "Validating the message names the field." << std::endl;
+
+    MAREA_VisibilityLibrary library;
+
+    MAREA_SemaFixture fixture(MAREA_answer("a.b", MAREA_SEMA_IMPORT_RESULT_FOUND, library.library.parser.root));
+
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; import a.b; function f(box: b.Box): sinteger32 return box.value; end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+
+    EXPECT_EQ(MAREA_firstMessage(fixture, PRIVATE_FIELD), "field is private: 'value'") << "The message must name the field.";
+}
+
+TEST(MAREASemaVisibility, PublicAndAttributeLessFieldsRaiseNothing)
+{
+    GTEST_COUT << "Validating a public field and an attribute-less field raise nothing." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("namespace main; import a.b; function f(box: b.Box): sinteger32 return box.open + box.other; end"), NONE) << "A public field must raise nothing.";
+}
+
+TEST(MAREASemaVisibility, PrivateFieldWriteIsRejected)
+{
+    GTEST_COUT << "Validating a write of a private field raises PRIVATE_FIELD_ACCESS." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("namespace main; import a.b; function f(#[semantics = reference_mutable] box: b.Box) box.value = 1; end"), std::vector<MAREA_Uinteger32>{ PRIVATE_FIELD }) << "A write of a private field must raise PRIVATE_FIELD_ACCESS.";
+}
+
+TEST(MAREASemaVisibility, PrivateFieldInLiteralIsRejected)
+{
+    GTEST_COUT << "Validating a private field set in a struct literal raises PRIVATE_FIELD_ACCESS, a public one raises nothing." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("namespace main; import a.b; function f() local box: b.Box = b.Box{ value = 1 }; end"), std::vector<MAREA_Uinteger32>{ PRIVATE_FIELD }) << "A private field in a literal must raise PRIVATE_FIELD_ACCESS.";
+    EXPECT_EQ(MAREA_codesOf("namespace main; import a.b; function f() local box: b.Box = b.Box{ open = 1 }; end"), NONE) << "A public field in a literal must raise nothing.";
+}
+
+TEST(MAREASemaVisibility, PrivateFieldOfTheSameFileRaisesNothing)
+{
+    GTEST_COUT << "Validating a private field of a structure of the same file is never checked." << std::endl;
+
+    MAREA_SemaFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; structure Box #[visibility = private] value: sinteger32; end function f(box: Box): sinteger32 return box.value; end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+
+    EXPECT_TRUE(fixture.MAREA_semaCodes().empty()) << "A field of the own file must raise nothing.";
+}
+
+TEST(MAREASemaVisibility, FieldOfAValueThatIsNotAPlainNamedTypeIsNotChecked)
+{
+    GTEST_COUT << "Validating a field read from a call result is not checked (a Gap)." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("namespace main; import a.b; function make(): b.Box return b.Box{ open = 1 }; end function f(): sinteger32 return make().value; end"), NONE) << "A call result must not be checked.";
+}
+
+TEST(MAREASemaVisibility, PrivateStructureRaisesTheTypeCodeOnly)
+{
+    GTEST_COUT << "Validating a private structure raises PRIVATE_TYPE_ACCESS and no PRIVATE_FIELD_ACCESS." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("namespace main; import a.b; function f(s: b.Secret) end"), std::vector<MAREA_Uinteger32>{ PRIVATE_TYPE }) << "A private structure must raise only PRIVATE_TYPE_ACCESS.";
 }
