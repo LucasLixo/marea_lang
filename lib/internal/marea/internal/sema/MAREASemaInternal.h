@@ -239,8 +239,10 @@ MAREA_BEGIN_EXTERN_C
      * children that decide it are built: the counter of a range has the type of the bounds, the value of a for each
      * the element type of an array, a vector or a slice and its key uinteger64, the part of a partition a slice of the
      * element type of the value, and the name of a with the type of its expression. The type is kept on the entry of
-     * the name in the locals of the context, so it ends with the scope. Any other node, a child that is not the
-     * last one that decides, and a type sema does not know are left as they are and are not an error.
+     * the name in the locals of the context, so it ends with the scope. For a for and a for each the declared name
+     * of the typed statement also carries the type, so the accessor of the resolved type answers on it. Any other node, a
+     * child that is not the last one that decides, and a type sema does not know are left as they are and are not an
+     * error.
      * @param context Context the node is being built with. Must not be null.
      * @param built Typed node of the statement, with the children up to index built. Must not be null.
      * @param index Position of the child that was built last.

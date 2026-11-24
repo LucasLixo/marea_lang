@@ -103,6 +103,99 @@ namespace
         EXPECT_FALSE(RESULT.typed) << "The identifier " << name << " number " << nth << " must have no type in: " << source;
     }
 
+    const MAREA_SemaTypedNode *MAREA_findStatement(const MAREA_SemaTypedNode *node, MAREA_AstKind kind)
+    {
+        if (node == nullptr) {
+            return nullptr;
+        }
+
+        if (MAREA_AstNodeGetKind(MAREA_SemaTypedNodeGetAstNode(node)) == kind) {
+            return node;
+        }
+
+        const MAREA_IntegerSize COUNT{ MAREA_SemaTypedNodeGetChildCount(node) };
+
+        for (MAREA_IntegerSize index{ 0 }; index < COUNT; ++index) {
+            const MAREA_SemaTypedNode *child{ nullptr };
+
+            if (MAREA_SemaTypedNodeGetChildAt(node, index, &child) != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) {
+                continue;
+            }
+
+            const MAREA_SemaTypedNode *found{ MAREA_findStatement(child, kind) };
+
+            if (found != nullptr) {
+                return found;
+            }
+        }
+
+        return nullptr;
+    }
+
+    // Checks the source clean, builds the typed tree and reads the type of one direct child of the first statement of a kind.
+    MAREA_ScopeTypeResult MAREA_headerChildTypeOf(const std::string &source, MAREA_AstKind kind, MAREA_IntegerSize childIndex, MAREA_ResolveCallback resolve = nullptr)
+    {
+        MAREA_SemaFixture fixture(resolve);
+
+        MAREA_ScopeTypeResult result;
+
+        if ((fixture.MAREA_sema(source) != MAREA_SEMA_EXCEPT_SUCCESS) || (fixture.MAREA_errorCount() != MAREA_INTEGER_SIZE(0))) {
+            ADD_FAILURE() << "The source must check clean: " << source;
+
+            return result;
+        }
+
+        const MAREA_SemaTypedNode *root{ nullptr };
+
+        if (MAREA_SemaBuildTypedAst(fixture.context, fixture.parser.root, &root) != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) {
+            ADD_FAILURE() << "The typed tree must build: " << source;
+
+            return result;
+        }
+
+        const MAREA_SemaTypedNode *statement{ MAREA_findStatement(root, kind) };
+
+        const MAREA_SemaTypedNode *child{ nullptr };
+
+        if ((statement == nullptr) || (MAREA_SemaTypedNodeGetChildAt(statement, childIndex, &child) != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS)) {
+            return result;
+        }
+
+        result.found = true;
+
+        const MAREA_Character8 *text{ nullptr };
+
+        MAREA_IntegerSize length{ 0 };
+
+        result.typed = (MAREA_SemaTypedNodeGetResolvedType(child, &text, &length) == MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS);
+
+        if (result.typed) {
+            result.text = std::string(text, length);
+        }
+
+        return result;
+    }
+
+    void MAREA_expectHeaderType(const std::string &source, MAREA_AstKind kind, MAREA_IntegerSize childIndex, const std::string &expected, MAREA_ResolveCallback resolve = nullptr)
+    {
+        const MAREA_ScopeTypeResult RESULT{ MAREA_headerChildTypeOf(source, kind, childIndex, resolve) };
+
+        ASSERT_TRUE(RESULT.found) << "The child " << childIndex << " must be in the typed tree of: " << source;
+
+        ASSERT_TRUE(RESULT.typed) << "The child " << childIndex << " must have a resolved type in: " << source;
+
+        EXPECT_EQ(RESULT.text, expected) << "The resolved type of the child " << childIndex << " is wrong in: " << source;
+    }
+
+    void MAREA_expectHeaderNoType(const std::string &source, MAREA_AstKind kind, MAREA_IntegerSize childIndex, MAREA_ResolveCallback resolve = nullptr)
+    {
+        const MAREA_ScopeTypeResult RESULT{ MAREA_headerChildTypeOf(source, kind, childIndex, resolve) };
+
+        ASSERT_TRUE(RESULT.found) << "The child " << childIndex << " must be in the typed tree of: " << source;
+
+        EXPECT_FALSE(RESULT.typed) << "The child " << childIndex << " must have no type in: " << source;
+    }
+
     const MAREA_ResolveCallback MAREA_EXTERNAL_RESOLVE{ [](const std::string &, const MAREA_AstNode **) { return MAREA_SEMA_IMPORT_RESULT_EXTERNAL; } };
 } // namespace
 
@@ -131,15 +224,97 @@ TEST(MAREASemaTypedAstScopes, RangeCounterOfAnUntypedBoundHasNoType)
     MAREA_expectScopeNoType("namespace main; import c.limits; function f(): sinteger32 local t: sinteger32 = 0; for i in 0 .. limits.top() do t += i; end return t; end", "i", 1, MAREA_EXTERNAL_RESOLVE);
 }
 
-TEST(MAREASemaTypedAstScopes, DeclaredNamesStayWithoutAType)
+TEST(MAREASemaTypedAstScopes, DeclaredNamesOfALoopHaveTheTypeOfTheirLoop)
 {
-    GTEST_COUT << "Validating the declared name of each statement is not a value and keeps no type." << std::endl;
+    GTEST_COUT << "Validating the declared name of a for range and of a for each carries the type its loop gives it." << std::endl;
 
-    MAREA_expectScopeNoType("namespace main; function f(n: sinteger32): sinteger32 local t: sinteger32 = 0; for i in 0 .. n do t += i; end return t; end", "i", 0);
+    MAREA_expectScopeType("namespace main; function f(n: sinteger32): sinteger32 local t: sinteger32 = 0; for i in 0 .. n do t += i; end return t; end", "i", 0, "sinteger32");
 
-    MAREA_expectScopeNoType("namespace main; function f(v: array<float32, 4>): float32 local t: float32 = 0.0; for each k, x in v do t += x; end return t; end", "k", 0);
+    MAREA_expectScopeType("namespace main; function f(v: array<float32, 4>): float32 local t: float32 = 0.0; for each k, x in v do t += x; end return t; end", "k", 0, "uinteger64");
 
-    MAREA_expectScopeNoType("namespace main; function f(v: array<float32, 4>): float32 local t: float32 = 0.0; for each k, x in v do t += x; end return t; end", "x", 0);
+    MAREA_expectScopeType("namespace main; function f(v: array<float32, 4>): float32 local t: float32 = 0.0; for each k, x in v do t += x; end return t; end", "x", 0, "float32");
+}
+
+TEST(MAREASemaTypedAstScopes, ForRangeCounterChildHasTheTypeOfTheBounds)
+{
+    GTEST_COUT << "Validating the counter child of a for range has the type of its bounds, read from the statement itself." << std::endl;
+
+    MAREA_expectHeaderType("namespace main; function f(n: uinteger64): uinteger64 local t: uinteger64 = 0; for i in 0 .. n do t += i; end return t; end", MAREA_AST_KIND_FOR_RANGE_STATEMENT, 0, "uinteger64");
+
+    MAREA_expectHeaderType("namespace main; function f(a: sinteger8, b: sinteger8): sinteger8 local t: sinteger8 = 0; for i in a .. b do t += i; end return t; end", MAREA_AST_KIND_FOR_RANGE_STATEMENT, 0, "sinteger8");
+
+    MAREA_expectHeaderType("namespace main; function f(): sinteger32 local t: sinteger32 = 0; for i in 0 .. 3 do t += i; end return t; end", MAREA_AST_KIND_FOR_RANGE_STATEMENT, 0, "sinteger32");
+}
+
+TEST(MAREASemaTypedAstScopes, ForRangeBoundsKeepTheirType)
+{
+    GTEST_COUT << "Validating the two bounds of a for range have a resolved type that agrees with the counter." << std::endl;
+
+    const std::string SOURCE{ "namespace main; function f(n: uinteger8): uinteger8 local t: uinteger8 = 0; for i in 0 .. n do t += i; end return t; end" };
+
+    MAREA_expectHeaderType(SOURCE, MAREA_AST_KIND_FOR_RANGE_STATEMENT, 1, "uinteger8");
+
+    MAREA_expectHeaderType(SOURCE, MAREA_AST_KIND_FOR_RANGE_STATEMENT, 2, "uinteger8");
+}
+
+TEST(MAREASemaTypedAstScopes, ForRangeCounterOfAnUntypedBoundHasNoTypeOnTheStatement)
+{
+    GTEST_COUT << "Validating the counter child of a for range is not guessed when the bound that decides has no type." << std::endl;
+
+    MAREA_expectHeaderNoType("namespace main; import c.limits; function f(): sinteger32 local t: sinteger32 = 0; for i in 0 .. limits.top() do t += i; end return t; end", MAREA_AST_KIND_FOR_RANGE_STATEMENT, 0, MAREA_EXTERNAL_RESOLVE);
+}
+
+TEST(MAREASemaTypedAstScopes, ForEachCollectionChildHasItsResolvedType)
+{
+    GTEST_COUT << "Validating the collection child of a for each carries the full resolved type of the collection." << std::endl;
+
+    MAREA_expectHeaderType("namespace main; function f(v: array<float32, 4>): float32 local t: float32 = 0.0; for each x in v do t += x; end return t; end", MAREA_AST_KIND_FOR_EACH_STATEMENT, 1, "array<float32,4>");
+
+    MAREA_expectHeaderType("namespace main; function f(v: vector<uinteger8>): uinteger8 local t: uinteger8 = 0; for each k, x in v do t += x; end return t; end", MAREA_AST_KIND_FOR_EACH_STATEMENT, 2, "vector<uinteger8>");
+
+    MAREA_expectHeaderType("namespace main; function f(v: slice<float32>): float32 local t: float32 = 0.0; for each x in mutable v do t += x; end return t; end", MAREA_AST_KIND_FOR_EACH_STATEMENT, 1, "slice<float32>");
+
+    MAREA_expectHeaderType("namespace main; import collections.array; function f(v: c.array<sinteger32>): sinteger32 local t: sinteger32 = 0; for each x in v do t += x; end return t; end", MAREA_AST_KIND_FOR_EACH_STATEMENT, 1, "c.array<sinteger32>", MAREA_EXTERNAL_RESOLVE);
+}
+
+TEST(MAREASemaTypedAstScopes, ForEachNameChildrenHaveTheirType)
+{
+    GTEST_COUT << "Validating the value child of a for each has the element type and the key child has uinteger64, read from the statement itself." << std::endl;
+
+    const std::string ONE{ "namespace main; function f(v: array<float32, 4>): float32 local t: float32 = 0.0; for each x in v do t += x; end return t; end" };
+
+    MAREA_expectHeaderType(ONE, MAREA_AST_KIND_FOR_EACH_STATEMENT, 0, "float32");
+
+    const std::string TWO{ "namespace main; function f(v: vector<sinteger16>): sinteger16 local t: sinteger16 = 0; local n: uinteger64 = 0; for each k, x in v do n += k; t += x; end return t; end" };
+
+    MAREA_expectHeaderType(TWO, MAREA_AST_KIND_FOR_EACH_STATEMENT, 0, "uinteger64");
+
+    MAREA_expectHeaderType(TWO, MAREA_AST_KIND_FOR_EACH_STATEMENT, 1, "sinteger16");
+}
+
+TEST(MAREASemaTypedAstScopes, ForEachNameChildrenOfAnUntypedCollectionHaveNoType)
+{
+    GTEST_COUT << "Validating a for each over a collection with no type leaves both loop names without a type, and never guesses the key." << std::endl;
+
+    const std::string SOURCE{ "namespace main; import c.things; function consume(x: sinteger32, k: uinteger64) end function f() for each k, x in things.all() do consume(x, k); end end" };
+
+    MAREA_expectHeaderNoType(SOURCE, MAREA_AST_KIND_FOR_EACH_STATEMENT, 0, MAREA_EXTERNAL_RESOLVE);
+
+    MAREA_expectHeaderNoType(SOURCE, MAREA_AST_KIND_FOR_EACH_STATEMENT, 1, MAREA_EXTERNAL_RESOLVE);
+
+    MAREA_expectHeaderNoType(SOURCE, MAREA_AST_KIND_FOR_EACH_STATEMENT, 2, MAREA_EXTERNAL_RESOLVE);
+}
+
+TEST(MAREASemaTypedAstScopes, NestedLoopsKeepTheirOwnNameTypes)
+{
+    GTEST_COUT << "Validating an inner loop that reuses an outer name types its own declared name, not the outer one." << std::endl;
+
+    const std::string SOURCE{ "namespace main; function f(n: uinteger64, v: array<float32, 4>): float32 local t: float32 = 0.0; for i in 0 .. n do for each i in v do t += i; end end return t; end" };
+
+    // The first declared i is the counter of the range, the second is the value of the for each.
+    MAREA_expectScopeType(SOURCE, "i", 0, "uinteger64");
+
+    MAREA_expectScopeType(SOURCE, "i", 1, "float32");
 }
 
 TEST(MAREASemaTypedAstScopes, ForEachValueIsTheElementType)

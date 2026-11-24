@@ -756,8 +756,8 @@ every run. The canonical spelling:
 
 **Resolved type of an expression.** The same accessor gives the type of an expression, in the same spelling. The text
 is made when the typed tree is built, after the typed children, so it uses what the children carry. A name that is
-not read as a value (a declared name, including the name that a loop or a scope declares, a member name, a field key) has no
-type. The rules:
+not read as a value (a member name, a field key, the declared name of a `partition` or a `with`) has no
+type. The declared name of a `for` and of a `for each` is the exception, see "Loop names and collection". The rules:
 
 | Expression | Resolved type |
 |---|---|
@@ -785,6 +785,25 @@ operation takes its type from the types its children have at the end of the buil
 gives the binary expression `sinteger64` and not the default `sinteger32` of its literals: when a context changes the
 type of the literals below an operation, the binary, unary and parenthesized expressions below that context are typed
 again.
+
+**Loop names and collection.** The typed tree gives a type to the three parts of a loop header that a backend would
+otherwise infer, and the same accessor, `MAREA_SemaTypedNodeGetResolvedType`, reads each of them on the typed child of the
+statement (children in the shape of the AST, see "Typed AST hand-off"):
+
+| Statement | Typed child | Resolved type |
+|---|---|---|
+| `FOR_RANGE_STATEMENT` | child 0, the declared counter | the type of the bounds, the same text that a read of the counter has |
+| `FOR_RANGE_STATEMENT` | child 1 and child 2, the bounds | the type of each bound, as of any expression |
+| `FOR_EACH_STATEMENT` with one name | child 0, the value | the element type of the collection |
+| `FOR_EACH_STATEMENT` with two names | child 0, the key; child 1, the value | `uinteger64`; the element type of the collection |
+| `FOR_EACH_STATEMENT` | the child before the last, the collection | the type of the collection expression (`array<float32,4>`, `vector<uinteger8>`, `slice<float32>`, `c.array<sinteger32>`) |
+
+The names come first, then the collection, then the body, so a `for each` has 3 children with one name and 4 with two:
+the collection is child `childCount - 2`, and the value is the last name, child `childCount - 3`. The collection of
+`for each x in mutable v` is the plain `v` (the flag `MUTABLE` is on the statement). The declared name carries the same
+type as a read of it, and a type that sema does not know leaves the name and the collection with no type
+(`ERROR_NO_TYPE`), never a guess. The element and the key follow the rule of "name of a loop or a scope" above: the
+element type of `array`, `vector` or `slice` (also under `c.`), and the key `uinteger64` for any of them.
 
 **Nodes that stay without a type.** An expression node with no resolved type is in one of nine closed classes (a macro
 call and what it holds, a written generic type that qualifies a member, the built-in callee names, a function name or
@@ -1055,6 +1074,9 @@ or rejects.
   their written name, not by the type they stand for in one instantiation. A name of an `EXTERNAL` namespace is
   spelled by what is written and the import alias rule, with no qualifier added; a type that a `FOUND` namespace
   declares is spelled with the last segment of that namespace instead (see "Members of a FOUND namespace").
+- The declared name of a `partition` (the part) and of a `with` carries no resolved type on its own typed node, though a read of the
+  name does: only the declared names of a `for` and a `for each` carry one (see "Loop names and collection"). Neither has a
+  consumer that needs it yet.
 - An expression with no resolved type. The sweep of the 23 examples (866 expression nodes, 36 of them qualifier names
   that are not values and are counted on their own) finds 79 expression nodes with no type, with a fixture signature
   function that answers `filled`, `append`, `sum` and `result` (see "Members of a library type"), and every one of the

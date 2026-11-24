@@ -609,3 +609,121 @@ TEST(MAREASemaTypedAstExamples, EveryLiteralOfEveryExampleHasAResolvedType)
 
     EXPECT_GT(literalCount, std::size_t{ 0 }) << "The examples must hold literals.";
 }
+
+namespace
+{
+    struct MAREA_LoopTally
+    {
+        std::size_t loops{ 0 };
+        std::size_t namesTyped{ 0 };
+        std::vector<std::string> namesUntyped;
+        std::vector<std::string> collectionsUntyped;
+    };
+
+    // Counts the declared names of every for range and for each, and the collection of a for each, that carry a resolved type.
+    void MAREA_tallyLoops(const MAREA_SemaTypedNode *node, const std::string &path, MAREA_LoopTally &tally)
+    {
+        if (node == nullptr) {
+            return;
+        }
+
+        const MAREA_AstKind KIND{ MAREA_AstNodeGetKind(MAREA_SemaTypedNodeGetAstNode(node)) };
+
+        const MAREA_IntegerSize COUNT{ MAREA_SemaTypedNodeGetChildCount(node) };
+
+        if ((KIND == MAREA_AST_KIND_FOR_RANGE_STATEMENT) || (KIND == MAREA_AST_KIND_FOR_EACH_STATEMENT)) {
+            ++tally.loops;
+
+            // A for range has one name, a for each has one or two names, then the collection and the body.
+            const MAREA_IntegerSize NAMES{ (KIND == MAREA_AST_KIND_FOR_RANGE_STATEMENT) ? MAREA_INTEGER_SIZE(1) : (COUNT - MAREA_INTEGER_SIZE(2)) };
+
+            for (MAREA_IntegerSize index{ 0 }; index < NAMES; ++index) {
+                if (MAREA_nodeHasType(MAREA_childAt(node, index))) {
+                    ++tally.namesTyped;
+                } else {
+                    tally.namesUntyped.push_back(path + " name " + std::to_string(index));
+                }
+            }
+
+            if ((KIND == MAREA_AST_KIND_FOR_EACH_STATEMENT) && (MAREA_nodeHasType(MAREA_childAt(node, NAMES)) == false)) {
+                tally.collectionsUntyped.push_back(path);
+            }
+        }
+
+        for (MAREA_IntegerSize index{ 0 }; index < COUNT; ++index) {
+            MAREA_tallyLoops(MAREA_childAt(node, index), path, tally);
+        }
+    }
+} // namespace
+
+TEST(MAREASemaTypedAstExamples, EveryLoopNameOfEveryExampleHasATypeUnlessItsHeaderHasNone)
+{
+    GTEST_COUT << "Validating the declared names and the collection of every for range and for each of every example carry a resolved type." << std::endl;
+
+    const std::vector<MAREA_ExampleFile> FILES{ MAREA_collectExamples() };
+
+    std::map<std::string, const MAREA_AstNode *> roots;
+
+    std::vector<std::unique_ptr<MAREA_ParseFixture>> parsed;
+
+    std::vector<std::string> paths;
+
+    for (const MAREA_ExampleFile &file : FILES) {
+        paths.push_back(file.relativePath);
+
+        auto fixture{ std::make_unique<MAREA_ParseFixture>() };
+
+        ASSERT_EQ(MAREA_LexContextSetFileName(fixture->lexer.context, paths.back().c_str()), MAREA_LEX_EXCEPT_SUCCESS) << "The file name of " << file.relativePath << " must be set.";
+
+        ASSERT_EQ(fixture->MAREA_parse(file.source), MAREA_PARSE_EXCEPT_SUCCESS) << "The example " << file.relativePath << " must parse.";
+
+        roots[file.namespaceText] = fixture->root;
+
+        parsed.push_back(std::move(fixture));
+    }
+
+    const MAREA_ResolveCallback RESOLVE{ [&roots](const std::string &text, const MAREA_AstNode **outRoot) {
+        const auto FOUND{ roots.find(text) };
+
+        if (FOUND != roots.end()) {
+            *outRoot = FOUND->second;
+
+            return MAREA_SEMA_IMPORT_RESULT_FOUND;
+        }
+
+        const bool EXTERNAL{ MAREA_startsWith(text, "collections.") || MAREA_startsWith(text, "concurrency.") || MAREA_startsWith(text, "arenas.") || (text == "text") || MAREA_startsWith(text, "c.") };
+
+        return EXTERNAL ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
+    } };
+
+    MAREA_LoopTally tally;
+
+    for (const MAREA_ExampleFile &file : FILES) {
+        MAREA_SemaFixture fixture(RESOLVE);
+
+        ASSERT_EQ(fixture.MAREA_sema(file.source, file.relativePath), MAREA_SEMA_EXCEPT_SUCCESS) << "The check of " << file.relativePath << " must succeed.";
+
+        ASSERT_EQ(fixture.MAREA_errorCount(), MAREA_INTEGER_SIZE(0)) << "The example " << file.relativePath << " must check with zero errors.";
+
+        const MAREA_SemaTypedNode *root{ nullptr };
+
+        ASSERT_EQ(MAREA_SemaBuildTypedAst(fixture.context, fixture.parser.root, &root), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "The example " << file.relativePath << " must build a typed tree.";
+
+        MAREA_tallyLoops(root, file.relativePath, tally);
+    }
+
+    GTEST_COUT << "Loops: " << tally.loops << ", names with a type: " << tally.namesTyped << ", names with none: " << tally.namesUntyped.size() << ", collections with none: " << tally.collectionsUntyped.size() << "." << std::endl;
+
+    for (const std::string &line : tally.namesUntyped) {
+        GTEST_COUT << "No type: " << line << std::endl;
+    }
+
+    EXPECT_GE(tally.loops, std::size_t{ 8 }) << "The examples hold at least 8 loops of these two kinds.";
+
+    EXPECT_TRUE(tally.collectionsUntyped.empty()) << "Every collection of a for each of the examples has a resolved type.";
+
+    // The one range counter with no type is the one of gpu_handles, whose last bound is a call of an EXTERNAL function with no signature.
+    ASSERT_EQ(tally.namesUntyped.size(), std::size_t{ 1 }) << "Only the counter of the range with an untyped bound has no type.";
+
+    EXPECT_NE(tally.namesUntyped[0].find("gpu_handles"), std::string::npos) << "The one name with no type is in gpu_handles.";
+}
