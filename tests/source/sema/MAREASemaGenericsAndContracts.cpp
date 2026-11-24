@@ -297,3 +297,33 @@ TEST(MAREASemaGenericsAndContracts, LiteralMustFitThePrimitiveType)
 
     EXPECT_TRUE(MAREA_codesOf("function f(a: pointer<sinteger32>) end function g() f(\"text\"); end").empty()) << "A non-primitive type must not be guessed.";
 }
+
+TEST(MAREASemaGenericsAndContracts, NarrowedTypeArgumentRaisesMismatch)
+{
+    GTEST_COUT << "Validating a generic type whose type arguments differ from the declared type raises GENERIC_ARGUMENT_MISMATCH." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("function check(values: array<sinteger32, 4>): sinteger32 local second: array<sinteger8, 4> = values; return 1; end"), Codes{ ARGUMENT_MISMATCH }) << "A narrowed array element must raise GENERIC_ARGUMENT_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf("function check(values: array<sinteger32, 4>): sinteger32 local second: array<sinteger32, 8> = values; return 1; end"), Codes{ ARGUMENT_MISMATCH }) << "A different array size must raise GENERIC_ARGUMENT_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf("function check(#[semantics = reference_read_only] values: vector<sinteger32>): sinteger32 local second: vector<sinteger8> = copy values; return 1; end"), Codes{ ARGUMENT_MISMATCH }) << "A narrowed vector element through copy must raise GENERIC_ARGUMENT_MISMATCH.";
+
+    const std::string PAIR{ "structure Pair<First, Second> first: First; second: Second; end " };
+
+    EXPECT_EQ(MAREA_codesOf(PAIR + "function make(): Pair<sinteger32, float64> return Pair<sinteger8, float64>{ first = 1, second = 2.0 }; end"), Codes{ ARGUMENT_MISMATCH }) << "A returned struct literal with a narrowed argument must raise GENERIC_ARGUMENT_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf("function take(values: array<sinteger8, 4>): sinteger32 return 1; end function check(values: array<sinteger32, 4>): sinteger32 return take(values); end"), Codes{ ARGUMENT_MISMATCH }) << "A call argument with a narrowed type argument must raise GENERIC_ARGUMENT_MISMATCH.";
+}
+
+TEST(MAREASemaGenericsAndContracts, MatchingTypeArgumentRaisesNothing)
+{
+    GTEST_COUT << "Validating equal, generic, aliased and wrapped type arguments raise nothing." << std::endl;
+
+    EXPECT_TRUE(MAREA_codesOf("function check(values: array<sinteger32, 4>): sinteger32 local second: array<sinteger32, 4> = values; return 1; end").empty()) << "Equal type arguments must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("structure Point x: sinteger32; end function check(points: owned<vector<Point>>): sinteger32 local other: vector<Point> = move points; return 1; end").empty()) << "A move of an owned vector into a vector must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("function check<Item>(values: array<Item, 4>): sinteger32 local second: array<sinteger32, 4> = values; return 1; end").empty()) << "A generic parameter argument must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("type Small = sinteger8; function check(values: array<Small, 4>): sinteger32 local second: array<sinteger8, 4> = values; return 1; end").empty()) << "An alias argument must raise nothing.";
+}

@@ -830,6 +830,26 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD const MAREA_AstNode *MAREA_CALL MAREA_SemaInferType(const MAREA_SemaContext *context, const MAREA_AstNode *expression);
 
     /**
+     * @brief Tells whether the type arguments of a value differ from the declared generic type. Only two generic
+     * types of one head and one argument count are compared: two primitives by name, two value arguments by text and
+     * two nested generic types by the same rule. A generic parameter, an alias, an import and an unknown type agree.
+     * @param context Context of the run. Must not be null.
+     * @param type Declared type node. May be null.
+     * @param expression Value expression. A copy or move is looked through. May be null.
+     * @return MAREA_BOOLEAN_TRUE when a pair of type arguments differs, else MAREA_BOOLEAN_FALSE.
+     */
+    MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_SemaTypeArgumentsDiffer(const MAREA_SemaContext *context, const MAREA_AstNode *type, const MAREA_AstNode *expression);
+
+    /**
+     * @brief Finds the element type of a collection expression: one owned wrapper is peeled, then the first type
+     * argument of vector, array or slice.
+     * @param context Context of the run. Must not be null.
+     * @param collection Collection expression. May be null.
+     * @return The element type node, or null when it is unknown.
+     */
+    MAREA_NODISCARD const MAREA_AstNode *MAREA_CALL MAREA_SemaElementType(const MAREA_SemaContext *context, const MAREA_AstNode *collection);
+
+    /**
      * @brief Records the references a node binds: the borrow parameters of a function, the variables of a
      * for each statement, the part of a partition and the name of a with statement.
      * @param context Context of the run. Must not be null.

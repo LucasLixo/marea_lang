@@ -1,0 +1,24 @@
+-- expect: 3014 @21
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- from: L-OWNERSHIP-031
+-- Mutant of L-OWNERSHIP-031: one type argument of a local array is narrowed.
+
+namespace main;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+structure Box
+    inner: Point;
+    count: sinteger32;
+end
+
+function check(values: array<sinteger32, 4>): sinteger32
+    local second: array<sinteger8, 4> = values;
+    return 1;
+end
+
