@@ -173,6 +173,31 @@ TEST(MAREAIrControlFlow, ForRangeLoopsOneAfterTheOtherKeepADistinctHiddenBoundEa
     EXPECT_EQ(rendered.find("$last)"), std::string::npos) << "The bare name must not remain: " << rendered;
 }
 
+TEST(MAREAIrControlFlow, ForRangeHiddenBoundNumberKeepsEveryDigitOfALargeLoopCount)
+{
+    GTEST_COUT << "Validating the hidden bound name of the tenth and the hundred and first loop of a function keeps all its digits, in order, and ends the name." << std::endl;
+
+    std::string body;
+
+    for (int index{ 0 }; index < 101; ++index) {
+        body += "for v" + std::to_string(index) + " in 0 .. 1 do end ";
+    }
+
+    const std::string rendered{ MAREA_lowerBody("", "", body) };
+
+    EXPECT_NE(rendered.find("(LOCAL_DECLARATION $last9 "), std::string::npos) << "The tenth loop must be $last9.";
+
+    EXPECT_NE(rendered.find("(LOCAL_DECLARATION $last10 "), std::string::npos) << "The eleventh loop must be $last10, not $last01 or $last1.";
+
+    EXPECT_NE(rendered.find("(LOCAL_DECLARATION $last99 "), std::string::npos) << "The hundredth loop must be $last99.";
+
+    EXPECT_NE(rendered.find("(LOCAL_DECLARATION $last100 "), std::string::npos) << "The hundred and first loop must be $last100.";
+
+    EXPECT_EQ(rendered.find("$last01"), std::string::npos) << "The digits must not be written backwards.";
+
+    EXPECT_EQ(MAREA_countOf(rendered, "(LOCAL_DECLARATION $last"), std::size_t{ 101 }) << "Every loop must have a hidden bound of its own.";
+}
+
 TEST(MAREAIrControlFlow, ForRangeHiddenBoundNumberStartsAgainInEachFunction)
 {
     GTEST_COUT << "Validating the number of a hidden bound counts the loops of one function, so a function lowers the same wherever it stands in the unit." << std::endl;
