@@ -41,7 +41,7 @@ namespace
     {
         MAREA_Uinteger64 value{ 0 };
 
-        EXPECT_EQ(getter(layout, &value), MAREA_IR_LAYOUT_EXCEPT_SUCCESS);
+        EXPECT_EQ(getter(layout, &value), MAREA_IR_LAYOUT_EXCEPT_SUCCESS) << "The getter must succeed for a measured entry.";
 
         return value;
     }
@@ -53,7 +53,7 @@ namespace
         for (MAREA_IntegerSize index{ 0 }; index < MAREA_IrLayoutGetMemberCount(layout); ++index) {
             MAREA_Uinteger64 value{ 0 };
 
-            EXPECT_EQ(MAREA_IrLayoutGetMemberOffset(layout, index, &value), MAREA_IR_LAYOUT_EXCEPT_SUCCESS);
+            EXPECT_EQ(MAREA_IrLayoutGetMemberOffset(layout, index, &value), MAREA_IR_LAYOUT_EXCEPT_SUCCESS) << "MAREA_IrLayoutGetMemberOffset must succeed for a measured entry.";
 
             result.push_back(value);
         }
@@ -68,7 +68,7 @@ namespace
         for (MAREA_IntegerSize index{ 0 }; index < MAREA_IrLayoutGetVariantFieldCount(layout, variant); ++index) {
             MAREA_Uinteger64 value{ 0 };
 
-            EXPECT_EQ(MAREA_IrLayoutGetVariantFieldOffset(layout, variant, index, &value), MAREA_IR_LAYOUT_EXCEPT_SUCCESS);
+            EXPECT_EQ(MAREA_IrLayoutGetVariantFieldOffset(layout, variant, index, &value), MAREA_IR_LAYOUT_EXCEPT_SUCCESS) << "MAREA_IrLayoutGetVariantFieldOffset must succeed for a measured entry.";
 
             result.push_back(value);
         }
@@ -76,14 +76,13 @@ namespace
         return result;
     }
 
-    // INFO: expects the entry at index to be a measured structure with these numbers.
     void MAREA_expectStructure(const MAREA_IrNode *module, MAREA_IntegerSize index, const std::string &name, std::uint64_t size, std::uint64_t alignment, const Offsets &offsets)
     {
         const MAREA_IrLayout *layout{ MAREA_layoutAt(module, index) };
 
         ASSERT_NE(layout, nullptr) << name;
 
-        EXPECT_EQ(MAREA_nameOf(layout), name);
+        EXPECT_EQ(MAREA_nameOf(layout), name) << name << " The entry must carry the name of its declaration.";
 
         EXPECT_EQ(MAREA_IrLayoutGetKind(layout), MAREA_IR_LAYOUT_KIND_STRUCTURE) << name;
 
@@ -100,14 +99,13 @@ namespace
         EXPECT_EQ(MAREA_membersOf(layout), offsets) << name;
     }
 
-    // INFO: expects the entry at index to be a measured enum with these numbers; payloads holds the payload offset of each variant.
     void MAREA_expectEnum(const MAREA_IrNode *module, MAREA_IntegerSize index, const std::string &name, std::uint64_t size, std::uint64_t alignment, std::uint64_t tagSize, const Offsets &payloads)
     {
         const MAREA_IrLayout *layout{ MAREA_layoutAt(module, index) };
 
         ASSERT_NE(layout, nullptr) << name;
 
-        EXPECT_EQ(MAREA_nameOf(layout), name);
+        EXPECT_EQ(MAREA_nameOf(layout), name) << name << " The entry must carry the name of its declaration.";
 
         EXPECT_EQ(MAREA_IrLayoutGetKind(layout), MAREA_IR_LAYOUT_KIND_ENUM) << name;
 
@@ -122,14 +120,13 @@ namespace
         EXPECT_EQ(MAREA_membersOf(layout), payloads) << name;
     }
 
-    // INFO: expects the entry at index to be undecided with this reason and member count, and to refuse every number.
     void MAREA_expectUndecided(const MAREA_IrNode *module, MAREA_IntegerSize index, const std::string &name, MAREA_SemaMeasureReason reason, MAREA_IntegerSize members)
     {
         const MAREA_IrLayout *layout{ MAREA_layoutAt(module, index) };
 
         ASSERT_NE(layout, nullptr) << name;
 
-        EXPECT_EQ(MAREA_nameOf(layout), name);
+        EXPECT_EQ(MAREA_nameOf(layout), name) << name << " The entry must carry the name of its declaration.";
 
         EXPECT_EQ(MAREA_IrLayoutGetVerdict(layout), MAREA_SEMA_MEASURE_VERDICT_UNDECIDED) << name;
 
@@ -165,7 +162,6 @@ namespace
         return std::string(text, length);
     }
 
-    // INFO: the part of the dump that follows the tree, from the LAYOUT_TABLE line on, or an empty text when there is none.
     std::string MAREA_sectionOf(MAREA_IrFixture &fixture)
     {
         const std::string DUMP{ MAREA_dumpOf(fixture) };
@@ -197,7 +193,7 @@ TEST(MAREAIrLayout, NestedStructureHasAnEntryEach)
 
     ASSERT_EQ(fixture.MAREA_lower("namespace main; structure Outer x: uinteger8; i: Inner; y: uinteger64; end structure Inner a: uinteger8; b: uinteger16; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
-    ASSERT_EQ(MAREA_IrModuleGetLayoutCount(fixture.module), 2U);
+    ASSERT_EQ(MAREA_IrModuleGetLayoutCount(fixture.module), 2U) << "The unit must give the expected number of entries.";
 
     MAREA_expectStructure(fixture.module, 0, "Outer", 16, 8, { 0, 2, 8 });
 
@@ -212,7 +208,7 @@ TEST(MAREAIrLayout, EnumWithoutDataIsItsTag)
 
     ASSERT_EQ(fixture.MAREA_lower("namespace main; enum Color Red; Green; Blue; end enum Small : uinteger8 A; B; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
-    ASSERT_EQ(MAREA_IrModuleGetLayoutCount(fixture.module), 2U);
+    ASSERT_EQ(MAREA_IrModuleGetLayoutCount(fixture.module), 2U) << "The unit must give the expected number of entries.";
 
     MAREA_expectEnum(fixture.module, 0, "Color", 4, 4, 4, { 4, 4, 4 });
 
@@ -231,17 +227,17 @@ TEST(MAREAIrLayout, EnumWithDataHasTheVariantFieldOffsets)
 
     ASSERT_EQ(fixture.MAREA_lower("namespace main; enum Shape : uinteger8 Circle(radius: float32); Rect(w: float64, h: float64); Empty; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
-    ASSERT_EQ(MAREA_IrModuleGetLayoutCount(fixture.module), 1U);
+    ASSERT_EQ(MAREA_IrModuleGetLayoutCount(fixture.module), 1U) << "The unit must give the expected number of entries.";
 
     MAREA_expectEnum(fixture.module, 0, "Shape", 24, 8, 1, { 8, 8, 8 });
 
     const MAREA_IrLayout *layout{ MAREA_layoutAt(fixture.module, 0) };
 
-    EXPECT_EQ(MAREA_variantFieldsOf(layout, 0), Offsets({ 8 }));
+    EXPECT_EQ(MAREA_variantFieldsOf(layout, 0), Offsets({ 8 })) << "The variant must hold the offsets of its fields.";
 
-    EXPECT_EQ(MAREA_variantFieldsOf(layout, 1), Offsets({ 8, 16 }));
+    EXPECT_EQ(MAREA_variantFieldsOf(layout, 1), Offsets({ 8, 16 })) << "The variant must hold the offsets of its fields.";
 
-    EXPECT_TRUE(MAREA_variantFieldsOf(layout, 2).empty());
+    EXPECT_TRUE(MAREA_variantFieldsOf(layout, 2).empty()) << "A variant with no data must have no field offset.";
 }
 
 TEST(MAREAIrLayout, CLayoutAndDefaultStructureGiveTheSameNumbers)
@@ -252,7 +248,7 @@ TEST(MAREAIrLayout, CLayoutAndDefaultStructureGiveTheSameNumbers)
 
     ASSERT_EQ(fixture.MAREA_lower("namespace main; #[layout = c] structure Packed a: uinteger8; b: float64; c: uinteger16; end structure Plain a: uinteger8; b: float64; c: uinteger16; end #[layout = c, pack = 1] structure Header magic: uinteger32; version: uinteger8; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
-    ASSERT_EQ(MAREA_IrModuleGetLayoutCount(fixture.module), 3U);
+    ASSERT_EQ(MAREA_IrModuleGetLayoutCount(fixture.module), 3U) << "The unit must give the expected number of entries.";
 
     MAREA_expectStructure(fixture.module, 0, "Packed", 24, 8, { 0, 8, 16 });
 
@@ -269,7 +265,7 @@ TEST(MAREAIrLayout, StructureHoldingALibraryTypeIsUndecided)
 
     ASSERT_EQ(fixture.MAREA_lower("namespace main; import collections.array; structure S a: uinteger8; b: array<sinteger32, 4>; end enum E A; B(v: array<sinteger32, 4>); end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
-    ASSERT_EQ(MAREA_IrModuleGetLayoutCount(fixture.module), 2U);
+    ASSERT_EQ(MAREA_IrModuleGetLayoutCount(fixture.module), 2U) << "The unit must give the expected number of entries.";
 
     MAREA_expectUndecided(fixture.module, 0, "S", MAREA_SEMA_MEASURE_REASON_LIBRARY_TYPE, 2);
 
@@ -286,11 +282,11 @@ TEST(MAREAIrLayout, OpaqueStructureIsUndecidedWithTheOpaqueReason)
 
     ASSERT_EQ(fixture.MAREA_lower("namespace main; opaque structure Texture;"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
-    ASSERT_EQ(MAREA_IrModuleGetLayoutCount(fixture.module), 1U);
+    ASSERT_EQ(MAREA_IrModuleGetLayoutCount(fixture.module), 1U) << "The unit must give the expected number of entries.";
 
     MAREA_expectUndecided(fixture.module, 0, "Texture", MAREA_SEMA_MEASURE_REASON_OPAQUE, 0);
 
-    EXPECT_EQ(MAREA_IrLayoutGetKind(MAREA_layoutAt(fixture.module, 0)), MAREA_IR_LAYOUT_KIND_STRUCTURE);
+    EXPECT_EQ(MAREA_IrLayoutGetKind(MAREA_layoutAt(fixture.module, 0)), MAREA_IR_LAYOUT_KIND_STRUCTURE) << "The entry must describe a structure.";
 }
 
 TEST(MAREAIrLayout, FunctionTypeFieldKeepsItsOwnReason)
@@ -312,7 +308,7 @@ TEST(MAREAIrLayout, EntriesAreTheValuesOfSemaAsTheyAre)
 
     ASSERT_EQ(fixture.MAREA_lower("namespace main; enum Kind : uinteger8 A; B(v: float64); end structure S a: uinteger8; k: Kind; b: uinteger32; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
-    ASSERT_EQ(MAREA_IrModuleGetLayoutCount(fixture.module), 2U);
+    ASSERT_EQ(MAREA_IrModuleGetLayoutCount(fixture.module), 2U) << "The unit must give the expected number of entries.";
 
     MAREA_IntegerSize entry{ 0 };
 
@@ -331,41 +327,41 @@ TEST(MAREAIrLayout, EntriesAreTheValuesOfSemaAsTheyAre)
 
         ++entry;
 
-        ASSERT_NE(layout, nullptr);
+        ASSERT_NE(layout, nullptr) << "Each declaration must have an entry.";
 
         MAREA_Uinteger64 expected{ 0 };
 
-        ASSERT_EQ(MAREA_SemaTypeLayoutGetSize(source, &expected), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS);
+        ASSERT_EQ(MAREA_SemaTypeLayoutGetSize(source, &expected), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "Sema must answer for a measured layout.";
 
-        EXPECT_EQ(MAREA_numberOf(MAREA_IrLayoutGetSize, layout), expected);
+        EXPECT_EQ(MAREA_numberOf(MAREA_IrLayoutGetSize, layout), expected) << "The entry must hold the number that sema recorded.";
 
-        ASSERT_EQ(MAREA_SemaTypeLayoutGetAlignment(source, &expected), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS);
+        ASSERT_EQ(MAREA_SemaTypeLayoutGetAlignment(source, &expected), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "Sema must answer for a measured layout.";
 
-        EXPECT_EQ(MAREA_numberOf(MAREA_IrLayoutGetAlignment, layout), expected);
+        EXPECT_EQ(MAREA_numberOf(MAREA_IrLayoutGetAlignment, layout), expected) << "The entry must hold the number that sema recorded.";
 
-        ASSERT_EQ(MAREA_SemaTypeLayoutGetTagSize(source, &expected), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS);
+        ASSERT_EQ(MAREA_SemaTypeLayoutGetTagSize(source, &expected), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "Sema must answer for a measured layout.";
 
-        EXPECT_EQ(MAREA_numberOf(MAREA_IrLayoutGetTagSize, layout), expected);
+        EXPECT_EQ(MAREA_numberOf(MAREA_IrLayoutGetTagSize, layout), expected) << "The entry must hold the number that sema recorded.";
 
-        ASSERT_EQ(MAREA_IrLayoutGetMemberCount(layout), MAREA_SemaTypeLayoutGetMemberCount(source));
+        ASSERT_EQ(MAREA_IrLayoutGetMemberCount(layout), MAREA_SemaTypeLayoutGetMemberCount(source)) << "The entry must hold the member count of sema.";
 
         for (MAREA_IntegerSize member{ 0 }; member < MAREA_SemaTypeLayoutGetMemberCount(source); ++member) {
-            ASSERT_EQ(MAREA_SemaTypeLayoutGetMemberOffset(source, member, &expected), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS);
+            ASSERT_EQ(MAREA_SemaTypeLayoutGetMemberOffset(source, member, &expected), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "Sema must answer for a measured layout.";
 
             MAREA_Uinteger64 actual{ 0 };
 
-            ASSERT_EQ(MAREA_IrLayoutGetMemberOffset(layout, member, &actual), MAREA_IR_LAYOUT_EXCEPT_SUCCESS);
+            ASSERT_EQ(MAREA_IrLayoutGetMemberOffset(layout, member, &actual), MAREA_IR_LAYOUT_EXCEPT_SUCCESS) << "MAREA_IrLayoutGetMemberOffset must succeed for a measured entry.";
 
-            EXPECT_EQ(actual, expected);
+            EXPECT_EQ(actual, expected) << "The offset must be the offset that sema recorded.";
 
-            ASSERT_EQ(MAREA_IrLayoutGetVariantFieldCount(layout, member), MAREA_SemaTypeLayoutGetVariantFieldCount(source, member));
+            ASSERT_EQ(MAREA_IrLayoutGetVariantFieldCount(layout, member), MAREA_SemaTypeLayoutGetVariantFieldCount(source, member)) << "The entry must hold the variant field count of sema.";
 
             for (MAREA_IntegerSize field{ 0 }; field < MAREA_SemaTypeLayoutGetVariantFieldCount(source, member); ++field) {
-                ASSERT_EQ(MAREA_SemaTypeLayoutGetVariantFieldOffset(source, member, field, &expected), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS);
+                ASSERT_EQ(MAREA_SemaTypeLayoutGetVariantFieldOffset(source, member, field, &expected), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "Sema must answer for a measured layout.";
 
-                ASSERT_EQ(MAREA_IrLayoutGetVariantFieldOffset(layout, member, field, &actual), MAREA_IR_LAYOUT_EXCEPT_SUCCESS);
+                ASSERT_EQ(MAREA_IrLayoutGetVariantFieldOffset(layout, member, field, &actual), MAREA_IR_LAYOUT_EXCEPT_SUCCESS) << "MAREA_IrLayoutGetVariantFieldOffset must succeed for a measured entry.";
 
-                EXPECT_EQ(actual, expected);
+                EXPECT_EQ(actual, expected) << "The offset must be the offset that sema recorded.";
             }
         }
     }
@@ -381,7 +377,7 @@ TEST(MAREAIrLayout, OnlyStructuresAndEnumsHaveEntries)
 
     ASSERT_EQ(fixture.MAREA_lower("namespace main; constant A: sinteger32 = 1; function f() end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
-    EXPECT_EQ(MAREA_IrModuleGetLayoutCount(fixture.module), 0U);
+    EXPECT_EQ(MAREA_IrModuleGetLayoutCount(fixture.module), 0U) << "The unit must give the expected number of entries.";
 
     EXPECT_EQ(MAREA_layoutAt(fixture.module, 0), nullptr) << "An empty table has no entry at 0.";
 }
@@ -411,7 +407,7 @@ TEST(MAREAIrLayout, GenericStructureHasNoEntry)
 
     ASSERT_EQ(fixture.MAREA_lower("namespace main; structure Box<T> v: T; end structure Plain a: uinteger8; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
-    ASSERT_EQ(MAREA_IrModuleGetLayoutCount(fixture.module), 1U);
+    ASSERT_EQ(MAREA_IrModuleGetLayoutCount(fixture.module), 1U) << "The unit must give the expected number of entries.";
 
     MAREA_expectStructure(fixture.module, 0, "Plain", 1, 1, { 0 });
 }
@@ -426,17 +422,17 @@ TEST(MAREAIrLayout, FindLayoutReadsAnEntryByName)
 
     const MAREA_IrLayout *found{ nullptr };
 
-    ASSERT_EQ(MAREA_IrModuleFindLayout(fixture.module, "B", 1, &found), MAREA_IR_LAYOUT_EXCEPT_SUCCESS);
+    ASSERT_EQ(MAREA_IrModuleFindLayout(fixture.module, "B", 1, &found), MAREA_IR_LAYOUT_EXCEPT_SUCCESS) << "MAREA_IrModuleFindLayout must succeed for a measured entry.";
 
-    EXPECT_EQ(found, MAREA_layoutAt(fixture.module, 1));
+    EXPECT_EQ(found, MAREA_layoutAt(fixture.module, 1)) << "The found entry must be the entry at the same index.";
 
     EXPECT_EQ(MAREA_IrModuleFindLayout(fixture.module, "C", 1, &found), MAREA_IR_LAYOUT_EXCEPT_ERROR_NOT_FOUND) << "An unknown name must be refused.";
 
     EXPECT_EQ(MAREA_IrModuleFindLayout(fixture.module, "AB", 2, &found), MAREA_IR_LAYOUT_EXCEPT_ERROR_NOT_FOUND) << "A name of another length must not match.";
 
-    EXPECT_EQ(MAREA_IrModuleFindLayout(fixture.module, "A", 1, &found), MAREA_IR_LAYOUT_EXCEPT_SUCCESS);
+    EXPECT_EQ(MAREA_IrModuleFindLayout(fixture.module, "A", 1, &found), MAREA_IR_LAYOUT_EXCEPT_SUCCESS) << "MAREA_IrModuleFindLayout must succeed for a measured entry.";
 
-    EXPECT_EQ(found, MAREA_layoutAt(fixture.module, 0));
+    EXPECT_EQ(found, MAREA_layoutAt(fixture.module, 0)) << "The found entry must be the entry at the same index.";
 }
 
 TEST(MAREAIrLayout, AccessorsRefuseWhatTheyCannotAnswer)
@@ -451,61 +447,61 @@ TEST(MAREAIrLayout, AccessorsRefuseWhatTheyCannotAnswer)
 
     MAREA_Uinteger64 value{ 0 };
 
-    EXPECT_EQ(MAREA_IrModuleGetLayoutCount(nullptr), 0U);
+    EXPECT_EQ(MAREA_IrModuleGetLayoutCount(nullptr), 0U) << "The unit must give the expected number of entries.";
 
     EXPECT_EQ(MAREA_IrModuleGetLayoutCount(MAREA_irChild(fixture.module, 0)), 0U) << "A node that is not the module has no table.";
 
-    EXPECT_EQ(MAREA_IrModuleGetLayoutAt(nullptr, 0, &layout), MAREA_IR_LAYOUT_EXCEPT_ERROR_NULL_POINTER);
+    EXPECT_EQ(MAREA_IrModuleGetLayoutAt(nullptr, 0, &layout), MAREA_IR_LAYOUT_EXCEPT_ERROR_NULL_POINTER) << "MAREA_IrModuleGetLayoutAt must refuse a null pointer.";
 
-    EXPECT_EQ(MAREA_IrModuleGetLayoutAt(fixture.module, 0, nullptr), MAREA_IR_LAYOUT_EXCEPT_ERROR_NULL_POINTER);
+    EXPECT_EQ(MAREA_IrModuleGetLayoutAt(fixture.module, 0, nullptr), MAREA_IR_LAYOUT_EXCEPT_ERROR_NULL_POINTER) << "MAREA_IrModuleGetLayoutAt must refuse a null pointer.";
 
-    EXPECT_EQ(MAREA_IrModuleGetLayoutAt(fixture.module, 2, &layout), MAREA_IR_LAYOUT_EXCEPT_ERROR_OUT_OF_RANGE);
+    EXPECT_EQ(MAREA_IrModuleGetLayoutAt(fixture.module, 2, &layout), MAREA_IR_LAYOUT_EXCEPT_ERROR_OUT_OF_RANGE) << "MAREA_IrModuleGetLayoutAt must refuse an index out of range.";
 
     EXPECT_EQ(MAREA_IrModuleGetLayoutAt(MAREA_irChild(fixture.module, 0), 0, &layout), MAREA_IR_LAYOUT_EXCEPT_ERROR_OUT_OF_RANGE) << "A node that is not the module has an empty table.";
 
-    EXPECT_EQ(MAREA_IrModuleFindLayout(nullptr, "A", 1, &layout), MAREA_IR_LAYOUT_EXCEPT_ERROR_NULL_POINTER);
+    EXPECT_EQ(MAREA_IrModuleFindLayout(nullptr, "A", 1, &layout), MAREA_IR_LAYOUT_EXCEPT_ERROR_NULL_POINTER) << "MAREA_IrModuleFindLayout must refuse a null pointer.";
 
-    EXPECT_EQ(MAREA_IrModuleFindLayout(fixture.module, nullptr, 1, &layout), MAREA_IR_LAYOUT_EXCEPT_ERROR_NULL_POINTER);
+    EXPECT_EQ(MAREA_IrModuleFindLayout(fixture.module, nullptr, 1, &layout), MAREA_IR_LAYOUT_EXCEPT_ERROR_NULL_POINTER) << "MAREA_IrModuleFindLayout must refuse a null pointer.";
 
-    EXPECT_EQ(MAREA_IrModuleFindLayout(fixture.module, "A", 1, nullptr), MAREA_IR_LAYOUT_EXCEPT_ERROR_NULL_POINTER);
+    EXPECT_EQ(MAREA_IrModuleFindLayout(fixture.module, "A", 1, nullptr), MAREA_IR_LAYOUT_EXCEPT_ERROR_NULL_POINTER) << "MAREA_IrModuleFindLayout must refuse a null pointer.";
 
-    EXPECT_EQ(MAREA_IrLayoutGetKind(nullptr), MAREA_IR_LAYOUT_KIND_COUNT);
+    EXPECT_EQ(MAREA_IrLayoutGetKind(nullptr), MAREA_IR_LAYOUT_KIND_COUNT) << "MAREA_IrLayoutGetKind must give its neutral value for a null entry.";
 
-    EXPECT_EQ(MAREA_IrLayoutGetName(nullptr), nullptr);
+    EXPECT_EQ(MAREA_IrLayoutGetName(nullptr), nullptr) << "MAREA_IrLayoutGetName must give its neutral value for a null entry.";
 
-    EXPECT_EQ(MAREA_IrLayoutGetNameLength(nullptr), 0U);
+    EXPECT_EQ(MAREA_IrLayoutGetNameLength(nullptr), 0U) << "MAREA_IrLayoutGetNameLength must give its neutral value for a null entry.";
 
-    EXPECT_EQ(MAREA_IrLayoutGetVerdict(nullptr), MAREA_SEMA_MEASURE_VERDICT_UNDECIDED);
+    EXPECT_EQ(MAREA_IrLayoutGetVerdict(nullptr), MAREA_SEMA_MEASURE_VERDICT_UNDECIDED) << "MAREA_IrLayoutGetVerdict must give its neutral value for a null entry.";
 
-    EXPECT_EQ(MAREA_IrLayoutGetReason(nullptr), MAREA_SEMA_MEASURE_REASON_UNRESOLVED);
+    EXPECT_EQ(MAREA_IrLayoutGetReason(nullptr), MAREA_SEMA_MEASURE_REASON_UNRESOLVED) << "MAREA_IrLayoutGetReason must give its neutral value for a null entry.";
 
-    EXPECT_EQ(MAREA_IrLayoutGetMemberCount(nullptr), 0U);
+    EXPECT_EQ(MAREA_IrLayoutGetMemberCount(nullptr), 0U) << "MAREA_IrLayoutGetMemberCount must give its neutral value for a null entry.";
 
-    EXPECT_EQ(MAREA_IrLayoutGetVariantFieldCount(nullptr, 0), 0U);
+    EXPECT_EQ(MAREA_IrLayoutGetVariantFieldCount(nullptr, 0), 0U) << "MAREA_IrLayoutGetVariantFieldCount must give its neutral value for a null entry.";
 
-    EXPECT_EQ(MAREA_IrLayoutGetSize(nullptr, &value), MAREA_IR_LAYOUT_EXCEPT_ERROR_NULL_POINTER);
+    EXPECT_EQ(MAREA_IrLayoutGetSize(nullptr, &value), MAREA_IR_LAYOUT_EXCEPT_ERROR_NULL_POINTER) << "MAREA_IrLayoutGetSize must refuse a null pointer.";
 
-    EXPECT_EQ(MAREA_IrLayoutGetAlignment(nullptr, &value), MAREA_IR_LAYOUT_EXCEPT_ERROR_NULL_POINTER);
+    EXPECT_EQ(MAREA_IrLayoutGetAlignment(nullptr, &value), MAREA_IR_LAYOUT_EXCEPT_ERROR_NULL_POINTER) << "MAREA_IrLayoutGetAlignment must refuse a null pointer.";
 
-    EXPECT_EQ(MAREA_IrLayoutGetTagSize(nullptr, &value), MAREA_IR_LAYOUT_EXCEPT_ERROR_NULL_POINTER);
+    EXPECT_EQ(MAREA_IrLayoutGetTagSize(nullptr, &value), MAREA_IR_LAYOUT_EXCEPT_ERROR_NULL_POINTER) << "MAREA_IrLayoutGetTagSize must refuse a null pointer.";
 
-    EXPECT_EQ(MAREA_IrLayoutGetMemberOffset(nullptr, 0, &value), MAREA_IR_LAYOUT_EXCEPT_ERROR_NULL_POINTER);
+    EXPECT_EQ(MAREA_IrLayoutGetMemberOffset(nullptr, 0, &value), MAREA_IR_LAYOUT_EXCEPT_ERROR_NULL_POINTER) << "MAREA_IrLayoutGetMemberOffset must refuse a null pointer.";
 
-    EXPECT_EQ(MAREA_IrLayoutGetVariantFieldOffset(nullptr, 0, 0, &value), MAREA_IR_LAYOUT_EXCEPT_ERROR_NULL_POINTER);
+    EXPECT_EQ(MAREA_IrLayoutGetVariantFieldOffset(nullptr, 0, 0, &value), MAREA_IR_LAYOUT_EXCEPT_ERROR_NULL_POINTER) << "MAREA_IrLayoutGetVariantFieldOffset must refuse a null pointer.";
 
     const MAREA_IrLayout *structure{ MAREA_layoutAt(fixture.module, 0) };
 
     const MAREA_IrLayout *enumeration{ MAREA_layoutAt(fixture.module, 1) };
 
-    ASSERT_NE(structure, nullptr);
+    ASSERT_NE(structure, nullptr) << "The entry must exist.";
 
-    ASSERT_NE(enumeration, nullptr);
+    ASSERT_NE(enumeration, nullptr) << "The entry must exist.";
 
-    EXPECT_EQ(MAREA_IrLayoutGetSize(structure, nullptr), MAREA_IR_LAYOUT_EXCEPT_ERROR_NULL_POINTER);
+    EXPECT_EQ(MAREA_IrLayoutGetSize(structure, nullptr), MAREA_IR_LAYOUT_EXCEPT_ERROR_NULL_POINTER) << "MAREA_IrLayoutGetSize must refuse a null pointer.";
 
-    EXPECT_EQ(MAREA_IrLayoutGetMemberOffset(structure, 0, nullptr), MAREA_IR_LAYOUT_EXCEPT_ERROR_NULL_POINTER);
+    EXPECT_EQ(MAREA_IrLayoutGetMemberOffset(structure, 0, nullptr), MAREA_IR_LAYOUT_EXCEPT_ERROR_NULL_POINTER) << "MAREA_IrLayoutGetMemberOffset must refuse a null pointer.";
 
-    EXPECT_EQ(MAREA_IrLayoutGetVariantFieldOffset(enumeration, 0, 0, nullptr), MAREA_IR_LAYOUT_EXCEPT_ERROR_NULL_POINTER);
+    EXPECT_EQ(MAREA_IrLayoutGetVariantFieldOffset(enumeration, 0, 0, nullptr), MAREA_IR_LAYOUT_EXCEPT_ERROR_NULL_POINTER) << "MAREA_IrLayoutGetVariantFieldOffset must refuse a null pointer.";
 
     EXPECT_EQ(MAREA_IrLayoutGetMemberOffset(structure, 1, &value), MAREA_IR_LAYOUT_EXCEPT_ERROR_OUT_OF_RANGE) << "A structure with one field has no member 1.";
 
@@ -513,9 +509,9 @@ TEST(MAREAIrLayout, AccessorsRefuseWhatTheyCannotAnswer)
 
     EXPECT_EQ(MAREA_IrLayoutGetVariantFieldCount(enumeration, 1), 0U) << "A variant index out of range has no field.";
 
-    EXPECT_EQ(MAREA_IrLayoutGetVariantFieldOffset(enumeration, 1, 0, &value), MAREA_IR_LAYOUT_EXCEPT_ERROR_OUT_OF_RANGE);
+    EXPECT_EQ(MAREA_IrLayoutGetVariantFieldOffset(enumeration, 1, 0, &value), MAREA_IR_LAYOUT_EXCEPT_ERROR_OUT_OF_RANGE) << "MAREA_IrLayoutGetVariantFieldOffset must refuse an index out of range.";
 
-    EXPECT_EQ(MAREA_IrLayoutGetVariantFieldOffset(enumeration, 0, 1, &value), MAREA_IR_LAYOUT_EXCEPT_ERROR_OUT_OF_RANGE);
+    EXPECT_EQ(MAREA_IrLayoutGetVariantFieldOffset(enumeration, 0, 1, &value), MAREA_IR_LAYOUT_EXCEPT_ERROR_OUT_OF_RANGE) << "MAREA_IrLayoutGetVariantFieldOffset must refuse an index out of range.";
 
     EXPECT_EQ(MAREA_IrLayoutGetVariantFieldOffset(structure, 0, 0, &value), MAREA_IR_LAYOUT_EXCEPT_ERROR_OUT_OF_RANGE) << "A structure has no variant field.";
 }
@@ -565,7 +561,8 @@ TEST(MAREAIrLayout, DumpNamesEveryReason)
                                              "LAYOUT_TABLE",
                                              "  STRUCTURE \"S\" verdict=undecided reason=function_type members=1",
                                              "  STRUCTURE \"T\" verdict=undecided reason=invalid_attribute members=1",
-                                         }));
+                                         }))
+        << "The dump must name the reason of each undecided entry.";
 }
 
 TEST(MAREAIrLayout, DumpHasNoSectionWithoutAStructureOrAnEnum)
@@ -576,7 +573,7 @@ TEST(MAREAIrLayout, DumpHasNoSectionWithoutAStructureOrAnEnum)
 
     ASSERT_EQ(fixture.MAREA_lower("namespace main; function f() end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
-    EXPECT_EQ(MAREA_dumpOf(fixture).find("LAYOUT_TABLE"), std::string::npos);
+    EXPECT_EQ(MAREA_dumpOf(fixture).find("LAYOUT_TABLE"), std::string::npos) << "A module with no structure and no enum must have no section.";
 }
 
 TEST(MAREAIrLayout, EveryStructureAndEnumOfTheExamplesHasAnEntry)
@@ -585,7 +582,7 @@ TEST(MAREAIrLayout, EveryStructureAndEnumOfTheExamplesHasAnEntry)
 
     const MAREA_IrExampleSet EXAMPLES;
 
-    ASSERT_EQ(EXAMPLES.files.size(), 23U);
+    ASSERT_EQ(EXAMPLES.files.size(), 23U) << "The example set must hold 23 files.";
 
     std::size_t declarations{ 0 };
 
