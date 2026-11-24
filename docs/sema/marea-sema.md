@@ -186,6 +186,16 @@ contract only when its own `where` clause lists it. The check runs at a call of 
 with the types written in `f<T>(...)` or taken from the arguments (a name with a declared type, or a
 struct literal). A built-in type is not searched for contract functions.
 
+**Definition rule and overlap rule.** The body of a generic function is checked against its bounds once, at the
+definition. No contract has an operator, so a binary operator or a compound assignment with a generic operand is
+`BOUND_OPERATION_NOT_GIVEN` (3051). A call `value.name(...)` on a local or parameter of a generic type is 3051 too,
+unless a contract that the `where` clause lists for that parameter has a function `name`; a contract that the file
+does not declare is external and gives the call, `Copyable` and `Movable` give no function. Store, pass, `copy`,
+`move` and return are always allowed. Two `implementation` blocks of one type head overlap when they have the same
+number of type arguments, every pair of arguments is equal text or has a bare generic parameter of its own block, and
+both declare a function or constant of one name: `OVERLAPPING_IMPLEMENTATION` (3052), at the member of the later
+block. Two blocks of the same written type stay with `DUPLICATE_MEMBER`.
+
 **Default parameter values.** A parameter may end with `= value`. A call of a function of the file passes
 from the number of parameters up to the last one with no default, to the total number of parameters; any other
 count is `ARGUMENT_COUNT_MISMATCH` (3010). Each default is checked like a local initializer: a name in it must
@@ -839,6 +849,8 @@ or rejects.
 | 3046 | `CYCLIC_TYPE_ALIAS` | `type First = Second; type Second = First;` |
 | 3049 | `UNKNOWN_TYPE_FUNCTION` | `point.length()` or `Point.origin()` when no `implementation` of `Point` declares it |
 | 3050 | `OPERATOR_SIGNATURE_MISMATCH` | `#[operator = "+"] function add(self: Point): sinteger32` |
+| 3051 | `BOUND_OPERATION_NOT_GIVEN` | `left + right` or `left.size()` on a generic `Item` that no `where` bound gives |
+| 3052 | `OVERLAPPING_IMPLEMENTATION` | `implementation<Item> Box<Item>` and `implementation Box<sinteger32>` that both declare `same` |
 | 3053 | `FUNCTION_TYPE_MISMATCH` | `apply(negate)` when `negate` takes one parameter and the function type takes two |
 | 3054 | `INVALID_RESULT_USE` | `return 1;` in a function with no result, or `local v: sinteger32 = log_line("x");` when `log_line` has no result |
 | 3055 | `CYCLIC_CONSTANT` | `constant A: sinteger32 = B;` with `constant B: sinteger32 = A;`, or `constant A: sinteger32 = A;`, once for each cycle, at the first constant of it in the file |
@@ -951,6 +963,7 @@ or rejects.
   is wide enough for the number of variants, and does not use it for the layout of the enum (`size_of` is
   unchanged).
 - The contract check only sees arguments whose type is cheap to know. Other arguments are not checked.
+- The bound check of 3051 reads the `where` clause of the function only. A generic parameter of an `implementation` block has no bound there, so a call on a value of it is 3051.
 - `operator` is checked against its vocabulary; only `construct` and `destroy` have a placement and a shape check
   (see "Construct and destroy"), and any other operator has a signature check in an `implementation` only (3050, see
   "Operator signature"); `export` is checked for shape only.

@@ -1271,6 +1271,88 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckTypeFunction(MAREA_SemaContext *
     return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_UNKNOWN_TYPE_FUNCTION, MAREA_AstNodeGetPosition(node), "type has no function:", MAREA_AstNodeGetText(member), MAREA_AstNodeGetTextLength(member));
 }
 
+// INFO: tells whether a contract that the where clause lists for the parameter gives the function. A contract that this file does not declare is external, so sema cannot see its functions and accepts the call. Copyable and Movable give no function.
+static MAREA_Boolean MAREA_CALL MAREA_G_BoundGivesFunction(const MAREA_SemaContext *context, const MAREA_Character8 *parameter, MAREA_IntegerSize parameterLength, const MAREA_Character8 *function, MAREA_IntegerSize functionLength)
+{
+    const MAREA_AstNode *where = (context->function == MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_G_FindChild(context->function, MAREA_AST_KIND_WHERE_CLAUSE);
+
+    if (where == MAREA_NULLPTR) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    for (MAREA_IntegerSize index = 0; index < MAREA_AstNodeGetChildCount(where); ++index) {
+        const MAREA_AstNode *constraint = MAREA_SemaChildAt(where, index);
+
+        const MAREA_AstNode *name = ((constraint == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(constraint) != MAREA_AST_KIND_CONSTRAINT)) ? MAREA_NULLPTR : MAREA_SemaChildAt(constraint, 0);
+
+        if ((name == MAREA_NULLPTR) || (MAREA_SemaTextEquals(MAREA_AstNodeGetText(name), MAREA_AstNodeGetTextLength(name), parameter, parameterLength) == MAREA_BOOLEAN_FALSE)) {
+            continue;
+        }
+
+        for (MAREA_IntegerSize contractIndex = 1; contractIndex < MAREA_AstNodeGetChildCount(constraint); ++contractIndex) {
+            const MAREA_AstNode *qualified = MAREA_SemaChildAt(constraint, contractIndex);
+
+            const MAREA_AstNode *segment = ((qualified != MAREA_NULLPTR) && (MAREA_AstNodeGetChildCount(qualified) == 1)) ? MAREA_SemaChildAt(qualified, 0) : MAREA_NULLPTR;
+
+            if (segment == MAREA_NULLPTR) {
+                return MAREA_BOOLEAN_TRUE;
+            }
+
+            const MAREA_Character8 *contractName = MAREA_AstNodeGetText(segment);
+
+            const MAREA_IntegerSize CONTRACT_LENGTH = MAREA_AstNodeGetTextLength(segment);
+
+            if ((MAREA_G_TextIs(contractName, CONTRACT_LENGTH, "Copyable") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextIs(contractName, CONTRACT_LENGTH, "Movable") == MAREA_BOOLEAN_TRUE)) {
+                continue;
+            }
+
+            const MAREA_SemaName *entry = MAREA_SemaNameTableFind(context, contractName, CONTRACT_LENGTH);
+
+            if ((entry == MAREA_NULLPTR) || (entry->declaration == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(entry->declaration) != MAREA_AST_KIND_CONTRACT_DECLARATION)) {
+                return MAREA_BOOLEAN_TRUE;
+            }
+
+            for (MAREA_IntegerSize functionIndex = 0; functionIndex < MAREA_AstNodeGetChildCount(entry->declaration); ++functionIndex) {
+                const MAREA_AstNode *contractFunction = MAREA_SemaChildAt(entry->declaration, functionIndex);
+
+                if ((contractFunction != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(contractFunction) == MAREA_AST_KIND_CONTRACT_FUNCTION) && (MAREA_G_MemberNameIs(contractFunction, function, functionLength) == MAREA_BOOLEAN_TRUE)) {
+                    return MAREA_BOOLEAN_TRUE;
+                }
+            }
+        }
+    }
+
+    return MAREA_BOOLEAN_FALSE;
+}
+
+// INFO: a call base.name(...) where base is a local or a parameter of a generic type needs a bound that gives the function name.
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckBoundCall(MAREA_SemaContext *context, const MAREA_AstNode *node, const MAREA_AstNode *callee)
+{
+    const MAREA_AstNode *base = MAREA_SemaChildAt(callee, 0);
+
+    const MAREA_AstNode *member = MAREA_SemaChildAt(callee, 1);
+
+    if ((base == MAREA_NULLPTR) || (member == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(base) != MAREA_AST_KIND_IDENTIFIER) || (MAREA_AstNodeGetKind(member) != MAREA_AST_KIND_IDENTIFIER) || (MAREA_SemaLocalFind(context, MAREA_AstNodeGetText(base), MAREA_AstNodeGetTextLength(base)) == MAREA_NULLPTR)) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_AstNode *declaration = MAREA_NULLPTR;
+
+    const MAREA_Character8 *typeName = MAREA_NULLPTR;
+
+    MAREA_IntegerSize typeLength = 0;
+
+    if (MAREA_SemaClassifyType(context, MAREA_SemaInferType(context, base), &declaration, &typeName, &typeLength) != MAREA_SEMA_TYPE_CLASS_GENERIC) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    if (MAREA_G_BoundGivesFunction(context, typeName, typeLength, MAREA_AstNodeGetText(member), MAREA_AstNodeGetTextLength(member)) == MAREA_BOOLEAN_TRUE) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_BOUND_OPERATION_NOT_GIVEN, MAREA_AstNodeGetPosition(node), "no bound gives the function:", MAREA_AstNodeGetText(member), MAREA_AstNodeGetTextLength(member));
+}
+
 MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckCall(MAREA_SemaContext *context, const MAREA_AstNode *node)
 {
     if ((context == MAREA_NULLPTR) || (node == MAREA_NULLPTR)) {
@@ -1286,6 +1368,12 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckCall(MAREA_SemaContext *context, cons
 
         if (TYPE_FUNCTION_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
             return TYPE_FUNCTION_RESULT;
+        }
+
+        const MAREA_SemaExcept BOUND_RESULT = MAREA_G_CheckBoundCall(context, node, callee);
+
+        if (BOUND_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return BOUND_RESULT;
         }
 
         const MAREA_AstNode *base = MAREA_SemaChildAt(callee, 0);

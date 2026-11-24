@@ -462,6 +462,90 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckTypeCycles(MAREA_SemaContext *co
     return MAREA_SEMA_EXCEPT_SUCCESS;
 }
 
+static const MAREA_AstNode *MAREA_CALL MAREA_G_ChildOfKind(const MAREA_AstNode *node, MAREA_AstKind kind)
+{
+    if (node == MAREA_NULLPTR) {
+        return MAREA_NULLPTR;
+    }
+
+    for (MAREA_IntegerSize index = 0; index < MAREA_AstNodeGetChildCount(node); ++index) {
+        const MAREA_AstNode *child = MAREA_SemaChildAt(node, index);
+
+        if ((child != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(child) == kind)) {
+            return child;
+        }
+    }
+
+    return MAREA_NULLPTR;
+}
+
+// INFO: an argument that is a bare name of a generic parameter of its own block matches any type.
+static MAREA_Boolean MAREA_CALL MAREA_G_IsOwnParameter(const MAREA_AstNode *implementation, const MAREA_AstNode *argument)
+{
+    const MAREA_AstNode *qualified = ((argument != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(argument) == MAREA_AST_KIND_NAMED_TYPE) && (MAREA_AstNodeGetChildCount(argument) == 1)) ? MAREA_SemaChildAt(argument, 0) : MAREA_NULLPTR;
+
+    const MAREA_AstNode *segment = ((qualified != MAREA_NULLPTR) && (MAREA_AstNodeGetChildCount(qualified) == 1)) ? MAREA_SemaChildAt(qualified, 0) : MAREA_NULLPTR;
+
+    const MAREA_AstNode *parameters = MAREA_G_ChildOfKind(implementation, MAREA_AST_KIND_GENERIC_PARAMETERS);
+
+    for (MAREA_IntegerSize index = 0; ((segment != MAREA_NULLPTR) && (parameters != MAREA_NULLPTR) && (index < MAREA_AstNodeGetChildCount(parameters))); ++index) {
+        const MAREA_AstNode *name = MAREA_G_NameOf(MAREA_SemaChildAt(parameters, index));
+
+        if ((name != MAREA_NULLPTR) && (MAREA_G_SameName(name, segment) == MAREA_BOOLEAN_TRUE)) {
+            return MAREA_BOOLEAN_TRUE;
+        }
+    }
+
+    return MAREA_BOOLEAN_FALSE;
+}
+
+// INFO: two blocks overlap when their types have the same head and argument count and every pair of arguments is equal text or has a bare generic parameter on a side. A type written the same twice is not an overlap: it is a duplicate member.
+static MAREA_Boolean MAREA_CALL MAREA_G_Overlaps(const MAREA_AstNode *left, const MAREA_AstNode *right)
+{
+    const MAREA_AstNode *leftType = MAREA_G_ImplementedType(left);
+
+    const MAREA_AstNode *rightType = MAREA_G_ImplementedType(right);
+
+    if ((leftType == MAREA_NULLPTR) || (rightType == MAREA_NULLPTR) || (MAREA_G_TypeEquals(leftType, rightType) == MAREA_BOOLEAN_TRUE) || (MAREA_G_TypeEquals(MAREA_SemaChildAt(leftType, 0), MAREA_SemaChildAt(rightType, 0)) == MAREA_BOOLEAN_FALSE)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_AstNode *leftArguments = MAREA_G_ChildOfKind(leftType, MAREA_AST_KIND_TYPE_ARGUMENTS);
+
+    const MAREA_AstNode *rightArguments = MAREA_G_ChildOfKind(rightType, MAREA_AST_KIND_TYPE_ARGUMENTS);
+
+    if ((leftArguments == MAREA_NULLPTR) || (rightArguments == MAREA_NULLPTR) || (MAREA_AstNodeGetChildCount(leftArguments) != MAREA_AstNodeGetChildCount(rightArguments))) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    for (MAREA_IntegerSize index = 0; index < MAREA_AstNodeGetChildCount(leftArguments); ++index) {
+        const MAREA_AstNode *leftArgument = MAREA_SemaChildAt(leftArguments, index);
+
+        const MAREA_AstNode *rightArgument = MAREA_SemaChildAt(rightArguments, index);
+
+        if ((MAREA_G_TypeEquals(leftArgument, rightArgument) == MAREA_BOOLEAN_FALSE) && (MAREA_G_IsOwnParameter(left, leftArgument) == MAREA_BOOLEAN_FALSE) && (MAREA_G_IsOwnParameter(right, rightArgument) == MAREA_BOOLEAN_FALSE)) {
+            return MAREA_BOOLEAN_FALSE;
+        }
+    }
+
+    return MAREA_BOOLEAN_TRUE;
+}
+
+static MAREA_Boolean MAREA_CALL MAREA_G_OverlapsEarlier(const MAREA_AstNode *root, MAREA_IntegerSize current, const MAREA_Character8 *name, MAREA_IntegerSize nameLength)
+{
+    const MAREA_AstNode *implementation = MAREA_SemaChildAt(root, current);
+
+    for (MAREA_IntegerSize earlier = 0; earlier < current; ++earlier) {
+        const MAREA_AstNode *other = MAREA_SemaChildAt(root, earlier);
+
+        if ((other != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(other) == MAREA_AST_KIND_IMPLEMENTATION_DECLARATION) && (MAREA_G_Overlaps(implementation, other) == MAREA_BOOLEAN_TRUE) && (MAREA_G_HasMember(other, MAREA_AstNodeGetChildCount(other), name, nameLength) == MAREA_BOOLEAN_TRUE)) {
+            return MAREA_BOOLEAN_TRUE;
+        }
+    }
+
+    return MAREA_BOOLEAN_FALSE;
+}
+
 MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckDeclarations(MAREA_SemaContext *context, const MAREA_AstNode *root)
 {
     if ((context == MAREA_NULLPTR) || (root == MAREA_NULLPTR)) {
@@ -532,6 +616,14 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckDeclarations(MAREA_SemaContext *conte
 
             if (duplicate == MAREA_BOOLEAN_TRUE) {
                 const MAREA_SemaExcept RESULT = MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_DUPLICATE_MEMBER, MAREA_AstNodeGetPosition(member), "member is already declared:", name, nameLength);
+
+                if (RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+                    return RESULT;
+                }
+            }
+
+            if ((duplicate == MAREA_BOOLEAN_FALSE) && (MAREA_G_OverlapsEarlier(root, current, name, nameLength) == MAREA_BOOLEAN_TRUE)) {
+                const MAREA_SemaExcept RESULT = MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_OVERLAPPING_IMPLEMENTATION, MAREA_AstNodeGetPosition(member), "implementation blocks overlap on the member:", name, nameLength);
 
                 if (RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
                     return RESULT;
