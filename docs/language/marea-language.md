@@ -366,6 +366,7 @@ write-borrow parameter.
 | L-OWNERSHIP-021 | A with name assigned to a local with no word | 3016 @26 |
 | L-OWNERSHIP-023 | A structure constant assigned to a local with no word | 3016 @22 |
 | L-OWNERSHIP-032 | A vector assigned with no word | 3016 @20 |
+| L-OWNERSHIP-035 | A library array assigned with no word | 3016 @22 |
 | L-OWNERSHIP-058 | A local with no initial value is read | 3065 @20 |
 | L-OWNERSHIP-060 | A local is assigned in one branch only and then read | 3065 @20 |
 | L-OWNERSHIP-062 | A local is assigned in one arm of switch only and then read | 3065 @20 |
@@ -414,7 +415,6 @@ write-borrow parameter.
 
 | Id | Shows | Expected |
 |---|---|---|
-| L-OWNERSHIP-035 | A library array assigned with no word (a library type has no copy or move check) | gap: #197 3016, rule: reject |
 | L-OWNERSHIP-036 | A structure is used after it was moved | gap: #198 NEW, rule: reject |
 | L-OWNERSHIP-038 | A structure is moved twice | gap: #198 NEW, rule: reject |
 | L-OWNERSHIP-039 | A structure is moved in a loop body, so the second turn uses a moved value | gap: #198 NEW, rule: reject |
@@ -1263,11 +1263,11 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | interop | 17 | 27 | 1 |
 | memory | 15 | 11 | 7 |
 | namespaces | 17 | 34 | 0 |
-| ownership | 65 | 53 | 27 |
+| ownership | 65 | 54 | 26 |
 | parallel | 19 | 26 | 14 |
 | seed | 1 | 2 | 0 |
 | types | 60 | 116 | 20 |
-| total | 266 | 446 | 99 |
+| total | 266 | 447 | 98 |
 
 ## Parity plan
 
