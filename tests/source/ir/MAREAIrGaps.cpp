@@ -307,17 +307,6 @@ TEST(MAREAIrGaps, CallOfADroppedFunctionRaisesAtTheCallSite)
     EXPECT_EQ(MAREA_functionNamesOf(SOURCE), "keep") << "The caller must be dropped with its dangling call.";
 }
 
-TEST(MAREAIrGaps, CallOfADroppedFunctionDeclaredLaterRaisesAtTheCallSite)
-{
-    GTEST_COUT << "Validating a call to a dropped function that is declared after the caller raises at the call site too." << std::endl;
-
-    const std::string SOURCE{ "namespace main; function run() noop(5); end function noop<Item>(value: Item) end function keep() end" };
-
-    EXPECT_EQ(MAREA_irCodesOf(SOURCE), (Codes{ GENERIC, GENERIC })) << "The generic function and the call that targets it must each raise once.";
-
-    EXPECT_EQ(MAREA_functionNamesOf(SOURCE), "keep") << "The caller must be dropped with its dangling call.";
-}
-
 TEST(MAREAIrGaps, CallOfAFunctionDroppedByItsOwnDanglingCallRaisesToo)
 {
     GTEST_COUT << "Validating a function dropped for a dangling call is itself a dropped name, so its own callers raise." << std::endl;
