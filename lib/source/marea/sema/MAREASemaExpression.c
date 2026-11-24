@@ -920,6 +920,12 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressions(MAREA_SemaContext *contex
             return pointerResult;
         }
 
+        const MAREA_SemaExcept initializerResult = MAREA_SemaCheckLocalInitializer(context, node);
+
+        if (initializerResult != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return initializerResult;
+        }
+
         return MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, 2), 0, MAREA_BOOLEAN_TRUE);
     }
     case MAREA_AST_KIND_PARAMETER:
