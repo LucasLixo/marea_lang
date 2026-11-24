@@ -269,7 +269,7 @@ TEST(MAREASemaOwnership, SameNameInTwoMutableArgumentsConflicts)
 
     const std::string TAKE{ SHAPE + "function take(#[semantics = reference_mutable] a: Shape, #[semantics = reference_mutable] b: Shape) end function other(#[semantics = reference_read_only] a: Shape, #[semantics = reference_read_only] b: Shape) end function plain(a: Shape, b: Shape) end " };
 
-    EXPECT_EQ(MAREA_codesOf(TAKE + "function f(s: Shape) take(s, s); end"), Codes{ EXCLUSIVE }) << "A repeated name with an explicit write borrow must raise EXCLUSIVE_BORROW_CONFLICT.";
+    EXPECT_EQ(MAREA_codesOf(TAKE + "function f(#[semantics = reference_mutable] s: Shape) take(s, s); end"), Codes{ EXCLUSIVE }) << "A repeated name with an explicit write borrow must raise EXCLUSIVE_BORROW_CONFLICT.";
 
     EXPECT_TRUE(MAREA_codesOf(TAKE + "function f(s: Shape) plain(s, s); end").empty()) << "A repeated name with default parameters (read-only borrows) must raise nothing.";
 
@@ -286,7 +286,7 @@ TEST(MAREASemaOwnership, ConstantBoundToAWriteBorrowParameterIsRejected)
 
     EXPECT_TRUE(MAREA_codesOf(TAKE + "function f() plain(ORIGIN); end").empty()) << "A constant bound to a default parameter (a read-only borrow) must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf(TAKE + "function f(s: Shape) take(s); end").empty()) << "A variable bound to the same write-borrow parameter must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf(TAKE + "function f(#[semantics = reference_mutable] s: Shape) take(s); end").empty()) << "A variable bound to the same write-borrow parameter must raise nothing.";
 
     EXPECT_TRUE(MAREA_codesOf(TAKE + "function f() other(ORIGIN); end").empty()) << "A constant bound to a read-only borrow must raise nothing.";
 }

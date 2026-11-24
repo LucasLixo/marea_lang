@@ -94,6 +94,44 @@ TEST(MAREASemaReadOnlyBorrow, MutableForEachNeedsAWritableSource)
     EXPECT_EQ(MAREA_codesOf("function f(#[semantics = reference_read_only] b: Box) for each v in mutable b.inner do end end"), ONE) << "A field of a read-only name is read-only.";
 }
 
+TEST(MAREASemaReadOnlyBorrow, ReadOnlyBorrowGivenToAWriteBorrowIsRejected)
+{
+    GTEST_COUT << "Validating that a read-only borrow, or a part of one, passed to a write-borrow parameter reports once." << std::endl;
+
+    const std::string HEAD{ "function write_point(#[semantics = reference_mutable] p: Point) p.x = 1; end function bump<Item>(#[semantics = reference_mutable] value: Item) end " };
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "function f(#[semantics = reference_read_only] p: Point) write_point(p); end"), ONE) << "A read-only parameter must be rejected.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "function f(p: Point) write_point(p); end"), ONE) << "A parameter with no attribute is read-only.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "function f(#[semantics = reference_read_only] b: Box) write_point(b.inner); end"), ONE) << "A field of a read-only name must be rejected.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "function f(#[semantics = reference_read_only] ps: c.array<Point>) write_point(ps[0]); end"), ONE) << "An element of a read-only name must be rejected.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "function f(#[semantics = reference_read_only] p: Point) bump(p); end"), ONE) << "A generic write borrow must be checked too.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "function f() local p: Point = make_point(); write_point(p); end"), NONE) << "A local must be accepted.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "function f(#[semantics = reference_mutable] p: Point) write_point(p); end"), NONE) << "A mutable parameter must be accepted.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "import c.task; function f(#[semantics = reference_read_only] p: Point) fork_join spawn write_point(p); end end"), ONE) << "A spawn of a read-only parameter must be rejected.";
+}
+
+TEST(MAREASemaReadOnlyBorrow, TemporaryGivenToAWriteBorrowIsRejected)
+{
+    GTEST_COUT << "Validating that a call result or a literal passed to a write-borrow parameter reports once and an owned parameter accepts it." << std::endl;
+
+    const std::string HEAD{ "function write_point(#[semantics = reference_mutable] p: Point) p.x = 1; end function take(o: owned<Point>) end function set(#[semantics = reference_mutable] n: sinteger32) end " };
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "function f() write_point(make_point()); end"), ONE) << "A call result must be rejected.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "function f() write_point(Point{ x = 1, y = 2 }); end"), ONE) << "A literal value must be rejected.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "function f() set(1); end"), ONE) << "A scalar literal must be rejected.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "function f() take(make_point()); end"), NONE) << "An owned parameter must accept a call result.";
+}
+
 TEST(MAREASemaReadOnlyBorrow, PartitionMutableNeedsAWritableSource)
 {
     GTEST_COUT << "Validating that partition mutable over a read-only source reports once and the part of a writable one may be written." << std::endl;
