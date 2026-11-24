@@ -45,7 +45,7 @@ The first line is the header. It has one of three forms:
 A `known_gap` item has `-- rule: reject` or `-- rule: accept` as its second line: the outcome the language has
 decided. A `-- rule:` line in another class is an error. The copyright header follows, then the program.
 
-The codes are the lex codes 1001-1006, the parse codes 2001-2010 and the sema codes 3001-3032 (3023 is retired).
+The codes are the lex codes 1001-1006, the parse codes 2001-2010 and the sema codes 3001-3032 and 3057-3058 (3023 is retired).
 The `@<line>` of the form is optional for the parser of the header, but a `reject` item with a code that has no
 `@<line>` fails.
 
@@ -940,9 +940,13 @@ rejected with 3009 by the type checker, so it has no accept item.
 | L-INTEROP-022 | An opaque structure has no body | 2001 @10, 2005 @11 |
 | L-INTEROP-023 | A parameter of a type that no declaration names | 3009 @9 |
 | L-INTEROP-024 | An import placed after a function | 2004 @13 |
+| L-INTEROP-040 | An opaque structure is built with a struct literal | 3057 @12 |
+| L-INTEROP-041 | A field of an opaque structure is read | 3057 @12 |
+| L-INTEROP-042 | An operator is applied to two opaque values | 3057 @12 |
 | L-INTEROP-049 | A name of a with block used after its end | 3004 @15 |
 | L-INTEROP-050 | An owner of an opaque type assigned with no move | 3016 @15 |
 | L-INTEROP-054 | A macro name called without the bang | 3004 @10 |
+| L-INTEROP-057 | A structure with an opaque field held by value | 3058 @12 |
 | L-INTEROP-058 | An opaque structure declared twice | 3003 @11 |
 | L-INTEROP-059 | An opaque structure and a structure with the same name | 3003 @11 |
 | L-INTEROP-063 | A borrowed opaque value returned by value | 3018 @12 |
@@ -952,9 +956,6 @@ rejected with 3009 by the type checker, so it has no accept item.
 | Id | Shows | Expected |
 |---|---|---|
 | L-INTEROP-021 | A call of a macro that the compiler does not define | gap: NEW, rule: reject, issue #241 |
-| L-INTEROP-040 | An opaque structure is built with a struct literal | gap: NEW, rule: reject, issue #239 |
-| L-INTEROP-041 | A field of an opaque structure is read | gap: NEW, rule: reject, issue #239 |
-| L-INTEROP-042 | An operator is applied to two opaque values | gap: NEW, rule: reject, issue #239 |
 | L-INTEROP-043 | A static_assert macro of a false condition | gap: NEW, rule: reject, issue #240 |
 | L-INTEROP-044 | A compile_error macro call | gap: NEW, rule: reject, issue #240 |
 | L-INTEROP-045 | A print macro with fewer values than the format text needs | gap: NEW, rule: reject, issue #241 |
@@ -966,7 +967,6 @@ rejected with 3009 by the type checker, so it has no accept item.
 | L-INTEROP-053 | An unreachable macro with an argument | gap: NEW, rule: reject, issue #241 |
 | L-INTEROP-055 | A log macro with a level that does not exist | gap: NEW, rule: reject, issue #241 |
 | L-INTEROP-056 | A macro that gives no value used as a value | gap: 3011, rule: reject, issue #241 |
-| L-INTEROP-057 | A structure with an opaque field held by value | gap: NEW, rule: reject, issue #239 |
 | L-INTEROP-061 | A format macro result returned as an integer | gap: 3011, rule: reject, issue #241 |
 | L-INTEROP-062 | An include_text macro with a number as the path | gap: NEW, rule: reject, issue #241 |
 
@@ -1247,14 +1247,14 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | coverage | 0 | 0 | 1 |
 | examples | 16 | 0 | 0 |
 | functions | 19 | 41 | 13 |
-| interop | 17 | 10 | 18 |
+| interop | 17 | 14 | 14 |
 | memory | 15 | 10 | 8 |
 | namespaces | 17 | 28 | 6 |
 | ownership | 65 | 35 | 45 |
 | parallel | 19 | 23 | 17 |
 | seed | 1 | 1 | 1 |
 | types | 60 | 108 | 28 |
-| total | 262 | 342 | 203 |
+| total | 262 | 346 | 199 |
 
 ## Parity plan
 
@@ -1275,7 +1275,7 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 |---|---|---|
 | 1001-1006 | `lex` | [marea-lex.md](../lex/marea-lex.md) |
 | 2001-2010 | `parse` | [marea-ast.md](../ast/marea-ast.md) |
-| 3001-3032 | `sema` | [marea-sema.md](../sema/marea-sema.md) |
+| 3001-3032, 3057-3058 | `sema` | [marea-sema.md](../sema/marea-sema.md) |
 | 4004-4006 | `ir` | [marea-ir.md](../ir/marea-ir.md), no item reaches them (see Gaps) |
 
 ## Gaps
@@ -1328,7 +1328,7 @@ the rule is enforced. The coverage test holds this list; an example that gains a
 
 ### Diagnostic codes with no reject item
 
-Every live lex, parse and sema code (1001-1006, 2001-2010, 3001-3032 without 3023) has a `reject` item. The ir codes
+Every live lex, parse and sema code (1001-1006, 2001-2010, 3001-3032 without 3023, 3057-3058) has a `reject` item. The ir codes
 4004, 4005 and 4006 are exempt: the runner runs lex, parse and sema only, so no item can reach the ir. The exemption ends
 when a runner or an apply makes the ir run in it. The retired codes 3023 and 4001-4003 are excluded and must not
 return in a header.

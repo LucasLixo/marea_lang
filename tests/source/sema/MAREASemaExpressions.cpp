@@ -12,6 +12,7 @@ namespace
     constexpr MAREA_Uinteger32 MISMATCH{ MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH };
     constexpr MAREA_Uinteger32 UNDECLARED{ MAREA_SEMA_DIAGNOSTIC_CODE_UNDECLARED_NAME };
     constexpr MAREA_Uinteger32 COUNT_MISMATCH{ MAREA_SEMA_DIAGNOSTIC_CODE_ARGUMENT_COUNT_MISMATCH };
+    constexpr MAREA_Uinteger32 OPAQUE_MISUSE{ MAREA_SEMA_DIAGNOSTIC_CODE_OPAQUE_TYPE_MISUSE };
     constexpr MAREA_Uinteger32 DEFAULT_BEFORE_REQUIRED{ MAREA_SEMA_DIAGNOSTIC_CODE_DEFAULT_PARAMETER_BEFORE_REQUIRED };
 
     Codes MAREA_codesOf(const std::string &body)
@@ -768,4 +769,38 @@ TEST(MAREASemaExpressions, TypeWithNoConstructOperatorAcceptsOnlyAnEmptyCall)
     EXPECT_TRUE(MAREA_codesOf(LINE + "Line(); end").empty()) << "A call with no argument and no construct operator must raise nothing.";
 
     EXPECT_EQ(MAREA_codesOf(LINE + "Line(1.0); end"), Codes{ COUNT_MISMATCH }) << "A call with an argument, and no construct operator, must raise ARGUMENT_COUNT_MISMATCH.";
+}
+
+TEST(MAREASemaExpressions, OpaqueTypeCannotBeBuiltReadOrOperated)
+{
+    GTEST_COUT << "Validating a literal, a field read and an operator of an opaque type raise OPAQUE_TYPE_MISUSE." << std::endl;
+
+    const std::string OPAQUE{ "opaque structure T; " };
+
+    EXPECT_EQ(MAREA_codesOf(OPAQUE + "function f(a: T, b: T): T return a + b; end"), Codes{ OPAQUE_MISUSE }) << "An operator on two opaque names must raise OPAQUE_TYPE_MISUSE.";
+
+    EXPECT_EQ(MAREA_codesOf(OPAQUE + "function f(a: T, b: T): boolean return a == b; end"), Codes{ OPAQUE_MISUSE }) << "A comparison of two opaque names must raise OPAQUE_TYPE_MISUSE.";
+
+    EXPECT_EQ(MAREA_codesOf(OPAQUE + "function f(a: T): sinteger32 return a.width; end"), Codes{ OPAQUE_MISUSE }) << "A field read of an opaque name must raise OPAQUE_TYPE_MISUSE.";
+
+    EXPECT_EQ(MAREA_codesOf(OPAQUE + "function f(a: T): sinteger32 return (a).width; end"), Codes{ OPAQUE_MISUSE }) << "A field read of a parenthesized opaque name must raise OPAQUE_TYPE_MISUSE.";
+
+    EXPECT_EQ(MAREA_codesOf(OPAQUE + "function f() local t: T = T{ }; end"), Codes{ OPAQUE_MISUSE }) << "A struct literal of an opaque type must raise OPAQUE_TYPE_MISUSE.";
+}
+
+TEST(MAREASemaExpressions, OpaqueTypeUsedThroughABorrowOrAnOwnerIsAccepted)
+{
+    GTEST_COUT << "Validating an opaque type through a borrow, an owner or a C call raises nothing." << std::endl;
+
+    const std::string OPAQUE{ "opaque structure T; " };
+
+    EXPECT_TRUE(MAREA_codesOf(OPAQUE + "function f(a: T) local v: sinteger32 = 1; end").empty()) << "A borrow parameter of an opaque type must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(OPAQUE + "function g(a: T) end function f(a: T) g(a); end").empty()) << "An opaque name passed as a borrow must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(OPAQUE + "function g(a: T) end function f(a: owned<T>) g(a); end").empty()) << "An owner passed as a borrow must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(OPAQUE + "function f(a: T): sinteger32 return c.texture.width(a); end").empty()) << "A C call with an opaque argument must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("structure S width: sinteger32; end function f(a: S): sinteger32 return a.width; end").empty()) << "A field read of an ordinary structure must raise nothing.";
 }

@@ -1,14 +1,13 @@
--- gap: #239 NEW
--- rule: reject
+-- expect: 3057 @12
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- An opaque structure is built with a struct literal.
+-- An operator is applied to two opaque values.
 
 namespace main;
 
 opaque structure Texture;
 
-function check()
-    local texture: Texture = Texture{ };
+function check(texture: Texture, other: Texture): Texture
+    return texture + other;
 end
