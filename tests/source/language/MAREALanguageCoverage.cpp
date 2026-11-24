@@ -76,7 +76,6 @@ namespace
         { "constant division by zero", "0", "reject 3034" },
         { "shift count too large", "0", "reject 3035" },
         { "cyclic constant", "0", "reject 3055" },
-        { "overlapping implementation", "225", "gap" },
         { "unreachable switch arm", "0", "reject 3025 2010" },
         { "import cycle", "250", "none" },
         { "private access across namespaces", "250", "none" },
