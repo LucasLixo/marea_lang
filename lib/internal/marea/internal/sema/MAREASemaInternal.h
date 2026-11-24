@@ -518,6 +518,15 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_SemaTextEquals(const MAREA_Character8 *left, MAREA_IntegerSize leftLength, const MAREA_Character8 *right, MAREA_IntegerSize rightLength);
 
     /**
+     * @brief Tells whether an enum declares a variant with a name.
+     * @param enumeration ENUM_DECLARATION node. Must not be null.
+     * @param name Text of the name, not NUL terminated.
+     * @param nameLength Length of name in bytes.
+     * @return True when a VARIANT_DECLARATION of the enum has the name.
+     */
+    MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_SemaEnumHasVariant(const MAREA_AstNode *enumeration, const MAREA_Character8 *name, MAREA_IntegerSize nameLength);
+
+    /**
      * @brief Looks a name up in the name table of the context.
      * @param context Context of the run. Must not be null.
      * @param text Text of the name, not NUL terminated.

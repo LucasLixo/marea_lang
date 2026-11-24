@@ -705,7 +705,9 @@ Function declaration and call, parameters and defaults, the result and `return v
 | L-TYPES-058 | a switch with a repeated value and a missing variant gives both codes | 3025 @20, 3021 @16 |
 | L-TYPES-060 | a switch value of a name that no scope declares | 3004 @10 |
 | L-TYPES-061 | a switch arm that returns the wrong type | 3011 @12 |
+| L-TYPES-072 | a zero-member enum | 3047 @9 |
 | L-TYPES-073 | an enum with one variant declared twice | 3012 @11 |
+| L-TYPES-074 | a variant of an enum that does not exist | 3048 @16 |
 | L-TYPES-084 | two implementation blocks that declare one function | 3012 @21 |
 | L-TYPES-085 | one implementation block that declares one function twice | 3012 @19 |
 | L-TYPES-086 | a generic call with a type that does not meet the contract | 3013 @24, 3013 @24 |
@@ -807,8 +809,6 @@ Function declaration and call, parameters and defaults, the result and `return v
 | L-TYPES-023 | a struct literal with a missing field | gap: NEW, rule: reject, issue #220; stays open because the zero-default rule of the ir accepts an omitted field |
 | L-TYPES-070 | a switch arm whose value has another type than the switch value | gap: 3011, rule: reject, issue #222 |
 | L-TYPES-071 | a case value of a variant of another enum | gap: 3011, rule: reject, issue #222 |
-| L-TYPES-072 | a zero-member enum | gap: NEW, rule: reject, issue #223 |
-| L-TYPES-074 | a variant of an enum that does not exist | gap: 3004, rule: reject, issue #223 |
 | L-TYPES-147 | a for range with a bound of another type | gap: 3011, rule: reject, issue #222 |
 
 ## Namespaces and imports
@@ -1257,8 +1257,8 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | ownership | 65 | 56 | 24 |
 | parallel | 19 | 30 | 10 |
 | seed | 1 | 2 | 0 |
-| types | 60 | 130 | 6 |
-| total | 266 | 472 | 73 |
+| types | 60 | 132 | 4 |
+| total | 266 | 474 | 71 |
 
 ## Parity plan
 
@@ -1290,6 +1290,7 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 | 3041 | `sema` | [marea-sema.md](../sema/marea-sema.md), `RAW_POINTER_OUTSIDE_UNSAFE` |
 | 3043 | `sema` | [marea-sema.md](../sema/marea-sema.md), `NON_BOOLEAN_CONDITION` |
 | 3045-3046 | `sema` | [marea-sema.md](../sema/marea-sema.md), `RECURSIVE_TYPE` and `CYCLIC_TYPE_ALIAS` |
+| 3047-3048 | `sema` | [marea-sema.md](../sema/marea-sema.md), `EMPTY_ENUM` and `UNKNOWN_ENUM_VARIANT` |
 | 3049-3050 | `sema` | [marea-sema.md](../sema/marea-sema.md), `UNKNOWN_TYPE_FUNCTION` and `OPERATOR_SIGNATURE_MISMATCH` |
 | 3051-3052 | `sema` | [marea-sema.md](../sema/marea-sema.md), `BOUND_OPERATION_NOT_GIVEN` and `OVERLAPPING_IMPLEMENTATION` |
 | 3053 | `sema` | [marea-sema.md](../sema/marea-sema.md), `FUNCTION_TYPE_MISMATCH` |
