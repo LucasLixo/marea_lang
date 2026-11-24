@@ -606,7 +606,7 @@ Function declaration and call, parameters and defaults, the result and `return v
 | L-FUNCTIONS-067 | the result of a function with no result used as a value | gap: 3011, rule: reject, issue #215 |
 | L-FUNCTIONS-071 | a call of a value that is not a function | gap: 3011, rule: reject, issue #215 |
 
-Known gaps of this area share their issues: #215, #220, #221, #222, #223, #224, #225. An issue lists the items that show it in the area; an item flips to `reject` the day its rule is implemented.
+Known gaps of this area share their issues: #215, #220, #221, #222, #223, #225. An issue lists the items that show it in the area; an item flips to `reject` the day its rule is implemented.
 
 ## Types and control flow
 
@@ -727,6 +727,9 @@ Known gaps of this area share their issues: #215, #220, #221, #222, #223, #224, 
 | L-TYPES-097 | a type call with too many arguments for a type that has no construct | 3010 @15 |
 | L-TYPES-098 | an implementation of a type that does not exist | 3009 @9, 3009 @10 |
 | L-TYPES-099 | a contract that lists one function twice | 3012 @11 |
+| L-TYPES-100 | a method call of a function that the type does not have | 3049 @15 |
+| L-TYPES-101 | a static call of a function that the type does not have | 3049 @15 |
+| L-TYPES-102 | an operator function whose signature does not match the operator | 3050 @16 |
 | L-TYPES-103 | an implementation constant used outside its block | 3004 @19 |
 | L-TYPES-114 | a generic argument count that does not match | 3014 @13 |
 | L-TYPES-115 | a generic type with no argument where one is needed | 3014 @13 |
@@ -814,9 +817,6 @@ Known gaps of this area share their issues: #215, #220, #221, #222, #223, #224, 
 | L-TYPES-071 | a case value of a variant of another enum | gap: 3011, rule: reject, issue #222 |
 | L-TYPES-072 | a zero-member enum | gap: NEW, rule: reject, issue #223 |
 | L-TYPES-074 | a variant of an enum that does not exist | gap: 3004, rule: reject, issue #223 |
-| L-TYPES-100 | a method call of a function that the type does not have | gap: NEW, rule: reject, issue #224 |
-| L-TYPES-101 | a static call of a function that the type does not have | gap: NEW, rule: reject, issue #224 |
-| L-TYPES-102 | an operator function whose signature does not match the operator | gap: NEW, rule: reject, issue #224 |
 | L-TYPES-121 | an unsatisfied bound inside the body of a generic function, an operation the bound does not give | gap: NEW, rule: reject, issue #225 |
 | L-TYPES-123 | two overlapping implementation blocks of a generic and a concrete type | gap: 3012, rule: reject, issue #225 |
 | L-TYPES-124 | a cyclic type alias | gap: NEW, rule: reject, issue #221 |
@@ -1266,8 +1266,8 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | ownership | 65 | 54 | 26 |
 | parallel | 19 | 26 | 14 |
 | seed | 1 | 2 | 0 |
-| types | 60 | 116 | 20 |
-| total | 266 | 447 | 98 |
+| types | 60 | 119 | 17 |
+| total | 266 | 450 | 95 |
 
 ## Parity plan
 
@@ -1298,6 +1298,7 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 | 3040 | `sema` | [marea-sema.md](../sema/marea-sema.md), `ASSIGNMENT_TO_CONSTANT` |
 | 3041 | `sema` | [marea-sema.md](../sema/marea-sema.md), `RAW_POINTER_OUTSIDE_UNSAFE` |
 | 3043 | `sema` | [marea-sema.md](../sema/marea-sema.md), `NON_BOOLEAN_CONDITION` |
+| 3049-3050 | `sema` | [marea-sema.md](../sema/marea-sema.md), `UNKNOWN_TYPE_FUNCTION` and `OPERATOR_SIGNATURE_MISMATCH` |
 | 3053 | `sema` | [marea-sema.md](../sema/marea-sema.md), `FUNCTION_TYPE_MISMATCH` |
 | 3055 | `sema` | [marea-sema.md](../sema/marea-sema.md), `CYCLIC_CONSTANT` |
 | 3059 | `sema` | [marea-sema.md](../sema/marea-sema.md), `COMPILE_TIME_ASSERTION_FAILED` |

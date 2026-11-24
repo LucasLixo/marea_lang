@@ -203,7 +203,7 @@ TEST(MAREAIrTypeArguments, NonGenericStaticCallIsUnchanged)
 {
     GTEST_COUT << "Validating a static call on a type with no type arguments is a plain member call." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerLocal("", "Light", "Light.origin()"), "(CALL_EXPRESSION (MEMBER_ACCESS (IDENTIFIER Light) (IDENTIFIER origin)) (ARGUMENT_LIST))") << "A type with no type arguments is an IDENTIFIER, as before.";
+    EXPECT_EQ(MAREA_lowerLocal("", "list<sinteger32>", "list.origin()"), "(CALL_EXPRESSION (MEMBER_ACCESS (IDENTIFIER list) (IDENTIFIER origin)) (ARGUMENT_LIST))") << "A type with no type arguments is an IDENTIFIER, as before.";
 }
 
 TEST(MAREAIrTypeArguments, FunctionOfTheUnitWithABuiltinNameStaysAGeneric)
