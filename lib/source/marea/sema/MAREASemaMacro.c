@@ -20,22 +20,24 @@ typedef struct MAREA_G_MacroRule
 {
     const MAREA_Character8 *name;
     MAREA_G_MacroShape shape;
+    MAREA_SemaMacroValue value;
 } MAREA_G_MacroRule;
 
+// INFO: include_bytes gives c.array<uinteger8> and line gives a number, but sema does not type them yet, so their value is unknown.
 static const MAREA_G_MacroRule MAREA_G_MACROS[] = {
-    { "assert", MAREA_G_MACRO_SHAPE_CONDITION_AND_TEXT },
-    { "debug_assert", MAREA_G_MACRO_SHAPE_CONDITION_AND_TEXT },
-    { "unreachable", MAREA_G_MACRO_SHAPE_NONE },
-    { "compile_error", MAREA_G_MACRO_SHAPE_TEXT },
-    { "static_assert", MAREA_G_MACRO_SHAPE_CONDITION_AND_TEXT },
-    { "include_bytes", MAREA_G_MACRO_SHAPE_TEXT },
-    { "include_text", MAREA_G_MACRO_SHAPE_TEXT },
-    { "format", MAREA_G_MACRO_SHAPE_FORMAT },
-    { "print", MAREA_G_MACRO_SHAPE_FORMAT },
-    { "log", MAREA_G_MACRO_SHAPE_LEVEL_AND_FORMAT },
-    { "line", MAREA_G_MACRO_SHAPE_NONE },
-    { "file", MAREA_G_MACRO_SHAPE_NONE },
-    { "namespace", MAREA_G_MACRO_SHAPE_NONE },
+    { "assert", MAREA_G_MACRO_SHAPE_CONDITION_AND_TEXT, MAREA_SEMA_MACRO_VALUE_NONE },
+    { "debug_assert", MAREA_G_MACRO_SHAPE_CONDITION_AND_TEXT, MAREA_SEMA_MACRO_VALUE_NONE },
+    { "unreachable", MAREA_G_MACRO_SHAPE_NONE, MAREA_SEMA_MACRO_VALUE_NONE },
+    { "compile_error", MAREA_G_MACRO_SHAPE_TEXT, MAREA_SEMA_MACRO_VALUE_NONE },
+    { "static_assert", MAREA_G_MACRO_SHAPE_CONDITION_AND_TEXT, MAREA_SEMA_MACRO_VALUE_NONE },
+    { "include_bytes", MAREA_G_MACRO_SHAPE_TEXT, MAREA_SEMA_MACRO_VALUE_UNKNOWN },
+    { "include_text", MAREA_G_MACRO_SHAPE_TEXT, MAREA_SEMA_MACRO_VALUE_STRING },
+    { "format", MAREA_G_MACRO_SHAPE_FORMAT, MAREA_SEMA_MACRO_VALUE_STRING },
+    { "print", MAREA_G_MACRO_SHAPE_FORMAT, MAREA_SEMA_MACRO_VALUE_NONE },
+    { "log", MAREA_G_MACRO_SHAPE_LEVEL_AND_FORMAT, MAREA_SEMA_MACRO_VALUE_NONE },
+    { "line", MAREA_G_MACRO_SHAPE_NONE, MAREA_SEMA_MACRO_VALUE_UNKNOWN },
+    { "file", MAREA_G_MACRO_SHAPE_NONE, MAREA_SEMA_MACRO_VALUE_STRING },
+    { "namespace", MAREA_G_MACRO_SHAPE_NONE, MAREA_SEMA_MACRO_VALUE_STRING },
 };
 
 // INFO: the log levels. The language docs do not list them, so this list is an assumption that the user must confirm.
@@ -55,6 +57,13 @@ static const MAREA_G_MacroRule *MAREA_CALL MAREA_G_FindRule(const MAREA_Characte
 MAREA_Boolean MAREA_CALL MAREA_SemaIsBuiltInMacroName(const MAREA_Character8 *text, MAREA_IntegerSize length)
 {
     return ((length > 0) && (text != MAREA_NULLPTR) && (MAREA_G_FindRule(text, length) != MAREA_NULLPTR)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
+MAREA_SemaMacroValue MAREA_CALL MAREA_SemaMacroValueOf(const MAREA_Character8 *text, MAREA_IntegerSize length)
+{
+    const MAREA_G_MacroRule *rule = ((length > 0) && (text != MAREA_NULLPTR)) ? MAREA_G_FindRule(text, length) : MAREA_NULLPTR;
+
+    return (rule == MAREA_NULLPTR) ? MAREA_SEMA_MACRO_VALUE_UNKNOWN : rule->value;
 }
 
 // INFO: the message is "macro 'name' rest", built in the arena of the context.
