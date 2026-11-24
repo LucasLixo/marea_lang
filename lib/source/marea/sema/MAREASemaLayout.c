@@ -158,8 +158,13 @@ static void MAREA_CALL MAREA_G_ClassifyType(const MAREA_SemaContext *context, co
             outShape->kind = MAREA_G_SHAPE_KIND_STRUCTURE;
             outShape->reason = MAREA_SEMA_MEASURE_REASON_NONE;
         } else if (MAREA_G_IsKind(outShape->declaration, MAREA_AST_KIND_ENUM_DECLARATION) == MAREA_BOOLEAN_TRUE) {
-            outShape->kind = MAREA_G_SHAPE_KIND_ENUM;
-            outShape->reason = MAREA_SEMA_MEASURE_REASON_NONE;
+            const MAREA_SemaName *entry = MAREA_SemaNameTableFind(context, outShape->name, outShape->length);
+
+            // INFO: an enum bound by an import belongs to another file, whose names and file attributes this context cannot see, so it is not measured.
+            const MAREA_Boolean IS_IMPORTED = ((entry != MAREA_NULLPTR) && (entry->kind == MAREA_SEMA_NAME_KIND_IMPORTED_SYMBOL)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+
+            outShape->kind = (IS_IMPORTED == MAREA_BOOLEAN_TRUE) ? MAREA_G_SHAPE_KIND_UNDECIDED : MAREA_G_SHAPE_KIND_ENUM;
+            outShape->reason = (IS_IMPORTED == MAREA_BOOLEAN_TRUE) ? MAREA_SEMA_MEASURE_REASON_UNRESOLVED : MAREA_SEMA_MEASURE_REASON_NONE;
         } else if (MAREA_G_IsKind(outShape->declaration, MAREA_AST_KIND_OPAQUE_DECLARATION) == MAREA_BOOLEAN_TRUE) {
             outShape->reason = MAREA_SEMA_MEASURE_REASON_OPAQUE;
         }
