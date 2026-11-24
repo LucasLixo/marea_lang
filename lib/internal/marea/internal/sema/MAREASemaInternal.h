@@ -621,6 +621,15 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckNamedType(MAREA_SemaContext * context, const MAREA_AstNode *node);
 
     /**
+     * @brief Reports OPAQUE_FIELD_BY_VALUE on a FIELD_DECLARATION whose written type is the bare name of an
+     * opaque structure of the same file. An owner, a pointer or any other generic of it is not reported.
+     * @param context Context of the run. Must not be null.
+     * @param node FIELD_DECLARATION node. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS or ERROR_NULL_POINTER on a null argument.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckOpaqueField(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
      * @brief Gives the namespace that a name entry stands for, as the resolver knows it: a namespace import is its
      * qualifier then its own name (an alias gives the original), a symbol import is the namespace of its qualifier.
      * Two checks read a namespace this way, the typed tree builder and MAREA_SemaCheckVisibility.

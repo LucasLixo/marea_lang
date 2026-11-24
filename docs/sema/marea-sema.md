@@ -305,6 +305,12 @@ sema itself: the grammar puts `default_arm` last, and the parser now enforces th
 (`DEFAULT_ARM_NOT_LAST`, 2010), so a `default` that is not the last arm never reaches sema through a
 program the parser accepts.
 
+**Opaque structures.** An `opaque structure` has no known layout, so sema refuses to build it, to read a field of it,
+to apply an operator to it and to hold it by value in a structure. A struct literal of an opaque type, a field read
+and a binary operation whose operand is an opaque name raise `OPAQUE_TYPE_MISUSE` (3057), and a `FIELD_DECLARATION`
+whose type is the bare name of an opaque structure raises `OPAQUE_FIELD_BY_VALUE` (3058). `owned<T>`,
+`pointer<T>`, a borrow and a C call stay legal.
+
 **Expressions.** Sema gives an expression a type only when it is cheap to know, and never guesses. A
 literal has its own type. A name has the declared type of its local, parameter or file constant. A field, or an
 element of an `array`, `slice`, `vector` or `pointer`, has the type sema already reads for the ownership check
@@ -737,6 +743,8 @@ or rejects.
 | 3043 | `NON_BOOLEAN_CONDITION` | `if n then`, `elseif s then`, `while 1 do` when the condition has a known primitive type that is not `boolean`, or is a number, string or character literal |
 | 3053 | `FUNCTION_TYPE_MISMATCH` | `apply(negate)` when `negate` takes one parameter and the function type takes two |
 | 3055 | `CYCLIC_CONSTANT` | `constant A: sinteger32 = B;` with `constant B: sinteger32 = A;`, or `constant A: sinteger32 = A;`, once for each cycle, at the first constant of it in the file |
+| 3057 | `OPAQUE_TYPE_MISUSE` | `Texture{ }`, `texture.width` or `texture + other` when `texture` is a local or a parameter of an `opaque structure` of the same file |
+| 3058 | `OPAQUE_FIELD_BY_VALUE` | `structure Holder texture: Texture; end` with `Texture` an `opaque structure` of the same file |
 | 3059 | `COMPILE_TIME_ASSERTION_FAILED` | `compile_error!("stop");` with any arguments, at the top level or in a function body; `static_assert!(1 == 2, "never");` or `static_assert!(N == 5, "n");` when the condition is a constant that is false |
 | 3060 | `UNKNOWN_MACRO` | `shout!("hello");` when `shout` is none of the 13 built-in macros, at the call |
 | 3061 | `INVALID_MACRO_ARGUMENT` | `print!();`, `print!(1, 2);`, `print!("{} {}", 1);`, `assert!(1, "x");`, `unreachable!(1);`, `log!(loud, "x");`, `include_text!(1);`: the wrong count of arguments, a literal of the wrong kind, a log level that is not one of the five, or a count of `{}` that differs from the count of values, at the offending argument |
@@ -777,6 +785,10 @@ or rejects.
   and `with` header expressions and the initializer of a file constant are checked. The loop name is already in
   scope when its own header is checked, so `for i in 0 .. i` with no outer `i` raises nothing. A constant that has
   an `ERROR_NODE` below it has no name check, because the parser may leave its tokens as an expression.
+- `OPAQUE_TYPE_MISUSE` (3057) sees only an operand or a base that is a bare name, or one in parentheses, whose
+  written type is an opaque structure of the same file. A call result, an index, a field of another value and an
+  opaque type of another file are not classified, and `OPAQUE_FIELD_BY_VALUE` (3058) likewise sees only a bare
+  opaque name of the same file as a field type.
 - `CANNOT_BORROW_CONSTANT_AS_MUTABLE` (3032) sees only a bare file-constant name as the argument. A field chain
   rooted in a constant (`ORIGIN.x`) passed to an explicit `reference_mutable` parameter is not rejected, and a test proves only the
   bare name.
