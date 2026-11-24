@@ -5,6 +5,8 @@
 
 #include "tests/MAREAIrHelpers.hpp"
 
+#include "marea/internal/sema/MAREASemaInternal.h"
+
 namespace
 {
     const MAREA_ResolveCallback RESOLVE_C{ [](const std::string &text, const MAREA_AstNode **) {
@@ -319,6 +321,38 @@ TEST(MAREAIrResolvedType, WrittenInitializerNeverGetsAZeroNextToIt)
 
         EXPECT_EQ(MAREA_IrNodeGetKind(MAREA_irChild(local, 0)), EXPECTED[index]) << "The only child of local " << index << " has the wrong kind.";
     }
+}
+
+TEST(MAREAIrResolvedType, LocalWithNoInitializerLowersWithNoValueChild)
+{
+    GTEST_COUT << "Validating a local with no value, which sema rejects, lowers with no child and no ZERO_VALUE." << std::endl;
+
+    MAREA_IrFixture fixture;
+
+    ASSERT_EQ(fixture.sema.MAREA_sema("namespace main; function f() local a: sinteger32; end", "main.marea"), MAREA_SEMA_EXCEPT_SUCCESS) << "Sema must run.";
+
+    const std::vector<MAREA_Uinteger32> CODES{ fixture.sema.parser.MAREA_codes() };
+
+    EXPECT_NE(std::find(CODES.begin(), CODES.end(), MAREA_Uinteger32{ MAREA_SEMA_DIAGNOSTIC_CODE_LOCAL_WITHOUT_INITIAL_VALUE }), CODES.end()) << "Sema must reject the local with 3065.";
+
+    // INFO: the fixture refuses a unit with a sema error and so does the typed AST, so a clean sink is swapped in after the check.
+    MAREA_DiagnosticSink *cleanSink{ nullptr };
+
+    ASSERT_EQ(MAREA_DiagnosticSinkCreate(fixture.sema.parser.lexer.arena, &cleanSink), MAREA_DIAGNOSTIC_EXCEPT_SUCCESS) << "The clean sink must be created.";
+
+    fixture.sema.context->sink = cleanSink;
+
+    ASSERT_EQ(MAREA_SemaBuildTypedAst(fixture.sema.context, fixture.sema.parser.root, &fixture.typedRoot), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "The typed AST must build.";
+
+    ASSERT_EQ(MAREA_IrLowerCompilationUnit(fixture.context, fixture.typedRoot, &fixture.module), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+
+    const MAREA_IrNode *local{ MAREA_findKind(fixture.module, MAREA_IR_KIND_LOCAL_DECLARATION) };
+
+    ASSERT_NE(local, nullptr) << "The local must be lowered.";
+
+    EXPECT_EQ(MAREA_IrNodeGetChildCount(local), MAREA_INTEGER_SIZE(0)) << "A local with no value must hold no child.";
+
+    EXPECT_EQ(MAREA_findKind(fixture.module, MAREA_IR_KIND_ZERO_VALUE), nullptr) << "No ZERO_VALUE may be invented for a local.";
 }
 
 TEST(MAREAIrResolvedType, ZeroValueOfAnOmittedFieldCarriesTheFieldType)
