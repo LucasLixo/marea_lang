@@ -948,6 +948,9 @@ checked. The type `handle<T>` is rejected with 3009 by the type checker, so it h
 | L-INTEROP-022 | An opaque structure has no body | 2001 @10, 2005 @11 |
 | L-INTEROP-023 | A parameter of a type that no declaration names | 3009 @9 |
 | L-INTEROP-024 | An import placed after a function | 2004 @13 |
+| L-INTEROP-040 | An opaque structure is built with a struct literal | 3057 @12 |
+| L-INTEROP-041 | A field of an opaque structure is read | 3057 @12 |
+| L-INTEROP-042 | An operator is applied to two opaque values | 3057 @12 |
 | L-INTEROP-043 | A static_assert macro of a false condition | 3059 @9 |
 | L-INTEROP-044 | A compile_error macro call | 3059 @9 |
 | L-INTEROP-045 | A print macro with fewer values than the format text needs | 3061 @10 |
@@ -961,6 +964,7 @@ checked. The type `handle<T>` is rejected with 3009 by the type checker, so it h
 | L-INTEROP-054 | A macro name called without the bang | 3004 @10 |
 | L-INTEROP-055 | A log macro with a level that does not exist | 3061 @10 |
 | L-INTEROP-056 | A macro that gives no value used as a value | 3011 @10 |
+| L-INTEROP-057 | A structure with an opaque field held by value | 3058 @12 |
 | L-INTEROP-058 | An opaque structure declared twice | 3003 @11 |
 | L-INTEROP-059 | An opaque structure and a structure with the same name | 3003 @11 |
 | L-INTEROP-061 | A format macro result returned as an integer | 3011 @10 |
@@ -971,11 +975,7 @@ checked. The type `handle<T>` is rejected with 3009 by the type checker, so it h
 
 | Id | Shows | Expected |
 |---|---|---|
-| L-INTEROP-040 | An opaque structure is built with a struct literal | gap: NEW, rule: reject, issue #239 |
-| L-INTEROP-041 | A field of an opaque structure is read | gap: NEW, rule: reject, issue #239 |
-| L-INTEROP-042 | An operator is applied to two opaque values | gap: NEW, rule: reject, issue #239 |
 | L-INTEROP-051 | An owner of an opaque type is used after it moved | gap: NEW, rule: reject, issue #198 |
-| L-INTEROP-057 | A structure with an opaque field held by value | gap: NEW, rule: reject, issue #239 |
 
 ## Parallel code
 
@@ -1258,14 +1258,14 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | coverage | 0 | 1 | 0 |
 | examples | 20 | 0 | 0 |
 | functions | 19 | 48 | 6 |
-| interop | 17 | 23 | 5 |
+| interop | 17 | 27 | 1 |
 | memory | 15 | 10 | 8 |
 | namespaces | 17 | 28 | 6 |
 | ownership | 65 | 40 | 40 |
 | parallel | 19 | 23 | 17 |
 | seed | 1 | 2 | 0 |
 | types | 60 | 116 | 20 |
-| total | 266 | 401 | 144 |
+| total | 266 | 405 | 140 |
 
 ## Parity plan
 
@@ -1287,6 +1287,7 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 | 1001-1006 | `lex` | [marea-lex.md](../lex/marea-lex.md) |
 | 2001-2010 | `parse` | [marea-ast.md](../ast/marea-ast.md) |
 | 3001-3032 | `sema` | [marea-sema.md](../sema/marea-sema.md) (3033 to 3068 follow in the rows below) |
+| 3057-3058 | `sema` | [marea-sema.md](../sema/marea-sema.md), `OPAQUE_TYPE_MISUSE` and `OPAQUE_FIELD_BY_VALUE` |
 | 3033 | `sema` | [marea-sema.md](../sema/marea-sema.md), `LITERAL_OUT_OF_RANGE` |
 | 3034-3035 | `sema` | [marea-sema.md](../sema/marea-sema.md), the division and shift rules of constant operands |
 | 3036-3037 | `sema` | [marea-sema.md](../sema/marea-sema.md) |

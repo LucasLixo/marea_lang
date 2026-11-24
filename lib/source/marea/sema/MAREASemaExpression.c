@@ -705,12 +705,51 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckPair(MAREA_SemaContext *context,
     return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH, position, prefix, known->name, known->length);
 }
 
+// INFO: an opaque structure has no known layout. Only a bare name, or one in parentheses, whose written type is an opaque declaration is classified.
+static MAREA_Boolean MAREA_CALL MAREA_G_IsOpaqueType(const MAREA_SemaContext *context, const MAREA_AstNode *type)
+{
+    if (MAREA_G_IsType(type) == MAREA_BOOLEAN_FALSE) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_AstNode *declaration = MAREA_NULLPTR;
+
+    const MAREA_Character8 *name = MAREA_NULLPTR;
+
+    MAREA_IntegerSize length = 0;
+
+    return ((MAREA_SemaClassifyType(context, type, &declaration, &name, &length) == MAREA_SEMA_TYPE_CLASS_USER) && (MAREA_G_IsKind(declaration, MAREA_AST_KIND_OPAQUE_DECLARATION) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
+static MAREA_Boolean MAREA_CALL MAREA_G_IsOpaqueName(const MAREA_SemaContext *context, const MAREA_AstNode *expression)
+{
+    const MAREA_AstNode *inner = expression;
+
+    for (MAREA_Uinteger32 depth = 0; (depth < MAREA_G_DEPTH_LIMIT) && (MAREA_G_IsKind(inner, MAREA_AST_KIND_PARENTHESIZED_EXPRESSION) == MAREA_BOOLEAN_TRUE); ++depth) {
+        inner = MAREA_SemaChildAt(inner, 0);
+    }
+
+    if (MAREA_G_IsKind(inner, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_FALSE) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_SemaName *local = MAREA_G_FindLocal(context, inner);
+
+    return (local == MAREA_NULLPTR) ? MAREA_BOOLEAN_FALSE : MAREA_G_IsOpaqueType(context, local->declaration);
+}
+
 // INFO: the operand rule runs only when the two sides agree in type, so one node never carries TYPE_MISMATCH and an operand code together.
 static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckOperands(MAREA_SemaContext *context, const MAREA_AstNode *expression)
 {
     const MAREA_AstNode *leftNode = MAREA_SemaChildAt(expression, 0);
 
     const MAREA_AstNode *rightNode = MAREA_SemaChildAt(expression, 1);
+
+    if ((MAREA_G_IsOpaqueName(context, leftNode) == MAREA_BOOLEAN_TRUE) || (MAREA_G_IsOpaqueName(context, rightNode) == MAREA_BOOLEAN_TRUE)) {
+        MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_OPAQUE_TYPE_MISUSE, MAREA_AstNodeGetPosition(expression), "an operator cannot take an opaque operand");
+
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
 
     const MAREA_G_Shape left = MAREA_G_ShapeOf(context, leftNode, 0);
 
@@ -920,9 +959,22 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckValue(MAREA_SemaContext *context
         // INFO: the name that starts a member chain may be a namespace or a type that the file never imports, as stdio in the functions example, so only a value that is not a bare name is checked.
         const MAREA_AstNode *base = MAREA_SemaChildAt(expression, 0);
 
+        if (MAREA_G_IsOpaqueName(context, base) == MAREA_BOOLEAN_TRUE) {
+            MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_OPAQUE_TYPE_MISUSE, MAREA_AstNodeGetPosition(expression), "an opaque type has no fields");
+
+            return MAREA_SEMA_EXCEPT_SUCCESS;
+        }
+
         return (MAREA_G_IsKind(base, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_TRUE) ? MAREA_SEMA_EXCEPT_SUCCESS : MAREA_G_CheckValue(context, base, (depth + 1), checkNames);
     }
     case MAREA_AST_KIND_LITERAL_VALUE:
+        if (MAREA_G_IsOpaqueType(context, MAREA_SemaChildAt(expression, 0)) == MAREA_BOOLEAN_TRUE) {
+            MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_OPAQUE_TYPE_MISUSE, MAREA_AstNodeGetPosition(expression), "an opaque type cannot be built with a literal");
+
+            return MAREA_SEMA_EXCEPT_SUCCESS;
+        }
+
+        return MAREA_G_CheckValueOfChildren(context, expression, 1, depth, checkNames);
     case MAREA_AST_KIND_FIELD_ENTRY:
         return MAREA_G_CheckValueOfChildren(context, expression, 1, depth, checkNames);
     default:
