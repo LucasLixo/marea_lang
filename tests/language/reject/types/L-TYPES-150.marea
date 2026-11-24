@@ -10,5 +10,4 @@ function run()
     if missing then
         return;
     end
-    end
 end

@@ -37,9 +37,7 @@ function check(count: uinteger32): uinteger32
         case 1 then
             local negated: uinteger32 = -count;
             return negated;
-        end
         default then
             return 0;
-        end
     end
 end

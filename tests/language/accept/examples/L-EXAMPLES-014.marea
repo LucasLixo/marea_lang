@@ -53,13 +53,10 @@ implementation Planet
         switch self
             case Planet.Mercury then
                 return "Mercury";
-            end
             case Planet.Earth then
                 return "Earth";
-            end
             case Planet.Jupiter then
                 return "Jupiter";
-            end
         end
     end
 end

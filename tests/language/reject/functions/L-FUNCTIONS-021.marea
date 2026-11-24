@@ -10,5 +10,4 @@ function pick(flag: boolean): sinteger32
     if flag then
         return 1;
     end
-    end
 end

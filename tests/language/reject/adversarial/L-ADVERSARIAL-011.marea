@@ -36,9 +36,7 @@ function pick(#[semantics = reference_read_only] box: Box, selector: sinteger32)
     switch selector
         case 1 then
             return box.inner;
-        end
         default then
             return copy box.inner;
-        end
     end
 end

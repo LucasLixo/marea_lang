@@ -58,9 +58,7 @@ function check(selector: sinteger32): sinteger32
         switch selector
             case 1 then
                 return 1;
-            end
             default then
-            end
         end
     end
     return 0;

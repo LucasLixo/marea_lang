@@ -21,9 +21,7 @@ function name(color: Color): sinteger32
     switch color
         case Shape.Circle then
             return 1;
-        end
         default then
             return 0;
-        end
     end
 end

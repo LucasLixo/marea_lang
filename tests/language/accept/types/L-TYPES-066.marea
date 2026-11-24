@@ -11,10 +11,8 @@ function run(value: sinteger32): sinteger32
     switch value
         case 1 then
             result = 10;
-        end
         default then
             result = 20;
-        end
     end
     return result;
 end

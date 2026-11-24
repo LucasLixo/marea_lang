@@ -10,6 +10,5 @@ function run(value: sinteger32)
     switch value
         default then
             break;
-        end
     end
 end

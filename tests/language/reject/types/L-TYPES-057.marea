@@ -1,4 +1,4 @@
--- expect: 3025 @16
+-- expect: 3025 @15
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
@@ -12,12 +12,9 @@ function name(value: sinteger32): sinteger32
     switch value
         case LIMIT then
             return 1;
-        end
         case 100 then
             return 2;
-        end
         default then
             return 0;
-        end
     end
 end
