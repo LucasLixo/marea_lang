@@ -1,10 +1,9 @@
--- gap: #240 NEW
--- rule: reject
+-- expect: 3059 @9
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- A compile_error macro call.
+-- A static_assert macro of a false condition.
 
 namespace main;
 
-compile_error!("stop");
+static_assert!(1 == 2, "never");

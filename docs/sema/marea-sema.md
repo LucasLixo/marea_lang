@@ -22,8 +22,8 @@ MAREA_SemaCheckCompilationUnit(sema, root);   /* once per file, dependencies fir
 `MAREA_SemaCheckCompilationUnit` returns an error only for a null argument or an out of memory. A rule
 violation is a diagnostic in the sink. A size that does not fit in `MAREA_IntegerSize` (a diagnostic
 message, or the growth of a name table) is also an out of memory: nothing is allocated or copied.
-Every sema diagnostic is an error, in the range 3001-3065. Not every number in the range is in use: the Diagnostics
-table lists the live codes.
+Every sema diagnostic is an error, in the range 3001-3068. Not every number of the range is a live code: the
+Diagnostics table lists the live ones.
 The lexer file name decides the path rule, so call `MAREA_LexContextSetFileName` with a project
 relative path with forward slashes and the `.marea` extension before the lex step.
 
@@ -43,8 +43,8 @@ void resolve(void *userData, const char *text, size_t length,
 | `FOUND` | The namespace has a tree. `*outRoot` is its `COMPILATION_UNIT`. |
 | `EXTERNAL` | The namespace exists but sema has no tree for it (every `c.*` namespace, and the libraries that are not written yet). |
 
-`import a.b.c;` asks for `a.b.c`. On `NOT_FOUND` sema asks for `a.b` and looks for a `#[visibility = public]`
-top-level symbol `c` there. Both answers `NOT_FOUND` is `UNRESOLVED_IMPORT`. A name from an
+`import a.b.c;` asks for `a.b.c`. On `NOT_FOUND` sema asks for `a.b` and looks for a top-level symbol `c` that is not `#[visibility = private]`
+there. Both answers `NOT_FOUND` is `UNRESOLVED_IMPORT`. A name from an
 `EXTERNAL` namespace is opaque: it meets every contract, takes any arguments and gives no diagnostic.
 The local name of an import is its alias, or its last segment. A type name that no local rule knows
 is given to the resolver as a last step.
@@ -53,12 +53,12 @@ is given to the resolver as a last step.
 binds one local name per member: its alias, or the last segment of its path. A member path has one
 or two segments; a longer path is `UNRESOLVED_IMPORT`. For a `NOT_FOUND` namespace every member is
 unresolved. For `EXTERNAL` every member of one or two segments is accepted. For `FOUND` the first
-segment must be a `#[visibility = public]` top-level symbol of the tree, and a two-segment member needs that symbol
+segment must be a top-level symbol of the tree that is not `#[visibility = private]`, and a two-segment member needs that symbol
 to be an `enum` with that variant. An unresolved member still binds its local name, so one error
 does not start a chain of `UNDECLARED_NAME`. A member alias that is a parse error (`f as }`) is
 skipped without a diagnostic.
 
-An import of a `#[visibility = public]` `enum` from a `FOUND` namespace (a one-segment member, or a whole path whose
+An import of a non-private `enum` from a `FOUND` namespace (a one-segment member, or a whole path whose
 parent is `FOUND`) also keeps that enum declaration with its local name, alias included. The type
 class of that name is then `USER`, so a `switch` over it raises `NON_EXHAUSTIVE_SWITCH` like a
 same-file enum. Any other import, and every `EXTERNAL` one, keeps no declaration and stays `EXTERNAL`.
@@ -214,8 +214,11 @@ parameter is defaulted.
 copy), `reference_read_only` (a read-only borrow) or `reference_mutable` (a write borrow, the
 `EXCLUSIVE_BORROW_CONFLICT`/`INVALID_SPAWN_ARGUMENT` axis); `MAREA_SemaGetParameterSemantics` is
 the one place the rest of sema reads it. With no attribute written, a primitive defaults to
-`value_read_only` and any other type defaults to `reference_mutable` - the former `mutable`/
-`reference` keywords are retired, `mutable` stays reserved only for `for each` and `partition`.
+`value_read_only`, `owned<T>`, `task<T>` and `vector<T>` default to `reference_mutable` (they move
+in and are never a borrow), and any other type defaults to `reference_read_only` - settled rule 2. A
+write borrow needs the explicit `reference_mutable`. The former `mutable`/`reference` keywords are
+retired, `mutable` stays reserved only for `for each` and `partition`. Sema does not reject a write
+through a read-only borrow yet: the next apply of the handoff adds that check.
 `value_read_only` is legal only on a primitive; writing it on anything else is `INVALID_BORROW`
 (3017). `owned<T>` moves in regardless of `semantics`. A primitive, an `array`, `pointer`, `slice`
 and an enum is by value for the *ownership mode* (`MAREA_SemaOwnershipMode`) no matter what
@@ -227,10 +230,10 @@ attribute exempts any other user type - the retired `#[value]` key does not exis
 move_only or plain, is never by value by itself). A `vector` is a move type, so `=` of a `vector`
 name needs `copy x` or `move x`. `=` of a name, field or element of any other type needs
 `copy x` or `move x`, in an assignment and in a local initializer. A call or a literal needs no word.
-A borrow parameter (`reference_read_only` or `reference_mutable`, explicit or by default), a
+A borrow parameter (`reference_read_only`, explicit or by default, or an explicit `reference_mutable`), a
 `for each` variable, a `partition` part and a `with` name cannot be returned, nor be the value of
 a field. A new local of the same name ends the reference. A file constant passed as the argument of
-a `reference_mutable` (write-borrow) parameter, explicit or by default, has no writable storage to
+an explicit `reference_mutable` (write-borrow) parameter has no writable storage to
 back the borrow, so it is rejected with `CANNOT_BORROW_CONSTANT_AS_MUTABLE` (3032); a variable
 passed to the same parameter is unaffected. An assignment (`=` or a compound form) whose target is a file constant, or a field or element path
 rooted in one (`ORIGIN.x = 1;`, `TABLE[0] = 1;`), is `ASSIGNMENT_TO_CONSTANT` (3040), raised at the target; a local,
@@ -342,6 +345,31 @@ file. A name counts as an edge only where it stands as a value: a member name, a
 not followed. A constant that only uses a cycle without being on it is not reported. The search runs once, after the
 declaration checks and before the visit, with a visit state kept in the arena and an explicit stack, so a long chain
 needs no recursion.
+
+**Compile-time macros.** A `compile_error!(...)` call always raises `COMPILE_TIME_ASSERTION_FAILED` (3059) at the
+call, in a function body and at the top level, whatever its arguments are. A `static_assert!(condition, "text")` call
+with two arguments raises 3059 when its condition is a constant that evaluates to false. A small evaluator reads the
+condition: boolean and integer literals (decimal, `0x`, `0b`, `_`), a file constant (read through its initial value,
+with a depth limit of 32, so a cyclic constant ends as unknown), parentheses, unary `not` and unary minus, `and`, `or`,
+the comparisons `==`, `!=`, `<`, `<=`, `>`, `>=` and `+ - * / %` over 64-bit integers. It answers true, false or
+unknown, and an unknown condition is accepted. Overflow, a division by zero, a call, `size_of`, `align_of`, a name that
+is not a file constant (a local or a parameter of the same name hides the constant) and every other node are unknown:
+the rules of constant arithmetic are other checks, never reported here. A `static_assert!` with another argument count
+is skipped. The message holds the text of the string literal argument without its quotes, as
+`compile_error: <text>` or `static assertion failed: <text>`, and the prefix alone when there is none.
+
+**Visibility across namespaces.** The default visibility is public: only an explicit `#[visibility = private]` hides a
+symbol, a type or a field from another file (a file attribute `#![visibility = private]` hides every symbol of the file,
+but never a field, which reads only its own attribute). A whole-namespace import (`import a.b;`, or `import a.b as x;`)
+brings no names, so three uses reach into the tree that the resolver answers `FOUND` for. `b.hidden()` or `b.LIMIT`,
+where the member is a top-level declaration that is private, is `PRIVATE_SYMBOL_ACCESS` (3066) at the member. A type
+written `b.Secret`, in a parameter, local, field, return, generic argument or struct literal, where the structure,
+enum, opaque or alias is private, is `PRIVATE_TYPE_ACCESS` (3067) at the type. A private field of a structure that is
+not private, read or written as `box.value` where `box` is a local or parameter written `b.Box`, or set in a literal
+`b.Box{ value = 1 }`, is `PRIVATE_FIELD_ACCESS` (3068) at the field name; a private structure is 3067 at its written
+type and never also 3068. A local or a generic parameter that hides the namespace name is no namespace access. A
+namespace that the resolver answers `EXTERNAL` or `NOT_FOUND` is never checked, and neither is a field of the same
+file. An import of one symbol or a member list is checked the same way: a private symbol is `UNRESOLVED_IMPORT`.
 
 **Built-in macro.** `MAREA_SemaCheckMacro` (`MAREASemaMacro.c`) checks every `MACRO_CALL` against one table of the 13
 built-in macros, the table of `examples/macros/builtin.marea`. A name that is not in the table is `UNKNOWN_MACRO` (3060),
@@ -496,8 +524,9 @@ same rules "Ownership" above already states: `VALUE` (a primitive, an `array`/`p
 core type - checked before `semantics`, so no attribute changes it - or an enum, the documented,
 intentional exception; no attribute exempts any other user type), `BORROW` (a parameter whose
 effective `semantics` is `reference_read_only`, a `for each` variable, a `partition` part or a
-`with` name), `MUTABLE_BORROW` (a parameter whose effective `semantics` is `reference_mutable`,
-explicit or by default), `MOVE` (an `owned<T>` or `task<T>` parameter or value), `COPY` (a `copy x`
+`with` name; this is also a parameter with no attribute, whose type is not by value and does not
+move in), `MUTABLE_BORROW` (a parameter whose effective `semantics` is an explicit
+`reference_mutable`), `MOVE` (an `owned<T>` or `task<T>` parameter or value), `COPY` (a `copy x`
 expression). A node this cannot classify defaults to `VALUE`.
 
 **Call results.** A call expression's typed node carries the type the call returns. A call of a function of the
@@ -590,14 +619,14 @@ typed by the rules above (an enum variant, a constant or a static function of th
 
 **Members of a FOUND namespace.** When the name on the left of a member access stands for a namespace that the
 resolver answers `FOUND` (an import with or without an alias), the member is typed from the tree that the resolver gave.
-Only a `#[visibility = public]` function (its function type, so a call gives the declared result) and a public
+Only a function that is not `#[visibility = private]` (its function type, so a call gives the declared result) and a
 constant (its declared type) are typed. A bare name that an import bound to one such symbol (`import a.b.c as d;`,
 `import a.b { c };`) is typed the same way. A type written in that other file is read in that file, never in this one.
 A structure, an enum, an opaque type or an alias that the file declares is spelled with the last segment of its
 namespace (`shapes.Box`, as a file writes `structures.Shape`), a local alias is followed to its target, and any other
 name (a built-in) is kept as written. For a generic function the type arguments written on the call fill the
 parameters, and a call with none has no type. A field or a method that is read on such a result has no type, because
-the name would be looked up in this file. A type, an enum variant and a symbol that is not public have no type here,
+the name would be looked up in this file. A type, an enum variant and a symbol that is private have no type here,
 and neither has a member of an `EXTERNAL` namespace.
 
 **Inferred type arguments.** A call of a generic function of the file, by its bare name, with no written type
@@ -655,7 +684,7 @@ or rejects.
 
 | Code | Name | Example |
 |---|---|---|
-| 3001 | `UNRESOLVED_IMPORT` | `import a.b.c;` when the resolver finds neither `a.b.c` nor a public `c` in `a.b`; `import a.b { f };` when `a.b` is not found, `f` is not a public symbol of it, a two-part member is not a variant of a public enum, or the member path has more than two parts |
+| 3001 | `UNRESOLVED_IMPORT` | `import a.b.c;` when the resolver finds neither `a.b.c` nor a `c` that is not private in `a.b`; `import a.b { f };` when `a.b` is not found, `f` is a private symbol of it or is missing, a two-part member is not a variant of an enum that is not private, or the member path has more than two parts |
 | 3002 | `NAMESPACE_PATH_MISMATCH` | `namespace a.b.c;` in the file `a/b.marea` |
 | 3003 | `NAME_ALREADY_DECLARED` | `structure Item end function Item() end`, or an import (or an import alias, or a member alias) and a declaration or another import of one local name; an import alias or a `type` named `c` (message `name is reserved:`); a generic parameter that repeats an earlier one of its list or names a top-level declaration, `pick<Item, Item>`; two parameters of one name; a body local that repeats a parameter or a local of the same block |
 | 3004 | `UNDECLARED_NAME` | `where Item: Missing`, or a constraint on a name that is not a generic parameter; `local x: sinteger32 = missing;`, `missing(1);`; a bare function name that stands in a function body before the function is declared in the file |
@@ -698,11 +727,20 @@ or rejects.
 | 3041 | `RAW_POINTER_OUTSIDE_UNSAFE` | `local raw: pointer<sinteger32> = f();` with no `unsafe ... end` block around it, at any depth of nesting |
 | 3043 | `NON_BOOLEAN_CONDITION` | `if n then`, `elseif s then`, `while 1 do` when the condition has a known primitive type that is not `boolean`, or is a number, string or character literal |
 | 3055 | `CYCLIC_CONSTANT` | `constant A: sinteger32 = B;` with `constant B: sinteger32 = A;`, or `constant A: sinteger32 = A;`, once for each cycle, at the first constant of it in the file |
+| 3059 | `COMPILE_TIME_ASSERTION_FAILED` | `compile_error!("stop");` with any arguments, at the top level or in a function body; `static_assert!(1 == 2, "never");` or `static_assert!(N == 5, "n");` when the condition is a constant that is false |
 | 3060 | `UNKNOWN_MACRO` | `shout!("hello");` when `shout` is none of the 13 built-in macros, at the call |
 | 3061 | `INVALID_MACRO_ARGUMENT` | `print!();`, `print!(1, 2);`, `print!("{} {}", 1);`, `assert!(1, "x");`, `unreachable!(1);`, `log!(loud, "x");`, `include_text!(1);`: the wrong count of arguments, a literal of the wrong kind, a log level that is not one of the five, or a count of `{}` that differs from the count of values, at the offending argument |
 | 3065 | `LOCAL_WITHOUT_INITIAL_VALUE` | `local x: sinteger32;` with no `= value`, for a primitive, a structure, a `pointer` or an `array`, at any depth of nesting |
+| 3066 | `PRIVATE_SYMBOL_ACCESS` | `b.hidden()` or `b.LIMIT` after `import a.b;` (or an alias) when the member is a top-level declaration of a `FOUND` namespace with `#[visibility = private]` |
+| 3067 | `PRIVATE_TYPE_ACCESS` | `s: b.Secret`, `b.Secret{ }` or any written `b.Secret` when the structure, enum, opaque or alias of a `FOUND` namespace is private |
+| 3068 | `PRIVATE_FIELD_ACCESS` | `box.value`, `box.value = 1` or `b.Box{ value = 1 }` when `box` is written `b.Box` and the field has `#[visibility = private]` |
 
 ## Gaps
+
+- The visibility check (3066 to 3068) reads only a bare namespace name and a bare name with a written type `ns.T`. It does
+  not check a member that the tree does not declare, a field of a value that is not a plain `ns.T` name (a call result,
+  an index, a chain such as `a.b.c`), a field of a type that an imported symbol gives (`import a.b.Box;`), or a private
+  symbol that a generic or an alias leads to.
 
 - Two functions that call each other cannot be written, because a function must be declared before its use and the
   grammar has no forward declaration.
@@ -727,10 +765,15 @@ or rejects.
   scope when its own header is checked, so `for i in 0 .. i` with no outer `i` raises nothing. A constant that has
   an `ERROR_NODE` below it has no name check, because the parser may leave its tokens as an expression.
 - `CANNOT_BORROW_CONSTANT_AS_MUTABLE` (3032) sees only a bare file-constant name as the argument. A field chain
-  rooted in a constant (`ORIGIN.x`) passed to a write-borrow parameter is not rejected, and a test proves only the
+  rooted in a constant (`ORIGIN.x`) passed to an explicit `reference_mutable` parameter is not rejected, and a test proves only the
   bare name.
 - `ASSIGNMENT_TO_CONSTANT` (3040) sees only a constant that a file declares. A constant that an `implementation`
   declares is not rejected.
+- `COMPILE_TIME_ASSERTION_FAILED` (3059) decides a `static_assert!` condition only when the evaluator can fold it. A
+  condition with `size_of`, `align_of`, a call, a name that is not a file constant of this file (a constant of another
+  namespace included), a float, a string, a division by zero or an overflow is unknown and accepted, so a false
+  `static_assert!(size_of<Light>() == 9, "x");` raises nothing yet. The arithmetic is over 64-bit integers, not over the
+  type of the constant, so a constant of a narrow type does not wrap.
 - `CYCLIC_CONSTANT` (3055) sees only the constants that a file declares at the top level. A constant that an
   `implementation` declares is not part of the search. A name is matched by its text in the name table, so a
   qualified name of another namespace is not followed.

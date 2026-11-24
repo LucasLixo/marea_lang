@@ -227,7 +227,7 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_ReportReserved(MAREA_SemaContext *con
     return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_NAME_ALREADY_DECLARED, position, "name is reserved:", text, length);
 }
 
-static const MAREA_AstNode *MAREA_CALL MAREA_G_FindPublicSymbol(const MAREA_AstNode *root, const MAREA_Character8 *name, MAREA_IntegerSize nameLength)
+static const MAREA_AstNode *MAREA_CALL MAREA_G_FindVisibleSymbol(const MAREA_AstNode *root, const MAREA_Character8 *name, MAREA_IntegerSize nameLength)
 {
     const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(root);
 
@@ -242,7 +242,7 @@ static const MAREA_AstNode *MAREA_CALL MAREA_G_FindPublicSymbol(const MAREA_AstN
             continue;
         }
 
-        if ((MAREA_SemaTextEquals(declarationName, declarationLength, name, nameLength) == MAREA_BOOLEAN_TRUE) && (MAREA_SemaAttributeHasMember(root, declaration, "visibility", "public") == MAREA_BOOLEAN_TRUE)) {
+        if ((MAREA_SemaTextEquals(declarationName, declarationLength, name, nameLength) == MAREA_BOOLEAN_TRUE) && (MAREA_SemaIsPrivate(root, declaration) == MAREA_BOOLEAN_FALSE)) {
             return declaration;
         }
     }
@@ -257,7 +257,7 @@ static const MAREA_AstNode *MAREA_CALL MAREA_G_ImportedEnum(const MAREA_AstNode 
         return MAREA_NULLPTR;
     }
 
-    const MAREA_AstNode *symbol = MAREA_G_FindPublicSymbol(namespaceRoot, name, nameLength);
+    const MAREA_AstNode *symbol = MAREA_G_FindVisibleSymbol(namespaceRoot, name, nameLength);
 
     return ((symbol != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(symbol) == MAREA_AST_KIND_ENUM_DECLARATION)) ? symbol : MAREA_NULLPTR;
 }
@@ -423,7 +423,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_MemberResolves(const MAREA_AstNode *path
 
     const MAREA_AstNode *first = MAREA_SemaChildAt(path, 0);
 
-    const MAREA_AstNode *symbol = MAREA_G_FindPublicSymbol(namespaceRoot, MAREA_AstNodeGetText(first), MAREA_AstNodeGetTextLength(first));
+    const MAREA_AstNode *symbol = MAREA_G_FindVisibleSymbol(namespaceRoot, MAREA_AstNodeGetText(first), MAREA_AstNodeGetTextLength(first));
 
     if (symbol == MAREA_NULLPTR) {
         return MAREA_BOOLEAN_FALSE;
@@ -600,7 +600,7 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckImport(MAREA_SemaContext *contex
                 resolved = MAREA_BOOLEAN_TRUE;
             }
 
-            if ((PARENT_RESULT == MAREA_SEMA_IMPORT_RESULT_FOUND) && (foundRoot != MAREA_NULLPTR) && (MAREA_G_FindPublicSymbol(foundRoot, MAREA_AstNodeGetText(last), MAREA_AstNodeGetTextLength(last)) != MAREA_NULLPTR)) {
+            if ((PARENT_RESULT == MAREA_SEMA_IMPORT_RESULT_FOUND) && (foundRoot != MAREA_NULLPTR) && (MAREA_G_FindVisibleSymbol(foundRoot, MAREA_AstNodeGetText(last), MAREA_AstNodeGetTextLength(last)) != MAREA_NULLPTR)) {
                 resolved = MAREA_BOOLEAN_TRUE;
 
                 enumeration = MAREA_G_ImportedEnum(foundRoot, MAREA_AstNodeGetText(last), MAREA_AstNodeGetTextLength(last));

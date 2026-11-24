@@ -218,7 +218,7 @@ TEST(MAREAIrAliases, TextDumpOfALoweredUnitIsExact)
                                                                                                                                               "MODULE",
                                                                                                                                               "  FUNCTION_DECLARATION \"run\"",
                                                                                                                                               "    PARAMETER_LIST",
-                                                                                                                                              "      PARAMETER \"e\" type=Item resolved=Item flags=1",
+                                                                                                                                              "      PARAMETER \"e\" type=Item resolved=Item",
                                                                                                                                               "    BLOCK",
                                                                                                                                               "      EXPRESSION_STATEMENT",
                                                                                                                                               "        CALL_EXPRESSION",
