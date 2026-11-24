@@ -116,6 +116,12 @@ static MAREA_IntegerSize MAREA_CALL MAREA_G_CountChildren(const MAREA_AstNode *n
     return count;
 }
 
+// INFO: the members of a declaration: the variants of an enum, else the fields of a structure.
+static MAREA_IntegerSize MAREA_CALL MAREA_G_CountMembers(const MAREA_AstNode *declaration)
+{
+    return MAREA_G_CountChildren(declaration, (MAREA_G_IsKind(declaration, MAREA_AST_KIND_ENUM_DECLARATION) == MAREA_BOOLEAN_TRUE) ? MAREA_AST_KIND_VARIANT_DECLARATION : MAREA_AST_KIND_FIELD_DECLARATION);
+}
+
 static const MAREA_G_PrimitiveWidth *MAREA_CALL MAREA_G_FindWidth(const MAREA_Character8 *name, MAREA_IntegerSize length)
 {
     for (MAREA_IntegerSize index = 0; index < MAREA_ARRAY_SIZE(MAREA_G_WIDTHS); ++index) {
@@ -399,7 +405,6 @@ static void MAREA_CALL MAREA_G_MeasureEnum(MAREA_G_State *state, const MAREA_Ast
             MAREA_Uinteger64 offset = 0;
 
             MAREA_G_ClassifyType(state->context, MAREA_G_VariantFieldType(field), &shape);
-            shape.explicitAlignment = 0;
 
             if (MAREA_G_PlaceShape(state, outMeasure, &cursor, &shape, depth, &offset) == MAREA_BOOLEAN_FALSE) {
                 return;
@@ -451,7 +456,7 @@ static void MAREA_CALL MAREA_G_MeasureDeclaration(MAREA_G_State *state, const MA
     outMeasure->size = 0;
     outMeasure->alignment = 1;
     outMeasure->tagSize = 0;
-    outMeasure->memberCount = MAREA_G_CountChildren(declaration, (IS_ENUM == MAREA_BOOLEAN_TRUE) ? MAREA_AST_KIND_VARIANT_DECLARATION : MAREA_AST_KIND_FIELD_DECLARATION);
+    outMeasure->memberCount = MAREA_G_CountMembers(declaration);
     outMeasure->reason = MAREA_SEMA_MEASURE_REASON_NONE;
     outMeasure->cLayout = MAREA_G_IsCLayout(state->context, declaration);
     outMeasure->comparable = (IS_ENUM == MAREA_BOOLEAN_TRUE) ? MAREA_BOOLEAN_FALSE : MAREA_BOOLEAN_TRUE;
@@ -503,7 +508,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaMeasureDeclaration(MAREA_SemaContext *cont
         return MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER;
     }
 
-    const MAREA_IntegerSize MEMBER_COUNT = MAREA_G_CountChildren(declaration, (IS_ENUM == MAREA_BOOLEAN_TRUE) ? MAREA_AST_KIND_VARIANT_DECLARATION : MAREA_AST_KIND_FIELD_DECLARATION);
+    const MAREA_IntegerSize MEMBER_COUNT = MAREA_G_CountMembers(declaration);
 
     MAREA_IntegerSize slotCount = MEMBER_COUNT;
 
