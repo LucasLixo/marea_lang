@@ -58,7 +58,7 @@ from the source (`IDENTIFIER`, the five literals, `BINARY_EXPRESSION`, `UNARY_EX
 `INDEX_ACCESS`, `CALL_EXPRESSION` or the `CONSTRUCT_CALL` it became, `LITERAL_VALUE`) and every `PARAMETER`,
 `LOCAL_DECLARATION`, `FIELD_DECLARATION`, `VARIANT_FIELD`, `CONSTANT_DECLARATION` and `FUNCTION_DECLARATION` with a
 written type. A name that only qualifies a member (`Planet` in `Planet.Earth`) has none and is not a gap. The nodes
-that the ir invents carry one too: a `ZERO_VALUE` has the type of the structure field it fills; the hidden locals
+that the ir invents carry one too: the hidden locals
 `$lastN` (the type of the last bound), `$switch` (the type of the scrutinee) and `$return` (the type of the returned
 value) have the type they hold, and every `IDENTIFIER` that reads one shares it; the loop variable of a for-range loop
 has the type sema gave its name (else the type of the first value), and the step literal `1` its type; a
@@ -116,9 +116,13 @@ operands). The kinds are: `MODULE`, `CONSTANT_DECLARATION`,
 `BINARY_EXPRESSION`, `UNARY_EXPRESSION`, `MEMBER_ACCESS`, `INDEX_ACCESS`, `CALL_EXPRESSION`,
 `ARGUMENT_LIST`, `LITERAL_VALUE`, `FIELD_ENTRY`, `INDEX_ENTRY`, `VALUE_ENTRY`, `QUALIFIED_NAME`,
 `UNREACHABLE_STATEMENT`, `FORK_JOIN_BLOCK`, `PARTITION_STATEMENT`, `WITH_STATEMENT`, `FOR_EACH_STATEMENT`,
-`TYPE_NAME`, `BUILTIN_NAME`, `CHARACTER_LITERAL` (the text is the literal as written, with its single quotes) and
-`ZERO_VALUE` (see Zero-default creation), `CONSTRUCT_CALL` and `DESTROY_CALL` (see Construct and destroy lowering). The last
-ten come after every older kind, so no value of an older kind moved.
+`TYPE_NAME`, `BUILTIN_NAME`, `CHARACTER_LITERAL` (the text is the literal as written, with its single quotes),
+`CONSTRUCT_CALL` and `DESTROY_CALL` (see Construct and destroy lowering). The kinds from `UNREACHABLE_STATEMENT` on come
+after every older kind, so no value of an older kind moved. One value is retired: the one right after `CHARACTER_LITERAL`, which was `ZERO_VALUE`
+(see Zero-default creation). It is not an enumerator any more, and no value moved to fill it: `CONSTRUCT_CALL` is
+declared as `MAREA_IR_KIND_CHARACTER_LITERAL + 2`, `DESTROY_CALL` follows it, and `MAREA_IR_KIND_COUNT` is unchanged.
+`MAREA_IrKindGetName` gives `UNKNOWN` for the retired value, as for a value out of range, so a loop over the values
+below `MAREA_IR_KIND_COUNT` meets one value that names no kind.
 
 The module keeps its declarations in source order. The typing is erased before the IR, so these make
 no node:
@@ -143,7 +147,7 @@ Other shapes:
 - A constant, variant field or local with an initializer holds the lowered expression as its only child. A
   `CONSTANT_DECLARATION`, a `VARIANT_FIELD` and a `LOCAL_DECLARATION` with no initializer keep the no-child shape.
   Sema rejects a local with no initializer (3065), so the ir sees that shape only from an AST sema refused, and it
-  adds no `ZERO_VALUE` for it (see Zero-default creation).
+  adds no value for it (see Zero-default creation).
 - A `PARAMETER` with a default value holds the lowered default as its only child, the same shape a
   constant or a variant field uses for its own initializer. A `PARAMETER` with no default keeps the no-child
   shape: it is a required argument, not a zero (see Zero-default creation).
@@ -161,33 +165,31 @@ Other shapes:
 The language spec's zero-default rule (decided 2026-11-22: no value or field is left unset at creation) covers six
 creation paths in all: a literal with an omitted field, a `local` with no initializer, `Type(args)` before
 `construct`, `array<T, N>` elements, `owned<T>` storage and a `convert` result that exposes padding. The ir lowers
-only the one it can see without a backend, as an explicit `ZERO_VALUE`: a leaf with no text, no type name and
-no children, left for a backend to fill (see the backend contract below). A `local` with no initializer is no
-longer a creation path: sema rejects it (3065), so the ir does not lower it to a zero. The other four are a gap,
-recorded below and in Gaps; they need `cgen` or `vm` to exist first.
-- **A struct `LITERAL_VALUE` field the source left unnamed** gets a synthesized `FIELD_ENTRY`, named after the
-  structure's own field and holding a `ZERO_VALUE` as its only child, appended after every `FIELD_ENTRY` the source
-  wrote, in the structure's own field declaration order. `Point{ x = 1 }`, with `Point` declaring `x` then `y`,
-  lowers to `(LITERAL_VALUE :Point (FIELD_ENTRY x (INTEGER_LITERAL 1)) (FIELD_ENTRY y (ZERO_VALUE)))`. The ir finds
-  the structure by its (de-aliased) type name among the non-generic `STRUCTURE_DECLARATION` items of the unit; a
-  generic structure, an opaque one (it has no field to miss) or a structure the unit does not declare (another
-  namespace) keeps today's shape with no synthesized field, a cross-module gap the ir already has elsewhere (see
-  Aliases and Gaps).
-- The rule stops at this one shape. A `PARAMETER` with no default, a `CONSTANT_DECLARATION` (the grammar always
-  requires its initializer), a `VARIANT_FIELD` with no written value and a `LOCAL_DECLARATION` with no initializer
-  (sema rejects it) all keep their own no-child shape: a missing parameter default is a required argument, and a
-  missing variant field default is a required argument of the variant, neither one a zero.
-- **Backend contract (not yet implemented, recorded here for `cgen`/`vm`):** a `ZERO_VALUE` carries the resolved type
-  of what it fills (the structure field's declared type), so a backend can
-  size it. `cgen` is expected to emit
-  `= {0}` for a type of constant size, or a `memset` otherwise; the `vm` is expected to zero the slot on
-  allocation. A parity test is expected to read the zeroed value on both backends and expect 0. None of this exists
-  yet (see Gaps): the ir only places the marker.
+none of them to a zero node, and it has no such kind. It had one, `ZERO_VALUE`, for the first two. It is removed
+(the value it held is retired, see Kinds and what is erased): sema now rejects both paths, so no accepted program
+reaches them.
+
+- **A `local` with no initializer** is rejected by sema (`LOCAL_WITHOUT_INITIAL_VALUE`, 3065).
+- **A struct literal that omits a field** is rejected by sema (`MISSING_FIELD`, 3077, for `Point{ x = 1 }` and
+  `Point{}`, reported at the first missing field). `MAREA_SemaBuildTypedAst`, the only input of the ir, refuses a
+  tree with a sema error (`ERROR_NOT_CHECKED`), so the ir never sees such a literal, and a `LITERAL_VALUE` holds
+  exactly the `FIELD_ENTRY` items the source wrote. A test checks it.
+- The rule stops there. A `PARAMETER` with no default, a `CONSTANT_DECLARATION` (the grammar always requires its
+  initializer), a `VARIANT_FIELD` with no written value and a `LOCAL_DECLARATION` with no initializer (sema rejects
+  it) all keep their own no-child shape: a missing parameter default is a required argument, and a missing variant
+  field default is a required argument of the variant, neither one a zero.
+- **The other four paths are a gap**, recorded in Gaps: `Type(args)` before `construct`, `array<T, N>` elements,
+  `owned<T>` storage and a `convert` result that exposes padding. They need `cgen` or `vm` to exist first, and a
+  backend zero-fills them from the type. `cgen` is expected to emit `= {0}` for a type of constant size, or a
+  `memset` otherwise; the `vm` is expected to zero the slot on allocation. A parity test is expected to read the
+  zeroed value on both backends and expect 0. None of this exists yet: the ir places no marker for it, and a
+  `CONSTRUCT_CALL` or a `LOCAL_DECLARATION` carries the type name and the resolved type a backend sizes the zero
+  from.
 
 ## Construct and destroy lowering
 
 The language spec makes construction and destruction automatic. The ir makes both explicit, so a backend never
-looks for a `construct` or a `destroy` by itself. Two kinds, appended after `ZERO_VALUE`, carry them. A new kind,
+looks for a `construct` or a `destroy` by itself. Two kinds, appended after the retired value that `ZERO_VALUE` held, carry them. A new kind,
 not a flag on `CALL_EXPRESSION`, because a flag would print in the dump as a raw bit mask.
 
 - **`CONSTRUCT_CALL`** is `Type(args)` and, when the type has a `construct`, `Type{...}`. Its type name is the written name of the structure or enum that is
@@ -205,10 +207,10 @@ not a flag on `CALL_EXPRESSION`, because a flag would print in the dump as a raw
   `Type{...}` sets the fields (named, in order, or none) and then runs `construct` with its defaults. A literal of a
   non-generic structure of the same unit that has a `construct` operator lowers to a `CONSTRUCT_CALL` with two
   children: the `ARGUMENT_LIST` of the defaults of `construct` (no argument is written, so every parameter is
-  filled), then the `LITERAL_VALUE` itself, unchanged (omitted fields are `ZERO_VALUE`), as the initial value the
-  backend runs `construct` on once the fields are set. `Point{ x = 1 }` with
+  filled), then the `LITERAL_VALUE` itself, unchanged (sema requires every field to be named), as the initial value the
+  backend runs `construct` on once the fields are set. `Point{ x = 1, y = 2 }` with
   `construct(x: sinteger32 = 7, y: sinteger32 = 8)` lowers to `(CONSTRUCT_CALL :Point (ARGUMENT_LIST (INTEGER_LITERAL
-  7) (INTEGER_LITERAL 8)) (LITERAL_VALUE :Point (FIELD_ENTRY x (INTEGER_LITERAL 1)) (FIELD_ENTRY y (ZERO_VALUE))))`.
+  7) (INTEGER_LITERAL 8)) (LITERAL_VALUE :Point (FIELD_ENTRY x (INTEGER_LITERAL 1)) (FIELD_ENTRY y (INTEGER_LITERAL 2))))`.
   A literal of a type with no `construct`, or of a type the unit does not declare, stays a plain `LITERAL_VALUE`. So
   the optional second child is the only difference between the two shapes: `Type(args)` has one child and the
   backend zero-fills; `Type{...}` has two and the fields come from the literal.
@@ -591,16 +593,15 @@ Each diagnostic carries the position of the construct that raised it. The messag
 
 ## Gaps
 
-- The `ZERO_VALUE` for an omitted struct field is unreachable: an omitted field is now `MISSING_FIELD` (3077) in sema, so no accepted program reaches it. It awaits removal in a follow-up apply, and the five tests of it are `DISABLED_` until then.
 - The resolved type is read from sema as it is, so it is as complete as sema makes it. In the 23 examples, 45 expression
   nodes of the lowered trees have no resolved type, all of them untyped on purpose (calls of `EXTERNAL` functions
   and library members with no signature, their callees, and the operations and `spawn` derived from them); the
   sweep test `MAREAIrResolvedType.ExamplesTypeEveryLoweredExpression` lists none other. The `ir` cannot tell a
   name sema left untyped on purpose from one it missed, so an `IDENTIFIER` with no type never raises 4006. The
   nodes that the ir invents are typed, except the step `ASSIGNMENT` and the `DESTROY_CALL`, which are statements.
-- The zero-default rule (see Zero-default creation) covers only a struct `LITERAL_VALUE` field the source left
-  unnamed. A `LOCAL_DECLARATION` with no written initializer is rejected by sema (3065) and gets no zero. Four more creation paths the language spec names are
-  not lowered yet, because they need a backend to exist first: the zero fill of `Type(args)` before `construct` (the call itself is a `CONSTRUCT_CALL` now), `array<T, N>`
+- The zero-default rule (see Zero-default creation) has no node in the ir: a `LOCAL_DECLARATION` with no written
+  initializer is rejected by sema (3065) and a struct literal that omits a field is rejected by sema (3077). Four
+  creation paths the language spec names are not lowered yet, because they need a backend to exist first: the zero fill of `Type(args)` before `construct` (the call itself is a `CONSTRUCT_CALL` now), `array<T, N>`
   elements, `owned<T>` storage and a `convert` result that exposes padding. A `PARAMETER`, a `CONSTANT_DECLARATION`
   and a `VARIANT_FIELD` with no value are outside the rule on purpose (see Zero-default creation), not an
   oversight.
@@ -617,8 +618,8 @@ Each diagnostic carries the position of the construct that raised it. The messag
   that nest, or a `return` hoisted in an outer scope after an inner one, declare the same name in nested `BLOCK`
   scopes of one function. A backend that keys the locals of a function by name alone must still scope them by
   `BLOCK`, or the ir must number these names the same way. No backend needs it yet.
-- `MAREA_G_LowerSwitch` still keeps only the last `default` arm and drops the others with no diagnostic. This
-  is defensive only. Sema rejects a second `default` arm, and a repeated `case` value, with
+- `MAREA_G_LowerSwitch` keeps only the last `default` arm and drops the others with no diagnostic. This
+  is defensive code that no accepted program reaches. Sema rejects a second `default` arm, and a repeated `case` value, with
   `DUPLICATE_SWITCH_ARM` (3025, issue #50, PR #51), and `MAREA_SemaBuildTypedAst`, the only input of the IR,
   refuses a tree with a sema error (`ERROR_NOT_CHECKED`). No caller that goes through sema can reach either
   shape (a test checks it). The IR adds no diagnostic for it.

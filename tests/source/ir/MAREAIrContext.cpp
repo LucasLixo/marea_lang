@@ -156,8 +156,6 @@ TEST(MAREAIrContext, KindNamesAreStable)
 
     EXPECT_STREQ(MAREA_IrKindGetName(MAREA_IR_KIND_CHARACTER_LITERAL), "CHARACTER_LITERAL") << "CHARACTER_LITERAL must stay named.";
 
-    EXPECT_STREQ(MAREA_IrKindGetName(MAREA_IR_KIND_ZERO_VALUE), "ZERO_VALUE") << "ZERO_VALUE must stay named, the zero-default rule's own node.";
-
     EXPECT_STREQ(MAREA_IrKindGetName(MAREA_IR_KIND_CONSTRUCT_CALL), "CONSTRUCT_CALL") << "CONSTRUCT_CALL must be named, the explicit lowering of Type(args).";
 
     EXPECT_STREQ(MAREA_IrKindGetName(MAREA_IR_KIND_DESTROY_CALL), "DESTROY_CALL") << "The last kind must be DESTROY_CALL, the explicit cleanup at a scope exit.";
@@ -172,9 +170,9 @@ TEST(MAREAIrContext, KindNamesAreStable)
 
     EXPECT_EQ(static_cast<int>(MAREA_IR_KIND_CHARACTER_LITERAL), static_cast<int>(MAREA_IR_KIND_BUILTIN_NAME) + 1) << "CHARACTER_LITERAL must follow BUILTIN_NAME, so no value moves.";
 
-    EXPECT_EQ(static_cast<int>(MAREA_IR_KIND_ZERO_VALUE), static_cast<int>(MAREA_IR_KIND_CHARACTER_LITERAL) + 1) << "ZERO_VALUE must follow CHARACTER_LITERAL, so no value moves.";
+    EXPECT_EQ(static_cast<int>(MAREA_IR_KIND_CONSTRUCT_CALL), static_cast<int>(MAREA_IR_KIND_CHARACTER_LITERAL) + 2) << "CONSTRUCT_CALL must keep its value, one past the retired ZERO_VALUE, so no value moves.";
 
-    EXPECT_EQ(static_cast<int>(MAREA_IR_KIND_CONSTRUCT_CALL), static_cast<int>(MAREA_IR_KIND_ZERO_VALUE) + 1) << "CONSTRUCT_CALL must follow ZERO_VALUE, so no value moves.";
+    EXPECT_STREQ(MAREA_IrKindGetName(static_cast<MAREA_IrKind>(static_cast<int>(MAREA_IR_KIND_CHARACTER_LITERAL) + 1)), "UNKNOWN") << "The retired value of ZERO_VALUE must name no kind.";
 
     EXPECT_EQ(static_cast<int>(MAREA_IR_KIND_DESTROY_CALL), static_cast<int>(MAREA_IR_KIND_CONSTRUCT_CALL) + 1) << "DESTROY_CALL must follow CONSTRUCT_CALL, so no value moves.";
 
@@ -183,6 +181,10 @@ TEST(MAREAIrContext, KindNamesAreStable)
     EXPECT_STREQ(MAREA_IrKindGetName(MAREA_IR_KIND_COUNT), "UNKNOWN") << "COUNT must be unknown.";
 
     for (int kind{ 0 }; kind < static_cast<int>(MAREA_IR_KIND_COUNT); ++kind) {
+        if (kind == (static_cast<int>(MAREA_IR_KIND_CHARACTER_LITERAL) + 1)) {
+            continue;
+        }
+
         EXPECT_STRNE(MAREA_IrKindGetName(static_cast<MAREA_IrKind>(kind)), "UNKNOWN") << "Kind " << kind << " must have a name.";
     }
 }

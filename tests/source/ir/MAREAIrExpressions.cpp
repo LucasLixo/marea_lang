@@ -92,14 +92,21 @@ TEST(MAREAIrExpressions, NestedStructLiteralLowersItsValues)
     EXPECT_EQ(MAREA_lowerInitializer(POINT + "structure Line start: Point; end ", "Line", "Line{ start = Point{ x = 1, y = 2 } }"), "(LITERAL_VALUE :Line (FIELD_ENTRY start (LITERAL_VALUE :Point (FIELD_ENTRY x (INTEGER_LITERAL 1)) (FIELD_ENTRY y (INTEGER_LITERAL 2)))))") << "The nested literal must be lowered.";
 }
 
-// DISABLED: an omitted field is now MISSING_FIELD (3077); the ir ZERO_VALUE for fields is dead until the follow-up apply removes it
-TEST(MAREAIrExpressions, DISABLED_StructLiteralFieldTheSourceOmittedIsZero)
+TEST(MAREAIrExpressions, StructLiteralThatOmitsAFieldNeverReachesTheIr)
 {
-    GTEST_COUT << "Validating a struct literal field the source left unnamed lowers as an explicit zero, per the zero-default rule." << std::endl;
+    GTEST_COUT << "Validating a struct literal that leaves a field out gets MISSING_FIELD from sema and no typed tree, so the ir has nothing to lower and invents no zero for the field." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerInitializer(POINT, "Point", "Point{ x = 1 }"), "(LITERAL_VALUE :Point (FIELD_ENTRY x (INTEGER_LITERAL 1)) (FIELD_ENTRY y (ZERO_VALUE)))") << "The omitted field y must be synthesized as zero, after the fields the source wrote.";
+    for (const std::string literal : { "Point{ x = 1 }", "Point{}" }) {
+        MAREA_IrFixture fixture;
 
-    EXPECT_EQ(MAREA_lowerInitializer(POINT, "Point", "Point{}"), "(LITERAL_VALUE :Point (FIELD_ENTRY x (ZERO_VALUE)) (FIELD_ENTRY y (ZERO_VALUE)))") << "An empty literal must zero every field, in declaration order.";
+        ASSERT_EQ(fixture.sema.MAREA_sema("namespace main; " + POINT + "function f() local p: Point = " + literal + "; end", "main.marea"), MAREA_SEMA_EXCEPT_SUCCESS) << "Sema must run: " << literal;
+
+        const std::vector<MAREA_Uinteger32> CODES{ fixture.sema.parser.MAREA_codes() };
+
+        EXPECT_NE(std::find(CODES.begin(), CODES.end(), MAREA_Uinteger32{ MAREA_SEMA_DIAGNOSTIC_CODE_MISSING_FIELD }), CODES.end()) << "Sema must reject the omitted field with 3077: " << literal;
+
+        EXPECT_EQ(MAREA_SemaBuildTypedAst(fixture.sema.context, fixture.sema.parser.root, &fixture.typedRoot), MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NOT_CHECKED) << "The typed tree, the only input of the ir, must refuse the unit: " << literal;
+    }
 }
 
 TEST(MAREAIrExpressions, MemberAccessKeepsTargetAndMemberName)
@@ -262,20 +269,6 @@ TEST(MAREAIrExpressions, TypeConstructionCallLowersToConstructCall)
     EXPECT_EQ(MAREA_lowerInitializer(PREFIX, "Point", "Point(1)"), "(CONSTRUCT_CALL :Point (ARGUMENT_LIST (INTEGER_LITERAL 1) (INTEGER_LITERAL 0)))") << "An omitted trailing argument must be filled from construct's own default.";
 
     EXPECT_EQ(MAREA_lowerInitializer(PREFIX, "Point", "Point()"), "(CONSTRUCT_CALL :Point (ARGUMENT_LIST (INTEGER_LITERAL 0) (INTEGER_LITERAL 0)))") << "No argument must fill every parameter from construct's own defaults.";
-}
-
-// DISABLED: an omitted field is now MISSING_FIELD (3077); the ir ZERO_VALUE for fields is dead until the follow-up apply removes it
-TEST(MAREAIrExpressions, DISABLED_TypeBraceLiteralOfATypeWithConstructLowersToConstructCallKeepingTheLiteral)
-{
-    GTEST_COUT << "Validating Point{...} of a type with construct lowers to a CONSTRUCT_CALL: the defaults first, then the literal as its initial value." << std::endl;
-
-    const std::string PREFIX{ "structure Point x: sinteger32; y: sinteger32; end implementation Point #[operator = \"construct\"] function make(x: sinteger32 = 7, y: sinteger32 = 8) end end " };
-
-    EXPECT_EQ(MAREA_lowerInitializer(PREFIX, "Point", "Point{ x = 1 }"), "(CONSTRUCT_CALL :Point (ARGUMENT_LIST (INTEGER_LITERAL 7) (INTEGER_LITERAL 8)) (LITERAL_VALUE :Point (FIELD_ENTRY x (INTEGER_LITERAL 1)) (FIELD_ENTRY y (ZERO_VALUE))))") << "A partially named literal must keep its fields, omitted ones zero, inside the construct call.";
-
-    EXPECT_EQ(MAREA_lowerInitializer(PREFIX, "Point", "Point{ x = 1, y = 2 }"), "(CONSTRUCT_CALL :Point (ARGUMENT_LIST (INTEGER_LITERAL 7) (INTEGER_LITERAL 8)) (LITERAL_VALUE :Point (FIELD_ENTRY x (INTEGER_LITERAL 1)) (FIELD_ENTRY y (INTEGER_LITERAL 2))))") << "A fully named literal must be wrapped the same way.";
-
-    EXPECT_EQ(MAREA_lowerInitializer(PREFIX, "Point", "Point{}"), "(CONSTRUCT_CALL :Point (ARGUMENT_LIST (INTEGER_LITERAL 7) (INTEGER_LITERAL 8)) (LITERAL_VALUE :Point (FIELD_ENTRY x (ZERO_VALUE)) (FIELD_ENTRY y (ZERO_VALUE))))") << "An empty literal must be wrapped too, every field zero.";
 }
 
 TEST(MAREAIrExpressions, NestedTypeBraceLiteralOfATypeWithConstructIsWrappedInsideTheFieldEntry)
