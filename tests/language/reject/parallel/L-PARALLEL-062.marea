@@ -1,9 +1,8 @@
--- gap: #210 3020
--- rule: reject
+-- expect: 3074 @55
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- A local is written by a worker and by the body of the block.
+-- A spawn in a loop writes the same local in each turn.
 
 namespace main;
 
@@ -52,8 +51,9 @@ end
 function run(): sinteger32
     local point: Point = make_point();
     fork_join
-        spawn write_point(point);
-        point.y = 5;
+        for index in 0 .. 3 do
+            spawn write_point(point);
+        end
     end
     return 1;
 end

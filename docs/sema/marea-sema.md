@@ -22,7 +22,7 @@ MAREA_SemaCheckCompilationUnit(sema, root);   /* once per file, dependencies fir
 `MAREA_SemaCheckCompilationUnit` returns an error only for a null argument or an out of memory. A rule
 violation is a diagnostic in the sink. A size that does not fit in `MAREA_IntegerSize` (a diagnostic
 message, or the growth of a name table) is also an out of memory: nothing is allocated or copied.
-Every sema diagnostic is an error, in the range 3001-3071. Not every number of the range is a live code: the
+Every sema diagnostic is an error, in the range 3001-3074. Not every number of the range is a live code: the
 Diagnostics table lists the live ones.
 The lexer file name decides the path rule, so call `MAREA_LexContextSetFileName` with a project
 relative path with forward slashes and the `.marea` extension before the lex step.
@@ -371,6 +371,22 @@ outside every `fork_join` block is not changed. The rule follows the grammar: `r
 (note 9), the body is run once for each part, and all spawned work ends before the `end` of the `fork_join`
 - a jump that bypasses that `end`, from inside a `partition` body or directly in the block, would skip the
 join of the spawned workers.
+
+**Shared access in one fork_join block.** `MAREASemaCapture.c` keeps one table of what the workers of the `fork_join`
+blocks in progress took. A valid argument of a `spawn` is recorded as a write when the parameter of the callee (a function of
+the file, found by name) is `reference_mutable`, as a read when it is a read-only borrow, and not at all for a by-value
+parameter, a move-in parameter or a callee that sema cannot see. A `partition` source is recorded as a write for
+`partition mutable` and as a read otherwise. Before a new entry is added, it is compared with every earlier entry of the
+block and of the blocks around it: the same value (a part and a loop name are known by the node that declared them, a local by
+its type node) and overlapping places, where one of the two is a write, is `CONFLICTING_PARALLEL_ACCESS` (3074) at the
+argument or the source. Two places overlap when the path of one (the name, then the field names; an index access ends the
+path) is the start of the path of the other, so a value and a field of it overlap and two fields do not. Two arguments of one
+`spawn` are not compared with each other (the call check owns that). A write in a `spawn` that repeats, inside a loop or a
+`partition` body, of a value declared before its `fork_join` block, is also 3074, because each turn is a new writer. A
+statement that stands directly in the block (the block body, outside every `spawn`, `partition` and nested `fork_join`) is
+scanned when the visit reaches it: a use of a value that an earlier worker writes, or a write of a value that an earlier
+worker reads, is 3074 at the use. The table is cut back when the `fork_join` block ends, so two blocks in a row do not meet.
+An argument that is already `INVALID_SPAWN_ARGUMENT` is not recorded, so one mistake gives one diagnostic.
 
 **Control flow.** A function with a return type ends every path with `return value;`, through `if`,
 `elseif`, `else`, scope blocks and `switch`. A loop is never an ending path. `unreachable!()` and
@@ -893,6 +909,7 @@ or rejects.
 | 3069 | `WRITE_THROUGH_READ_ONLY_BORROW` | `function f(p: Point) p.x = 1; end`, `for each v in mutable xs do end` with `xs` read-only, `write_point(p)` with a read-only `p`, `write_point(make_point())` or `set(1)` for a write-borrow parameter |
 | 3070 | `USE_OF_MOVED_VALUE` | `local b: Point = move a; local c: sinteger32 = a.x;`, `take(move a); read(a);`, `spawn read(a);` or `a.sum()` after `a` was moved, also after a `do` block or after every arm of a branch moved it |
 | 3071 | `VALUE_MOVED_AGAIN` | `move a;` twice, or `move a` of a local declared outside the loop in a loop body that has no `break` or `return` of its own, at the name or at the `move` |
+| 3074 | `CONFLICTING_PARALLEL_ACCESS` | `spawn write(a); spawn write(a);`, `spawn write(a); spawn read(a);`, `spawn write(a); a.y = 5;` or a `spawn write(a);` in a loop in a `fork_join` block when `a` is declared before the block, and `partition xs ...` with a `spawn write(xs)` in the same block |
 
 ## Gaps
 
@@ -1082,9 +1099,7 @@ or rejects.
   vocabulary was never widened for attributes, so such a type argument fails to parse as one. The
   same scan already had no tolerance for the retired `mutable`/`reference` parameter keywords it
   used to allow, so this is not a new restriction, only an unaddressed one.
-- Move state and borrow liveness are not tracked across statements. Sema keeps no per-variable "moved" or
-  "borrow ended" bit, and `MAREA_SemaCheckSpawn` (`MAREASemaParallel.c`) checks one `spawn` alone, so two
-  sibling `spawn` statements of one `fork_join` are never compared. The settled design for every later
+- Borrow liveness is not tracked across statements. Sema keeps no per-variable "borrow ended" bit. The settled design for every later
   check (use after move, partial move, borrow liveness, cross-spawn, `partition` body) is one rule set,
   recorded here so no check invents its own:
   - **State table.** One new per-scope table, modeled directly on `references`
@@ -1110,3 +1125,10 @@ or rejects.
   inside an arm does not end the arm for the merge, only a `return`-style end does. A name read through a function-type local is a read
   like any other. Move state is not read across a function call: a callee that takes an `owned` parameter is seen only through the
   `move` written at the call.
+- The shared access check (3074) is conservative. It sees only a callee that is a function of the same file, found by a bare
+  name, so a worker that calls a method, a function of another namespace or a function value records nothing. A statement of
+  the block body is compared with the workers that started in earlier statements only: a worker that starts inside the same
+  statement (a loop around a `spawn`) or later is not compared with it, and a body statement before a `spawn` in a loop is not
+  compared with the next turn. A local declared inside a nested block of the body statement is not in the scope table when the
+  statement is scanned, so a name it hides is read as the outer one. A write in a repeating `spawn` is caught only for a value
+  declared before the `fork_join` block. These misses are accepted, never rejected.

@@ -1,9 +1,8 @@
--- gap: #210 3020
--- rule: reject
+-- expect: 3074 @73
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- A nested fork_join reads what the outer block writes.
+-- A partition mutable of a field and a worker that reads the owner of that field.
 
 namespace main;
 
@@ -53,12 +52,25 @@ function sum_slice(#[semantics = reference_read_only] part: c.slice<float32>): f
     return total;
 end
 
+structure Holder
+    values: c.array<float32>;
+    count: sinteger32;
+end
+
+function read_holder(#[semantics = reference_read_only] holder: Holder): sinteger32
+    return holder.count;
+end
+
+function make_holder(): Holder
+    return Holder{ values = c.array<float32>{}, count = 0 };
+end
+
 function check(): sinteger32
-    local point: Point = make_point();
+    local holder: Holder = make_holder();
     fork_join
-        spawn write_point(point);
-        fork_join
-            spawn read_point(point);
+        partition mutable holder.values into WORKER_COUNT as part do
+            spawn scale_slice(part, 2.0);
+            spawn read_holder(holder);
         end
     end
     return 1;
