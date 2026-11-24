@@ -514,7 +514,7 @@ lifecycle operator (3027) and structured `fork_join` with `partition` and `spawn
 
 ## Functions and calls
 
-Function declaration and call, parameters and defaults, the result and `return value;` on every path, recursion, function types as values, the passing mode of a parameter, and the diagnostics 3010, 3011, 3017 to 3019, 3022, 3030 and 3032 as these show them. The items sit in `tests/language/<class>/functions/`.
+Function declaration and call, parameters and defaults, the result and `return value;` on every path, recursion, function types as values, the passing mode of a parameter, and the diagnostics 3010, 3011, 3017 to 3019, 3022, 3030, 3032 and 3053 as these show them. The items sit in `tests/language/<class>/functions/`.
 
 ### Functions and calls: accept
 
@@ -581,8 +581,11 @@ Function declaration and call, parameters and defaults, the result and `return v
 | L-FUNCTIONS-054 | a local initialized from another structure name with no copy or move | 3016 @16 |
 | L-FUNCTIONS-055 | an arithmetic operator on an integer and a float | 3011 @12 |
 | L-FUNCTIONS-056 | a text local given to a parameter of an integer type | 3011 @15 |
+| L-FUNCTIONS-057 | a function type local given a text value | 3011 @12 |
 | L-FUNCTIONS-058 | a call of a name that no scope declares, as if it were a function value | 3004 @10 |
 | L-FUNCTIONS-059 | a default value that calls a function that no scope declares | 3004 @9 |
+| L-FUNCTIONS-063 | a function type argument whose signature does not match the parameter type | 3053 @20 |
+| L-FUNCTIONS-064 | a call of a function type value with too many arguments | 3010 @12 |
 | L-FUNCTIONS-065 | a return with no value in a function that has a result | 3022 @9 |
 | L-FUNCTIONS-068 | a function used before its declaration (the grammar says a name is declared before use) | 3004 @10 |
 | L-FUNCTIONS-069 | two parameters with one name | 3003 @9 |
@@ -594,17 +597,14 @@ Function declaration and call, parameters and defaults, the result and `return v
 
 | Id | Shows | Expected |
 |---|---|---|
-| L-FUNCTIONS-057 | a function type local given a text value | gap: 3011, rule: reject, issue #213 |
 | L-FUNCTIONS-060 | a write through a default read-only structure parameter (settled rule 2) | gap: NEW, rule: reject, issue #214 |
 | L-FUNCTIONS-061 | a write through a default structure parameter inside a method (settled rule 2) | gap: NEW, rule: reject, issue #214 |
 | L-FUNCTIONS-062 | a default read-only parameter passed on to a write borrow parameter (settled rule 2) | gap: NEW, rule: reject, issue #214 |
-| L-FUNCTIONS-063 | a function type argument whose signature does not match the parameter type | gap: 3011, rule: reject, issue #213 |
-| L-FUNCTIONS-064 | a call of a function type value with too many arguments | gap: 3010, rule: reject, issue #213 |
 | L-FUNCTIONS-066 | a return with a value in a function that has no result | gap: 3011, rule: reject, issue #215 |
 | L-FUNCTIONS-067 | the result of a function with no result used as a value | gap: 3011, rule: reject, issue #215 |
 | L-FUNCTIONS-071 | a call of a value that is not a function | gap: 3011, rule: reject, issue #215 |
 
-Known gaps of this area share their issues: #213, #214, #215, #220, #221, #222, #223, #224, #225. An issue lists the items that show it in the area; an item flips to `reject` the day its rule is implemented.
+Known gaps of this area share their issues: #214, #215, #220, #221, #222, #223, #224, #225. An issue lists the items that show it in the area; an item flips to `reject` the day its rule is implemented.
 
 ## Types and control flow
 
@@ -1257,7 +1257,7 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | bindings | 33 | 80 | 0 |
 | coverage | 0 | 1 | 0 |
 | examples | 20 | 0 | 0 |
-| functions | 19 | 45 | 9 |
+| functions | 19 | 48 | 6 |
 | interop | 17 | 27 | 1 |
 | memory | 15 | 10 | 8 |
 | namespaces | 17 | 28 | 6 |
@@ -1265,7 +1265,7 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | parallel | 19 | 23 | 17 |
 | seed | 1 | 2 | 0 |
 | types | 60 | 116 | 20 |
-| total | 266 | 402 | 143 |
+| total | 266 | 405 | 140 |
 
 ## Parity plan
 
@@ -1295,6 +1295,7 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 | 3040 | `sema` | [marea-sema.md](../sema/marea-sema.md), `ASSIGNMENT_TO_CONSTANT` |
 | 3041 | `sema` | [marea-sema.md](../sema/marea-sema.md), `RAW_POINTER_OUTSIDE_UNSAFE` |
 | 3043 | `sema` | [marea-sema.md](../sema/marea-sema.md), `NON_BOOLEAN_CONDITION` |
+| 3053 | `sema` | [marea-sema.md](../sema/marea-sema.md), `FUNCTION_TYPE_MISMATCH` |
 | 3055 | `sema` | [marea-sema.md](../sema/marea-sema.md), `CYCLIC_CONSTANT` |
 | 3059 | `sema` | [marea-sema.md](../sema/marea-sema.md), `COMPILE_TIME_ASSERTION_FAILED` |
 | 3060-3061 | `sema` | [marea-sema.md](../sema/marea-sema.md), `UNKNOWN_MACRO` and `INVALID_MACRO_ARGUMENT` |

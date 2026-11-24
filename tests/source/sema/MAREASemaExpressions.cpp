@@ -13,6 +13,7 @@ namespace
     constexpr MAREA_Uinteger32 UNDECLARED{ MAREA_SEMA_DIAGNOSTIC_CODE_UNDECLARED_NAME };
     constexpr MAREA_Uinteger32 COUNT_MISMATCH{ MAREA_SEMA_DIAGNOSTIC_CODE_ARGUMENT_COUNT_MISMATCH };
     constexpr MAREA_Uinteger32 OPAQUE_MISUSE{ MAREA_SEMA_DIAGNOSTIC_CODE_OPAQUE_TYPE_MISUSE };
+    constexpr MAREA_Uinteger32 FUNCTION_TYPE_MISMATCH{ MAREA_SEMA_DIAGNOSTIC_CODE_FUNCTION_TYPE_MISMATCH };
     constexpr MAREA_Uinteger32 DEFAULT_BEFORE_REQUIRED{ MAREA_SEMA_DIAGNOSTIC_CODE_DEFAULT_PARAMETER_BEFORE_REQUIRED };
 
     Codes MAREA_codesOf(const std::string &body)
@@ -803,4 +804,35 @@ TEST(MAREASemaExpressions, OpaqueTypeUsedThroughABorrowOrAnOwnerIsAccepted)
     EXPECT_TRUE(MAREA_codesOf(OPAQUE + "function f(a: T): sinteger32 return c.texture.width(a); end").empty()) << "A C call with an opaque argument must raise nothing.";
 
     EXPECT_TRUE(MAREA_codesOf("structure S width: sinteger32; end function f(a: S): sinteger32 return a.width; end").empty()) << "A field read of an ordinary structure must raise nothing.";
+}
+
+TEST(MAREASemaExpressions, FunctionTypeValueIsChecked)
+{
+    GTEST_COUT << "Validating a function type value: a literal, a function signature and a call through the value." << std::endl;
+
+    const std::string OP{ "type Op = function(left: sinteger32, right: sinteger32): sinteger32; function add(left: sinteger32, right: sinteger32): sinteger32 return left + right; end function apply(operation: Op): sinteger32 return operation(1, 2); end " };
+
+    EXPECT_EQ(MAREA_codesOf("type Callback = function(text: string); function run() local callback: Callback = \"x\"; end"), Codes{ MISMATCH }) << "A text literal for a function type local must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf("type Callback = function(); function run() local callback: Callback = 1; end"), Codes{ MISMATCH }) << "An integer literal for a function type local must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(OP + "function negate(value: sinteger32): sinteger32 return -value; end function run(): sinteger32 return apply(negate); end"), Codes{ FUNCTION_TYPE_MISMATCH }) << "A function with fewer parameters must raise FUNCTION_TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(OP + "function wide(left: sinteger32, right: sinteger32): sinteger64 return 0; end function run(): sinteger32 return apply(wide); end"), Codes{ FUNCTION_TYPE_MISMATCH }) << "A function with another result type must raise FUNCTION_TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(OP + "function other(left: string, right: sinteger32): sinteger32 return 0; end function run(): sinteger32 return apply(other); end"), Codes{ FUNCTION_TYPE_MISMATCH }) << "A function with another parameter type must raise FUNCTION_TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(OP + "function other(left: string, right: sinteger32): sinteger32 return 0; end function run() local operation: Op = other; end"), Codes{ FUNCTION_TYPE_MISMATCH }) << "A local initializer is compared too.";
+
+    EXPECT_EQ(MAREA_codesOf("type One = function(value: sinteger32): sinteger32; function apply(operation: One): sinteger32 return operation(1, 2); end"), Codes{ COUNT_MISMATCH }) << "A call through a function type value with too many arguments must raise ARGUMENT_COUNT_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf("type One = function(value: sinteger32): sinteger32; function apply(operation: One): sinteger32 return operation(\"x\"); end"), Codes{ MISMATCH }) << "A call through a function type value with a wrong argument type must raise TYPE_MISMATCH.";
+
+    EXPECT_TRUE(MAREA_codesOf(OP + "function run(): sinteger32 return apply(add); end").empty()) << "A function with the same signature must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(OP + "function pass(operation: Op): sinteger32 return apply(operation); end").empty()) << "A function type value passed on must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("type Callback = function(text: string); structure Holder callback: Callback; end function run(holder: Holder) end").empty()) << "A function type field must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(OP + "function pick<T>(left: sinteger32, right: sinteger64): sinteger32 return left; end function run() local operation: Op = pick; end").empty()) << "A generic function must not be compared.";
 }

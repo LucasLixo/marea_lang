@@ -975,6 +975,27 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressionFit(MAREA_SemaContext * context, const MAREA_AstNode *type, const MAREA_AstNode *expression);
 
     /**
+     * @brief Gives the FUNCTION_TYPE node that a written type stands for: the node itself, or the target of an
+     * alias chain of the file (type Callback = function(text: string);).
+     * @param context Context of the run. Must not be null.
+     * @param type NAMED_TYPE or FUNCTION_TYPE node. May be null.
+     * @return The FUNCTION_TYPE node, or null when the type is not a function type that sema can see.
+     */
+    MAREA_NODISCARD const MAREA_AstNode *MAREA_CALL MAREA_SemaResolveFunctionType(const MAREA_SemaContext *context, const MAREA_AstNode *type);
+
+    /**
+     * @brief Tells whether a function declaration has the signature of a function type: the same parameter count,
+     * the same passing mode and type of each parameter, and the same result type, compared as written (an alias
+     * renders as its original). A generic function, and a function type that mentions a generic parameter in
+     * scope, are never compared and give true, because sema never guesses.
+     * @param context Context of the run. Must not be null.
+     * @param function FUNCTION_DECLARATION node. Must not be null.
+     * @param functionType FUNCTION_TYPE node. Must not be null.
+     * @return MAREA_BOOLEAN_TRUE when the function fits or when sema cannot compare, MAREA_BOOLEAN_FALSE otherwise.
+     */
+    MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_SemaFunctionFitsFunctionType(const MAREA_SemaContext *context, const MAREA_AstNode *function, const MAREA_AstNode *functionType);
+
+    /**
      * @brief Reports TYPE_MISMATCH the same way MAREA_SemaCheckExpressionFit does, against a primitive type
      * named by fixed text instead of a written NAMED_TYPE node: the shape of the signature of a member of
      * an EXTERNAL namespace, which the host gives as canonical type spellings, not as AST nodes.
