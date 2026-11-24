@@ -82,7 +82,7 @@ A `PARAMETER` no longer carries `MUTABLE` on its own raw AST node (the retired `
 parameter keywords used to set it there); it is set on the `PARAMETER` IR node instead from the
 ownership mode sema already computed for it (`MAREA_SemaTypedNodeGetOwnershipMode`), which is
 `MUTABLE_BORROW` exactly when the parameter's effective `semantics` attribute is
-`reference_mutable` - the default for a non-primitive type with no attribute written. The other modes
+`reference_mutable` written on the parameter; a parameter with no attribute is a read-only borrow and leaves the flag clear. The other modes
 (`VALUE`, `BORROW`) both leave the flag clear, so the ir does not tell a by-value parameter from a read-only borrow:
 a backend reads that from the type, and there is no other flag for it (see Gaps).
 
