@@ -138,7 +138,16 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckSpawn(MAREA_SemaContext *context, con
 
     const MAREA_AstNode *call = MAREA_SemaChildAt(node, 0);
 
-    if ((call == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(call) != MAREA_AST_KIND_CALL_EXPRESSION)) {
+    if (call == MAREA_NULLPTR) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    if (MAREA_AstNodeGetKind(call) != MAREA_AST_KIND_CALL_EXPRESSION) {
+        // INFO: a macro call is not a function call, so it is rejected too; a broken operand raises nothing here.
+        if (MAREA_AstNodeGetKind(call) != MAREA_AST_KIND_ERROR_NODE) {
+            MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_SPAWN_NEEDS_CALL, MAREA_AstNodeGetPosition(call), "a spawn needs a call");
+        }
+
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
@@ -172,6 +181,12 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckPartition(MAREA_SemaContext *context,
         MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_PARALLEL_CONSTRUCT_OUTSIDE_FORK_JOIN, MAREA_AstNodeGetPosition(node), "a partition needs an enclosing fork_join block");
 
         return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_AstNode *source = MAREA_SemaChildAt(node, 0);
+
+    if ((source != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(source) != MAREA_AST_KIND_ERROR_NODE) && (MAREA_SemaExpressionIsKnownNotArray(context, source) == MAREA_BOOLEAN_TRUE)) {
+        MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_PARTITION_SOURCE_NOT_ARRAY, MAREA_AstNodeGetPosition(source), "a partition needs an array");
     }
 
     return MAREA_SEMA_EXCEPT_SUCCESS;

@@ -338,7 +338,7 @@ TEST(MAREASemaExpressions, UndeclaredNameInAHeaderOrAConstant)
 
     EXPECT_EQ(MAREA_codesOf("function g() fork_join partition mutable missing into 4 as part do end end end"), Codes{ UNDECLARED }) << "A missing mutable partition value must raise UNDECLARED_NAME.";
 
-    EXPECT_EQ(MAREA_codesOf("function g(a: sinteger32) fork_join partition a into missing as part do end end end"), Codes{ UNDECLARED }) << "A missing partition count must raise UNDECLARED_NAME.";
+    EXPECT_EQ(MAREA_codesOf("function g(a: c.array<float32>) fork_join partition a into missing as part do end end end"), Codes{ UNDECLARED }) << "A missing partition count must raise UNDECLARED_NAME.";
 
     EXPECT_EQ(MAREA_codesOf("constant A: sinteger32 = missing;"), Codes{ UNDECLARED }) << "A missing name in a constant initializer must raise UNDECLARED_NAME.";
 
