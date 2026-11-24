@@ -10,6 +10,8 @@ namespace
     using Codes = std::vector<MAREA_Uinteger32>;
 
     constexpr MAREA_Uinteger32 MISMATCH{ MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH };
+    constexpr MAREA_Uinteger32 UNKNOWN_FIELD{ MAREA_SEMA_DIAGNOSTIC_CODE_UNKNOWN_FIELD };
+    constexpr MAREA_Uinteger32 DUPLICATE_MEMBER{ MAREA_SEMA_DIAGNOSTIC_CODE_DUPLICATE_MEMBER };
     constexpr MAREA_Uinteger32 UNDECLARED{ MAREA_SEMA_DIAGNOSTIC_CODE_UNDECLARED_NAME };
     constexpr MAREA_Uinteger32 COUNT_MISMATCH{ MAREA_SEMA_DIAGNOSTIC_CODE_ARGUMENT_COUNT_MISMATCH };
     constexpr MAREA_Uinteger32 OPAQUE_MISUSE{ MAREA_SEMA_DIAGNOSTIC_CODE_OPAQUE_TYPE_MISUSE };
@@ -338,7 +340,7 @@ TEST(MAREASemaExpressions, UndeclaredNameInAHeaderOrAConstant)
 
     EXPECT_EQ(MAREA_codesOf("function g() fork_join partition mutable missing into 4 as part do end end end"), Codes{ UNDECLARED }) << "A missing mutable partition value must raise UNDECLARED_NAME.";
 
-    EXPECT_EQ(MAREA_codesOf("function g(a: sinteger32) fork_join partition a into missing as part do end end end"), Codes{ UNDECLARED }) << "A missing partition count must raise UNDECLARED_NAME.";
+    EXPECT_EQ(MAREA_codesOf("function g(a: c.array<float32>) fork_join partition a into missing as part do end end end"), Codes{ UNDECLARED }) << "A missing partition count must raise UNDECLARED_NAME.";
 
     EXPECT_EQ(MAREA_codesOf("constant A: sinteger32 = missing;"), Codes{ UNDECLARED }) << "A missing name in a constant initializer must raise UNDECLARED_NAME.";
 
@@ -380,7 +382,7 @@ TEST(MAREASemaExpressions, KnownNamesAreNotReported)
 
     EXPECT_EQ(MAREA_codesOf("function g() local x: sinteger32 = missing.field; end"), Codes{ UNDECLARED }) << "The bare name that starts a member chain is checked like any other name.";
 
-    EXPECT_TRUE(MAREA_codesOf("structure Point x: float32; end function g(p: Point): float32 return p.missing_field; end").empty()) << "A member name is not a bare name.";
+    EXPECT_TRUE(MAREA_codesOf("structure Point x: float32; end function g(p: Point): float32 return p.x; end").empty()) << "A member name is not a bare name.";
 }
 
 TEST(MAREASemaExpressions, ImportedAndNamespaceNamesAreNotReported)
@@ -895,4 +897,46 @@ TEST(MAREASemaExpressions, ForEachFieldIsTyped)
     EXPECT_TRUE(MAREA_codesOf(POINT + "function check(points: owned<vector<Point>>) for each item in points do local x: sinteger32 = item.x; end end").empty()) << "An equal local for a for each field must raise nothing.";
 
     EXPECT_TRUE(MAREA_codesOf("function check(points: owned<vector<Unknown>>) for each item in points do local x: sinteger8 = item.x; end end").empty()) << "An element of an unknown type must raise nothing.";
+}
+
+TEST(MAREASemaExpressions, StructLiteralFieldsMatchTheStructure)
+{
+    GTEST_COUT << "Validating a struct literal field is compared with the structure." << std::endl;
+
+    const std::string POINT{ "structure Point x: float64; y: float64; end " };
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function make(): Point return Point{ x = true, y = 0.0 }; end"), Codes{ MISMATCH }) << "A boolean for a float64 field must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function make(): Point return Point{ x = 1.0, x = 2.0, y = 3.0 }; end"), Codes{ DUPLICATE_MEMBER }) << "A field given twice must raise DUPLICATE_MEMBER.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function make(): Point return Point{ x = 1.0, y = 2.0, z = 3.0 }; end"), Codes{ UNKNOWN_FIELD }) << "A field that the structure lacks must raise UNKNOWN_FIELD.";
+
+    EXPECT_TRUE(MAREA_codesOf(POINT + "function make(): Point return Point{ x = 1.0, y = 2.0 }; end").empty()) << "A full literal must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(POINT + "function make(): Point return Point{ x = 1.0 }; end").empty()) << "A literal with a missing field must raise nothing (zero-default rule).";
+
+    EXPECT_TRUE(MAREA_codesOf("structure Pair<A, B> first: A; second: B; end function make(): Pair<sinteger32, float64> return Pair<sinteger32, float64>{ first = 1, second = 2.0 }; end").empty()) << "A literal of a generic structure must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("function make(): array<sinteger32, 2> return array<sinteger32, 2>{ 1, 2 }; end").empty()) << "An array literal must raise nothing.";
+}
+
+TEST(MAREASemaExpressions, FieldAccessNeedsAFieldOfTheStructure)
+{
+    GTEST_COUT << "Validating a field read or write names a field of the structure." << std::endl;
+
+    const std::string POINT{ "structure Point x: float64; y: float64; end implementation Point function length(): float64 return 1.0; end end type Alias = Point; " };
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function run(point: Point): float64 return point.z; end"), Codes{ UNKNOWN_FIELD }) << "A read of a missing field must raise UNKNOWN_FIELD.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function run(point: Point): float64 local a: float64 = point.z; return a; end"), Codes{ UNKNOWN_FIELD }) << "A local initialised from a missing field must raise UNKNOWN_FIELD.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function run(#[semantics = reference_mutable] point: Point) point.z = 1.0; end"), Codes{ UNKNOWN_FIELD }) << "A write of a missing field must raise UNKNOWN_FIELD.";
+
+    EXPECT_TRUE(MAREA_codesOf(POINT + "function run(point: Point): float64 return point.x; end").empty()) << "A read of a real field must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(POINT + "function run(point: Point): float64 return point.length(); end").empty()) << "A method call must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(POINT + "function run(point: Alias): float64 return point.x; end").empty()) << "A read through an alias must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("function run(point: other.Point): float64 return point.z; end").empty()) << "A structure of another namespace must raise nothing.";
 }

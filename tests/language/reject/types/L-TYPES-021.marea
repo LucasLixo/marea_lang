@@ -1,9 +1,8 @@
--- gap: #220 NEW
--- rule: reject
+-- expect: 3011 @15
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- A field assignment of a field that the structure does not have.
+-- A struct literal field of another type than the field.
 
 namespace main;
 
@@ -12,6 +11,6 @@ structure Point
     y: float64;
 end
 
-function run(#[semantics = reference_mutable] point: Point)
-    point.z = 1.0;
+function make(): Point
+    return Point{ x = true, y = 0.0 };
 end
