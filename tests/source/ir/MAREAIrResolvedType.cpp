@@ -414,7 +414,7 @@ TEST(MAREAIrResolvedType, SwitchHiddenLocalAndTestsAreTyped)
 
     MAREA_IrFixture fixture;
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; function f(v: uinteger8) switch v case 1, 2 then return; end case 3 then return; end default then return; end end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; function f(v: uinteger8) switch v case 1, 2 then return; case 3 then return; default then return; end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     const std::string DUMP{ MAREA_dumpOf(fixture) };
 
