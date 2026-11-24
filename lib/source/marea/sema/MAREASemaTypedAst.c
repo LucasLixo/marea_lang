@@ -380,6 +380,7 @@ static MAREA_SemaTypedAstExcept MAREA_CALL MAREA_G_TypedAstBuildNode(MAREA_SemaC
 
     built->astNode = node;
     built->typeDeclaration = MAREA_NULLPTR;
+    built->layout = MAREA_NULLPTR;
     built->typeName = MAREA_NULLPTR;
     built->resolvedType = MAREA_NULLPTR;
     built->exprType = (MAREA_SemaExprType){ .node = MAREA_NULLPTR, .declaration = MAREA_NULLPTR, .arguments = MAREA_NULLPTR, .frame = MAREA_NULLPTR, .fixed = MAREA_NULLPTR, .fixedLength = 0 };
@@ -407,6 +408,15 @@ static MAREA_SemaTypedAstExcept MAREA_CALL MAREA_G_TypedAstBuildNode(MAREA_SemaC
     }
 
     MAREA_SemaTypedAstResolveLiteralDefault(built);
+
+    const MAREA_AstKind NODE_KIND = MAREA_AstNodeGetKind(node);
+
+    // INFO: a structure or an enum carries its layout, measured with the generic parameters of the declaration in scope.
+    if (((NODE_KIND == MAREA_AST_KIND_STRUCTURE_DECLARATION) || (NODE_KIND == MAREA_AST_KIND_ENUM_DECLARATION)) && (MAREA_SemaMeasureDeclaration(context, node, &built->layout) != MAREA_SEMA_EXCEPT_SUCCESS)) {
+        MAREA_SemaScopeLeave(context, mark);
+
+        return MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_OUT_OF_MEMORY;
+    }
 
     built->ownershipMode = MAREA_SemaTypedAstClassifyOwnership(context, built);
 

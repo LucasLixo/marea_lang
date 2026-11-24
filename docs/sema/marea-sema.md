@@ -6,7 +6,8 @@ The `sema` stage checks the tree of the `parse` stage. It reads a public tree an
 It has no global state, never prints and never reads the disk: the caller gives it an arena, a
 diagnostic sink and an import resolver. `MAREA_SemaCheckCompilationUnit` itself returns no artifact
 beyond diagnostics; a separate, additive API builds the typed shadow tree the `ir` stage will consume
-- see [Typed AST hand-off](#typed-ast-hand-off).
+- see [Typed AST hand-off](#typed-ast-hand-off). The typed node of a structure and of an enum also carries its size,
+its alignment and the offset of each member, see [Layout of a structure and an enum](#layout-of-a-structure-and-an-enum).
 
 ## Use
 
@@ -261,7 +262,8 @@ ordinary call.
 `sinteger32`. A tag must be one bare integer primitive (`sinteger8` to `sinteger64`, `uinteger8` to
 `uinteger64`); any other tag (`float32`, `string`, `boolean`, a structure, a generic or an alias) is
 `INVALID_ENUM_TAG_TYPE` (3031), once per enum. A tag name that is not a type at all also raises
-`UNKNOWN_TYPE`. Sema does not use the tag for the layout of an enum: `size_of` of an enum is unchanged.
+`UNKNOWN_TYPE`. The check of `size_of` and `convert` does not use the tag of an enum, but the layout record does: its
+width is the size of the tag (see [Layout of a structure and an enum](#layout-of-a-structure-and-an-enum)).
 
 **Enum variants.** An enum that declares no variant is `EMPTY_ENUM` (3047), once at the enum. `Enum.Name` is
 `UNKNOWN_ENUM_VARIANT` (3048) when `Enum` is an enum of this file, no local hides its name, and `Name` is no variant
@@ -886,6 +888,78 @@ language rule from the grammar. This holds for a literal that is not a value of 
 `a[i]` take the default. The rule only records a type: it raises no diagnostic and changes nothing that sema accepts
 or rejects.
 
+## Layout of a structure and an enum
+
+The typed node of a `STRUCTURE_DECLARATION` and of an `ENUM_DECLARATION` carries an opaque layout record,
+`MAREA_SemaTypeLayout` (`marea/sema/MAREASemaLayout.h`), made by `MAREA_SemaBuildTypedAst` and valid for the arena
+lifetime. It is the one place where sema says how big a type is and where its members sit, so a later stage never
+measures a type again.
+
+```c
+const MAREA_SemaTypeLayout *layout;
+MAREA_Uinteger64 size, alignment, offset;
+
+MAREA_SemaTypedNodeGetLayout(node, &layout);               /* node: a typed structure or enum declaration */
+if (MAREA_SemaTypeLayoutGetVerdict(layout) == MAREA_SEMA_MEASURE_VERDICT_MEASURED) {
+    MAREA_SemaTypeLayoutGetSize(layout, &size);
+    MAREA_SemaTypeLayoutGetAlignment(layout, &alignment);
+    MAREA_SemaTypeLayoutGetMemberOffset(layout, 0, &offset); /* field 0, or the payload of variant 0 */
+}
+```
+
+| Accessor | Gives |
+|---|---|
+| `MAREA_SemaTypedNodeGetLayout` | the layout of a typed structure or enum declaration. `ERROR_NO_LAYOUT` for any other node (an opaque structure included), `ERROR_NULL_POINTER` for a null argument |
+| `MAREA_SemaTypeLayoutGetVerdict` | `MAREA_SEMA_MEASURE_VERDICT_MEASURED` or `MAREA_SEMA_MEASURE_VERDICT_UNDECIDED` |
+| `MAREA_SemaTypeLayoutGetReason` | `MAREA_SEMA_MEASURE_REASON_NONE` when measured, else the reason (below) |
+| `MAREA_SemaTypeLayoutGetSize`, `GetAlignment`, `GetTagSize` | the size with its tail padding, the alignment and the width of the tag of an enum (0 for a structure), in bytes. `ERROR_UNDECIDED` when the layout is undecided |
+| `MAREA_SemaTypeLayoutGetMemberCount` | the number of fields of a structure or of variants of an enum. Known for an undecided layout too |
+| `MAREA_SemaTypeLayoutGetMemberOffset` | the offset of a field, or the offset of the payload of a variant. `ERROR_UNDECIDED` when undecided, `ERROR_NULL_POINTER` for an index that is out of range |
+| `MAREA_SemaTypeLayoutGetVariantFieldCount`, `GetVariantFieldOffset` | the field count of one variant and the offset of one of its fields |
+
+Every offset counts from the start of the value of the structure or of the enum.
+
+**The rules.** Both values of the `layout` key give the same result, and so does a structure with no key: the fields
+stay in the order written, each at the next multiple of its own alignment (the size of a primitive, the alignment of a
+nested structure or enum), and the size is rounded up to the largest alignment. `pack = N` caps the alignment of a
+member, a field `align = N` raises the alignment of that field, and `align = N` on the type raises the alignment of the
+type. The layout may come from a file attribute. The value `marea` of the key stays reserved: a later change may
+reorder the fields for it, and then only the offsets change, not the format. The widths are `boolean`, `character`,
+`sinteger8` and `uinteger8` 1, `sinteger16` and `uinteger16` 2, `sinteger32`, `uinteger32` and `float32` 4, and
+`sinteger64`, `uinteger64` and `float64` 8, each aligned to its size. A structure with no field has size 0 and
+alignment 1. A type alias of a primitive is the primitive.
+
+An enum is its tag at offset 0, then its data as a union. The tag is the written integer type, `sinteger32` when none is
+written, and its width is the size of the type. Each variant is laid out as a structure from the start of its payload.
+The payload is as large as the largest variant and starts at the first offset after the tag that fits the largest
+alignment of a variant, so every variant has the same payload offset. The alignment of the enum is the largest one
+among the tag and the variants, and the size is rounded up to it. An enum with no data is its tag. `pack` and `align`
+on an enum act as they do on a structure. For `enum Shape : uinteger8 Circle(radius: float32); Rect(w: float64, h:
+float64); Empty; end` the size is 24, the alignment 8, the tag 1, the payload offset 8 and the fields of `Rect` sit at
+8 and 16.
+
+**Undecided on purpose.** A type that sema does not measure has the verdict `UNDECIDED` and a reason, and no size, no
+alignment and no offset. The record has the same format for a measured layout, so a later change can measure a type
+that is undecided today without a change of format. The reasons are:
+
+- `LIBRARY_TYPE`: a field or a variant field of `string`, `array`, `vector`, `pointer`, `owned`, `slice`, `task`, or
+  any type of a library under `c.{lib}` or `marea.{lib}`, or a name that sema cannot see. The layout of such a type
+  comes from its library later.
+- `GENERIC`: a generic structure, or a field whose type is a generic parameter.
+- `FUNCTION_TYPE`: a field of a function type. Its width is a choice of the backend.
+- `OPAQUE`: an opaque structure, which has no known layout.
+- `INVALID_ATTRIBUTE`: a `pack` or an `align` that sema cannot use (zero, or above 4294967296).
+- `TOO_DEEP`: a chain of types held by value deeper than 8 levels, a type that holds itself, or a type whose
+  measure visits more than 1048576 declarations.
+- `UNRESOLVED`: a type that sema cannot trace to a declaration (an alias loop), and an enum tag that is not an integer
+  primitive, which `INVALID_ENUM_TAG_TYPE` (3031) rejects already.
+
+A structure or an enum that holds an undecided type is undecided too, with the reason of that type.
+
+The layout does not change what sema accepts or rejects. The convert check of `convert<T>(x)` between two structures
+keeps its own rule (see "Conversion" under "Rules") and reads the same measure: a structure that holds an enum is
+still not compared, and a `marea` structure inside a `c` structure is still not compared.
+
 ## Diagnostics
 
 | Code | Name | Example |
@@ -1059,8 +1133,8 @@ or rejects.
   named constant, a nested expression such as `(-128 / -1) + 1`, and a compound `/=` or `%=` (whose left side is a name) are not folded.
   The folder duplicates the ones of the sibling literal, zero divisor and shift rules; merge them later.
 - `INVALID_ENUM_TAG_TYPE` (3031) checks only that the tag is an integer primitive. Sema does not check that the tag
-  is wide enough for the number of variants, and does not use it for the layout of the enum (`size_of` is
-  unchanged).
+  is wide enough for the number of variants. The tag gives the width of the enum in its layout record, and nothing
+  else reads it.
 - The contract check only sees arguments whose type is cheap to know. Other arguments are not checked.
 - The bound check of 3051 reads the `where` clause of the function only. A generic parameter of an `implementation` block has no bound there, so a call on a value of it is 3051.
 - `operator` is checked against its vocabulary; only `construct` and `destroy` have a placement and a shape check
@@ -1152,6 +1226,13 @@ or rejects.
   primitives with the same width but another name (`sinteger32` and `float32`) is a mismatch here, as the rule is
   by exact name; a looser rule is a later decision of the user. The numeric range of a conversion
   (`convert<sinteger8>(count)` with `count` above 127) is a run-time stop, not a check of sema.
+- The layout record (see "Layout of a structure and an enum") leaves a library type undecided on purpose: a field of
+  `string`, `array`, `vector`, `pointer`, `owned`, `slice`, `task` or any `c.{lib}` or `marea.{lib}` type makes its
+  structure or enum undecided until the library gives the layout. A function type field is undecided too. The
+  `marea` value of the `layout` key is measured like `c` and stays reserved so a later change can reorder the fields.
+  An enum that is imported from another file is measured with the file attributes of the importing file, because a
+  file attribute is read from the tree that sema checks. The convert check still does not compare a structure that
+  holds an enum, though the layout of that enum is known now.
 - The parser's `<`-opens-type-arguments lookahead (see [the AST doc](../ast/marea-ast.md),
   "Lookahead rules") does not tolerate `#[...]` inside the parameter list of a function type used
   as a type argument (`f<function(#[semantics = reference_mutable] x: T): T>()`); that scan's token
