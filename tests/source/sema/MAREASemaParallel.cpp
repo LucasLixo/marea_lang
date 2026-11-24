@@ -22,6 +22,10 @@ namespace
 
     constexpr MAREA_Uinteger32 INVALID_JUMP{ MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_PARALLEL_JUMP };
 
+    constexpr MAREA_Uinteger32 CONFLICT{ MAREA_SEMA_DIAGNOSTIC_CODE_CONFLICTING_PARALLEL_ACCESS };
+
+    const std::string SHARED{ "structure P x: sinteger32; y: sinteger32; end function w(#[semantics = reference_mutable] p: P) end function r(p: P): sinteger32 return p.x; end " };
+
     const std::string HEAD{ "constant WORKERS: sinteger32 = 4; function work(part: slice<float32>, factor: float32) end " };
 
     Codes MAREA_codesOf(const std::string &body)
@@ -376,4 +380,79 @@ TEST(MAREASemaParallel, PartitionOfAValueThatIsNotAnArrayIsRejected)
     EXPECT_TRUE(MAREA_codesOf("function f(values: Unknown) fork_join partition values into 2 as part do end end end").empty()) << "A partition of an unclassified value must raise nothing.";
 
     EXPECT_EQ(MAREA_codesOf("function f(count: sinteger32) partition count into 2 as part do end end"), Codes{ OUTSIDE_BLOCK }) << "A partition outside a block must raise only 3062.";
+}
+
+TEST(MAREASemaParallel, TwoSpawnsThatWriteOneLocalAreRejected)
+{
+    GTEST_COUT << "Validating two spawns of one fork_join block cannot both write one local." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf(SHARED + "function f() local a: P = P{ x = 1, y = 2 }; fork_join spawn w(a); spawn w(a); end end"), Codes{ CONFLICT }) << "Two workers that write one local must raise CONFLICTING_PARALLEL_ACCESS once.";
+
+    EXPECT_EQ(MAREA_codesOf(SHARED + "function f() local a: P = P{ x = 1, y = 2 }; fork_join spawn w(a); spawn r(a); end end"), Codes{ CONFLICT }) << "A worker that reads what another worker writes must raise CONFLICTING_PARALLEL_ACCESS.";
+
+    EXPECT_EQ(MAREA_codesOf(SHARED + "function f() local a: P = P{ x = 1, y = 2 }; fork_join spawn r(a); spawn w(a); end end"), Codes{ CONFLICT }) << "A worker that writes what an earlier worker reads must raise CONFLICTING_PARALLEL_ACCESS.";
+}
+
+TEST(MAREASemaParallel, SpawnsThatOnlyReadOrUseOtherValuesAreAccepted)
+{
+    GTEST_COUT << "Validating workers that share only reads, or write different values, raise nothing." << std::endl;
+
+    EXPECT_TRUE(MAREA_codesOf(SHARED + "function f() local a: P = P{ x = 1, y = 2 }; fork_join spawn r(a); spawn r(a); end end").empty()) << "Two readers of one local must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(SHARED + "function f() local a: P = P{ x = 1, y = 2 }; local b: P = P{ x = 1, y = 2 }; fork_join spawn w(a); spawn w(b); end end").empty()) << "Two writers of two locals must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(SHARED + "function f() local a: P = P{ x = 1, y = 2 }; fork_join spawn w(a); end fork_join spawn w(a); end end").empty()) << "Two writers in two fork_join blocks, one after the other, must raise nothing.";
+}
+
+TEST(MAREASemaParallel, SpawnInALoopThatWritesAnOuterLocalIsRejected)
+{
+    GTEST_COUT << "Validating a spawn in a loop that writes a local declared before the block repeats the write." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf(SHARED + "function f() local a: P = P{ x = 1, y = 2 }; fork_join for i in 0 .. 3 do spawn w(a); end end end"), Codes{ CONFLICT }) << "A spawn in a loop that writes one outer local must raise CONFLICTING_PARALLEL_ACCESS.";
+
+    EXPECT_TRUE(MAREA_codesOf(SHARED + "function f() fork_join for i in 0 .. 3 do local a: P = P{ x = 1, y = 2 }; spawn w(a); end end end").empty()) << "A spawn in a loop that writes a local of the loop body must raise nothing.";
+}
+
+TEST(MAREASemaParallel, PartitionPartsAndSourcesAreCompared)
+{
+    GTEST_COUT << "Validating a part that two workers write, and a source that a worker writes while a partition reads it, are rejected." << std::endl;
+
+    const std::string SCALE{ "function scale(#[semantics = reference_mutable] part: c.slice<float32>, factor: float32) end function sum(part: c.slice<float32>): float32 return 0.0; end " };
+
+    EXPECT_EQ(MAREA_codesOf(SCALE + "function f(#[semantics = reference_mutable] values: c.array<float32>) fork_join partition mutable values into 2 as part do spawn scale(part, 2.0); spawn scale(part, 3.0); end end end"), Codes{ CONFLICT }) << "One part passed to two writers must raise CONFLICTING_PARALLEL_ACCESS.";
+
+    EXPECT_EQ(MAREA_codesOf(SCALE + "function f(values: c.array<float32>) local copy_of: c.array<float32> = copy values; fork_join partition copy_of into 2 as part do spawn sum(part); spawn scale(copy_of, 2.0); end end end"), Codes{ CONFLICT }) << "A worker that writes the source of a partition must raise CONFLICTING_PARALLEL_ACCESS.";
+
+    EXPECT_TRUE(MAREA_codesOf(SCALE + "function f(#[semantics = reference_mutable] values: c.array<float32>, #[semantics = reference_mutable] other: c.array<float32>) fork_join partition mutable values into 2 as part do spawn scale(part, 2.0); end partition mutable other into 2 as part do spawn scale(part, 2.0); end end end").empty()) << "Two partitions that each name their part part must raise nothing.";
+}
+
+TEST(MAREASemaParallel, FieldsOfOneValueAreComparedByPath)
+{
+    GTEST_COUT << "Validating a field and its owner overlap, and two other fields do not." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf(SHARED + "structure H a: P; b: P; end function f() local h: H = H{ a = P{ x = 1, y = 2 }, b = P{ x = 1, y = 2 } }; fork_join spawn w(h.a); spawn r(h.a); end end"), Codes{ CONFLICT }) << "A write and a read of one field must raise CONFLICTING_PARALLEL_ACCESS.";
+
+    EXPECT_TRUE(MAREA_codesOf(SHARED + "structure H a: P; b: P; end function f() local h: H = H{ a = P{ x = 1, y = 2 }, b = P{ x = 1, y = 2 } }; fork_join spawn w(h.a); spawn w(h.b); end end").empty()) << "Writes of two fields must raise nothing.";
+}
+
+TEST(MAREASemaParallel, BlockBodyAndWorkerAreCompared)
+{
+    GTEST_COUT << "Validating the code of the fork_join block itself cannot use what a worker writes, or write what a worker reads." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf(SHARED + "function f() local a: P = P{ x = 1, y = 2 }; fork_join spawn w(a); local x: sinteger32 = r(a); end end"), Codes{ CONFLICT }) << "A read in the block body of what a worker writes must raise CONFLICTING_PARALLEL_ACCESS.";
+
+    EXPECT_EQ(MAREA_codesOf(SHARED + "function f() local a: P = P{ x = 1, y = 2 }; fork_join spawn w(a); a.y = 5; end end"), Codes{ CONFLICT }) << "A write in the block body of what a worker writes must raise CONFLICTING_PARALLEL_ACCESS.";
+
+    EXPECT_EQ(MAREA_codesOf(SHARED + "function f() local a: P = P{ x = 1, y = 2 }; fork_join spawn r(a); a.y = 5; end end"), Codes{ CONFLICT }) << "A write in the block body of what a worker reads must raise CONFLICTING_PARALLEL_ACCESS.";
+
+    EXPECT_TRUE(MAREA_codesOf(SHARED + "function f() local a: P = P{ x = 1, y = 2 }; fork_join spawn r(a); local x: sinteger32 = r(a); end end").empty()) << "A read in the block body of what a worker reads must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(SHARED + "function f() local a: P = P{ x = 1, y = 2 }; fork_join a.y = 5; spawn w(a); end end").empty()) << "A write in the block body before the worker starts must raise nothing.";
+}
+
+TEST(MAREASemaParallel, NestedForkJoinIsComparedWithTheOuterBlock)
+{
+    GTEST_COUT << "Validating a nested fork_join block is compared with what the outer block captured." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf(SHARED + "function f() local a: P = P{ x = 1, y = 2 }; fork_join spawn w(a); fork_join spawn r(a); end end end"), Codes{ CONFLICT }) << "A nested worker that reads what an outer worker writes must raise CONFLICTING_PARALLEL_ACCESS.";
 }

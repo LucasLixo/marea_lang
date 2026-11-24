@@ -95,6 +95,10 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaScopeEnter(MAREA_SemaContext *context, con
     outMark->localCount = context->locals.count;
     outMark->referenceCount = context->references.count;
     outMark->readOnlyCount = context->readOnly.count;
+    outMark->captureCount = context->captures.count;
+    outMark->captureLocalBase = context->captureLocalBase;
+    outMark->forkBody = context->forkBody;
+    outMark->captureScope = (MAREA_AstNodeGetKind(node) == MAREA_AST_KIND_FORK_JOIN_BLOCK) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
     outMark->localStart = context->localStart;
     outMark->functionLocalStart = context->functionLocalStart;
     outMark->function = context->function;
@@ -148,6 +152,10 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaScopeEnter(MAREA_SemaContext *context, con
 
     if (KIND == MAREA_AST_KIND_FORK_JOIN_BLOCK) {
         context->forkDepth += 1;
+
+        // INFO: the locals declared before the block are shared by every turn of a loop in it, and its own block is the code that runs next to the workers.
+        context->captureLocalBase = context->locals.count;
+        context->forkBody = MAREA_SemaChildAt(node, 0);
     }
 
     if (KIND == MAREA_AST_KIND_UNSAFE_BLOCK) {
@@ -221,6 +229,14 @@ void MAREA_CALL MAREA_SemaScopeLeave(MAREA_SemaContext *context, MAREA_SemaScope
     context->locals.count = mark.localCount;
     context->references.count = mark.referenceCount;
     context->readOnly.count = mark.readOnlyCount;
+    context->captureLocalBase = mark.captureLocalBase;
+    context->forkBody = mark.forkBody;
+
+    // INFO: what a worker took stays until the whole fork_join block ends, so only the scope of the block drops it.
+    if (mark.captureScope == MAREA_BOOLEAN_TRUE) {
+        context->captures.count = mark.captureCount;
+    }
+
     context->localStart = mark.localStart;
     context->functionLocalStart = mark.functionLocalStart;
     context->function = mark.function;
