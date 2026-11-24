@@ -12,8 +12,9 @@
 --   4. A function whose first parameter is named "self" is a method: point.length().
 --      A function without "self" is a static function: Vector2.origin().
 --   5. "self" follows the rules of any parameter (see basics/ownership.marea): the "semantics"
---      attribute names the passing mode; a structure defaults to a write borrow
---      (reference_mutable), and a primitive or an enum is a copy.
+--      attribute names the passing mode; a structure defaults to a read-only borrow
+--      (reference_read_only), a method that writes "self" names reference_mutable, and a
+--      primitive or an enum is a copy.
 --   6. The call is only a normal function call with a different spelling. Dispatch is static.
 --      There is no virtual table, no inheritance and no hidden field. The layout of the
 --      structure (layout, align, pack) does not change because of its functions.
@@ -57,7 +58,7 @@ end
 -- Second block: change the value.
 #[visibility = public]
 implementation Vector2
-    function scale(self: Vector2, factor: float64)
+    function scale(#[semantics = reference_mutable] self: Vector2, factor: float64)
         self.x *= factor;
         self.y *= factor;
     end

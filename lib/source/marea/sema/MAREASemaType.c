@@ -94,12 +94,15 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaScopeEnter(MAREA_SemaContext *context, con
     outMark->genericCount = context->generics.count;
     outMark->localCount = context->locals.count;
     outMark->referenceCount = context->references.count;
+    outMark->localStart = context->localStart;
+    outMark->functionLocalStart = context->functionLocalStart;
     outMark->function = context->function;
     outMark->implementation = context->implementation;
     outMark->selfDepth = context->selfDepth;
     outMark->forkDepth = context->forkDepth;
     outMark->partitionDepth = context->partitionDepth;
     outMark->loopDepth = context->loopDepth;
+    outMark->unsafeDepth = context->unsafeDepth;
 
     const MAREA_SemaExcept BIND_RESULT = MAREA_SemaBindReferences(context, node);
 
@@ -115,6 +118,19 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaScopeEnter(MAREA_SemaContext *context, con
 
     const MAREA_AstKind KIND = MAREA_AstNodeGetKind(node);
 
+    // INFO: the parameters of a function share the scope of the top-level statements of its body, so the body block starts its scope where the function did.
+    if (KIND == MAREA_AST_KIND_FUNCTION_DECLARATION) {
+        context->functionLocalStart = outMark->localCount;
+    }
+
+    if (KIND == MAREA_AST_KIND_BLOCK) {
+        const MAREA_IntegerSize FUNCTION_COUNT = (context->function == MAREA_NULLPTR) ? 0 : MAREA_AstNodeGetChildCount(context->function);
+
+        const MAREA_Boolean IS_BODY = ((FUNCTION_COUNT > 0) && (MAREA_SemaChildAt(context->function, (FUNCTION_COUNT - 1)) == node)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+
+        context->localStart = (IS_BODY == MAREA_BOOLEAN_TRUE) ? context->functionLocalStart : context->locals.count;
+    }
+
     if ((KIND == MAREA_AST_KIND_IMPLEMENTATION_DECLARATION) || (KIND == MAREA_AST_KIND_CONTRACT_DECLARATION)) {
         context->selfDepth += 1;
     }
@@ -125,6 +141,10 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaScopeEnter(MAREA_SemaContext *context, con
 
     if (KIND == MAREA_AST_KIND_FORK_JOIN_BLOCK) {
         context->forkDepth += 1;
+    }
+
+    if (KIND == MAREA_AST_KIND_UNSAFE_BLOCK) {
+        context->unsafeDepth += 1;
     }
 
     // INFO: the body of a partition is a barrier. A loop outside it is not a target of a jump inside it.
@@ -193,12 +213,15 @@ void MAREA_CALL MAREA_SemaScopeLeave(MAREA_SemaContext *context, MAREA_SemaScope
     context->generics.count = mark.genericCount;
     context->locals.count = mark.localCount;
     context->references.count = mark.referenceCount;
+    context->localStart = mark.localStart;
+    context->functionLocalStart = mark.functionLocalStart;
     context->function = mark.function;
     context->implementation = mark.implementation;
     context->selfDepth = mark.selfDepth;
     context->forkDepth = mark.forkDepth;
     context->partitionDepth = mark.partitionDepth;
     context->loopDepth = mark.loopDepth;
+    context->unsafeDepth = mark.unsafeDepth;
 }
 
 static MAREA_IntegerSize MAREA_CALL MAREA_G_BuiltinArity(const MAREA_Character8 *text, MAREA_IntegerSize length)

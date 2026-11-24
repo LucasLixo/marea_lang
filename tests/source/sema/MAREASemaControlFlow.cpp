@@ -13,6 +13,7 @@ namespace
     constexpr MAREA_Uinteger32 NON_EXHAUSTIVE{ MAREA_SEMA_DIAGNOSTIC_CODE_NON_EXHAUSTIVE_SWITCH };
     constexpr MAREA_Uinteger32 DUPLICATE_ARM{ MAREA_SEMA_DIAGNOSTIC_CODE_DUPLICATE_SWITCH_ARM };
     constexpr MAREA_Uinteger32 JUMP_OUTSIDE_LOOP{ MAREA_SEMA_DIAGNOSTIC_CODE_JUMP_OUTSIDE_LOOP };
+    constexpr MAREA_Uinteger32 COMPILE_TIME_ASSERTION_FAILED{ MAREA_SEMA_DIAGNOSTIC_CODE_COMPILE_TIME_ASSERTION_FAILED };
 
     const std::string COLOR{ "enum Color red; green; blue; end " };
 
@@ -153,7 +154,8 @@ TEST(MAREASemaControlFlow, DivergingMacroEndsAPath)
 
     EXPECT_TRUE(MAREA_codesOf("function f(a: boolean): sinteger32 if a then return 1; end end unreachable!(); end").empty()) << "unreachable must end a path.";
 
-    EXPECT_TRUE(MAREA_codesOf("function f(): sinteger32 compile_error!(\"no\"); end").empty()) << "compile_error must end a path.";
+    // INFO: compile_error ends the path, so it raises COMPILE_TIME_ASSERTION_FAILED and never MISSING_RETURN.
+    EXPECT_EQ(MAREA_codesOf("function f(): sinteger32 compile_error!(\"no\"); end"), Codes{ COMPILE_TIME_ASSERTION_FAILED }) << "compile_error must end a path.";
 
     EXPECT_EQ(MAREA_codesOf("function f(): sinteger32 print!(\"x\"); end"), Codes{ MISSING_RETURN }) << "A printing macro must not end a path.";
 }
@@ -270,7 +272,7 @@ TEST(MAREASemaControlFlow, ConstantAndItsLiteralAreTheSameCaseValue)
 
     EXPECT_TRUE(MAREA_codesOf(MAX + "function f(MAX: sinteger32): sinteger32 switch MAX case MAX then return 1; end case 100 then return 2; end default then return 3; end end end").empty()) << "A local that hides the constant must not be resolved to it.";
 
-    EXPECT_TRUE(MAREA_codesOf("constant A: sinteger32 = B; constant B: sinteger32 = A; function f(n: sinteger32): sinteger32 switch n case A then return 1; end case 1 then return 2; end default then return 3; end end end").empty()) << "A cycle of constants must end without a false repeat.";
+    EXPECT_EQ(MAREA_codesOf("constant A: sinteger32 = B; constant B: sinteger32 = A; function f(n: sinteger32): sinteger32 switch n case A then return 1; end case 1 then return 2; end default then return 3; end end end"), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_CYCLIC_CONSTANT }) << "A cycle of constants must end without a false repeat and raise only CYCLIC_CONSTANT.";
 }
 
 TEST(MAREASemaControlFlow, QualifiedNamesAreNotResolvedToAConstantOfTheLastName)

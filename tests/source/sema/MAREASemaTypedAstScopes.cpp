@@ -159,7 +159,7 @@ TEST(MAREASemaTypedAstScopes, ForEachElementOfAGenericTypeIsKeptWhole)
 {
     GTEST_COUT << "Validating the element of a collection of a generic type is spelled whole." << std::endl;
 
-    MAREA_expectScopeType("namespace main; import collections.array; import concurrency.task; function f(v: c.array<task<float32>>) for each x in v do consume(x); end end function consume(x: task<float32>) end", "x", 1, "task<float32>", MAREA_EXTERNAL_RESOLVE);
+    MAREA_expectScopeType("namespace main; import collections.array; import concurrency.task; function consume(x: task<float32>) end function f(v: c.array<task<float32>>) for each x in v do consume(x); end end", "x", 2, "task<float32>", MAREA_EXTERNAL_RESOLVE);
 }
 
 TEST(MAREASemaTypedAstScopes, ForEachKeyIsTheIndexType)

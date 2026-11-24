@@ -88,6 +88,8 @@ MAREA_BEGIN_EXTERN_C
         MAREA_SemaNameTable generics;
         MAREA_SemaNameTable locals;
         MAREA_SemaNameTable references;
+        MAREA_IntegerSize localStart;
+        MAREA_IntegerSize functionLocalStart;
         const MAREA_AstNode *root;
         const MAREA_AstNode *function;
         const MAREA_AstNode *implementation;
@@ -96,6 +98,7 @@ MAREA_BEGIN_EXTERN_C
         MAREA_Uinteger32 forkDepth;
         MAREA_Uinteger32 partitionDepth;
         MAREA_Uinteger32 loopDepth;
+        MAREA_Uinteger32 unsafeDepth;
     };
 
     /**
@@ -108,10 +111,13 @@ MAREA_BEGIN_EXTERN_C
         MAREA_IntegerSize genericCount;
         MAREA_IntegerSize localCount;
         MAREA_IntegerSize referenceCount;
+        MAREA_IntegerSize localStart;
+        MAREA_IntegerSize functionLocalStart;
         MAREA_Uinteger32 selfDepth;
         MAREA_Uinteger32 forkDepth;
         MAREA_Uinteger32 partitionDepth;
         MAREA_Uinteger32 loopDepth;
+        MAREA_Uinteger32 unsafeDepth;
     } MAREA_SemaScopeMark;
 
     /**
@@ -624,6 +630,42 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckOpaqueField(MAREA_SemaContext * context, const MAREA_AstNode *node);
 
     /**
+     * @brief Gives the namespace that a name entry stands for, as the resolver knows it: a namespace import is its
+     * qualifier then its own name (an alias gives the original), a symbol import is the namespace of its qualifier.
+     * Two checks read a namespace this way, the typed tree builder and MAREA_SemaCheckVisibility.
+     * @param context Context of the run. Must not be null.
+     * @param entry Name entry. Must not be null.
+     * @param outText Receives the text of the namespace, in the source or in the arena. Must not be null.
+     * @param outLength Receives the length of outText. Must not be null.
+     * @return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaNamespaceOf(MAREA_SemaContext * context, const MAREA_SemaName *entry, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength);
+
+    /**
+     * @brief Gives the tree of a namespace, only when the resolver answers FOUND for it.
+     * @param context Context of the run. May be null, which gives null.
+     * @param text Text of the namespace, not NUL terminated. May be null, which gives null.
+     * @param length Length of text in bytes.
+     * @return The tree, or null when the resolver answers EXTERNAL or NOT_FOUND.
+     */
+    MAREA_NODISCARD const MAREA_AstNode *MAREA_CALL MAREA_SemaFoundRoot(const MAREA_SemaContext *context, const MAREA_Character8 *text, MAREA_IntegerSize length);
+
+    /**
+     * @brief Checks the use of a symbol, a type or a field of another namespace that a whole-namespace import
+     * brings: a member of a FOUND namespace that is explicitly private is PRIVATE_SYMBOL_ACCESS (a MEMBER_ACCESS
+     * whose base is the namespace name), and a written type ns.T that is explicitly private is
+     * PRIVATE_TYPE_ACCESS (a NAMED_TYPE). An explicitly private field of a non-private structure of a FOUND
+     * namespace is PRIVATE_FIELD_ACCESS, read or written through a name written as ns.T (a MEMBER_ACCESS) or set
+     * in a struct literal (a LITERAL_VALUE). A namespace that the resolver answers EXTERNAL or NOT_FOUND, a
+     * member that the tree does not declare and a value whose type is not a plain ns.T are never checked. Any
+     * other node kind raises nothing.
+     * @param context Context of the run. Must not be null.
+     * @param node Node to check. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckVisibility(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
      * @brief Checks the declarations of a compilation unit that need the whole file: a member name that two
      * implementation blocks of one concrete type both declare is DUPLICATE_MEMBER.
      * @param context Context of the run. Must not be null.
@@ -671,6 +713,15 @@ MAREA_BEGIN_EXTERN_C
      * @return True when the closest attribute with that key is a single name equal to the member.
      */
     MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_SemaAttributeHasMember(const MAREA_AstNode *root, const MAREA_AstNode *declaration, const MAREA_Character8 *key, const MAREA_Character8 *member);
+
+    /**
+     * @brief Tells whether a declaration is explicitly private. The default visibility is public, so a
+     * declaration with no visibility attribute is not private.
+     * @param root COMPILATION_UNIT node that holds the declaration. May be null: only the declaration is read.
+     * @param declaration Declaration or field node. May be null, which gives false.
+     * @return True only when the closest visibility attribute is private.
+     */
+    MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_SemaIsPrivate(const MAREA_AstNode *root, const MAREA_AstNode *declaration);
 
     /**
      * @brief Reads the integer value of an ATTRIBUTE_ITEM, decimal or hexadecimal.
@@ -819,8 +870,8 @@ MAREA_BEGIN_EXTERN_C
      * @brief Reads the effective passing mode of a PARAMETER: its own "semantics" attribute
      * (value_read_only, reference_read_only or reference_mutable), or, when it has none, the default by
      * type class - a primitive or the one documented by-value exception (an enum) is VALUE_READ_ONLY,
-     * anything else is REFERENCE_MUTABLE. The one place every ownership check reads a parameter's
-     * passing mode.
+     * a move-in type (owned, task, vector) is REFERENCE_MUTABLE (it is never a borrow), anything else is
+     * REFERENCE_READ_ONLY. The one place every ownership check reads a parameter's passing mode.
      * @param context Context of the run. Must not be null.
      * @param parameter PARAMETER node. Must not be null.
      * @return The effective semantics.
@@ -936,6 +987,41 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressionFitsPrimitive(MAREA_SemaContext * context, const MAREA_Character8 *primitiveName, MAREA_IntegerSize primitiveLength, const MAREA_AstNode *expression);
 
     /**
+     * @brief Reports LITERAL_OUT_OF_RANGE when an expression is an integer literal (decimal, 0x or 0b, with "_"
+     * between digits, one leading minus and any parentheses allowed) whose value does not fit the integer primitive
+     * that type names. A negated literal never fits an unsigned type, except zero. A float, string, boolean or
+     * character target is never checked here, so TYPE_MISMATCH is the only code for it. A type that is null or is
+     * not a primitive is checked against the widest range: the literal must fit uinteger64, or sinteger64 when it
+     * is negative. An expression that is not an integer literal is accepted.
+     * @param context Context of the run. Must not be null.
+     * @param type NAMED_TYPE or FUNCTION_TYPE node that the value must have. May be null.
+     * @param expression Expression node. May be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER when context is null, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckLiteralRange(MAREA_SemaContext * context, const MAREA_AstNode *type, const MAREA_AstNode *expression);
+
+    /**
+     * @brief Reports LITERAL_OUT_OF_RANGE the same way MAREA_SemaCheckLiteralRange does, against a primitive type
+     * named by fixed text, the shape of the signature of a member of an EXTERNAL namespace.
+     * @param context Context of the run. Must not be null.
+     * @param primitiveName Primitive type name, not NUL terminated. May be null, which checks the widest range.
+     * @param primitiveLength Length of primitiveName in bytes.
+     * @param expression Expression node. May be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER when context is null, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckLiteralRangePrimitive(MAREA_SemaContext * context, const MAREA_Character8 *primitiveName, MAREA_IntegerSize primitiveLength, const MAREA_AstNode *expression);
+
+    /**
+     * @brief Runs MAREA_SemaCheckLiteralRange on every field entry of a struct literal, against the type that the
+     * structure of the file declares for that field. A literal of a type that is not a structure of the file is
+     * accepted, and a field the structure does not declare is checked against the widest range.
+     * @param context Context of the run. Must not be null.
+     * @param literal LITERAL_VALUE node. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER when an argument is null, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckLiteralFields(MAREA_SemaContext * context, const MAREA_AstNode *literal);
+
+    /**
      * @brief Gives the primitive type that sema knows for a written type, the same type MAREA_SemaCheckExpressionFit
      * uses as its target. A local type alias is followed. Any type that is not a primitive gives false.
      * @param context Context of the run. Must not be null.
@@ -959,6 +1045,78 @@ MAREA_BEGIN_EXTERN_C
      * outputs cleared.
      */
     MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_SemaPrimitiveOfExpression(const MAREA_SemaContext *context, const MAREA_AstNode *expression, const MAREA_Character8 **outName, MAREA_IntegerSize *outLength);
+
+    /**
+     * @brief Reports NEGATE_UNSIGNED when a unary minus has an operand of a known unsigned primitive type. A negated
+     * literal is not this rule.
+     * @param context Context of the run. Must not be null.
+     * @param unary UNARY_EXPRESSION node. May be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER when context is null, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckNegation(MAREA_SemaContext * context, const MAREA_AstNode *unary);
+
+    /**
+     * @brief Reports SIGNED_DIVISION_OVERFLOW when an expression is a division or modulo whose left side folds to the
+     * lowest value of a signed type and whose right side folds to -1. The signed type is the primitive of an operand,
+     * else the primitive of targetType. With no known signed type nothing is reported.
+     * @param context Context of the run. Must not be null.
+     * @param targetType Declared type that holds the expression. May be null.
+     * @param expression Expression node. May be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER when context is null, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckSignedDivision(MAREA_SemaContext * context, const MAREA_AstNode *targetType, const MAREA_AstNode *expression);
+
+    /**
+     * @brief Reports DIVISION_BY_ZERO for /, %, /= and %= whose divisor is a constant zero and the left side is an
+     * integer, and SHIFT_COUNT_TOO_LARGE for a shift or compound shift whose constant count is negative or not below
+     * the width of the left primitive integer type. A constant is an integer literal (decimal, 0x, 0b, "_"), one
+     * leading minus on a constant, or a parenthesized constant; a named constant is not folded. Any other operator,
+     * a divisor or count that is not constant, and a left side with no known width, raise nothing.
+     * @param context Context of the run. Must not be null.
+     * @param operatorKind Operator token of the binary expression or the compound assignment.
+     * @param left Left operand node (the assignment target for a compound assignment). May be null.
+     * @param right Right operand node. May be null.
+     * @param position Position of the expression, used for the diagnostic.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, or ERROR_NULL_POINTER when context is null.
+     */
+    MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckConstantOperands(MAREA_SemaContext * context, MAREA_TokenKind operatorKind, const MAREA_AstNode *left, const MAREA_AstNode *right, MAREA_SourcePosition position);
+
+    /**
+     * @brief Reports ASSIGNMENT_TO_CONSTANT for an assignment (= or a compound form) whose target is a file
+     * constant, or a MEMBER_ACCESS or INDEX_ACCESS path whose root identifier is one. A local, parameter or for
+     * variable of the same name hides the constant, so it raises nothing.
+     * @param context Context of the run. Must not be null.
+     * @param assignment ASSIGNMENT node: child 0 is the target. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, or ERROR_NULL_POINTER when an argument is null.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckConstantAssignment(MAREA_SemaContext * context, const MAREA_AstNode *assignment);
+
+    /**
+     * @brief Reports CYCLIC_CONSTANT once for each cycle of file constants, where the initial value of a constant
+     * names a constant whose value leads back to the first one. A name counts only where it stands as a value: a
+     * member name, a field key, a type and a call target are not followed. The cycle is reported at its member that
+     * comes first in the file. A constant that only uses a cycle is not reported, and the search keeps its state in
+     * the arena, with no recursion over the constants.
+     * @param context Context of the run, after the name table is filled. Must not be null.
+     * @param root Compilation unit node. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER when an argument is null, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckConstantCycles(MAREA_SemaContext * context, const MAREA_AstNode *root);
+
+    /**
+     * @brief Reports COMPILE_TIME_ASSERTION_FAILED for a compile_error macro call, whatever its arguments are, and for
+     * a static_assert macro call with two arguments whose condition is a constant that is false. The condition is
+     * read by a small evaluator: boolean and integer literals, a file constant (depth limit 32, so a cycle ends as
+     * unknown), parentheses, not, unary minus, and, or, the comparisons and + - * / % over 64-bit integers. Overflow,
+     * a division by zero, a call, size_of, align_of, a name that is not a file constant (a local or a parameter of
+     * the same name hides the constant) and every other node are unknown, and an unknown condition is accepted. Any
+     * other macro, and a static_assert with another argument count, is skipped. The message holds the text of the
+     * string literal argument when there is one.
+     * @param context Context of the run. Must not be null.
+     * @param call Macro call node. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER when an argument is null, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckMacroEvaluation(MAREA_SemaContext * context, const MAREA_AstNode *call);
 
     /**
      * @brief Tells whether a number literal fits a primitive type under the rule of MAREA_SemaCheckExpressionFit:
@@ -992,6 +1150,16 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressions(MAREA_SemaContext * context, const MAREA_AstNode *node);
 
     /**
+     * @brief Reports NAME_ALREADY_DECLARED for a name that is declared twice in one scope: a generic parameter
+     * that repeats an earlier one or names a top-level declaration, a repeated parameter, and a local that repeats
+     * a parameter or a local of the same block. A name that hides one of an outer block raises nothing.
+     * @param context Context of the run. Must not be null.
+     * @param node Node about to be visited. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckDuplicateNames(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
      * @brief Records the name of a for, for each, partition or with statement in the local scope with no type, so
      * a local of an outer scope with the same name is hidden for the length of the statement.
      * @param context Context of the run. Must not be null.
@@ -999,6 +1167,90 @@ MAREA_BEGIN_EXTERN_C
      * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
      */
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaDeclareBinders(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
+     * @brief Checks what the operands of an operator may be. A bitwise operator (&, |, ^, ~ and the compound forms)
+     * rejects a float, a boolean or a string operand with BITWISE_OPERAND_NOT_INTEGER; and, or and not reject an
+     * operand that is not a boolean with LOGICAL_OPERAND_NOT_BOOLEAN. An operand of an unknown type is accepted, and
+     * any other operator is ignored. The caller calls it only when the operands already agree in type, so one node
+     * never carries this code together with TYPE_MISMATCH.
+     * @param context Context of the run. Must not be null.
+     * @param operatorKind Token kind of the operator.
+     * @param left Left operand, or the only operand of a unary operator. May be null.
+     * @param right Right operand. Null for a unary operator.
+     * @param position Position the diagnostic is reported at.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null context, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckOperatorOperands(MAREA_SemaContext * context, MAREA_TokenKind operatorKind, const MAREA_AstNode *left, const MAREA_AstNode *right, MAREA_SourcePosition position);
+
+    /**
+     * @brief Raises RAW_POINTER_OUTSIDE_UNSAFE when a local is declared with the type pointer and no unsafe block
+     * encloses it. A parameter, a return type and a structure field are not checked.
+     * @param context Context of the run. Must not be null.
+     * @param local The LOCAL_DECLARATION node. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckRawPointerLocal(MAREA_SemaContext * context, const MAREA_AstNode *local);
+
+    /**
+     * @brief Raises LOCAL_WITHOUT_INITIAL_VALUE when a local has no written value, that is, fewer than three
+     * children. The check is syntactic: a branch that assigns the local later does not change it. A local with an
+     * error node as its name or type is not checked.
+     * @param context Context of the run. Must not be null.
+     * @param local The LOCAL_DECLARATION node. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckLocalInitializer(MAREA_SemaContext * context, const MAREA_AstNode *local);
+
+    /**
+     * @brief Raises NON_BOOLEAN_CONDITION when the condition of an if, an elseif or a while is a number, string or
+     * character literal, or has a known primitive type that is not boolean. An unknown type raises nothing.
+     * @param context Context of the run. Must not be null.
+     * @param condition The condition expression, any parentheses included. May be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null context, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckCondition(MAREA_SemaContext * context, const MAREA_AstNode *condition);
+
+    /**
+     * @brief Tells whether a name is one of the built-in macros: assert, debug_assert, unreachable, compile_error,
+     * static_assert, include_bytes, include_text, format, print, log, line, file and namespace.
+     * @param text Text of the name, not NUL terminated. May be null when length is 0.
+     * @param length Length of text in bytes.
+     * @return MAREA_BOOLEAN_TRUE for a built-in macro name, else MAREA_BOOLEAN_FALSE.
+     */
+    MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_SemaIsBuiltInMacroName(const MAREA_Character8 *text, MAREA_IntegerSize length);
+
+    /**
+     * @brief What a built-in macro gives as a value, as far as sema types it.
+     */
+    typedef enum MAREA_SemaMacroValue
+    {
+        MAREA_SEMA_MACRO_VALUE_UNKNOWN = MAREA_UINTEGER_8(0),
+        MAREA_SEMA_MACRO_VALUE_NONE = MAREA_UINTEGER_8(1),
+        MAREA_SEMA_MACRO_VALUE_STRING = MAREA_UINTEGER_8(2),
+    } MAREA_SemaMacroValue;
+
+    /**
+     * @brief Gives the value of a built-in macro: NONE for assert, debug_assert, unreachable, compile_error,
+     * static_assert, print and log, STRING for format, include_text, file and namespace, and UNKNOWN for include_bytes
+     * and line (sema does not type them) and for a name that is no built-in macro.
+     * @param text Text of the name, not NUL terminated. May be null when length is 0.
+     * @param length Length of text in bytes.
+     * @return The value.
+     */
+    MAREA_NODISCARD MAREA_SemaMacroValue MAREA_CALL MAREA_SemaMacroValueOf(const MAREA_Character8 *text, MAREA_IntegerSize length);
+
+    /**
+     * @brief Checks one call of a built-in macro (a MACRO_CALL node). A name that no built-in macro has is
+     * UNKNOWN_MACRO. A call with the wrong number of arguments, a literal of the wrong kind for a condition or a
+     * text, a log level that is not one of trace, debug, info, warning and error, or a format text whose count of
+     * {} differs from the count of values is INVALID_MACRO_ARGUMENT. At most one diagnostic is raised for a call. A
+     * call with an ERROR_NODE below it raises nothing. The type of a value is never checked.
+     * @param context Context of the run. Must not be null.
+     * @param call MACRO_CALL node. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckMacro(MAREA_SemaContext * context, const MAREA_AstNode *call);
 
 MAREA_END_EXTERN_C
 

@@ -19,7 +19,7 @@ namespace
 
         MAREA_LibraryResolver()
         {
-            MAREA_IGNORE(library.parser.MAREA_parse("namespace a.b; #[visibility = public] function c() end function hidden() end #[visibility = public] enum Color red; green; end #[visibility = public] constant MAX: sinteger32 = 1; #[visibility = public] structure Item end"));
+            MAREA_IGNORE(library.parser.MAREA_parse("namespace a.b; #[visibility = public] function c() end #[visibility = private] function hidden() end #[visibility = public] enum Color red; green; end #[visibility = public] constant MAX: sinteger32 = 1; #[visibility = public] structure Item end"));
         }
     };
 

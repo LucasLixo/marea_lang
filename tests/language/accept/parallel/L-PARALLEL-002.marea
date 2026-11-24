@@ -48,13 +48,13 @@ function sum_slice(#[semantics = reference_read_only] part: c.slice<float32>): f
     return total;
 end
 
+function sum_slice_literal(count: sinteger32): sinteger32
+    return count;
+end
+
 function check(): sinteger32
     fork_join
         spawn sum_slice_literal(1);
     end
     return 1;
-end
-
-function sum_slice_literal(count: sinteger32): sinteger32
-    return count;
 end

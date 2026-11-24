@@ -61,16 +61,18 @@ TEST(MAREASemaParallel, ReadOnlyIdentifierIsAValidArgument)
 
 TEST(MAREASemaParallel, WriteBorrowedParameterIsRejected)
 {
-    GTEST_COUT << "Validating a write-borrowed parameter cannot be spawned over." << std::endl;
+    GTEST_COUT << "Validating a write-borrowed parameter cannot be spawned over, and a default parameter (a read-only borrow) can." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf("function g(a: c.array<float32>) end function f(m: c.array<float32>, values: c.array<float32>) fork_join partition values into 4 as part do spawn g(m); end end end"), Codes{ INVALID_SPAWN }) << "A write borrow (the non-primitive default) must raise INVALID_SPAWN_ARGUMENT.";
+    EXPECT_EQ(MAREA_codesOf("function g(a: c.array<float32>) end function f(#[semantics = reference_mutable] m: c.array<float32>, values: c.array<float32>) fork_join partition values into 4 as part do spawn g(m); end end end"), Codes{ INVALID_SPAWN }) << "An explicit write borrow must raise INVALID_SPAWN_ARGUMENT.";
+
+    EXPECT_TRUE(MAREA_codesOf("function g(a: c.array<float32>) end function f(m: c.array<float32>, values: c.array<float32>) fork_join partition values into 4 as part do spawn g(m); end end end").empty()) << "A default parameter (the non-primitive default is a read-only borrow) must raise nothing.";
 }
 
 TEST(MAREASemaParallel, LocalShadowingAWriteBorrowIsAccepted)
 {
     GTEST_COUT << "Validating a local that shadows a write-borrowed parameter is not a write borrow." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("function g(a: c.array<float32>) end function f(m: c.array<float32>, values: c.array<float32>) local m: c.array<float32> = c.array<float32>{}; fork_join partition values into 4 as part do spawn g(m); end end end").empty()) << "A shadowing local must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function g(a: c.array<float32>) end function f(#[semantics = reference_mutable] m: c.array<float32>, values: c.array<float32>) do local m: c.array<float32> = c.array<float32>{}; fork_join partition values into 4 as part do spawn g(m); end end end end").empty()) << "A shadowing local must raise nothing.";
 }
 
 TEST(MAREASemaParallel, SourceOfAnActiveMutablePartitionIsRejected)
@@ -102,7 +104,7 @@ TEST(MAREASemaParallel, FieldOfAnUnsafeNameIsRejected)
 {
     GTEST_COUT << "Validating a field of a write borrow or of a mutable partition source is still rejected." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf("function g(a: float32) end function f(m: c.array<float32>, values: c.array<float32>) fork_join partition values into 4 as part do spawn g(m.size); end end end"), Codes{ INVALID_SPAWN }) << "A field of a write borrow must raise INVALID_SPAWN_ARGUMENT.";
+    EXPECT_EQ(MAREA_codesOf("function g(a: float32) end function f(#[semantics = reference_mutable] m: c.array<float32>, values: c.array<float32>) fork_join partition values into 4 as part do spawn g(m.size); end end end"), Codes{ INVALID_SPAWN }) << "A field of a write borrow must raise INVALID_SPAWN_ARGUMENT.";
 
     EXPECT_EQ(MAREA_codesOf("function g(a: float32) end function f(values: c.array<float32>) fork_join partition mutable values into 4 as part do spawn g(values.size); end end end"), Codes{ INVALID_SPAWN }) << "A field of a mutable partition source must raise INVALID_SPAWN_ARGUMENT.";
 }
