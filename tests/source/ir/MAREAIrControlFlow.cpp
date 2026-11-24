@@ -11,11 +11,11 @@ namespace
         return ((text.compare(0, 12, "collections.") == 0) || (text.compare(0, 2, "c.") == 0)) ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
     } };
 
-    std::string MAREA_lowerBody(const std::string &prefix, const std::string &signature, const std::string &body)
+    std::string MAREA_lowerBody(const std::string &prefix, const std::string &signature, const std::string &body, const std::string &result = "")
     {
         MAREA_IrFixture fixture(RESOLVE_EXTERNAL);
 
-        if (fixture.MAREA_lower("namespace main; " + prefix + " function run(" + signature + ") " + body + " end") != MAREA_IR_EXCEPT_SUCCESS) {
+        if (fixture.MAREA_lower("namespace main; " + prefix + " function run(" + signature + ")" + result + " " + body + " end") != MAREA_IR_EXCEPT_SUCCESS) {
             return "<lower failed>";
         }
 
@@ -691,14 +691,14 @@ TEST(MAREAIrControlFlow, ReturnWithAValueIsHoistedBeforeTheDestroys)
 {
     GTEST_COUT << "Validating a return that carries a value reads the value into $return before the destroys of the locals it leaves." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerBody(MAREA_BOX, "", "local a: Box = Box(); return 1;"), "(BLOCK (LOCAL_DECLARATION a :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST))) (BLOCK (LOCAL_DECLARATION $return (INTEGER_LITERAL 1)) (DESTROY_CALL Box.drop (IDENTIFIER a)) (RETURN_STATEMENT (IDENTIFIER $return))))") << "The value must be evaluated first, then the destroy, then the return of the hidden local.";
+    EXPECT_EQ(MAREA_lowerBody(MAREA_BOX, "", "local a: Box = Box(); return 1;", ": sinteger32"), "(BLOCK (LOCAL_DECLARATION a :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST))) (BLOCK (LOCAL_DECLARATION $return (INTEGER_LITERAL 1)) (DESTROY_CALL Box.drop (IDENTIFIER a)) (RETURN_STATEMENT (IDENTIFIER $return))))") << "The value must be evaluated first, then the destroy, then the return of the hidden local.";
 }
 
 TEST(MAREAIrControlFlow, ReturnValueReadingADestroyedLocalIsEvaluatedFirst)
 {
     GTEST_COUT << "Validating a return whose value names a destructible local evaluates that value before the destroy of the local." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerBody(MAREA_BOX, "", "local a: Box = Box(); return a.x;"), "(BLOCK (LOCAL_DECLARATION a :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST))) (BLOCK (LOCAL_DECLARATION $return (MEMBER_ACCESS (IDENTIFIER a) (IDENTIFIER x))) (DESTROY_CALL Box.drop (IDENTIFIER a)) (RETURN_STATEMENT (IDENTIFIER $return))))") << "The read of a.x must come before the destroy of a.";
+    EXPECT_EQ(MAREA_lowerBody(MAREA_BOX, "", "local a: Box = Box(); return a.x;", ": sinteger32"), "(BLOCK (LOCAL_DECLARATION a :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST))) (BLOCK (LOCAL_DECLARATION $return (MEMBER_ACCESS (IDENTIFIER a) (IDENTIFIER x))) (DESTROY_CALL Box.drop (IDENTIFIER a)) (RETURN_STATEMENT (IDENTIFIER $return))))") << "The read of a.x must come before the destroy of a.";
 }
 
 TEST(MAREAIrControlFlow, NestedReturnWithAValueIsHoistedOnceAndDestroysInnerScopeFirst)
@@ -707,9 +707,9 @@ TEST(MAREAIrControlFlow, NestedReturnWithAValueIsHoistedOnceAndDestroysInnerScop
 
     const std::string
 RENDERED
-{ MAREA_lowerBody(MAREA_BOX, "flag: boolean", "local a: Box = Box(); if flag then local b: Box = Box(); return a.x; end end") };
+{ MAREA_lowerBody(MAREA_BOX, "flag: boolean", "local a: Box = Box(); if flag then local b: Box = Box(); return a.x; end end unreachable!();", ": sinteger32") };
 
-EXPECT_EQ(RENDERED, "(BLOCK (LOCAL_DECLARATION a :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST))) (IF_STATEMENT (IDENTIFIER flag) (BLOCK (LOCAL_DECLARATION b :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST))) (BLOCK (LOCAL_DECLARATION $return (MEMBER_ACCESS (IDENTIFIER a) (IDENTIFIER x))) (DESTROY_CALL Box.drop (IDENTIFIER b)) (BLOCK (DESTROY_CALL Box.drop (IDENTIFIER a)) (RETURN_STATEMENT (IDENTIFIER $return)))))) (DESTROY_CALL Box.drop (IDENTIFIER a)))") << "The value must be hoisted once, then b destroyed, then a, then the return: " <<
+EXPECT_EQ(RENDERED, "(BLOCK (LOCAL_DECLARATION a :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST))) (IF_STATEMENT (IDENTIFIER flag) (BLOCK (LOCAL_DECLARATION b :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST))) (BLOCK (LOCAL_DECLARATION $return (MEMBER_ACCESS (IDENTIFIER a) (IDENTIFIER x))) (DESTROY_CALL Box.drop (IDENTIFIER b)) (BLOCK (DESTROY_CALL Box.drop (IDENTIFIER a)) (RETURN_STATEMENT (IDENTIFIER $return)))))) (UNREACHABLE_STATEMENT) (DESTROY_CALL Box.drop (IDENTIFIER a)))") << "The value must be hoisted once, then b destroyed, then a, then the return: " <<
 RENDERED
 ;
 
@@ -739,9 +739,9 @@ TEST(MAREAIrControlFlow, ReturnWithAValueInALoopBodyIsHoistedInsideTheLoop)
 
     const std::string
 RENDERED
-{ MAREA_lowerBody(MAREA_BOX, "flag: boolean", "local a: Box = Box(); while flag do local b: Box = Box(); return a.x; end") };
+{ MAREA_lowerBody(MAREA_BOX, "flag: boolean", "local a: Box = Box(); while flag do local b: Box = Box(); return a.x; end unreachable!();", ": sinteger32") };
 
-EXPECT_EQ(RENDERED, "(BLOCK (LOCAL_DECLARATION a :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST))) (WHILE_STATEMENT (IDENTIFIER flag) (BLOCK (LOCAL_DECLARATION b :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST))) (BLOCK (LOCAL_DECLARATION $return (MEMBER_ACCESS (IDENTIFIER a) (IDENTIFIER x))) (DESTROY_CALL Box.drop (IDENTIFIER b)) (BLOCK (DESTROY_CALL Box.drop (IDENTIFIER a)) (RETURN_STATEMENT (IDENTIFIER $return)))))) (DESTROY_CALL Box.drop (IDENTIFIER a)))") << "The return inside the loop must hoist inside the loop body: " <<
+EXPECT_EQ(RENDERED, "(BLOCK (LOCAL_DECLARATION a :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST))) (WHILE_STATEMENT (IDENTIFIER flag) (BLOCK (LOCAL_DECLARATION b :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST))) (BLOCK (LOCAL_DECLARATION $return (MEMBER_ACCESS (IDENTIFIER a) (IDENTIFIER x))) (DESTROY_CALL Box.drop (IDENTIFIER b)) (BLOCK (DESTROY_CALL Box.drop (IDENTIFIER a)) (RETURN_STATEMENT (IDENTIFIER $return)))))) (UNREACHABLE_STATEMENT) (DESTROY_CALL Box.drop (IDENTIFIER a)))") << "The return inside the loop must hoist inside the loop body: " <<
 RENDERED
 ;
 }

@@ -14,6 +14,7 @@ namespace
     constexpr MAREA_Uinteger32 COUNT_MISMATCH{ MAREA_SEMA_DIAGNOSTIC_CODE_ARGUMENT_COUNT_MISMATCH };
     constexpr MAREA_Uinteger32 OPAQUE_MISUSE{ MAREA_SEMA_DIAGNOSTIC_CODE_OPAQUE_TYPE_MISUSE };
     constexpr MAREA_Uinteger32 FUNCTION_TYPE_MISMATCH{ MAREA_SEMA_DIAGNOSTIC_CODE_FUNCTION_TYPE_MISMATCH };
+    constexpr MAREA_Uinteger32 INVALID_RESULT_USE{ MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_RESULT_USE };
     constexpr MAREA_Uinteger32 DEFAULT_BEFORE_REQUIRED{ MAREA_SEMA_DIAGNOSTIC_CODE_DEFAULT_PARAMETER_BEFORE_REQUIRED };
 
     Codes MAREA_codesOf(const std::string &body)
@@ -248,7 +249,7 @@ TEST(MAREASemaExpressions, CallResultIsTypedForAKnownFunction)
 
     EXPECT_TRUE(MAREA_codesOf("function same<Item>(a: Item): Item return copy a; end function g() local n: sinteger32 = same(4); end").empty()) << "A generic call must not be guessed.";
 
-    EXPECT_TRUE(MAREA_codesOf("function none() end function g() local n: sinteger32 = none(); end").empty()) << "A call with no result type must not be guessed.";
+    EXPECT_EQ(MAREA_codesOf("function none() end function g() local n: sinteger32 = none(); end"), Codes{ INVALID_RESULT_USE }) << "A call with no result type used as a value must raise INVALID_RESULT_USE.";
 }
 
 TEST(MAREASemaExpressions, AssignmentAndReturnAreChecked)
@@ -837,4 +838,44 @@ TEST(MAREASemaExpressions, FunctionTypeValueIsChecked)
     EXPECT_TRUE(MAREA_codesOf("type Callback = function(text: string); structure Holder callback: Callback; end function run(holder: Holder) end").empty()) << "A function type field must raise nothing.";
 
     EXPECT_TRUE(MAREA_codesOf(OP + "function pick<T>(left: sinteger32, right: sinteger64): sinteger32 return left; end function run() local operation: Op = pick; end").empty()) << "A generic function must not be compared.";
+}
+
+TEST(MAREASemaExpressions, ResultOfAFunctionWithNoResultIsNotAValue)
+{
+    GTEST_COUT << "Validating a value in a function with no result, and a call with no result used as a value." << std::endl;
+
+    const std::string LOG{ "function log_line(text: string) return; end function take(value: sinteger32) end " };
+
+    EXPECT_EQ(MAREA_codesOf("function run() return 1; end"), Codes{ INVALID_RESULT_USE }) << "A returned value in a function with no result must raise INVALID_RESULT_USE.";
+
+    EXPECT_EQ(MAREA_codesOf(LOG + "function run(): sinteger32 local value: sinteger32 = log_line(\"x\"); return value; end"), Codes{ INVALID_RESULT_USE }) << "A call with no result as a local initializer must raise INVALID_RESULT_USE.";
+
+    EXPECT_EQ(MAREA_codesOf(LOG + "function run(): sinteger32 local value: sinteger32 = 1; value = log_line(\"x\"); return value; end"), Codes{ INVALID_RESULT_USE }) << "A call with no result as the right side of an assignment must raise INVALID_RESULT_USE.";
+
+    EXPECT_EQ(MAREA_codesOf(LOG + "function run(): sinteger32 return log_line(\"x\"); end"), Codes{ INVALID_RESULT_USE }) << "A call with no result as a returned value must raise INVALID_RESULT_USE.";
+
+    EXPECT_EQ(MAREA_codesOf(LOG + "function run() take(log_line(\"x\")); end"), Codes{ INVALID_RESULT_USE }) << "A call with no result as an argument must raise INVALID_RESULT_USE.";
+
+    EXPECT_EQ(MAREA_codesOf(LOG + "function run(): sinteger32 local value: sinteger32 = 1 + log_line(\"x\"); return value; end"), Codes{ INVALID_RESULT_USE }) << "A call with no result as an operand must raise INVALID_RESULT_USE.";
+
+    EXPECT_TRUE(MAREA_codesOf(LOG + "function run() log_line(\"x\"); return; end").empty()) << "A call statement and a bare return must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("function give(): sinteger32 return 1; end function run(): sinteger32 local value: sinteger32 = give(); return give() + value; end").empty()) << "A call with a result used as a value must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("type Op = function(value: sinteger32): sinteger32; function run(operation: Op): sinteger32 local value: sinteger32 = operation(1); return value; end").empty()) << "A function type value that is called must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("structure Holder value: sinteger32; end function run(holder: Holder): sinteger32 local value: sinteger32 = holder.run(); return value; end").empty()) << "A method call has an unknown result and must raise nothing.";
+}
+
+TEST(MAREASemaExpressions, CallOfAValueThatIsNotAFunction)
+{
+    GTEST_COUT << "Validating a call of a local that is not a function." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("function run(): sinteger32 local count: sinteger32 = 1; return count(2); end"), Codes{ MISMATCH }) << "A call of a primitive local must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf("structure Point x: float32; end function run(point: Point): sinteger32 return point(2); end"), Codes{ MISMATCH }) << "A call of a structure parameter must raise TYPE_MISMATCH.";
+
+    EXPECT_TRUE(MAREA_codesOf("type Op = function(value: sinteger32): sinteger32; function run(operation: Op): sinteger32 return operation(2); end").empty()) << "A call of a function type parameter must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("function run<T>(value: T) value(2); end").empty()) << "A call of a generic parameter must raise nothing.";
 }

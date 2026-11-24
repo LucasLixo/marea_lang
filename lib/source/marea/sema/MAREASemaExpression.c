@@ -890,6 +890,48 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsFunctionUsedBeforeDeclaration(const MA
     return ((declaration.file == use.file) && (declaration.offset > use.offset)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
+// INFO: a call of a function of this file with no result has no value. The callee must be a bare name that no local hides and that the name table binds to a plain function with no result type. A method call and an imported call are skipped, sema cannot see their result.
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckUsedAsValue(MAREA_SemaContext *context, const MAREA_AstNode *expression)
+{
+    const MAREA_AstNode *call = expression;
+
+    for (MAREA_Uinteger32 depth = 0; (MAREA_G_IsKind(call, MAREA_AST_KIND_PARENTHESIZED_EXPRESSION) == MAREA_BOOLEAN_TRUE) && (depth < MAREA_G_DEPTH_LIMIT); ++depth) {
+        call = MAREA_SemaChildAt(call, 0);
+    }
+
+    if (MAREA_G_IsKind(call, MAREA_AST_KIND_CALL_EXPRESSION) == MAREA_BOOLEAN_FALSE) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_AstNode *callee = MAREA_SemaChildAt(call, 0);
+
+    if ((MAREA_G_IsKind(callee, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_FALSE) || (MAREA_G_FindLocal(context, callee) != MAREA_NULLPTR)) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_AstNode *function = MAREA_G_FindDeclaration(context, callee, MAREA_AST_KIND_FUNCTION_DECLARATION);
+
+    if ((function == MAREA_NULLPTR) || (MAREA_SemaReturnType(function) != MAREA_NULLPTR)) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_RESULT_USE, MAREA_AstNodeGetPosition(call), "a call with no result is used as a value:", MAREA_AstNodeGetText(callee), MAREA_AstNodeGetTextLength(callee));
+}
+
+// INFO: the value slots of an operator and of a call: each operand, each argument.
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckUsedAsValueOfChildren(MAREA_SemaContext *context, const MAREA_AstNode *node)
+{
+    for (MAREA_IntegerSize index = 0; index < MAREA_AstNodeGetChildCount(node); ++index) {
+        const MAREA_SemaExcept result = MAREA_G_CheckUsedAsValue(context, MAREA_SemaChildAt(node, index));
+
+        if (result != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return result;
+        }
+    }
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
 static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckValue(MAREA_SemaContext *context, const MAREA_AstNode *expression, MAREA_Uinteger32 depth, MAREA_Boolean checkNames);
 
 static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckValueOfChildren(MAREA_SemaContext *context, const MAREA_AstNode *node, MAREA_IntegerSize first, MAREA_Uinteger32 depth, MAREA_Boolean checkNames)
@@ -927,13 +969,27 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckValue(MAREA_SemaContext *context
     {
         const MAREA_SemaExcept result = MAREA_G_CheckValueOfChildren(context, expression, 0, depth, checkNames);
 
-        return (result != MAREA_SEMA_EXCEPT_SUCCESS) ? result : MAREA_G_CheckOperands(context, expression);
+        if (result != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return result;
+        }
+
+        const MAREA_SemaExcept USED = MAREA_G_CheckUsedAsValueOfChildren(context, expression);
+
+        return (USED != MAREA_SEMA_EXCEPT_SUCCESS) ? USED : MAREA_G_CheckOperands(context, expression);
     }
     case MAREA_AST_KIND_CALL_EXPRESSION:
     {
         const MAREA_SemaExcept result = MAREA_G_CheckValueOfChildren(context, expression, 0, depth, checkNames);
 
-        return (result != MAREA_SEMA_EXCEPT_SUCCESS) ? result : MAREA_G_CheckConvert(context, expression);
+        if (result != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return result;
+        }
+
+        const MAREA_AstNode *arguments = MAREA_G_FindChild(expression, MAREA_AST_KIND_ARGUMENT_LIST);
+
+        const MAREA_SemaExcept USED = (arguments == MAREA_NULLPTR) ? MAREA_SEMA_EXCEPT_SUCCESS : MAREA_G_CheckUsedAsValueOfChildren(context, arguments);
+
+        return (USED != MAREA_SEMA_EXCEPT_SUCCESS) ? USED : MAREA_G_CheckConvert(context, expression);
     }
     case MAREA_AST_KIND_UNARY_EXPRESSION:
     {
@@ -941,6 +997,13 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckValue(MAREA_SemaContext *context
 
         if (result != MAREA_SEMA_EXCEPT_SUCCESS) {
             return result;
+        }
+
+        // INFO: spawn starts the call as a worker, so the call of a function with no result is its operand and not a value.
+        const MAREA_SemaExcept USED = (MAREA_AstNodeGetOperator(expression) == MAREA_TOKEN_KIND_KEYWORD_SPAWN) ? MAREA_SEMA_EXCEPT_SUCCESS : MAREA_G_CheckUsedAsValue(context, MAREA_SemaChildAt(expression, 0));
+
+        if (USED != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return USED;
         }
 
         const MAREA_SemaExcept OPERAND = MAREA_SemaCheckOperatorOperands(context, MAREA_AstNodeGetOperator(expression), MAREA_SemaChildAt(expression, 0), MAREA_NULLPTR, MAREA_AstNodeGetPosition(expression));
@@ -1040,7 +1103,9 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressions(MAREA_SemaContext *contex
             return initializerResult;
         }
 
-        return MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, 2), 0, MAREA_BOOLEAN_TRUE);
+        const MAREA_SemaExcept valueResult = MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, 2), 0, MAREA_BOOLEAN_TRUE);
+
+        return (valueResult != MAREA_SEMA_EXCEPT_SUCCESS) ? valueResult : MAREA_G_CheckUsedAsValue(context, MAREA_SemaChildAt(node, 2));
     }
     case MAREA_AST_KIND_PARAMETER:
     {
@@ -1126,6 +1191,19 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressions(MAREA_SemaContext *contex
             return namesResult;
         }
 
+        // INFO: a function with no result has no value to return, and a returned call is a value slot.
+        if ((context->function != MAREA_NULLPTR) && (MAREA_SemaReturnType(context->function) == MAREA_NULLPTR)) {
+            const MAREA_AstNode *name = MAREA_SemaChildAt(context->function, 0);
+
+            return (MAREA_SemaChildAt(node, 0) == MAREA_NULLPTR) ? MAREA_SEMA_EXCEPT_SUCCESS : MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_RESULT_USE, MAREA_AstNodeGetPosition(node), "a function with no result cannot return a value:", MAREA_AstNodeGetText(name), MAREA_AstNodeGetTextLength(name));
+        }
+
+        const MAREA_SemaExcept usedResult = MAREA_G_CheckUsedAsValue(context, MAREA_SemaChildAt(node, 0));
+
+        if (usedResult != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return usedResult;
+        }
+
         const MAREA_SemaExcept fitResult = MAREA_SemaCheckExpressionFit(context, MAREA_SemaReturnType(context->function), MAREA_SemaChildAt(node, 0));
 
         return (fitResult != MAREA_SEMA_EXCEPT_SUCCESS) ? fitResult : MAREA_SemaCheckLiteralRange(context, MAREA_SemaReturnType(context->function), MAREA_SemaChildAt(node, 0));
@@ -1142,6 +1220,12 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressions(MAREA_SemaContext *contex
 
         if (valueResult != MAREA_SEMA_EXCEPT_SUCCESS) {
             return valueResult;
+        }
+
+        const MAREA_SemaExcept usedResult = MAREA_G_CheckUsedAsValue(context, MAREA_SemaChildAt(node, 1));
+
+        if (usedResult != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return usedResult;
         }
 
         const MAREA_SemaExcept constantResult = MAREA_SemaCheckConstantAssignment(context, node);
