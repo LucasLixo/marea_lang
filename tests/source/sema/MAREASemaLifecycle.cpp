@@ -139,6 +139,42 @@ TEST(MAREASemaLifecycle, DirectCallByStaticFormIsRejected)
     EXPECT_EQ(MAREA_codesOf(TYPE + "function run() Point.drop(); end"), Codes{ CALLED_DIRECTLY }) << "Type.destroy() must raise CALLED_DIRECTLY.";
 }
 
+TEST(MAREASemaLifecycle, DirectCallOnValueIsRejected)
+{
+    GTEST_COUT << "Validating a direct call of a lifecycle function on a value is rejected." << std::endl;
+
+    const std::string TYPE{ POINT + "implementation Point #[operator = \"construct\"] function make() end #[operator = \"destroy\"] function drop() end end " };
+
+    EXPECT_EQ(MAREA_codesOf(TYPE + "function run() local p: Point = Point{ x = 1 }; p.drop(); end"), Codes{ CALLED_DIRECTLY }) << "A destroy call on a local must raise CALLED_DIRECTLY once.";
+
+    EXPECT_EQ(MAREA_codesOf(TYPE + "function run(p: Point) p.drop(); end"), Codes{ CALLED_DIRECTLY }) << "A destroy call on a parameter must raise CALLED_DIRECTLY.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "implementation Point #[operator = \"destroy\"] function drop() end function again(self: Point) self.drop(); end end"), Codes{ CALLED_DIRECTLY }) << "A destroy call on self typed as the type must raise CALLED_DIRECTLY.";
+
+    EXPECT_EQ(MAREA_codesOf(TYPE + "function run(p: Point) p.make(); end"), Codes{ CALLED_DIRECTLY }) << "A construct call on a parameter must raise CALLED_DIRECTLY.";
+
+    EXPECT_EQ(MAREA_codesOf(TYPE + "structure Box inner: Point; end function run(b: Box) b.inner.drop(); end"), Codes{ CALLED_DIRECTLY }) << "A destroy call on a field must raise CALLED_DIRECTLY.";
+}
+
+TEST(MAREASemaLifecycle, CallOnValueOfOtherMeaningIsNotRejected)
+{
+    GTEST_COUT << "Validating a call on a value that is no lifecycle call raises nothing." << std::endl;
+
+    const std::string TYPE{ POINT + "implementation Point #[operator = \"destroy\"] function drop() end function area() end end structure Other y: sinteger32; end implementation Other function drop() end end " };
+
+    EXPECT_TRUE(MAREA_codesOf(TYPE + "function run(p: Point) p.area(); end").empty()) << "A plain member on a value must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(TYPE + "function run(o: Other) o.drop(); end").empty()) << "A same-named plain member of another type must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(TYPE + "function run() local o: Other = Other{ y = 1 }; o.drop(); end").empty()) << "A same-named plain member on a local of another type must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(TYPE + "implementation Point function again(self: Self) self.drop(); end end").empty()) << "A receiver typed Self is a recorded gap and raises nothing.";
+
+    for (const MAREA_Uinteger32 CODE : MAREA_codesOf(TYPE + "function run() local p: Point = Point{ x = 1 }; p.next().drop(); end")) {
+        EXPECT_NE(CODE, CALLED_DIRECTLY) << "A receiver of unknown type is never guessed.";
+    }
+}
+
 TEST(MAREASemaLifecycle, OrdinaryCallsAreNotRejected)
 {
     GTEST_COUT << "Validating a call of an ordinary function or a hidden name is not rejected." << std::endl;

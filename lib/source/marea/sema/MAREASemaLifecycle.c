@@ -375,6 +375,18 @@ const MAREA_AstNode *MAREA_CALL MAREA_SemaFindConstructOperator(const MAREA_Sema
     return MAREA_NULLPTR;
 }
 
+// INFO: the one plain name segment of an inferred type, or null for a path, a function type or an unknown type.
+static const MAREA_AstNode *MAREA_CALL MAREA_G_PlainTypeSegment(const MAREA_AstNode *type)
+{
+    if ((type == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(type) != MAREA_AST_KIND_NAMED_TYPE)) {
+        return MAREA_NULLPTR;
+    }
+
+    const MAREA_AstNode *qualified = MAREA_G_FindChild(type, MAREA_AST_KIND_QUALIFIED_NAME);
+
+    return ((qualified != MAREA_NULLPTR) && (MAREA_AstNodeGetChildCount(qualified) == 1)) ? MAREA_SemaChildAt(qualified, 0) : MAREA_NULLPTR;
+}
+
 MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckLifecycleCall(MAREA_SemaContext *context, const MAREA_AstNode *call)
 {
     if ((context == MAREA_NULLPTR) || (call == MAREA_NULLPTR)) {
@@ -411,6 +423,13 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckLifecycleCall(MAREA_SemaContext *cont
 
         if ((object != MAREA_NULLPTR) && (name != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(object) == MAREA_AST_KIND_IDENTIFIER) && (MAREA_SemaLocalFind(context, MAREA_AstNodeGetText(object), MAREA_AstNodeGetTextLength(object)) == MAREA_NULLPTR)) {
             direct = MAREA_G_HasLifecycleMember(context, object, name);
+        } else if ((object != MAREA_NULLPTR) && (name != MAREA_NULLPTR)) {
+            // INFO: a call on a value. Only a receiver whose inferred type is one plain name of this file is judged; any other receiver is never guessed.
+            const MAREA_AstNode *typeName = MAREA_G_PlainTypeSegment(MAREA_SemaInferType(context, object));
+
+            if (typeName != MAREA_NULLPTR) {
+                direct = MAREA_G_HasLifecycleMember(context, typeName, name);
+            }
         }
     }
 

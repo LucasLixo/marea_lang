@@ -157,10 +157,22 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckSpawn(MAREA_SemaContext *context, con
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
+    const MAREA_IntegerSize OWN_START = context->captures.count;
+
     for (MAREA_IntegerSize index = 0; index < MAREA_AstNodeGetChildCount(arguments); ++index) {
         const MAREA_AstNode *argument = MAREA_SemaChildAt(arguments, index);
 
-        if ((argument == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(argument) == MAREA_AST_KIND_ERROR_NODE) || (MAREA_G_IsValidArgument(context, argument) == MAREA_BOOLEAN_TRUE)) {
+        if ((argument == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(argument) == MAREA_AST_KIND_ERROR_NODE)) {
+            continue;
+        }
+
+        if (MAREA_G_IsValidArgument(context, argument) == MAREA_BOOLEAN_TRUE) {
+            const MAREA_SemaExcept CAPTURE_RESULT = MAREA_SemaCaptureArgument(context, call, index, argument, OWN_START);
+
+            if (CAPTURE_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+                return CAPTURE_RESULT;
+            }
+
             continue;
         }
 
@@ -189,7 +201,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckPartition(MAREA_SemaContext *context,
         MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_PARTITION_SOURCE_NOT_ARRAY, MAREA_AstNodeGetPosition(source), "a partition needs an array");
     }
 
-    return MAREA_SEMA_EXCEPT_SUCCESS;
+    return MAREA_SemaCapturePartition(context, node);
 }
 
 MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckJump(MAREA_SemaContext *context, const MAREA_AstNode *node)

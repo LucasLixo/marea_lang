@@ -322,6 +322,27 @@ TEST(MAREASemaExpressions, UndeclaredNameInAnExpression)
     EXPECT_EQ(MAREA_codesOf("function f(a: sinteger32): sinteger32 return a; end function g() local x: sinteger32 = f(missing).field; end"), Codes{ UNDECLARED }) << "An argument below a member access must be checked.";
 }
 
+TEST(MAREASemaExpressions, MemberAccessOnALocalAfterItsScopeEnded)
+{
+    GTEST_COUT << "Validating a member chain head that was a local of an ended scope is UNDECLARED_NAME." << std::endl;
+
+    const std::string POINT{ "structure Point x: sinteger32; end function make(): Point return Point{ x = 1 }; end " };
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function g(): sinteger32 do local inner: Point = make(); end local x: sinteger32 = inner.x; return x; end"), Codes{ UNDECLARED }) << "A field read after a do block must raise UNDECLARED_NAME once.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function g() do local inner: Point = make(); local x: sinteger32 = inner.x; end end"), Codes{}) << "A read inside the block must raise nothing.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function g(a: sinteger32) while a < 1 do local inner: Point = make(); end local x: sinteger32 = inner.x; end"), Codes{ UNDECLARED }) << "A while body local must be gone after the loop.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function g(b: boolean) if b then local inner: Point = make(); end end local x: sinteger32 = inner.x; end"), Codes{ UNDECLARED }) << "An if branch local must be gone after the branch.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function g() do local inner: Point = make(); end inner.area(); end"), Codes{ UNDECLARED }) << "A method call on a departed local must raise UNDECLARED_NAME.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function g() do local inner: Point = make(); end local inner: Point = make(); local x: sinteger32 = inner.x; end"), Codes{}) << "A name declared again in the outer scope must be accepted.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function h() do local inner: Point = make(); end end function g() local x: sinteger32 = inner.x; end"), Codes{ UNDECLARED }) << "A local of another function is not a declaration.";
+}
+
 TEST(MAREASemaExpressions, UndeclaredNameInAHeaderOrAConstant)
 {
     GTEST_COUT << "Validating a missing name in a loop or with header and in a constant initializer is UNDECLARED_NAME." << std::endl;

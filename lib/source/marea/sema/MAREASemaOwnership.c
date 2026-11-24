@@ -84,6 +84,11 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsByValue(const MAREA_SemaContext *conte
     }
 }
 
+MAREA_Boolean MAREA_CALL MAREA_SemaTypeIsByValue(const MAREA_SemaContext *context, const MAREA_AstNode *type, MAREA_Boolean unknownIsValue)
+{
+    return MAREA_G_IsByValue(context, type, unknownIsValue);
+}
+
 static MAREA_SemaExcept MAREA_CALL MAREA_G_PushReference(MAREA_SemaContext *context, const MAREA_AstNode *name, const MAREA_AstNode *binding)
 {
     if (MAREA_G_IsIdentifier(name) == MAREA_BOOLEAN_FALSE) {
@@ -349,6 +354,120 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_ReportEscape(MAREA_SemaContext *conte
     return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_REFERENCE_ESCAPES_SCOPE, MAREA_AstNodeGetPosition(name), prefix, MAREA_AstNodeGetText(name), MAREA_AstNodeGetTextLength(name));
 }
 
+// INFO: a field or an element chain rooted in a confined name is a view into the borrow, so it is an escape unless the field is a value; an unknown type is accepted.
+static MAREA_Boolean MAREA_CALL MAREA_G_IsEscapingField(const MAREA_SemaContext *context, const MAREA_AstNode *expression)
+{
+    if ((expression == MAREA_NULLPTR) || ((MAREA_AstNodeGetKind(expression) != MAREA_AST_KIND_MEMBER_ACCESS) && (MAREA_AstNodeGetKind(expression) != MAREA_AST_KIND_INDEX_ACCESS))) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_AstNode *root = MAREA_G_RootOf(expression);
+
+    if ((root == MAREA_NULLPTR) || (MAREA_G_IsConfinedName(context, root) == MAREA_BOOLEAN_FALSE)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_AstNode *type = MAREA_SemaInferType(context, expression);
+
+    if (type == MAREA_NULLPTR) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_AstNode *declaration = MAREA_NULLPTR;
+
+    const MAREA_Character8 *name = MAREA_NULLPTR;
+
+    MAREA_IntegerSize length = 0;
+
+    // INFO: a generic type is not known to be a view until it is bound, so it is accepted like an unknown type.
+    if (MAREA_SemaClassifyType(context, type, &declaration, &name, &length) == MAREA_SEMA_TYPE_CLASS_GENERIC) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    return (MAREA_G_IsByValue(context, type, MAREA_BOOLEAN_TRUE) == MAREA_BOOLEAN_FALSE) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
+static MAREA_Boolean MAREA_CALL MAREA_G_DeclaresLocal(const MAREA_AstNode *node, const MAREA_AstNode *name)
+{
+    if (node == MAREA_NULLPTR) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    if (MAREA_AstNodeGetKind(node) == MAREA_AST_KIND_LOCAL_DECLARATION) {
+        const MAREA_AstNode *declared = MAREA_SemaChildAt(node, 0);
+
+        if ((MAREA_G_IsIdentifier(declared) == MAREA_BOOLEAN_TRUE) && (MAREA_AstNodeGetTextLength(declared) == MAREA_AstNodeGetTextLength(name)) && (memcmp(MAREA_AstNodeGetText(declared), MAREA_AstNodeGetText(name), MAREA_AstNodeGetTextLength(name)) == 0)) {
+            return MAREA_BOOLEAN_TRUE;
+        }
+    }
+
+    for (MAREA_IntegerSize index = 0; index < MAREA_AstNodeGetChildCount(node); ++index) {
+        if (MAREA_G_DeclaresLocal(MAREA_SemaChildAt(node, index), name) == MAREA_BOOLEAN_TRUE) {
+            return MAREA_BOOLEAN_TRUE;
+        }
+    }
+
+    return MAREA_BOOLEAN_FALSE;
+}
+
+// INFO: a partition part lives for the body only, so a name that the partition body does not declare outlives it.
+static MAREA_Boolean MAREA_CALL MAREA_G_IsPartStoredOutside(const MAREA_SemaContext *context, const MAREA_AstNode *target, const MAREA_AstNode *value)
+{
+    if ((MAREA_G_IsIdentifier(target) == MAREA_BOOLEAN_FALSE) || (MAREA_G_IsIdentifier(value) == MAREA_BOOLEAN_FALSE)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    for (MAREA_IntegerSize index = context->references.count; index > 0; --index) {
+        const MAREA_SemaName *entry = &context->references.entries[(index - 1)];
+
+        if ((entry->length != MAREA_AstNodeGetTextLength(value)) || (memcmp(entry->text, MAREA_AstNodeGetText(value), entry->length) != 0)) {
+            continue;
+        }
+
+        if ((entry->declaration == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(entry->declaration) != MAREA_AST_KIND_PARTITION_STATEMENT)) {
+            return MAREA_BOOLEAN_FALSE;
+        }
+
+        return (MAREA_G_DeclaresLocal(entry->declaration, target) == MAREA_BOOLEAN_TRUE) ? MAREA_BOOLEAN_FALSE : MAREA_BOOLEAN_TRUE;
+    }
+
+    return MAREA_BOOLEAN_FALSE;
+}
+
+// INFO: append is the one library call that stores its argument and that sema knows by name; any other library call that stores is not seen.
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckAppendArguments(MAREA_SemaContext *context, const MAREA_AstNode *call)
+{
+    const MAREA_AstNode *callee = MAREA_SemaChildAt(call, 0);
+
+    if ((callee == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(callee) != MAREA_AST_KIND_MEMBER_ACCESS)) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_AstNode *method = MAREA_SemaChildAt(callee, 1);
+
+    if ((MAREA_G_IsIdentifier(method) == MAREA_BOOLEAN_FALSE) || (MAREA_AstNodeGetTextLength(method) != 6) || (memcmp(MAREA_AstNodeGetText(method), "append", 6) != 0)) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_AstNode *arguments = MAREA_SemaChildAt(call, 1);
+
+    for (MAREA_IntegerSize index = 0; ((arguments != MAREA_NULLPTR) && (index < MAREA_AstNodeGetChildCount(arguments))); ++index) {
+        const MAREA_AstNode *argument = MAREA_SemaChildAt(arguments, index);
+
+        if (MAREA_G_IsConfinedName(context, argument) == MAREA_BOOLEAN_FALSE) {
+            continue;
+        }
+
+        const MAREA_SemaExcept RESULT = MAREA_G_ReportEscape(context, argument, "a reference cannot be stored in a vector:");
+
+        if (RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return RESULT;
+        }
+    }
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
 static MAREA_Boolean MAREA_CALL MAREA_G_IsExistingValue(const MAREA_AstNode *expression)
 {
     if (expression == MAREA_NULLPTR) {
@@ -438,8 +557,14 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckOwnership(MAREA_SemaContext *context,
             return MAREA_G_ReportEscape(context, value, "a reference cannot be returned:");
         }
 
+        if (MAREA_G_IsEscapingField(context, value) == MAREA_BOOLEAN_TRUE) {
+            return MAREA_G_ReportEscape(context, MAREA_G_RootOf(value), "a field of a reference cannot be returned:");
+        }
+
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
+    case MAREA_AST_KIND_CALL_EXPRESSION:
+        return MAREA_G_CheckAppendArguments(context, node);
     case MAREA_AST_KIND_FIELD_ENTRY:
     {
         const MAREA_AstNode *value = MAREA_SemaChildAt(node, 1);
@@ -481,6 +606,14 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckOwnership(MAREA_SemaContext *context,
 
             if (ESCAPE_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
                 return ESCAPE_RESULT;
+            }
+        }
+
+        if (MAREA_G_IsPartStoredOutside(context, target, value) == MAREA_BOOLEAN_TRUE) {
+            const MAREA_SemaExcept PART_RESULT = MAREA_G_ReportEscape(context, value, "a partition part cannot outlive its body:");
+
+            if (PART_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+                return PART_RESULT;
             }
         }
 
