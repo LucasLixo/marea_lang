@@ -45,7 +45,7 @@ The first line is the header. It has one of three forms:
 A `known_gap` item has `-- rule: reject` or `-- rule: accept` as its second line: the outcome the language has
 decided. A `-- rule:` line in another class is an error. The copyright header follows, then the program.
 
-The codes are the lex codes 1001-1006, the parse codes 2001-2010 and the sema codes 3001-3032 (3023 is retired).
+The codes are the lex codes 1001-1006, the parse codes 2001-2010 and the sema codes 3001-3065 (3023 is retired, and not every other number of the range is a live code).
 The `@<line>` of the form is optional for the parser of the header, but a `reject` item with a code that has no
 `@<line>` fails.
 
@@ -907,7 +907,9 @@ Interop with C, opaque types, owners and raw pointers of a C border, and the bui
 `tests/language/<class>/interop/`. A `c.` import is `EXTERNAL` in the runner, so the C call itself has no signature
 and its argument and result types are not checked. The macros are checked only by name today: a macro name without
 `!` is an undeclared name (L-INTEROP-054) and a user-written `macro` is a parse error (L-INTEROP-020), but a call of
-an unknown macro, the arguments and the result of a known one are not checked (issue #241). The type `handle<T>` is
+an unknown macro, the arguments and the result of a known one are not checked (issue #241). The two compile-time
+macros are the exception: `compile_error!` always gives 3059 (L-INTEROP-044) and a `static_assert!` over a constant
+false condition gives 3059 (L-INTEROP-043); a condition the compiler cannot fold is accepted. The type `handle<T>` is
 rejected with 3009 by the type checker, so it has no accept item.
 
 ### Macros and the C border: accept
@@ -940,6 +942,8 @@ rejected with 3009 by the type checker, so it has no accept item.
 | L-INTEROP-022 | An opaque structure has no body | 2001 @10, 2005 @11 |
 | L-INTEROP-023 | A parameter of a type that no declaration names | 3009 @9 |
 | L-INTEROP-024 | An import placed after a function | 2004 @13 |
+| L-INTEROP-043 | A static_assert macro of a false condition | 3059 @9 |
+| L-INTEROP-044 | A compile_error macro call | 3059 @9 |
 | L-INTEROP-048 | A raw pointer local outside an unsafe block | 3041 @12 |
 | L-INTEROP-049 | A name of a with block used after its end | 3004 @15 |
 | L-INTEROP-050 | An owner of an opaque type assigned with no move | 3016 @15 |
@@ -956,8 +960,6 @@ rejected with 3009 by the type checker, so it has no accept item.
 | L-INTEROP-040 | An opaque structure is built with a struct literal | gap: NEW, rule: reject, issue #239 |
 | L-INTEROP-041 | A field of an opaque structure is read | gap: NEW, rule: reject, issue #239 |
 | L-INTEROP-042 | An operator is applied to two opaque values | gap: NEW, rule: reject, issue #239 |
-| L-INTEROP-043 | A static_assert macro of a false condition | gap: NEW, rule: reject, issue #240 |
-| L-INTEROP-044 | A compile_error macro call | gap: NEW, rule: reject, issue #240 |
 | L-INTEROP-045 | A print macro with fewer values than the format text needs | gap: NEW, rule: reject, issue #241 |
 | L-INTEROP-046 | A print macro with a number as the format text | gap: 3011, rule: reject, issue #241 |
 | L-INTEROP-047 | An assert macro with a number as the condition | gap: 3011, rule: reject, issue #241 |
@@ -1246,14 +1248,14 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | coverage | 0 | 1 | 0 |
 | examples | 16 | 0 | 0 |
 | functions | 19 | 45 | 9 |
-| interop | 17 | 11 | 17 |
+| interop | 17 | 13 | 15 |
 | memory | 15 | 10 | 8 |
 | namespaces | 17 | 28 | 6 |
 | ownership | 65 | 40 | 40 |
 | parallel | 19 | 23 | 17 |
 | seed | 1 | 2 | 0 |
 | types | 60 | 116 | 20 |
-| total | 262 | 386 | 159 |
+| total | 262 | 388 | 157 |
 
 ## Parity plan
 
@@ -1283,6 +1285,7 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 | 3041 | `sema` | [marea-sema.md](../sema/marea-sema.md), `RAW_POINTER_OUTSIDE_UNSAFE` |
 | 3043 | `sema` | [marea-sema.md](../sema/marea-sema.md), `NON_BOOLEAN_CONDITION` |
 | 3055 | `sema` | [marea-sema.md](../sema/marea-sema.md), `CYCLIC_CONSTANT` |
+| 3059 | `sema` | [marea-sema.md](../sema/marea-sema.md), `COMPILE_TIME_ASSERTION_FAILED` |
 | 3065 | `sema` | [marea-sema.md](../sema/marea-sema.md), `LOCAL_WITHOUT_INITIAL_VALUE` |
 | 4004-4006 | `ir` | [marea-ir.md](../ir/marea-ir.md), no item reaches them (see Gaps) |
 
@@ -1336,7 +1339,7 @@ the rule is enforced. The coverage test holds this list; an example that gains a
 
 ### Diagnostic codes with no reject item
 
-Every live lex, parse and sema code (1001-1006, 2001-2010, 3001-3032 without 3023) has a `reject` item. The ir codes
+Every live lex, parse and sema code (1001-1006, 2001-2010, 3001-3065 without 3023 and the numbers no code uses) has a `reject` item. The ir codes
 4004, 4005 and 4006 are exempt: the runner runs lex, parse and sema only, so no item can reach the ir. The exemption ends
 when a runner or an apply makes the ir run in it. The retired codes 3023 and 4001-4003 are excluded and must not
 return in a header.

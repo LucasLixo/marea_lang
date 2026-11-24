@@ -13,6 +13,7 @@ namespace
     constexpr MAREA_Uinteger32 NON_EXHAUSTIVE{ MAREA_SEMA_DIAGNOSTIC_CODE_NON_EXHAUSTIVE_SWITCH };
     constexpr MAREA_Uinteger32 DUPLICATE_ARM{ MAREA_SEMA_DIAGNOSTIC_CODE_DUPLICATE_SWITCH_ARM };
     constexpr MAREA_Uinteger32 JUMP_OUTSIDE_LOOP{ MAREA_SEMA_DIAGNOSTIC_CODE_JUMP_OUTSIDE_LOOP };
+    constexpr MAREA_Uinteger32 COMPILE_TIME_ASSERTION_FAILED{ MAREA_SEMA_DIAGNOSTIC_CODE_COMPILE_TIME_ASSERTION_FAILED };
 
     const std::string COLOR{ "enum Color red; green; blue; end " };
 
@@ -153,7 +154,8 @@ TEST(MAREASemaControlFlow, DivergingMacroEndsAPath)
 
     EXPECT_TRUE(MAREA_codesOf("function f(a: boolean): sinteger32 if a then return 1; end end unreachable!(); end").empty()) << "unreachable must end a path.";
 
-    EXPECT_TRUE(MAREA_codesOf("function f(): sinteger32 compile_error!(\"no\"); end").empty()) << "compile_error must end a path.";
+    // INFO: compile_error ends the path, so it raises COMPILE_TIME_ASSERTION_FAILED and never MISSING_RETURN.
+    EXPECT_EQ(MAREA_codesOf("function f(): sinteger32 compile_error!(\"no\"); end"), Codes{ COMPILE_TIME_ASSERTION_FAILED }) << "compile_error must end a path.";
 
     EXPECT_EQ(MAREA_codesOf("function f(): sinteger32 print!(\"x\"); end"), Codes{ MISSING_RETURN }) << "A printing macro must not end a path.";
 }
