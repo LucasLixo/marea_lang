@@ -216,6 +216,252 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckMembers(MAREA_SemaContext *conte
     return MAREA_SEMA_EXCEPT_SUCCESS;
 }
 
+static const MAREA_AstNode *MAREA_CALL MAREA_G_FindKind(const MAREA_AstNode *node, MAREA_AstKind kind)
+{
+    const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(node);
+
+    for (MAREA_IntegerSize index = 0; index < COUNT; ++index) {
+        const MAREA_AstNode *child = MAREA_SemaChildAt(node, index);
+
+        if ((child != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(child) == kind)) {
+            return child;
+        }
+    }
+
+    return MAREA_NULLPTR;
+}
+
+// INFO: true for a NAMED_TYPE that is one plain segment; a qualified name belongs to another file and is skipped.
+static MAREA_Boolean MAREA_CALL MAREA_G_PlainTypeName(const MAREA_AstNode *type, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength)
+{
+    if ((type == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(type) != MAREA_AST_KIND_NAMED_TYPE)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_AstNode *path = MAREA_SemaChildAt(type, 0);
+
+    if ((path == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(path) != MAREA_AST_KIND_QUALIFIED_NAME) || (MAREA_AstNodeGetChildCount(path) != MAREA_INTEGER_SIZE(1))) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_AstNode *segment = MAREA_SemaChildAt(path, 0);
+
+    if ((segment == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(segment) != MAREA_AST_KIND_IDENTIFIER)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    *outText = MAREA_AstNodeGetText(segment);
+    *outLength = MAREA_AstNodeGetTextLength(segment);
+
+    return MAREA_BOOLEAN_TRUE;
+}
+
+// INFO: the declaration of the file that a plain type name stands for, or null.
+static const MAREA_AstNode *MAREA_CALL MAREA_G_LocalDeclaration(const MAREA_SemaContext *context, const MAREA_Character8 *name, MAREA_IntegerSize nameLength)
+{
+    const MAREA_SemaName *entry = MAREA_SemaNameTableFind(context, name, nameLength);
+
+    return ((entry != MAREA_NULLPTR) && (entry->kind == MAREA_SEMA_NAME_KIND_DECLARATION)) ? entry->declaration : MAREA_NULLPTR;
+}
+
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckAlias(MAREA_SemaContext *context, const MAREA_AstNode *alias, MAREA_IntegerSize limit)
+{
+    if (MAREA_G_FindKind(alias, MAREA_AST_KIND_GENERIC_PARAMETERS) != MAREA_NULLPTR) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_AstNode *current = alias;
+
+    for (MAREA_IntegerSize step = 0; step <= limit; ++step) {
+        const MAREA_AstNode *target = MAREA_SemaChildAt(current, (MAREA_AstNodeGetChildCount(current) - MAREA_INTEGER_SIZE(1)));
+
+        const MAREA_Character8 *name = MAREA_NULLPTR;
+
+        MAREA_IntegerSize nameLength = 0;
+
+        if ((MAREA_G_PlainTypeName(target, &name, &nameLength) == MAREA_BOOLEAN_FALSE) || (MAREA_G_FindKind(target, MAREA_AST_KIND_TYPE_ARGUMENTS) != MAREA_NULLPTR)) {
+            return MAREA_SEMA_EXCEPT_SUCCESS;
+        }
+
+        const MAREA_AstNode *next = MAREA_G_LocalDeclaration(context, name, nameLength);
+
+        if ((next == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(next) != MAREA_AST_KIND_TYPE_DECLARATION) || (MAREA_G_FindKind(next, MAREA_AST_KIND_GENERIC_PARAMETERS) != MAREA_NULLPTR)) {
+            return MAREA_SEMA_EXCEPT_SUCCESS;
+        }
+
+        if (next == alias) {
+            const MAREA_AstNode *identifier = MAREA_G_NameOf(alias);
+
+            return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_CYCLIC_TYPE_ALIAS, MAREA_AstNodeGetPosition(alias), "type alias leads back to itself:", MAREA_AstNodeGetText(identifier), MAREA_AstNodeGetTextLength(identifier));
+        }
+
+        current = next;
+    }
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
+typedef struct MAREA_G_ValueWalk
+{
+    const MAREA_SemaContext *context;
+    const MAREA_AstNode *target;
+    const MAREA_AstNode **visited;
+    MAREA_IntegerSize visitedCount;
+    MAREA_IntegerSize limit;
+} MAREA_G_ValueWalk;
+
+static MAREA_Boolean MAREA_CALL MAREA_G_HoldsTarget(MAREA_G_ValueWalk *walk, const MAREA_AstNode *type, const MAREA_AstNode *generics, MAREA_IntegerSize depth);
+
+// INFO: true when a field type of the declaration holds the target by value.
+static MAREA_Boolean MAREA_CALL MAREA_G_MemberHoldsTarget(MAREA_G_ValueWalk *walk, const MAREA_AstNode *member, const MAREA_AstNode *generics)
+{
+    if (MAREA_AstNodeGetKind(member) == MAREA_AST_KIND_FIELD_DECLARATION) {
+        return MAREA_G_HoldsTarget(walk, MAREA_SemaChildAt(member, (MAREA_AstNodeGetChildCount(member) - MAREA_INTEGER_SIZE(1))), generics, 0);
+    }
+
+    if (MAREA_AstNodeGetKind(member) != MAREA_AST_KIND_VARIANT_DECLARATION) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    for (MAREA_IntegerSize index = 0; index < MAREA_AstNodeGetChildCount(member); ++index) {
+        const MAREA_AstNode *field = MAREA_SemaChildAt(member, index);
+
+        if ((field != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(field) == MAREA_AST_KIND_VARIANT_FIELD) && (MAREA_G_HoldsTarget(walk, MAREA_SemaChildAt(field, 1), generics, 0) == MAREA_BOOLEAN_TRUE)) {
+            return MAREA_BOOLEAN_TRUE;
+        }
+    }
+
+    return MAREA_BOOLEAN_FALSE;
+}
+
+// INFO: owned, vector, pointer, slice, task and a function type are indirect, so only a structure, an enum, an alias to one and the element of an array are followed.
+static MAREA_Boolean MAREA_CALL MAREA_G_HoldsTarget(MAREA_G_ValueWalk *walk, const MAREA_AstNode *type, const MAREA_AstNode *generics, MAREA_IntegerSize depth)
+{
+    const MAREA_Character8 *name = MAREA_NULLPTR;
+
+    MAREA_IntegerSize nameLength = 0;
+
+    if ((MAREA_G_PlainTypeName(type, &name, &nameLength) == MAREA_BOOLEAN_FALSE) || (MAREA_SemaGenericParameterIndex(generics, name, nameLength) < ((generics == MAREA_NULLPTR) ? MAREA_INTEGER_SIZE(0) : MAREA_AstNodeGetChildCount(generics)))) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    if (MAREA_SemaTextEquals(name, nameLength, "array", MAREA_INTEGER_SIZE(5)) == MAREA_BOOLEAN_TRUE) {
+        const MAREA_AstNode *arguments = MAREA_G_FindKind(type, MAREA_AST_KIND_TYPE_ARGUMENTS);
+
+        return (arguments == MAREA_NULLPTR) ? MAREA_BOOLEAN_FALSE : MAREA_G_HoldsTarget(walk, MAREA_SemaChildAt(arguments, 0), generics, depth);
+    }
+
+    const MAREA_AstNode *declaration = MAREA_G_LocalDeclaration(walk->context, name, nameLength);
+
+    if (declaration == MAREA_NULLPTR) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_AstKind KIND = MAREA_AstNodeGetKind(declaration);
+
+    if (KIND == MAREA_AST_KIND_TYPE_DECLARATION) {
+        if ((depth >= walk->limit) || (MAREA_G_FindKind(declaration, MAREA_AST_KIND_GENERIC_PARAMETERS) != MAREA_NULLPTR)) {
+            return MAREA_BOOLEAN_FALSE;
+        }
+
+        return MAREA_G_HoldsTarget(walk, MAREA_SemaChildAt(declaration, (MAREA_AstNodeGetChildCount(declaration) - MAREA_INTEGER_SIZE(1))), MAREA_NULLPTR, (depth + 1));
+    }
+
+    if ((KIND != MAREA_AST_KIND_STRUCTURE_DECLARATION) && (KIND != MAREA_AST_KIND_ENUM_DECLARATION)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    if (declaration == walk->target) {
+        return MAREA_BOOLEAN_TRUE;
+    }
+
+    for (MAREA_IntegerSize index = 0; index < walk->visitedCount; ++index) {
+        if (walk->visited[index] == declaration) {
+            return MAREA_BOOLEAN_FALSE;
+        }
+    }
+
+    if (walk->visitedCount >= walk->limit) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    walk->visited[walk->visitedCount] = declaration;
+    ++walk->visitedCount;
+
+    const MAREA_AstNode *inner = MAREA_G_FindKind(declaration, MAREA_AST_KIND_GENERIC_PARAMETERS);
+
+    for (MAREA_IntegerSize index = 0; index < MAREA_AstNodeGetChildCount(declaration); ++index) {
+        const MAREA_AstNode *member = MAREA_SemaChildAt(declaration, index);
+
+        if ((member != MAREA_NULLPTR) && (MAREA_G_MemberHoldsTarget(walk, member, inner) == MAREA_BOOLEAN_TRUE)) {
+            return MAREA_BOOLEAN_TRUE;
+        }
+    }
+
+    return MAREA_BOOLEAN_FALSE;
+}
+
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckRecursion(MAREA_SemaContext *context, const MAREA_AstNode *declaration, const MAREA_AstNode **visited, MAREA_IntegerSize limit)
+{
+    MAREA_G_ValueWalk walk = { context, declaration, visited, 0, limit };
+
+    const MAREA_AstNode *generics = MAREA_G_FindKind(declaration, MAREA_AST_KIND_GENERIC_PARAMETERS);
+
+    for (MAREA_IntegerSize index = 0; index < MAREA_AstNodeGetChildCount(declaration); ++index) {
+        const MAREA_AstNode *member = MAREA_SemaChildAt(declaration, index);
+
+        if ((member == MAREA_NULLPTR) || (MAREA_G_MemberHoldsTarget(&walk, member, generics) == MAREA_BOOLEAN_FALSE)) {
+            continue;
+        }
+
+        const MAREA_AstNode *identifier = MAREA_G_NameOf(declaration);
+
+        return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_RECURSIVE_TYPE, MAREA_AstNodeGetPosition(member), "type holds itself by value:", MAREA_AstNodeGetText(identifier), MAREA_AstNodeGetTextLength(identifier));
+    }
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
+// INFO: the alias pass runs first, so a cyclic alias reports once and then ends every walk through it by the depth limit.
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckTypeCycles(MAREA_SemaContext *context, const MAREA_AstNode *root)
+{
+    const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(root);
+
+    for (MAREA_IntegerSize index = 0; index < COUNT; ++index) {
+        const MAREA_AstNode *declaration = MAREA_SemaChildAt(root, index);
+
+        if ((declaration != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(declaration) == MAREA_AST_KIND_TYPE_DECLARATION)) {
+            const MAREA_SemaExcept RESULT = MAREA_G_CheckAlias(context, declaration, COUNT);
+
+            if (RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+                return RESULT;
+            }
+        }
+    }
+
+    void *memory = MAREA_NULLPTR;
+
+    if ((COUNT == 0) || (MAREA_ArenaAllocate(context->arena, (COUNT * sizeof(const MAREA_AstNode *)), MAREA_ALIGNOF(const MAREA_AstNode *), &memory) != MAREA_ARENA_EXCEPT_SUCCESS)) {
+        return (COUNT == 0) ? MAREA_SEMA_EXCEPT_SUCCESS : MAREA_SEMA_EXCEPT_ERROR_OUT_OF_MEMORY;
+    }
+
+    for (MAREA_IntegerSize index = 0; index < COUNT; ++index) {
+        const MAREA_AstNode *declaration = MAREA_SemaChildAt(root, index);
+
+        if ((declaration == MAREA_NULLPTR) || ((MAREA_AstNodeGetKind(declaration) != MAREA_AST_KIND_STRUCTURE_DECLARATION) && (MAREA_AstNodeGetKind(declaration) != MAREA_AST_KIND_ENUM_DECLARATION))) {
+            continue;
+        }
+
+        const MAREA_SemaExcept RESULT = MAREA_G_CheckRecursion(context, declaration, (const MAREA_AstNode **)memory, COUNT);
+
+        if (RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return RESULT;
+        }
+    }
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
 MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckDeclarations(MAREA_SemaContext *context, const MAREA_AstNode *root)
 {
     if ((context == MAREA_NULLPTR) || (root == MAREA_NULLPTR)) {
@@ -294,7 +540,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckDeclarations(MAREA_SemaContext *conte
         }
     }
 
-    return MAREA_SEMA_EXCEPT_SUCCESS;
+    return MAREA_G_CheckTypeCycles(context, root);
 }
 
 MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckDuplicateNames(MAREA_SemaContext *context, const MAREA_AstNode *node)
