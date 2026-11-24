@@ -14,6 +14,8 @@ namespace
 
     constexpr MAREA_Uinteger32 INVALID_SPAWN{ MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_SPAWN_ARGUMENT };
 
+    constexpr MAREA_Uinteger32 OUTSIDE_BLOCK{ MAREA_SEMA_DIAGNOSTIC_CODE_PARALLEL_CONSTRUCT_OUTSIDE_FORK_JOIN };
+
     constexpr MAREA_Uinteger32 INVALID_JUMP{ MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_PARALLEL_JUMP };
 
     const std::string HEAD{ "constant WORKERS: sinteger32 = 4; function work(part: slice<float32>, factor: float32) end " };
@@ -109,11 +111,45 @@ TEST(MAREASemaParallel, FieldOfAnUnsafeNameIsRejected)
     EXPECT_EQ(MAREA_codesOf("function g(a: float32) end function f(#[semantics = reference_mutable] values: c.array<float32>) fork_join partition mutable values into 4 as part do spawn g(values.size); end end end"), Codes{ INVALID_SPAWN }) << "A field of a mutable partition source must raise INVALID_SPAWN_ARGUMENT.";
 }
 
-TEST(MAREASemaParallel, SpawnOutsideForkJoinIsNotChecked)
+TEST(MAREASemaParallel, SpawnOutsideForkJoinIsRejected)
 {
-    GTEST_COUT << "Validating a spawn outside a fork_join block raises no spawn diagnostic." << std::endl;
+    GTEST_COUT << "Validating a spawn outside every fork_join block raises PARALLEL_CONSTRUCT_OUTSIDE_FORK_JOIN." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("function g(a: c.array<float32>) end function f(m: c.array<float32>) spawn g(m); end").empty()) << "A spawn outside fork_join must raise nothing here.";
+    EXPECT_EQ(MAREA_codesOf("function g(a: c.array<float32>) end function f(m: c.array<float32>) spawn g(m); end"), Codes{ OUTSIDE_BLOCK }) << "A spawn in a plain function body must raise 3062.";
+
+    EXPECT_EQ(MAREA_codesOf("function g(a: sinteger32) end function f(a: sinteger32) fork_join spawn g(a); end spawn g(a); end"), Codes{ OUTSIDE_BLOCK }) << "A spawn after the end of a block must raise 3062.";
+
+    EXPECT_TRUE(MAREA_codesOf("function g(a: sinteger32) end function f(a: sinteger32) fork_join spawn g(a); end end").empty()) << "A spawn inside a block must raise nothing.";
+}
+
+TEST(MAREASemaParallel, SpawnOutsideForkJoinSkipsTheArgumentRules)
+{
+    GTEST_COUT << "Validating a spawn outside a block raises only 3062, not 3020 too." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("function g(a: sinteger32) end function f(a: sinteger32) spawn g(1 + 2); end"), Codes{ OUTSIDE_BLOCK }) << "A computed argument outside a block must raise only 3062.";
+}
+
+TEST(MAREASemaParallel, PartitionOutsideForkJoinIsRejected)
+{
+    GTEST_COUT << "Validating a partition outside every fork_join block raises PARALLEL_CONSTRUCT_OUTSIDE_FORK_JOIN." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("function f(values: c.array<float32>) partition values into 2 as part do end end"), Codes{ OUTSIDE_BLOCK }) << "A partition with no block must raise 3062.";
+
+    EXPECT_TRUE(MAREA_codesOf("function f(values: c.array<float32>) fork_join partition values into 2 as part do end end end").empty()) << "A partition inside a block must raise nothing.";
+}
+
+TEST(MAREASemaParallel, NestedForkJoinAcceptsSpawnAndPartition)
+{
+    GTEST_COUT << "Validating a spawn and a partition in a nested fork_join block raise nothing." << std::endl;
+
+    EXPECT_TRUE(MAREA_codesOf("function g(a: sinteger32) end function f(values: c.array<float32>, a: sinteger32) fork_join fork_join spawn g(a); partition values into 2 as part do end end end end").empty()) << "A nested block must raise nothing.";
+}
+
+TEST(MAREASemaParallel, ForkDepthIsPerFunction)
+{
+    GTEST_COUT << "Validating a spawn in a function declared after a function with a block raises 3062." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("function g(a: sinteger32) end function f(a: sinteger32) fork_join spawn g(a); end end function h(a: sinteger32) spawn g(a); end"), Codes{ OUTSIDE_BLOCK }) << "The depth must not leak from one function to the next.";
 }
 
 TEST(MAREASemaParallel, ErrorNodesAreSkipped)

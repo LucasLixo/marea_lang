@@ -1,9 +1,9 @@
--- gap: #211 NEW
--- rule: reject
+-- expect: 3016 @35
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- A worker is spawned outside of a fork_join block.
+-- from: L-OWNERSHIP-047
+-- Mutant of L-OWNERSHIP-047: the move word is dropped from an owned argument.
 
 namespace main;
 
@@ -25,8 +25,14 @@ function read_point(#[semantics = reference_read_only] point: Point): sinteger32
     return point.x;
 end
 
+function take_point(point: owned<Point>): sinteger32
+    return point.x;
+end
+
 function check(): sinteger32
-    local point: Point = make_point();
-    spawn read_point(point);
+    local first: Point = make_point();
+    local before: sinteger32 = read_point(first);
+    local result: sinteger32 = take_point(first);
     return 1;
 end
+

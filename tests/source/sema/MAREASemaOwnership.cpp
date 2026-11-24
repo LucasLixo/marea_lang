@@ -338,3 +338,28 @@ TEST(MAREASemaOwnership, EnumsAreByValue)
 
     EXPECT_TRUE(MAREA_codesOf("enum Color red; green; end function f(b: Color): Color return b; end").empty()) << "An enum parameter must be returnable.";
 }
+
+TEST(MAREASemaOwnership, ExistingValueGivenToOwnedParameterNeedsCopyOrMove)
+{
+    GTEST_COUT << "Validating a name, field or element given to an owned parameter raises ASSIGNMENT_NEEDS_COPY_OR_MOVE once; copy, move, a call result and a literal raise nothing." << std::endl;
+
+    const std::string TAKE{ SHAPE + "function take(a: owned<Shape>) end " };
+
+    EXPECT_EQ(MAREA_codesOf(TAKE + "function f(s: Shape) take(s); end"), Codes{ NEEDS_WORD }) << "A name given to an owned parameter must raise ASSIGNMENT_NEEDS_COPY_OR_MOVE.";
+
+    EXPECT_EQ(MAREA_codesOf(TAKE + "function f(o: Outer) take(o.inner); end"), Codes{ NEEDS_WORD }) << "A field given to an owned parameter must raise ASSIGNMENT_NEEDS_COPY_OR_MOVE.";
+
+    EXPECT_EQ(MAREA_codesOf(TAKE + "function f(v: vector<Shape>) take(v[0]); end"), Codes{ NEEDS_WORD }) << "An element given to an owned parameter must raise ASSIGNMENT_NEEDS_COPY_OR_MOVE.";
+
+    EXPECT_TRUE(MAREA_codesOf(TAKE + "function f(s: Shape) take(move s); end").empty()) << "A move argument must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(TAKE + "function f(s: Shape) take(copy s); end").empty()) << "A copy argument must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(TAKE + "function f() take(make()); end").empty()) << "A call result must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(TAKE + "function f() take(Shape{ x = 1.0 }); end").empty()) << "A literal must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function take(a: vector<Shape>) end function f(v: vector<Shape>) take(v); end").empty()) << "A vector parameter is not checked by this rule.";
+
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function take<Item>(a: owned<Item>) end function f(s: Shape) take(s); end"), Codes{ NEEDS_WORD }) << "A generic owned parameter given a known structure must raise ASSIGNMENT_NEEDS_COPY_OR_MOVE.";
+}
