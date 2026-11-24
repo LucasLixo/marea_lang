@@ -733,7 +733,9 @@ Function declaration and call, parameters and defaults, the result and `return v
 | L-TYPES-118 | a generic function with a bound that the argument type does not meet | 3013 @24, 3013 @24 |
 | L-TYPES-119 | a generic parameter named as another declaration | 3003 @13 |
 | L-TYPES-120 | a generic call with a wrong argument count | 3010 @14 |
+| L-TYPES-121 | an unsatisfied bound inside the body of a generic function, an operation the bound does not give | 3051 @10 |
 | L-TYPES-122 | two generic parameters with one name in a function | 3003 @9 |
+| L-TYPES-123 | two overlapping implementation blocks of a generic and a concrete type | 3052 @20 |
 | L-TYPES-124 | a cyclic type alias | 3046 @9, 3046 @10 |
 | L-TYPES-125 | a type alias of itself | 3046 @9 |
 | L-TYPES-138 | a break outside a loop | 3026 @10 |
@@ -812,8 +814,6 @@ Function declaration and call, parameters and defaults, the result and `return v
 | L-TYPES-071 | a case value of a variant of another enum | gap: 3011, rule: reject, issue #222 |
 | L-TYPES-072 | a zero-member enum | gap: NEW, rule: reject, issue #223 |
 | L-TYPES-074 | a variant of an enum that does not exist | gap: 3004, rule: reject, issue #223 |
-| L-TYPES-121 | an unsatisfied bound inside the body of a generic function, an operation the bound does not give | gap: NEW, rule: reject, issue #225 |
-| L-TYPES-123 | two overlapping implementation blocks of a generic and a concrete type | gap: 3012, rule: reject, issue #225 |
 | L-TYPES-147 | a for range with a bound of another type | gap: 3011, rule: reject, issue #222 |
 
 ## Namespaces and imports
@@ -1260,8 +1260,8 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | ownership | 65 | 55 | 25 |
 | parallel | 19 | 28 | 12 |
 | seed | 1 | 2 | 0 |
-| types | 60 | 123 | 13 |
-| total | 266 | 462 | 83 |
+| types | 60 | 125 | 11 |
+| total | 266 | 464 | 81 |
 
 ## Parity plan
 
@@ -1294,6 +1294,7 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 | 3043 | `sema` | [marea-sema.md](../sema/marea-sema.md), `NON_BOOLEAN_CONDITION` |
 | 3045-3046 | `sema` | [marea-sema.md](../sema/marea-sema.md), `RECURSIVE_TYPE` and `CYCLIC_TYPE_ALIAS` |
 | 3049-3050 | `sema` | [marea-sema.md](../sema/marea-sema.md), `UNKNOWN_TYPE_FUNCTION` and `OPERATOR_SIGNATURE_MISMATCH` |
+| 3051-3052 | `sema` | [marea-sema.md](../sema/marea-sema.md), `BOUND_OPERATION_NOT_GIVEN` and `OVERLAPPING_IMPLEMENTATION` |
 | 3053 | `sema` | [marea-sema.md](../sema/marea-sema.md), `FUNCTION_TYPE_MISMATCH` |
 | 3054 | `sema` | [marea-sema.md](../sema/marea-sema.md), `INVALID_RESULT_USE` |
 | 3055 | `sema` | [marea-sema.md](../sema/marea-sema.md), `CYCLIC_CONSTANT` |
@@ -1372,7 +1373,6 @@ Each rule is kept as a `known_gap` item with its issue, as reject codes, or as a
 | constant division by zero | reject items of 3034 |
 | shift count too large | reject items of 3035 |
 | cyclic constant | reject items of 3055 (L-COVERAGE-001) |
-| overlapping implementation | L-TYPES-123, issue #225 |
 | unreachable switch arm | reject items of 3025 (a repeated case) and 2010 (a default that is not last) |
 | import cycle | no item, issue #250 |
 | private access across namespaces | enforced by 3066, 3067 and 3068; no item, issue #250 |

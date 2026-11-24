@@ -371,3 +371,16 @@ TEST(MAREASemaTypesAndDeclarations, CyclicAliasIsRejected)
     EXPECT_EQ(MAREA_codesOf("type First = Second; type Second = First;"), (Codes{ CYCLIC, CYCLIC })) << "Two aliases that lead to each other must raise twice.";
     EXPECT_EQ(MAREA_codesOf("type Loop = Loop;"), Codes{ CYCLIC }) << "An alias of itself must raise once.";
 }
+
+TEST(MAREASemaTypesAndDeclarations, OverlappingImplementationIsRejected)
+{
+    GTEST_COUT << "Validating two implementation blocks that unify and share a member raise OVERLAPPING_IMPLEMENTATION." << std::endl;
+
+    constexpr MAREA_Uinteger32 OVERLAP{ MAREA_SEMA_DIAGNOSTIC_CODE_OVERLAPPING_IMPLEMENTATION };
+
+    const std::string BOX{ "structure Box<Item> item: Item; end " };
+
+    EXPECT_EQ(MAREA_codesOf(BOX + "implementation<Item> Box<Item> function same(self: Box<Item>): sinteger32 return 1; end end implementation Box<sinteger32> function same(self: Box<sinteger32>): sinteger32 return 2; end end"), Codes{ OVERLAP }) << "A generic block and a concrete block with one name must raise once.";
+    EXPECT_TRUE(MAREA_codesOf(BOX + "implementation<Item> Box<Item> function same(self: Box<Item>): sinteger32 return 1; end end implementation Box<sinteger32> function other(self: Box<sinteger32>): sinteger32 return 2; end end").empty()) << "Different member names must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf(BOX + "implementation Box<sinteger32> function same(self: Box<sinteger32>): sinteger32 return 1; end end implementation Box<float64> function same(self: Box<float64>): sinteger32 return 2; end end").empty()) << "Two blocks that do not unify must raise nothing.";
+}

@@ -683,7 +683,11 @@ TEST(MAREASemaExpressions, GenericParameterValueIsAKnownShapeNeverComparedWithAP
 
     const std::string HEAD{ "function f(a: sinteger32) end function g<Item>(v: Item, w: Item, s: string) " };
 
-    EXPECT_TRUE(MAREA_codesOf(HEAD + "f(v); local n: sinteger32 = copy v; local x: boolean = v == w; local y: sinteger32 = v << 1; local z: sinteger32 = v + 1; local m: sinteger32 = convert<sinteger32>(v); end").empty()) << "A generic parameter value must not be compared with a primitive.";
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "f(v); local n: sinteger32 = copy v; local m: sinteger32 = convert<sinteger32>(v); end").empty()) << "A generic parameter value must not be compared with a primitive.";
+
+    // INFO: an operator on a generic value is the definition rule 3051, and the shape rule 3011 does not see it.
+    EXPECT_EQ(MAREA_codesOf(HEAD + "local x: boolean = v == w; end"), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_BOUND_OPERATION_NOT_GIVEN }) << "An operator on a generic value must raise only BOUND_OPERATION_NOT_GIVEN.";
+    EXPECT_EQ(MAREA_codesOf(HEAD + "local z: sinteger32 = v + 1; end"), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_BOUND_OPERATION_NOT_GIVEN }) << "An operator with a generic side must raise only BOUND_OPERATION_NOT_GIVEN.";
 
     EXPECT_EQ(MAREA_codesOf(HEAD + "f(v); f(s); end"), Codes{ MISMATCH }) << "A generic parameter value must not hide a real mismatch next to it.";
 }
