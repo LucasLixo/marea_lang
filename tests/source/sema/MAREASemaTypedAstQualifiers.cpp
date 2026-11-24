@@ -115,7 +115,7 @@ namespace
         "#[visibility = public] function area(width: float64, height: float64): float64 return width * height; end\n"
         "#[visibility = public] function make(side: float64): Box return Box{ width = side }; end\n"
         "#[visibility = public] function identity<Item>(value: Item): Item return value; end\n"
-        "function hidden(): sinteger32 return 1; end\n";
+        "#[visibility = private] function hidden(): sinteger32 return 1; end\n";
 } // namespace
 
 TEST(MAREASemaTypedAstQualifiers, NullNodeIsNotAQualifier)
@@ -247,11 +247,11 @@ TEST(MAREASemaTypedAstQualifiers, ExternalNamespaceIsAQualifierAndItsMembersKeep
 
 TEST(MAREASemaTypedAstQualifiers, NameWithNoDeclarationBeforeAMemberIsAQualifier)
 {
-    GTEST_COUT << "Validating that a name with no declaration before a member is a qualifier, as sema takes it for a namespace." << std::endl;
+    GTEST_COUT << "Validating that a name that an import binds before a member is a qualifier." << std::endl;
 
     MAREA_QualifierFixture fixture;
 
-    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nfunction f(text: string) stdio.puts(text); end\n")) << "The source must check and build.";
+    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nimport c.stdio;\nfunction f(text: string) stdio.puts(text); end\n")) << "The source must check and build.";
 
     const MAREA_SemaTypedNode *member{ MAREA_nth(fixture, MAREA_AST_KIND_MEMBER_ACCESS, 0) };
 
@@ -329,9 +329,9 @@ TEST(MAREASemaTypedAstQualifiers, FoundNamespaceThroughAnAliasAndThroughAMemberI
     EXPECT_EQ(MAREA_typeOf(imported), "float64") << "A call of an imported function has the declared result.";
 }
 
-TEST(MAREASemaTypedAstQualifiers, FoundNamespaceMemberThatIsNotPublicHasNoType)
+TEST(MAREASemaTypedAstQualifiers, FoundNamespaceMemberThatIsPrivateIsRejectedBeforeTheTypedTree)
 {
-    GTEST_COUT << "Validating that a function of a FOUND namespace that is not public has no type." << std::endl;
+    GTEST_COUT << "Validating that a private function of a FOUND namespace is rejected, so the typed tree is never built for it." << std::endl;
 
     MAREA_QualifierFixture fixture;
 
@@ -339,9 +339,10 @@ TEST(MAREASemaTypedAstQualifiers, FoundNamespaceMemberThatIsNotPublicHasNoType)
                               "import lib.shapes;\n"
                               "function f(): sinteger32 return shapes.hidden(); end\n" };
 
-    ASSERT_TRUE(fixture.MAREA_build(SOURCE, { { "lib.shapes", MAREA_SHAPES } })) << "The source must check and build.";
+    // INFO: the checker raises PRIVATE_SYMBOL_ACCESS, and the typed tree is built only for a file with no error.
+    EXPECT_FALSE(fixture.MAREA_build(SOURCE, { { "lib.shapes", MAREA_SHAPES } })) << "A private member must not check clean, so no typed tree is built.";
 
-    EXPECT_EQ(MAREA_typeOf(MAREA_nth(fixture, MAREA_AST_KIND_CALL_EXPRESSION, 0)), "<none>") << "A symbol that the namespace does not export has no type.";
+    EXPECT_EQ(fixture.sema->MAREA_semaCodes(), std::vector<MAREA_Uinteger32>{ MAREA_SEMA_DIAGNOSTIC_CODE_PRIVATE_SYMBOL_ACCESS }) << "The only error must be PRIVATE_SYMBOL_ACCESS.";
 }
 
 TEST(MAREASemaTypedAstQualifiers, FoundNamespaceResultWrittenInThatFileIsQualified)

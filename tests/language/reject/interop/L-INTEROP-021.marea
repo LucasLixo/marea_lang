@@ -1,0 +1,11 @@
+-- expect: 3060 @10
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A call of a macro that the compiler does not define.
+
+namespace main;
+
+function check()
+    shout!("hello");
+end

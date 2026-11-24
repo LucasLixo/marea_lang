@@ -10,9 +10,7 @@ function name(letter: character): sinteger32
     switch letter
         case 'a' then
             return 1;
-        end
         default then
             return 0;
-        end
     end
 end

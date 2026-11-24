@@ -10,9 +10,7 @@ function name(value: sinteger32): sinteger32
     switch value
         case 1 then
             return "one";
-        end
         default then
             return 0;
-        end
     end
 end

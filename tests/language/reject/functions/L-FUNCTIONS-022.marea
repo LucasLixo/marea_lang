@@ -9,9 +9,7 @@ namespace main;
 function pick(value: sinteger32): sinteger32
     if value > 0 then
         return 1;
-    end
     elseif value < 0 then
         return -1;
-    end
     end
 end

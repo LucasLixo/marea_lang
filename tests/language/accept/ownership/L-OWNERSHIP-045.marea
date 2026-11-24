@@ -26,9 +26,7 @@ function check(): sinteger32
         case 1 then
             local second: Point = move first;
             return second.x;
-        end
         default then
-        end
     end
     local third: sinteger32 = first.x;
     return 1;

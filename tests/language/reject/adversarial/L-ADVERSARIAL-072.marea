@@ -1,0 +1,15 @@
+-- expect: 3065 @12
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- from: L-BINDINGS-036
+-- Mutant of L-BINDINGS-036: the initial value of a local computed from another is dropped.
+
+namespace main;
+
+function check(): sinteger32
+    local value: uinteger32 = 1;
+    local shifted: uinteger32;
+    return 1;
+end
+

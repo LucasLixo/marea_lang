@@ -9,8 +9,8 @@
 --   2. A function of C frees it. The owner calls it when its scope ends, in
 --      the reverse order of creation. No GC, no finalizer, no forgotten free.
 --   3. owned<T> is the only owner of a resource. It moves, it does not copy. A function that
---      only uses the resource takes it with the default write borrow (reference_mutable), or
---      reads it only with #[semantics = reference_read_only].
+--      only uses the resource reads it with the default read-only borrow, or writes it with
+--      #[semantics = reference_mutable].
 --   4. handle<T> is an integer (index and generation) for resources that a table of the engine
 --      owns. A stale handle is found at the use, not as a crash in the driver. owned<T> is for
 --      one resource of one scope, handle<T> is for a pool. Both exist.
@@ -46,12 +46,12 @@ function create_texture(info: TextureInfo): owned<Texture>
 end
 
 -- A function that only uses the resources: a write borrow and a read borrow.
-function present(swapchain: SwapChain, #[semantics = reference_read_only] texture: Texture)
+function present(#[semantics = reference_mutable] swapchain: SwapChain, #[semantics = reference_read_only] texture: Texture)
     vulkan.present(swapchain, texture);
 end
 
 -- Rule 6: a mapped buffer is a name that can not leave the block.
-function fill_texture(texture: Texture, color: uinteger32)
+function fill_texture(#[semantics = reference_mutable] texture: Texture, color: uinteger32)
     with vulkan.map_texture(texture) as pixels do
         for index in 0 .. slice.length(pixels) - 1 do
             pixels[index] = color;

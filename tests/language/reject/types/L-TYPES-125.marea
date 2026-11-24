@@ -1,0 +1,9 @@
+-- expect: 3046 @9
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A type alias of itself.
+
+namespace main;
+
+type Loop = Loop;

@@ -1,0 +1,16 @@
+-- expect: 3044 @15
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A struct literal with a field that the structure does not have.
+
+namespace main;
+
+structure Point
+    x: float64;
+    y: float64;
+end
+
+function make(): Point
+    return Point{ x = 1.0, y = 2.0, z = 3.0 };
+end

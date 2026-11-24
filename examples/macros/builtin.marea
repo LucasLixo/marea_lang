@@ -24,7 +24,8 @@
 --   include_text!(path)                 embeds a file as a string
 --   format!(text, values...)            builds a string. The caller becomes its owner.
 --   print!(text, values...)             writes a formatted text to the standard output
---   log!(level, text, values...)        print with file, line and level
+--   log!(level, text, values...)        print with file, line and level. The level is a bare name: trace,
+--                                       debug, info, warning or error
 --   line!()  file!()  namespace!()      place of the call, as constants
 
 namespace macros.builtin;
@@ -62,13 +63,10 @@ constant LOGO: c.array<uinteger8> = include_bytes!("images/logo.bin");
 function sign_name(value: sinteger32): string
     if value < 0 then
         return "negative";
-    end
     elseif value == 0 then
         return "zero";
-    end
     elseif value > 0 then
         return "positive";
-    end
     end
     unreachable!();
 end

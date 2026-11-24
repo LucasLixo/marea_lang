@@ -30,6 +30,5 @@ function check(): sinteger32
     if point.x == 1 then
         two_write(point, point);
     end
-    end
     return 1;
 end

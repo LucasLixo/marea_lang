@@ -1,0 +1,11 @@
+-- expect: 3051 @10
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An unsatisfied bound inside the body of a generic function, an operation the bound does not give.
+
+namespace main;
+
+function add<Item>(left: Item, right: Item): Item
+    return left + right;
+end

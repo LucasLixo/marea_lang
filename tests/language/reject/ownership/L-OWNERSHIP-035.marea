@@ -1,0 +1,24 @@
+-- expect: 3016 @22
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A library array assigned with no word (a library type has no copy or move check).
+
+namespace main;
+
+import c.array;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+structure Box
+    inner: Point;
+    count: sinteger32;
+end
+
+function check(#[semantics = reference_read_only] values: c.array<sinteger32>): sinteger32
+    local second: c.array<sinteger32> = values;
+    return 1;
+end

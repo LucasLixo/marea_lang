@@ -3,6 +3,8 @@
 
 #include "marea/internal/sema/MAREASemaInternal.h"
 
+#include <string.h>
+
 typedef enum MAREA_G_LifecycleKind
 {
     MAREA_G_LIFECYCLE_KIND_NONE = 0,
@@ -116,6 +118,141 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_ReportFunction(MAREA_SemaContext *con
     return MAREA_SemaReportNamed(context, code, MAREA_AstNodeGetPosition(function), prefix, name, length);
 }
 
+typedef struct MAREA_G_OperatorRule
+{
+    const MAREA_Character8 *token;
+    MAREA_IntegerSize minimum;
+    MAREA_IntegerSize maximum;
+    MAREA_Boolean needsResult;
+    MAREA_Boolean firstIsSelf;
+    MAREA_Boolean returnsBoolean;
+} MAREA_G_OperatorRule;
+
+#define MAREA_G_OPERATOR_UNBOUNDED MAREA_INTEGER_SIZE_MAXIMUM
+
+// INFO: the signature table of the operator tokens. Only the parameter count, the presence of a result, the type of the first parameter and a boolean result are fixed: every other type stays free.
+static const MAREA_G_OperatorRule MAREA_G_OPERATOR_RULES[] = {
+    { "+", 2, 2, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_FALSE },
+    { "-", 1, 2, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_FALSE },
+    { "*", 2, 2, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_FALSE },
+    { "/", 2, 2, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_FALSE },
+    { "%", 2, 2, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_FALSE },
+    { "**", 2, 2, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_FALSE },
+    { "+%", 2, 2, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_FALSE },
+    { "-%", 2, 2, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_FALSE },
+    { "*%", 2, 2, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_FALSE },
+    { "+|", 2, 2, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_FALSE },
+    { "-|", 2, 2, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_FALSE },
+    { "*|", 2, 2, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_FALSE },
+    { "&", 2, 2, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_FALSE },
+    { "|", 2, 2, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_FALSE },
+    { "^", 2, 2, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_FALSE },
+    { "<<", 2, 2, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_FALSE },
+    { ">>", 2, 2, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_FALSE },
+    { "==", 2, 2, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_TRUE },
+    { "!=", 2, 2, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_TRUE },
+    { "<", 2, 2, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_TRUE },
+    { "<=", 2, 2, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_TRUE },
+    { ">", 2, 2, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_TRUE },
+    { ">=", 2, 2, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_TRUE },
+    { "~", 1, 1, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_FALSE, MAREA_BOOLEAN_FALSE },
+    { "=", 2, 2, MAREA_BOOLEAN_FALSE, MAREA_BOOLEAN_FALSE, MAREA_BOOLEAN_FALSE },
+    { "+=", 2, 2, MAREA_BOOLEAN_FALSE, MAREA_BOOLEAN_FALSE, MAREA_BOOLEAN_FALSE },
+    { "-=", 2, 2, MAREA_BOOLEAN_FALSE, MAREA_BOOLEAN_FALSE, MAREA_BOOLEAN_FALSE },
+    { "*=", 2, 2, MAREA_BOOLEAN_FALSE, MAREA_BOOLEAN_FALSE, MAREA_BOOLEAN_FALSE },
+    { "/=", 2, 2, MAREA_BOOLEAN_FALSE, MAREA_BOOLEAN_FALSE, MAREA_BOOLEAN_FALSE },
+    { "%=", 2, 2, MAREA_BOOLEAN_FALSE, MAREA_BOOLEAN_FALSE, MAREA_BOOLEAN_FALSE },
+    { "**=", 2, 2, MAREA_BOOLEAN_FALSE, MAREA_BOOLEAN_FALSE, MAREA_BOOLEAN_FALSE },
+    { "<<=", 2, 2, MAREA_BOOLEAN_FALSE, MAREA_BOOLEAN_FALSE, MAREA_BOOLEAN_FALSE },
+    { ">>=", 2, 2, MAREA_BOOLEAN_FALSE, MAREA_BOOLEAN_FALSE, MAREA_BOOLEAN_FALSE },
+    { "&=", 2, 2, MAREA_BOOLEAN_FALSE, MAREA_BOOLEAN_FALSE, MAREA_BOOLEAN_FALSE },
+    { "|=", 2, 2, MAREA_BOOLEAN_FALSE, MAREA_BOOLEAN_FALSE, MAREA_BOOLEAN_FALSE },
+    { "^=", 2, 2, MAREA_BOOLEAN_FALSE, MAREA_BOOLEAN_FALSE, MAREA_BOOLEAN_FALSE },
+    { "[]", 2, MAREA_G_OPERATOR_UNBOUNDED, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_FALSE, MAREA_BOOLEAN_FALSE },
+    { "()", 1, MAREA_G_OPERATOR_UNBOUNDED, MAREA_BOOLEAN_FALSE, MAREA_BOOLEAN_FALSE, MAREA_BOOLEAN_FALSE },
+    { "convert", 1, 1, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_FALSE, MAREA_BOOLEAN_FALSE },
+};
+
+// INFO: the one plain name of a type node, or false for a path, a function type or a missing node.
+static MAREA_Boolean MAREA_CALL MAREA_G_PlainTypeName(const MAREA_AstNode *type, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength)
+{
+    if ((type == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(type) != MAREA_AST_KIND_NAMED_TYPE)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_AstNode *qualified = MAREA_G_FindChild(type, MAREA_AST_KIND_QUALIFIED_NAME);
+
+    if ((qualified == MAREA_NULLPTR) || (MAREA_AstNodeGetChildCount(qualified) != 1)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_AstNode *segment = MAREA_SemaChildAt(qualified, 0);
+
+    if (segment == MAREA_NULLPTR) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    *outText = MAREA_AstNodeGetText(segment);
+    *outLength = MAREA_AstNodeGetTextLength(segment);
+
+    return MAREA_BOOLEAN_TRUE;
+}
+
+static const MAREA_G_OperatorRule *MAREA_CALL MAREA_G_FindOperatorRule(const MAREA_AstNode *value)
+{
+    for (MAREA_IntegerSize index = 0; index < (sizeof(MAREA_G_OPERATOR_RULES) / sizeof(MAREA_G_OPERATOR_RULES[0])); ++index) {
+        const MAREA_G_OperatorRule *rule = &MAREA_G_OPERATOR_RULES[index];
+
+        if (MAREA_G_IsQuoted(value, rule->token, strlen(rule->token)) == MAREA_BOOLEAN_TRUE) {
+            return rule;
+        }
+    }
+
+    return MAREA_NULLPTR;
+}
+
+// INFO: an operator function in an implementation must fit the table above. A first parameter whose type is not one plain name, or is missing, is not judged.
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckOperatorSignature(MAREA_SemaContext *context, const MAREA_AstNode *function)
+{
+    const MAREA_AstNode *item = MAREA_SemaAttributeFind(MAREA_NULLPTR, function, "operator");
+
+    const MAREA_G_OperatorRule *rule = MAREA_G_FindOperatorRule(MAREA_SemaChildAt(item, 1));
+
+    if ((rule == MAREA_NULLPTR) || (context->implementation == MAREA_NULLPTR)) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_AstNode *parameters = MAREA_G_FindChild(function, MAREA_AST_KIND_PARAMETER_LIST);
+
+    const MAREA_IntegerSize COUNT = (parameters == MAREA_NULLPTR) ? 0 : MAREA_AstNodeGetChildCount(parameters);
+
+    const MAREA_AstNode *result = MAREA_SemaReturnType(function);
+
+    MAREA_Boolean bad = ((COUNT < rule->minimum) || (COUNT > rule->maximum) || ((rule->needsResult == MAREA_BOOLEAN_TRUE) && (result == MAREA_NULLPTR))) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+
+    const MAREA_Character8 *text = MAREA_NULLPTR;
+
+    MAREA_IntegerSize length = 0;
+
+    if ((bad == MAREA_BOOLEAN_FALSE) && (rule->returnsBoolean == MAREA_BOOLEAN_TRUE) && ((MAREA_G_PlainTypeName(result, &text, &length) == MAREA_BOOLEAN_FALSE) || (MAREA_SemaTextEquals(text, length, "boolean", 7) == MAREA_BOOLEAN_FALSE))) {
+        bad = MAREA_BOOLEAN_TRUE;
+    }
+
+    if ((bad == MAREA_BOOLEAN_FALSE) && (rule->firstIsSelf == MAREA_BOOLEAN_TRUE)) {
+        const MAREA_AstNode *implemented = MAREA_G_TypeName(context->implementation);
+
+        if ((implemented != MAREA_NULLPTR) && (MAREA_G_PlainTypeName(MAREA_SemaChildAt(MAREA_SemaChildAt(parameters, 0), 1), &text, &length) == MAREA_BOOLEAN_TRUE) && (MAREA_SemaTextEquals(text, length, "Self", 4) == MAREA_BOOLEAN_FALSE) && (MAREA_SemaTextEquals(text, length, MAREA_AstNodeGetText(implemented), MAREA_AstNodeGetTextLength(implemented)) == MAREA_BOOLEAN_FALSE)) {
+            bad = MAREA_BOOLEAN_TRUE;
+        }
+    }
+
+    if (bad == MAREA_BOOLEAN_FALSE) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    return MAREA_G_ReportFunction(context, MAREA_SEMA_DIAGNOSTIC_CODE_OPERATOR_SIGNATURE_MISMATCH, function, "operator signature does not fit its operator:");
+}
+
 MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckLifecycle(MAREA_SemaContext *context, const MAREA_AstNode *node)
 {
     if ((context == MAREA_NULLPTR) || (node == MAREA_NULLPTR)) {
@@ -125,7 +262,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckLifecycle(MAREA_SemaContext *context,
     const MAREA_G_LifecycleKind KIND = MAREA_G_KindOf(node);
 
     if (KIND == MAREA_G_LIFECYCLE_KIND_NONE) {
-        return MAREA_SEMA_EXCEPT_SUCCESS;
+        return ((MAREA_AstNodeGetKind(node) == MAREA_AST_KIND_FUNCTION_DECLARATION) && (context->implementation != MAREA_NULLPTR)) ? MAREA_G_CheckOperatorSignature(context, node) : MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
     const MAREA_AstNode *implementation = context->implementation;
@@ -238,6 +375,18 @@ const MAREA_AstNode *MAREA_CALL MAREA_SemaFindConstructOperator(const MAREA_Sema
     return MAREA_NULLPTR;
 }
 
+// INFO: the one plain name segment of an inferred type, or null for a path, a function type or an unknown type.
+static const MAREA_AstNode *MAREA_CALL MAREA_G_PlainTypeSegment(const MAREA_AstNode *type)
+{
+    if ((type == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(type) != MAREA_AST_KIND_NAMED_TYPE)) {
+        return MAREA_NULLPTR;
+    }
+
+    const MAREA_AstNode *qualified = MAREA_G_FindChild(type, MAREA_AST_KIND_QUALIFIED_NAME);
+
+    return ((qualified != MAREA_NULLPTR) && (MAREA_AstNodeGetChildCount(qualified) == 1)) ? MAREA_SemaChildAt(qualified, 0) : MAREA_NULLPTR;
+}
+
 MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckLifecycleCall(MAREA_SemaContext *context, const MAREA_AstNode *call)
 {
     if ((context == MAREA_NULLPTR) || (call == MAREA_NULLPTR)) {
@@ -274,6 +423,13 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckLifecycleCall(MAREA_SemaContext *cont
 
         if ((object != MAREA_NULLPTR) && (name != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(object) == MAREA_AST_KIND_IDENTIFIER) && (MAREA_SemaLocalFind(context, MAREA_AstNodeGetText(object), MAREA_AstNodeGetTextLength(object)) == MAREA_NULLPTR)) {
             direct = MAREA_G_HasLifecycleMember(context, object, name);
+        } else if ((object != MAREA_NULLPTR) && (name != MAREA_NULLPTR)) {
+            // INFO: a call on a value. Only a receiver whose inferred type is one plain name of this file is judged; any other receiver is never guessed.
+            const MAREA_AstNode *typeName = MAREA_G_PlainTypeSegment(MAREA_SemaInferType(context, object));
+
+            if (typeName != MAREA_NULLPTR) {
+                direct = MAREA_G_HasLifecycleMember(context, typeName, name);
+            }
         }
     }
 

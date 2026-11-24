@@ -13,6 +13,7 @@ namespace
     constexpr MAREA_Uinteger32 NON_EXHAUSTIVE{ MAREA_SEMA_DIAGNOSTIC_CODE_NON_EXHAUSTIVE_SWITCH };
     constexpr MAREA_Uinteger32 DUPLICATE_ARM{ MAREA_SEMA_DIAGNOSTIC_CODE_DUPLICATE_SWITCH_ARM };
     constexpr MAREA_Uinteger32 JUMP_OUTSIDE_LOOP{ MAREA_SEMA_DIAGNOSTIC_CODE_JUMP_OUTSIDE_LOOP };
+    constexpr MAREA_Uinteger32 COMPILE_TIME_ASSERTION_FAILED{ MAREA_SEMA_DIAGNOSTIC_CODE_COMPILE_TIME_ASSERTION_FAILED };
 
     const std::string COLOR{ "enum Color red; green; blue; end " };
 
@@ -32,32 +33,32 @@ TEST(MAREASemaControlFlow, EveryIfArmReturns)
 {
     GTEST_COUT << "Validating an if with every arm returning is a complete function." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("function f(a: boolean, b: boolean): sinteger32 if a then return 1; end elseif b then return 2; end else return 3; end end end").empty()) << "Every arm returning must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function f(a: boolean, b: boolean): sinteger32 if a then return 1; elseif b then return 2; else return 3; end end").empty()) << "Every arm returning must raise nothing.";
 }
 
 TEST(MAREASemaControlFlow, MissingReturnInOneArm)
 {
     GTEST_COUT << "Validating an if with an arm that does not return is missing a return." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf("function f(a: boolean): sinteger32 if a then return 1; end else local x: sinteger32 = 2; end end end"), Codes{ MISSING_RETURN }) << "A silent else arm must raise MISSING_RETURN.";
+    EXPECT_EQ(MAREA_codesOf("function f(a: boolean): sinteger32 if a then return 1; else local x: sinteger32 = 2; end end"), Codes{ MISSING_RETURN }) << "A silent else arm must raise MISSING_RETURN.";
 
-    EXPECT_EQ(MAREA_codesOf("function f(a: boolean): sinteger32 if a then return 1; end end end"), Codes{ MISSING_RETURN }) << "An if with no else must raise MISSING_RETURN.";
+    EXPECT_EQ(MAREA_codesOf("function f(a: boolean): sinteger32 if a then return 1; end end"), Codes{ MISSING_RETURN }) << "An if with no else must raise MISSING_RETURN.";
 
-    EXPECT_EQ(MAREA_codesOf("function f(a: boolean, b: boolean): sinteger32 if a then return 1; end elseif b then local x: sinteger32 = 2; end else return 3; end end end"), Codes{ MISSING_RETURN }) << "A silent elseif arm must raise MISSING_RETURN.";
+    EXPECT_EQ(MAREA_codesOf("function f(a: boolean, b: boolean): sinteger32 if a then return 1; elseif b then local x: sinteger32 = 2; else return 3; end end"), Codes{ MISSING_RETURN }) << "A silent elseif arm must raise MISSING_RETURN.";
 }
 
 TEST(MAREASemaControlFlow, ReturnAfterIfCompletes)
 {
     GTEST_COUT << "Validating a return after an if completes the function." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("function f(a: boolean): sinteger32 if a then return 1; end end return 2; end").empty()) << "A trailing return must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function f(a: boolean): sinteger32 if a then return 1; end return 2; end").empty()) << "A trailing return must raise nothing.";
 }
 
 TEST(MAREASemaControlFlow, FunctionWithoutReturnTypeNeedsNoReturn)
 {
     GTEST_COUT << "Validating a function with no return type needs no return." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("function f(a: boolean) if a then return; end end end").empty()) << "A function without a return type must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function f(a: boolean) if a then return; end end").empty()) << "A function without a return type must raise nothing.";
 }
 
 TEST(MAREASemaControlFlow, EmptyBodyIsMissingAReturn)
@@ -98,46 +99,46 @@ TEST(MAREASemaControlFlow, SwitchOverEnumCoveringEveryVariant)
 {
     GTEST_COUT << "Validating a switch over an enum that covers every variant is exhaustive." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf(COLOR + "function f(c: Color): sinteger32 switch c case Color.red then return 1; end case Color.green, Color.blue then return 2; end end end").empty()) << "A full switch with returning arms must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf(COLOR + "function f(c: Color): sinteger32 switch c case Color.red then return 1; case Color.green, Color.blue then return 2; end end").empty()) << "A full switch with returning arms must raise nothing.";
 }
 
 TEST(MAREASemaControlFlow, SwitchOverEnumMissingAVariant)
 {
     GTEST_COUT << "Validating a switch over an enum that misses a variant is not exhaustive." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf(COLOR + "function f(c: Color): sinteger32 switch c case Color.red then return 1; end case Color.green then return 2; end end end"), Codes{ NON_EXHAUSTIVE }) << "A missing variant must raise NON_EXHAUSTIVE_SWITCH.";
+    EXPECT_EQ(MAREA_codesOf(COLOR + "function f(c: Color): sinteger32 switch c case Color.red then return 1; case Color.green then return 2; end end"), Codes{ NON_EXHAUSTIVE }) << "A missing variant must raise NON_EXHAUSTIVE_SWITCH.";
 }
 
 TEST(MAREASemaControlFlow, DefaultArmCoversTheMissingVariant)
 {
     GTEST_COUT << "Validating a default arm makes a switch over an enum exhaustive." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf(COLOR + "function f(c: Color): sinteger32 switch c case Color.red then return 1; end default then return 2; end end end").empty()) << "A default arm must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf(COLOR + "function f(c: Color): sinteger32 switch c case Color.red then return 1; default then return 2; end end").empty()) << "A default arm must raise nothing.";
 }
 
 TEST(MAREASemaControlFlow, SwitchOverANonEnumIsExempt)
 {
     GTEST_COUT << "Validating a switch over a non-enum with only a default arm is accepted." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n default then return 1; end end end").empty()) << "A default-only switch must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n default then return 1; end end").empty()) << "A default-only switch must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("function f(n: sinteger32) switch n case 1 then return; end end end").empty()) << "A switch over an integer with no default must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function f(n: sinteger32) switch n case 1 then return; end end").empty()) << "A switch over an integer with no default must raise nothing.";
 
-    EXPECT_EQ(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n case 1 then return 1; end end end"), Codes{ MISSING_RETURN }) << "A switch over an integer with no default cannot complete a function.";
+    EXPECT_EQ(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n case 1 then return 1; end end"), Codes{ MISSING_RETURN }) << "A switch over an integer with no default cannot complete a function.";
 }
 
 TEST(MAREASemaControlFlow, SwitchArmThatDoesNotReturnIsMissingAReturn)
 {
     GTEST_COUT << "Validating a default switch with one silent arm is missing a return." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n case 1 then local x: sinteger32 = 1; end default then return 2; end end end"), Codes{ MISSING_RETURN }) << "A silent arm must raise MISSING_RETURN.";
+    EXPECT_EQ(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n case 1 then local x: sinteger32 = 1; default then return 2; end end"), Codes{ MISSING_RETURN }) << "A silent arm must raise MISSING_RETURN.";
 }
 
 TEST(MAREASemaControlFlow, UnknownScrutineeTypeIsExempt)
 {
     GTEST_COUT << "Validating a switch over a value of unknown type is not checked for exhaustiveness." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("function f(c: Unknown) switch c case Other.red then return; end end end").empty()) << "An unknown scrutinee must raise nothing from exhaustiveness.";
+    EXPECT_TRUE(MAREA_codesOf("function f(c: Unknown) switch c case Other.red then return; end end").empty()) << "An unknown scrutinee must raise nothing from exhaustiveness.";
 }
 
 TEST(MAREASemaControlFlow, ErrorNodeInBodyIsSkipped)
@@ -151,9 +152,10 @@ TEST(MAREASemaControlFlow, DivergingMacroEndsAPath)
 {
     GTEST_COUT << "Validating unreachable!() and compile_error!() end a path and other macros do not." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("function f(a: boolean): sinteger32 if a then return 1; end end unreachable!(); end").empty()) << "unreachable must end a path.";
+    EXPECT_TRUE(MAREA_codesOf("function f(a: boolean): sinteger32 if a then return 1; end unreachable!(); end").empty()) << "unreachable must end a path.";
 
-    EXPECT_TRUE(MAREA_codesOf("function f(): sinteger32 compile_error!(\"no\"); end").empty()) << "compile_error must end a path.";
+    // INFO: compile_error ends the path, so it raises COMPILE_TIME_ASSERTION_FAILED and never MISSING_RETURN.
+    EXPECT_EQ(MAREA_codesOf("function f(): sinteger32 compile_error!(\"no\"); end"), Codes{ COMPILE_TIME_ASSERTION_FAILED }) << "compile_error must end a path.";
 
     EXPECT_EQ(MAREA_codesOf("function f(): sinteger32 print!(\"x\"); end"), Codes{ MISSING_RETURN }) << "A printing macro must not end a path.";
 }
@@ -162,92 +164,92 @@ TEST(MAREASemaControlFlow, RepeatedDefaultArmIsRejected)
 {
     GTEST_COUT << "Validating a second default arm raises DUPLICATE_SWITCH_ARM once for each extra default." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n case 1 then return 1; end default then return 2; end default then return 3; end end end"), Codes{ DUPLICATE_ARM }) << "Two default arms must raise DUPLICATE_SWITCH_ARM.";
+    EXPECT_EQ(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n case 1 then return 1; default then return 2; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "Two default arms must raise DUPLICATE_SWITCH_ARM.";
 
-    EXPECT_EQ(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n default then return 1; end default then return 2; end default then return 3; end end end"), (Codes{ DUPLICATE_ARM, DUPLICATE_ARM })) << "Three default arms must raise two diagnostics.";
+    EXPECT_EQ(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n default then return 1; default then return 2; default then return 3; end end"), (Codes{ DUPLICATE_ARM, DUPLICATE_ARM })) << "Three default arms must raise two diagnostics.";
 
-    EXPECT_EQ(MAREA_codesOf(COLOR + "function f(c: Color): sinteger32 switch c default then return 1; end default then return 2; end end end"), Codes{ DUPLICATE_ARM }) << "A switch over an enum must also reject two default arms.";
+    EXPECT_EQ(MAREA_codesOf(COLOR + "function f(c: Color): sinteger32 switch c default then return 1; default then return 2; end end"), Codes{ DUPLICATE_ARM }) << "A switch over an enum must also reject two default arms.";
 
-    EXPECT_TRUE(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n case 1 then return 1; end default then return 2; end end end").empty()) << "One default arm must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n case 1 then return 1; default then return 2; end end").empty()) << "One default arm must raise nothing.";
 }
 
 TEST(MAREASemaControlFlow, DefaultArmBeforeACaseStaysAccepted)
 {
     GTEST_COUT << "Validating a default arm that is not last is not changed by the duplicate check." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n default then return 2; end case 1 then return 1; end end end").empty()) << "The place of the default arm is a parser rule and must raise nothing here.";
+    EXPECT_TRUE(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n default then return 2; case 1 then return 1; end end").empty()) << "The place of the default arm is a parser rule and must raise nothing here.";
 }
 
 TEST(MAREASemaControlFlow, RepeatedCaseValueIsRejected)
 {
     GTEST_COUT << "Validating a case value that appears again raises DUPLICATE_SWITCH_ARM." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n case 1 then return 1; end case 1 then return 2; end default then return 3; end end end"), Codes{ DUPLICATE_ARM }) << "The same integer in two arms must raise DUPLICATE_SWITCH_ARM.";
+    EXPECT_EQ(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n case 1 then return 1; case 1 then return 2; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "The same integer in two arms must raise DUPLICATE_SWITCH_ARM.";
 
-    EXPECT_EQ(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n case 1, 2, 1 then return 1; end default then return 3; end end end"), Codes{ DUPLICATE_ARM }) << "The same integer twice in one list must raise DUPLICATE_SWITCH_ARM.";
+    EXPECT_EQ(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n case 1, 2, 1 then return 1; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "The same integer twice in one list must raise DUPLICATE_SWITCH_ARM.";
 
-    EXPECT_EQ(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n case 1, 1 then return 1; end case 1 then return 2; end default then return 3; end end end"), (Codes{ DUPLICATE_ARM, DUPLICATE_ARM })) << "Each repeat must raise one diagnostic, not the first use.";
+    EXPECT_EQ(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n case 1, 1 then return 1; case 1 then return 2; default then return 3; end end"), (Codes{ DUPLICATE_ARM, DUPLICATE_ARM })) << "Each repeat must raise one diagnostic, not the first use.";
 
-    EXPECT_EQ(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n case -1 then return 1; end case -1 then return 2; end default then return 3; end end end"), Codes{ DUPLICATE_ARM }) << "A negative literal written twice must raise DUPLICATE_SWITCH_ARM.";
+    EXPECT_EQ(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n case -1 then return 1; case -1 then return 2; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "A negative literal written twice must raise DUPLICATE_SWITCH_ARM.";
 }
 
 TEST(MAREASemaControlFlow, RepeatedStringAndBooleanCaseValuesAreRejected)
 {
     GTEST_COUT << "Validating a repeated string, boolean or float value is rejected." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf("function f(s: string): sinteger32 switch s case \"a\" then return 1; end case \"a\" then return 2; end default then return 3; end end end"), Codes{ DUPLICATE_ARM }) << "A repeated string must raise DUPLICATE_SWITCH_ARM.";
+    EXPECT_EQ(MAREA_codesOf("function f(s: string): sinteger32 switch s case \"a\" then return 1; case \"a\" then return 2; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "A repeated string must raise DUPLICATE_SWITCH_ARM.";
 
-    EXPECT_EQ(MAREA_codesOf("function f(b: boolean): sinteger32 switch b case true then return 1; end case true then return 2; end default then return 3; end end end"), Codes{ DUPLICATE_ARM }) << "A repeated boolean must raise DUPLICATE_SWITCH_ARM.";
+    EXPECT_EQ(MAREA_codesOf("function f(b: boolean): sinteger32 switch b case true then return 1; case true then return 2; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "A repeated boolean must raise DUPLICATE_SWITCH_ARM.";
 
-    EXPECT_EQ(MAREA_codesOf("function f(x: float32): sinteger32 switch x case 1.5 then return 1; end case 1.5 then return 2; end default then return 3; end end end"), Codes{ DUPLICATE_ARM }) << "A repeated float must raise DUPLICATE_SWITCH_ARM.";
+    EXPECT_EQ(MAREA_codesOf("function f(x: float32): sinteger32 switch x case 1.5 then return 1; case 1.5 then return 2; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "A repeated float must raise DUPLICATE_SWITCH_ARM.";
 }
 
 TEST(MAREASemaControlFlow, RepeatedCharacterCaseValuesAreRejected)
 {
     GTEST_COUT << "Validating a repeated character value is rejected and distinct ones are accepted." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf("function f(c: character): sinteger32 switch c case 'a' then return 1; end case 'a' then return 2; end default then return 3; end end end"), Codes{ DUPLICATE_ARM }) << "A repeated character must raise DUPLICATE_SWITCH_ARM.";
+    EXPECT_EQ(MAREA_codesOf("function f(c: character): sinteger32 switch c case 'a' then return 1; case 'a' then return 2; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "A repeated character must raise DUPLICATE_SWITCH_ARM.";
 
-    EXPECT_TRUE(MAREA_codesOf("function f(c: character): sinteger32 switch c case 'a' then return 1; end case 'b' then return 2; end default then return 3; end end end").empty()) << "Distinct characters must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function f(c: character): sinteger32 switch c case 'a' then return 1; case 'b' then return 2; default then return 3; end end").empty()) << "Distinct characters must raise nothing.";
 }
 
 TEST(MAREASemaControlFlow, DistinctCaseValuesAreAccepted)
 {
     GTEST_COUT << "Validating distinct case values raise nothing, also when the kinds differ in text only." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n case 1, 2 then return 1; end case 3 then return 2; end default then return 4; end end end").empty()) << "Distinct integers must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n case 1, 2 then return 1; case 3 then return 2; default then return 4; end end").empty()) << "Distinct integers must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n case 1 then return 1; end case -1 then return 2; end default then return 3; end end end").empty()) << "A value and its negation are distinct.";
+    EXPECT_TRUE(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n case 1 then return 1; case -1 then return 2; default then return 3; end end").empty()) << "A value and its negation are distinct.";
 
-    EXPECT_TRUE(MAREA_codesOf("function f(s: string): sinteger32 switch s case \"1\" then return 1; end case \"2\" then return 2; end default then return 3; end end end").empty()) << "Distinct strings must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function f(s: string): sinteger32 switch s case \"1\" then return 1; case \"2\" then return 2; default then return 3; end end").empty()) << "Distinct strings must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n case a.LIMIT then return 1; end case b.LIMIT then return 2; end default then return 3; end end end").empty()) << "Two constants of different namespaces with one last name are distinct.";
+    EXPECT_TRUE(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n case a.LIMIT then return 1; case b.LIMIT then return 2; default then return 3; end end").empty()) << "Two constants of different namespaces with one last name are distinct.";
 }
 
 TEST(MAREASemaControlFlow, RepeatedConstantNameIsRejected)
 {
     GTEST_COUT << "Validating a constant name written twice in a switch over a non-enum is rejected." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n case LIMIT then return 1; end case LIMIT then return 2; end default then return 3; end end end"), Codes{ DUPLICATE_ARM }) << "A repeated bare constant name must raise DUPLICATE_SWITCH_ARM.";
+    EXPECT_EQ(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n case LIMIT then return 1; case LIMIT then return 2; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "A repeated bare constant name must raise DUPLICATE_SWITCH_ARM.";
 
-    EXPECT_EQ(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n case a.LIMIT then return 1; end case a.LIMIT then return 2; end default then return 3; end end end"), Codes{ DUPLICATE_ARM }) << "A repeated qualified constant name must raise DUPLICATE_SWITCH_ARM.";
+    EXPECT_EQ(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n case a.LIMIT then return 1; case a.LIMIT then return 2; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "A repeated qualified constant name must raise DUPLICATE_SWITCH_ARM.";
 }
 
 TEST(MAREASemaControlFlow, RepeatedIntegerValueInAnotherBaseIsRejected)
 {
     GTEST_COUT << "Validating two integer literals of one value in different spellings are the same case value." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n case 1, 0x1 then return 1; end default then return 3; end end end"), Codes{ DUPLICATE_ARM }) << "1 and 0x1 in one list must raise DUPLICATE_SWITCH_ARM.";
+    EXPECT_EQ(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n case 1, 0x1 then return 1; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "1 and 0x1 in one list must raise DUPLICATE_SWITCH_ARM.";
 
-    EXPECT_EQ(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n case 255 then return 1; end case 0xFF then return 2; end default then return 3; end end end"), Codes{ DUPLICATE_ARM }) << "255 and 0xFF across arms must raise DUPLICATE_SWITCH_ARM.";
+    EXPECT_EQ(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n case 255 then return 1; case 0xFF then return 2; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "255 and 0xFF across arms must raise DUPLICATE_SWITCH_ARM.";
 
-    EXPECT_EQ(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n case 5 then return 1; end case 0b101 then return 2; end default then return 3; end end end"), Codes{ DUPLICATE_ARM }) << "5 and 0b101 must raise DUPLICATE_SWITCH_ARM.";
+    EXPECT_EQ(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n case 5 then return 1; case 0b101 then return 2; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "5 and 0b101 must raise DUPLICATE_SWITCH_ARM.";
 
-    EXPECT_EQ(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n case 1_000 then return 1; end case 1000 then return 2; end default then return 3; end end end"), Codes{ DUPLICATE_ARM }) << "A digit separator must not change the value.";
+    EXPECT_EQ(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n case 1_000 then return 1; case 1000 then return 2; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "A digit separator must not change the value.";
 
-    EXPECT_EQ(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n case -1 then return 1; end case -0x1 then return 2; end default then return 3; end end end"), Codes{ DUPLICATE_ARM }) << "A negated literal must be compared by value.";
+    EXPECT_EQ(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n case -1 then return 1; case -0x1 then return 2; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "A negated literal must be compared by value.";
 
-    EXPECT_TRUE(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n case 1 then return 1; end case 0x2 then return 2; end case -0x1 then return 4; end default then return 3; end end end").empty()) << "Literals of different values must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function f(n: sinteger32): sinteger32 switch n case 1 then return 1; case 0x2 then return 2; case -0x1 then return 4; default then return 3; end end").empty()) << "Literals of different values must raise nothing.";
 }
 
 TEST(MAREASemaControlFlow, ConstantAndItsLiteralAreTheSameCaseValue)
@@ -256,70 +258,70 @@ TEST(MAREASemaControlFlow, ConstantAndItsLiteralAreTheSameCaseValue)
 
     const std::string MAX{ "constant MAX: sinteger32 = 100; " };
 
-    EXPECT_EQ(MAREA_codesOf(MAX + "function f(n: sinteger32): sinteger32 switch n case MAX then return 1; end case 100 then return 2; end default then return 3; end end end"), Codes{ DUPLICATE_ARM }) << "A constant, then its literal, must raise DUPLICATE_SWITCH_ARM.";
+    EXPECT_EQ(MAREA_codesOf(MAX + "function f(n: sinteger32): sinteger32 switch n case MAX then return 1; case 100 then return 2; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "A constant, then its literal, must raise DUPLICATE_SWITCH_ARM.";
 
-    EXPECT_EQ(MAREA_codesOf(MAX + "function f(n: sinteger32): sinteger32 switch n case 0x64 then return 1; end case MAX then return 2; end default then return 3; end end end"), Codes{ DUPLICATE_ARM }) << "A literal in another base, then the constant, must raise DUPLICATE_SWITCH_ARM.";
+    EXPECT_EQ(MAREA_codesOf(MAX + "function f(n: sinteger32): sinteger32 switch n case 0x64 then return 1; case MAX then return 2; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "A literal in another base, then the constant, must raise DUPLICATE_SWITCH_ARM.";
 
-    EXPECT_EQ(MAREA_codesOf("constant A: sinteger32 = 7; constant B: sinteger32 = A; function f(n: sinteger32): sinteger32 switch n case B then return 1; end case 7 then return 2; end default then return 3; end end end"), Codes{ DUPLICATE_ARM }) << "A constant built from another constant must be followed.";
+    EXPECT_EQ(MAREA_codesOf("constant A: sinteger32 = 7; constant B: sinteger32 = A; function f(n: sinteger32): sinteger32 switch n case B then return 1; case 7 then return 2; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "A constant built from another constant must be followed.";
 
-    EXPECT_EQ(MAREA_codesOf("constant A: sinteger32 = 7; constant B: sinteger32 = 7; function f(n: sinteger32): sinteger32 switch n case A then return 1; end case B then return 2; end default then return 3; end end end"), Codes{ DUPLICATE_ARM }) << "Two constants of one value must raise DUPLICATE_SWITCH_ARM.";
+    EXPECT_EQ(MAREA_codesOf("constant A: sinteger32 = 7; constant B: sinteger32 = 7; function f(n: sinteger32): sinteger32 switch n case A then return 1; case B then return 2; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "Two constants of one value must raise DUPLICATE_SWITCH_ARM.";
 
-    EXPECT_EQ(MAREA_codesOf("constant NAME: string = \"a\"; function f(s: string): sinteger32 switch s case NAME then return 1; end case \"a\" then return 2; end default then return 3; end end end"), Codes{ DUPLICATE_ARM }) << "A string constant and its literal must raise DUPLICATE_SWITCH_ARM.";
+    EXPECT_EQ(MAREA_codesOf("constant NAME: string = \"a\"; function f(s: string): sinteger32 switch s case NAME then return 1; case \"a\" then return 2; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "A string constant and its literal must raise DUPLICATE_SWITCH_ARM.";
 
-    EXPECT_TRUE(MAREA_codesOf(MAX + "function f(n: sinteger32): sinteger32 switch n case MAX then return 1; end case 101 then return 2; end default then return 3; end end end").empty()) << "A constant and another literal must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf(MAX + "function f(n: sinteger32): sinteger32 switch n case MAX then return 1; case 101 then return 2; default then return 3; end end").empty()) << "A constant and another literal must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf(MAX + "function f(MAX: sinteger32): sinteger32 switch MAX case MAX then return 1; end case 100 then return 2; end default then return 3; end end end").empty()) << "A local that hides the constant must not be resolved to it.";
+    EXPECT_TRUE(MAREA_codesOf(MAX + "function f(MAX: sinteger32): sinteger32 switch MAX case MAX then return 1; case 100 then return 2; default then return 3; end end").empty()) << "A local that hides the constant must not be resolved to it.";
 
-    EXPECT_TRUE(MAREA_codesOf("constant A: sinteger32 = B; constant B: sinteger32 = A; function f(n: sinteger32): sinteger32 switch n case A then return 1; end case 1 then return 2; end default then return 3; end end end").empty()) << "A cycle of constants must end without a false repeat.";
+    EXPECT_EQ(MAREA_codesOf("constant A: sinteger32 = B; constant B: sinteger32 = A; function f(n: sinteger32): sinteger32 switch n case A then return 1; case 1 then return 2; default then return 3; end end"), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_CYCLIC_CONSTANT }) << "A cycle of constants must end without a false repeat and raise only CYCLIC_CONSTANT.";
 }
 
 TEST(MAREASemaControlFlow, QualifiedNamesAreNotResolvedToAConstantOfTheLastName)
 {
     GTEST_COUT << "Validating a qualified name is compared by its path, never by a constant that shares its last name." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("constant LIMIT: sinteger32 = 5; function f(n: sinteger32): sinteger32 switch n case a.LIMIT then return 1; end case b.LIMIT then return 2; end default then return 3; end end end").empty()) << "a.LIMIT and b.LIMIT must stay distinct when the file has its own LIMIT.";
+    EXPECT_TRUE(MAREA_codesOf("constant LIMIT: sinteger32 = 5; function f(n: sinteger32): sinteger32 switch n case a.LIMIT then return 1; case b.LIMIT then return 2; default then return 3; end end").empty()) << "a.LIMIT and b.LIMIT must stay distinct when the file has its own LIMIT.";
 
-    EXPECT_TRUE(MAREA_codesOf("constant LIMIT: sinteger32 = 5; constant MAX: sinteger32 = 5; function f(n: sinteger32): sinteger32 switch n case a.LIMIT then return 1; end case a.MAX then return 2; end default then return 3; end end end").empty()) << "a.LIMIT and a.MAX must stay distinct even when the file has constants LIMIT and MAX of one value.";
+    EXPECT_TRUE(MAREA_codesOf("constant LIMIT: sinteger32 = 5; constant MAX: sinteger32 = 5; function f(n: sinteger32): sinteger32 switch n case a.LIMIT then return 1; case a.MAX then return 2; default then return 3; end end").empty()) << "a.LIMIT and a.MAX must stay distinct even when the file has constants LIMIT and MAX of one value.";
 
-    EXPECT_EQ(MAREA_codesOf("constant LIMIT: sinteger32 = 5; function f(n: sinteger32): sinteger32 switch n case a.LIMIT then return 1; end case a.LIMIT then return 2; end default then return 3; end end end"), Codes{ DUPLICATE_ARM }) << "A repeated qualified name must still raise DUPLICATE_SWITCH_ARM.";
+    EXPECT_EQ(MAREA_codesOf("constant LIMIT: sinteger32 = 5; function f(n: sinteger32): sinteger32 switch n case a.LIMIT then return 1; case a.LIMIT then return 2; default then return 3; end end"), Codes{ DUPLICATE_ARM }) << "A repeated qualified name must still raise DUPLICATE_SWITCH_ARM.";
 }
 
 TEST(MAREASemaControlFlow, RepeatedEnumVariantIsRejected)
 {
     GTEST_COUT << "Validating an enum variant that appears again raises DUPLICATE_SWITCH_ARM." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf(COLOR + "function f(c: Color): sinteger32 switch c case Color.red then return 1; end case Color.red then return 2; end case Color.green, Color.blue then return 3; end end end"), Codes{ DUPLICATE_ARM }) << "The same variant in two arms must raise DUPLICATE_SWITCH_ARM.";
+    EXPECT_EQ(MAREA_codesOf(COLOR + "function f(c: Color): sinteger32 switch c case Color.red then return 1; case Color.red then return 2; case Color.green, Color.blue then return 3; end end"), Codes{ DUPLICATE_ARM }) << "The same variant in two arms must raise DUPLICATE_SWITCH_ARM.";
 
-    EXPECT_EQ(MAREA_codesOf(COLOR + "function f(c: Color): sinteger32 switch c case Color.red, Color.red then return 1; end case Color.green, Color.blue then return 3; end end end"), Codes{ DUPLICATE_ARM }) << "The same variant twice in one list must raise DUPLICATE_SWITCH_ARM.";
+    EXPECT_EQ(MAREA_codesOf(COLOR + "function f(c: Color): sinteger32 switch c case Color.red, Color.red then return 1; case Color.green, Color.blue then return 3; end end"), Codes{ DUPLICATE_ARM }) << "The same variant twice in one list must raise DUPLICATE_SWITCH_ARM.";
 
-    EXPECT_EQ(MAREA_codesOf(COLOR + "function f(c: Color): sinteger32 switch c case red then return 1; end case Color.red then return 2; end case green, blue then return 3; end end end"), Codes{ DUPLICATE_ARM }) << "A bare and a qualified name of one variant must raise DUPLICATE_SWITCH_ARM.";
+    EXPECT_EQ(MAREA_codesOf(COLOR + "function f(c: Color): sinteger32 switch c case red then return 1; case Color.red then return 2; case green, blue then return 3; end end"), Codes{ DUPLICATE_ARM }) << "A bare and a qualified name of one variant must raise DUPLICATE_SWITCH_ARM.";
 
-    EXPECT_TRUE(MAREA_codesOf(COLOR + "function f(c: Color): sinteger32 switch c case Color.red then return 1; end case Color.green then return 2; end case Color.blue then return 3; end end end").empty()) << "Each variant once must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf(COLOR + "function f(c: Color): sinteger32 switch c case Color.red then return 1; case Color.green then return 2; case Color.blue then return 3; end end").empty()) << "Each variant once must raise nothing.";
 }
 
 TEST(MAREASemaControlFlow, RepeatedVariantAndMissingVariantRaiseBoth)
 {
     GTEST_COUT << "Validating a repeat does not hide the exhaustiveness check." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf(COLOR + "function f(c: Color): sinteger32 switch c case Color.red then return 1; end case Color.red then return 2; end case Color.green then return 3; end end end"), (Codes{ DUPLICATE_ARM, NON_EXHAUSTIVE })) << "A repeat and a missing variant must both be reported.";
+    EXPECT_EQ(MAREA_codesOf(COLOR + "function f(c: Color): sinteger32 switch c case Color.red then return 1; case Color.red then return 2; case Color.green then return 3; end end"), (Codes{ DUPLICATE_ARM, NON_EXHAUSTIVE })) << "A repeat and a missing variant must both be reported.";
 
-    EXPECT_EQ(MAREA_codesOf(COLOR + "function f(c: Color): sinteger32 switch c case Color.red then return 1; end case Color.green then return 2; end end end"), Codes{ NON_EXHAUSTIVE }) << "A missing variant alone must still raise NON_EXHAUSTIVE_SWITCH only.";
+    EXPECT_EQ(MAREA_codesOf(COLOR + "function f(c: Color): sinteger32 switch c case Color.red then return 1; case Color.green then return 2; end end"), Codes{ NON_EXHAUSTIVE }) << "A missing variant alone must still raise NON_EXHAUSTIVE_SWITCH only.";
 }
 
 TEST(MAREASemaControlFlow, NestedSwitchesKeepTheirOwnArms)
 {
     GTEST_COUT << "Validating an inner switch does not share arms with the outer switch." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("function f(a: sinteger32, b: sinteger32) switch a case 1 then switch b case 1 then return; end default then return; end end end default then return; end end end").empty()) << "One value and one default in each of two switches must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function f(a: sinteger32, b: sinteger32) switch a case 1 then switch b case 1 then return; default then return; end default then return; end end").empty()) << "One value and one default in each of two switches must raise nothing.";
 
-    EXPECT_EQ(MAREA_codesOf("function f(a: sinteger32, b: sinteger32) switch a case 1 then switch b case 2 then return; end case 2 then return; end end end default then return; end end end"), Codes{ DUPLICATE_ARM }) << "A repeat inside the inner switch must raise one diagnostic.";
+    EXPECT_EQ(MAREA_codesOf("function f(a: sinteger32, b: sinteger32) switch a case 1 then switch b case 2 then return; case 2 then return; end default then return; end end"), Codes{ DUPLICATE_ARM }) << "A repeat inside the inner switch must raise one diagnostic.";
 }
 
 TEST(MAREASemaControlFlow, BrokenCaseValuesAreNotCompared)
 {
     GTEST_COUT << "Validating two broken case values are not taken for a repeat." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("function f(n: sinteger32) switch n case ), ) then return; end end end").empty()) << "Two error nodes must raise no sema diagnostic.";
+    EXPECT_TRUE(MAREA_codesOf("function f(n: sinteger32) switch n case ), ) then return; end end").empty()) << "Two error nodes must raise no sema diagnostic.";
 }
 
 TEST(MAREASemaControlFlow, BreakOrContinueWithNoEnclosingLoopIsRejected)
@@ -330,7 +332,7 @@ TEST(MAREASemaControlFlow, BreakOrContinueWithNoEnclosingLoopIsRejected)
 
     EXPECT_EQ(MAREA_codesOf("function f() continue; end"), Codes{ JUMP_OUTSIDE_LOOP }) << "A bare continue at function top level must raise JUMP_OUTSIDE_LOOP.";
 
-    EXPECT_EQ(MAREA_codesOf("function f(a: boolean) if a then break; end end end"), Codes{ JUMP_OUTSIDE_LOOP }) << "A break inside an if with no enclosing loop must raise JUMP_OUTSIDE_LOOP.";
+    EXPECT_EQ(MAREA_codesOf("function f(a: boolean) if a then break; end end"), Codes{ JUMP_OUTSIDE_LOOP }) << "A break inside an if with no enclosing loop must raise JUMP_OUTSIDE_LOOP.";
 
     EXPECT_EQ(MAREA_codesOf("function f(a: sinteger32) with a as view do continue; end end"), Codes{ JUMP_OUTSIDE_LOOP }) << "A continue inside a with with no enclosing loop must raise JUMP_OUTSIDE_LOOP.";
 }
@@ -359,7 +361,7 @@ TEST(MAREASemaControlFlow, RepeatedArmIsReportedAtTheRepeat)
 
     const std::string PREFIX{ "namespace main; function f(n: sinteger32) switch n " };
 
-    const std::string DEFAULT_SOURCE{ PREFIX + "default then return; end default then return; end end end" };
+    const std::string DEFAULT_SOURCE{ PREFIX + "default then return; default then return; end end" };
 
     MAREA_SemaFixture defaultFixture([](const std::string &, const MAREA_AstNode **) { return MAREA_SEMA_IMPORT_RESULT_EXTERNAL; });
 
@@ -371,7 +373,7 @@ TEST(MAREASemaControlFlow, RepeatedArmIsReportedAtTheRepeat)
 
     EXPECT_EQ(defaultFixture.parser.MAREA_offsets()[1], DEFAULT_SOURCE.rfind("default")) << "The sema diagnostic must also sit on the second default arm.";
 
-    const std::string CASE_SOURCE{ PREFIX + "case 7 then return; end case 8, 7 then return; end end end" };
+    const std::string CASE_SOURCE{ PREFIX + "case 7 then return; case 8, 7 then return; end end" };
 
     MAREA_SemaFixture caseFixture([](const std::string &, const MAREA_AstNode **) { return MAREA_SEMA_IMPORT_RESULT_EXTERNAL; });
 
@@ -396,11 +398,11 @@ TEST(MAREASemaControlFlow, SwitchOverAnImportedEnumChecksCoverage)
         return (name == "a.b") ? MAREA_SEMA_IMPORT_RESULT_FOUND : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
     };
 
-    const std::string PARTIAL{ "function f(c: Color): sinteger32 switch c case Color.red then return 1; end case Color.green then return 2; end end end" };
+    const std::string PARTIAL{ "function f(c: Color): sinteger32 switch c case Color.red then return 1; case Color.green then return 2; end end" };
 
-    const std::string FULL{ "function f(c: Color): sinteger32 switch c case Color.red then return 1; end case Color.green then return 2; end case Color.blue then return 3; end end end" };
+    const std::string FULL{ "function f(c: Color): sinteger32 switch c case Color.red then return 1; case Color.green then return 2; case Color.blue then return 3; end end" };
 
-    const std::string DEFAULTED{ "function f(c: Color): sinteger32 switch c case Color.red then return 1; end default then return 2; end end end" };
+    const std::string DEFAULTED{ "function f(c: Color): sinteger32 switch c case Color.red then return 1; default then return 2; end end" };
 
     MAREA_SemaFixture member(RESOLVE);
 
@@ -441,7 +443,7 @@ TEST(MAREASemaControlFlow, SwitchOverAnAliasedImportedEnumChecksCoverage)
         return (name == "a.b") ? MAREA_SEMA_IMPORT_RESULT_FOUND : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
     });
 
-    ASSERT_EQ(fixture.MAREA_sema("namespace main; import a.b { Color as Hue }; function g(h: Hue): sinteger32 switch h case Hue.red then return 1; end end end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; import a.b { Color as Hue }; function g(h: Hue): sinteger32 switch h case Hue.red then return 1; end end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
 
     EXPECT_EQ(fixture.MAREA_semaCodes(), Codes{ NON_EXHAUSTIVE }) << "A missing variant behind an alias must raise NON_EXHAUSTIVE_SWITCH.";
 }
@@ -452,7 +454,7 @@ TEST(MAREASemaControlFlow, SwitchOverAnExternalEnumIsStillExempt)
 
     MAREA_SemaFixture fixture([](const std::string &, const MAREA_AstNode **) { return MAREA_SEMA_IMPORT_RESULT_EXTERNAL; });
 
-    ASSERT_EQ(fixture.MAREA_sema("namespace main; import a.b { Color }; function f(c: Color): sinteger32 switch c case Color.red then return 1; end end end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; import a.b { Color }; function f(c: Color): sinteger32 switch c case Color.red then return 1; end end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
 
     EXPECT_TRUE(fixture.MAREA_semaCodes().empty()) << "An external type has no tree, so it must raise nothing.";
 }

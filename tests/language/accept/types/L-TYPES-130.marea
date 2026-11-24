@@ -13,7 +13,6 @@ function run(): sinteger32
         if index < 3 then
             continue;
         end
-        end
         break;
     end
     return index;

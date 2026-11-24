@@ -1,0 +1,28 @@
+-- expect: 3065 @20
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A local is assigned in one arm of switch only and then read.
+
+namespace main;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+structure Box
+    inner: Point;
+    count: sinteger32;
+end
+
+function check(selector: sinteger32): sinteger32
+    local value: sinteger32;
+    switch selector
+        case 1 then
+            value = 1;
+        default then
+    end
+    local copy_of: sinteger32 = value;
+    return 1;
+end

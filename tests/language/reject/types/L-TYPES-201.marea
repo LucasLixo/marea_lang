@@ -8,4 +8,5 @@ namespace main;
 
 enum Color
     switch;
+    Red;
 end

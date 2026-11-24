@@ -16,12 +16,9 @@ function name(color: Color): sinteger32
     switch color
         case Color.Red then
             return 1;
-        end
         case Color.Green then
             return 2;
-        end
         case Color.Blue then
             return 3;
-        end
     end
 end
