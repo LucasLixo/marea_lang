@@ -487,6 +487,14 @@ primitive type other than `boolean`, or a number, string or character literal, i
 at the condition once. `true`, `false`, a comparison, `and`, `or`, `not` and a `boolean` name pass. A `switch` subject and
 an expression statement are not conditions and are not checked.
 
+**Recursive type and cyclic alias.** `MAREA_SemaCheckDeclarations` runs two passes over the top-level declarations,
+the alias pass first. A `type` alias that leads back to itself through other aliases is `CYCLIC_TYPE_ALIAS` (3046),
+reported once for each alias on the cycle, at the alias. A structure or enum that holds itself by value, directly or
+through other structures, enums, aliases and the element of `array<T, N>`, is `RECURSIVE_TYPE` (3045), reported once for
+each such declaration, at the field or variant field that holds the path back. `owned`, `vector`, `pointer`, `slice`,
+`task` and a function type are indirect and raise nothing. Both walks read the name table only, so a type of another
+file is skipped, and both are bounded by the number of declarations of the file.
+
 **No implicit numeric conversion (decision of the user, by the rules of Rust).** A calculation never converts a
 number by itself: the two operands of an arithmetic or a comparison operator have the same primitive type, and
 `**` follows the same rule as `+`. An integer base with a float exponent is `TYPE_MISMATCH` (Rust `pow` against
@@ -806,6 +814,8 @@ or rejects.
 | 3040 | `ASSIGNMENT_TO_CONSTANT` | `LIMIT = 11;`, `LIMIT += 1;`, `ORIGIN.x = 1;`, `TABLE[0] = 1;` when the root name is a file constant and no local hides it |
 | 3041 | `RAW_POINTER_OUTSIDE_UNSAFE` | `local raw: pointer<sinteger32> = f();` with no `unsafe ... end` block around it, at any depth of nesting |
 | 3043 | `NON_BOOLEAN_CONDITION` | `if n then`, `elseif s then`, `while 1 do` when the condition has a known primitive type that is not `boolean`, or is a number, string or character literal |
+| 3045 | `RECURSIVE_TYPE` | `structure Node next: Node; end` |
+| 3046 | `CYCLIC_TYPE_ALIAS` | `type First = Second; type Second = First;` |
 | 3049 | `UNKNOWN_TYPE_FUNCTION` | `point.length()` or `Point.origin()` when no `implementation` of `Point` declares it |
 | 3050 | `OPERATOR_SIGNATURE_MISMATCH` | `#[operator = "+"] function add(self: Point): sinteger32` |
 | 3053 | `FUNCTION_TYPE_MISMATCH` | `apply(negate)` when `negate` takes one parameter and the function type takes two |
@@ -893,6 +903,8 @@ or rejects.
   both fit any target.
 - `RAW_POINTER_OUTSIDE_UNSAFE` (3041) checks only a `local` whose type is spelled `pointer<T>`. A `pointer` in a
   parameter, a return type or a structure field is not checked (issue #190), and a type alias of a pointer is not resolved.
+- `RECURSIVE_TYPE` (3045) does not follow a user generic structure given as `Box<Node>`: its field types are written in
+  its own scope, so a recursion through it is not seen.
 - `NON_BOOLEAN_CONDITION` (3043) judges only a literal and a primitive that sema knows. A condition of an unknown type
   (a call, a generic value, a field of an imported type) raises nothing.
 - `LITERAL_OUT_OF_RANGE` (3033) reads only a written integer literal. A float literal, a literal in an operand

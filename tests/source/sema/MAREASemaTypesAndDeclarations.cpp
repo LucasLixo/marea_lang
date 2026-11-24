@@ -336,3 +336,38 @@ TEST(MAREASemaTypesAndDeclarations, OpaqueTypeHeldByValueInAFieldRaisesOpaqueFie
 
     EXPECT_TRUE(MAREA_codesOf("structure H t: c.math.Vector3; end").empty()) << "A type of another file is not checked.";
 }
+
+TEST(MAREASemaTypesAndDeclarations, StructureHoldingItselfByValueIsRecursiveType)
+{
+    GTEST_COUT << "Validating a structure or enum that holds itself by value raises RECURSIVE_TYPE." << std::endl;
+
+    constexpr MAREA_Uinteger32 RECURSIVE{ MAREA_SEMA_DIAGNOSTIC_CODE_RECURSIVE_TYPE };
+
+    EXPECT_EQ(MAREA_codesOf("structure Node next: Node; end"), Codes{ RECURSIVE }) << "A direct self field must raise once.";
+    EXPECT_EQ(MAREA_codesOf("structure Left other: Right; end structure Right other: Left; end"), (Codes{ RECURSIVE, RECURSIVE })) << "Two structures that hold each other must raise once each.";
+    EXPECT_EQ(MAREA_codesOf("structure A items: array<A, 2>; end"), Codes{ RECURSIVE }) << "An array holds its element inline.";
+    EXPECT_EQ(MAREA_codesOf("type Same = Node; structure Node next: Same; end"), Codes{ RECURSIVE }) << "An alias must be followed.";
+    EXPECT_EQ(MAREA_codesOf("enum Tree Leaf; Branch(inner: Tree); end"), Codes{ RECURSIVE }) << "A variant field that holds the enum by value must raise.";
+}
+
+TEST(MAREASemaTypesAndDeclarations, IndirectSelfReferenceIsAccepted)
+{
+    GTEST_COUT << "Validating an indirect self reference and a plain nesting raise nothing." << std::endl;
+
+    for (const char *wrapper : { "owned", "vector", "pointer", "slice" }) {
+        EXPECT_TRUE(MAREA_codesOf(std::string("structure Node next: ") + wrapper + "<Node>; end").empty()) << "The wrapper " << wrapper << " is indirect.";
+    }
+
+    EXPECT_TRUE(MAREA_codesOf("type A = sinteger32; type B = A;").empty()) << "A chain of aliases that ends must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("structure Outer inner: Inner; end structure Inner x: sinteger32; end").empty()) << "A later declaration is fine.";
+}
+
+TEST(MAREASemaTypesAndDeclarations, CyclicAliasIsRejected)
+{
+    GTEST_COUT << "Validating a cyclic type alias raises CYCLIC_TYPE_ALIAS once per alias on the cycle." << std::endl;
+
+    constexpr MAREA_Uinteger32 CYCLIC{ MAREA_SEMA_DIAGNOSTIC_CODE_CYCLIC_TYPE_ALIAS };
+
+    EXPECT_EQ(MAREA_codesOf("type First = Second; type Second = First;"), (Codes{ CYCLIC, CYCLIC })) << "Two aliases that lead to each other must raise twice.";
+    EXPECT_EQ(MAREA_codesOf("type Loop = Loop;"), Codes{ CYCLIC }) << "An alias of itself must raise once.";
+}
