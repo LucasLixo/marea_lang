@@ -92,7 +92,8 @@ TEST(MAREAIrExpressions, NestedStructLiteralLowersItsValues)
     EXPECT_EQ(MAREA_lowerInitializer(POINT + "structure Line start: Point; end ", "Line", "Line{ start = Point{ x = 1, y = 2 } }"), "(LITERAL_VALUE :Line (FIELD_ENTRY start (LITERAL_VALUE :Point (FIELD_ENTRY x (INTEGER_LITERAL 1)) (FIELD_ENTRY y (INTEGER_LITERAL 2)))))") << "The nested literal must be lowered.";
 }
 
-TEST(MAREAIrExpressions, StructLiteralFieldTheSourceOmittedIsZero)
+// DISABLED: an omitted field is now MISSING_FIELD (3077); the ir ZERO_VALUE for fields is dead until the follow-up apply removes it
+TEST(MAREAIrExpressions, DISABLED_StructLiteralFieldTheSourceOmittedIsZero)
 {
     GTEST_COUT << "Validating a struct literal field the source left unnamed lowers as an explicit zero, per the zero-default rule." << std::endl;
 
@@ -263,7 +264,8 @@ TEST(MAREAIrExpressions, TypeConstructionCallLowersToConstructCall)
     EXPECT_EQ(MAREA_lowerInitializer(PREFIX, "Point", "Point()"), "(CONSTRUCT_CALL :Point (ARGUMENT_LIST (INTEGER_LITERAL 0) (INTEGER_LITERAL 0)))") << "No argument must fill every parameter from construct's own defaults.";
 }
 
-TEST(MAREAIrExpressions, TypeBraceLiteralOfATypeWithConstructLowersToConstructCallKeepingTheLiteral)
+// DISABLED: an omitted field is now MISSING_FIELD (3077); the ir ZERO_VALUE for fields is dead until the follow-up apply removes it
+TEST(MAREAIrExpressions, DISABLED_TypeBraceLiteralOfATypeWithConstructLowersToConstructCallKeepingTheLiteral)
 {
     GTEST_COUT << "Validating Point{...} of a type with construct lowers to a CONSTRUCT_CALL: the defaults first, then the literal as its initial value." << std::endl;
 

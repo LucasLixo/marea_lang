@@ -11,6 +11,7 @@ namespace
 
     constexpr MAREA_Uinteger32 MISMATCH{ MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH };
     constexpr MAREA_Uinteger32 UNKNOWN_FIELD{ MAREA_SEMA_DIAGNOSTIC_CODE_UNKNOWN_FIELD };
+    constexpr MAREA_Uinteger32 MISSING_FIELD{ MAREA_SEMA_DIAGNOSTIC_CODE_MISSING_FIELD };
     constexpr MAREA_Uinteger32 DUPLICATE_MEMBER{ MAREA_SEMA_DIAGNOSTIC_CODE_DUPLICATE_MEMBER };
     constexpr MAREA_Uinteger32 UNDECLARED{ MAREA_SEMA_DIAGNOSTIC_CODE_UNDECLARED_NAME };
     constexpr MAREA_Uinteger32 COUNT_MISMATCH{ MAREA_SEMA_DIAGNOSTIC_CODE_ARGUMENT_COUNT_MISMATCH };
@@ -934,11 +935,55 @@ TEST(MAREASemaExpressions, StructLiteralFieldsMatchTheStructure)
 
     EXPECT_TRUE(MAREA_codesOf(POINT + "function make(): Point return Point{ x = 1.0, y = 2.0 }; end").empty()) << "A full literal must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf(POINT + "function make(): Point return Point{ x = 1.0 }; end").empty()) << "A literal with a missing field must raise nothing (zero-default rule).";
+    EXPECT_TRUE(MAREA_codesOf(POINT + "function make(): Point return Point{ y = 2.0, x = 1.0 }; end").empty()) << "A literal with the fields in another order must raise nothing.";
 
     EXPECT_TRUE(MAREA_codesOf("structure Pair<A, B> first: A; second: B; end function make(): Pair<sinteger32, float64> return Pair<sinteger32, float64>{ first = 1, second = 2.0 }; end").empty()) << "A literal of a generic structure must raise nothing.";
 
     EXPECT_TRUE(MAREA_codesOf("function make(): array<sinteger32, 2> return array<sinteger32, 2>{ 1, 2 }; end").empty()) << "An array literal must raise nothing.";
+}
+
+TEST(MAREASemaExpressions, StructLiteralMustNameEveryField)
+{
+    GTEST_COUT << "Validating a struct literal names every field of its structure." << std::endl;
+
+    const std::string POINT{ "structure Point x: float64; y: float64; end " };
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function make(): Point return Point{ x = 1.0 }; end"), Codes{ MISSING_FIELD }) << "A literal that leaves y out must raise MISSING_FIELD once.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function make(): Point return Point{ y = 1.0 }; end"), Codes{ MISSING_FIELD }) << "A literal that leaves x out must raise MISSING_FIELD once.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function make(): Point return Point{}; end"), Codes{ MISSING_FIELD }) << "An empty literal of a structure with fields must raise MISSING_FIELD once.";
+
+    EXPECT_EQ(MAREA_codesOf("structure Cube x: float64; y: float64; z: float64; end function make(): Cube return Cube{ y = 1.0 }; end"), Codes{ MISSING_FIELD }) << "A literal that misses two fields must raise MISSING_FIELD once.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function make(): Point return Point{ x = 1.0, z = 2.0 }; end"), (Codes{ UNKNOWN_FIELD, MISSING_FIELD })) << "An unknown key must raise UNKNOWN_FIELD and the field it did not replace MISSING_FIELD.";
+
+    EXPECT_TRUE(MAREA_codesOf(POINT + "function make(): Point return Point{ x = 1.0, y = 2.0 }; end").empty()) << "A full literal must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(POINT + "function make(): Point return Point{ y = 2.0, x = 1.0 }; end").empty()) << "A full literal in another order must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("structure Empty end function make(): Empty return Empty{}; end").empty()) << "A structure without fields must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("function make(): slice<float32> return slice<float32>{}; end").empty()) << "A library type literal must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("structure Pair<A, B> first: A; second: B; end function make(): Pair<sinteger32, float64> return Pair<sinteger32, float64>{ first = 1 }; end").empty()) << "A literal of a generic structure must raise nothing.";
+}
+
+TEST(MAREASemaExpressions, MissingFieldMessageNamesTheFirstMissingField)
+{
+    GTEST_COUT << "Validating the MISSING_FIELD message names the first missing field in declaration order." << std::endl;
+
+    MAREA_SemaFixture fixture([](const std::string &, const MAREA_AstNode **) { return MAREA_SEMA_IMPORT_RESULT_EXTERNAL; });
+
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; structure Cube x: float64; y: float64; z: float64; end function make(): Cube return Cube{ y = 1.0 }; end"), MAREA_SEMA_EXCEPT_SUCCESS);
+
+    ASSERT_EQ(MAREA_DiagnosticSinkGetCount(fixture.parser.lexer.sink), 1U);
+
+    const MAREA_Diagnostic *diagnostic{ nullptr };
+
+    ASSERT_EQ(MAREA_DiagnosticSinkGetAt(fixture.parser.lexer.sink, 0, &diagnostic), MAREA_DIAGNOSTIC_EXCEPT_SUCCESS);
+
+    EXPECT_STREQ(MAREA_DiagnosticGetMessage(diagnostic), "struct literal misses a field 'x'") << "The message must quote the first missing field.";
 }
 
 TEST(MAREASemaExpressions, FieldAccessNeedsAFieldOfTheStructure)

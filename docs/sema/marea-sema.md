@@ -22,7 +22,7 @@ MAREA_SemaCheckCompilationUnit(sema, root);   /* once per file, dependencies fir
 `MAREA_SemaCheckCompilationUnit` returns an error only for a null argument or an out of memory. A rule
 violation is a diagnostic in the sink. A size that does not fit in `MAREA_IntegerSize` (a diagnostic
 message, or the growth of a name table) is also an out of memory: nothing is allocated or copied.
-Every sema diagnostic is an error, in the range 3001-3076. Not every number of the range is a live code: the
+Every sema diagnostic is an error, in the range 3001-3077. Not every number of the range is a live code: the
 Diagnostics table lists the live ones.
 The lexer file name decides the path rule, so call `MAREA_LexContextSetFileName` with a project
 relative path with forward slashes and the `.marea` extension before the lex step.
@@ -659,8 +659,11 @@ the value of a field must fit the declared type by the rule of `TYPE_MISMATCH` (
 and any other field type is skipped. A field read or a field write (`point.z`, `point.z = 1.0;`) whose base has a known
 structure type and names no field is `UNKNOWN_FIELD` (3044). Each defect is reported once, at the entry or the access.
 A structure of another namespace, an enum, a library type and a generic parameter are skipped, and so is a
-`MEMBER_ACCESS` that is the callee of a call, which is a method. A literal with a missing field raises nothing: the
-ir gives an omitted field the zero value.
+`MEMBER_ACCESS` that is the callee of a call, which is a method. Every field of the structure must be written in a
+literal of it: after the entries, the first field in declaration order that no entry names is `MISSING_FIELD` (3077),
+reported once per literal at the literal, so a literal that misses two fields shows the second one after the first is
+written. A structure with no field, an opaque or library type, an enum and a generic structure (its fields are not seen
+through the type arguments) raise nothing.
 
 **Entry point.** Sema treats `main` as an ordinary function: any signature is accepted and no diagnostic is
 raised. Sema never requires a `main`. The code 3023 (`INVALID_MAIN_SIGNATURE`) is retired and stays reserved, never
@@ -943,6 +946,7 @@ or rejects.
 | 3074 | `CONFLICTING_PARALLEL_ACCESS` | `spawn write(a); spawn write(a);`, `spawn write(a); spawn read(a);`, `spawn write(a); a.y = 5;` or a `spawn write(a);` in a loop in a `fork_join` block when `a` is declared before the block, and `partition xs ...` with a `spawn write(xs)` in the same block |
 | 3075 | `PARTITION_BODY_WRITES_OUTER_NAME` | `local c: sinteger32 = 0; fork_join partition values into 2 as part do c += 1; end end` (also `point.x = 2;` and a parameter) | `a partition body cannot write an outer name: 'c'` |
 | 3076 | `PARTITION_SOURCE_USED_IN_BODY` | `partition mutable values into 2 as part do values[0] = 1.0; end` (a read or a `for each` over the source too, except in a `spawn`, which is 3020) | `the source of a partition mutable cannot be used in the body: 'values'` |
+| 3077 | `MISSING_FIELD` | `Point{ x = 1.0 }` or `Point{}` when `Point` also has the field `y` (the first missing field in declaration order, once per literal) | `struct literal misses a field 'y'` |
 
 ## Gaps
 
@@ -975,7 +979,7 @@ or rejects.
 - `TYPE_MISMATCH` (3011) sorts the type of an expression into a fixed set of shapes: a literal, a primitive, a
   structure, and, known but never compared, an enum, a library type, a generic parameter and an `owned`, `task`, `vector` or `array` value. Still fully unknown: a `pointer`, a `slice`, the type of a field or a file
   constant that is not a primitive, and the result of a generic call (see below).
-- A struct literal with a missing field is accepted on purpose, because the zero-default rule of the ir lowers an omitted field to a zero value. The catalogue item L-TYPES-023 (rule: reject) stays a known_gap item and waits for a decision of the user.
+- A struct literal with a missing field is rejected (3077, one report per literal, so a second missing field shows only after the first is written). The ir still lowers an omitted field to a `ZERO_VALUE` (see `docs/ir/marea-ir.md`, Zero-default creation), which no accepted program reaches for a structure of the file now; a follow-up apply removes that `ZERO_VALUE` for fields.
 - A call of a method or of an imported function that has no result, used as a value, is not seen: sema cannot see its
   result (`INVALID_RESULT_USE`, 3054).
 - The type arguments of a generic type are compared (3014) only for two types of one head name and one argument
