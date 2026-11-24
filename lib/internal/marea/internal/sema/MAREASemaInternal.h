@@ -1112,6 +1112,16 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckRawPointerLocal(MAREA_SemaContext * context, const MAREA_AstNode *local);
 
     /**
+     * @brief Raises LOCAL_WITHOUT_INITIAL_VALUE when a local has no written value, that is, fewer than three
+     * children. The check is syntactic: a branch that assigns the local later does not change it. A local with an
+     * error node as its name or type is not checked.
+     * @param context Context of the run. Must not be null.
+     * @param local The LOCAL_DECLARATION node. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckLocalInitializer(MAREA_SemaContext * context, const MAREA_AstNode *local);
+
+    /**
      * @brief Raises NON_BOOLEAN_CONDITION when the condition of an if, an elseif or a while is a number, string or
      * character literal, or has a known primitive type that is not boolean. An unknown type raises nothing.
      * @param context Context of the run. Must not be null.

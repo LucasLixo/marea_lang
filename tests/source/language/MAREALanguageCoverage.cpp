@@ -71,7 +71,7 @@ namespace
     // "none" means no item can show it today, so the Gaps section of the doc must name the issue.
     const std::vector<MAREA_MissingRule> MISSING_RULES{
         { "use of a moved value", "198", "gap" },
-        { "use of an uninitialized value", "177", "gap" },
+        { "use of an uninitialized value", "0", "reject 3065" },
         { "write through a read-only borrow", "204", "gap" },
         { "literal out of range", "0", "reject 3033" },
         { "constant division by zero", "0", "reject 3034" },

@@ -1,9 +1,8 @@
--- gap: #177 NEW
--- rule: reject
+-- expect: 3065 @20
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- A local is assigned in one arm of switch only and then read.
+-- A local with no initial value is read.
 
 namespace main;
 
@@ -17,15 +16,8 @@ structure Box
     count: sinteger32;
 end
 
-function check(selector: sinteger32): sinteger32
+function check(): sinteger32
     local value: sinteger32;
-    switch selector
-        case 1 then
-            value = 1;
-        end
-        default then
-        end
-    end
     local copy_of: sinteger32 = value;
     return 1;
 end
