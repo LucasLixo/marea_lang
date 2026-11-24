@@ -331,6 +331,12 @@ constant, or a name that is not a `reference_mutable` (write-borrow) parameter a
 an active `partition mutable`, or a field access (`a.b`, nested too) whose base meets the same rule. Any other expression
 (a call, an index, a computed value) is rejected. This is a simple first rule.
 
+**Spawn and partition shape.** After the scope check, the operand of a `spawn` must be a call: any other operand (a name,
+a literal, a macro call such as `print!("x")`) is rejected with `SPAWN_NEEDS_CALL` (3063) at the operand. The source of a
+`partition` is rejected with `PARTITION_SOURCE_NOT_ARRAY` (3064) at the source when sema knows it is not an array: a number
+literal, a primitive (a `string` too), a structure or an enum. Any other shape is accepted, so a `c.array`, an `array`, a
+`vector`, a `slice`, a `pointer` and a call result raise nothing. A construct that fails the scope check raises no shape code.
+
 **Parallel bodies.** The body of a `partition` runs once for each part, so it is a worker body and ends
 only at its own `end`. A `return`, a `break` or a `continue` in it that would leave the body is rejected
 with `INVALID_PARALLEL_JUMP` (3024), one diagnostic for each jump. A `break` or `continue` that targets a
@@ -582,6 +588,15 @@ of that function in the file raises `UNDECLARED_NAME` (3004) with the message "f
 There is no forward declaration. A recursive call is fine, a local of the same name hides the function, and a
 constant initializer is not checked for it.
 
+**Fields of a structure.** For a structure that this file declares (an alias is followed), a literal value is checked
+against the fields: a key that no field has is `UNKNOWN_FIELD` (3044), a key given twice is `DUPLICATE_MEMBER` (3012) and
+the value of a field must fit the declared type by the rule of `TYPE_MISMATCH` (3011), so a primitive field is compared
+and any other field type is skipped. A field read or a field write (`point.z`, `point.z = 1.0;`) whose base has a known
+structure type and names no field is `UNKNOWN_FIELD` (3044). Each defect is reported once, at the entry or the access.
+A structure of another namespace, an enum, a library type and a generic parameter are skipped, and so is a
+`MEMBER_ACCESS` that is the callee of a call, which is a method. A literal with a missing field raises nothing: the
+ir gives an omitted field the zero value.
+
 **Entry point.** Sema treats `main` as an ordinary function: any signature is accepted and no diagnostic is
 raised. Sema never requires a `main`. The code 3023 (`INVALID_MAIN_SIGNATURE`) is retired and stays reserved, never
 reused.
@@ -830,6 +845,7 @@ or rejects.
 | 3040 | `ASSIGNMENT_TO_CONSTANT` | `LIMIT = 11;`, `LIMIT += 1;`, `ORIGIN.x = 1;`, `TABLE[0] = 1;` when the root name is a file constant and no local hides it |
 | 3041 | `RAW_POINTER_OUTSIDE_UNSAFE` | `local raw: pointer<sinteger32> = f();` with no `unsafe ... end` block around it, at any depth of nesting |
 | 3043 | `NON_BOOLEAN_CONDITION` | `if n then`, `elseif s then`, `while 1 do` when the condition has a known primitive type that is not `boolean`, or is a number, string or character literal |
+| 3044 | `UNKNOWN_FIELD` | `Point{ z = 1.0 }`, `point.z` or `point.z = 1.0;` when `Point` has no field `z` |
 | 3045 | `RECURSIVE_TYPE` | `structure Node next: Node; end` |
 | 3046 | `CYCLIC_TYPE_ALIAS` | `type First = Second; type Second = First;` |
 | 3049 | `UNKNOWN_TYPE_FUNCTION` | `point.length()` or `Point.origin()` when no `implementation` of `Point` declares it |
@@ -846,6 +862,8 @@ or rejects.
 | 3060 | `UNKNOWN_MACRO` | `shout!("hello");` when `shout` is none of the 13 built-in macros, at the call |
 | 3061 | `INVALID_MACRO_ARGUMENT` | `print!();`, `print!(1, 2);`, `print!("{} {}", 1);`, `assert!(1, "x");`, `unreachable!(1);`, `log!(loud, "x");`, `include_text!(1);`: the wrong count of arguments, a literal of the wrong kind, a log level that is not one of the five, or a count of `{}` that differs from the count of values, at the offending argument |
 | 3062 | `PARALLEL_CONSTRUCT_OUTSIDE_FORK_JOIN` | `function f(a: sinteger32) spawn g(a); end` or `partition values into 2 as part do end` with no `fork_join` block around it, also a `spawn` after the `end` of a block: raised at the `spawn` or `partition` and nothing else for that construct |
+| 3063 | `SPAWN_NEEDS_CALL` | `fork_join spawn point; end` or `spawn print!("x");`: the operand of a `spawn` is not a call, at the operand |
+| 3064 | `PARTITION_SOURCE_NOT_ARRAY` | `partition count into 2 as part do end` when `count` is a primitive, a structure, an enum or a number literal, at the source |
 | 3065 | `LOCAL_WITHOUT_INITIAL_VALUE` | `local x: sinteger32;` with no `= value`, for a primitive, a structure, a `pointer` or an `array`, at any depth of nesting |
 | 3066 | `PRIVATE_SYMBOL_ACCESS` | `b.hidden()` or `b.LIMIT` after `import a.b;` (or an alias) when the member is a top-level declaration of a `FOUND` namespace with `#[visibility = private]` |
 | 3067 | `PRIVATE_TYPE_ACCESS` | `s: b.Secret`, `b.Secret{ }` or any written `b.Secret` when the structure, enum, opaque or alias of a `FOUND` namespace is private |
@@ -854,6 +872,9 @@ or rejects.
 
 ## Gaps
 
+- The array rule of `partition` (3064) rejects only a source that sema knows is a number, a primitive, a structure or an
+  enum. A `slice`, a `pointer`, a library type that is not an array and a call result have no known shape, so a
+  partition of them is accepted.
 - A write through a method call on a read-only receiver, and a library call that mutates (`values.append(x)`), are
   not seen: sema does not know which calls mutate. The rule 3069 reads only a written assignment, a mutable loop or
   partition and a write-borrow argument.
@@ -876,6 +897,7 @@ or rejects.
 - `TYPE_MISMATCH` (3011) sorts the type of an expression into a fixed set of shapes: a literal, a primitive, a
   structure, and, known but never compared, an enum, a library type, a generic parameter and an `owned`, `task`, `vector` or `array` value. Still fully unknown: a `pointer`, a `slice`, the type of a field or a file
   constant that is not a primitive, and the result of a generic call (see below).
+- A struct literal with a missing field is accepted on purpose, because the zero-default rule of the ir lowers an omitted field to a zero value. The catalogue item L-TYPES-023 (rule: reject) stays a known_gap item and waits for a decision of the user.
 - A call of a method or of an imported function that has no result, used as a value, is not seen: sema cannot see its
   result (`INVALID_RESULT_USE`, 3054).
 - The type arguments of a generic type are compared (3014) only for two types of one head name and one argument

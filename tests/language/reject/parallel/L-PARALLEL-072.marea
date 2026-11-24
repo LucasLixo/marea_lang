@@ -1,9 +1,8 @@
--- gap: #234 NEW
--- rule: reject
+-- expect: 3064 @54
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- A spawn statement that is not a call.
+-- A partition of a value that is no array.
 
 namespace main;
 
@@ -50,8 +49,10 @@ function sum_slice(#[semantics = reference_read_only] part: c.slice<float32>): f
 end
 
 function run()
-    local point: Point = make_point();
+    local count: sinteger32 = 4;
     fork_join
-        spawn point;
+        partition count into 2 as part do
+            local unused: sinteger32 = 0;
+        end
     end
 end
