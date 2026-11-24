@@ -48,7 +48,7 @@ function sum_slice(#[semantics = reference_read_only] part: c.slice<float32>): f
     return total;
 end
 
-function take_point(point: Point)
+function take_point(#[semantics = reference_mutable] point: Point)
     point.x = 1;
 end
 

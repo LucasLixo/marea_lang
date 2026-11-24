@@ -12,6 +12,6 @@ structure Point
     y: float64;
 end
 
-function run(point: Point)
+function run(#[semantics = reference_mutable] point: Point)
     point.z = 1.0;
 end

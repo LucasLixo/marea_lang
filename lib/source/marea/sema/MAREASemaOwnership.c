@@ -182,6 +182,119 @@ MAREA_Boolean MAREA_CALL MAREA_SemaIsReference(const MAREA_SemaContext *context,
     return MAREA_BOOLEAN_FALSE;
 }
 
+static const MAREA_AstNode *MAREA_CALL MAREA_G_RootOf(const MAREA_AstNode *expression)
+{
+    const MAREA_AstNode *root = expression;
+
+    while ((root != MAREA_NULLPTR) && ((MAREA_AstNodeGetKind(root) == MAREA_AST_KIND_MEMBER_ACCESS) || (MAREA_AstNodeGetKind(root) == MAREA_AST_KIND_INDEX_ACCESS))) {
+        root = MAREA_SemaChildAt(root, 0);
+    }
+
+    return (MAREA_G_IsIdentifier(root) == MAREA_BOOLEAN_TRUE) ? root : MAREA_NULLPTR;
+}
+
+MAREA_Boolean MAREA_CALL MAREA_SemaIsReadOnly(const MAREA_SemaContext *context, const MAREA_AstNode *expression)
+{
+    const MAREA_AstNode *root = MAREA_G_RootOf(expression);
+
+    if (root == MAREA_NULLPTR) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_Character8 *text = MAREA_AstNodeGetText(root);
+
+    const MAREA_IntegerSize length = MAREA_AstNodeGetTextLength(root);
+
+    for (MAREA_IntegerSize index = context->readOnly.count; index > 0; --index) {
+        const MAREA_SemaName *entry = &context->readOnly.entries[(index - 1)];
+
+        if ((entry->length == length) && (memcmp(entry->text, text, length) == 0)) {
+            return (entry->declaration != MAREA_NULLPTR) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+        }
+    }
+
+    return MAREA_BOOLEAN_FALSE;
+}
+
+// INFO: the declaration is the binder when the name is read-only and null when it is writable, the same shape as the references table.
+static MAREA_SemaExcept MAREA_CALL MAREA_G_PushReadOnly(MAREA_SemaContext *context, const MAREA_AstNode *name, const MAREA_AstNode *binding, MAREA_Boolean readOnly)
+{
+    if (MAREA_G_IsIdentifier(name) == MAREA_BOOLEAN_FALSE) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    return MAREA_SemaTableAppend(context, &context->readOnly, (MAREA_SemaName){ .text = MAREA_AstNodeGetText(name), .declaration = (readOnly == MAREA_BOOLEAN_TRUE) ? binding : MAREA_NULLPTR, .length = MAREA_AstNodeGetTextLength(name), .kind = MAREA_SEMA_NAME_KIND_DECLARATION });
+}
+
+static MAREA_Boolean MAREA_CALL MAREA_G_IsExistingValue(const MAREA_AstNode *expression);
+
+MAREA_SemaExcept MAREA_CALL MAREA_SemaBindReadOnly(MAREA_SemaContext *context, const MAREA_AstNode *node)
+{
+    if ((context == MAREA_NULLPTR) || (node == MAREA_NULLPTR)) {
+        return MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    const MAREA_AstKind KIND = MAREA_AstNodeGetKind(node);
+
+    const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(node);
+
+    if (KIND == MAREA_AST_KIND_FUNCTION_DECLARATION) {
+        for (MAREA_IntegerSize index = 0; index < COUNT; ++index) {
+            const MAREA_AstNode *parameters = MAREA_SemaChildAt(node, index);
+
+            if ((parameters == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(parameters) != MAREA_AST_KIND_PARAMETER_LIST)) {
+                continue;
+            }
+
+            for (MAREA_IntegerSize parameterIndex = 0; parameterIndex < MAREA_AstNodeGetChildCount(parameters); ++parameterIndex) {
+                const MAREA_AstNode *parameter = MAREA_SemaChildAt(parameters, parameterIndex);
+
+                if (parameter == MAREA_NULLPTR) {
+                    continue;
+                }
+
+                const MAREA_SemaExcept RESULT = MAREA_G_PushReadOnly(context, MAREA_SemaChildAt(parameter, 0), parameter, (MAREA_SemaGetParameterSemantics(context, parameter) == MAREA_SEMA_PARAMETER_SEMANTICS_REFERENCE_READ_ONLY) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE);
+
+                if (RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+                    return RESULT;
+                }
+            }
+        }
+
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    if ((KIND == MAREA_AST_KIND_FOR_EACH_STATEMENT) && (COUNT >= 2)) {
+        // INFO: the children are the loop names, the source and the body, so the source is the second child from the end.
+        const MAREA_IntegerSize SOURCE_INDEX = (COUNT - 2);
+
+        const MAREA_Boolean WRITABLE = (((MAREA_AstNodeGetFlags(node) & MAREA_AST_FLAG_MUTABLE) != 0) && (MAREA_SemaIsReadOnly(context, MAREA_SemaChildAt(node, SOURCE_INDEX)) == MAREA_BOOLEAN_FALSE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+
+        for (MAREA_IntegerSize index = 0; index < SOURCE_INDEX; ++index) {
+            const MAREA_SemaExcept RESULT = MAREA_G_PushReadOnly(context, MAREA_SemaChildAt(node, index), node, (WRITABLE == MAREA_BOOLEAN_TRUE) ? MAREA_BOOLEAN_FALSE : MAREA_BOOLEAN_TRUE);
+
+            if (RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+                return RESULT;
+            }
+        }
+
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    if (KIND == MAREA_AST_KIND_PARTITION_STATEMENT) {
+        const MAREA_Boolean WRITABLE = (((MAREA_AstNodeGetFlags(node) & MAREA_AST_FLAG_MUTABLE) != 0) && (MAREA_SemaIsReadOnly(context, MAREA_SemaChildAt(node, 0)) == MAREA_BOOLEAN_FALSE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+
+        return MAREA_G_PushReadOnly(context, MAREA_SemaChildAt(node, 2), node, (WRITABLE == MAREA_BOOLEAN_TRUE) ? MAREA_BOOLEAN_FALSE : MAREA_BOOLEAN_TRUE);
+    }
+
+    if (KIND == MAREA_AST_KIND_WITH_STATEMENT) {
+        // INFO: a with over an existing value is a borrowed view; a with over a call holds a value that the call returned, so it may be written.
+        return MAREA_G_PushReadOnly(context, MAREA_SemaChildAt(node, 1), node, MAREA_G_IsExistingValue(MAREA_SemaChildAt(node, 0)));
+    }
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
 static MAREA_Boolean MAREA_CALL MAREA_G_IsConfinedName(const MAREA_SemaContext *context, const MAREA_AstNode *expression)
 {
     if (MAREA_G_IsIdentifier(expression) == MAREA_BOOLEAN_FALSE) {
@@ -283,6 +396,18 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckOwnership(MAREA_SemaContext *context,
     }
     case MAREA_AST_KIND_ASSIGNMENT:
     {
+        const MAREA_AstNode *written = MAREA_SemaChildAt(node, 0);
+
+        if (MAREA_SemaIsReadOnly(context, written) == MAREA_BOOLEAN_TRUE) {
+            const MAREA_AstNode *root = MAREA_G_RootOf(written);
+
+            const MAREA_SemaExcept WRITE_RESULT = MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_WRITE_THROUGH_READ_ONLY_BORROW, MAREA_AstNodeGetPosition(written), "a write through a read-only borrow:", MAREA_AstNodeGetText(root), MAREA_AstNodeGetTextLength(root));
+
+            if (WRITE_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+                return WRITE_RESULT;
+            }
+        }
+
         if (MAREA_AstNodeGetOperator(node) != MAREA_TOKEN_KIND_EQUAL) {
             return MAREA_SEMA_EXCEPT_SUCCESS;
         }

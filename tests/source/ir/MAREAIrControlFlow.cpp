@@ -350,7 +350,7 @@ TEST(MAREAIrControlFlow, ForEachMutableKeepsTheFlagOnTheLoopOnly)
 {
     GTEST_COUT << "Validating a for-each loop over a mutable collection sets MUTABLE on the loop node and on no other node." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerBody("import collections.list;", "values: list<sinteger32>", "for each key, value in mutable values do value += 1; end"), "(BLOCK (FOR_EACH_STATEMENT value flags=1 (IDENTIFIER key) (IDENTIFIER values) (BLOCK (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER value) (INTEGER_LITERAL 1)))))") << "Only the loop node may carry MUTABLE.";
+    EXPECT_EQ(MAREA_lowerBody("import collections.list;", "#[semantics = reference_mutable] values: list<sinteger32>", "for each key, value in mutable values do value += 1; end"), "(BLOCK (FOR_EACH_STATEMENT value flags=1 (IDENTIFIER key) (IDENTIFIER values) (BLOCK (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER value) (INTEGER_LITERAL 1)))))") << "Only the loop node may carry MUTABLE.";
 }
 
 TEST(MAREAIrControlFlow, ForEachLeavesNoHiddenNameInTheOutput)

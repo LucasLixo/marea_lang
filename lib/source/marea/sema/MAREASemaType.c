@@ -94,6 +94,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaScopeEnter(MAREA_SemaContext *context, con
     outMark->genericCount = context->generics.count;
     outMark->localCount = context->locals.count;
     outMark->referenceCount = context->references.count;
+    outMark->readOnlyCount = context->readOnly.count;
     outMark->localStart = context->localStart;
     outMark->functionLocalStart = context->functionLocalStart;
     outMark->function = context->function;
@@ -108,6 +109,12 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaScopeEnter(MAREA_SemaContext *context, con
 
     if (BIND_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
         return BIND_RESULT;
+    }
+
+    const MAREA_SemaExcept READ_ONLY_RESULT = MAREA_SemaBindReadOnly(context, node);
+
+    if (READ_ONLY_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+        return READ_ONLY_RESULT;
     }
 
     const MAREA_SemaExcept BINDER_RESULT = MAREA_SemaDeclareBinders(context, node);
@@ -213,6 +220,7 @@ void MAREA_CALL MAREA_SemaScopeLeave(MAREA_SemaContext *context, MAREA_SemaScope
     context->generics.count = mark.genericCount;
     context->locals.count = mark.localCount;
     context->references.count = mark.referenceCount;
+    context->readOnly.count = mark.readOnlyCount;
     context->localStart = mark.localStart;
     context->functionLocalStart = mark.functionLocalStart;
     context->function = mark.function;
