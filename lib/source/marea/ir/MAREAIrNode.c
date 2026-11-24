@@ -221,6 +221,7 @@ MAREA_IrExcept MAREA_CALL MAREA_IrNodeCreate(MAREA_IrContext *context, MAREA_IrK
     node->resolvedType = MAREA_NULLPTR;
     node->resolvedTypeLength = MAREA_INTEGER_SIZE(0);
     node->children = MAREA_NULLPTR;
+    node->layouts = MAREA_NULLPTR;
     node->typeNameLength = MAREA_INTEGER_SIZE(0);
     node->childCount = MAREA_INTEGER_SIZE(0);
     node->childCapacity = MAREA_INTEGER_SIZE(0);

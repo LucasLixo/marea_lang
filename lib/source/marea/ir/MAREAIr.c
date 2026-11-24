@@ -231,6 +231,21 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerUnitDeclarations(MAREA_IrContext *
         dropped = memory;
     }
 
+    // INFO: room for one source per top-level item, for the layout table that is built once the declarations are final.
+    MAREA_IrLayoutSource *sources = MAREA_NULLPTR;
+
+    MAREA_IntegerSize sourceCount = MAREA_INTEGER_SIZE(0);
+
+    if (COUNT > MAREA_INTEGER_SIZE(0)) {
+        MAREA_Null memory = MAREA_NULLPTR;
+
+        if (MAREA_ArenaAllocate(context->arena, (COUNT * sizeof(MAREA_IrLayoutSource)), MAREA_ALIGNOF(MAREA_IrLayoutSource), &memory) != MAREA_ARENA_EXCEPT_SUCCESS) {
+            return MAREA_IR_EXCEPT_ERROR_OUT_OF_MEMORY;
+        }
+
+        sources = memory;
+    }
+
     for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < COUNT; index = (index + MAREA_INTEGER_SIZE(1))) {
         const MAREA_SemaTypedNode *item = MAREA_IrTypedChildAt(typedRoot, index);
 
@@ -240,6 +255,17 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerUnitDeclarations(MAREA_IrContext *
 
         if (lowered != MAREA_IR_EXCEPT_SUCCESS) {
             return lowered;
+        }
+
+        if (module->childCount > BEFORE) {
+            const MAREA_AstKind ITEM_KIND = MAREA_IrTypedKind(item);
+
+            // INFO: a structure, an opaque structure and an enum each lower to one node, the last child, and get one entry of the layout table.
+            if ((ITEM_KIND == MAREA_AST_KIND_STRUCTURE_DECLARATION) || (ITEM_KIND == MAREA_AST_KIND_OPAQUE_DECLARATION) || (ITEM_KIND == MAREA_AST_KIND_ENUM_DECLARATION)) {
+                sources[sourceCount].typed = item;
+                sources[sourceCount].node = module->children[(module->childCount - MAREA_INTEGER_SIZE(1))];
+                sourceCount = (sourceCount + MAREA_INTEGER_SIZE(1));
+            }
         }
 
         if ((module->childCount == BEFORE) && (MAREA_IrTypedKind(item) == MAREA_AST_KIND_FUNCTION_DECLARATION)) {
@@ -257,6 +283,12 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerUnitDeclarations(MAREA_IrContext *
 
     if (swept != MAREA_IR_EXCEPT_SUCCESS) {
         return swept;
+    }
+
+    const MAREA_IrExcept TABLE = MAREA_IrLayoutTableBuild(context, module, sources, sourceCount);
+
+    if (TABLE != MAREA_IR_EXCEPT_SUCCESS) {
+        return TABLE;
     }
 
     *outModule = module;
