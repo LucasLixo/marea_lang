@@ -1,9 +1,8 @@
--- gap: #204 NEW
--- rule: reject
+-- expect: 3069 @20
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- A nested field of a read-only borrow is written.
+-- An element of a read-only vector is written.
 
 namespace main;
 
@@ -17,6 +16,6 @@ structure Box
     count: sinteger32;
 end
 
-function check(#[semantics = reference_read_only] box: Box)
-    box.inner.x = 1;
+function check(#[semantics = reference_read_only] points: vector<Point>)
+    points[0] = Point{ x = 1, y = 1 };
 end

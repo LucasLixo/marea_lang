@@ -22,7 +22,7 @@ MAREA_SemaCheckCompilationUnit(sema, root);   /* once per file, dependencies fir
 `MAREA_SemaCheckCompilationUnit` returns an error only for a null argument or an out of memory. A rule
 violation is a diagnostic in the sink. A size that does not fit in `MAREA_IntegerSize` (a diagnostic
 message, or the growth of a name table) is also an out of memory: nothing is allocated or copied.
-Every sema diagnostic is an error, in the range 3001-3068. Not every number of the range is a live code: the
+Every sema diagnostic is an error, in the range 3001-3069. Not every number of the range is a live code: the
 Diagnostics table lists the live ones.
 The lexer file name decides the path rule, so call `MAREA_LexContextSetFileName` with a project
 relative path with forward slashes and the `.marea` extension before the lex step.
@@ -217,8 +217,20 @@ the one place the rest of sema reads it. With no attribute written, a primitive 
 `value_read_only`, `owned<T>`, `task<T>` and `vector<T>` default to `reference_mutable` (they move
 in and are never a borrow), and any other type defaults to `reference_read_only` - settled rule 2. A
 write borrow needs the explicit `reference_mutable`. The former `mutable`/`reference` keywords are
-retired, `mutable` stays reserved only for `for each` and `partition`. Sema does not reject a write
-through a read-only borrow yet: the next apply of the handoff adds that check.
+retired, `mutable` stays reserved only for `for each` and `partition`.
+A second table, `readOnly`, is built like the references table: `MAREA_SemaBindReadOnly` pushes one entry per binder
+when a scope is entered and `MAREA_SemaScopeLeave` pops them. A function parameter is read-only exactly when its
+effective passing mode is `reference_read_only`. A `for each` variable and a `partition` part are writable only when
+the statement says `mutable` and its source is not read-only. A `with` name is read-only when the source is an
+existing value (a name, a field or an element: a borrowed view) and writable when the source is a call. A new local
+that reuses a read-only name is a writable shadow. The root of an expression is the name at the bottom of its field and
+element chain; a root that is not in the table (a plain local, a by-value parameter, a file name) is writable, so sema
+rounds toward valid. `WRITE_THROUGH_READ_ONLY_BORROW` (3069) is raised in four shapes: an assignment of any operator
+whose target is rooted in a read-only borrow; `for each ... in mutable` or `partition mutable` over a read-only source,
+at the source; a read-only borrow given to a write-borrow parameter; and a call result or a literal given to a
+write-borrow parameter (a temporary has no storage to write back). A move-in parameter (`owned`, `task`, `vector`) is
+not a write borrow of a place and takes a call result. The rule runs in `MAREA_SemaCheckOwnership` and
+`MAREA_SemaCheckWriteArguments`; the typed AST pass only rebuilds the table and reports nothing.
 `value_read_only` is legal only on a primitive; writing it on anything else is `INVALID_BORROW`
 (3017). `owned<T>` moves in regardless of `semantics`. A primitive, an `array`, `pointer`, `slice`
 and an enum is by value for the *ownership mode* (`MAREA_SemaOwnershipMode`) no matter what
@@ -734,9 +746,15 @@ or rejects.
 | 3066 | `PRIVATE_SYMBOL_ACCESS` | `b.hidden()` or `b.LIMIT` after `import a.b;` (or an alias) when the member is a top-level declaration of a `FOUND` namespace with `#[visibility = private]` |
 | 3067 | `PRIVATE_TYPE_ACCESS` | `s: b.Secret`, `b.Secret{ }` or any written `b.Secret` when the structure, enum, opaque or alias of a `FOUND` namespace is private |
 | 3068 | `PRIVATE_FIELD_ACCESS` | `box.value`, `box.value = 1` or `b.Box{ value = 1 }` when `box` is written `b.Box` and the field has `#[visibility = private]` |
+| 3069 | `WRITE_THROUGH_READ_ONLY_BORROW` | `function f(p: Point) p.x = 1; end`, `for each v in mutable xs do end` with `xs` read-only, `write_point(p)` with a read-only `p`, `write_point(make_point())` or `set(1)` for a write-borrow parameter |
 
 ## Gaps
 
+- A write through a method call on a read-only receiver, and a library call that mutates (`values.append(x)`), are
+  not seen: sema does not know which calls mutate. The rule 3069 reads only a written assignment, a mutable loop or
+  partition and a write-borrow argument.
+- A `with` over a call is writable and a `with` over an existing value is read-only, whatever the type of the value:
+  the rule reads the shape of the source, not what the call returns.
 - The visibility check (3066 to 3068) reads only a bare namespace name and a bare name with a written type `ns.T`. It does
   not check a member that the tree does not declare, a field of a value that is not a plain `ns.T` name (a call result,
   an index, a chain such as `a.b.c`), a field of a type that an imported symbol gives (`import a.b.Box;`), or a private
