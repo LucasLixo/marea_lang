@@ -565,6 +565,22 @@ TEST(MAREAIrLayout, DumpNamesEveryReason)
         << "The dump must name the reason of each undecided entry.";
 }
 
+TEST(MAREAIrLayout, DumpWritesNumbersBeyond32Bits)
+{
+    GTEST_COUT << "Validating the dump writes a size and an alignment above 32 bits in full." << std::endl;
+
+    MAREA_IrFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; #[align = 4294967296] structure Big a: uinteger8; end #[align = 2147483648] structure Half a: uinteger8; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+
+    EXPECT_EQ(MAREA_sectionOf(fixture), MAREA_lines({
+                                            "LAYOUT_TABLE",
+                                            "  STRUCTURE \"Big\" verdict=measured size=4294967296 alignment=4294967296 members=1 offsets=0",
+                                            "  STRUCTURE \"Half\" verdict=measured size=2147483648 alignment=2147483648 members=1 offsets=0",
+                                        }))
+        << "A number above 32 bits must not be cut.";
+}
+
 TEST(MAREAIrLayout, DumpHasNoSectionWithoutAStructureOrAnEnum)
 {
     GTEST_COUT << "Validating a module with no structure and no enum dumps with no LAYOUT_TABLE line." << std::endl;
