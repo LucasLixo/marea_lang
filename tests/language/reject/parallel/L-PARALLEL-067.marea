@@ -1,9 +1,8 @@
--- gap: #230 NEW
--- rule: reject
+-- expect: 3075 @55
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- A partition body writes a local of the function, so the workers race on it.
+-- A partition body writes a field of a local of the function.
 
 namespace main;
 
@@ -50,11 +49,11 @@ function sum_slice(#[semantics = reference_read_only] part: c.slice<float32>): f
 end
 
 function run(#[semantics = reference_read_only] values: c.array<float32>): sinteger32
-    local counter: sinteger32 = 0;
+    local point: Point = make_point();
     fork_join
         partition values into 2 as part do
-            counter = counter + 1;
+            point.x = 2;
         end
     end
-    return counter;
+    return point.x;
 end

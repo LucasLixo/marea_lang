@@ -45,7 +45,7 @@ The first line is the header. It has one of three forms:
 A `known_gap` item has `-- rule: reject` or `-- rule: accept` as its second line: the outcome the language has
 decided. A `-- rule:` line in another class is an error. The copyright header follows, then the program.
 
-The codes are the lex codes 1001-1006, the parse codes 2001-2010 and the sema codes 3001-3074 (3023 is retired, and not every other number of the range is a live code).
+The codes are the lex codes 1001-1006, the parse codes 2001-2010 and the sema codes 3001-3076 (3023 is retired, and not every other number of the range is a live code).
 The `@<line>` of the form is optional for the parser of the header, but a `reject` item with a code that has no
 `@<line>` fails.
 
@@ -958,9 +958,9 @@ checked. The type `handle<T>` is rejected with 3009 by the type checker, so it h
 ## Parallel code
 
 `fork_join` blocks, `partition` and `partition mutable`, `spawn` and its argument rule (3020), jumps out of a parallel
-body (3024), two workers or a worker and the block that use one value when one writes it (3074), the `task` result read after the join, and the races that compile today. The items sit in
+body (3024), two workers or a worker and the block that use one value when one writes it (3074), a partition body that writes an outer name (3075) or uses the source of its partition mutable (3076), the `task` result read after the join, and the races that compile today. The items sit in
 `tests/language/<class>/parallel/`. Ids are `L-PARALLEL-nnn`; the numbers are not continuous, because a gap in the
-numbers groups the kinds (accept 001-020 and 079, 3020 rejects 030-039, 3024 rejects 040-051, 3074 rejects 060-063 and 076, holes 065-069).
+numbers groups the kinds (accept 001-020 and 079, 3020 rejects 030-039, 3024 rejects 040-051, 3074 rejects 060-063 and 076, 3075 and 3076 rejects 065-067 and 069).
 
 What sema enforces today is small, and it sits in `lib/source/marea/sema/MAREASemaParallel.c`. 3020: in a `fork_join`,
 each argument of a `spawn` is a part, a literal, a file constant, a name that is not a write-borrow parameter and not
@@ -974,9 +974,13 @@ from the block start to its end, and a use that overlaps an earlier one, where o
 workers on one value, a worker and a later worker or `partition`, a spawn in a loop or a `partition` body that writes a
 value declared before the block, and a statement of the block that follows a worker and uses what it writes (or writes
 what it reads). A value and a field of it overlap, two fields do not. A nested block is compared with its outer block
-(L-PARALLEL-060 to 063 and 076, L-MEMORY-026 and 028, L-ADVERSARIAL-008, 024 and 025, issue #210). Nothing else about
-parallel code is checked: there is no full data-race analysis. Every hole below is accepted today and is a `known_gap`
-item. A gap that shares an issue shows one hole through more than one program.
+(L-PARALLEL-060 to 063 and 076, L-MEMORY-026 and 028, L-ADVERSARIAL-008, 024 and 025, issue #210). 3075: an assignment in a
+`partition` body whose target (a name, a field or an element, by its root name) is a local or a parameter declared outside the
+body; a name declared in the body (a local, a loop variable, a `with` name, a nested part) and the part itself are the
+body's own (L-PARALLEL-065 to 068). 3076: in a `partition mutable`, any use of the name of its source in the body,
+except as an argument of a `spawn`, which 3020 owns (L-PARALLEL-069, L-ADVERSARIAL-023). A call that passes an outer local
+to a function that writes it is not seen. Nothing else about
+parallel code is checked: there is no full data-race analysis. No `known_gap` item of the parallel area is left.
 
 Facts the items fix, checked by running the compiler:
 
@@ -1045,7 +1049,11 @@ Facts the items fix, checked by running the compiler:
 | L-PARALLEL-062 | A spawn in a loop writes the same local in each turn | 3074 @55 |
 | L-PARALLEL-063 | A worker writes the local that the partition reads | 3074 @56 |
 | L-PARALLEL-064 | A worker is spawned after the end of a fork_join block | 3062 @56 |
-| L-PARALLEL-068 | A part is stored in a local of the function and outlives the body | 3018 @55 |
+| L-PARALLEL-065 | A partition body writes a local of the function, so the workers race on it | 3075 @55 |
+| L-PARALLEL-066 | A partition body adds to a local of the function | 3075 @55 |
+| L-PARALLEL-067 | A partition body writes a field of a local of the function | 3075 @55 |
+| L-PARALLEL-068 | A part is stored in a local of the function and outlives the body | 3075 @55, 3018 @55 |
+| L-PARALLEL-069 | The source of a partition mutable is written in the body while the parts are written | 3076 @54 |
 | L-PARALLEL-070 | A partition is used outside of a fork_join block | 3062 @52 |
 | L-PARALLEL-071 | A spawn statement that is not a call | 3063 @54 |
 | L-PARALLEL-072 | A partition of a value that is no array | 3064 @54 |
@@ -1059,10 +1067,6 @@ Facts the items fix, checked by running the compiler:
 
 | Id | Shows | Expected |
 |---|---|---|
-| L-PARALLEL-065 | A partition body writes a local of the function, so the workers race on it | gap: #230 NEW, rule: reject |
-| L-PARALLEL-066 | A partition body adds to a local of the function | gap: #230 NEW, rule: reject |
-| L-PARALLEL-067 | A partition body writes a field of a local of the function | gap: #230 NEW, rule: reject |
-| L-PARALLEL-069 | The source of a partition mutable is written in the body while the parts are written | gap: #232 NEW, rule: reject |
 
 ## Adversarial
 
@@ -1134,6 +1138,7 @@ generic or an alias leads to is not checked by sema either (see the sema doc, Ga
 | L-ADVERSARIAL-020 | A literal out of range is a field of a struct literal | 3033 @40 |
 | L-ADVERSARIAL-021 | A literal out of range is the value of a constant used by a generic call | 3033 @35 |
 | L-ADVERSARIAL-022 | An unsigned value is negated in an arm of switch | 3036 @38 |
+| L-ADVERSARIAL-023 | The source of a partition mutable is read in the body while the parts are written | 3076 @60, 3075 @61 |
 | L-ADVERSARIAL-024 | A nested fork_join reads what the outer block writes | 3074 @60 |
 | L-ADVERSARIAL-025 | Two workers over one for each mutable element, one writes and one reads | 3074 @59 |
 | L-ADVERSARIAL-026 | A value moved into a generic function is read afterwards | 3070 @42 |
@@ -1182,7 +1187,6 @@ generic or an alias leads to is not checked by sema either (see the sema doc, Ga
 |---|---|---|
 | L-ADVERSARIAL-003 | A value moved in an arm of switch is spawned after the switch | gap: #198 NEW, rule: reject |
 | L-ADVERSARIAL-013 | A contract method moves its receiver into a write borrow | gap: #200 NEW, rule: reject |
-| L-ADVERSARIAL-023 | The source of a partition mutable is read in the body while the parts are written | gap: #232 NEW, rule: reject |
 | L-ADVERSARIAL-050 | Mutant of L-OWNERSHIP-012: copy is swapped for move on a borrowed parameter | gap: #200 NEW, rule: reject |
 | L-ADVERSARIAL-052 | Mutant of L-OWNERSHIP-024: copy is swapped for move on a file constant | gap: #200 NEW, rule: reject |
 | L-ADVERSARIAL-053 | Mutant of L-OWNERSHIP-047: the move word is dropped from an owned argument | 3016 @35 |
@@ -1240,7 +1244,7 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 
 | area | accept | reject | known_gap |
 |---|---|---|---|
-| adversarial | 0 | 62 | 10 |
+| adversarial | 0 | 63 | 9 |
 | bindings | 33 | 80 | 0 |
 | coverage | 0 | 1 | 0 |
 | examples | 20 | 0 | 0 |
@@ -1249,10 +1253,10 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | memory | 15 | 18 | 0 |
 | namespaces | 17 | 34 | 0 |
 | ownership | 65 | 76 | 4 |
-| parallel | 19 | 36 | 4 |
+| parallel | 19 | 40 | 0 |
 | seed | 1 | 2 | 0 |
 | types | 60 | 132 | 4 |
-| total | 266 | 523 | 22 |
+| total | 266 | 528 | 17 |
 
 ## Parity plan
 
@@ -1273,7 +1277,7 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 |---|---|---|
 | 1001-1006 | `lex` | [marea-lex.md](../lex/marea-lex.md) |
 | 2001-2010 | `parse` | [marea-ast.md](../ast/marea-ast.md) |
-| 3001-3032 | `sema` | [marea-sema.md](../sema/marea-sema.md) (3033 to 3069 follow in the rows below) |
+| 3001-3032 | `sema` | [marea-sema.md](../sema/marea-sema.md) (3033 to 3076 follow in the rows below) |
 | 3056 | `sema` | [marea-sema.md](../sema/marea-sema.md), `RESERVED_MACRO_NAME` |
 | 3057-3058 | `sema` | [marea-sema.md](../sema/marea-sema.md), `OPAQUE_TYPE_MISUSE` and `OPAQUE_FIELD_BY_VALUE` |
 | 3033 | `sema` | [marea-sema.md](../sema/marea-sema.md), `LITERAL_OUT_OF_RANGE` |
@@ -1297,6 +1301,7 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 | 3065 | `sema` | [marea-sema.md](../sema/marea-sema.md), `LOCAL_WITHOUT_INITIAL_VALUE` |
 | 3066-3068 | `sema` | [marea-sema.md](../sema/marea-sema.md), `PRIVATE_SYMBOL_ACCESS`, `PRIVATE_TYPE_ACCESS`, `PRIVATE_FIELD_ACCESS`, no item reaches them (see Gaps) |
 | 3069 | `sema` | [marea-sema.md](../sema/marea-sema.md), `WRITE_THROUGH_READ_ONLY_BORROW` |
+| 3075-3076 | `sema` | [marea-sema.md](../sema/marea-sema.md), `PARTITION_BODY_WRITES_OUTER_NAME` and `PARTITION_SOURCE_USED_IN_BODY` |
 | 4004-4006 | `ir` | [marea-ir.md](../ir/marea-ir.md), no item reaches them (see Gaps) |
 
 ## Gaps
@@ -1346,7 +1351,7 @@ The coverage test holds this list; an example that gains an item must leave it.
 
 ### Diagnostic codes with no reject item
 
-Every live lex, parse and sema code (1001-1006, 2001-2010, 3001-3074 without 3023 and the numbers no code uses) has a `reject` item, except 3066,
+Every live lex, parse and sema code (1001-1006, 2001-2010, 3001-3076 without 3023 and the numbers no code uses) has a `reject` item, except 3066,
 3067 and 3068: no item can reach a second namespace (issue #250), and `tests/source/sema/MAREASemaVisibility.cpp`
 proves them. The ir codes
 4004, 4005 and 4006 are exempt: the runner runs lex, parse and sema only, so no item can reach the ir. The exemption ends
