@@ -5,6 +5,7 @@
 
 #include "tests/MAREASemaHelpers.hpp"
 
+#include <algorithm>
 #include <fstream>
 #include <sstream>
 
@@ -23,6 +24,10 @@ namespace
     constexpr MAREA_Uinteger32 INVALID_JUMP{ MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_PARALLEL_JUMP };
 
     constexpr MAREA_Uinteger32 CONFLICT{ MAREA_SEMA_DIAGNOSTIC_CODE_CONFLICTING_PARALLEL_ACCESS };
+
+    constexpr MAREA_Uinteger32 OUTER_WRITE{ MAREA_SEMA_DIAGNOSTIC_CODE_PARTITION_BODY_WRITES_OUTER_NAME };
+
+    constexpr MAREA_Uinteger32 SOURCE_USED{ MAREA_SEMA_DIAGNOSTIC_CODE_PARTITION_SOURCE_USED_IN_BODY };
 
     const std::string SHARED{ "structure P x: sinteger32; y: sinteger32; end function w(#[semantics = reference_mutable] p: P) end function r(p: P): sinteger32 return p.x; end " };
 
@@ -455,4 +460,61 @@ TEST(MAREASemaParallel, NestedForkJoinIsComparedWithTheOuterBlock)
     GTEST_COUT << "Validating a nested fork_join block is compared with what the outer block captured." << std::endl;
 
     EXPECT_EQ(MAREA_codesOf(SHARED + "function f() local a: P = P{ x = 1, y = 2 }; fork_join spawn w(a); fork_join spawn r(a); end end end"), Codes{ CONFLICT }) << "A nested worker that reads what an outer worker writes must raise CONFLICTING_PARALLEL_ACCESS.";
+}
+
+TEST(MAREASemaParallel, PartitionBodyThatWritesAnOuterNameIsRejected)
+{
+    GTEST_COUT << "Validating a partition body cannot write a local or a parameter declared outside it." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("function f(values: c.array<float32>) local counter: sinteger32 = 0; fork_join partition values into 2 as part do counter = counter + 1; end end end"), Codes{ OUTER_WRITE }) << "An assignment to an outer local must raise 3075.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(values: c.array<float32>) local counter: sinteger32 = 0; fork_join partition values into 2 as part do counter += 1; end end end"), Codes{ OUTER_WRITE }) << "A compound assignment to an outer local must raise 3075.";
+
+    EXPECT_EQ(MAREA_codesOf(SHARED + "function f(values: c.array<float32>) local point: P = P{ x = 1, y = 2 }; fork_join partition values into 2 as part do point.x = 2; end end end"), Codes{ OUTER_WRITE }) << "A write to a field of an outer local must raise 3075.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(values: c.array<float32>, total: sinteger32) fork_join partition values into 2 as part do total = 1; end end end"), Codes{ OUTER_WRITE }) << "A write to an outer parameter must raise 3075.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(values: c.array<float32>, #[semantics = reference_mutable] other: c.array<float32>) fork_join partition values into 2 as part do other[0] = 1.0; end end end"), Codes{ OUTER_WRITE }) << "A write to an element of an outer array must raise 3075.";
+}
+
+TEST(MAREASemaParallel, PartitionBodyThatWritesItsOwnNamesIsAccepted)
+{
+    GTEST_COUT << "Validating a partition body may write a name it declares, its part and a file constant is not a local." << std::endl;
+
+    EXPECT_TRUE(MAREA_codesOf("function f(values: c.array<float32>) fork_join partition values into 2 as part do local inner: sinteger32 = 0; inner = 1; end end end").empty()) << "A write to a local of the body must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("function f(#[semantics = reference_mutable] values: c.array<float32>) fork_join partition mutable values into 2 as part do part[0] = 1.0; end end end").empty()) << "A write through the part must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("function f(values: c.array<float32>) local counter: sinteger32 = 0; fork_join partition values into 2 as part do local first: sinteger32 = counter; end end end").empty()) << "A read of an outer local must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("function f(values: c.array<float32>) fork_join partition values into 2 as part do for i in 0 .. 3 do i = 2; end end end end").empty()) << "A write to a loop variable of the body must raise nothing.";
+
+    const Codes CONSTANT_CODES{ MAREA_codesOf("function f(values: c.array<float32>) fork_join partition values into 2 as part do WORKERS = 1; end end end") };
+
+    EXPECT_EQ(std::count(CONSTANT_CODES.begin(), CONSTANT_CODES.end(), OUTER_WRITE), 0) << "A write to a file constant must raise nothing from this rule.";
+
+    EXPECT_TRUE(MAREA_codesOf("function f(values: c.array<float32>) local counter: sinteger32 = 0; fork_join partition values into 2 as part do local counter: sinteger32 = 0; counter = 1; end end end").empty()) << "A body local that hides an outer name must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("function f(values: c.array<float32>) fork_join partition values into 2 as part do partition part into 2 as inner do local x: sinteger32 = 0; x = 1; end end end end end").empty()) << "A nested partition that writes its own local must raise nothing.";
+}
+
+TEST(MAREASemaParallel, SourceOfAPartitionMutableUsedInItsBodyIsRejected)
+{
+    GTEST_COUT << "Validating the source of a partition mutable cannot be used in its body." << std::endl;
+
+    const std::string SCALE{ "function scale(#[semantics = reference_mutable] part: c.slice<float32>, factor: float32) end " };
+
+    EXPECT_EQ(MAREA_codesOf("function f(#[semantics = reference_mutable] values: c.array<float32>) fork_join partition mutable values into 2 as part do values[0] = 1.0; end end end"), Codes{ SOURCE_USED }) << "A write to the source must raise 3076.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(#[semantics = reference_mutable] values: c.array<float32>) fork_join partition mutable values into 2 as part do local first: float32 = values[0]; end end end"), Codes{ SOURCE_USED }) << "A read of the source must raise 3076.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(#[semantics = reference_mutable] values: c.array<float32>) fork_join partition mutable values into 2 as part do for each value in values do end end end end"), Codes{ SOURCE_USED }) << "A loop over the source must raise 3076.";
+
+    EXPECT_EQ(MAREA_codesOf(SCALE + "function f(#[semantics = reference_mutable] values: c.array<float32>) fork_join partition mutable values into 2 as part do spawn scale(values, 2.0); end end end"), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_SPAWN_ARGUMENT }) << "The source as a spawn argument must raise 3020 and no 3076.";
+
+    EXPECT_TRUE(MAREA_codesOf(SCALE + "function f(#[semantics = reference_mutable] values: c.array<float32>) fork_join partition mutable values into 2 as part do spawn scale(part, 2.0); part[0] = 1.0; end end end").empty()) << "The part must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("function f(values: c.array<float32>) fork_join partition values into 2 as part do local first: float32 = values[0]; end end end").empty()) << "A partition that is not mutable has no 3076 rule.";
+
+    EXPECT_TRUE(MAREA_codesOf(SHARED + "structure H values: sinteger32; end function f(#[semantics = reference_mutable] values: c.array<float32>, other: H) fork_join partition mutable values into 2 as part do local first: sinteger32 = other.values; end end end").empty()) << "A member named like the source must raise nothing.";
 }

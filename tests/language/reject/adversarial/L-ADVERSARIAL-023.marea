@@ -1,9 +1,8 @@
--- gap: #230 NEW
--- rule: reject
+-- expect: 3076 @60, 3075 @61
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- A partition body writes a field of a local of the function.
+-- The source of a partition mutable is read in the body while the parts are written.
 
 namespace main;
 
@@ -35,6 +34,10 @@ function write_point(#[semantics = reference_mutable] point: Point)
     point.x = 1;
 end
 
+function take_point(point: owned<Point>): sinteger32
+    return point.x;
+end
+
 function scale_slice(#[semantics = reference_mutable] part: c.slice<float32>, factor: float32)
     for each value in mutable part do
         value *= factor;
@@ -49,12 +52,15 @@ function sum_slice(#[semantics = reference_read_only] part: c.slice<float32>): f
     return total;
 end
 
-function run(#[semantics = reference_read_only] values: c.array<float32>): sinteger32
-    local point: Point = make_point();
+function check(#[semantics = reference_mutable] values: c.array<float32>): float32
+    local total: float32 = 0.0;
     fork_join
-        partition values into 2 as part do
-            point.x = 2;
+        partition mutable values into WORKER_COUNT as part do
+            spawn scale_slice(part, 2.0);
+            for each value in values do
+                total += value;
+            end
         end
     end
-    return point.x;
+    return total;
 end

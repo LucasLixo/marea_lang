@@ -1,9 +1,8 @@
--- gap: #232 NEW
--- rule: reject
+-- expect: 3075 @55
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- The source of a partition mutable is written in the body while the parts are written.
+-- A partition body writes a local of the function, so the workers race on it.
 
 namespace main;
 
@@ -49,10 +48,12 @@ function sum_slice(#[semantics = reference_read_only] part: c.slice<float32>): f
     return total;
 end
 
-function run(#[semantics = reference_mutable] values: c.array<float32>)
+function run(#[semantics = reference_read_only] values: c.array<float32>): sinteger32
+    local counter: sinteger32 = 0;
     fork_join
-        partition mutable values into 2 as part do
-            values[0] = 1.0;
+        partition values into 2 as part do
+            counter = counter + 1;
         end
     end
+    return counter;
 end
