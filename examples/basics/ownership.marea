@@ -5,10 +5,10 @@
 -- variable, a field or a scope. A reference lives only for one call. It is never stored and
 -- never returned. How a value is passed is the "semantics" attribute on the parameter:
 --   primitive or enum type                       by value (a copy)
---   any other type, no attribute written          an exclusive write borrow (reference_mutable,
---                                                  the default for every non-primitive type)
---   #[semantics = reference_read_only]             a read-only borrow
---   #[semantics = reference_mutable]               an exclusive write borrow, same as no attribute
+--   any other type, no attribute written          a read-only borrow (reference_read_only, the
+--                                                  default for every non-primitive type)
+--   #[semantics = reference_read_only]             a read-only borrow, same as no attribute
+--   #[semantics = reference_mutable]               an exclusive write borrow, written on purpose
 --   #[semantics = value_read_only]                 legal only on a primitive; a copy, same as no
 --                                                  attribute there
 --   owned<T>                     the call takes the owner: the caller writes "move"
@@ -37,21 +37,22 @@ structure Shape
     height: float64;
 end
 
--- #[semantics = reference_read_only]: a read-only borrow. The function can not change the shape.
+-- #[semantics = reference_read_only]: a read-only borrow, the same as writing no attribute. The
+-- function can not change the shape.
 function area(#[semantics = reference_read_only] shape: Shape): float64
     return shape.width * shape.height;
 end
 
--- No attribute: the non-primitive default, an exclusive write borrow. Nobody else reads the
--- shape while this call runs.
-function grow(shape: Shape, factor: float64)
+-- #[semantics = reference_mutable]: an exclusive write borrow, written on purpose. Nobody else
+-- reads the shape while this call runs.
+function grow(#[semantics = reference_mutable] shape: Shape, factor: float64)
     shape.width *= factor;
     shape.height *= factor;
 end
 
--- A structure is never copied by assignment alone. The default write borrow makes the call
+-- A structure is never copied by assignment alone. The explicit write borrow makes the call
 -- change the caller's point.
-function move_right(point: Point, distance: float64)
+function move_right(#[semantics = reference_mutable] point: Point, distance: float64)
     point.x += distance;
 end
 

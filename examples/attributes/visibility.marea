@@ -8,7 +8,7 @@
 -- Visibility is an attribute. There is no public or local keyword.
 -- The key visibility is an enum key with the members public and private.
 --   #[visibility = public]   other files can import the symbol
---   #[visibility = private]  only this file can use it. This is the default, so it can be left out.
+--   #[visibility = private]  only this file can use it. Without the attribute a symbol is public.
 -- visibility twice on one symbol is an error. An unknown key is an error.
 
 namespace attributes.visibility;
@@ -19,8 +19,10 @@ constant VERSION: sinteger32 = 1;
 #[visibility = private]
 constant SECRET: sinteger32 = 42;
 
+#[visibility = private]
 constant ALSO_PRIVATE: sinteger32 = 43;
 
+#[visibility = private]
 function hidden(): sinteger32
     return ALSO_PRIVATE;
 end
