@@ -334,11 +334,19 @@ tests run in source order and the first one that holds runs its block.
 - A `default` arm is the `ELSE_CLAUSE`, wherever it stands among the arms. A `switch` with a `default` and
   no `case` has no test: the lowered `default` block follows the hidden local. A `switch` with no arm keeps
   only the hidden local, so its scrutinee is still evaluated.
-- A `switch` over an enum with no `default` ends with an `ELSE_CLAUSE` that holds a `BLOCK` with one
-  `UNREACHABLE_STATEMENT`, the node that `unreachable!()` lowers to. Sema reports `NON_EXHAUSTIVE_SWITCH` for
-  such a `switch` that misses a variant, so a unit that reached the IR covers them all. The IR does not count
-  the variants again. A `switch` over any other type with no `default` has no `ELSE_CLAUSE`, because it can
-  fall through when no case matches.
+- **A `switch` with no `default` (decided).** The missing else is explicit only when the `switch` is proven
+  exhaustive, that is, over an enum (a type alias of the enum counts, as sema sees through it). It ends with an
+  `ELSE_CLAUSE` that holds a `BLOCK` with one `UNREACHABLE_STATEMENT`, the node that `unreachable!()` lowers to.
+  Sema reports `NON_EXHAUSTIVE_SWITCH` for such a `switch` that misses a variant, so a unit that reached the IR
+  covers them all, and the IR does not count the variants again. A backend that checks that every path of a
+  function with a result type returns reads the chain like any `if`: each arm must end the path, and the
+  `UNREACHABLE_STATEMENT` ends the else, as `unreachable!()` ends a path in sema. A `switch` over any other type
+  (an integer, a `boolean`, a type of an `EXTERNAL` library that sema does not know) with no `default` has no
+  `ELSE_CLAUSE`: it can fall through when no case matches. Sema does not take an integer or `boolean` switch for an
+  ending path (it accepts only a `default` or an enum; for a scrutinee of a type it does not know it gives the
+  benefit of the doubt, which is no proof). An explicit `UNREACHABLE_STATEMENT` there would turn a legal
+  fall-through into a trap, and would let a check of the returns pass where sema's rule fails. The absence of the
+  else is the explicit form of that path, and a backend reads it as a path that continues after the `switch`.
 - The scrutinee and each case value are lowered like any expression, so a case value that is an enum
   variant stays a `MEMBER_ACCESS`. The synthetic nodes take only a position from the source: the comparison
   is positioned at its case value, the `IF_STATEMENT` or `ELSEIF_CLAUSE` at its arm.

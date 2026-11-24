@@ -27,6 +27,17 @@ namespace
 
         return MAREA_irRender(MAREA_irChild(function, MAREA_IrNodeGetChildCount(function) - 1));
     }
+
+    std::size_t MAREA_countOf(const std::string &text, const std::string &part)
+    {
+        std::size_t count{ 0 };
+
+        for (std::size_t at{ text.find(part) }; at != std::string::npos; at = text.find(part, at + 1)) {
+            ++count;
+        }
+
+        return count;
+    }
 } // namespace
 
 TEST(MAREAIrControlFlow, EmptyBodyIsAnEmptyBlock)
@@ -307,6 +318,63 @@ TEST(MAREAIrControlFlow, SwitchOverANonEnumWithoutDefaultKeepsNoElse)
     GTEST_COUT << "Validating an integer switch with no default has no else, because it can really fall through." << std::endl;
 
     EXPECT_EQ(MAREA_lowerBody("", "a: sinteger32", "switch a case 1 then return; end").find("UNREACHABLE_STATEMENT"), std::string::npos) << "An integer switch is not exhaustive, so it must not be marked.";
+}
+
+TEST(MAREAIrControlFlow, SwitchOverAnEnumThroughATypeAliasEndsWithAnUnreachableElse)
+{
+    GTEST_COUT << "Validating an enum switch whose scrutinee is typed by an alias of the enum is still proven exhaustive and ends with the unreachable else." << std::endl;
+
+    const std::string rendered{ MAREA_lowerBody("enum Color red; green; end type Shade = Color;", "c: Shade", "switch c case Color.red then return; case Color.green then return; end") };
+
+    EXPECT_NE(rendered.find("(ELSE_CLAUSE (BLOCK (UNREACHABLE_STATEMENT)))"), std::string::npos) << rendered;
+}
+
+TEST(MAREAIrControlFlow, SwitchOverAnEnumWithManyValuesPerCaseEndsWithOneUnreachableElse)
+{
+    GTEST_COUT << "Validating an enum switch whose cases hold several variants each gets exactly one unreachable else, at the end of the chain." << std::endl;
+
+    const std::string rendered{ MAREA_lowerBody("enum Color red; green; blue; end", "c: Color", "switch c case Color.red, Color.green then return; case Color.blue then return; end") };
+
+    EXPECT_EQ(MAREA_countOf(rendered, "UNREACHABLE_STATEMENT"), std::size_t{ 1 }) << rendered;
+
+    const std::string CLOSING{ "(ELSE_CLAUSE (BLOCK (UNREACHABLE_STATEMENT))))))" };
+
+    EXPECT_EQ(rendered.rfind(CLOSING), rendered.size() - CLOSING.size()) << "The else must close the chain: " << rendered;
+}
+
+TEST(MAREAIrControlFlow, EnumSwitchThatReturnsOnEveryPathLeavesNoPathWithoutAnEnd)
+{
+    GTEST_COUT << "Validating a function that returns in every arm of an enum switch has an end on every path of the lowered chain: each arm returns and the else is unreachable." << std::endl;
+
+    MAREA_IrFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; enum Color red; green; end function f(c: Color): sinteger32 switch c case Color.red then return 1; case Color.green then return 2; end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+
+    const std::string rendered{ MAREA_irRender(MAREA_irChild(MAREA_irChild(fixture.module, 1), 1)) };
+
+    EXPECT_EQ(MAREA_countOf(rendered, "(RETURN_STATEMENT"), std::size_t{ 2 }) << rendered;
+
+    EXPECT_EQ(MAREA_countOf(rendered, "(ELSE_CLAUSE (BLOCK (UNREACHABLE_STATEMENT)))"), std::size_t{ 1 }) << "The one path with no return must end in the marker: " << rendered;
+}
+
+TEST(MAREAIrControlFlow, SwitchOverAnEnumWithOnlyADefaultHasNoUnreachableMarker)
+{
+    GTEST_COUT << "Validating an enum switch with only a default keeps no chain and so no unreachable marker." << std::endl;
+
+    const std::string rendered{ MAREA_lowerBody("enum Color red; green; end", "c: Color", "switch c default then return; end") };
+
+    EXPECT_EQ(rendered, "(BLOCK (BLOCK (LOCAL_DECLARATION $switch (IDENTIFIER c)) (BLOCK (RETURN_STATEMENT))))") << "The default block must follow the hidden local, with no marker.";
+}
+
+TEST(MAREAIrControlFlow, SwitchOverAnExternalTypeWithoutDefaultKeepsNoElse)
+{
+    GTEST_COUT << "Validating a switch whose scrutinee has a type sema does not know has no unreachable else, as the other no-default switches that can fall through." << std::endl;
+
+    const std::string rendered{ MAREA_lowerBody("import collections.size;", "a: size", "switch a case 1 then return; end") };
+
+    EXPECT_NE(rendered.find("(IF_STATEMENT"), std::string::npos) << "The switch must lower: " << rendered;
+
+    EXPECT_EQ(rendered.find("ELSE_CLAUSE"), std::string::npos) << "Nothing proves an external type exhaustive: " << rendered;
 }
 
 TEST(MAREAIrControlFlow, SwitchWithTwoDefaultsOrARepeatedCaseNeverReachesLowering)
