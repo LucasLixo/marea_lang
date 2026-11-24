@@ -22,7 +22,8 @@ MAREA_SemaCheckCompilationUnit(sema, root);   /* once per file, dependencies fir
 `MAREA_SemaCheckCompilationUnit` returns an error only for a null argument or an out of memory. A rule
 violation is a diagnostic in the sink. A size that does not fit in `MAREA_IntegerSize` (a diagnostic
 message, or the growth of a name table) is also an out of memory: nothing is allocated or copied.
-Every sema diagnostic is an error, in the range 3001-3068 (3023 is retired, and a number that no row of the Diagnostics table names is not used).
+Every sema diagnostic is an error, in the range 3001-3068. Not every number of the range is a live code: the
+Diagnostics table lists the live ones.
 The lexer file name decides the path rule, so call `MAREA_LexContextSetFileName` with a project
 relative path with forward slashes and the `.marea` extension before the lex step.
 
@@ -344,6 +345,18 @@ file. A name counts as an edge only where it stands as a value: a member name, a
 not followed. A constant that only uses a cycle without being on it is not reported. The search runs once, after the
 declaration checks and before the visit, with a visit state kept in the arena and an explicit stack, so a long chain
 needs no recursion.
+
+**Compile-time macros.** A `compile_error!(...)` call always raises `COMPILE_TIME_ASSERTION_FAILED` (3059) at the
+call, in a function body and at the top level, whatever its arguments are. A `static_assert!(condition, "text")` call
+with two arguments raises 3059 when its condition is a constant that evaluates to false. A small evaluator reads the
+condition: boolean and integer literals (decimal, `0x`, `0b`, `_`), a file constant (read through its initial value,
+with a depth limit of 32, so a cyclic constant ends as unknown), parentheses, unary `not` and unary minus, `and`, `or`,
+the comparisons `==`, `!=`, `<`, `<=`, `>`, `>=` and `+ - * / %` over 64-bit integers. It answers true, false or
+unknown, and an unknown condition is accepted. Overflow, a division by zero, a call, `size_of`, `align_of`, a name that
+is not a file constant (a local or a parameter of the same name hides the constant) and every other node are unknown:
+the rules of constant arithmetic are other checks, never reported here. A `static_assert!` with another argument count
+is skipped. The message holds the text of the string literal argument without its quotes, as
+`compile_error: <text>` or `static assertion failed: <text>`, and the prefix alone when there is none.
 
 **Visibility across namespaces.** The default visibility is public: only an explicit `#[visibility = private]` hides a
 symbol, a type or a field from another file (a file attribute `#![visibility = private]` hides every symbol of the file,
@@ -680,6 +693,7 @@ or rejects.
 | 3041 | `RAW_POINTER_OUTSIDE_UNSAFE` | `local raw: pointer<sinteger32> = f();` with no `unsafe ... end` block around it, at any depth of nesting |
 | 3043 | `NON_BOOLEAN_CONDITION` | `if n then`, `elseif s then`, `while 1 do` when the condition has a known primitive type that is not `boolean`, or is a number, string or character literal |
 | 3055 | `CYCLIC_CONSTANT` | `constant A: sinteger32 = B;` with `constant B: sinteger32 = A;`, or `constant A: sinteger32 = A;`, once for each cycle, at the first constant of it in the file |
+| 3059 | `COMPILE_TIME_ASSERTION_FAILED` | `compile_error!("stop");` with any arguments, at the top level or in a function body; `static_assert!(1 == 2, "never");` or `static_assert!(N == 5, "n");` when the condition is a constant that is false |
 | 3065 | `LOCAL_WITHOUT_INITIAL_VALUE` | `local x: sinteger32;` with no `= value`, for a primitive, a structure, a `pointer` or an `array`, at any depth of nesting |
 | 3066 | `PRIVATE_SYMBOL_ACCESS` | `b.hidden()` or `b.LIMIT` after `import a.b;` (or an alias) when the member is a top-level declaration of a `FOUND` namespace with `#[visibility = private]` |
 | 3067 | `PRIVATE_TYPE_ACCESS` | `s: b.Secret`, `b.Secret{ }` or any written `b.Secret` when the structure, enum, opaque or alias of a `FOUND` namespace is private |
@@ -719,6 +733,11 @@ or rejects.
   bare name.
 - `ASSIGNMENT_TO_CONSTANT` (3040) sees only a constant that a file declares. A constant that an `implementation`
   declares is not rejected.
+- `COMPILE_TIME_ASSERTION_FAILED` (3059) decides a `static_assert!` condition only when the evaluator can fold it. A
+  condition with `size_of`, `align_of`, a call, a name that is not a file constant of this file (a constant of another
+  namespace included), a float, a string, a division by zero or an overflow is unknown and accepted, so a false
+  `static_assert!(size_of<Light>() == 9, "x");` raises nothing yet. The arithmetic is over 64-bit integers, not over the
+  type of the constant, so a constant of a narrow type does not wrap.
 - `CYCLIC_CONSTANT` (3055) sees only the constants that a file declares at the top level. A constant that an
   `implementation` declares is not part of the search. A name is matched by its text in the name table, so a
   qualified name of another namespace is not followed.
