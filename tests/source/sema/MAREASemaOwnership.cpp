@@ -545,7 +545,7 @@ TEST(MAREASemaOwnership, PartitionPartCannotBeStoredInAnOuterLocal)
 {
     GTEST_COUT << "Validating a partition part assigned to a local declared outside the body raises REFERENCE_ESCAPES_SCOPE." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(items: c.array<float32>) local kept: c.slice<float32> = c.slice<float32>{}; fork_join partition items into 2 as part do kept = part; end end end"), Codes{ ESCAPES }) << "A part stored in an outer local must raise REFERENCE_ESCAPES_SCOPE.";
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(items: c.array<float32>) local kept: c.slice<float32> = c.slice<float32>{}; fork_join partition items into 2 as part do kept = part; end end end"), (Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_PARTITION_BODY_WRITES_OUTER_NAME, ESCAPES })) << "A part stored in an outer local must raise PARTITION_BODY_WRITES_OUTER_NAME and REFERENCE_ESCAPES_SCOPE.";
 
     EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(items: c.array<float32>) fork_join partition items into 2 as part do local mine: c.slice<float32> = c.slice<float32>{}; mine = part; end end end").empty()) << "A part stored in a local of the body must raise nothing.";
 }
