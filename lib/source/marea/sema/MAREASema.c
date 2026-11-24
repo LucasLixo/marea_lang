@@ -46,6 +46,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaContextCreate(MAREA_Arena *arena, MAREA_Di
     context->forkDepth = 0;
     context->partitionDepth = 0;
     context->loopDepth = 0;
+    context->unsafeDepth = 0;
 
     *outContext = context;
 
@@ -233,6 +234,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckCompilationUnit(MAREA_SemaContext *co
     context->forkDepth = 0;
     context->partitionDepth = 0;
     context->loopDepth = 0;
+    context->unsafeDepth = 0;
 
     const MAREA_SemaExcept namesResult = MAREA_SemaCheckNamespaceAndNames(context, root);
 

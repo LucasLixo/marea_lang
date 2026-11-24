@@ -237,6 +237,7 @@ A `known_gap` item that shares an issue shows one hole of the compiler through m
 | L-BINDINGS-089 | A scope block with no end | 2009 @14 |
 | L-BINDINGS-090 | A scope block written with curly braces | 2002 @10, 2002 @12 |
 | L-BINDINGS-093 | An unsafe block with no end | 2009 @14 |
+| L-BINDINGS-094 | A raw pointer local outside an unsafe block | 3041 @10 |
 | L-BINDINGS-095 | A name declared in an unsafe block ends at its end | 3004 @13 |
 | L-BINDINGS-101 | An unknown member of an enum key | 3006 @9 |
 | L-BINDINGS-102 | A visibility key with a member that does not exist | 3006 @9 |
@@ -256,7 +257,6 @@ A `known_gap` item that shares an issue shows one hole of the compiler through m
 |---|---|---|
 | L-BINDINGS-061 | A local redeclared in the same scope | gap: #188 3003, rule: reject |
 | L-BINDINGS-084 | A constant assigned inside a function | gap: #189 NEW, rule: reject |
-| L-BINDINGS-094 | A raw pointer local outside an unsafe block | gap: #190 NEW, rule: reject |
 
 ## Ownership and borrows
 
@@ -940,6 +940,7 @@ rejected with 3009 by the type checker, so it has no accept item.
 | L-INTEROP-022 | An opaque structure has no body | 2001 @10, 2005 @11 |
 | L-INTEROP-023 | A parameter of a type that no declaration names | 3009 @9 |
 | L-INTEROP-024 | An import placed after a function | 2004 @13 |
+| L-INTEROP-048 | A raw pointer local outside an unsafe block | 3041 @12 |
 | L-INTEROP-049 | A name of a with block used after its end | 3004 @15 |
 | L-INTEROP-050 | An owner of an opaque type assigned with no move | 3016 @15 |
 | L-INTEROP-054 | A macro name called without the bang | 3004 @10 |
@@ -960,7 +961,6 @@ rejected with 3009 by the type checker, so it has no accept item.
 | L-INTEROP-045 | A print macro with fewer values than the format text needs | gap: NEW, rule: reject, issue #241 |
 | L-INTEROP-046 | A print macro with a number as the format text | gap: 3011, rule: reject, issue #241 |
 | L-INTEROP-047 | An assert macro with a number as the condition | gap: 3011, rule: reject, issue #241 |
-| L-INTEROP-048 | A raw pointer local outside an unsafe block | gap: NEW, rule: reject, issue #190 |
 | L-INTEROP-051 | An owner of an opaque type is used after it moved | gap: NEW, rule: reject, issue #198 |
 | L-INTEROP-052 | A print macro with no argument | gap: NEW, rule: reject, issue #241 |
 | L-INTEROP-053 | An unreachable macro with an argument | gap: NEW, rule: reject, issue #241 |
@@ -1243,18 +1243,18 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | area | accept | reject | known_gap |
 |---|---|---|---|
 | adversarial | 0 | 27 | 45 |
-| bindings | 33 | 77 | 3 |
+| bindings | 33 | 78 | 2 |
 | coverage | 0 | 0 | 1 |
 | examples | 16 | 0 | 0 |
 | functions | 19 | 41 | 13 |
-| interop | 17 | 10 | 18 |
+| interop | 17 | 11 | 17 |
 | memory | 15 | 10 | 8 |
 | namespaces | 17 | 28 | 6 |
 | ownership | 65 | 35 | 45 |
 | parallel | 19 | 23 | 17 |
 | seed | 1 | 1 | 1 |
 | types | 60 | 108 | 28 |
-| total | 262 | 360 | 185 |
+| total | 262 | 362 | 183 |
 
 ## Parity plan
 
@@ -1280,6 +1280,7 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 | 3034-3035 | `sema` | [marea-sema.md](../sema/marea-sema.md), the division and shift rules of constant operands |
 | 3036-3037 | `sema` | [marea-sema.md](../sema/marea-sema.md) |
 | 3038-3039 | `sema` | [marea-sema.md](../sema/marea-sema.md) |
+| 3041 | `sema` | [marea-sema.md](../sema/marea-sema.md), `RAW_POINTER_OUTSIDE_UNSAFE` |
 | 4004-4006 | `ir` | [marea-ir.md](../ir/marea-ir.md), no item reaches them (see Gaps) |
 
 ## Gaps
