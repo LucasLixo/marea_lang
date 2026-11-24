@@ -1111,6 +1111,15 @@ MAREA_BEGIN_EXTERN_C
      */
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckRawPointerLocal(MAREA_SemaContext * context, const MAREA_AstNode *local);
 
+    /**
+     * @brief Raises NON_BOOLEAN_CONDITION when the condition of an if, an elseif or a while is a number, string or
+     * character literal, or has a known primitive type that is not boolean. An unknown type raises nothing.
+     * @param context Context of the run. Must not be null.
+     * @param condition The condition expression, any parentheses included. May be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null context, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckCondition(MAREA_SemaContext * context, const MAREA_AstNode *condition);
+
 MAREA_END_EXTERN_C
 
 #endif /* MAREA_INTERNAL_SEMA_MAREASEMAINTERNAL_H */
