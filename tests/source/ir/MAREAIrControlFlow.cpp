@@ -464,7 +464,7 @@ TEST(MAREAIrControlFlow, ForEachMutableContinueIsNotWrapped)
 {
     GTEST_COUT << "Validating a continue in a mutable for-each loop gets no wrapper block, so no flag is copied to a synthetic node." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerBody("import collections.list;", "values: list<sinteger32>, a: boolean", "for each value in mutable values do if a then continue; end end end"), "(BLOCK (FOR_EACH_STATEMENT value flags=1 (IDENTIFIER values) (BLOCK (IF_STATEMENT (IDENTIFIER a) (BLOCK (CONTINUE_STATEMENT))))))") << "The continue must stay bare.";
+    EXPECT_EQ(MAREA_lowerBody("import collections.list;", "#[semantics = reference_mutable] values: list<sinteger32>, a: boolean", "for each value in mutable values do if a then continue; end end end"), "(BLOCK (FOR_EACH_STATEMENT value flags=1 (IDENTIFIER values) (BLOCK (IF_STATEMENT (IDENTIFIER a) (BLOCK (CONTINUE_STATEMENT))))))") << "The continue must stay bare.";
 }
 
 TEST(MAREAIrControlFlow, ForEachWithAGapInTheCollectionDoesNotLowerItsBody)
