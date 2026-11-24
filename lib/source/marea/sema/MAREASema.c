@@ -38,6 +38,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaContextCreate(MAREA_Arena *arena, MAREA_Di
     context->generics = (MAREA_SemaNameTable){ 0 };
     context->locals = (MAREA_SemaNameTable){ 0 };
     context->references = (MAREA_SemaNameTable){ 0 };
+    context->readOnly = (MAREA_SemaNameTable){ 0 };
     context->localStart = 0;
     context->functionLocalStart = 0;
     context->root = MAREA_NULLPTR;
@@ -186,6 +187,8 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaVisit(MAREA_SemaContext *context, const MA
         }
     } else if ((kind == MAREA_AST_KIND_MEMBER_ACCESS) || (kind == MAREA_AST_KIND_LITERAL_VALUE)) {
         result = MAREA_SemaCheckVisibility(context, node);
+    } else if (kind == MAREA_AST_KIND_FIELD_DECLARATION) {
+        result = MAREA_SemaCheckOpaqueField(context, node);
     } else if (kind == MAREA_AST_KIND_WHERE_CLAUSE) {
         result = MAREA_SemaCheckWhereClause(context, node);
     } else if (kind == MAREA_AST_KIND_CALL_EXPRESSION) {
@@ -244,6 +247,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckCompilationUnit(MAREA_SemaContext *co
     context->generics = (MAREA_SemaNameTable){ 0 };
     context->locals = (MAREA_SemaNameTable){ 0 };
     context->references = (MAREA_SemaNameTable){ 0 };
+    context->readOnly = (MAREA_SemaNameTable){ 0 };
     context->root = root;
     context->function = MAREA_NULLPTR;
     context->implementation = MAREA_NULLPTR;

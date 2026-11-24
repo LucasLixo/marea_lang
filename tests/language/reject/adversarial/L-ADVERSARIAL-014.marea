@@ -1,0 +1,43 @@
+-- expect: 3069 @41
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A contract method writes its receiver with the default borrow.
+
+namespace main;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+structure Box
+    inner: Point;
+    count: sinteger32;
+end
+
+function make_point(): Point
+    return Point{ x = 1, y = 2 };
+end
+
+function read_point(#[semantics = reference_read_only] point: Point): sinteger32
+    return point.x;
+end
+
+function write_point(#[semantics = reference_mutable] point: Point)
+    point.x = 1;
+end
+
+function take_point(point: owned<Point>): sinteger32
+    return point.x;
+end
+
+contract Resettable
+    function reset(self: Self);
+end
+
+implementation Point
+    function reset(self: Point)
+        self.x = 0;
+    end
+end
