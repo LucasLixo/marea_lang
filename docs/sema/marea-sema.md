@@ -22,7 +22,7 @@ MAREA_SemaCheckCompilationUnit(sema, root);   /* once per file, dependencies fir
 `MAREA_SemaCheckCompilationUnit` returns an error only for a null argument or an out of memory. A rule
 violation is a diagnostic in the sink. A size that does not fit in `MAREA_IntegerSize` (a diagnostic
 message, or the growth of a name table) is also an out of memory: nothing is allocated or copied.
-Every sema diagnostic is an error, in the range 3001-3069. Not every number of the range is a live code: the
+Every sema diagnostic is an error, in the range 3001-3071. Not every number of the range is a live code: the
 Diagnostics table lists the live ones.
 The lexer file name decides the path rule, so call `MAREA_LexContextSetFileName` with a project
 relative path with forward slashes and the `.marea` extension before the lex step.
@@ -309,8 +309,23 @@ an explicit `reference_mutable` (write-borrow) parameter has no writable storage
 back the borrow, so it is rejected with `CANNOT_BORROW_CONSTANT_AS_MUTABLE` (3032); a variable
 passed to the same parameter is unaffected. An assignment (`=` or a compound form) whose target is a file constant, or a field or element path
 rooted in one (`ORIGIN.x = 1;`, `TABLE[0] = 1;`), is `ASSIGNMENT_TO_CONSTANT` (3040), raised at the target; a local,
-parameter or `for` variable of the same name hides the constant and may be assigned. Tracking of a moved local and a live borrow across
+parameter or `for` variable of the same name hides the constant and may be assigned. Tracking of a live borrow across
 statements is a design decision recorded in the last bullet of `## Gaps`.
+
+**Move state.** `move x` of a whole local or parameter whose type is not by value (not a primitive, an enum, a copy-contract library
+type, or a type that sema cannot see) marks that local moved. A later read of it is `USE_OF_MOVED_VALUE` (3070), a later `move` of it is
+`VALUE_MOVED_AGAIN` (3071), both raised at the name. A read is a name in a place that takes a value (an operand, an argument, the root
+of a member or index chain, a method receiver, a `spawn` argument, a `return`, a condition, a loop bound or collection); a declared name,
+a member name, a field key and a case label are not reads. A plain assignment `x = value;` of the whole local makes it live again, after
+its right side was read; `x.field = value;` and `x += 1;` are reads. A new local of the same name is a new, live local. The moved bit is
+a field of the entry of the `locals` table (`MAREA_SemaName`), so it pushes and pops with the scope of the local, and it is read and
+written in the one `MAREA_SemaVisit` pass (`MAREASemaMoveState.c`). A branch follows the merge rule of the design in `## Gaps`: every
+arm of an `if`/`elseif`/`else` or `switch` starts from the state the statement started with, an arm that ends the function
+(`MAREA_SemaBlockTerminates`) takes no part, a local is moved after the statement only when every arm that reaches the end moved it and
+the statement has an `else` or `default`, and a `do` block is not a branch. The body of a loop (`while`, `for`, `for each`,
+`partition`) starts from the state the loop started with, and nothing it moves counts after the loop, because it may run zero times. A
+body that moves a local declared outside the loop, and has no `break` or `return` among its own statements, would move it again on
+the next turn: `VALUE_MOVED_AGAIN` at the `move`. A move of a field or an element (`move x.inner`) marks nothing here.
 
 **Integer literal range.** An integer literal (decimal, `0x` or `0b`, with `_` between digits, with one
 leading minus and any parentheses) must fit the integer primitive it meets: `sinteger8` to `sinteger64`, `uinteger8`
@@ -876,6 +891,8 @@ or rejects.
 | 3067 | `PRIVATE_TYPE_ACCESS` | `s: b.Secret`, `b.Secret{ }` or any written `b.Secret` when the structure, enum, opaque or alias of a `FOUND` namespace is private |
 | 3068 | `PRIVATE_FIELD_ACCESS` | `box.value`, `box.value = 1` or `b.Box{ value = 1 }` when `box` is written `b.Box` and the field has `#[visibility = private]` |
 | 3069 | `WRITE_THROUGH_READ_ONLY_BORROW` | `function f(p: Point) p.x = 1; end`, `for each v in mutable xs do end` with `xs` read-only, `write_point(p)` with a read-only `p`, `write_point(make_point())` or `set(1)` for a write-borrow parameter |
+| 3070 | `USE_OF_MOVED_VALUE` | `local b: Point = move a; local c: sinteger32 = a.x;`, `take(move a); read(a);`, `spawn read(a);` or `a.sum()` after `a` was moved, also after a `do` block or after every arm of a branch moved it |
+| 3071 | `VALUE_MOVED_AGAIN` | `move a;` twice, or `move a` of a local declared outside the loop in a loop body that has no `break` or `return` of its own, at the name or at the `move` |
 
 ## Gaps
 
@@ -1086,3 +1103,11 @@ or rejects.
     valid" (not moved, still borrowed), never toward "reject". A missed catch is acceptable; a false
     rejection of valid code is not. Every later check that builds on this table must inherit this
     rounding and must not define its own.
+- The move state (3070, 3071) is the first check built on that design. It covers a whole local or parameter only: a move of a field or
+  an element (`move x.inner`, `move xs[0]`), a moved loop variable and a moved `with` name are not tracked, the partial move is a later
+  rule. A move in some arms of an `if` or `switch` only, and a move in a loop body that a `break` or `return` ends, are accepted by the
+  rounding rule, so `L-OWNERSHIP-042`, `L-OWNERSHIP-044` and `L-ADVERSARIAL-003` stay `known_gap`. A loop body that has a `break` or a
+  `return` among its own statements is never reported, even if the move comes after a conditional `break`. A `break` or `continue`
+  inside an arm does not end the arm for the merge, only a `return`-style end does. A name read through a function-type local is a read
+  like any other. Move state is not read across a function call: a callee that takes an `owned` parameter is seen only through the
+  `move` written at the call.

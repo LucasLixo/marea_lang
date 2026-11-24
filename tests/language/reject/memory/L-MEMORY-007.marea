@@ -1,9 +1,8 @@
--- gap: #198 NEW
--- rule: reject
+-- expect: 3070 @28
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- A structure is moved twice.
+-- An outer owner is moved down into an inner scope and used after.
 
 namespace main;
 
@@ -22,8 +21,10 @@ function make_point(): Point
 end
 
 function check(): sinteger32
-    local first: Point = make_point();
-    local second: Point = move first;
-    local third: Point = move first;
+    local outer: Point = make_point();
+    do
+        local inner: Point = move outer;
+    end
+    local x: sinteger32 = outer.x;
     return 1;
 end

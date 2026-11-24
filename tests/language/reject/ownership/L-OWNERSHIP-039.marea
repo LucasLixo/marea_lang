@@ -1,9 +1,8 @@
--- gap: #198 NEW
--- rule: reject
+-- expect: 3071 @27
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- A structure is used after it was moved.
+-- A structure is moved in a loop body, so the second turn uses a moved value.
 
 namespace main;
 
@@ -23,7 +22,10 @@ end
 
 function check(): sinteger32
     local first: Point = make_point();
-    local second: Point = move first;
-    local third: sinteger32 = first.x;
+    local turns: sinteger32 = 0;
+    while turns < 2 do
+        local second: Point = move first;
+        turns += 1;
+    end
     return 1;
 end

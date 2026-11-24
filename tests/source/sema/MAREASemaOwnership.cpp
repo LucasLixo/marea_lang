@@ -18,6 +18,9 @@ namespace
     constexpr MAREA_Uinteger32 INVALID_JUMP{ MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_PARALLEL_JUMP };
     constexpr MAREA_Uinteger32 EXCLUSIVE{ MAREA_SEMA_DIAGNOSTIC_CODE_EXCLUSIVE_BORROW_CONFLICT };
     constexpr MAREA_Uinteger32 CONSTANT_AS_MUTABLE{ MAREA_SEMA_DIAGNOSTIC_CODE_CANNOT_BORROW_CONSTANT_AS_MUTABLE };
+    constexpr MAREA_Uinteger32 INVALID_SPAWN{ MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_SPAWN_ARGUMENT };
+    constexpr MAREA_Uinteger32 USE_MOVED{ MAREA_SEMA_DIAGNOSTIC_CODE_USE_OF_MOVED_VALUE };
+    constexpr MAREA_Uinteger32 MOVED_AGAIN{ MAREA_SEMA_DIAGNOSTIC_CODE_VALUE_MOVED_AGAIN };
 
     const std::string SHAPE{ "structure Shape x: float32; end structure Outer inner: Shape; end function make(): Shape return Shape{ x = 1.0 }; end " };
 
@@ -383,4 +386,93 @@ TEST(MAREASemaOwnership, ExistingValueGivenToOwnedParameterNeedsCopyOrMove)
     EXPECT_TRUE(MAREA_codesOf(SHAPE + "function take(a: vector<Shape>) end function f(v: vector<Shape>) take(v); end").empty()) << "A vector parameter is not checked by this rule.";
 
     EXPECT_EQ(MAREA_codesOf(SHAPE + "function take<Item>(a: owned<Item>) end function f(s: Shape) take(s); end"), Codes{ NEEDS_WORD }) << "A generic owned parameter given a known structure must raise ASSIGNMENT_NEEDS_COPY_OR_MOVE.";
+}
+
+TEST(MAREASemaOwnership, UseAfterMoveStraightLine)
+{
+    GTEST_COUT << "Validating a read of a local after move raises USE_OF_MOVED_VALUE once, a second move raises VALUE_MOVED_AGAIN, and an assignment makes the local live again." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f() local a: Shape = make(); local b: Shape = move a; local c: float32 = a.x; end"), Codes{ USE_MOVED }) << "A field read after a move must raise USE_OF_MOVED_VALUE.";
+
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f() local a: Shape = make(); local b: Shape = move a; local c: Shape = move a; end"), Codes{ MOVED_AGAIN }) << "A second move must raise VALUE_MOVED_AGAIN.";
+
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f() local a: Shape = make(); local b: Shape = move a; a = make(); local c: float32 = a.x; end").empty()) << "An assignment must make a moved local live again.";
+
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f() local a: Shape = make(); local b: Shape = copy a; local c: float32 = a.x; end").empty()) << "A copy must not move.";
+
+    EXPECT_TRUE(MAREA_codesOf("function f() local a: sinteger32 = 1; local b: sinteger32 = move a; local c: sinteger32 = a; end").empty()) << "A primitive is by value, so a move of it must not mark it moved.";
+
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f() local a: Shape = make(); local b: Shape = move a; do local a: Shape = make(); local c: float32 = a.x; end end").empty()) << "A new local of the same name must be live.";
+}
+
+TEST(MAREASemaOwnership, UseAfterMoveInScopesAndBranches)
+{
+    GTEST_COUT << "Validating a move in a nested block, an if arm or a switch arm: a do block proves the move, a branch proves it only when every arm does." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f() local a: Shape = make(); do local b: Shape = move a; end local c: float32 = a.x; end"), Codes{ USE_MOVED }) << "A move in a do block must reach the outer scope.";
+
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(n: sinteger32) local a: Shape = make(); if n == 1 then local b: Shape = move a; end else local c: Shape = move a; end end local d: float32 = a.x; end"), Codes{ USE_MOVED }) << "A move in every arm of an if must reach after it.";
+
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(n: sinteger32) local a: Shape = make(); if n == 1 then local b: Shape = move a; end end local d: float32 = a.x; end").empty()) << "A move in one arm of an if with no else is only maybe, so it must round toward valid.";
+
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(n: sinteger32) local a: Shape = make(); if n == 1 then local b: Shape = move a; end elseif n == 2 then local c: Shape = move a; end else local d: Shape = make(); end end local e: float32 = a.x; end").empty()) << "A move missing from one arm must round toward valid.";
+
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(n: sinteger32): float32 local a: Shape = make(); if n == 1 then local b: Shape = move a; return 1.0; end end return a.x; end").empty()) << "An arm that returns must not count in the merge.";
+
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(n: sinteger32) local a: Shape = make(); if n == 1 then local b: Shape = move a; local c: Shape = move a; end end end"), Codes{ MOVED_AGAIN }) << "A double move inside one arm must raise VALUE_MOVED_AGAIN.";
+
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(n: sinteger32) local a: Shape = make(); if n == 1 then local b: Shape = move a; end else local c: float32 = a.x; end end end").empty()) << "A sibling arm must not see the move of another arm.";
+
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(n: sinteger32) local a: Shape = make(); switch n case 1 then local b: Shape = move a; end default then local c: Shape = move a; end end local d: float32 = a.x; end"), Codes{ USE_MOVED }) << "A move in every arm of a switch with a default must reach after it.";
+
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(n: sinteger32) local a: Shape = make(); switch n case 1 then local b: Shape = move a; end default then end end local d: float32 = a.x; end").empty()) << "A switch arm that does not move must round toward valid.";
+}
+
+TEST(MAREASemaOwnership, UseAfterMoveInLoops)
+{
+    GTEST_COUT << "Validating a move of an outer local in a loop body raises VALUE_MOVED_AGAIN unless the body leaves the loop, and never reaches after the loop." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f() local a: Shape = make(); for turn in 0 .. 2 do local b: Shape = move a; end end"), Codes{ MOVED_AGAIN }) << "A move of an outer local in a for body must raise VALUE_MOVED_AGAIN.";
+
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(n: sinteger32) local a: Shape = make(); while n < 2 do local b: Shape = move a; end end"), Codes{ MOVED_AGAIN }) << "A move of an outer local in a while body must raise VALUE_MOVED_AGAIN.";
+
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(n: sinteger32) while n < 2 do local a: Shape = make(); local b: Shape = move a; end end").empty()) << "A local made in the body must be live again each turn.";
+
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(n: sinteger32) local a: Shape = make(); while n < 2 do local b: Shape = move a; break; end end").empty()) << "A body that leaves the loop after the move must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(n: sinteger32): float32 local a: Shape = make(); while n < 2 do local b: Shape = move a; return 1.0; end return 0.0; end").empty()) << "A body that returns after the move must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(n: sinteger32) local a: Shape = make(); while n < 2 do local b: Shape = move a; a = make(); end end").empty()) << "A body that makes the local live again must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(n: sinteger32): float32 local a: Shape = make(); while n < 2 do if n == 0 then local b: Shape = move a; break; end end end return 0.0; end").empty()) << "A guarded move that leaves the loop must raise nothing.";
+}
+
+TEST(MAREASemaOwnership, UseAfterMoveOfOwnedParameterAndCallArgument)
+{
+    GTEST_COUT << "Validating a move into an owned parameter, a move of an owned parameter and a spawn argument after the move." << std::endl;
+
+    const std::string TAKE{ SHAPE + "function take(a: owned<Shape>): float32 return a.x; end function read(#[semantics = reference_read_only] a: Shape): float32 return a.x; end " };
+
+    EXPECT_EQ(MAREA_codesOf(TAKE + "function f() local a: Shape = make(); local r: float32 = take(move a); local s: float32 = read(a); end"), Codes{ USE_MOVED }) << "A read after a move into an owned parameter must raise USE_OF_MOVED_VALUE.";
+
+    EXPECT_EQ(MAREA_codesOf(TAKE + "function f(a: owned<Shape>): float32 local r: float32 = take(move a); return a.x; end"), Codes{ USE_MOVED }) << "A read of an owned parameter after it was moved on must raise USE_OF_MOVED_VALUE.";
+
+    EXPECT_EQ(MAREA_codesOf(TAKE + "function f(a: owned<Shape>) local r: float32 = take(move a); local s: float32 = take(move a); end"), Codes{ MOVED_AGAIN }) << "A second move of an owned parameter must raise VALUE_MOVED_AGAIN.";
+
+    EXPECT_EQ(MAREA_codesOf(TAKE + "function f(a: owned<Shape>) local r: float32 = take(move a); fork_join spawn read(a); end end"), (Codes{ INVALID_SPAWN, USE_MOVED })) << "A spawn argument after the move must raise USE_OF_MOVED_VALUE besides the spawn rule.";
+
+    EXPECT_EQ(MAREA_codesOf(TAKE + "function f(a: owned<Shape>): float32 local r: float32 = take(move a); return r + a.x; end"), Codes{ USE_MOVED }) << "A read in a later expression must raise USE_OF_MOVED_VALUE.";
+
+    EXPECT_TRUE(MAREA_codesOf(TAKE + "function f(a: owned<Shape>): float32 return take(move a); end").empty()) << "A single move must raise nothing.";
+}
+
+TEST(MAREASemaOwnership, UseAfterMoveOfOpaqueOwnerAndMethodReceiver)
+{
+    GTEST_COUT << "Validating an owner of an opaque type, a method receiver and a generic owned parameter after a move." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("opaque structure Texture; function show(#[semantics = reference_read_only] t: Texture) end function f(a: owned<Texture>) local b: owned<Texture> = move a; show(a); end"), Codes{ USE_MOVED }) << "An owned opaque value used after a move must raise USE_OF_MOVED_VALUE.";
+
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "implementation Shape function sum(self: Shape): float32 return self.x; end end function f(): float32 local a: Shape = make(); local b: Shape = move a; return a.sum(); end"), Codes{ USE_MOVED }) << "A method call on a moved value must raise USE_OF_MOVED_VALUE.";
+
+    EXPECT_EQ(MAREA_codesOf("function sink<Item>(value: owned<Item>) where Item: Movable end function twice<Item>(value: owned<Item>) where Item: Movable sink(move value); sink(move value); end"), Codes{ MOVED_AGAIN }) << "A generic owned parameter moved twice must raise VALUE_MOVED_AGAIN.";
 }

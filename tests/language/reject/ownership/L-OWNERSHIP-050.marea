@@ -1,9 +1,8 @@
--- gap: #198 NEW
--- rule: reject
+-- expect: 3070 @26
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- An outer owner is moved down into an inner scope and used after.
+-- A structure is used after the box that holds it was moved.
 
 namespace main;
 
@@ -22,10 +21,8 @@ function make_point(): Point
 end
 
 function check(): sinteger32
-    local outer: Point = make_point();
-    do
-        local inner: Point = move outer;
-    end
-    local x: sinteger32 = outer.x;
+    local box: Box = Box{ inner = make_point(), count = 1 };
+    local other: Box = move box;
+    local count: sinteger32 = box.count;
     return 1;
 end
