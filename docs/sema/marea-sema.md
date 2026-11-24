@@ -349,7 +349,17 @@ is a primitive, at a call argument of a function of the file, a local initialize
 only by name (`sinteger32` does not fit `sinteger64`), a number literal fits any number type, a fraction literal
 any float type, a character literal fits only `character` (a number is not a character, and a character is not a number: it has no arithmetic), and a structure fits no primitive. An alias of a primitive is the primitive. The mismatch is
 `TYPE_MISMATCH` (3011) on the expression. A name of an enum, of a library type or of a generic parameter, and an `owned`,
-`task` or `vector` value, and an `array` value, are classified as their own shapes but are never compared.
+`task` or `vector` value, and an `array` value, are classified as their own shapes but are never compared as a
+whole; only their type arguments are (next paragraph).
+
+The type arguments of a generic type are compared with the declared type before the primitive check, at the same
+places. When the declared type and the type of the value (a name, a field, an index, a struct literal, with one
+`copy` or `move` and any parentheses looked through) have the same head name and the same number of type arguments,
+each pair must agree: two primitives by name, two value arguments by text, two nested generic types by this rule. A
+difference is `GENERIC_ARGUMENT_MISMATCH` (3014) on the value. The variable of a `for each` has the element type of
+the collection: one `owned<...>` is peeled, then the first type argument of `vector`, `array` or `slice`; with two
+variables the second is the element and the first, the index, stays untyped. A field read through it is compared
+like a field read through a parameter (3011).
 
 **Operands of a binary operator.** Every binary expression in a checked slot (the same slots as the names, and
 the initializer of a constant) has its two operands compared, whatever the declared type: `+`, `-`, `*`, `/`,
@@ -734,10 +744,10 @@ or rejects.
 | 3008 | `INVALID_ALIGNMENT` | `#[align = 15]` |
 | 3009 | `UNKNOWN_TYPE` | `a: Missing;` in a structure |
 | 3010 | `ARGUMENT_COUNT_MISMATCH` | `add(1)` when `add` takes two parameters with no default; `f()` or `f(1, 2, 3)` when `f` has one required and one defaulted parameter; `Point(1.0, 2.0, 3.0)` when `construct` takes two; `Line(1.0)` when `Line` declares no `construct`; `power(1.0)` when the host's signature of `c.math.pow` takes two parameters |
-| 3011 | `TYPE_MISMATCH` | `convert<sinteger32>(text)` with a `string` name, `convert<Point>(other)` for two structures with another layout, `f("text")` when the parameter is `sinteger32`, `local x: boolean = 1;`, `local n: sinteger32 = a < b;`, `f(s)` with a `string` name `s`, `return a + 1;` in a function that returns `boolean`, `a + b` with an `sinteger32` and a `float64`, `Point("x", 2.0)` when `construct`'s first parameter is `float32`; `power("two", 10.0)` when the host's signature of `c.math.pow` takes `float64, float64` |
+| 3011 | `TYPE_MISMATCH` | `convert<sinteger32>(text)` with a `string` name, `convert<Point>(other)` for two structures with another layout, `f("text")` when the parameter is `sinteger32`, `local x: boolean = 1;`, `local n: sinteger32 = a < b;`, `f(s)` with a `string` name `s`, `return a + 1;` in a function that returns `boolean`, `a + b` with an `sinteger32` and a `float64`, `Point("x", 2.0)` when `construct`'s first parameter is `float32`; `power("two", 10.0)` when the host's signature of `c.math.pow` takes `float64, float64`; `local x: sinteger8 = item.x;` over a `for each` whose element field is `sinteger32` |
 | 3012 | `DUPLICATE_MEMBER` | two `implementation` blocks of one type that both declare `area`; a structure field, an enum variant or a contract function that is declared twice in its declaration |
 | 3013 | `CONTRACT_NOT_SATISFIED` | `maximum(a, b)` when the type of `a` has no `less` for `where Item: Comparable` |
-| 3014 | `GENERIC_ARGUMENT_MISMATCH` | `Pair<sinteger32>` when `Pair` has two parameters, `Box<4>` |
+| 3014 | `GENERIC_ARGUMENT_MISMATCH` | `Pair<sinteger32>` when `Pair` has two parameters, `Box<4>`, `local x: array<sinteger8, 4> = values;` when `values` is `array<sinteger32, 4>` |
 | 3015 | `INSTANTIATION_TOO_DEEP` | a type argument nested 65 levels |
 | 3016 | `ASSIGNMENT_NEEDS_COPY_OR_MOVE` | `a = b;` when the type is not a primitive, a copyable `array` or an enum; a library storage type (`c.array`, `c.vector`, `c.table`, `c.owned`, `c.task`) needs the word too |
 | 3017 | `INVALID_BORROW` | `#[semantics = value_read_only] s: Shape` when `Shape` is not a primitive |
@@ -804,6 +814,9 @@ or rejects.
 - `TYPE_MISMATCH` (3011) sorts the type of an expression into a fixed set of shapes: a literal, a primitive, a
   structure, and, known but never compared, an enum, a library type, a generic parameter and an `owned`, `task`, `vector` or `array` value. Still fully unknown: a `pointer`, a `slice`, the type of a field or a file
   constant that is not a primitive, and the result of a generic call (see below).
+- The type arguments of a generic type are compared (3014) only for two types of one head name and one argument
+  count. A pair that mentions a generic parameter in scope, an alias, an import or an unknown type, a different head
+  (`owned<vector<T>>` into `vector<T>` is accepted), and a `for each` over a collection of unknown type, are skipped.
 - A function type is compared (3011, 3053) only for a literal and for a bare name of a function of the file. It is
   still unknown for a field, a call result and any other expression of a function type. A generic function, and a
   function type that mentions a generic parameter in scope, are never compared.
