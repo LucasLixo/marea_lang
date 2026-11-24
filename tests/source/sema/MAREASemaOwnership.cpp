@@ -476,3 +476,36 @@ TEST(MAREASemaOwnership, UseAfterMoveOfOpaqueOwnerAndMethodReceiver)
 
     EXPECT_EQ(MAREA_codesOf("function sink<Item>(value: owned<Item>) where Item: Movable end function twice<Item>(value: owned<Item>) where Item: Movable sink(move value); sink(move value); end"), Codes{ MOVED_AGAIN }) << "A generic owned parameter moved twice must raise VALUE_MOVED_AGAIN.";
 }
+
+TEST(MAREASemaOwnership, FieldOfABorrowCannotBeReturned)
+{
+    GTEST_COUT << "Validating a field of a borrow cannot be returned, also from an arm of switch, and a copy or a primitive field can." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(o: Outer): Shape return o.inner; end"), Codes{ ESCAPES }) << "A structure field of a borrow must raise REFERENCE_ESCAPES_SCOPE.";
+
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(o: Outer, n: sinteger32): Shape switch n case 1 then return o.inner; end default then return copy o.inner; end end end"), Codes{ ESCAPES }) << "A field of a borrow returned from one arm of switch must raise REFERENCE_ESCAPES_SCOPE once.";
+
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(o: Outer): Shape return copy o.inner; end").empty()) << "A copy of a field must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(s: Shape): float32 return s.x; end").empty()) << "A primitive field is a value and must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(): Shape local o: Outer = Outer{ inner = make() }; return o.inner; end").empty()) << "A field of a local owner must raise nothing.";
+}
+
+TEST(MAREASemaOwnership, PartitionPartCannotBeStoredInAnOuterLocal)
+{
+    GTEST_COUT << "Validating a partition part assigned to a local declared outside the body raises REFERENCE_ESCAPES_SCOPE." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(items: c.array<float32>) local kept: c.slice<float32> = c.slice<float32>{}; fork_join partition items into 2 as part do kept = part; end end end"), Codes{ ESCAPES }) << "A part stored in an outer local must raise REFERENCE_ESCAPES_SCOPE.";
+
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(items: c.array<float32>) fork_join partition items into 2 as part do local mine: c.slice<float32> = c.slice<float32>{}; mine = part; end end end").empty()) << "A part stored in a local of the body must raise nothing.";
+}
+
+TEST(MAREASemaOwnership, BorrowCannotBeAppendedToAVector)
+{
+    GTEST_COUT << "Validating a borrow passed to append raises REFERENCE_ESCAPES_SCOPE and a copy does not." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(#[semantics = reference_mutable] shapes: vector<Shape>, s: Shape) shapes.append(s); end"), Codes{ ESCAPES }) << "A borrow appended to a vector must raise REFERENCE_ESCAPES_SCOPE.";
+
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(#[semantics = reference_mutable] shapes: vector<Shape>, s: Shape) shapes.append(copy s); end").empty()) << "A copy appended to a vector must raise nothing.";
+}

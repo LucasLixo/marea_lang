@@ -856,7 +856,7 @@ or rejects.
 | 3015 | `INSTANTIATION_TOO_DEEP` | a type argument nested 65 levels |
 | 3016 | `ASSIGNMENT_NEEDS_COPY_OR_MOVE` | `a = b;` when the type is not a primitive, a copyable `array` or an enum; a library storage type (`c.array`, `c.vector`, `c.table`, `c.owned`, `c.task`) needs the word too; so does a name, a field or an element given to an `owned<T>` parameter, reported at the argument (`MAREA_SemaCheckOwnedArguments`; a `vector` or `task` parameter is not checked, and an argument of unknown type is accepted) |
 | 3017 | `INVALID_BORROW` | `#[semantics = value_read_only] s: Shape` when `Shape` is not a primitive |
-| 3018 | `REFERENCE_ESCAPES_SCOPE` | `return s;` when `s` is a borrow parameter |
+| 3018 | `REFERENCE_ESCAPES_SCOPE` | `return s;` when `s` is a borrow parameter; `return s.inner;` when the field is not a value (also in an arm of `switch`); `shapes.append(s);` (the one storing library call that sema knows by name); `kept = part;` when `kept` is not declared in the `partition` body |
 | 3019 | `EXCLUSIVE_BORROW_CONFLICT` | `take(s, s)` when one parameter's effective `semantics` is `reference_mutable` |
 | 3020 | `INVALID_SPAWN_ARGUMENT` | `spawn g(m)` in `fork_join` when `m`'s effective `semantics` is `reference_mutable` |
 | 3021 | `NON_EXHAUSTIVE_SWITCH` | a `switch` over an enum that misses a variant and has no `default` |

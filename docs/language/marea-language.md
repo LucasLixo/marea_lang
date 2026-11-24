@@ -267,7 +267,7 @@ path of the value changes: local, parameter, field, vector element, `for each` e
 arm of `switch`, loop.
 
 What sema enforces today is small: 3016 (an existing structure, field or element assigned with no word), 3017
-(`value_read_only` on a non-primitive), 3018 (a borrow returned or stored in a field), 3019 (a bare name passed twice
+(`value_read_only` on a non-primitive), 3018 (a borrow or a field of a borrow returned, stored in a field, appended to a vector, or a partition part stored outside its body), 3019 (a bare name passed twice
 with a write borrow among them), 3032 (a file constant, or a field or element of one, as a write borrow), 3069 (a write through a read-only
 borrow, and a write borrow of a call result or a literal). Everything else in the known_gap tables below is accepted
 today. The holes are grouped by kind: memory, permission and aliasing. A gap that shares an
@@ -409,6 +409,7 @@ write-borrow parameter.
 | L-OWNERSHIP-121 | A borrow is stored in a field of a literal | 3018 @20 |
 | L-OWNERSHIP-123 | A borrow is assigned to a field | 3018 @25, 3016 @25 |
 | L-OWNERSHIP-125 | A borrow is stored in an element of a vector | 3016 @20 |
+| L-OWNERSHIP-126 | A borrow is appended to a vector | 3018 @20 |
 | L-OWNERSHIP-128 | A borrow is returned through a generic function | 3018 @20 |
 | L-OWNERSHIP-129 | A write borrow of a call result | 3069 @28 |
 | L-OWNERSHIP-131 | A write borrow of a literal | 3069 @24 |
@@ -431,7 +432,6 @@ write-borrow parameter.
 | L-OWNERSHIP-055 | A for each element is moved out of the loop owner | gap: #199 NEW, rule: reject |
 | L-OWNERSHIP-056 | A read-only borrow is moved out | gap: #200 NEW, rule: reject |
 | L-OWNERSHIP-057 | A file constant is moved out | gap: #200 NEW, rule: reject |
-| L-OWNERSHIP-126 | A borrow is appended to a vector | gap: #205 3018, rule: reject |
 | L-OWNERSHIP-142 | An existing value is given to an owned parameter with no word | 3016 @29 |
 
 #### Aliasing holes
@@ -1050,6 +1050,7 @@ Facts the items fix, checked by running the compiler:
 | L-PARALLEL-062 | A spawn in a loop writes the same local in each turn | 3074 @55 |
 | L-PARALLEL-063 | A worker writes the local that the partition reads | 3074 @56 |
 | L-PARALLEL-064 | A worker is spawned after the end of a fork_join block | 3062 @56 |
+| L-PARALLEL-068 | A part is stored in a local of the function and outlives the body | 3018 @55 |
 | L-PARALLEL-070 | A partition is used outside of a fork_join block | 3062 @52 |
 | L-PARALLEL-071 | A spawn statement that is not a call | 3063 @54 |
 | L-PARALLEL-072 | A partition of a value that is no array | 3064 @54 |
@@ -1066,7 +1067,6 @@ Facts the items fix, checked by running the compiler:
 | L-PARALLEL-065 | A partition body writes a local of the function, so the workers race on it | gap: #230 NEW, rule: reject |
 | L-PARALLEL-066 | A partition body adds to a local of the function | gap: #230 NEW, rule: reject |
 | L-PARALLEL-067 | A partition body writes a field of a local of the function | gap: #230 NEW, rule: reject |
-| L-PARALLEL-068 | A part is stored in a local of the function and outlives the body | gap: #231 NEW, rule: reject |
 | L-PARALLEL-069 | The source of a partition mutable is written in the body while the parts are written | gap: #232 NEW, rule: reject |
 
 ## Adversarial
@@ -1125,6 +1125,7 @@ generic or an alias leads to is not checked by sema either (see the sema doc, Ga
 | L-ADVERSARIAL-008 | A partition mutable of a field and a worker that reads the owner of that field | 3074 @73 |
 | L-ADVERSARIAL-009 | A read-only borrow is passed to a generic function that writes it | 3069 @39 |
 | L-ADVERSARIAL-010 | A file constant is passed to a generic function as a write borrow | 3032 @41 |
+| L-ADVERSARIAL-011 | A field of a borrow is returned from an arm of switch | 3018 @38 |
 | L-ADVERSARIAL-012 | A contract method stores its receiver in a write borrow | 3018 @41, 3016 @41 |
 | L-ADVERSARIAL-014 | A contract method writes its receiver with the default borrow | 3069 @41 |
 | L-ADVERSARIAL-016 | A value moved into an owned parameter is spawned afterwards | 3070 @59 |
@@ -1181,7 +1182,6 @@ generic or an alias leads to is not checked by sema either (see the sema doc, Ga
 | L-ADVERSARIAL-003 | A value moved in an arm of switch is spawned after the switch | gap: #198 NEW, rule: reject |
 | L-ADVERSARIAL-006 | A for each mutable element and its own vector are passed to one call | gap: #202 3019, rule: reject |
 | L-ADVERSARIAL-007 | A for each mutable appends to the vector it walks | gap: #202 3019, rule: reject |
-| L-ADVERSARIAL-011 | A field of a borrow is returned from an arm of switch | gap: #205 3018, rule: reject |
 | L-ADVERSARIAL-013 | A contract method moves its receiver into a write borrow | gap: #200 NEW, rule: reject |
 | L-ADVERSARIAL-015 | A for each element is moved into an owned parameter | gap: #199 NEW, rule: reject |
 | L-ADVERSARIAL-023 | The source of a partition mutable is read in the body while the parts are written | gap: #232 NEW, rule: reject |
@@ -1244,7 +1244,7 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 
 | area | accept | reject | known_gap |
 |---|---|---|---|
-| adversarial | 0 | 56 | 16 |
+| adversarial | 0 | 57 | 15 |
 | bindings | 33 | 80 | 0 |
 | coverage | 0 | 1 | 0 |
 | examples | 20 | 0 | 0 |
@@ -1252,11 +1252,11 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | interop | 17 | 28 | 0 |
 | memory | 15 | 18 | 0 |
 | namespaces | 17 | 34 | 0 |
-| ownership | 65 | 63 | 17 |
-| parallel | 19 | 35 | 5 |
+| ownership | 65 | 64 | 16 |
+| parallel | 19 | 36 | 4 |
 | seed | 1 | 2 | 0 |
 | types | 60 | 132 | 4 |
-| total | 266 | 503 | 42 |
+| total | 266 | 506 | 39 |
 
 ## Parity plan
 
