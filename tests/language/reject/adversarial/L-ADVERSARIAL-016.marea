@@ -1,9 +1,8 @@
--- gap: #198 NEW
--- rule: reject
+-- expect: 3070 @59
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- An outer local is moved in the body of a partition, once for each part.
+-- A value moved into an owned parameter is spawned afterwards.
 
 namespace main;
 
@@ -53,12 +52,11 @@ function sum_slice(#[semantics = reference_read_only] part: c.slice<float32>): f
     return total;
 end
 
-function check(#[semantics = reference_read_only] values: c.array<float32>): sinteger32
+function check(): sinteger32
     local point: Point = make_point();
+    local gone: sinteger32 = take_point(move point);
     fork_join
-        partition values into WORKER_COUNT as part do
-            local other: Point = move point;
-        end
+        spawn read_point(point);
     end
-    return 1;
+    return gone;
 end

@@ -84,6 +84,11 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsByValue(const MAREA_SemaContext *conte
     }
 }
 
+MAREA_Boolean MAREA_CALL MAREA_SemaTypeIsByValue(const MAREA_SemaContext *context, const MAREA_AstNode *type, MAREA_Boolean unknownIsValue)
+{
+    return MAREA_G_IsByValue(context, type, unknownIsValue);
+}
+
 static MAREA_SemaExcept MAREA_CALL MAREA_G_PushReference(MAREA_SemaContext *context, const MAREA_AstNode *name, const MAREA_AstNode *binding)
 {
     if (MAREA_G_IsIdentifier(name) == MAREA_BOOLEAN_FALSE) {
