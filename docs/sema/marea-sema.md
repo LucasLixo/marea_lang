@@ -204,6 +204,15 @@ type's name never reaches this rule: the name table rejects the second declarati
 both. `Type{...}` (the aggregate literal) is unaffected and keeps working on its own rule, as every `construct`
 parameter is defaulted.
 
+**Function type value.** A declared type that is a function type, written or reached through an alias of the file,
+gets three checks. A literal (integer, float, string, character or boolean) for it is `TYPE_MISMATCH` (3011). A
+bare name of a function of the file, not hidden by a local, for it is `FUNCTION_TYPE_MISMATCH` (3053) when its
+parameter count, the passing mode or type of a parameter, or its result type differ from the function type; the
+check runs wherever a value meets a declared type (a local initializer, an argument, a return, an assignment, a
+constant). A call through a parameter or a local of a function type is checked against the parameters of that
+function type: a wrong count is `ARGUMENT_COUNT_MISMATCH` (3010) and a wrong argument type is 3011, the rule of an
+ordinary call.
+
 **Enum tag type.** `enum A : uinteger8` names the integer type of the discriminant. With no tag it is
 `sinteger32`. A tag must be one bare integer primitive (`sinteger8` to `sinteger64`, `uinteger8` to
 `uinteger64`); any other tag (`float32`, `string`, `boolean`, a structure, a generic or an alias) is
@@ -726,6 +735,7 @@ or rejects.
 | 3040 | `ASSIGNMENT_TO_CONSTANT` | `LIMIT = 11;`, `LIMIT += 1;`, `ORIGIN.x = 1;`, `TABLE[0] = 1;` when the root name is a file constant and no local hides it |
 | 3041 | `RAW_POINTER_OUTSIDE_UNSAFE` | `local raw: pointer<sinteger32> = f();` with no `unsafe ... end` block around it, at any depth of nesting |
 | 3043 | `NON_BOOLEAN_CONDITION` | `if n then`, `elseif s then`, `while 1 do` when the condition has a known primitive type that is not `boolean`, or is a number, string or character literal |
+| 3053 | `FUNCTION_TYPE_MISMATCH` | `apply(negate)` when `negate` takes one parameter and the function type takes two |
 | 3055 | `CYCLIC_CONSTANT` | `constant A: sinteger32 = B;` with `constant B: sinteger32 = A;`, or `constant A: sinteger32 = A;`, once for each cycle, at the first constant of it in the file |
 | 3059 | `COMPILE_TIME_ASSERTION_FAILED` | `compile_error!("stop");` with any arguments, at the top level or in a function body; `static_assert!(1 == 2, "never");` or `static_assert!(N == 5, "n");` when the condition is a constant that is false |
 | 3060 | `UNKNOWN_MACRO` | `shout!("hello");` when `shout` is none of the 13 built-in macros, at the call |
@@ -752,8 +762,11 @@ or rejects.
   namespace for now. A `vector` is still indexable in the type inference, though it is a move type.
 - Renaming on use inside one file (without an import) is not offered: a local declaration has its own name.
 - `TYPE_MISMATCH` (3011) sorts the type of an expression into a fixed set of shapes: a literal, a primitive, a
-  structure, and, known but never compared, an enum, a library type, a generic parameter and an `owned`, `task`, `vector` or `array` value. Still fully unknown: a `pointer`, a `slice`, a function type, the type of a field or a file
+  structure, and, known but never compared, an enum, a library type, a generic parameter and an `owned`, `task`, `vector` or `array` value. Still fully unknown: a `pointer`, a `slice`, the type of a field or a file
   constant that is not a primitive, and the result of a generic call (see below).
+- A function type is compared (3011, 3053) only for a literal and for a bare name of a function of the file. It is
+  still unknown for a field, a call result and any other expression of a function type. A generic function, and a
+  function type that mentions a generic parameter in scope, are never compared.
 - A binary operator is checked against what its operands may be only for a bitwise operator on a float, a boolean
   or a string (3038) and for `and`, `or` and `not` on a known type that is not `boolean` (3039). Every other operator
   (arithmetic on a `boolean` or a `string`, a comparison of two booleans) is not checked, a `character` operand of a
