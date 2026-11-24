@@ -24,5 +24,6 @@
     #include "marea/ir/MAREAIr.h"
     #include "marea/ir/MAREAIrKind.h"
     #include "marea/ir/MAREAIrNode.h"
+    #include "marea/ir/MAREAIrLayout.h"
 
 #endif

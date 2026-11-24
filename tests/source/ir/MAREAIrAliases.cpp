@@ -183,7 +183,7 @@ TEST(MAREAIrAliases, MemberNameAndFieldEntryAreNeverRenamed)
 
     EXPECT_TRUE(MAREA_has(DUMP, "FIELD_ENTRY \"count\"")) << "The field entry must keep its name: " << DUMP;
     EXPECT_TRUE(MAREA_has(DUMP, "IDENTIFIER \"count\"")) << "The member name must stay: " << DUMP;
-    EXPECT_FALSE(MAREA_has(DUMP, "size")) << "No head names the alias, so nothing is rewritten: " << DUMP;
+    EXPECT_FALSE(MAREA_has(DUMP, "\"size\"")) << "No head names the alias, so nothing is rewritten: " << DUMP;
 }
 
 TEST(MAREAIrAliases, StaticCallOnAnAliasedTypeLowersTheTypeAndKeepsTheMember)
@@ -267,8 +267,10 @@ TEST(MAREAIrAliases, FunctionTypeAliasLowersLikeTheWrittenFunctionType)
                                                                                                                                                                      "    PARAMETER_LIST",
                                                                                                                                                                      "      PARAMETER \"a\" resolved=function(sinteger32):boolean",
                                                                                                                                                                      "    BLOCK",
+                                                                                                                                                                     "LAYOUT_TABLE",
+                                                                                                                                                                     "  STRUCTURE \"Holder\" verdict=undecided reason=library_type members=1",
                                                                                                                                                                  }))
-        << "The alias name must not stay.";
+        << "The alias name must not stay. The reason is the one sema gives for a field typed by an alias of a function type.";
 }
 
 TEST(MAREAIrAliases, FunctionTypeAliasInAChainLowersToo)
