@@ -987,10 +987,15 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressions(MAREA_SemaContext *contex
 
         return (valueResult != MAREA_SEMA_EXCEPT_SUCCESS) ? valueResult : MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, 1), 0, MAREA_BOOLEAN_TRUE);
     }
-    case MAREA_AST_KIND_EXPRESSION_STATEMENT:
     case MAREA_AST_KIND_IF_STATEMENT:
     case MAREA_AST_KIND_ELSEIF_CLAUSE:
     case MAREA_AST_KIND_WHILE_STATEMENT:
+    {
+        const MAREA_SemaExcept namesResult = MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, 0), 0, MAREA_BOOLEAN_TRUE);
+
+        return (namesResult != MAREA_SEMA_EXCEPT_SUCCESS) ? namesResult : MAREA_SemaCheckCondition(context, MAREA_SemaChildAt(node, 0));
+    }
+    case MAREA_AST_KIND_EXPRESSION_STATEMENT:
     case MAREA_AST_KIND_SWITCH_STATEMENT:
         return MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, 0), 0, MAREA_BOOLEAN_TRUE);
     case MAREA_AST_KIND_RETURN_STATEMENT:
