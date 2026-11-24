@@ -64,6 +64,36 @@ static MAREA_SemaTypedAstExcept MAREA_CALL MAREA_G_BindType(MAREA_SemaContext *c
     return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
 }
 
+// INFO: the typed node of the declared name of a for or a for each also carries the type, so a reader of the typed tree needs no scope to know it. A type that sema cannot spell leaves the node as it is.
+static MAREA_SemaTypedAstExcept MAREA_CALL MAREA_G_TypeDeclaredName(MAREA_SemaContext *context, const MAREA_SemaTypedNode *built, MAREA_IntegerSize index, const MAREA_SemaExprType *type)
+{
+    if ((MAREA_G_TypeIsKnown(type) == MAREA_BOOLEAN_FALSE) || (built->children == MAREA_NULLPTR) || (index >= built->childCount)) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+    }
+
+    MAREA_SemaTypedNode *name = built->children[index];
+
+    if ((name == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(name->astNode) != MAREA_AST_KIND_IDENTIFIER)) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_Character8 *text = MAREA_NULLPTR;
+
+    MAREA_IntegerSize length = 0;
+
+    const MAREA_SemaTypedAstExcept TYPED = MAREA_SemaTypedAstRenderExprType(context, type, &text, &length);
+
+    if ((TYPED != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) || (text == MAREA_NULLPTR)) {
+        return TYPED;
+    }
+
+    name->exprType = *type;
+    name->resolvedType = text;
+    name->resolvedTypeLength = length;
+
+    return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+}
+
 // INFO: both bounds agree after the check, so the counter has the type that the first bound that is not a number literal gives; two literals give the type of the first.
 static MAREA_SemaTypedAstExcept MAREA_CALL MAREA_G_TypeRangeCounter(MAREA_SemaContext *context, const MAREA_SemaTypedNode *built)
 {
@@ -79,7 +109,9 @@ static MAREA_SemaTypedAstExcept MAREA_CALL MAREA_G_TypeRangeCounter(MAREA_SemaCo
 
     const MAREA_SemaExprType COUNTER = MAREA_SemaTypedAstTypeOfOperands(&bounds);
 
-    return MAREA_G_BindType(context, MAREA_SemaChildAt(built->astNode, 0), &COUNTER);
+    const MAREA_SemaTypedAstExcept BOUND_RESULT = MAREA_G_BindType(context, MAREA_SemaChildAt(built->astNode, 0), &COUNTER);
+
+    return (BOUND_RESULT != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) ? BOUND_RESULT : MAREA_G_TypeDeclaredName(context, built, 0, &COUNTER);
 }
 
 // INFO: the value is the element of the collection. With two names the key comes first and is the index, uinteger64. No library type of this repository has another key.
@@ -101,13 +133,21 @@ static MAREA_SemaTypedAstExcept MAREA_CALL MAREA_G_TypeForEachNames(MAREA_SemaCo
 
     const MAREA_SemaTypedAstExcept VALUE_RESULT = MAREA_G_BindType(context, MAREA_SemaChildAt(built->astNode, (NAME_COUNT - 1)), &element);
 
-    if ((VALUE_RESULT != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) || (NAME_COUNT == 1)) {
+    if (VALUE_RESULT != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) {
         return VALUE_RESULT;
+    }
+
+    const MAREA_SemaTypedAstExcept VALUE_NAME_RESULT = MAREA_G_TypeDeclaredName(context, built, (NAME_COUNT - 1), &element);
+
+    if ((VALUE_NAME_RESULT != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) || (NAME_COUNT == 1)) {
+        return VALUE_NAME_RESULT;
     }
 
     const MAREA_SemaExprType KEY = MAREA_G_TypeOfFixedText("uinteger64", MAREA_INTEGER_SIZE(10));
 
-    return MAREA_G_BindType(context, MAREA_SemaChildAt(built->astNode, 0), &KEY);
+    const MAREA_SemaTypedAstExcept KEY_RESULT = MAREA_G_BindType(context, MAREA_SemaChildAt(built->astNode, 0), &KEY);
+
+    return (KEY_RESULT != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) ? KEY_RESULT : MAREA_G_TypeDeclaredName(context, built, 0, &KEY);
 }
 
 // INFO: a part is a slice of the element type of the value, written slice<T> whatever the collection is.

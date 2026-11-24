@@ -483,7 +483,7 @@ TEST(MAREASemaTypedAstExpressions, MethodNameIsAFunctionTypeWithTheReceiver)
 
 TEST(MAREASemaTypedAstExpressions, NameOfALoopHasTheTypeOfItsBounds)
 {
-    GTEST_COUT << "Validating the name of a for statement is typed from the bounds, and its declared name is not a value." << std::endl;
+    GTEST_COUT << "Validating the name of a for statement is typed from the bounds, and so is its declared name." << std::endl;
 
     const std::string SOURCE{ "namespace main; function f(n: sinteger32): sinteger32 local total: sinteger32 = 0; for i in 0 .. n do total += i; end return total; end" };
 
@@ -495,7 +495,9 @@ TEST(MAREASemaTypedAstExpressions, NameOfALoopHasTheTypeOfItsBounds)
 
     ASSERT_TRUE(DECLARED.found) << "The declared name must be in the typed tree.";
 
-    EXPECT_EQ(DECLARED.except, MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NO_TYPE) << "The declared name of a loop is not a value, so it has no type.";
+    EXPECT_EQ(DECLARED.except, MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "The declared name of a loop carries the type of its bounds.";
+
+    EXPECT_EQ(DECLARED.text, "sinteger32") << "The declared name of a loop has the type of its bounds.";
 }
 
 TEST(MAREASemaTypedAstExpressions, NamespaceAndTypeNamesHaveNoTypeAsValues)
