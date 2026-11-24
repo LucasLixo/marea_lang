@@ -131,6 +131,8 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckSpawn(MAREA_SemaContext *context, con
     }
 
     if (context->forkDepth == 0) {
+        MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_PARALLEL_CONSTRUCT_OUTSIDE_FORK_JOIN, MAREA_AstNodeGetPosition(node), "a spawn needs an enclosing fork_join block");
+
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
@@ -154,6 +156,22 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckSpawn(MAREA_SemaContext *context, con
         }
 
         MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_SPAWN_ARGUMENT, MAREA_AstNodeGetPosition(argument), "a spawn argument must be a part, a literal, a constant or a name that is not a write borrow");
+    }
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
+MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckPartition(MAREA_SemaContext *context, const MAREA_AstNode *node)
+{
+    if ((context == MAREA_NULLPTR) || (node == MAREA_NULLPTR)) {
+        return MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    // INFO: the scope check comes first; a construct that fails it raises no other scope or shape code.
+    if (context->forkDepth == 0) {
+        MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_PARALLEL_CONSTRUCT_OUTSIDE_FORK_JOIN, MAREA_AstNodeGetPosition(node), "a partition needs an enclosing fork_join block");
+
+        return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
     return MAREA_SEMA_EXCEPT_SUCCESS;
