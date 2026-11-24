@@ -230,7 +230,7 @@ TEST(MAREASemaGenericsAndContracts, CallOfALocalThatHidesAFunctionIsNotChecked)
 
     EXPECT_TRUE(MAREA_codesOf("function f(count: sinteger32) end function g(f: function(text: string, other: string), name: string) f(name, name); end").empty()) << "A name argument and a wrong count of the hidden function must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("function f(count: sinteger32) end function g(names: slice<string>) for each f in names do f(\"x\"); end end").empty()) << "A binder that hides a function must raise nothing for its own call.";
+    EXPECT_TRUE(MAREA_codesOf("function f(count: sinteger32) end function g<Item>(names: slice<Item>) for each f in names do f(\"x\"); end end").empty()) << "A binder that hides a function must raise nothing for its own call.";
 
     EXPECT_EQ(MAREA_codesOf("function f(count: sinteger32) end function g() f(\"x\"); end"), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH }) << "A call of the function itself must still raise TYPE_MISMATCH.";
 }

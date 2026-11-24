@@ -1122,6 +1122,28 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckExternalCall(MAREA_SemaContext *
     return MAREA_SEMA_EXCEPT_SUCCESS;
 }
 
+// INFO: a local or parameter whose declared type is a primitive, a structure or an enum is not a function, so a call
+// through it is a type mismatch. A function type, a generic parameter, an external type and a name with no
+// declared type (a loop name) are not decided here.
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckCalleeIsFunction(MAREA_SemaContext *context, const MAREA_AstNode *node, const MAREA_SemaName *local, const MAREA_Character8 *calleeName, MAREA_IntegerSize calleeLength)
+{
+    if ((local == MAREA_NULLPTR) || (local->declaration == MAREA_NULLPTR)) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_AstNode *declaration = MAREA_NULLPTR;
+
+    const MAREA_Character8 *name = MAREA_NULLPTR;
+
+    MAREA_IntegerSize length = 0;
+
+    const MAREA_SemaTypeClass CLASS = MAREA_SemaClassifyType(context, local->declaration, &declaration, &name, &length);
+
+    const MAREA_Boolean IS_VALUE_TYPE = ((CLASS == MAREA_SEMA_TYPE_CLASS_PRIMITIVE) || ((CLASS == MAREA_SEMA_TYPE_CLASS_USER) && (declaration != MAREA_NULLPTR) && ((MAREA_AstNodeGetKind(declaration) == MAREA_AST_KIND_STRUCTURE_DECLARATION) || (MAREA_AstNodeGetKind(declaration) == MAREA_AST_KIND_ENUM_DECLARATION)))) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+
+    return (IS_VALUE_TYPE == MAREA_BOOLEAN_FALSE) ? MAREA_SEMA_EXCEPT_SUCCESS : MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH, MAREA_AstNodeGetPosition(node), "a value that is not a function is called:", calleeName, calleeLength);
+}
+
 // INFO: a call through a parameter or a local whose declared type is a function type is checked against the
 // parameters of that function type: the same count and argument rules an ordinary call uses, so it reuses
 // ARGUMENT_COUNT_MISMATCH (3010) and TYPE_MISMATCH (3011). Any other local is not a call of a function value.
@@ -1132,7 +1154,7 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckFunctionValueCall(MAREA_SemaCont
     const MAREA_AstNode *functionType = (local == MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_SemaResolveFunctionType(context, local->declaration);
 
     if (functionType == MAREA_NULLPTR) {
-        return MAREA_SEMA_EXCEPT_SUCCESS;
+        return MAREA_G_CheckCalleeIsFunction(context, node, local, calleeName, calleeLength);
     }
 
     return MAREA_G_CheckArguments(context, node, MAREA_G_FindChild(functionType, MAREA_AST_KIND_PARAMETER_LIST), MAREA_G_FindChild(node, MAREA_AST_KIND_ARGUMENT_LIST), calleeName, calleeLength);
