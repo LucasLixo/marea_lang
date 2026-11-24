@@ -1,9 +1,8 @@
--- gap: #220 3011
--- rule: reject
+-- expect: 3044 @15
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- A struct literal field of another type than the field.
+-- A field read of a field that the structure does not have.
 
 namespace main;
 
@@ -12,6 +11,6 @@ structure Point
     y: float64;
 end
 
-function make(): Point
-    return Point{ x = true, y = 0.0 };
+function run(point: Point): float64
+    return point.z;
 end
