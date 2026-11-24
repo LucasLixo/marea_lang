@@ -312,6 +312,16 @@ rooted in one (`ORIGIN.x = 1;`, `TABLE[0] = 1;`), is `ASSIGNMENT_TO_CONSTANT` (3
 parameter or `for` variable of the same name hides the constant and may be assigned. Tracking of a live borrow across
 statements is a design decision recorded in the last bullet of `## Gaps`.
 
+**Borrowed source.** While the body of a `for each` or a `with` block runs, its source is borrowed. `MAREA_SemaCheckBorrowedSource`
+(`MAREASemaBorrowLive.c`) walks the body once, when the visit reaches the statement, and reports `VALUE_CHANGED_WHILE_BORROWED` (3073) at a
+write whose target overlaps the source, at a `move` of a place that overlaps it, and at a call of `append`, `insert`, `remove`, `clear`,
+`pop`, `push` or `resize` on it. Two places overlap when they share a root name and one path starts with the other: a value and a field of
+it overlap, two fields do not, and two elements overlap unless both indices are integer literals of two values. A `with` over a call, and
+a write through the loop name or the `with` name, are not a source use. The borrow ends with the statement, so a change after it is
+accepted. This check keeps no table of its own: the scan of the body is the whole state, and every arm of a branch inside the body
+counts, which is the conservative direction for a loop that runs once. 3019 uses the same overlap rule for the arguments of one call; a
+`for each` name stands for its source there, and a `copy x` argument is a new value, not a use of `x`.
+
 **Move state.** `move x` of a whole local or parameter whose type is not by value (not a primitive, an enum, a copy-contract library
 type, or a type that sema cannot see) marks that local moved. A later read of it is `USE_OF_MOVED_VALUE` (3070), a later `move` of it is
 `VALUE_MOVED_AGAIN` (3071), both raised at the name. A read is a name in a place that takes a value (an operand, an argument, the root
@@ -857,7 +867,7 @@ or rejects.
 | 3016 | `ASSIGNMENT_NEEDS_COPY_OR_MOVE` | `a = b;` when the type is not a primitive, a copyable `array` or an enum; a library storage type (`c.array`, `c.vector`, `c.table`, `c.owned`, `c.task`) needs the word too; so does a name, a field or an element given to an `owned<T>` parameter, reported at the argument (`MAREA_SemaCheckOwnedArguments`; a `vector` or `task` parameter is not checked, and an argument of unknown type is accepted) |
 | 3017 | `INVALID_BORROW` | `#[semantics = value_read_only] s: Shape` when `Shape` is not a primitive |
 | 3018 | `REFERENCE_ESCAPES_SCOPE` | `return s;` when `s` is a borrow parameter; `return s.inner;` when the field is not a value (also in an arm of `switch`); `shapes.append(s);` (the one storing library call that sema knows by name); `kept = part;` when `kept` is not declared in the `partition` body |
-| 3019 | `EXCLUSIVE_BORROW_CONFLICT` | `take(s, s)` when one parameter's effective `semantics` is `reference_mutable` |
+| 3019 | `EXCLUSIVE_BORROW_CONFLICT` | `take(s, s)` when one parameter's effective `semantics` is `reference_mutable`; also two arguments that name overlapping places when one is a write borrow or a `move` (`two_write(b.inner, b.inner)`, `two_write(v[0], v[0])`, `wr(b.inner, b)`, `wt(p, move p)`, `pair(item, v)` in a `for each item in mutable v`; `MAREA_SemaCheckAliasedArguments`) |
 | 3020 | `INVALID_SPAWN_ARGUMENT` | `spawn g(m)` in `fork_join` when `m`'s effective `semantics` is `reference_mutable` |
 | 3021 | `NON_EXHAUSTIVE_SWITCH` | a `switch` over an enum that misses a variant and has no `default` |
 | 3022 | `MISSING_RETURN` | `if a then return 1; end` as the whole body of a function with a return type |
@@ -909,6 +919,7 @@ or rejects.
 | 3069 | `WRITE_THROUGH_READ_ONLY_BORROW` | `function f(p: Point) p.x = 1; end`, `for each v in mutable xs do end` with `xs` read-only, `write_point(p)` with a read-only `p`, `write_point(make_point())` or `set(1)` for a write-borrow parameter |
 | 3070 | `USE_OF_MOVED_VALUE` | `local b: Point = move a; local c: sinteger32 = a.x;`, `take(move a); read(a);`, `spawn read(a);` or `a.sum()` after `a` was moved, also after a `do` block or after every arm of a branch moved it |
 | 3071 | `VALUE_MOVED_AGAIN` | `move a;` twice, or `move a` of a local declared outside the loop in a loop body that has no `break` or `return` of its own, at the name or at the `move` |
+| 3073 | `VALUE_CHANGED_WHILE_BORROWED` | `for each x in v do v[0] = ...; end`, `for each x in v do local o: vector<P> = move v; end`, `for each x in mutable v do v.append(...); end`, `with p as view do p.x = 2; end` or `with p as view do local o: P = move p; end`: the source of a `for each` or a `with` block is written, moved or changed by a library call (`append`, `insert`, `remove`, `clear`, `pop`, `push`, `resize`) in the body |
 | 3074 | `CONFLICTING_PARALLEL_ACCESS` | `spawn write(a); spawn write(a);`, `spawn write(a); spawn read(a);`, `spawn write(a); a.y = 5;` or a `spawn write(a);` in a loop in a `fork_join` block when `a` is declared before the block, and `partition xs ...` with a `spawn write(xs)` in the same block |
 
 ## Gaps
@@ -1099,7 +1110,8 @@ or rejects.
   vocabulary was never widened for attributes, so such a type argument fails to parse as one. The
   same scan already had no tolerance for the retired `mutable`/`reference` parameter keywords it
   used to allow, so this is not a new restriction, only an unaddressed one.
-- Borrow liveness is not tracked across statements. Sema keeps no per-variable "borrow ended" bit. The settled design for every later
+- Borrow liveness is tracked for the body of a `for each` and a `with` block only (3073, see "Borrowed source"), by a scan of the body, not by
+  the table below. A borrow parameter is still not tracked across statements, and sema keeps no per-variable "borrow ended" bit. The settled design for every later
   check (use after move, partial move, borrow liveness, cross-spawn, `partition` body) is one rule set,
   recorded here so no check invents its own:
   - **State table.** One new per-scope table, modeled directly on `references`
@@ -1117,6 +1129,11 @@ or rejects.
     valid" (not moved, still borrowed), never toward "reject". A missed catch is acceptable; a false
     rejection of valid code is not. Every later check that builds on this table must inherit this
     rounding and must not define its own.
+- The borrowed-source check (3073) is a scan, and it has these limits. A library call that changes its receiver is seen only by the names
+  `append`, `insert`, `remove`, `clear`, `pop`, `push` and `resize`. A change made inside a called function, or through a second name for the
+  source (a `with` name that is a view of it), is not seen. A write or a move in a nested function-like body is not a case, because the language
+  has none. Two elements of one vector overlap in a call unless both indices are integer literals of two values, so `two_write(v[i], v[j])` is
+  rejected even when `i` and `j` differ at run time.
 - The move state (3070, 3071) is the first check built on that design. It covers a whole local or parameter only: a move of a field or
   an element (`move x.inner`, `move xs[0]`), a moved loop variable and a moved `with` name are not tracked, the partial move is a later
   rule. A move in some arms of an `if` or `switch` only, and a move in a loop body that a `break` or `return` ends, are accepted by the
