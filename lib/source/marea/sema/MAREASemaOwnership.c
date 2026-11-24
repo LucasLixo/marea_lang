@@ -535,6 +535,17 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsFileConstantIdentifier(const MAREA_Sem
     return ((entry != MAREA_NULLPTR) && (entry->kind == MAREA_SEMA_NAME_KIND_DECLARATION) && (entry->declaration != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(entry->declaration) == MAREA_AST_KIND_CONSTANT_DECLARATION)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
+static const MAREA_AstNode *MAREA_CALL MAREA_G_ChainRoot(const MAREA_AstNode *expression)
+{
+    const MAREA_AstNode *root = expression;
+
+    while ((root != MAREA_NULLPTR) && ((MAREA_AstNodeGetKind(root) == MAREA_AST_KIND_MEMBER_ACCESS) || (MAREA_AstNodeGetKind(root) == MAREA_AST_KIND_INDEX_ACCESS))) {
+        root = MAREA_SemaChildAt(root, 0);
+    }
+
+    return root;
+}
+
 MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckBorrowArguments(MAREA_SemaContext *context, const MAREA_AstNode *call, const MAREA_AstNode *parameters, const MAREA_AstNode *arguments)
 {
     if ((context == MAREA_NULLPTR) || (call == MAREA_NULLPTR) || (parameters == MAREA_NULLPTR) || (arguments == MAREA_NULLPTR)) {
@@ -546,16 +557,18 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckBorrowArguments(MAREA_SemaContext *co
     for (MAREA_IntegerSize first = 0; first < COUNT; ++first) {
         const MAREA_AstNode *left = MAREA_SemaChildAt(arguments, first);
 
-        if (MAREA_G_IsIdentifier(left) == MAREA_BOOLEAN_FALSE) {
-            continue;
-        }
-
         const MAREA_AstNode *firstParameter = MAREA_SemaChildAt(parameters, first);
 
         const MAREA_Boolean FIRST_WRITE = ((firstParameter != MAREA_NULLPTR) && (MAREA_SemaGetParameterSemantics(context, firstParameter) == MAREA_SEMA_PARAMETER_SEMANTICS_REFERENCE_MUTABLE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 
-        if ((FIRST_WRITE == MAREA_BOOLEAN_TRUE) && (MAREA_G_IsFileConstantIdentifier(context, left) == MAREA_BOOLEAN_TRUE)) {
-            return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_CANNOT_BORROW_CONSTANT_AS_MUTABLE, MAREA_AstNodeGetPosition(left), "a constant cannot be bound to a mutable borrow:", MAREA_AstNodeGetText(left), MAREA_AstNodeGetTextLength(left));
+        const MAREA_AstNode *root = MAREA_G_ChainRoot(left);
+
+        if ((FIRST_WRITE == MAREA_BOOLEAN_TRUE) && (MAREA_G_IsIdentifier(root) == MAREA_BOOLEAN_TRUE) && (MAREA_G_IsFileConstantIdentifier(context, root) == MAREA_BOOLEAN_TRUE)) {
+            return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_CANNOT_BORROW_CONSTANT_AS_MUTABLE, MAREA_AstNodeGetPosition(left), "a constant cannot be bound to a mutable borrow:", MAREA_AstNodeGetText(root), MAREA_AstNodeGetTextLength(root));
+        }
+
+        if (MAREA_G_IsIdentifier(left) == MAREA_BOOLEAN_FALSE) {
+            continue;
         }
 
         for (MAREA_IntegerSize second = (first + 1); second < COUNT; ++second) {

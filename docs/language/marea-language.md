@@ -268,7 +268,7 @@ arm of `switch`, loop.
 
 What sema enforces today is small: 3016 (an existing structure, field or element assigned with no word), 3017
 (`value_read_only` on a non-primitive), 3018 (a borrow returned or stored in a field), 3019 (a bare name passed twice
-with a write borrow among them), 3032 (a bare file constant as a write borrow), 3069 (a write through a read-only
+with a write borrow among them), 3032 (a file constant, or a field or element of one, as a write borrow), 3069 (a write through a read-only
 borrow, and a write borrow of a call result or a literal). Everything else in the known_gap tables below is accepted
 today. The holes are grouped by kind: memory, permission and aliasing. A gap that shares an
 issue shows one hole through more than one program.
@@ -406,6 +406,7 @@ write-borrow parameter.
 | L-OWNERSHIP-129 | A write borrow of a call result | 3069 @28 |
 | L-OWNERSHIP-131 | A write borrow of a literal | 3069 @24 |
 | L-OWNERSHIP-133 | A file constant is passed to a write-borrow parameter | 3032 @26 |
+| L-OWNERSHIP-136 | A field of a file constant is passed to a write-borrow parameter | 3032 @26 |
 | L-OWNERSHIP-138 | A file constant is passed to a write-borrow parameter in a branch | 2001 @29, 3032 @27 |
 | L-OWNERSHIP-144 | A local of an owned type takes a value with no word | 3016 @25 |
 
@@ -432,12 +433,6 @@ write-borrow parameter.
 | L-OWNERSHIP-057 | A file constant is moved out | gap: #200 NEW, rule: reject |
 | L-OWNERSHIP-126 | A borrow is appended to a vector | gap: #205 3018, rule: reject |
 | L-OWNERSHIP-142 | An existing value is given to an owned parameter with no word | 3016 @29 |
-
-#### Permission holes
-
-| Id | Shows | Expected |
-|---|---|---|
-| L-OWNERSHIP-136 | A field of a file constant is passed to a write-borrow parameter | gap: #207 3032, rule: reject |
 
 #### Aliasing holes
 
@@ -1259,11 +1254,11 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | interop | 17 | 27 | 1 |
 | memory | 15 | 12 | 6 |
 | namespaces | 17 | 34 | 0 |
-| ownership | 65 | 55 | 25 |
+| ownership | 65 | 56 | 24 |
 | parallel | 19 | 30 | 10 |
 | seed | 1 | 2 | 0 |
 | types | 60 | 130 | 6 |
-| total | 266 | 471 | 74 |
+| total | 266 | 472 | 73 |
 
 ## Parity plan
 
