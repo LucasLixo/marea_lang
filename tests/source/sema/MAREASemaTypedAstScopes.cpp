@@ -184,7 +184,7 @@ TEST(MAREASemaTypedAstScopes, PartitionPartIsASliceOfTheValue)
 {
     GTEST_COUT << "Validating a partition part is a slice of the element type of the value, whatever the collection." << std::endl;
 
-    MAREA_expectScopeType("namespace main; import collections.array; function consume(p: slice<float32>) end function f(v: c.array<float32>) fork_join partition mutable v into 4 as part do consume(part); end end end", "part", 1, "slice<float32>", MAREA_EXTERNAL_RESOLVE);
+    MAREA_expectScopeType("namespace main; import collections.array; function consume(p: slice<float32>) end function f(#[semantics = reference_mutable] v: c.array<float32>) fork_join partition mutable v into 4 as part do consume(part); end end end", "part", 1, "slice<float32>", MAREA_EXTERNAL_RESOLVE);
 
     MAREA_expectScopeType("namespace main; function consume(p: slice<uinteger8>) end function f(v: array<uinteger8, 8>) fork_join partition v into 2 as part do consume(part); end end end", "part", 1, "slice<uinteger8>");
 

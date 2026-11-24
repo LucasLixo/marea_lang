@@ -22,7 +22,7 @@ MAREA_SemaCheckCompilationUnit(sema, root);   /* once per file, dependencies fir
 `MAREA_SemaCheckCompilationUnit` returns an error only for a null argument or an out of memory. A rule
 violation is a diagnostic in the sink. A size that does not fit in `MAREA_IntegerSize` (a diagnostic
 message, or the growth of a name table) is also an out of memory: nothing is allocated or copied.
-Every sema diagnostic is an error, in the range 3001-3068. Not every number of the range is a live code: the
+Every sema diagnostic is an error, in the range 3001-3069. Not every number of the range is a live code: the
 Diagnostics table lists the live ones.
 The lexer file name decides the path rule, so call `MAREA_LexContextSetFileName` with a project
 relative path with forward slashes and the `.marea` extension before the lex step.
@@ -215,6 +215,15 @@ type's name never reaches this rule: the name table rejects the second declarati
 both. `Type{...}` (the aggregate literal) is unaffected and keeps working on its own rule, as every `construct`
 parameter is defaulted.
 
+**Function type value.** A declared type that is a function type, written or reached through an alias of the file,
+gets three checks. A literal (integer, float, string, character or boolean) for it is `TYPE_MISMATCH` (3011). A
+bare name of a function of the file, not hidden by a local, for it is `FUNCTION_TYPE_MISMATCH` (3053) when its
+parameter count, the passing mode or type of a parameter, or its result type differ from the function type; the
+check runs wherever a value meets a declared type (a local initializer, an argument, a return, an assignment, a
+constant). A call through a parameter or a local of a function type is checked against the parameters of that
+function type: a wrong count is `ARGUMENT_COUNT_MISMATCH` (3010) and a wrong argument type is 3011, the rule of an
+ordinary call.
+
 **Enum tag type.** `enum A : uinteger8` names the integer type of the discriminant. With no tag it is
 `sinteger32`. A tag must be one bare integer primitive (`sinteger8` to `sinteger64`, `uinteger8` to
 `uinteger64`); any other tag (`float32`, `string`, `boolean`, a structure, a generic or an alias) is
@@ -228,8 +237,20 @@ the one place the rest of sema reads it. With no attribute written, a primitive 
 `value_read_only`, `owned<T>`, `task<T>` and `vector<T>` default to `reference_mutable` (they move
 in and are never a borrow), and any other type defaults to `reference_read_only` - settled rule 2. A
 write borrow needs the explicit `reference_mutable`. The former `mutable`/`reference` keywords are
-retired, `mutable` stays reserved only for `for each` and `partition`. Sema does not reject a write
-through a read-only borrow yet: the next apply of the handoff adds that check.
+retired, `mutable` stays reserved only for `for each` and `partition`.
+A second table, `readOnly`, is built like the references table: `MAREA_SemaBindReadOnly` pushes one entry per binder
+when a scope is entered and `MAREA_SemaScopeLeave` pops them. A function parameter is read-only exactly when its
+effective passing mode is `reference_read_only`. A `for each` variable and a `partition` part are writable only when
+the statement says `mutable` and its source is not read-only. A `with` name is read-only when the source is an
+existing value (a name, a field or an element: a borrowed view) and writable when the source is a call. A new local
+that reuses a read-only name is a writable shadow. The root of an expression is the name at the bottom of its field and
+element chain; a root that is not in the table (a plain local, a by-value parameter, a file name) is writable, so sema
+rounds toward valid. `WRITE_THROUGH_READ_ONLY_BORROW` (3069) is raised in four shapes: an assignment of any operator
+whose target is rooted in a read-only borrow; `for each ... in mutable` or `partition mutable` over a read-only source,
+at the source; a read-only borrow given to a write-borrow parameter; and a call result or a literal given to a
+write-borrow parameter (a temporary has no storage to write back). A move-in parameter (`owned`, `task`, `vector`) is
+not a write borrow of a place and takes a call result. The rule runs in `MAREA_SemaCheckOwnership` and
+`MAREA_SemaCheckWriteArguments`; the typed AST pass only rebuilds the table and reports nothing.
 `value_read_only` is legal only on a primitive; writing it on anything else is `INVALID_BORROW`
 (3017). `owned<T>` moves in regardless of `semantics`. A primitive, an `array`, `pointer`, `slice`
 and an enum is by value for the *ownership mode* (`MAREA_SemaOwnershipMode`) no matter what
@@ -306,6 +327,12 @@ and a second `default` is an arm that the IR would drop. The place of the `defau
 sema itself: the grammar puts `default_arm` last, and the parser now enforces that placement
 (`DEFAULT_ARM_NOT_LAST`, 2010), so a `default` that is not the last arm never reaches sema through a
 program the parser accepts.
+
+**Opaque structures.** An `opaque structure` has no known layout, so sema refuses to build it, to read a field of it,
+to apply an operator to it and to hold it by value in a structure. A struct literal of an opaque type, a field read
+and a binary operation whose operand is an opaque name raise `OPAQUE_TYPE_MISUSE` (3057), and a `FIELD_DECLARATION`
+whose type is the bare name of an opaque structure raises `OPAQUE_FIELD_BY_VALUE` (3058). `owned<T>`,
+`pointer<T>`, a borrow and a C call stay legal.
 
 **Expressions.** Sema gives an expression a type only when it is cheap to know, and never guesses. A
 literal has its own type. A name has the declared type of its local, parameter or file constant. A field, or an
@@ -738,8 +765,11 @@ or rejects.
 | 3040 | `ASSIGNMENT_TO_CONSTANT` | `LIMIT = 11;`, `LIMIT += 1;`, `ORIGIN.x = 1;`, `TABLE[0] = 1;` when the root name is a file constant and no local hides it |
 | 3041 | `RAW_POINTER_OUTSIDE_UNSAFE` | `local raw: pointer<sinteger32> = f();` with no `unsafe ... end` block around it, at any depth of nesting |
 | 3043 | `NON_BOOLEAN_CONDITION` | `if n then`, `elseif s then`, `while 1 do` when the condition has a known primitive type that is not `boolean`, or is a number, string or character literal |
+| 3053 | `FUNCTION_TYPE_MISMATCH` | `apply(negate)` when `negate` takes one parameter and the function type takes two |
 | 3055 | `CYCLIC_CONSTANT` | `constant A: sinteger32 = B;` with `constant B: sinteger32 = A;`, or `constant A: sinteger32 = A;`, once for each cycle, at the first constant of it in the file |
 | 3056 | `RESERVED_MACRO_NAME` | `function print() end`, `constant format: sinteger32 = 1;`, `local log: sinteger32 = 1;` or `import c.stdio as print;`: a name that is a built-in macro |
+| 3057 | `OPAQUE_TYPE_MISUSE` | `Texture{ }`, `texture.width` or `texture + other` when `texture` is a local or a parameter of an `opaque structure` of the same file |
+| 3058 | `OPAQUE_FIELD_BY_VALUE` | `structure Holder texture: Texture; end` with `Texture` an `opaque structure` of the same file |
 | 3059 | `COMPILE_TIME_ASSERTION_FAILED` | `compile_error!("stop");` with any arguments, at the top level or in a function body; `static_assert!(1 == 2, "never");` or `static_assert!(N == 5, "n");` when the condition is a constant that is false |
 | 3060 | `UNKNOWN_MACRO` | `shout!("hello");` when `shout` is none of the 13 built-in macros, at the call |
 | 3061 | `INVALID_MACRO_ARGUMENT` | `print!();`, `print!(1, 2);`, `print!("{} {}", 1);`, `assert!(1, "x");`, `unreachable!(1);`, `log!(loud, "x");`, `include_text!(1);`: the wrong count of arguments, a literal of the wrong kind, a log level that is not one of the five, or a count of `{}` that differs from the count of values, at the offending argument |
@@ -747,9 +777,15 @@ or rejects.
 | 3066 | `PRIVATE_SYMBOL_ACCESS` | `b.hidden()` or `b.LIMIT` after `import a.b;` (or an alias) when the member is a top-level declaration of a `FOUND` namespace with `#[visibility = private]` |
 | 3067 | `PRIVATE_TYPE_ACCESS` | `s: b.Secret`, `b.Secret{ }` or any written `b.Secret` when the structure, enum, opaque or alias of a `FOUND` namespace is private |
 | 3068 | `PRIVATE_FIELD_ACCESS` | `box.value`, `box.value = 1` or `b.Box{ value = 1 }` when `box` is written `b.Box` and the field has `#[visibility = private]` |
+| 3069 | `WRITE_THROUGH_READ_ONLY_BORROW` | `function f(p: Point) p.x = 1; end`, `for each v in mutable xs do end` with `xs` read-only, `write_point(p)` with a read-only `p`, `write_point(make_point())` or `set(1)` for a write-borrow parameter |
 
 ## Gaps
 
+- A write through a method call on a read-only receiver, and a library call that mutates (`values.append(x)`), are
+  not seen: sema does not know which calls mutate. The rule 3069 reads only a written assignment, a mutable loop or
+  partition and a write-borrow argument.
+- A `with` over a call is writable and a `with` over an existing value is read-only, whatever the type of the value:
+  the rule reads the shape of the source, not what the call returns.
 - The visibility check (3066 to 3068) reads only a bare namespace name and a bare name with a written type `ns.T`. It does
   not check a member that the tree does not declare, a field of a value that is not a plain `ns.T` name (a call result,
   an index, a chain such as `a.b.c`), a field of a type that an imported symbol gives (`import a.b.Box;`), or a private
@@ -765,8 +801,11 @@ or rejects.
   namespace for now. A `vector` is still indexable in the type inference, though it is a move type.
 - Renaming on use inside one file (without an import) is not offered: a local declaration has its own name.
 - `TYPE_MISMATCH` (3011) sorts the type of an expression into a fixed set of shapes: a literal, a primitive, a
-  structure, and, known but never compared, an enum, a library type, a generic parameter and an `owned`, `task`, `vector` or `array` value. Still fully unknown: a `pointer`, a `slice`, a function type, the type of a field or a file
+  structure, and, known but never compared, an enum, a library type, a generic parameter and an `owned`, `task`, `vector` or `array` value. Still fully unknown: a `pointer`, a `slice`, the type of a field or a file
   constant that is not a primitive, and the result of a generic call (see below).
+- A function type is compared (3011, 3053) only for a literal and for a bare name of a function of the file. It is
+  still unknown for a field, a call result and any other expression of a function type. A generic function, and a
+  function type that mentions a generic parameter in scope, are never compared.
 - A binary operator is checked against what its operands may be only for a bitwise operator on a float, a boolean
   or a string (3038) and for `and`, `or` and `not` on a known type that is not `boolean` (3039). Every other operator
   (arithmetic on a `boolean` or a `string`, a comparison of two booleans) is not checked, a `character` operand of a
@@ -777,6 +816,10 @@ or rejects.
   and `with` header expressions and the initializer of a file constant are checked. The loop name is already in
   scope when its own header is checked, so `for i in 0 .. i` with no outer `i` raises nothing. A constant that has
   an `ERROR_NODE` below it has no name check, because the parser may leave its tokens as an expression.
+- `OPAQUE_TYPE_MISUSE` (3057) sees only an operand or a base that is a bare name, or one in parentheses, whose
+  written type is an opaque structure of the same file. A call result, an index, a field of another value and an
+  opaque type of another file are not classified, and `OPAQUE_FIELD_BY_VALUE` (3058) likewise sees only a bare
+  opaque name of the same file as a field type.
 - `CANNOT_BORROW_CONSTANT_AS_MUTABLE` (3032) sees only a bare file-constant name as the argument. A field chain
   rooted in a constant (`ORIGIN.x`) passed to an explicit `reference_mutable` parameter is not rejected, and a test proves only the
   bare name.

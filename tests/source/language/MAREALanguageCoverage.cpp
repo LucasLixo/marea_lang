@@ -71,7 +71,7 @@ namespace
     const std::vector<MAREA_MissingRule> MISSING_RULES{
         { "use of a moved value", "198", "gap" },
         { "use of an uninitialized value", "0", "reject 3065" },
-        { "write through a read-only borrow", "204", "gap" },
+        { "write through a read-only borrow", "0", "reject 3069" },
         { "literal out of range", "0", "reject 3033" },
         { "constant division by zero", "0", "reject 3034" },
         { "shift count too large", "0", "reject 3035" },

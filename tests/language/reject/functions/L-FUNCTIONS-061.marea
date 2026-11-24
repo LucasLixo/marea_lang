@@ -1,0 +1,18 @@
+-- expect: 3069 @16
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A write through a default structure parameter inside a method (settled rule 2).
+
+namespace main;
+
+structure Point
+    x: float64;
+    y: float64;
+end
+
+implementation Point
+    function scale(self: Point, factor: float64)
+        self.x *= factor;
+    end
+end

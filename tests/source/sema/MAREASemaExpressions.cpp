@@ -12,6 +12,8 @@ namespace
     constexpr MAREA_Uinteger32 MISMATCH{ MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH };
     constexpr MAREA_Uinteger32 UNDECLARED{ MAREA_SEMA_DIAGNOSTIC_CODE_UNDECLARED_NAME };
     constexpr MAREA_Uinteger32 COUNT_MISMATCH{ MAREA_SEMA_DIAGNOSTIC_CODE_ARGUMENT_COUNT_MISMATCH };
+    constexpr MAREA_Uinteger32 OPAQUE_MISUSE{ MAREA_SEMA_DIAGNOSTIC_CODE_OPAQUE_TYPE_MISUSE };
+    constexpr MAREA_Uinteger32 FUNCTION_TYPE_MISMATCH{ MAREA_SEMA_DIAGNOSTIC_CODE_FUNCTION_TYPE_MISMATCH };
     constexpr MAREA_Uinteger32 DEFAULT_BEFORE_REQUIRED{ MAREA_SEMA_DIAGNOSTIC_CODE_DEFAULT_PARAMETER_BEFORE_REQUIRED };
 
     Codes MAREA_codesOf(const std::string &body)
@@ -211,7 +213,7 @@ TEST(MAREASemaExpressions, CompoundAssignmentNeedsTheSameTypeOnBothSides)
 {
     GTEST_COUT << "Validating a compound assignment is compared like a = a + b and a compound shift follows the shift rule." << std::endl;
 
-    const std::string HEAD{ "structure Point x: float32; end function g(a: sinteger32, c: sinteger64, f: float64, v: uinteger32, p: Point, s: string) " };
+    const std::string HEAD{ "structure Point x: float32; end function g(a: sinteger32, c: sinteger64, f: float64, v: uinteger32, #[semantics = reference_mutable] p: Point, #[semantics = reference_mutable] s: string) " };
 
     EXPECT_EQ(MAREA_codesOf(HEAD + "a += f; a -= c; f *= a; a /= f; a %= c; a **= f; end"), (Codes{ MISMATCH, MISMATCH, MISMATCH, MISMATCH, MISMATCH, MISMATCH })) << "Every compound operator must compare both sides.";
 
@@ -770,4 +772,69 @@ TEST(MAREASemaExpressions, TypeWithNoConstructOperatorAcceptsOnlyAnEmptyCall)
     EXPECT_TRUE(MAREA_codesOf(LINE + "Line(); end").empty()) << "A call with no argument and no construct operator must raise nothing.";
 
     EXPECT_EQ(MAREA_codesOf(LINE + "Line(1.0); end"), Codes{ COUNT_MISMATCH }) << "A call with an argument, and no construct operator, must raise ARGUMENT_COUNT_MISMATCH.";
+}
+
+TEST(MAREASemaExpressions, OpaqueTypeCannotBeBuiltReadOrOperated)
+{
+    GTEST_COUT << "Validating a literal, a field read and an operator of an opaque type raise OPAQUE_TYPE_MISUSE." << std::endl;
+
+    const std::string OPAQUE{ "opaque structure T; " };
+
+    EXPECT_EQ(MAREA_codesOf(OPAQUE + "function f(a: T, b: T): T return a + b; end"), Codes{ OPAQUE_MISUSE }) << "An operator on two opaque names must raise OPAQUE_TYPE_MISUSE.";
+
+    EXPECT_EQ(MAREA_codesOf(OPAQUE + "function f(a: T, b: T): boolean return a == b; end"), Codes{ OPAQUE_MISUSE }) << "A comparison of two opaque names must raise OPAQUE_TYPE_MISUSE.";
+
+    EXPECT_EQ(MAREA_codesOf(OPAQUE + "function f(a: T): sinteger32 return a.width; end"), Codes{ OPAQUE_MISUSE }) << "A field read of an opaque name must raise OPAQUE_TYPE_MISUSE.";
+
+    EXPECT_EQ(MAREA_codesOf(OPAQUE + "function f(a: T): sinteger32 return (a).width; end"), Codes{ OPAQUE_MISUSE }) << "A field read of a parenthesized opaque name must raise OPAQUE_TYPE_MISUSE.";
+
+    EXPECT_EQ(MAREA_codesOf(OPAQUE + "function f() local t: T = T{ }; end"), Codes{ OPAQUE_MISUSE }) << "A struct literal of an opaque type must raise OPAQUE_TYPE_MISUSE.";
+}
+
+TEST(MAREASemaExpressions, OpaqueTypeUsedThroughABorrowOrAnOwnerIsAccepted)
+{
+    GTEST_COUT << "Validating an opaque type through a borrow, an owner or a C call raises nothing." << std::endl;
+
+    const std::string OPAQUE{ "opaque structure T; " };
+
+    EXPECT_TRUE(MAREA_codesOf(OPAQUE + "function f(a: T) local v: sinteger32 = 1; end").empty()) << "A borrow parameter of an opaque type must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(OPAQUE + "function g(a: T) end function f(a: T) g(a); end").empty()) << "An opaque name passed as a borrow must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(OPAQUE + "function g(a: T) end function f(a: owned<T>) g(a); end").empty()) << "An owner passed as a borrow must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(OPAQUE + "function f(a: T): sinteger32 return c.texture.width(a); end").empty()) << "A C call with an opaque argument must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("structure S width: sinteger32; end function f(a: S): sinteger32 return a.width; end").empty()) << "A field read of an ordinary structure must raise nothing.";
+}
+
+TEST(MAREASemaExpressions, FunctionTypeValueIsChecked)
+{
+    GTEST_COUT << "Validating a function type value: a literal, a function signature and a call through the value." << std::endl;
+
+    const std::string OP{ "type Op = function(left: sinteger32, right: sinteger32): sinteger32; function add(left: sinteger32, right: sinteger32): sinteger32 return left + right; end function apply(operation: Op): sinteger32 return operation(1, 2); end " };
+
+    EXPECT_EQ(MAREA_codesOf("type Callback = function(text: string); function run() local callback: Callback = \"x\"; end"), Codes{ MISMATCH }) << "A text literal for a function type local must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf("type Callback = function(); function run() local callback: Callback = 1; end"), Codes{ MISMATCH }) << "An integer literal for a function type local must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(OP + "function negate(value: sinteger32): sinteger32 return -value; end function run(): sinteger32 return apply(negate); end"), Codes{ FUNCTION_TYPE_MISMATCH }) << "A function with fewer parameters must raise FUNCTION_TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(OP + "function wide(left: sinteger32, right: sinteger32): sinteger64 return 0; end function run(): sinteger32 return apply(wide); end"), Codes{ FUNCTION_TYPE_MISMATCH }) << "A function with another result type must raise FUNCTION_TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(OP + "function other(left: string, right: sinteger32): sinteger32 return 0; end function run(): sinteger32 return apply(other); end"), Codes{ FUNCTION_TYPE_MISMATCH }) << "A function with another parameter type must raise FUNCTION_TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(OP + "function other(left: string, right: sinteger32): sinteger32 return 0; end function run() local operation: Op = other; end"), Codes{ FUNCTION_TYPE_MISMATCH }) << "A local initializer is compared too.";
+
+    EXPECT_EQ(MAREA_codesOf("type One = function(value: sinteger32): sinteger32; function apply(operation: One): sinteger32 return operation(1, 2); end"), Codes{ COUNT_MISMATCH }) << "A call through a function type value with too many arguments must raise ARGUMENT_COUNT_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf("type One = function(value: sinteger32): sinteger32; function apply(operation: One): sinteger32 return operation(\"x\"); end"), Codes{ MISMATCH }) << "A call through a function type value with a wrong argument type must raise TYPE_MISMATCH.";
+
+    EXPECT_TRUE(MAREA_codesOf(OP + "function run(): sinteger32 return apply(add); end").empty()) << "A function with the same signature must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(OP + "function pass(operation: Op): sinteger32 return apply(operation); end").empty()) << "A function type value passed on must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("type Callback = function(text: string); structure Holder callback: Callback; end function run(holder: Holder) end").empty()) << "A function type field must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(OP + "function pick<T>(left: sinteger32, right: sinteger64): sinteger32 return left; end function run() local operation: Op = pick; end").empty()) << "A generic function must not be compared.";
 }
