@@ -1,0 +1,12 @@
+-- expect: 3012 @11
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An enum with one variant declared twice.
+
+namespace main;
+
+enum Color
+    Red;
+    Red;
+end

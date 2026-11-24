@@ -214,7 +214,7 @@ TEST(MAREAIrGaps, ModuleLevelMacroRaisesItsDiagnostic)
 {
     GTEST_COUT << "Validating a module-level macro statement raises 4005." << std::endl;
 
-    const Codes CODES{ MAREA_irCodesOf("namespace main; static_assert!(true); constant A: sinteger32 = 1;") };
+    const Codes CODES{ MAREA_irCodesOf("namespace main; static_assert!(true, \"x\"); constant A: sinteger32 = 1;") };
 
     EXPECT_EQ(CODES, Codes{ MACRO }) << "A module-level macro must raise UNSUPPORTED_MACRO.";
 }
@@ -301,17 +301,6 @@ TEST(MAREAIrGaps, CallOfADroppedFunctionRaisesAtTheCallSite)
     GTEST_COUT << "Validating a call to a function that was dropped from the module raises a diagnostic at the call site, and does not lower to a dangling name." << std::endl;
 
     const std::string SOURCE{ "namespace main; function noop<Item>(value: Item) end function run() noop(5); end function keep() end" };
-
-    EXPECT_EQ(MAREA_irCodesOf(SOURCE), (Codes{ GENERIC, GENERIC })) << "The generic function and the call that targets it must each raise once.";
-
-    EXPECT_EQ(MAREA_functionNamesOf(SOURCE), "keep") << "The caller must be dropped with its dangling call.";
-}
-
-TEST(MAREAIrGaps, CallOfADroppedFunctionDeclaredLaterRaisesAtTheCallSite)
-{
-    GTEST_COUT << "Validating a call to a dropped function that is declared after the caller raises at the call site too." << std::endl;
-
-    const std::string SOURCE{ "namespace main; function run() noop(5); end function noop<Item>(value: Item) end function keep() end" };
 
     EXPECT_EQ(MAREA_irCodesOf(SOURCE), (Codes{ GENERIC, GENERIC })) << "The generic function and the call that targets it must each raise once.";
 

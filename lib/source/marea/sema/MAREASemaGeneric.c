@@ -846,6 +846,12 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckArguments(MAREA_SemaContext *con
         if (LITERAL_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
             return LITERAL_RESULT;
         }
+
+        const MAREA_SemaExcept RANGE_RESULT = MAREA_SemaCheckLiteralRange(context, (parameter == MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_SemaChildAt(parameter, 1), MAREA_SemaChildAt(arguments, index));
+
+        if (RANGE_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return RANGE_RESULT;
+        }
     }
 
     return MAREA_SEMA_EXCEPT_SUCCESS;
@@ -890,6 +896,12 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckExternalCall(MAREA_SemaContext *
 
         if (RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
             return RESULT;
+        }
+
+        const MAREA_SemaExcept RANGE_RESULT = MAREA_SemaCheckLiteralRangePrimitive(context, parameter->typeText, parameter->typeTextLength, MAREA_SemaChildAt(arguments, index));
+
+        if (RANGE_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return RANGE_RESULT;
         }
     }
 

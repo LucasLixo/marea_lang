@@ -5,6 +5,9 @@
 
 #include "tests/MAREASemaHelpers.hpp"
 
+// INFO: internal header on purpose: the default passing mode is read through MAREA_SemaGetParameterSemantics, which no public header exposes.
+#include "marea/internal/sema/MAREASemaInternal.h"
+
 namespace
 {
     using Codes = std::vector<MAREA_Uinteger32>;
@@ -28,15 +31,85 @@ namespace
 
         return fixture.MAREA_semaCodes();
     }
+
+    const MAREA_AstNode *MAREA_findParameter(const MAREA_AstNode *node)
+    {
+        if (MAREA_AstNodeGetKind(node) == MAREA_AST_KIND_PARAMETER) {
+            return node;
+        }
+
+        const MAREA_IntegerSize COUNT{ MAREA_AstNodeGetChildCount(node) };
+
+        for (MAREA_IntegerSize index = 0; index < COUNT; ++index) {
+            const MAREA_AstNode *child{ nullptr };
+
+            if (MAREA_AstNodeGetChildAt(node, index, &child) != MAREA_AST_EXCEPT_SUCCESS) {
+                continue;
+            }
+
+            const MAREA_AstNode *found{ MAREA_findParameter(child) };
+
+            if (found != nullptr) {
+                return found;
+            }
+        }
+
+        return nullptr;
+    }
+
+    // INFO: the passing mode of the first parameter of the first function that has one, or the value 99 when the source does not check or has none.
+    MAREA_Uinteger32 MAREA_firstParameterSemantics(const std::string &body)
+    {
+        MAREA_SemaFixture fixture([](const std::string &, const MAREA_AstNode **) { return MAREA_SEMA_IMPORT_RESULT_EXTERNAL; });
+
+        if (fixture.MAREA_sema("namespace main; " + body) != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return 99;
+        }
+
+        const MAREA_AstNode *parameter{ MAREA_findParameter(fixture.parser.root) };
+
+        if (parameter == nullptr) {
+            return 99;
+        }
+
+        return static_cast<MAREA_Uinteger32>(MAREA_SemaGetParameterSemantics(fixture.context, parameter));
+    }
+
+    constexpr MAREA_Uinteger32 VALUE_READ_ONLY{ MAREA_SEMA_PARAMETER_SEMANTICS_VALUE_READ_ONLY };
+    constexpr MAREA_Uinteger32 REFERENCE_READ_ONLY{ MAREA_SEMA_PARAMETER_SEMANTICS_REFERENCE_READ_ONLY };
+    constexpr MAREA_Uinteger32 REFERENCE_MUTABLE{ MAREA_SEMA_PARAMETER_SEMANTICS_REFERENCE_MUTABLE };
 } // namespace
+
+TEST(MAREASemaOwnership, ParameterWithNoAttributeDefaultsByTypeClass)
+{
+    GTEST_COUT << "Validating a parameter with no semantics attribute is by value for a primitive or an enum, a read-only borrow for any other plain type, and a write borrow only for a move-in type." << std::endl;
+
+    EXPECT_EQ(MAREA_firstParameterSemantics("function f(n: sinteger32) end"), VALUE_READ_ONLY) << "A primitive must default to VALUE_READ_ONLY.";
+
+    EXPECT_EQ(MAREA_firstParameterSemantics("enum Color red; end function f(c: Color) end"), VALUE_READ_ONLY) << "An enum must default to VALUE_READ_ONLY.";
+
+    EXPECT_EQ(MAREA_firstParameterSemantics(SHAPE + "function f(s: Shape) end"), REFERENCE_READ_ONLY) << "A user structure must default to REFERENCE_READ_ONLY.";
+
+    EXPECT_EQ(MAREA_firstParameterSemantics("function f<T>(t: T) end"), REFERENCE_READ_ONLY) << "A generic parameter must default to REFERENCE_READ_ONLY.";
+
+    EXPECT_EQ(MAREA_firstParameterSemantics("function f(a: c.array<float32>) end"), REFERENCE_READ_ONLY) << "A qualified library type must default to REFERENCE_READ_ONLY.";
+
+    EXPECT_EQ(MAREA_firstParameterSemantics(SHAPE + "function f(o: owned<Shape>) end"), REFERENCE_MUTABLE) << "A move-in owned must keep REFERENCE_MUTABLE.";
+
+    EXPECT_EQ(MAREA_firstParameterSemantics(SHAPE + "function f(v: vector<Shape>) end"), REFERENCE_MUTABLE) << "A move-in vector must keep REFERENCE_MUTABLE.";
+
+    EXPECT_EQ(MAREA_firstParameterSemantics(SHAPE + "function f(#[semantics = reference_mutable] s: Shape) end"), REFERENCE_MUTABLE) << "An explicit attribute must win over the default.";
+}
 
 TEST(MAREASemaOwnership, ParameterModesAreAccepted)
 {
-    GTEST_COUT << "Validating a read-only borrow, a write borrow (the non-primitive default), a forced borrow and a move-in raise nothing." << std::endl;
+    GTEST_COUT << "Validating a read-only borrow (the non-primitive default), a write borrow, a forced borrow and a move-in raise nothing." << std::endl;
 
     EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(#[semantics = reference_read_only] s: Shape) end").empty()) << "A read-only borrow must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(s: Shape) end").empty()) << "A write borrow (a non-primitive defaults to reference_mutable) must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(s: Shape) end").empty()) << "A read-only borrow (a non-primitive defaults to reference_read_only) must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(#[semantics = reference_mutable] s: Shape) end").empty()) << "A write borrow must raise nothing.";
 
     EXPECT_TRUE(MAREA_codesOf("enum Color red; end function f(#[semantics = reference_read_only] c: Color) end").empty()) << "A forced borrow of an enum, the by-value exception, must raise nothing.";
 
@@ -134,7 +207,9 @@ TEST(MAREASemaOwnership, ReturningABorrowIsRejected)
 
     EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(#[semantics = reference_read_only] s: Shape): Shape return s; end"), Codes{ ESCAPES }) << "A read-only borrow must raise REFERENCE_ESCAPES_SCOPE.";
 
-    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(s: Shape): Shape return s; end"), Codes{ ESCAPES }) << "A write borrow (the non-primitive default) must raise REFERENCE_ESCAPES_SCOPE.";
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(s: Shape): Shape return s; end"), Codes{ ESCAPES }) << "A read-only borrow (the non-primitive default) must raise REFERENCE_ESCAPES_SCOPE.";
+
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(#[semantics = reference_mutable] s: Shape): Shape return s; end"), Codes{ ESCAPES }) << "A write borrow must raise REFERENCE_ESCAPES_SCOPE.";
 }
 
 TEST(MAREASemaOwnership, ReturningOwnedValuesIsAccepted)
@@ -154,7 +229,7 @@ TEST(MAREASemaOwnership, LocalShadowingABorrowIsReturnable)
 {
     GTEST_COUT << "Validating a local that shadows a borrow parameter is not confined." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(s: Shape): Shape local s: Shape = make(); return s; end").empty()) << "A shadowing local must be returnable.";
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(s: Shape): Shape do local s: Shape = make(); return s; end end").empty()) << "A shadowing local must be returnable.";
 }
 
 TEST(MAREASemaOwnership, ForEachVariableCannotEscape)
@@ -192,9 +267,11 @@ TEST(MAREASemaOwnership, SameNameInTwoMutableArgumentsConflicts)
 {
     GTEST_COUT << "Validating one name passed twice with a write borrow among them conflicts." << std::endl;
 
-    const std::string TAKE{ SHAPE + "function take(a: Shape, b: Shape) end function other(#[semantics = reference_read_only] a: Shape, #[semantics = reference_read_only] b: Shape) end " };
+    const std::string TAKE{ SHAPE + "function take(#[semantics = reference_mutable] a: Shape, #[semantics = reference_mutable] b: Shape) end function other(#[semantics = reference_read_only] a: Shape, #[semantics = reference_read_only] b: Shape) end function plain(a: Shape, b: Shape) end " };
 
-    EXPECT_EQ(MAREA_codesOf(TAKE + "function f(s: Shape) take(s, s); end"), Codes{ EXCLUSIVE }) << "A repeated name with a write borrow (the non-primitive default) must raise EXCLUSIVE_BORROW_CONFLICT.";
+    EXPECT_EQ(MAREA_codesOf(TAKE + "function f(s: Shape) take(s, s); end"), Codes{ EXCLUSIVE }) << "A repeated name with an explicit write borrow must raise EXCLUSIVE_BORROW_CONFLICT.";
+
+    EXPECT_TRUE(MAREA_codesOf(TAKE + "function f(s: Shape) plain(s, s); end").empty()) << "A repeated name with default parameters (read-only borrows) must raise nothing.";
 
     EXPECT_TRUE(MAREA_codesOf(TAKE + "function f(s: Shape) other(s, s); end").empty()) << "Two read-only borrows must raise nothing.";
 }
@@ -203,9 +280,11 @@ TEST(MAREASemaOwnership, ConstantBoundToAWriteBorrowParameterIsRejected)
 {
     GTEST_COUT << "Validating a file constant passed to a write-borrow parameter raises CANNOT_BORROW_CONSTANT_AS_MUTABLE; a variable in the same position still passes." << std::endl;
 
-    const std::string TAKE{ SHAPE + "constant ORIGIN: Shape = make(); function take(a: Shape) end function other(#[semantics = reference_read_only] a: Shape) end " };
+    const std::string TAKE{ SHAPE + "constant ORIGIN: Shape = make(); function take(#[semantics = reference_mutable] a: Shape) end function other(#[semantics = reference_read_only] a: Shape) end function plain(a: Shape) end " };
 
-    EXPECT_EQ(MAREA_codesOf(TAKE + "function f() take(ORIGIN); end"), Codes{ CONSTANT_AS_MUTABLE }) << "A constant bound to a write-borrow (the non-primitive default) must raise CANNOT_BORROW_CONSTANT_AS_MUTABLE.";
+    EXPECT_EQ(MAREA_codesOf(TAKE + "function f() take(ORIGIN); end"), Codes{ CONSTANT_AS_MUTABLE }) << "A constant bound to an explicit write borrow must raise CANNOT_BORROW_CONSTANT_AS_MUTABLE.";
+
+    EXPECT_TRUE(MAREA_codesOf(TAKE + "function f() plain(ORIGIN); end").empty()) << "A constant bound to a default parameter (a read-only borrow) must raise nothing.";
 
     EXPECT_TRUE(MAREA_codesOf(TAKE + "function f(s: Shape) take(s); end").empty()) << "A variable bound to the same write-borrow parameter must raise nothing.";
 

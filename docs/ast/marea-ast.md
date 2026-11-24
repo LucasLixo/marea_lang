@@ -211,12 +211,14 @@ operators on its left: `-a ** 2` is `-(a ** 2)`, and the right side may be unary
   `;` is then reported at the same token, so it adds no second diagnostic, and the parser goes on
   with the next import or item. A token that cannot start a member ends the list and the top level
   recovery skips to the next `;`.
-- A block stops at `end`, at the end of the file, or at the start of a top level declaration, so an
-  unfinished body never hides the next function. Every branch of an `if` (the `if` branch, each
-  `elseif` and the `else`) and of a `switch` (each `case` and the `default`) has its own `end`, and one
-  more `end` closes the whole statement. The branch `end` is not a node of the tree. An `elseif`,
-  `else`, `case` or `default` inside a block, which is the old shared-end form, is reported as
-  `UNEXPECTED_TOKEN` and skipped.
+- A block stops at `elseif`, `else`, `case`, `default` or `end`, at the end of the file, or at the start
+  of a top level declaration, so an unfinished body never hides the next function. An `if` and a
+  `switch` close with exactly one `end` for the whole statement. A branch of an `if` (the `if` branch,
+  each `elseif` and the `else`) and an arm of a `switch` (each `case` and the `default`) has no `end` of
+  its own, and its block stops without a diagnostic at the next branch or arm keyword or at that
+  closing `end`. The old form, with an `end` after every branch or arm and one more for the statement,
+  is reported: the `end` of a branch closes the statement, so the next `elseif`, `else`, `case` or
+  `default` is a stray token and the last `end` is a stray token or an unterminated block.
 - Nesting is limited to 256 levels of expression, statement and type. Deeper input gives
   `RECURSION_TOO_DEEP` and that construct is left unparsed.
 
@@ -230,12 +232,12 @@ All are errors, from 2001 up. A diagnostic is not repeated at the same byte offs
 | 2002 | `EXPECTED_EXPRESSION` | `constant x: sinteger32 = 1 +;` |
 | 2003 | `EXPECTED_TYPE` | `constant x: = 1;` |
 | 2004 | `EXPECTED_DECLARATION` | `namespace main; 42;`, an import after a declaration |
-| 2005 | `UNEXPECTED_TOKEN` | a stray `end`, `case` outside a `switch`, an `else` with no `end` before it, or a default value in a function type parameter (`function(a: sinteger32 = 0)`, the tree is still built) |
+| 2005 | `UNEXPECTED_TOKEN` | a stray `end`, `case` outside a `switch`, an `else` after a statement that an earlier `end` already closed (the old per-branch form), or a default value in a function type parameter (`function(a: sinteger32 = 0)`, the tree is still built) |
 | 2006 | `CHAINED_COMPARISON` | `a < b < c` (the tree is still built) |
 | 2007 | `MISSING_NAMESPACE` | a file that does not start with `namespace` |
 | 2008 | `RECURSION_TOO_DEEP` | 300 nested parentheses, `if` blocks or type arguments |
 | 2009 | `UNTERMINATED_BLOCK` | a structure, function or other block that reaches the end of the file |
-| 2010 | `DEFAULT_ARM_NOT_LAST` | `switch a default then x = 1; end case 2 then y = 2; end end` (the tree is still built) |
+| 2010 | `DEFAULT_ARM_NOT_LAST` | `switch a default then x = 1; case 2 then y = 2; end` (the tree is still built) |
 
 ## Gaps
 

@@ -1,0 +1,14 @@
+-- expect: 3043 @10
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An if condition of a text type.
+
+namespace main;
+
+function run(text: string)
+    if text then
+        return;
+    end
+    end
+end

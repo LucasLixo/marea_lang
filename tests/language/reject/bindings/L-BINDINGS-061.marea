@@ -1,0 +1,13 @@
+-- expect: 3003 @11
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A local redeclared in the same scope.
+
+namespace main;
+
+function check(): sinteger32
+    local value: sinteger32 = 1;
+    local value: sinteger32 = 2;
+    return value;
+end

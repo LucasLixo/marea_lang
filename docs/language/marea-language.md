@@ -45,7 +45,7 @@ The first line is the header. It has one of three forms:
 A `known_gap` item has `-- rule: reject` or `-- rule: accept` as its second line: the outcome the language has
 decided. A `-- rule:` line in another class is an error. The copyright header follows, then the program.
 
-The codes are the lex codes 1001-1006, the parse codes 2001-2010 and the sema codes 3001-3032 and 3057-3058 (3023 is retired).
+The codes are the lex codes 1001-1006, the parse codes 2001-2010 and the sema codes 3001-3068 (3023 is retired, and not every other number of the range is a live code).
 The `@<line>` of the form is optional for the parser of the header, but a `reject` item with a code that has no
 `@<line>` fails.
 
@@ -74,11 +74,11 @@ A `-- rule: accept` item moves to `accept/` with `-- expect: ok` in the same way
 These rules bind every item (user decision 2026-11-23).
 
 1. The header comment is `--`; `//` is a lex error (1001).
-2. A non-primitive parameter is a read-only borrow by default; writing needs `mutable`.
+2. A non-primitive parameter is a read-only borrow by default; writing needs the explicit `#[semantics = reference_mutable]`.
 3. A local `x: T;` with no initial value is an error.
 4. A literal outside the range of its type is a compile-time error and is never truncated; plain `+`, `-` and `*`
    wrap in two's complement; checked and saturating forms are explicit operators.
-5. `private` visibility is enforced across namespaces.
+5. `private` visibility is enforced across namespaces (3066, 3067, 3068, proven by `tests/source/sema/MAREASemaVisibility.cpp`). The default visibility is public.
 
 Where the compiler does not enforce a rule yet, the item is a `known_gap` with `-- rule:`.
 
@@ -93,12 +93,12 @@ Where the compiler does not enforce a rule yet, the item is a `known_gap` with `
 | Id | Shows | Expected |
 |---|---|---|
 | L-SEED-002 | a name that no scope declares | 3004 @10 |
+| L-SEED-003 | a local with no initial value (rule 3) | 3065 @10 |
 
 ## Catalogue: known_gap
 
 | Id | Shows | Expected |
 |---|---|---|
-| L-SEED-003 | a local with no initial value (rule 3), issue #177 | gap: NEW, rule: reject |
 
 ## Robustness
 
@@ -148,7 +148,7 @@ A `known_gap` item that shares an issue shows one hole of the compiler through m
 | L-BINDINGS-053 | The comparison and logical operators | ok |
 | L-BINDINGS-057 | The conversion between widths is written | ok |
 | L-BINDINGS-060 | A file with CRLF line ends | ok |
-| L-BINDINGS-062 | A local that has the name of a parameter | ok |
+| L-BINDINGS-062 | A local of an inner block that has the name of a parameter | ok |
 | L-BINDINGS-063 | A local in a nested scope that has the name of an outer local | ok |
 | L-BINDINGS-064 | Two locals of the same name in two sibling scopes | ok |
 | L-BINDINGS-065 | A local that has the name of a file constant | ok |
@@ -171,6 +171,12 @@ A `known_gap` item that shares an issue shows one hole of the compiler through m
 ### Bindings: reject
 
 | Id | Shows | Expected |
+| L-BINDINGS-022 | A literal too big for any integer type | 3033 @10 |
+| L-BINDINGS-026 | A uinteger8 literal of 256 is out of range (rule 4) | 3033 @10 |
+| L-BINDINGS-027 | A sinteger8 literal of 128 is out of range (rule 4) | 3033 @10 |
+| L-BINDINGS-028 | A sinteger8 literal of -129 is out of range (rule 4) | 3033 @10 |
+| L-BINDINGS-029 | A sinteger32 literal of 2147483648 is out of range (rule 4) | 3033 @10 |
+| L-BINDINGS-031 | A negated unsigned literal | 3033 @10 |
 |---|---|---|
 | L-BINDINGS-001 | A stray at sign is an unknown byte | 1001 @10, 2001 @10 |
 | L-BINDINGS-002 | A C style // comment is no comment, it is two divide operators | 2002 @10, 2002 @10, 2001 @10, 2001 @10, 2001 @11, 3004 @10, 3004 @10, 3004 @10 |
@@ -193,6 +199,11 @@ A `known_gap` item that shares an issue shows one hole of the compiler through m
 | L-BINDINGS-019 | An empty character literal | 1005 @10, 2002 @10 |
 | L-BINDINGS-020 | A character literal of two characters | 1006 @10, 2002 @10 |
 | L-BINDINGS-021 | A number glued to letters | 2001 @10, 3004 @10 |
+| L-BINDINGS-032 | A negated unsigned value | 3036 @11 |
+| L-BINDINGS-037 | The minimum value divided by minus one | 3037 @10 |
+| L-BINDINGS-033 | A constant division by zero | 3034 @10 |
+| L-BINDINGS-034 | A constant remainder by zero | 3034 @10 |
+| L-BINDINGS-035 | A shift count equal to the width of the type | 3035 @11 |
 | L-BINDINGS-038 | Sinteger32 plus sinteger64 is a mismatch | 3011 @12 |
 | L-BINDINGS-039 | Sinteger32 plus float64 is a mismatch | 3011 @12 |
 | L-BINDINGS-040 | A comparison of two widths is a mismatch | 3011 @12 |
@@ -203,8 +214,11 @@ A `known_gap` item that shares an issue shows one hole of the compiler through m
 | L-BINDINGS-045 | A float shift count is a mismatch | 3011 @12 |
 | L-BINDINGS-048 | A fraction literal added to an integer is a mismatch | 3011 @11 |
 | L-BINDINGS-054 | A chained comparison is not accepted | 2006 @13, 3011 @13 |
+| L-BINDINGS-055 | A bit operator on a float | 3038 @12 |
+| L-BINDINGS-056 | A logical operator on integers | 3039 @12 |
 | L-BINDINGS-058 | An implicit widening is a mismatch | 3011 @11 |
 | L-BINDINGS-059 | A string converted to a number is a mismatch | 3011 @11 |
+| L-BINDINGS-061 | A local redeclared in the same scope | 3003 @11 |
 | L-BINDINGS-066 | A name used before its declaration | 3004 @10 |
 | L-BINDINGS-067 | A name used inside its own initializer | 3004 @10 |
 | L-BINDINGS-068 | A name used after the scope that declared it | 3004 @13 |
@@ -219,11 +233,13 @@ A `known_gap` item that shares an issue shows one hole of the compiler through m
 | L-BINDINGS-080 | A constant declared twice | 3003 @10 |
 | L-BINDINGS-081 | A constant that holds the wrong type | 3011 @9 |
 | L-BINDINGS-082 | A constant with no initial value | 2001 @9 |
+| L-BINDINGS-084 | A constant assigned inside a function | 3040 @12 |
 | L-BINDINGS-085 | A constant declared inside a function | 2001 @10, 2004 @11, 2004 @11, 2005 @12, 3022 @9 |
 | L-BINDINGS-086 | A function and a constant with the same name | 3003 @11 |
 | L-BINDINGS-089 | A scope block with no end | 2009 @14 |
 | L-BINDINGS-090 | A scope block written with curly braces | 2002 @10, 2002 @12 |
 | L-BINDINGS-093 | An unsafe block with no end | 2009 @14 |
+| L-BINDINGS-094 | A raw pointer local outside an unsafe block | 3041 @10, 3065 @10 |
 | L-BINDINGS-095 | A name declared in an unsafe block ends at its end | 3004 @13 |
 | L-BINDINGS-101 | An unknown member of an enum key | 3006 @9 |
 | L-BINDINGS-102 | A visibility key with a member that does not exist | 3006 @9 |
@@ -241,22 +257,6 @@ A `known_gap` item that shares an issue shows one hole of the compiler through m
 
 | Id | Shows | Expected |
 |---|---|---|
-| L-BINDINGS-022 | A literal too big for any integer type | gap: #181 NEW, rule: reject |
-| L-BINDINGS-026 | A uinteger8 literal of 256 is out of range (rule 4) | gap: #181 NEW, rule: reject |
-| L-BINDINGS-027 | A sinteger8 literal of 128 is out of range (rule 4) | gap: #181 NEW, rule: reject |
-| L-BINDINGS-028 | A sinteger8 literal of -129 is out of range (rule 4) | gap: #181 NEW, rule: reject |
-| L-BINDINGS-029 | A sinteger32 literal of 2147483648 is out of range (rule 4) | gap: #181 NEW, rule: reject |
-| L-BINDINGS-031 | A negated unsigned literal | gap: #181 NEW, rule: reject |
-| L-BINDINGS-032 | A negated unsigned value | gap: #182 NEW, rule: reject |
-| L-BINDINGS-033 | A constant division by zero | gap: #183 NEW, rule: reject |
-| L-BINDINGS-034 | A constant remainder by zero | gap: #183 NEW, rule: reject |
-| L-BINDINGS-035 | A shift count equal to the width of the type | gap: #184 NEW, rule: reject |
-| L-BINDINGS-037 | The minimum value divided by minus one | gap: #185 NEW, rule: reject |
-| L-BINDINGS-055 | A bit operator on a float | gap: #186 NEW, rule: reject |
-| L-BINDINGS-056 | A logical operator on integers | gap: #187 NEW, rule: reject |
-| L-BINDINGS-061 | A local redeclared in the same scope | gap: #188 3003, rule: reject |
-| L-BINDINGS-084 | A constant assigned inside a function | gap: #189 NEW, rule: reject |
-| L-BINDINGS-094 | A raw pointer local outside an unsafe block | gap: #190 NEW, rule: reject |
 
 ## Ownership and borrows
 
@@ -272,10 +272,11 @@ with a write borrow among them), 3032 (a bare file constant as a write borrow). 
 tables below is accepted today. The holes are grouped by kind: memory, permission and aliasing. A gap that shares an
 issue shows one hole through more than one program.
 
-Settled rule 2 (the default borrow is read-only) is not what sema, the grammar and the examples say: all three give a
-non-primitive parameter with no attribute a write borrow (`reference_mutable`). The accept items of the area write
-the attribute out, so they hold under both readings. The items that depend on the default are known_gap items of issue
-#203.
+Settled rule 2 (the default borrow is read-only) holds in sema, the grammar and the examples: a parameter with no
+attribute is a read-only borrow, unless its type is by value (a primitive, an enum, `array`, `pointer`, `slice`) or
+moves in (`owned`, `task`, `vector`). A write needs the explicit `#[semantics = reference_mutable]`. Sema does not
+reject a write through a read-only borrow yet, so the items that write a parameter with no attribute stay known_gap
+items of issue #203 until the apply that adds that check.
 
 ### Ownership and borrows: accept
 
@@ -363,6 +364,11 @@ the attribute out, so they hold under both readings. The items that depend on th
 | L-OWNERSHIP-021 | A with name assigned to a local with no word | 3016 @26 |
 | L-OWNERSHIP-023 | A structure constant assigned to a local with no word | 3016 @22 |
 | L-OWNERSHIP-032 | A vector assigned with no word | 3016 @20 |
+| L-OWNERSHIP-058 | A local with no initial value is read | 3065 @20 |
+| L-OWNERSHIP-060 | A local is assigned in one branch only and then read | 3065 @20 |
+| L-OWNERSHIP-062 | A local is assigned in one arm of switch only and then read | 3065 @20 |
+| L-OWNERSHIP-064 | A local is assigned in a loop only and then read | 3065 @20 |
+| L-OWNERSHIP-065 | A structure local with no initial value | 3065 @20 |
 | L-OWNERSHIP-066 | One value is passed to two write-borrow parameters | 3019 @30 |
 | L-OWNERSHIP-068 | One value is passed to a write borrow and then a read borrow | 3019 @29 |
 | L-OWNERSHIP-069 | One value is passed to a read borrow and then a write borrow | 3019 @29 |
@@ -409,11 +415,6 @@ the attribute out, so they hold under both readings. The items that depend on th
 | L-OWNERSHIP-055 | A for each element is moved out of the loop owner | gap: #199 NEW, rule: reject |
 | L-OWNERSHIP-056 | A read-only borrow is moved out | gap: #200 NEW, rule: reject |
 | L-OWNERSHIP-057 | A file constant is moved out | gap: #200 NEW, rule: reject |
-| L-OWNERSHIP-058 | A local with no initial value is read | gap: #177 NEW, rule: reject |
-| L-OWNERSHIP-060 | A local is assigned in one branch only and then read | gap: #177 NEW, rule: reject |
-| L-OWNERSHIP-062 | A local is assigned in one arm of switch only and then read | gap: #177 NEW, rule: reject |
-| L-OWNERSHIP-064 | A local is assigned in a loop only and then read | gap: #177 NEW, rule: reject |
-| L-OWNERSHIP-065 | A structure local with no initial value | gap: #177 NEW, rule: reject |
 | L-OWNERSHIP-126 | A borrow is appended to a vector | gap: #205 3018, rule: reject |
 | L-OWNERSHIP-129 | A write borrow of a call result | gap: #206 NEW, rule: reject |
 | L-OWNERSHIP-131 | A write borrow of a literal | gap: #206 NEW, rule: reject |
@@ -583,7 +584,11 @@ Function declaration and call, parameters and defaults, the result and `return v
 | L-FUNCTIONS-058 | a call of a name that no scope declares, as if it were a function value | 3004 @10 |
 | L-FUNCTIONS-059 | a default value that calls a function that no scope declares | 3004 @9 |
 | L-FUNCTIONS-065 | a return with no value in a function that has a result | 3022 @9 |
+| L-FUNCTIONS-068 | a function used before its declaration (the grammar says a name is declared before use) | 3004 @10 |
+| L-FUNCTIONS-069 | two parameters with one name | 3003 @9 |
+| L-FUNCTIONS-070 | a parameter that shares its name with a local of the body | 3003 @10 |
 | L-FUNCTIONS-072 | a non-boolean value as the result of a boolean function | 3011 @10 |
+| L-FUNCTIONS-073 | a condition of an integer type in an if | 3043 @10 |
 
 ### Functions and calls: known_gap
 
@@ -597,13 +602,9 @@ Function declaration and call, parameters and defaults, the result and `return v
 | L-FUNCTIONS-064 | a call of a function type value with too many arguments | gap: 3010, rule: reject, issue #213 |
 | L-FUNCTIONS-066 | a return with a value in a function that has no result | gap: 3011, rule: reject, issue #215 |
 | L-FUNCTIONS-067 | the result of a function with no result used as a value | gap: 3011, rule: reject, issue #215 |
-| L-FUNCTIONS-068 | a function used before its declaration (the grammar says a name is declared before use) | gap: 3004, rule: reject, issue #216 |
-| L-FUNCTIONS-069 | two parameters with one name | gap: 3003, rule: reject, issue #218 |
-| L-FUNCTIONS-070 | a parameter that shares its name with a local of the body | gap: 3003, rule: reject, issue #218 |
 | L-FUNCTIONS-071 | a call of a value that is not a function | gap: 3011, rule: reject, issue #215 |
-| L-FUNCTIONS-073 | a condition of an integer type in an if | gap: 3011, rule: reject, issue #219 |
 
-Known gaps of this area share their issues: #213, #214, #215, #216, #218, #219, #220, #221, #222, #223, #224, #225. An issue lists the items that show it in the area; an item flips to `reject` the day its rule is implemented.
+Known gaps of this area share their issues: #213, #214, #215, #220, #221, #222, #223, #224, #225. An issue lists the items that show it in the area; an item flips to `reject` the day its rule is implemented.
 
 ## Types and control flow
 
@@ -687,6 +688,8 @@ Known gaps of this area share their issues: #213, #214, #215, #216, #218, #219, 
 | L-TYPES-019 | a local of an undeclared structure | 3009 @10, 3009 @10 |
 | L-TYPES-020 | a field read assigned to a local of another type | 3011 @15 |
 | L-TYPES-022 | a nested field of a type that does not exist, after a valid field | 3009 @16 |
+| L-TYPES-028 | a structure with two fields of one name | 3012 @11 |
+| L-TYPES-031 | a structure with a generic parameter that is declared twice | 3003 @9 |
 | L-TYPES-043 | an enum tag of a float type | 3031 @9 |
 | L-TYPES-044 | an enum tag of the string type | 3031 @9 |
 | L-TYPES-045 | an enum tag of the boolean type | 3031 @9 |
@@ -705,6 +708,7 @@ Known gaps of this area share their issues: #213, #214, #215, #216, #218, #219, 
 | L-TYPES-058 | a switch with a repeated value and a missing variant gives both codes | 3025 @20, 3021 @16 |
 | L-TYPES-060 | a switch value of a name that no scope declares | 3004 @10 |
 | L-TYPES-061 | a switch arm that returns the wrong type | 3011 @12 |
+| L-TYPES-073 | an enum with one variant declared twice | 3012 @11 |
 | L-TYPES-084 | two implementation blocks that declare one function | 3012 @21 |
 | L-TYPES-085 | one implementation block that declares one function twice | 3012 @19 |
 | L-TYPES-086 | a generic call with a type that does not meet the contract | 3013 @24, 3013 @24 |
@@ -720,13 +724,16 @@ Known gaps of this area share their issues: #213, #214, #215, #216, #218, #219, 
 | L-TYPES-096 | a construct function with a parameter that has no default | 3029 @16 |
 | L-TYPES-097 | a type call with too many arguments for a type that has no construct | 3010 @15 |
 | L-TYPES-098 | an implementation of a type that does not exist | 3009 @9, 3009 @10 |
+| L-TYPES-099 | a contract that lists one function twice | 3012 @11 |
 | L-TYPES-103 | an implementation constant used outside its block | 3004 @19 |
 | L-TYPES-114 | a generic argument count that does not match | 3014 @13 |
 | L-TYPES-115 | a generic type with no argument where one is needed | 3014 @13 |
 | L-TYPES-116 | a number given for a type parameter | 3014 @13 |
 | L-TYPES-117 | a type nested 65 levels deep | 3015 @13 |
 | L-TYPES-118 | a generic function with a bound that the argument type does not meet | 3013 @24, 3013 @24 |
+| L-TYPES-119 | a generic parameter named as another declaration | 3003 @13 |
 | L-TYPES-120 | a generic call with a wrong argument count | 3010 @14 |
+| L-TYPES-122 | two generic parameters with one name in a function | 3003 @9 |
 | L-TYPES-138 | a break outside a loop | 3026 @10 |
 | L-TYPES-139 | a continue outside a loop | 3026 @10 |
 | L-TYPES-140 | a break in an if that is not in a loop | 3026 @11 |
@@ -740,6 +747,8 @@ Known gaps of this area share their issues: #213, #214, #215, #216, #218, #219, 
 | L-TYPES-149 | a while condition that names an undeclared name | 3004 @10 |
 | L-TYPES-150 | an if condition that names an undeclared name | 3004 @10 |
 | L-TYPES-151 | an elseif condition that names an undeclared name | 3004 @13 |
+| L-TYPES-152 | a while condition of an integer type | 3043 @10 |
+| L-TYPES-153 | an if condition of a text type | 3043 @10 |
 | L-TYPES-156 | a local with no semicolon | 2001 @11 |
 | L-TYPES-157 | an if with no then | 2001 @11 |
 | L-TYPES-158 | a while with no do | 2001 @11 |
@@ -797,28 +806,20 @@ Known gaps of this area share their issues: #213, #214, #215, #216, #218, #219, 
 | L-TYPES-025 | a struct literal that gives one field twice | gap: NEW, rule: reject, issue #220 |
 | L-TYPES-026 | a field read of a field that the structure does not have | gap: NEW, rule: reject, issue #220 |
 | L-TYPES-027 | a field assignment of a field that the structure does not have | gap: NEW, rule: reject, issue #220 |
-| L-TYPES-028 | a structure with two fields of one name | gap: 3012, rule: reject, issue #218 |
 | L-TYPES-029 | a structure that holds itself by value | gap: NEW, rule: reject, issue #221 |
 | L-TYPES-030 | two structures that hold each other by value | gap: NEW, rule: reject, issue #221 |
-| L-TYPES-031 | a structure with a generic parameter that is declared twice | gap: 3003, rule: reject, issue #218 |
 | L-TYPES-070 | a switch arm whose value has another type than the switch value | gap: 3011, rule: reject, issue #222 |
 | L-TYPES-071 | a case value of a variant of another enum | gap: 3011, rule: reject, issue #222 |
 | L-TYPES-072 | a zero-member enum | gap: NEW, rule: reject, issue #223 |
-| L-TYPES-073 | an enum with one variant declared twice | gap: 3012, rule: reject, issue #218 |
 | L-TYPES-074 | a variant of an enum that does not exist | gap: 3004, rule: reject, issue #223 |
-| L-TYPES-099 | a contract that lists one function twice | gap: 3012, rule: reject, issue #218 |
 | L-TYPES-100 | a method call of a function that the type does not have | gap: NEW, rule: reject, issue #224 |
 | L-TYPES-101 | a static call of a function that the type does not have | gap: NEW, rule: reject, issue #224 |
 | L-TYPES-102 | an operator function whose signature does not match the operator | gap: NEW, rule: reject, issue #224 |
-| L-TYPES-119 | a generic parameter named as another declaration | gap: 3003, rule: reject, issue #218 |
 | L-TYPES-121 | an unsatisfied bound inside the body of a generic function, an operation the bound does not give | gap: NEW, rule: reject, issue #225 |
-| L-TYPES-122 | two generic parameters with one name in a function | gap: 3003, rule: reject, issue #218 |
 | L-TYPES-123 | two overlapping implementation blocks of a generic and a concrete type | gap: 3012, rule: reject, issue #225 |
 | L-TYPES-124 | a cyclic type alias | gap: NEW, rule: reject, issue #221 |
 | L-TYPES-125 | a type alias of itself | gap: NEW, rule: reject, issue #221 |
 | L-TYPES-147 | a for range with a bound of another type | gap: 3011, rule: reject, issue #222 |
-| L-TYPES-152 | a while condition of an integer type | gap: 3011, rule: reject, issue #219 |
-| L-TYPES-153 | an if condition of a text type | gap: 3011, rule: reject, issue #219 |
 
 ## Namespaces and imports
 
@@ -829,8 +830,10 @@ answers `EXTERNAL` to a `c.` name and `NOT_FOUND` to every other name, so `marea
 namespace itself give 3001 (L-NAMESPACES-020 to 023, 038, 039, 042, 057). `main` is an ordinary function: it has no
 fixed signature and none is required (L-NAMESPACES-002 to 006).
 
-Settled rule 5 (a `private` name used from another namespace is a reject) has no item. The runner checks one file per
-item and an item cannot import a second file, so a private name cannot be reached from another namespace. A private
+Settled rule 5 (a `private` name used from another namespace is a reject) is enforced by sema (3066, 3067 and 3068) and
+proven by `tests/source/sema/MAREASemaVisibility.cpp`, but it has no item. The runner checks one file per
+item and an item cannot import a second file, so a private name cannot be reached from another namespace until issue
+#250 lands. A private
 name used inside its own namespace is accepted (L-NAMESPACES-011, 012, 063, 064). An import cycle and a private enum
 import need the same second file, so they have no item either; a namespace that imports itself gives 3001
 (L-NAMESPACES-039).
@@ -905,10 +908,14 @@ import need the same second file, so they have no item either; a namespace that 
 
 Interop with C, opaque types, owners and raw pointers of a C border, and the built-in macros. The items sit in
 `tests/language/<class>/interop/`. A `c.` import is `EXTERNAL` in the runner, so the C call itself has no signature
-and its argument and result types are not checked. The macros are checked only by name today: a macro name without
-`!` is an undeclared name (L-INTEROP-054) and a user-written `macro` is a parse error (L-INTEROP-020), but a call of
-an unknown macro, the arguments and the result of a known one are not checked (issue #241). The type `handle<T>` is
-rejected with 3009 by the type checker, so it has no accept item.
+and its argument and result types are not checked. A macro name without `!` is an undeclared name (L-INTEROP-054) and
+a user-written `macro` is a parse error (L-INTEROP-020). A call of a macro that the compiler does not define is 3060
+(L-INTEROP-021), a call with the wrong arguments is 3061 (L-INTEROP-045, 046, 047, 052, 053, 055, 062), and a macro
+result used as a value of another type is 3011 (L-INTEROP-056, 061); the macro table is in
+[marea-sema.md](../sema/marea-sema.md). The two compile-time macros are the exception to the argument check:
+`compile_error!` always gives 3059 (L-INTEROP-044) and a `static_assert!` over a constant false condition gives 3059
+(L-INTEROP-043); a condition the compiler cannot fold is accepted. The type of each value that a `{}` takes is not
+checked. The type `handle<T>` is rejected with 3009 by the type checker, so it has no accept item.
 
 ### Macros and the C border: accept
 
@@ -937,38 +944,38 @@ rejected with 3009 by the type checker, so it has no accept item.
 | Id | Shows | Expected |
 |---|---|---|
 | L-INTEROP-020 | A user cannot declare a macro | 2004 @9, 2004 @10, 2004 @10, 2005 @11 |
+| L-INTEROP-021 | A call of a macro that the compiler does not define | 3060 @10 |
 | L-INTEROP-022 | An opaque structure has no body | 2001 @10, 2005 @11 |
 | L-INTEROP-023 | A parameter of a type that no declaration names | 3009 @9 |
 | L-INTEROP-024 | An import placed after a function | 2004 @13 |
 | L-INTEROP-040 | An opaque structure is built with a struct literal | 3057 @12 |
 | L-INTEROP-041 | A field of an opaque structure is read | 3057 @12 |
 | L-INTEROP-042 | An operator is applied to two opaque values | 3057 @12 |
+| L-INTEROP-043 | A static_assert macro of a false condition | 3059 @9 |
+| L-INTEROP-044 | A compile_error macro call | 3059 @9 |
+| L-INTEROP-045 | A print macro with fewer values than the format text needs | 3061 @10 |
+| L-INTEROP-046 | A print macro with a number as the format text | 3061 @10 |
+| L-INTEROP-047 | An assert macro with a number as the condition | 3061 @10 |
+| L-INTEROP-048 | A raw pointer local outside an unsafe block | 3041 @12 |
 | L-INTEROP-049 | A name of a with block used after its end | 3004 @15 |
 | L-INTEROP-050 | An owner of an opaque type assigned with no move | 3016 @15 |
+| L-INTEROP-052 | A print macro with no argument | 3061 @10 |
+| L-INTEROP-053 | An unreachable macro with an argument | 3061 @10 |
 | L-INTEROP-054 | A macro name called without the bang | 3004 @10 |
+| L-INTEROP-055 | A log macro with a level that does not exist | 3061 @10 |
+| L-INTEROP-056 | A macro that gives no value used as a value | 3011 @10 |
 | L-INTEROP-057 | A structure with an opaque field held by value | 3058 @12 |
 | L-INTEROP-058 | An opaque structure declared twice | 3003 @11 |
 | L-INTEROP-059 | An opaque structure and a structure with the same name | 3003 @11 |
+| L-INTEROP-061 | A format macro result returned as an integer | 3011 @10 |
+| L-INTEROP-062 | An include_text macro with a number as the path | 3061 @9 |
 | L-INTEROP-063 | A borrowed opaque value returned by value | 3018 @12 |
 
 ### Macros and the C border: known_gap
 
 | Id | Shows | Expected |
 |---|---|---|
-| L-INTEROP-021 | A call of a macro that the compiler does not define | gap: NEW, rule: reject, issue #241 |
-| L-INTEROP-043 | A static_assert macro of a false condition | gap: NEW, rule: reject, issue #240 |
-| L-INTEROP-044 | A compile_error macro call | gap: NEW, rule: reject, issue #240 |
-| L-INTEROP-045 | A print macro with fewer values than the format text needs | gap: NEW, rule: reject, issue #241 |
-| L-INTEROP-046 | A print macro with a number as the format text | gap: 3011, rule: reject, issue #241 |
-| L-INTEROP-047 | An assert macro with a number as the condition | gap: 3011, rule: reject, issue #241 |
-| L-INTEROP-048 | A raw pointer local outside an unsafe block | gap: NEW, rule: reject, issue #190 |
 | L-INTEROP-051 | An owner of an opaque type is used after it moved | gap: NEW, rule: reject, issue #198 |
-| L-INTEROP-052 | A print macro with no argument | gap: NEW, rule: reject, issue #241 |
-| L-INTEROP-053 | An unreachable macro with an argument | gap: NEW, rule: reject, issue #241 |
-| L-INTEROP-055 | A log macro with a level that does not exist | gap: NEW, rule: reject, issue #241 |
-| L-INTEROP-056 | A macro that gives no value used as a value | gap: 3011, rule: reject, issue #241 |
-| L-INTEROP-061 | A format macro result returned as an integer | gap: 3011, rule: reject, issue #241 |
-| L-INTEROP-062 | An include_text macro with a number as the path | gap: NEW, rule: reject, issue #241 |
 
 ## Parallel code
 
@@ -994,10 +1001,9 @@ Facts the items fix, checked by running the compiler:
   (items 036, 037). The rule says nothing of ownership, so this is the "simple first rule" of the sema doc, not a
   decided ownership rule.
 - A part is a name of the body only: its use after the `end` of the body is the undeclared name 3004 (item 080).
-- The accept items write `#[semantics = reference_mutable]` and `#[semantics = reference_read_only]` out, so they hold
-  under both readings of settled rule 2 (the default borrow). `examples/parallel/scaling.marea` does not: it writes the
-  elements of a parameter with no attribute (`scale_slice`, `scale_all`), which rule 2 makes a read-only borrow, and it
-  imports `collections.array` and `concurrency.task`, not the `c.{lib}` names that CLAUDE.md fixes for now.
+- A parameter with no attribute is a read-only borrow (settled rule 2), so `spawn` accepts it as a name that is not a
+  write-borrow parameter. `examples/parallel/scaling.marea` writes `#[semantics = reference_mutable]` on the two
+  parameters it writes (`scale_slice`, `scale_all`) and imports `c.array`, `c.slice` and `c.task`.
 
 ### Parallel code: accept
 
@@ -1102,29 +1108,38 @@ Facts the items fix, checked by running the compiler:
   partition, an arm of `switch` that a spawn follows, a generic function, a method call and a second move into a
   generic function (issue #198, items 001 to 004, 016, 026, 027, 030).
 - A read-only borrow that is written, or passed on to a write borrow, is accepted through a generic function, a
-  `for each` over a read-only vector, a worker and a `partition mutable` of a read-only source (issue #204). The
-  default borrow of a parameter with no attribute is a write borrow in sema (issue #203, items 063 and 065).
-- Two settled rules are not enforced in the places that parallel code and generics add: a local with no initial value is
-  accepted when a worker reads it (issue #177, item 017), and a literal out of range is accepted as a `spawn` argument,
-  a default value, a struct literal field and a constant (issue #181, items 018 to 021).
+  `for each` over a read-only vector, a worker and a `partition mutable` of a read-only source (issue #204). A parameter
+  with no attribute is a read-only borrow in sema, but a write through it is still accepted (issue #203, items 063 and
+  065).
+- A literal out of range gives 3033 as a `spawn` argument, a default value, a struct literal field and a constant
+  (issue #181, items 018 to 021). A local with no initial value gives 3065 also when a worker reads it (item 017).
 - The type of a field read through a `for each` variable is not compared (issue #246, item 070), and the type arguments
   of a library type or of a user generic structure are not compared (issue #245, items 067 to 069). The same read of a
   field through a parameter, a local or an index gives 3011.
 - A file constant passed to a generic function that takes a write borrow gives 3032, as for any function (item 010); a
   spawn of a write borrow of a call result through a generic function gives 3020 (item 029).
 
-Settled rule 5 (a `private` name is a reject across namespaces) has no item here: a private symbol reached through a
-generic or an alias needs a second namespace, and the runner gives an item one file only (see Gaps).
+Settled rule 5 (a `private` name is a reject across namespaces) is enforced (3066 to 3068) but has no item here: a
+private symbol needs a second namespace, and the runner gives an item one file only (see Gaps). A private symbol that a
+generic or an alias leads to is not checked by sema either (see the sema doc, Gaps).
 
 ### Adversarial: reject
 
 | Id | Shows | Expected |
+| L-ADVERSARIAL-017 | A local with no initial value is spawned | 3065 @56 |
+| L-ADVERSARIAL-018 | A literal out of range is the argument of a spawn | 3033 @61 |
+| L-ADVERSARIAL-019 | A literal out of range is the default value of a parameter | 3033 @35 |
+| L-ADVERSARIAL-020 | A literal out of range is a field of a struct literal | 3033 @40 |
+| L-ADVERSARIAL-021 | A literal out of range is the value of a constant used by a generic call | 3033 @35 |
+| L-ADVERSARIAL-071 | Mutant of L-BINDINGS-036: the initial value of a local is dropped | 3065 @11 |
+| L-ADVERSARIAL-072 | Mutant of L-BINDINGS-036: the initial value of a local computed from another is dropped | 3065 @12 |
 |---|---|---|
 | L-ADVERSARIAL-005 | A value is passed to a generic function twice as a write borrow | 3019 @40 |
 | L-ADVERSARIAL-010 | A file constant is passed to a generic function as a write borrow | 3032 @41 |
 | L-ADVERSARIAL-012 | A contract method stores its receiver in a write borrow | 3018 @41, 3016 @41 |
 | L-ADVERSARIAL-028 | A return in an arm of switch stands directly in a fork_join block | 3024 @60 |
 | L-ADVERSARIAL-029 | A write borrow of a call result is spawned through a generic function | 3020 @60 |
+| L-ADVERSARIAL-022 | An unsigned value is negated in an arm of switch | 3036 @38 |
 | L-ADVERSARIAL-032 | A struct literal takes a borrow inside a loop in a fork_join block | 3018 @58 |
 | L-ADVERSARIAL-034 | Mutant of L-MEMORY-001: the return of the last path is dropped | 3022 @24 |
 | L-ADVERSARIAL-035 | Mutant of L-FUNCTIONS-007: the return of a struct literal is dropped | 3022 @15 |
@@ -1160,12 +1175,6 @@ generic or an alias needs a second namespace, and the runner gives an item one f
 | L-ADVERSARIAL-014 | A contract method writes its receiver with the default borrow | gap: #214 NEW, rule: reject |
 | L-ADVERSARIAL-015 | A for each element is moved into an owned parameter | gap: #199 NEW, rule: reject |
 | L-ADVERSARIAL-016 | A value moved into an owned parameter is spawned afterwards | gap: #198 NEW, rule: reject |
-| L-ADVERSARIAL-017 | A local with no initial value is spawned | gap: #177 NEW, rule: reject |
-| L-ADVERSARIAL-018 | A literal out of range is the argument of a spawn | gap: #181 NEW, rule: reject |
-| L-ADVERSARIAL-019 | A literal out of range is the default value of a parameter | gap: #181 NEW, rule: reject |
-| L-ADVERSARIAL-020 | A literal out of range is a field of a struct literal | gap: #181 NEW, rule: reject |
-| L-ADVERSARIAL-021 | A literal out of range is the value of a constant used by a generic call | gap: #181 NEW, rule: reject |
-| L-ADVERSARIAL-022 | An unsigned value is negated in an arm of switch | gap: #182 NEW, rule: reject |
 | L-ADVERSARIAL-023 | The source of a partition mutable is read in the body while the parts are written | gap: #232 NEW, rule: reject |
 | L-ADVERSARIAL-024 | A nested fork_join reads what the outer block writes | gap: #210 3020, rule: reject |
 | L-ADVERSARIAL-025 | Two workers over one for each mutable element, one writes and one reads | gap: #210 3020, rule: reject |
@@ -1195,14 +1204,12 @@ generic or an alias needs a second namespace, and the runner gives an item one f
 | L-ADVERSARIAL-068 | Mutant of L-OWNERSHIP-033: one type argument of a local vector is narrowed | gap: #245 3011, rule: reject |
 | L-ADVERSARIAL-069 | Mutant of L-TYPES-011: one type argument of a returned generic struct literal is narrowed | gap: #245 3011, rule: reject |
 | L-ADVERSARIAL-070 | Mutant of L-OWNERSHIP-083: a field of a for each element is stored in a narrower local | gap: #246 3011, rule: reject |
-| L-ADVERSARIAL-071 | Mutant of L-BINDINGS-036: the initial value of a local is dropped | gap: #177 NEW, rule: reject |
-| L-ADVERSARIAL-072 | Mutant of L-BINDINGS-036: the initial value of a local computed from another is dropped | gap: #177 NEW, rule: reject |
 
 ## Examples and coverage
 
-The 23 files under `examples/` are the programs the project shows. 16 of them have an accept item in
+The 23 files under `examples/` are the programs the project shows. 20 of them have an accept item in
 `tests/language/accept/examples/` with ids `L-EXAMPLES-nnn`: the item is the example with its `namespace` line set to
-`main` and the line `-- example: <path>` below the header. The other 7 have no accept item and are named in Gaps with
+`main` and the line `-- example: <path>` below the header. The other 3 have no accept item and are named in Gaps with
 the reason. `tests/source/language/MAREALanguageCoverage.cpp` fails when an example has no accept item whose header
 or doc row names it and is not in its exemption list, when a doc row has no file, when a file has no row, when the
 Counts table differs from the files, when a live diagnostic code has no `reject` item and no named exemption, when a
@@ -1229,12 +1236,16 @@ reject code or no issue named in Gaps. Each direction is proven on every build w
 | L-EXAMPLES-014 | the example `examples/types/enum_methods.marea`, with its namespace set to `main` | ok |
 | L-EXAMPLES-015 | the example `examples/types/generics.marea`, with its namespace set to `main` | ok |
 | L-EXAMPLES-016 | the example `examples/types/structures.marea`, with its namespace set to `main` | ok |
+| L-EXAMPLES-017 | the example `examples/basics/ownership.marea`, with its namespace set to `main` | ok |
+| L-EXAMPLES-018 | the example `examples/parallel/scaling.marea`, with its namespace set to `main` | ok |
+| L-EXAMPLES-019 | the example `examples/types/methods.marea`, with its namespace set to `main` | ok |
+| L-EXAMPLES-020 | the example `examples/interop/gpu_handles.marea`, with its namespace set to `main` | ok |
 
-### Coverage: known_gap
+### Coverage: reject
 
 | Id | Shows | Expected |
 |---|---|---|
-| L-COVERAGE-001 | a constant that is its own initial value, issue #249 | gap: NEW, rule: reject |
+| L-COVERAGE-001 | a constant that is its own initial value | 3055 @9 |
 
 ## Counts
 
@@ -1242,19 +1253,19 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 
 | area | accept | reject | known_gap |
 |---|---|---|---|
-| adversarial | 0 | 22 | 50 |
-| bindings | 33 | 64 | 16 |
-| coverage | 0 | 0 | 1 |
-| examples | 16 | 0 | 0 |
-| functions | 19 | 41 | 13 |
-| interop | 17 | 14 | 14 |
+| adversarial | 0 | 30 | 42 |
+| bindings | 33 | 80 | 0 |
+| coverage | 0 | 1 | 0 |
+| examples | 20 | 0 | 0 |
+| functions | 19 | 45 | 9 |
+| interop | 17 | 27 | 1 |
 | memory | 15 | 10 | 8 |
 | namespaces | 17 | 28 | 6 |
-| ownership | 65 | 35 | 45 |
+| ownership | 65 | 40 | 40 |
 | parallel | 19 | 23 | 17 |
-| seed | 1 | 1 | 1 |
-| types | 60 | 108 | 28 |
-| total | 262 | 346 | 199 |
+| seed | 1 | 2 | 0 |
+| types | 60 | 116 | 20 |
+| total | 266 | 402 | 143 |
 
 ## Parity plan
 
@@ -1275,7 +1286,20 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 |---|---|---|
 | 1001-1006 | `lex` | [marea-lex.md](../lex/marea-lex.md) |
 | 2001-2010 | `parse` | [marea-ast.md](../ast/marea-ast.md) |
-| 3001-3032, 3057-3058 | `sema` | [marea-sema.md](../sema/marea-sema.md) |
+| 3001-3032 | `sema` | [marea-sema.md](../sema/marea-sema.md) (3033 to 3068 follow in the rows below) |
+| 3057-3058 | `sema` | [marea-sema.md](../sema/marea-sema.md), `OPAQUE_TYPE_MISUSE` and `OPAQUE_FIELD_BY_VALUE` |
+| 3033 | `sema` | [marea-sema.md](../sema/marea-sema.md), `LITERAL_OUT_OF_RANGE` |
+| 3034-3035 | `sema` | [marea-sema.md](../sema/marea-sema.md), the division and shift rules of constant operands |
+| 3036-3037 | `sema` | [marea-sema.md](../sema/marea-sema.md) |
+| 3038-3039 | `sema` | [marea-sema.md](../sema/marea-sema.md) |
+| 3040 | `sema` | [marea-sema.md](../sema/marea-sema.md), `ASSIGNMENT_TO_CONSTANT` |
+| 3041 | `sema` | [marea-sema.md](../sema/marea-sema.md), `RAW_POINTER_OUTSIDE_UNSAFE` |
+| 3043 | `sema` | [marea-sema.md](../sema/marea-sema.md), `NON_BOOLEAN_CONDITION` |
+| 3055 | `sema` | [marea-sema.md](../sema/marea-sema.md), `CYCLIC_CONSTANT` |
+| 3059 | `sema` | [marea-sema.md](../sema/marea-sema.md), `COMPILE_TIME_ASSERTION_FAILED` |
+| 3060-3061 | `sema` | [marea-sema.md](../sema/marea-sema.md), `UNKNOWN_MACRO` and `INVALID_MACRO_ARGUMENT` |
+| 3065 | `sema` | [marea-sema.md](../sema/marea-sema.md), `LOCAL_WITHOUT_INITIAL_VALUE` |
+| 3066-3068 | `sema` | [marea-sema.md](../sema/marea-sema.md), `PRIVATE_SYMBOL_ACCESS`, `PRIVATE_TYPE_ACCESS`, `PRIVATE_FIELD_ACCESS`, no item reaches them (see Gaps) |
 | 4004-4006 | `ir` | [marea-ir.md](../ir/marea-ir.md), no item reaches them (see Gaps) |
 
 ## Gaps
@@ -1284,6 +1308,8 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
   two namespaces (settled rule 5) can use only an `EXTERNAL` import, which the runner gives to the `c.`,
   `collections.`, `concurrency.`, `arenas.` prefixes and to `text`, until a later change adds a way to give an item a
   second file.
+- The codes 3066, 3067 and 3068 (a private symbol, type or field of another namespace) have no item for the same
+  reason: they need a second namespace (issue #250). `tests/source/sema/MAREASemaVisibility.cpp` proves them.
 - The runner compares the codes of a `reject` item in the order the compiler gives them, so an item over two stages
   depends on the order of the stages (lex, then parse, then sema).
 - A known_gap item must be accepted today, so a valid program that the compiler rejects by mistake has no item. Known:
@@ -1302,33 +1328,30 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 - Issue #226 (a `switch` over a `boolean` with `case true` and `case false` and no `default` is rejected with 3022)
   cannot be an item. A known_gap item must be accepted today and a reject item states the wanted outcome, so the
   program fits neither class. The runner has no class for a valid program that the compiler rejects.
-- Settled rule 5 (a `private` name is a reject across namespaces) and an import cycle cannot be shown with one file per
+- Settled rule 5 (a `private` name is a reject across namespaces, enforced by 3066 to 3068) and an import cycle cannot be shown with one file per
   item. Issue #250 asks for a runner that gives an item a second file. Until then these two rules have no item.
-- Settled rule 2 (a non-primitive parameter with no attribute is a read-only borrow) is contradicted by the grammar
-  (`docs/grammar/marea.ebnf`, line 190), by the sema doc (`docs/sema/marea-sema.md`, line 210), by
-  `lib/source/marea/sema/MAREASemaOwnership.c` (line 70, the default is `REFERENCE_MUTABLE`) and by four examples that
-  write a default-borrow parameter: `examples/basics/ownership.marea`, `examples/types/methods.marea`,
-  `examples/interop/gpu_handles.marea` and `examples/parallel/scaling.marea`. The items that need the default are
-  known_gap items of #203 and #214. The decision on the rule or on the four examples waits for the user.
+- Settled rule 2 (a non-primitive parameter with no attribute is a read-only borrow) holds in the grammar, the sema
+  doc, `MAREA_SemaGetParameterSemantics` and the four examples that write a parameter
+  (`examples/basics/ownership.marea`, `examples/types/methods.marea`, `examples/interop/gpu_handles.marea` and
+  `examples/parallel/scaling.marea`: each names `#[semantics = reference_mutable]` on the parameter it writes). Sema
+  does not reject a write through a read-only borrow yet, so the items that write a parameter with no attribute are
+  still known_gap items of #203 and #214; the apply `reject-write-through-read-only-borrow` moves them to reject.
 
 ### Examples with no accept item
 
 | Example | Why |
 |---|---|
-| `examples/basics/ownership.marea` | writes a parameter with the default borrow (settled rule 2, issues #203, #214) |
-| `examples/interop/gpu_handles.marea` | writes a parameter with the default borrow (settled rule 2, issues #203, #214) |
-| `examples/parallel/scaling.marea` | writes a slice parameter with the default borrow (settled rule 2, issues #203, #214) |
-| `examples/types/methods.marea` | a method writes `self` with the default borrow (settled rule 2, issues #203, #214) |
 | `examples/macros/builtin.marea` | imports the project namespace `attributes.layout`, and an item is one file (issue #250) |
 | `examples/main.marea` | imports eight project namespaces, and an item is one file (issue #250) |
 | `examples/namespaces/consumer.marea` | imports the project namespace `namespaces.library`, and an item is one file (issue #250) |
 
-An accept item of the first four would assert a program that a settled rule makes invalid, and it would fail the day
-the rule is enforced. The coverage test holds this list; an example that gains an item must leave it.
+The coverage test holds this list; an example that gains an item must leave it.
 
 ### Diagnostic codes with no reject item
 
-Every live lex, parse and sema code (1001-1006, 2001-2010, 3001-3032 without 3023, 3057-3058) has a `reject` item. The ir codes
+Every live lex, parse and sema code (1001-1006, 2001-2010, 3001-3068 without 3023 and the numbers no code uses) has a `reject` item, except 3066,
+3067 and 3068: no item can reach a second namespace (issue #250), and `tests/source/sema/MAREASemaVisibility.cpp`
+proves them. The ir codes
 4004, 4005 and 4006 are exempt: the runner runs lex, parse and sema only, so no item can reach the ir. The exemption ends
 when a runner or an apply makes the ir run in it. The retired codes 3023 and 4001-4003 are excluded and must not
 return in a header.
@@ -1340,15 +1363,15 @@ Each rule is kept as a `known_gap` item with its issue, as reject codes, or as a
 | Missing rule | Where it is kept |
 |---|---|
 | use of a moved value | known_gap items of #198 |
-| use of an uninitialized value | known_gap items of #177 |
+| use of an uninitialized value | reject items of 3065 (a local with no initial value, issue #177) |
 | write through a read-only borrow | known_gap items of #204 |
-| literal out of range | known_gap items of #181 |
-| constant division by zero | known_gap items of #183 |
-| shift count too large | known_gap items of #184 |
+| literal out of range | reject items with 3033 (L-BINDINGS-022, 026 to 029, 031, L-ADVERSARIAL-018 to 021) |
+| constant division by zero | reject items of 3034 |
+| shift count too large | reject items of 3035 |
 | recursive type by value | known_gap items of #221 (L-TYPES-029, 030) |
 | cyclic alias | known_gap items of #221 (L-TYPES-124, 125) |
-| cyclic constant | L-COVERAGE-001, issue #249 |
+| cyclic constant | reject items of 3055 (L-COVERAGE-001) |
 | overlapping implementation | L-TYPES-123, issue #225 |
 | unreachable switch arm | reject items of 3025 (a repeated case) and 2010 (a default that is not last) |
 | import cycle | no item, issue #250 |
-| private access across namespaces | no item, issue #250 |
+| private access across namespaces | enforced by 3066, 3067 and 3068; no item, issue #250 |

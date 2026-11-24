@@ -38,6 +38,8 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaContextCreate(MAREA_Arena *arena, MAREA_Di
     context->generics = (MAREA_SemaNameTable){ 0 };
     context->locals = (MAREA_SemaNameTable){ 0 };
     context->references = (MAREA_SemaNameTable){ 0 };
+    context->localStart = 0;
+    context->functionLocalStart = 0;
     context->root = MAREA_NULLPTR;
     context->function = MAREA_NULLPTR;
     context->implementation = MAREA_NULLPTR;
@@ -46,6 +48,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaContextCreate(MAREA_Arena *arena, MAREA_Di
     context->forkDepth = 0;
     context->partitionDepth = 0;
     context->loopDepth = 0;
+    context->unsafeDepth = 0;
 
     *outContext = context;
 
@@ -150,6 +153,10 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaVisit(MAREA_SemaContext *context, const MA
     MAREA_Boolean entered = MAREA_BOOLEAN_FALSE;
 
     if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
+        result = MAREA_SemaCheckDuplicateNames(context, node);
+    }
+
+    if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
         result = MAREA_SemaCheckOwnership(context, node);
     }
 
@@ -171,8 +178,14 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaVisit(MAREA_SemaContext *context, const MA
         result = MAREA_SemaCheckNamedType(context, node);
 
         if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
+            result = MAREA_SemaCheckVisibility(context, node);
+        }
+
+        if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
             result = MAREA_SemaInstantiationEnter(context, node, &entered);
         }
+    } else if ((kind == MAREA_AST_KIND_MEMBER_ACCESS) || (kind == MAREA_AST_KIND_LITERAL_VALUE)) {
+        result = MAREA_SemaCheckVisibility(context, node);
     } else if (kind == MAREA_AST_KIND_FIELD_DECLARATION) {
         result = MAREA_SemaCheckOpaqueField(context, node);
     } else if (kind == MAREA_AST_KIND_WHERE_CLAUSE) {
@@ -182,6 +195,12 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaVisit(MAREA_SemaContext *context, const MA
 
         if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
             result = MAREA_SemaCheckCall(context, node);
+        }
+    } else if (kind == MAREA_AST_KIND_MACRO_CALL) {
+        result = MAREA_SemaCheckMacro(context, node);
+
+        if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
+            result = MAREA_SemaCheckMacroEvaluation(context, node);
         }
     } else if ((kind == MAREA_AST_KIND_UNARY_EXPRESSION) && (MAREA_AstNodeGetOperator(node) == MAREA_TOKEN_KIND_KEYWORD_SPAWN)) {
         result = MAREA_SemaCheckSpawn(context, node);
@@ -235,6 +254,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckCompilationUnit(MAREA_SemaContext *co
     context->forkDepth = 0;
     context->partitionDepth = 0;
     context->loopDepth = 0;
+    context->unsafeDepth = 0;
 
     const MAREA_SemaExcept namesResult = MAREA_SemaCheckNamespaceAndNames(context, root);
 
@@ -246,6 +266,12 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckCompilationUnit(MAREA_SemaContext *co
 
     if (declarationsResult != MAREA_SEMA_EXCEPT_SUCCESS) {
         return declarationsResult;
+    }
+
+    const MAREA_SemaExcept cyclesResult = MAREA_SemaCheckConstantCycles(context, root);
+
+    if (cyclesResult != MAREA_SEMA_EXCEPT_SUCCESS) {
+        return cyclesResult;
     }
 
     return MAREA_SemaVisit(context, root);
