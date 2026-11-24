@@ -326,6 +326,10 @@ literal, is `LOGICAL_OPERAND_NOT_BOOLEAN` (3039). Each is raised once on the exp
 already agree in type: a pair that raises `TYPE_MISMATCH` (3011) raises no second code. An operand of an unknown type is
 accepted, and a `character` operand of a bitwise operator is accepted.
 
+**Raw pointer.** A `local` whose type is `pointer<T>` is `RAW_POINTER_OUTSIDE_UNSAFE` (3041) unless an `unsafe ... end` block
+encloses it. A block nested in the `unsafe` block is enclosed too; the block ends the cover at its `end`. The context
+keeps an `unsafeDepth` counter beside `loopDepth`, and the scope mark restores it.
+
 **No implicit numeric conversion (decision of the user, by the rules of Rust).** A calculation never converts a
 number by itself: the two operands of an arithmetic or a comparison operator have the same primitive type, and
 `**` follows the same rule as `+`. An integer base with a float exponent is `TYPE_MISMATCH` (Rust `pow` against
@@ -636,6 +640,7 @@ or rejects.
 | 3038 | `BITWISE_OPERAND_NOT_INTEGER` | `a & b`, `a \| b`, `a ^ b`, `~a`, `a &= b` with a `float32` or `float64`, a `boolean` or a `string` operand, or a float literal |
 | 3039 | `LOGICAL_OPERAND_NOT_BOOLEAN` | `a and b`, `a or b`, `not a` with an operand whose known type is not `boolean`, or a number, string or character literal |
 | 3040 | `ASSIGNMENT_TO_CONSTANT` | `LIMIT = 11;`, `LIMIT += 1;`, `ORIGIN.x = 1;`, `TABLE[0] = 1;` when the root name is a file constant and no local hides it |
+| 3041 | `RAW_POINTER_OUTSIDE_UNSAFE` | `local raw: pointer<sinteger32> = f();` with no `unsafe ... end` block around it, at any depth of nesting |
 
 ## Gaps
 
@@ -664,6 +669,8 @@ or rejects.
   bare name.
 - `ASSIGNMENT_TO_CONSTANT` (3040) sees only a constant that a file declares. A constant that an `implementation`
   declares is not rejected.
+- `RAW_POINTER_OUTSIDE_UNSAFE` (3041) checks only a `local` whose type is spelled `pointer<T>`. A `pointer` in a
+  parameter, a return type or a structure field is not checked (issue #190), and a type alias of a pointer is not resolved.
 - `LITERAL_OUT_OF_RANGE` (3033) reads only a written integer literal. A float literal, a literal in an operand
   (`1 + 300` bound to a `uinteger8`), a value folded from a named constant, and a literal whose target type is not a
   primitive sema knows (it is then checked against `uinteger64` only) are not range checked.

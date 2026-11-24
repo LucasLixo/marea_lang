@@ -98,6 +98,7 @@ MAREA_BEGIN_EXTERN_C
         MAREA_Uinteger32 forkDepth;
         MAREA_Uinteger32 partitionDepth;
         MAREA_Uinteger32 loopDepth;
+        MAREA_Uinteger32 unsafeDepth;
     };
 
     /**
@@ -116,6 +117,7 @@ MAREA_BEGIN_EXTERN_C
         MAREA_Uinteger32 forkDepth;
         MAREA_Uinteger32 partitionDepth;
         MAREA_Uinteger32 loopDepth;
+        MAREA_Uinteger32 unsafeDepth;
     } MAREA_SemaScopeMark;
 
     /**
@@ -1099,6 +1101,15 @@ MAREA_BEGIN_EXTERN_C
      * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null context, or ERROR_OUT_OF_MEMORY.
      */
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckOperatorOperands(MAREA_SemaContext * context, MAREA_TokenKind operatorKind, const MAREA_AstNode *left, const MAREA_AstNode *right, MAREA_SourcePosition position);
+
+    /**
+     * @brief Raises RAW_POINTER_OUTSIDE_UNSAFE when a local is declared with the type pointer and no unsafe block
+     * encloses it. A parameter, a return type and a structure field are not checked.
+     * @param context Context of the run. Must not be null.
+     * @param local The LOCAL_DECLARATION node. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckRawPointerLocal(MAREA_SemaContext * context, const MAREA_AstNode *local);
 
 MAREA_END_EXTERN_C
 
