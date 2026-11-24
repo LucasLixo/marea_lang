@@ -1,10 +1,9 @@
--- gap: #204 NEW
--- rule: reject
+-- expect: 3069 @40
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- from: L-PARALLEL-006
--- Mutant of L-PARALLEL-006: the write attribute becomes read-only on the source of a partition mutable.
+-- from: L-PARALLEL-001
+-- Mutant of L-PARALLEL-001: the mutable word is dropped from a for each that writes its element.
 
 namespace main;
 
@@ -37,7 +36,7 @@ function write_point(#[semantics = reference_mutable] point: Point)
 end
 
 function scale_slice(#[semantics = reference_mutable] part: c.slice<float32>, factor: float32)
-    for each value in mutable part do
+    for each value in part do
         value *= factor;
     end
 end
@@ -50,11 +49,11 @@ function sum_slice(#[semantics = reference_read_only] part: c.slice<float32>): f
     return total;
 end
 
-function check(#[semantics = reference_read_only] values: c.array<float32>, factor: float32)
+function check(): sinteger32
+    local point: Point = make_point();
     fork_join
-        partition mutable values into WORKER_COUNT as part do
-            spawn scale_slice(part, factor);
-        end
+        spawn read_point(point);
     end
+    return 1;
 end
 

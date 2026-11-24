@@ -1,9 +1,8 @@
--- gap: #204 NEW
--- rule: reject
+-- expect: 3069 @24
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- A for each mutable over a read-only vector.
+-- A parameter with no attribute is passed on to a write-borrow parameter.
 
 namespace main;
 
@@ -17,8 +16,10 @@ structure Box
     count: sinteger32;
 end
 
-function check(#[semantics = reference_read_only] points: vector<Point>)
-    for each item in mutable points do
-        item.x = 1;
-    end
+function write_point(#[semantics = reference_mutable] point: Point)
+    point.x = 1;
+end
+
+function check(point: Point)
+    write_point(point);
 end
