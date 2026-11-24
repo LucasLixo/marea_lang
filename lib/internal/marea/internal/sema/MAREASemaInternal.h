@@ -1152,6 +1152,26 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_SemaIsBuiltInMacroName(const MAREA_Character8 *text, MAREA_IntegerSize length);
 
     /**
+     * @brief What a built-in macro gives as a value, as far as sema types it.
+     */
+    typedef enum MAREA_SemaMacroValue
+    {
+        MAREA_SEMA_MACRO_VALUE_UNKNOWN = MAREA_UINTEGER_8(0),
+        MAREA_SEMA_MACRO_VALUE_NONE = MAREA_UINTEGER_8(1),
+        MAREA_SEMA_MACRO_VALUE_STRING = MAREA_UINTEGER_8(2),
+    } MAREA_SemaMacroValue;
+
+    /**
+     * @brief Gives the value of a built-in macro: NONE for assert, debug_assert, unreachable, compile_error,
+     * static_assert, print and log, STRING for format, include_text, file and namespace, and UNKNOWN for include_bytes
+     * and line (sema does not type them) and for a name that is no built-in macro.
+     * @param text Text of the name, not NUL terminated. May be null when length is 0.
+     * @param length Length of text in bytes.
+     * @return The value.
+     */
+    MAREA_NODISCARD MAREA_SemaMacroValue MAREA_CALL MAREA_SemaMacroValueOf(const MAREA_Character8 *text, MAREA_IntegerSize length);
+
+    /**
      * @brief Checks one call of a built-in macro (a MACRO_CALL node). A name that no built-in macro has is
      * UNKNOWN_MACRO. A call with the wrong number of arguments, a literal of the wrong kind for a condition or a
      * text, a log level that is not one of trace, debug, info, warning and error, or a format text whose count of

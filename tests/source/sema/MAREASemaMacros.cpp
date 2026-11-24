@@ -190,3 +190,39 @@ TEST(MAREASemaMacros, ACallOfAMacroThatSemaCannotTypeIsAccepted)
     EXPECT_EQ(MAREA_codesOfStatement("assert!(count, \"x\");"), Codes{});
     EXPECT_EQ(MAREA_codesOfStatement("print!(count);"), Codes{});
 }
+
+TEST(MAREASemaMacros, MacroValueMustFitItsTarget)
+{
+    GTEST_COUT << "Validating the value rules of the macros: none, string, or unknown." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOfStatement("local number: sinteger32 = print!(\"x\");"), Codes{ TYPE_MISMATCH });
+    EXPECT_EQ(MAREA_codesOfStatement("local number: sinteger32 = format!(\"x\");"), Codes{ TYPE_MISMATCH });
+    EXPECT_EQ(MAREA_codesOfStatement("local text: string = format!(\"x\");"), Codes{});
+    EXPECT_EQ(MAREA_codesOfStatement("local text: string = include_text!(\"a.txt\");"), Codes{});
+    EXPECT_EQ(MAREA_codesOfStatement("local text: string = namespace!();"), Codes{});
+    EXPECT_EQ(MAREA_codesOfStatement("local text: string = file!();"), Codes{});
+    EXPECT_EQ(MAREA_codesOfStatement("local number: sinteger32 = line!();"), Codes{});
+}
+
+TEST(MAREASemaMacros, MacroResultReturnedMustFitTheReturnType)
+{
+    GTEST_COUT << "Validating that a returned macro value is checked against the result type." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOfProgram("namespace main;\nfunction check(): sinteger32\n return format!(\"x\");\nend\n"), Codes{ TYPE_MISMATCH });
+    EXPECT_EQ(MAREA_codesOfProgram("namespace main;\nfunction check(): string\n return format!(\"x\");\nend\n"), Codes{});
+}
+
+TEST(MAREASemaMacros, MacroWithNoValuePassedAsAnArgumentIsReported)
+{
+    GTEST_COUT << "Validating that print!(...) passed as a call argument raises TYPE_MISMATCH." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOfProgram("namespace main;\nfunction take(value: sinteger32)\nend\nfunction check()\n take(print!(\"x\"));\nend\n"), Codes{ TYPE_MISMATCH });
+}
+
+TEST(MAREASemaMacros, MacroStatementIsNotAValueUse)
+{
+    GTEST_COUT << "Validating that a macro statement with no value raises nothing." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOfStatement("print!(\"x\");"), Codes{});
+    EXPECT_EQ(MAREA_codesOfStatement("log!(info, \"x\");"), Codes{});
+}
