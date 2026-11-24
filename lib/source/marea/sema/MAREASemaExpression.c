@@ -18,6 +18,7 @@ typedef enum MAREA_G_ShapeKind
     MAREA_G_SHAPE_KIND_LIBRARY = MAREA_UINTEGER_8(6),
     MAREA_G_SHAPE_KIND_GENERIC = MAREA_UINTEGER_8(7),
     MAREA_G_SHAPE_KIND_BUILTIN = MAREA_UINTEGER_8(8),
+    MAREA_G_SHAPE_KIND_NONE = MAREA_UINTEGER_8(9),
 } MAREA_G_ShapeKind;
 
 // INFO: what sema knows of the type of an expression. A literal number fits any type of its family, a primitive carries its name.
@@ -205,6 +206,8 @@ static MAREA_Boolean MAREA_CALL MAREA_G_Fits(const MAREA_G_Shape *target, const 
     case MAREA_G_SHAPE_KIND_PRIMITIVE:
         return MAREA_G_SameName(target, actual);
     case MAREA_G_SHAPE_KIND_STRUCTURE:
+    // INFO: a macro with no value gives nothing, so it fits no type.
+    case MAREA_G_SHAPE_KIND_NONE:
         return MAREA_BOOLEAN_FALSE;
     case MAREA_G_SHAPE_KIND_ENUM:
     case MAREA_G_SHAPE_KIND_LIBRARY:
@@ -470,6 +473,25 @@ static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOfAccess(const MAREA_SemaContext *c
     return MAREA_G_ShapeOfType(context, MAREA_SemaInferType(context, expression), MAREA_BOOLEAN_FALSE);
 }
 
+// INFO: a built-in macro gives no value, a string, or a type that sema does not know. A name that no macro has is unknown, and MAREA_SemaCheckMacro reports it.
+static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOfMacro(const MAREA_AstNode *call)
+{
+    const MAREA_AstNode *name = MAREA_SemaChildAt(call, 0);
+
+    if ((name == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(name) != MAREA_AST_KIND_IDENTIFIER)) {
+        return MAREA_G_ShapeUnknown();
+    }
+
+    switch (MAREA_SemaMacroValueOf(MAREA_AstNodeGetText(name), MAREA_AstNodeGetTextLength(name))) {
+    case MAREA_SEMA_MACRO_VALUE_NONE:
+        return MAREA_G_ShapeMake(MAREA_G_SHAPE_KIND_NONE, MAREA_NULLPTR, 0);
+    case MAREA_SEMA_MACRO_VALUE_STRING:
+        return MAREA_G_ShapePrimitive("string");
+    default:
+        return MAREA_G_ShapeUnknown();
+    }
+}
+
 static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOf(const MAREA_SemaContext *context, const MAREA_AstNode *expression, MAREA_Uinteger32 depth)
 {
     const MAREA_G_Shape unknown = MAREA_G_ShapeUnknown();
@@ -500,6 +522,8 @@ static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOf(const MAREA_SemaContext *context
         return MAREA_G_ShapeOfType(context, MAREA_SemaChildAt(expression, 0), MAREA_BOOLEAN_TRUE);
     case MAREA_AST_KIND_CALL_EXPRESSION:
         return MAREA_G_ShapeOfCall(context, expression);
+    case MAREA_AST_KIND_MACRO_CALL:
+        return MAREA_G_ShapeOfMacro(expression);
     case MAREA_AST_KIND_BINARY_EXPRESSION:
         return MAREA_G_ShapeOfBinary(context, expression, depth);
     case MAREA_AST_KIND_UNARY_EXPRESSION:

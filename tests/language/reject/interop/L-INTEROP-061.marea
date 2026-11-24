@@ -1,10 +1,11 @@
--- gap: #241 NEW
--- rule: reject
+-- expect: 3011 @10
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- An include_text macro with a number as the path.
+-- A format macro result returned as an integer.
 
 namespace main;
 
-constant TEXT: string = include_text!(1);
+function check(): sinteger32
+    return format!("x");
+end

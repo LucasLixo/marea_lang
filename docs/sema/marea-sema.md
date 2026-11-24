@@ -347,7 +347,7 @@ declaration checks and before the visit, with a visit state kept in the arena an
 needs no recursion.
 
 **Compile-time macros.** A `compile_error!(...)` call always raises `COMPILE_TIME_ASSERTION_FAILED` (3059) at the
-call, in a function body and at the top level, whatever its arguments are. A `static_assert!(condition, "text")` call
+call, in a function body and at the top level, whatever its arguments are (a wrong argument shape adds 3061 before it). A `static_assert!(condition, "text")` call
 with two arguments raises 3059 when its condition is a constant that evaluates to false. A small evaluator reads the
 condition: boolean and integer literals (decimal, `0x`, `0b`, `_`), a file constant (read through its initial value,
 with a depth limit of 32, so a cyclic constant ends as unknown), parentheses, unary `not` and unary minus, `and`, `or`,
@@ -370,6 +370,39 @@ not private, read or written as `box.value` where `box` is a local or parameter 
 type and never also 3068. A local or a generic parameter that hides the namespace name is no namespace access. A
 namespace that the resolver answers `EXTERNAL` or `NOT_FOUND` is never checked, and neither is a field of the same
 file. An import of one symbol or a member list is checked the same way: a private symbol is `UNRESOLVED_IMPORT`.
+
+**Built-in macro.** `MAREA_SemaCheckMacro` (`MAREASemaMacro.c`) checks every `MACRO_CALL` against one table of the 13
+built-in macros, the table of `examples/macros/builtin.marea`. A name that is not in the table is `UNKNOWN_MACRO` (3060),
+raised at the call. A call with the wrong arguments is `INVALID_MACRO_ARGUMENT` (3061), raised at the offending argument,
+or at the argument list when the count is wrong; at most one diagnostic is raised for a call, and a call with an
+`ERROR_NODE` among its arguments raises nothing. The message names the macro.
+
+| Macro | Arguments | Value |
+|---|---|---|
+| `assert`, `debug_assert` | exactly 2: a condition, a message that is a string literal | none |
+| `unreachable` | exactly 0 | none |
+| `compile_error` | exactly 1: a string literal | none |
+| `static_assert` | exactly 2: a condition, a string literal | none |
+| `include_bytes`, `include_text` | exactly 1: a string literal | `c.array<uinteger8>` (not typed here), `string` |
+| `format` | 1 or more: a string literal, then the values | `string` |
+| `print` | 1 or more: a string literal, then the values | none |
+| `log` | 2 or more: a level name, a string literal, then the values | none |
+| `line`, `file`, `namespace` | exactly 0 | not typed (`line`), `string` |
+
+Four decisions bind the table. (1) The log levels are the five names `trace`, `debug`, `info`, `warning` and `error`
+(a bare name, not a string); the language docs did not list them, so the list is an assumption that the user must
+confirm. A level that is not a bare name of the list is rejected, a literal included. (2) A condition or a text argument
+is rejected only when it is a literal of the wrong kind: an integer, float, boolean or character literal for a text; an
+integer, float, string or character literal for a condition. Any other expression has an unknown type and is accepted.
+(3) The `{}` check runs when the format text is a string literal: it counts the occurrences of the two characters `{}`
+and compares the count with the number of value arguments. A lone `{` or `}` is skipped. (4) `line!()` is not typed;
+`file!()` and `namespace!()` are `string`.
+
+The value of a macro is part of the type check. A macro with no value has a shape that fits no type, so it is
+`TYPE_MISMATCH` (3011) where a primitive is expected: the initial value of a `local` (`local n: sinteger32 = print!("x");`),
+a returned value, an argument of a call or an operand. A macro that gives a `string` fits a `string` and is a 3011 for
+any other primitive (`return format!("x");` in a function that returns `sinteger32`). A macro statement is not a value
+use and raises nothing, and the typed tree is not changed.
 
 **Condition type.** The condition of an `if`, an `elseif` or a `while` must be a `boolean`: a condition with a known
 primitive type other than `boolean`, or a number, string or character literal, is `NON_BOOLEAN_CONDITION` (3043), raised
@@ -695,6 +728,8 @@ or rejects.
 | 3043 | `NON_BOOLEAN_CONDITION` | `if n then`, `elseif s then`, `while 1 do` when the condition has a known primitive type that is not `boolean`, or is a number, string or character literal |
 | 3055 | `CYCLIC_CONSTANT` | `constant A: sinteger32 = B;` with `constant B: sinteger32 = A;`, or `constant A: sinteger32 = A;`, once for each cycle, at the first constant of it in the file |
 | 3059 | `COMPILE_TIME_ASSERTION_FAILED` | `compile_error!("stop");` with any arguments, at the top level or in a function body; `static_assert!(1 == 2, "never");` or `static_assert!(N == 5, "n");` when the condition is a constant that is false |
+| 3060 | `UNKNOWN_MACRO` | `shout!("hello");` when `shout` is none of the 13 built-in macros, at the call |
+| 3061 | `INVALID_MACRO_ARGUMENT` | `print!();`, `print!(1, 2);`, `print!("{} {}", 1);`, `assert!(1, "x");`, `unreachable!(1);`, `log!(loud, "x");`, `include_text!(1);`: the wrong count of arguments, a literal of the wrong kind, a log level that is not one of the five, or a count of `{}` that differs from the count of values, at the offending argument |
 | 3065 | `LOCAL_WITHOUT_INITIAL_VALUE` | `local x: sinteger32;` with no `= value`, for a primitive, a structure, a `pointer` or an `array`, at any depth of nesting |
 | 3066 | `PRIVATE_SYMBOL_ACCESS` | `b.hidden()` or `b.LIMIT` after `import a.b;` (or an alias) when the member is a top-level declaration of a `FOUND` namespace with `#[visibility = private]` |
 | 3067 | `PRIVATE_TYPE_ACCESS` | `s: b.Secret`, `b.Secret{ }` or any written `b.Secret` when the structure, enum, opaque or alias of a `FOUND` namespace is private |
@@ -742,6 +777,11 @@ or rejects.
 - `CYCLIC_CONSTANT` (3055) sees only the constants that a file declares at the top level. A constant that an
   `implementation` declares is not part of the search. A name is matched by its text in the name table, so a
   qualified name of another namespace is not followed.
+- `INVALID_MACRO_ARGUMENT` (3061) does not check the type of each value that a `{}` takes: `print!("{}", x)` is
+  accepted for any `x`. A condition or a text that is not a literal is accepted whatever its type, and a format text
+  that is not a string literal has no `{}` count. The five log levels are an assumption (see Built-in macro).
+- `line!()` has no type in sema, and `include_bytes!` gives no type either (it should give `c.array<uinteger8>`), so
+  both fit any target.
 - `RAW_POINTER_OUTSIDE_UNSAFE` (3041) checks only a `local` whose type is spelled `pointer<T>`. A `pointer` in a
   parameter, a return type or a structure field is not checked (issue #190), and a type alias of a pointer is not resolved.
 - `NON_BOOLEAN_CONDITION` (3043) judges only a literal and a primitive that sema knows. A condition of an unknown type

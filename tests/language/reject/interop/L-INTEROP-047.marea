@@ -1,12 +1,11 @@
--- gap: #241 NEW
--- rule: reject
+-- expect: 3061 @10
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- A print macro with fewer values than the format text needs.
+-- An assert macro with a number as the condition.
 
 namespace main;
 
 function check()
-    print!("{} {}", 1);
+    assert!(1, "x");
 end
