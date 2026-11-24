@@ -254,5 +254,11 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckCompilationUnit(MAREA_SemaContext *co
         return declarationsResult;
     }
 
+    const MAREA_SemaExcept cyclesResult = MAREA_SemaCheckConstantCycles(context, root);
+
+    if (cyclesResult != MAREA_SEMA_EXCEPT_SUCCESS) {
+        return cyclesResult;
+    }
+
     return MAREA_SemaVisit(context, root);
 }

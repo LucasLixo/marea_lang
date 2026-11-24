@@ -1229,11 +1229,11 @@ reject code or no issue named in Gaps. Each direction is proven on every build w
 | L-EXAMPLES-015 | the example `examples/types/generics.marea`, with its namespace set to `main` | ok |
 | L-EXAMPLES-016 | the example `examples/types/structures.marea`, with its namespace set to `main` | ok |
 
-### Coverage: known_gap
+### Coverage: reject
 
 | Id | Shows | Expected |
 |---|---|---|
-| L-COVERAGE-001 | a constant that is its own initial value, issue #249 | gap: NEW, rule: reject |
+| L-COVERAGE-001 | a constant that is its own initial value | 3055 @9 |
 
 ## Counts
 
@@ -1243,7 +1243,7 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 |---|---|---|---|
 | adversarial | 0 | 30 | 42 |
 | bindings | 33 | 80 | 0 |
-| coverage | 0 | 0 | 1 |
+| coverage | 0 | 1 | 0 |
 | examples | 16 | 0 | 0 |
 | functions | 19 | 45 | 9 |
 | interop | 17 | 11 | 17 |
@@ -1253,7 +1253,7 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | parallel | 19 | 23 | 17 |
 | seed | 1 | 2 | 0 |
 | types | 60 | 116 | 20 |
-| total | 262 | 385 | 160 |
+| total | 262 | 386 | 159 |
 
 ## Parity plan
 
@@ -1282,6 +1282,7 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 | 3040 | `sema` | [marea-sema.md](../sema/marea-sema.md), `ASSIGNMENT_TO_CONSTANT` |
 | 3041 | `sema` | [marea-sema.md](../sema/marea-sema.md), `RAW_POINTER_OUTSIDE_UNSAFE` |
 | 3043 | `sema` | [marea-sema.md](../sema/marea-sema.md), `NON_BOOLEAN_CONDITION` |
+| 3055 | `sema` | [marea-sema.md](../sema/marea-sema.md), `CYCLIC_CONSTANT` |
 | 3065 | `sema` | [marea-sema.md](../sema/marea-sema.md), `LOCAL_WITHOUT_INITIAL_VALUE` |
 | 4004-4006 | `ir` | [marea-ir.md](../ir/marea-ir.md), no item reaches them (see Gaps) |
 
@@ -1354,7 +1355,7 @@ Each rule is kept as a `known_gap` item with its issue, as reject codes, or as a
 | shift count too large | reject items of 3035 |
 | recursive type by value | known_gap items of #221 (L-TYPES-029, 030) |
 | cyclic alias | known_gap items of #221 (L-TYPES-124, 125) |
-| cyclic constant | L-COVERAGE-001, issue #249 |
+| cyclic constant | reject items of 3055 (L-COVERAGE-001) |
 | overlapping implementation | L-TYPES-123, issue #225 |
 | unreachable switch arm | reject items of 3025 (a repeated case) and 2010 (a default that is not last) |
 | import cycle | no item, issue #250 |
