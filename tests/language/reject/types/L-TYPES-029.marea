@@ -1,5 +1,4 @@
--- gap: #221 NEW
--- rule: reject
+-- expect: 3045 @10
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
