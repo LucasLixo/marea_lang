@@ -950,7 +950,8 @@ that is undecided today without a change of format. The reasons are:
 - `INVALID_ATTRIBUTE`: a `pack` or an `align` that sema cannot use (zero, or above 4294967296).
 - `TOO_DEEP`: a chain of types held by value deeper than 8 levels, a type that holds itself, or a type whose
   measure visits more than 1048576 declarations.
-- `UNRESOLVED`: a type that sema cannot trace to a declaration (an alias loop), and an enum tag that is not an integer
+- `UNRESOLVED`: a type that sema cannot trace to a declaration (an alias loop), an enum bound by an import (it belongs
+  to another file, whose names and file attributes this run cannot see), and an enum tag that is not an integer
   primitive, which `INVALID_ENUM_TAG_TYPE` (3031) rejects already.
 
 A structure or an enum that holds an undecided type is undecided too, with the reason of that type.

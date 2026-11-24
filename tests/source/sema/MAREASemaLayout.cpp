@@ -368,6 +368,25 @@ TEST(MAREASemaLayout, StructureHoldsAnEnumByValue)
     MAREA_expectStructure("namespace main; enum E : uinteger8 X(v: float64); end structure S a: uinteger8; e: E; end", 0, 24, 8, { 0, 8 });
 }
 
+TEST(MAREASemaLayout, EnumImportedFromAnotherFileIsUndecided)
+{
+    GTEST_COUT << "Validating an enum bound by an import is undecided, because its types and file attributes belong to the other file." << std::endl;
+
+    MAREA_SemaFixture library;
+
+    ASSERT_EQ(library.parser.MAREA_parse("namespace a.b; #[visibility = public] structure Point x: uinteger64; y: uinteger64; end #[visibility = public] enum Shape : uinteger8 Dot(p: Point); end #[visibility = public] enum Wide : uinteger8 Big(v: uinteger64); end"), MAREA_PARSE_EXCEPT_SUCCESS) << "The library must parse.";
+
+    const MAREA_ResolveCallback RESOLVE{ [&library](const std::string &name, const MAREA_AstNode **root) {
+        *root = library.parser.root;
+
+        return (name == "a.b") ? MAREA_SEMA_IMPORT_RESULT_FOUND : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
+    } };
+
+    MAREA_expectUndecided("namespace main; import a.b { Shape }; structure Point x: uinteger8; end structure S s: Shape; end", MAREA_AST_KIND_STRUCTURE_DECLARATION, 1, MAREA_SEMA_MEASURE_REASON_UNRESOLVED, 1, RESOLVE);
+
+    MAREA_expectUndecided("namespace main; #![pack = 1] import a.b { Wide }; structure S w: Wide; end", MAREA_AST_KIND_STRUCTURE_DECLARATION, 0, MAREA_SEMA_MEASURE_REASON_UNRESOLVED, 1, RESOLVE);
+}
+
 TEST(MAREASemaLayout, LibraryTypeIsUndecided)
 {
     GTEST_COUT << "Validating a structure or an enum that holds a library type is undecided, with the library reason." << std::endl;
