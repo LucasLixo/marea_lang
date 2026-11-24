@@ -59,7 +59,7 @@ from the source (`IDENTIFIER`, the five literals, `BINARY_EXPRESSION`, `UNARY_EX
 `LOCAL_DECLARATION`, `FIELD_DECLARATION`, `VARIANT_FIELD`, `CONSTANT_DECLARATION` and `FUNCTION_DECLARATION` with a
 written type. A name that only qualifies a member (`Planet` in `Planet.Earth`) has none and is not a gap. The nodes
 that the ir invents carry one too: a `ZERO_VALUE` has the type of the structure field it fills; the hidden locals
-`$last` (the type of the last bound), `$switch` (the type of the scrutinee) and `$return` (the type of the returned
+`$lastN` (the type of the last bound), `$switch` (the type of the scrutinee) and `$return` (the type of the returned
 value) have the type they hold, and every `IDENTIFIER` that reads one shares it; the loop variable of a for-range loop
 has the type sema gave its name (else the type of the first value), and the step literal `1` its type; the tests the
 desugaring builds (`<=`, `==` and `or`) are `boolean`. The `ASSIGNMENT` of the step and every `DESTROY_CALL` stay
@@ -261,24 +261,31 @@ local a: Box = Box(); return a.x;
 ```
 BLOCK
   LOCAL_DECLARATION "name" (flags MUTABLE)   -- child: first
-  LOCAL_DECLARATION "$last"                  -- child: last
+  LOCAL_DECLARATION "$last0"                 -- child: last
   WHILE_STATEMENT
-    BINARY_EXPRESSION op=LESS_EQUAL          -- children: IDENTIFIER name, IDENTIFIER "$last"
+    BINARY_EXPRESSION op=LESS_EQUAL          -- children: IDENTIFIER name, IDENTIFIER "$last0"
     BLOCK                                    -- the lowered body, then the step
       ...
       IF_STATEMENT                           -- the step, part 1: leave at the last value
-        BINARY_EXPRESSION op=EQUAL_EQUAL     -- children: IDENTIFIER name, IDENTIFIER "$last"
+        BINARY_EXPRESSION op=EQUAL_EQUAL     -- children: IDENTIFIER name, IDENTIFIER "$last0"
         BLOCK
           BREAK_STATEMENT
       ASSIGNMENT op=PLUS_EQUAL               -- the step, part 2: children IDENTIFIER name, INTEGER_LITERAL "1"
 ```
 
 The bound is inclusive (`<=`), because the grammar says a range includes both ends. The hidden loop
-variable and `$last` have no type name, but carry a resolved type: `$last` the type of `last`, the variable the type
+variable and `$last` have no type name, but carry a resolved type: `$last0` the type of `last`, the variable the type
 sema gave its name (else the type of `first`); each read of them, the step literal `1`, and the two tests are typed
-too (the tests are `boolean`). The `last` expression is lowered once, into `$last`, which is set
-before the loop; the loop never evaluates it again. The name `$last` cannot be a source identifier,
+too (the tests are `boolean`). The `last` expression is lowered once, into `$last0`, which is set
+before the loop; the loop never evaluates it again. The name `$last0` cannot be a source identifier,
 so it never clashes with a user name. The hidden local carries no flag.
+
+The name is `$last` and the number of the loop in its function, counted in source order from zero, the outer loop
+before the loops in its body (`$last0`, `$last1`, ...). So two for-range loops of one function never share the
+name of their hidden bound, whether one stands in the other or they follow each other, and a backend that keys the
+locals of a function by name alone keeps them apart. The count starts again at zero in each function, so a function
+lowers the same wherever it stands in the unit. The step of a loop, also the one a `continue` gets, reads the bound of
+its own loop. Only the hidden bound of a for-range loop is numbered: `$switch` and `$return` are not (see Gaps).
 
 The step leaves the loop at the last value before it adds one. So the increment never runs past `last`,
 and a loop whose `last` is the maximum of its integer type still ends. A range with `first` greater
@@ -287,7 +294,7 @@ than `last` runs zero times, because the condition fails at once.
 A `continue` that targets the loop would skip the step at the end of the body. So each such
 `continue` becomes `BLOCK(step, CONTINUE_STATEMENT)`, where the step is the same `IF_STATEMENT` and
 `ASSIGNMENT` pair. A `continue` inside a nested `while`, `FOR_EACH_STATEMENT` or for-range loop targets that
-loop and stays as it is (the nested for-range loop adds its own step and its own `$last`).
+loop and stays as it is (the nested for-range loop adds its own step and its own `$lastN`).
 
 ## Switch desugaring
 
@@ -571,6 +578,10 @@ Each diagnostic carries the position of the construct that raised it. The messag
   one.
 - The two loop variables of a `FOR_EACH_STATEMENT` have no type name, like the for-range `$last`, because sema
   types no loop variable. A backend must infer them from the collection.
+- The hidden bound of a for-range loop is numbered, but `$switch` and `$return` are not: two `switch` statements
+  that nest, or a `return` hoisted in an outer scope after an inner one, declare the same name in nested `BLOCK`
+  scopes of one function. A backend that keys the locals of a function by name alone must still scope them by
+  `BLOCK`, or the ir must number these names the same way. No backend needs it yet.
 - `MAREA_G_LowerSwitch` still keeps only the last `default` arm and drops the others with no diagnostic. This
   is defensive only. Sema rejects a second `default` arm, and a repeated `case` value, with
   `DUPLICATE_SWITCH_ARM` (3025, issue #50, PR #51), and `MAREA_SemaBuildTypedAst`, the only input of the IR,

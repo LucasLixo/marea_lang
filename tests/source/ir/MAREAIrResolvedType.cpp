@@ -398,11 +398,11 @@ TEST(MAREAIrResolvedType, ForRangeHiddenBoundAndStepAreTyped)
 
     const std::string DUMP{ MAREA_dumpOf(fixture) };
 
-    EXPECT_EQ(MAREA_lineOf(DUMP, "LOCAL_DECLARATION \"$last\""), "LOCAL_DECLARATION \"$last\" resolved=uinteger8") << "$last must have the type of the bound: " << DUMP;
+    EXPECT_EQ(MAREA_lineOf(DUMP, "LOCAL_DECLARATION \"$last0\""), "LOCAL_DECLARATION \"$last0\" resolved=uinteger8") << "$last0 must have the type of the bound: " << DUMP;
 
     EXPECT_EQ(MAREA_lineOf(DUMP, "LOCAL_DECLARATION \"index\""), "LOCAL_DECLARATION \"index\" resolved=uinteger8 flags=1") << "The loop variable must be typed: " << DUMP;
 
-    EXPECT_EQ(MAREA_countOf(DUMP, "IDENTIFIER \"$last\" resolved=uinteger8"), std::size_t{ 2 }) << "Both reads of $last must be typed: " << DUMP;
+    EXPECT_EQ(MAREA_countOf(DUMP, "IDENTIFIER \"$last0\" resolved=uinteger8"), std::size_t{ 2 }) << "Both reads of $last0 must be typed: " << DUMP;
 
     EXPECT_EQ(MAREA_countOf(DUMP, "IDENTIFIER \"index\" resolved=uinteger8"), std::size_t{ 3 }) << "Every read of the loop variable must be typed: " << DUMP;
 

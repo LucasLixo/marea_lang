@@ -528,6 +528,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerFunctionBody(MAREA_IrContext *cont
 static MAREA_IrExcept MAREA_CALL MAREA_G_LowerFunction(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, const MAREA_Character8 *qualifier, MAREA_IntegerSize qualifierLength, MAREA_IrNode *parent)
 {
     context->function = typed;
+    context->loopCount = MAREA_INTEGER_SIZE(0);
 
     const MAREA_IrExcept result = MAREA_G_LowerFunctionBody(context, typed, qualifier, qualifierLength, parent);
 
