@@ -1038,6 +1038,18 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckConstantAssignment(MAREA_SemaContext * context, const MAREA_AstNode *assignment);
 
     /**
+     * @brief Reports CYCLIC_CONSTANT once for each cycle of file constants, where the initial value of a constant
+     * names a constant whose value leads back to the first one. A name counts only where it stands as a value: a
+     * member name, a field key, a type and a call target are not followed. The cycle is reported at its member that
+     * comes first in the file. A constant that only uses a cycle is not reported, and the search keeps its state in
+     * the arena, with no recursion over the constants.
+     * @param context Context of the run, after the name table is filled. Must not be null.
+     * @param root Compilation unit node. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER when an argument is null, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckConstantCycles(MAREA_SemaContext * context, const MAREA_AstNode *root);
+
+    /**
      * @brief Tells whether a number literal fits a primitive type under the rule of MAREA_SemaCheckExpressionFit:
      * an integer literal fits any number type, a float literal fits float32 and float64 only.
      * @param kind MAREA_AST_KIND_INTEGER_LITERAL or MAREA_AST_KIND_FLOAT_LITERAL. Any other kind gives false.
