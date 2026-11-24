@@ -382,3 +382,32 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckNamedType(MAREA_SemaContext *context,
 
     return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_UNKNOWN_TYPE, MAREA_AstNodeGetPosition(node), "unknown type:", joined, joinedLength);
 }
+
+MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckOpaqueField(MAREA_SemaContext *context, const MAREA_AstNode *node)
+{
+    if ((context == MAREA_NULLPTR) || (node == MAREA_NULLPTR)) {
+        return MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    for (MAREA_IntegerSize index = 0; index < MAREA_AstNodeGetChildCount(node); ++index) {
+        const MAREA_AstNode *type = MAREA_SemaChildAt(node, index);
+
+        if ((type == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(type) != MAREA_AST_KIND_NAMED_TYPE)) {
+            continue;
+        }
+
+        const MAREA_AstNode *declaration = MAREA_NULLPTR;
+
+        const MAREA_Character8 *name = MAREA_NULLPTR;
+
+        MAREA_IntegerSize length = 0;
+
+        if ((MAREA_SemaClassifyType(context, type, &declaration, &name, &length) == MAREA_SEMA_TYPE_CLASS_USER) && (declaration != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(declaration) == MAREA_AST_KIND_OPAQUE_DECLARATION)) {
+            MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_OPAQUE_FIELD_BY_VALUE, MAREA_AstNodeGetPosition(type), "an opaque type cannot be held by value in a field");
+        }
+
+        break;
+    }
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}

@@ -6,15 +6,22 @@
 #include <string.h>
 
 // INFO: one row per integer primitive. The width is in bits.
-typedef struct MAREA_G_IntegerRange {
+typedef struct MAREA_G_IntegerRange
+{
     const MAREA_Character8 *name;
     MAREA_Uinteger32 bits;
     MAREA_Boolean isSigned;
 } MAREA_G_IntegerRange;
 
 static const MAREA_G_IntegerRange MAREA_G_RANGES[] = {
-    { "sinteger8", 8, MAREA_BOOLEAN_TRUE },   { "sinteger16", 16, MAREA_BOOLEAN_TRUE },  { "sinteger32", 32, MAREA_BOOLEAN_TRUE },  { "sinteger64", 64, MAREA_BOOLEAN_TRUE },
-    { "uinteger8", 8, MAREA_BOOLEAN_FALSE },  { "uinteger16", 16, MAREA_BOOLEAN_FALSE }, { "uinteger32", 32, MAREA_BOOLEAN_FALSE }, { "uinteger64", 64, MAREA_BOOLEAN_FALSE },
+    { "sinteger8", 8, MAREA_BOOLEAN_TRUE },
+    { "sinteger16", 16, MAREA_BOOLEAN_TRUE },
+    { "sinteger32", 32, MAREA_BOOLEAN_TRUE },
+    { "sinteger64", 64, MAREA_BOOLEAN_TRUE },
+    { "uinteger8", 8, MAREA_BOOLEAN_FALSE },
+    { "uinteger16", 16, MAREA_BOOLEAN_FALSE },
+    { "uinteger32", 32, MAREA_BOOLEAN_FALSE },
+    { "uinteger64", 64, MAREA_BOOLEAN_FALSE },
 };
 
 // INFO: the largest value that a literal of the given sign may have in the type: 2^bits - 1 for an unsigned type or a positive literal of a signed one is 2^(bits - 1) - 1, and 2^(bits - 1) for a negative literal of a signed type.
