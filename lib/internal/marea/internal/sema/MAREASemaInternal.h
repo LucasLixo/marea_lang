@@ -1167,6 +1167,28 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCapturePartition(MAREA_SemaContext * context, const MAREA_AstNode *node);
 
     /**
+     * @brief Checks that the arguments of one call do not name overlapping places (a field and its owner, one
+     * field twice, one element twice, a loop element and its own collection, a value and a move of it) when one
+     * of them is a write borrow or is moved. A name passed twice is left to MAREA_SemaCheckBorrowArguments.
+     * Reports EXCLUSIVE_BORROW_CONFLICT.
+     * @param context Context of the run. Must not be null.
+     * @param call CALL_EXPRESSION node. Must not be null.
+     * @param parameters PARAMETER_LIST of the callee. Must not be null.
+     * @param arguments ARGUMENT_LIST of the call. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckAliasedArguments(MAREA_SemaContext * context, const MAREA_AstNode *call, const MAREA_AstNode *parameters, const MAREA_AstNode *arguments);
+
+    /**
+     * @brief Checks the body of a for each or a with statement against its source: while the body runs, the
+     * source is borrowed, so a write of it, a move of it and a call that changes it (append and the like) report VALUE_CHANGED_WHILE_BORROWED. Any other node is ignored.
+     * @param context Context of the run. Must not be null.
+     * @param node Node in the visit. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckBorrowedSource(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
      * @brief Checks a statement that stands directly in a fork_join block (the code of the block, not of a
      * worker) against what the workers started before it took: a use of a value that a worker writes, or a
      * write of a value that a worker uses, reports CONFLICTING_PARALLEL_ACCESS. Any other node is ignored.
