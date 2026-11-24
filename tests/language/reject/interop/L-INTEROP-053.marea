@@ -1,12 +1,11 @@
--- gap: #241 NEW
--- rule: reject
+-- expect: 3061 @10
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- A print macro with no argument.
+-- An unreachable macro with an argument.
 
 namespace main;
 
 function check()
-    print!();
+    unreachable!(1);
 end

@@ -1,12 +1,11 @@
--- gap: #241 3011
--- rule: reject
+-- expect: 3061 @10
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- A format macro result returned as an integer.
+-- A print macro with fewer values than the format text needs.
 
 namespace main;
 
-function check(): sinteger32
-    return format!("x");
+function check()
+    print!("{} {}", 1);
 end

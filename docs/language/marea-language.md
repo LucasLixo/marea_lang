@@ -908,12 +908,14 @@ import need the same second file, so they have no item either; a namespace that 
 
 Interop with C, opaque types, owners and raw pointers of a C border, and the built-in macros. The items sit in
 `tests/language/<class>/interop/`. A `c.` import is `EXTERNAL` in the runner, so the C call itself has no signature
-and its argument and result types are not checked. The macros are checked only by name today: a macro name without
-`!` is an undeclared name (L-INTEROP-054) and a user-written `macro` is a parse error (L-INTEROP-020), but a call of
-an unknown macro, the arguments and the result of a known one are not checked (issue #241). The two compile-time
-macros are the exception: `compile_error!` always gives 3059 (L-INTEROP-044) and a `static_assert!` over a constant
-false condition gives 3059 (L-INTEROP-043); a condition the compiler cannot fold is accepted. The type `handle<T>` is
-rejected with 3009 by the type checker, so it has no accept item.
+and its argument and result types are not checked. A macro name without `!` is an undeclared name (L-INTEROP-054) and
+a user-written `macro` is a parse error (L-INTEROP-020). A call of a macro that the compiler does not define is 3060
+(L-INTEROP-021), a call with the wrong arguments is 3061 (L-INTEROP-045, 046, 047, 052, 053, 055, 062), and a macro
+result used as a value of another type is 3011 (L-INTEROP-056, 061); the macro table is in
+[marea-sema.md](../sema/marea-sema.md). The two compile-time macros are the exception to the argument check:
+`compile_error!` always gives 3059 (L-INTEROP-044) and a `static_assert!` over a constant false condition gives 3059
+(L-INTEROP-043); a condition the compiler cannot fold is accepted. The type of each value that a `{}` takes is not
+checked. The type `handle<T>` is rejected with 3009 by the type checker, so it has no accept item.
 
 ### Macros and the C border: accept
 
@@ -942,38 +944,38 @@ rejected with 3009 by the type checker, so it has no accept item.
 | Id | Shows | Expected |
 |---|---|---|
 | L-INTEROP-020 | A user cannot declare a macro | 2004 @9, 2004 @10, 2004 @10, 2005 @11 |
+| L-INTEROP-021 | A call of a macro that the compiler does not define | 3060 @10 |
 | L-INTEROP-022 | An opaque structure has no body | 2001 @10, 2005 @11 |
 | L-INTEROP-023 | A parameter of a type that no declaration names | 3009 @9 |
 | L-INTEROP-024 | An import placed after a function | 2004 @13 |
 | L-INTEROP-043 | A static_assert macro of a false condition | 3059 @9 |
 | L-INTEROP-044 | A compile_error macro call | 3059 @9 |
+| L-INTEROP-045 | A print macro with fewer values than the format text needs | 3061 @10 |
+| L-INTEROP-046 | A print macro with a number as the format text | 3061 @10 |
+| L-INTEROP-047 | An assert macro with a number as the condition | 3061 @10 |
 | L-INTEROP-048 | A raw pointer local outside an unsafe block | 3041 @12 |
 | L-INTEROP-049 | A name of a with block used after its end | 3004 @15 |
 | L-INTEROP-050 | An owner of an opaque type assigned with no move | 3016 @15 |
+| L-INTEROP-052 | A print macro with no argument | 3061 @10 |
+| L-INTEROP-053 | An unreachable macro with an argument | 3061 @10 |
 | L-INTEROP-054 | A macro name called without the bang | 3004 @10 |
+| L-INTEROP-055 | A log macro with a level that does not exist | 3061 @10 |
+| L-INTEROP-056 | A macro that gives no value used as a value | 3011 @10 |
 | L-INTEROP-058 | An opaque structure declared twice | 3003 @11 |
 | L-INTEROP-059 | An opaque structure and a structure with the same name | 3003 @11 |
+| L-INTEROP-061 | A format macro result returned as an integer | 3011 @10 |
+| L-INTEROP-062 | An include_text macro with a number as the path | 3061 @9 |
 | L-INTEROP-063 | A borrowed opaque value returned by value | 3018 @12 |
 
 ### Macros and the C border: known_gap
 
 | Id | Shows | Expected |
 |---|---|---|
-| L-INTEROP-021 | A call of a macro that the compiler does not define | gap: NEW, rule: reject, issue #241 |
 | L-INTEROP-040 | An opaque structure is built with a struct literal | gap: NEW, rule: reject, issue #239 |
 | L-INTEROP-041 | A field of an opaque structure is read | gap: NEW, rule: reject, issue #239 |
 | L-INTEROP-042 | An operator is applied to two opaque values | gap: NEW, rule: reject, issue #239 |
-| L-INTEROP-045 | A print macro with fewer values than the format text needs | gap: NEW, rule: reject, issue #241 |
-| L-INTEROP-046 | A print macro with a number as the format text | gap: 3011, rule: reject, issue #241 |
-| L-INTEROP-047 | An assert macro with a number as the condition | gap: 3011, rule: reject, issue #241 |
 | L-INTEROP-051 | An owner of an opaque type is used after it moved | gap: NEW, rule: reject, issue #198 |
-| L-INTEROP-052 | A print macro with no argument | gap: NEW, rule: reject, issue #241 |
-| L-INTEROP-053 | An unreachable macro with an argument | gap: NEW, rule: reject, issue #241 |
-| L-INTEROP-055 | A log macro with a level that does not exist | gap: NEW, rule: reject, issue #241 |
-| L-INTEROP-056 | A macro that gives no value used as a value | gap: 3011, rule: reject, issue #241 |
 | L-INTEROP-057 | A structure with an opaque field held by value | gap: NEW, rule: reject, issue #239 |
-| L-INTEROP-061 | A format macro result returned as an integer | gap: 3011, rule: reject, issue #241 |
-| L-INTEROP-062 | An include_text macro with a number as the path | gap: NEW, rule: reject, issue #241 |
 
 ## Parallel code
 
@@ -1256,14 +1258,14 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | coverage | 0 | 1 | 0 |
 | examples | 20 | 0 | 0 |
 | functions | 19 | 45 | 9 |
-| interop | 17 | 13 | 15 |
+| interop | 17 | 23 | 5 |
 | memory | 15 | 10 | 8 |
 | namespaces | 17 | 28 | 6 |
 | ownership | 65 | 40 | 40 |
 | parallel | 19 | 23 | 17 |
 | seed | 1 | 2 | 0 |
 | types | 60 | 116 | 20 |
-| total | 266 | 388 | 157 |
+| total | 266 | 398 | 147 |
 
 ## Parity plan
 
@@ -1294,6 +1296,7 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 | 3043 | `sema` | [marea-sema.md](../sema/marea-sema.md), `NON_BOOLEAN_CONDITION` |
 | 3055 | `sema` | [marea-sema.md](../sema/marea-sema.md), `CYCLIC_CONSTANT` |
 | 3059 | `sema` | [marea-sema.md](../sema/marea-sema.md), `COMPILE_TIME_ASSERTION_FAILED` |
+| 3060-3061 | `sema` | [marea-sema.md](../sema/marea-sema.md), `UNKNOWN_MACRO` and `INVALID_MACRO_ARGUMENT` |
 | 3065 | `sema` | [marea-sema.md](../sema/marea-sema.md), `LOCAL_WITHOUT_INITIAL_VALUE` |
 | 3066-3068 | `sema` | [marea-sema.md](../sema/marea-sema.md), `PRIVATE_SYMBOL_ACCESS`, `PRIVATE_TYPE_ACCESS`, `PRIVATE_FIELD_ACCESS`, no item reaches them (see Gaps) |
 | 4004-4006 | `ir` | [marea-ir.md](../ir/marea-ir.md), no item reaches them (see Gaps) |
