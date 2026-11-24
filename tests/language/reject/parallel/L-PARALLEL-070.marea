@@ -1,9 +1,8 @@
--- gap: #211 NEW
--- rule: reject
+-- expect: 3062 @52
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- A worker is spawned after the end of a fork_join block.
+-- A partition is used outside of a fork_join block.
 
 namespace main;
 
@@ -49,11 +48,8 @@ function sum_slice(#[semantics = reference_read_only] part: c.slice<float32>): f
     return total;
 end
 
-function run(): sinteger32
-    local point: Point = make_point();
-    fork_join
-        spawn read_point(point);
+function run(#[semantics = reference_read_only] values: c.array<float32>)
+    partition values into 2 as part do
+        local unused: sinteger32 = 0;
     end
-    spawn read_point(point);
-    return 1;
 end

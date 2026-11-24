@@ -275,7 +275,8 @@ write-borrow parameter (a temporary has no storage to write back). A move-in par
 not a write borrow of a place and takes a call result. The rule runs in `MAREA_SemaCheckOwnership` and
 `MAREA_SemaCheckWriteArguments`; the typed AST pass only rebuilds the table and reports nothing.
 `value_read_only` is legal only on a primitive; writing it on anything else is `INVALID_BORROW`
-(3017). `owned<T>` moves in regardless of `semantics`. A primitive, an `array`, `pointer`, `slice`
+(3017). `owned<T>` moves in regardless of `semantics`, and a name, a field or an element given to an
+`owned<T>` parameter needs `copy` or `move` like an assignment (3016, at the argument). A primitive, an `array`, `pointer`, `slice`
 and an enum is by value for the *ownership mode* (`MAREA_SemaOwnershipMode`) no matter what
 `semantics` says - checked before `semantics` is even read, the one place `array`/`pointer`/
 `slice` differ from every other non-primitive: the ownership mode is always `VALUE`, so a
@@ -309,6 +310,11 @@ unsigned value is rejected with `NEGATE_UNSIGNED` (3036); a negated literal is t
 left side folds to the lowest value of a signed type and whose right side folds to -1 is rejected with `SIGNED_DIVISION_OVERFLOW` (3037).
 The folder reads an integer literal, one unary minus and parentheses. The signed type is the primitive of an operand, else the declared type
 of the `local`, `constant`, `return` or assignment that holds the division.
+
+**Scope of a parallel construct.** A `spawn` and a `partition` need an enclosing `fork_join` block in the same function.
+Without one, sema reports `PARALLEL_CONSTRUCT_OUTSIDE_FORK_JOIN` (3062) at the construct and runs no other check on it,
+so the argument rules below run only inside a block. The count of blocks is per function: a block of an outer function
+never covers a `spawn` of another one.
 
 **Spawn.** In `fork_join`, each argument of `spawn f(...)` is a `partition` part, a literal, a file
 constant, or a name that is not a `reference_mutable` (write-borrow) parameter and not the source of
@@ -786,7 +792,7 @@ or rejects.
 | 3013 | `CONTRACT_NOT_SATISFIED` | `maximum(a, b)` when the type of `a` has no `less` for `where Item: Comparable` |
 | 3014 | `GENERIC_ARGUMENT_MISMATCH` | `Pair<sinteger32>` when `Pair` has two parameters, `Box<4>`, `local x: array<sinteger8, 4> = values;` when `values` is `array<sinteger32, 4>` |
 | 3015 | `INSTANTIATION_TOO_DEEP` | a type argument nested 65 levels |
-| 3016 | `ASSIGNMENT_NEEDS_COPY_OR_MOVE` | `a = b;` when the type is not a primitive, a copyable `array` or an enum; a library storage type (`c.array`, `c.vector`, `c.table`, `c.owned`, `c.task`) needs the word too |
+| 3016 | `ASSIGNMENT_NEEDS_COPY_OR_MOVE` | `a = b;` when the type is not a primitive, a copyable `array` or an enum; a library storage type (`c.array`, `c.vector`, `c.table`, `c.owned`, `c.task`) needs the word too; so does a name, a field or an element given to an `owned<T>` parameter, reported at the argument (`MAREA_SemaCheckOwnedArguments`; a `vector` or `task` parameter is not checked, and an argument of unknown type is accepted) |
 | 3017 | `INVALID_BORROW` | `#[semantics = value_read_only] s: Shape` when `Shape` is not a primitive |
 | 3018 | `REFERENCE_ESCAPES_SCOPE` | `return s;` when `s` is a borrow parameter |
 | 3019 | `EXCLUSIVE_BORROW_CONFLICT` | `take(s, s)` when one parameter's effective `semantics` is `reference_mutable` |
@@ -826,6 +832,7 @@ or rejects.
 | 3059 | `COMPILE_TIME_ASSERTION_FAILED` | `compile_error!("stop");` with any arguments, at the top level or in a function body; `static_assert!(1 == 2, "never");` or `static_assert!(N == 5, "n");` when the condition is a constant that is false |
 | 3060 | `UNKNOWN_MACRO` | `shout!("hello");` when `shout` is none of the 13 built-in macros, at the call |
 | 3061 | `INVALID_MACRO_ARGUMENT` | `print!();`, `print!(1, 2);`, `print!("{} {}", 1);`, `assert!(1, "x");`, `unreachable!(1);`, `log!(loud, "x");`, `include_text!(1);`: the wrong count of arguments, a literal of the wrong kind, a log level that is not one of the five, or a count of `{}` that differs from the count of values, at the offending argument |
+| 3062 | `PARALLEL_CONSTRUCT_OUTSIDE_FORK_JOIN` | `function f(a: sinteger32) spawn g(a); end` or `partition values into 2 as part do end` with no `fork_join` block around it, also a `spawn` after the `end` of a block: raised at the `spawn` or `partition` and nothing else for that construct |
 | 3065 | `LOCAL_WITHOUT_INITIAL_VALUE` | `local x: sinteger32;` with no `= value`, for a primitive, a structure, a `pointer` or an `array`, at any depth of nesting |
 | 3066 | `PRIVATE_SYMBOL_ACCESS` | `b.hidden()` or `b.LIMIT` after `import a.b;` (or an alias) when the member is a top-level declaration of a `FOUND` namespace with `#[visibility = private]` |
 | 3067 | `PRIVATE_TYPE_ACCESS` | `s: b.Secret`, `b.Secret{ }` or any written `b.Secret` when the structure, enum, opaque or alias of a `FOUND` namespace is private |
