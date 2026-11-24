@@ -128,6 +128,15 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaDeclareLocal(MAREA_SemaContext *context, c
         }
     }
 
+    // INFO: the same shadow rule for the read-only table: a new local is writable even when it reuses the name of a read-only borrow.
+    if ((MAREA_AstNodeGetKind(node) == MAREA_AST_KIND_LOCAL_DECLARATION) && (MAREA_SemaIsReadOnly(context, name) == MAREA_BOOLEAN_TRUE)) {
+        const MAREA_SemaExcept WRITABLE_RESULT = MAREA_SemaTableAppend(context, &context->readOnly, (MAREA_SemaName){ .text = MAREA_AstNodeGetText(name), .declaration = MAREA_NULLPTR, .length = MAREA_AstNodeGetTextLength(name), .kind = MAREA_SEMA_NAME_KIND_DECLARATION });
+
+        if (WRITABLE_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return WRITABLE_RESULT;
+        }
+    }
+
     return MAREA_SemaTableAppend(context, &context->locals, (MAREA_SemaName){ .text = MAREA_AstNodeGetText(name), .declaration = type, .length = MAREA_AstNodeGetTextLength(name), .kind = MAREA_SEMA_NAME_KIND_DECLARATION });
 }
 

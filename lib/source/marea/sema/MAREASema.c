@@ -38,6 +38,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaContextCreate(MAREA_Arena *arena, MAREA_Di
     context->generics = (MAREA_SemaNameTable){ 0 };
     context->locals = (MAREA_SemaNameTable){ 0 };
     context->references = (MAREA_SemaNameTable){ 0 };
+    context->readOnly = (MAREA_SemaNameTable){ 0 };
     context->localStart = 0;
     context->functionLocalStart = 0;
     context->root = MAREA_NULLPTR;
@@ -244,6 +245,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckCompilationUnit(MAREA_SemaContext *co
     context->generics = (MAREA_SemaNameTable){ 0 };
     context->locals = (MAREA_SemaNameTable){ 0 };
     context->references = (MAREA_SemaNameTable){ 0 };
+    context->readOnly = (MAREA_SemaNameTable){ 0 };
     context->root = root;
     context->function = MAREA_NULLPTR;
     context->implementation = MAREA_NULLPTR;
