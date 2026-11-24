@@ -61,8 +61,9 @@ written type. A name that only qualifies a member (`Planet` in `Planet.Earth`) h
 that the ir invents carry one too: a `ZERO_VALUE` has the type of the structure field it fills; the hidden locals
 `$lastN` (the type of the last bound), `$switch` (the type of the scrutinee) and `$return` (the type of the returned
 value) have the type they hold, and every `IDENTIFIER` that reads one shares it; the loop variable of a for-range loop
-has the type sema gave its name (else the type of the first value), and the step literal `1` its type; the tests the
-desugaring builds (`<=`, `==` and `or`) are `boolean`. The `ASSIGNMENT` of the step and every `DESTROY_CALL` stay
+has the type sema gave its name (else the type of the first value), and the step literal `1` its type; a
+`FOR_EACH_STATEMENT` has the type sema gave its value name, and its key the type sema gave it (see For-each
+lowering); the tests the desugaring builds (`<=`, `==` and `or`) are `boolean`. The `ASSIGNMENT` of the step and every `DESTROY_CALL` stay
 untyped: they are statements, not values.
 
 Some expressions stay untyped on purpose, because sema leaves them untyped (the closed list in the sema doc, "Gaps").
@@ -93,6 +94,10 @@ The type name is the head name of the written type, with no type arguments (`arr
 and on a non-generic `CALL_EXPRESSION`, from the type name the typed tree carries for the call result,
 when it has one. A `CALL_EXPRESSION` of a built-in or of a static call on a written type (see Type operands)
 follows the same rule, and a `TYPE_NAME` or a `BUILTIN_NAME` has no type name: it holds its name as text.
+The loop variable and `$lastN` of a for-range loop, a `FOR_EACH_STATEMENT` (its value) and the key of a for-each loop
+have no written type, so their type name is the head of their resolved type, the text before the first type
+argument (see For-range desugaring and For-each lowering); a function type has none. The other hidden locals
+(`$switch`, `$return`) keep no type name.
 An `ENUM_DECLARATION` also carries a type name, its tag type: the written tag when the source wrote one
 (`enum Name : uinteger8 ... end` gives `uinteger8`), or the literal `sinteger32` when it wrote none, the
 default the language spec sets for a tag with no written type.
@@ -231,7 +236,7 @@ loop body, a branch, an `if`, a `do ... end` scope) gets the destroys of its own
   outer ones. For a for-range `continue` the destroys stand in front of the step.
 - **Value of a return.** A `return` with a value is wrapped as `BLOCK(LOCAL_DECLARATION $return (value), destroy...,
   RETURN_STATEMENT(IDENTIFIER $return))`, so the value is read before any destroy runs and `return b.size;` never
-  reads a destroyed `b`. The hidden local `$return` has no type name and no flag, like `$last`, and its resolved type
+  reads a destroyed `b`. The hidden local `$return` has no type name and no flag, like `$switch`, and its resolved type
   is the resolved type of the value it holds. A `return` through two destructible scopes hoists once: the outer wrap
   sees the value `IDENTIFIER $return` and does not declare it again, so the outer destroys stand between the inner
   destroys and the `return`. A `return` with no value, a `break` and a `continue` are wrapped as before, with no
@@ -273,10 +278,15 @@ BLOCK
       ASSIGNMENT op=PLUS_EQUAL               -- the step, part 2: children IDENTIFIER name, INTEGER_LITERAL "1"
 ```
 
-The bound is inclusive (`<=`), because the grammar says a range includes both ends. The hidden loop
-variable and `$last` have no type name, but carry a resolved type: `$last0` the type of `last`, the variable the type
-sema gave its name (else the type of `first`); each read of them, the step literal `1`, and the two tests are typed
-too (the tests are `boolean`). The `last` expression is lowered once, into `$last0`, which is set
+The bound is inclusive (`<=`), because the grammar says a range includes both ends. The loop variable and
+`$last0` carry a type name and a resolved type, as a local of the source does: `$last0` the type of `last`, the
+variable the type sema gave its name (else the type of `first`). The resolved type is read with
+`MAREA_SemaTypedNodeGetResolvedType` on child 0 of the typed `FOR_RANGE_STATEMENT` (the counter; the bounds are
+children 1 and 2), and the type name is its head, the text before the first type argument, so a bound of type
+`uinteger8` gives `type=uinteger8 resolved=uinteger8`. Each read of the two, the step literal `1` and the two tests
+are typed too (the reads and the literal have a resolved type only, the tests are `boolean`). When sema gives the
+counter no type, the variable takes the type of `first`, and a bound with no type leaves its local with neither,
+never a guess. The `last` expression is lowered once, into `$last0`, which is set
 before the loop; the loop never evaluates it again. The name `$last0` cannot be a source identifier,
 so it never clashes with a user name. The hidden local carries no flag.
 
@@ -363,8 +373,22 @@ with one name is the value. With two names the first is the key and the second i
   each element. It is the one flag the node keeps. No local carries it for the loop, so on a
   `LOCAL_DECLARATION` it only marks the hidden loop variable of a for-range loop.
 - The names are the text of the node (the value) and the text of the `IDENTIFIER` child (the key), not locals,
-  because they declare names and do not read them; the key is a child because a node has one text. Neither
-  variable has a type name, because sema types no loop variable.
+  because they declare names and do not read them; the key is a child because a node has one text.
+- **Types of the two names.** Sema gives both names a type (`MAREA_SemaTypedNodeGetResolvedType`, see the sema doc,
+  "Loop names and collection"): the value is the element type of the collection, and the key, when written, is
+  `uinteger64`. The `FOR_EACH_STATEMENT` carries the type of its value, as a resolved type and as a type name, the
+  same way a `LOCAL_DECLARATION` carries the type of its name. The key child carries the type of the key the same
+  way. The type name is the head of the resolved type, the text before the first type argument (a dotted name is
+  kept whole), and the resolved type keeps the type arguments: for `rows: array<array<sinteger32,4>,2>` the value is
+  `type=array resolved=array<sinteger32,4>`. A function type as the element type has a resolved type and no type name,
+  as a written function type has none. When sema gives a name no type (a collection of a library it does not know,
+  such as `list`), the node or the key has neither, never a guess. The collection child is a lowered expression, so it
+  has its own resolved type (`array<float32,4>`), and a backend reads the element type from the value instead of
+  inferring it from the collection.
+- **No hidden locals.** The IR adds no `$each`, `$count` or `$index` local for the walk, and no step: the node is
+  the loop, and the types above are what a backend needs to give the value and the key a slot. A desugaring to
+  hidden locals would fix one way to walk the collection in the IR, and the way depends on the type of the
+  collection (a position for an array, a key for a table), so it stays a decision of the backend (see Gaps).
 - A `continue` or `break` in the body targets the `FOR_EACH_STATEMENT`, so it stays as it is. The node is a
   loop, so a `continue` of an enclosing for-range loop still gets its step, and the walk that puts the step
   there stops at a nested `FOR_EACH_STATEMENT`, as it stops at a nested `while`.
@@ -572,12 +596,15 @@ Each diagnostic carries the position of the construct that raised it. The messag
   elements, `owned<T>` storage and a `convert` result that exposes padding. A `PARAMETER`, a `CONSTANT_DECLARATION`
   and a `VARIANT_FIELD` with no value are outside the rule on purpose (see Zero-default creation), not an
   oversight.
-- A `FOR_EACH_STATEMENT` does not say what kind of collection it walks, or what the key is for it. Sema gives
-  no type for the collection, so a backend must find the type itself, and must reject, or handle in its own
-  way, a collection it cannot walk. The IR does not check that a loop with a key walks a collection that has
-  one.
-- The two loop variables of a `FOR_EACH_STATEMENT` have no type name, like the for-range `$last`, because sema
-  types no loop variable. A backend must infer them from the collection.
+- A `FOR_EACH_STATEMENT` does not say how its collection is walked, or what the key is for it beyond its type. The
+  collection has its own resolved type, and the value and the key carry theirs when sema gives one (see For-each
+  lowering), but sema types them only for `array`, `vector` and `slice` (also under `c.`). For any other collection
+  (`list`, a user type) the value and the key have no type, and a backend must find the type itself, and must
+  reject, or handle in its own way, a collection it cannot walk. The IR does not check that a loop with a key walks
+  a collection that has one.
+- A for-each loop has no hidden locals (`$each`, `$count`, `$index`) and no step: the walk is one node. A backend
+  that wants a counted loop builds it from the type of the collection. A desugaring to hidden locals would be a new
+  IR form, a decision not taken yet.
 - The hidden bound of a for-range loop is numbered, but `$switch` and `$return` are not: two `switch` statements
   that nest, or a `return` hoisted in an outer scope after an inner one, declare the same name in nested `BLOCK`
   scopes of one function. A backend that keys the locals of a function by name alone must still scope them by

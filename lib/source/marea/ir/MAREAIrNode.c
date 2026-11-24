@@ -342,6 +342,31 @@ void MAREA_CALL MAREA_IrNodeShareResolvedType(MAREA_IrNode *node, const MAREA_Ir
     node->resolvedTypeLength = source->resolvedTypeLength;
 }
 
+void MAREA_CALL MAREA_IrNodeSetTypeNameFromResolved(MAREA_IrNode *node)
+{
+    if ((node == MAREA_NULLPTR) || (node->resolvedType == MAREA_NULLPTR)) {
+        return;
+    }
+
+    static const MAREA_Character8 FUNCTION_HEAD[] = "function(";
+
+    const MAREA_IntegerSize HEAD_LENGTH = strlen(FUNCTION_HEAD);
+
+    // INFO: a function type has no head name, as a written FUNCTION_TYPE has none.
+    if ((node->resolvedTypeLength >= HEAD_LENGTH) && (memcmp(node->resolvedType, FUNCTION_HEAD, HEAD_LENGTH) == 0)) {
+        return;
+    }
+
+    MAREA_IntegerSize length = MAREA_INTEGER_SIZE(0);
+
+    while ((length < node->resolvedTypeLength) && (node->resolvedType[length] != '<')) {
+        length = (length + MAREA_INTEGER_SIZE(1));
+    }
+
+    node->typeName = node->resolvedType;
+    node->typeNameLength = length;
+}
+
 void MAREA_CALL MAREA_IrNodeSetResolvedTypeStatic(MAREA_IrNode *node, const MAREA_Character8 *text)
 {
     if ((node == MAREA_NULLPTR) || (text == MAREA_NULLPTR)) {
