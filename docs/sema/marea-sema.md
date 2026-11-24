@@ -572,6 +572,15 @@ of that function in the file raises `UNDECLARED_NAME` (3004) with the message "f
 There is no forward declaration. A recursive call is fine, a local of the same name hides the function, and a
 constant initializer is not checked for it.
 
+**Fields of a structure.** For a structure that this file declares (an alias is followed), a literal value is checked
+against the fields: a key that no field has is `UNKNOWN_FIELD` (3044), a key given twice is `DUPLICATE_MEMBER` (3012) and
+the value of a field must fit the declared type by the rule of `TYPE_MISMATCH` (3011), so a primitive field is compared
+and any other field type is skipped. A field read or a field write (`point.z`, `point.z = 1.0;`) whose base has a known
+structure type and names no field is `UNKNOWN_FIELD` (3044). Each defect is reported once, at the entry or the access.
+A structure of another namespace, an enum, a library type and a generic parameter are skipped, and so is a
+`MEMBER_ACCESS` that is the callee of a call, which is a method. A literal with a missing field raises nothing: the
+ir gives an omitted field the zero value.
+
 **Entry point.** Sema treats `main` as an ordinary function: any signature is accepted and no diagnostic is
 raised. Sema never requires a `main`. The code 3023 (`INVALID_MAIN_SIGNATURE`) is retired and stays reserved, never
 reused.
@@ -820,6 +829,7 @@ or rejects.
 | 3040 | `ASSIGNMENT_TO_CONSTANT` | `LIMIT = 11;`, `LIMIT += 1;`, `ORIGIN.x = 1;`, `TABLE[0] = 1;` when the root name is a file constant and no local hides it |
 | 3041 | `RAW_POINTER_OUTSIDE_UNSAFE` | `local raw: pointer<sinteger32> = f();` with no `unsafe ... end` block around it, at any depth of nesting |
 | 3043 | `NON_BOOLEAN_CONDITION` | `if n then`, `elseif s then`, `while 1 do` when the condition has a known primitive type that is not `boolean`, or is a number, string or character literal |
+| 3044 | `UNKNOWN_FIELD` | `Point{ z = 1.0 }`, `point.z` or `point.z = 1.0;` when `Point` has no field `z` |
 | 3045 | `RECURSIVE_TYPE` | `structure Node next: Node; end` |
 | 3046 | `CYCLIC_TYPE_ALIAS` | `type First = Second; type Second = First;` |
 | 3049 | `UNKNOWN_TYPE_FUNCTION` | `point.length()` or `Point.origin()` when no `implementation` of `Point` declares it |
@@ -864,6 +874,7 @@ or rejects.
 - `TYPE_MISMATCH` (3011) sorts the type of an expression into a fixed set of shapes: a literal, a primitive, a
   structure, and, known but never compared, an enum, a library type, a generic parameter and an `owned`, `task`, `vector` or `array` value. Still fully unknown: a `pointer`, a `slice`, the type of a field or a file
   constant that is not a primitive, and the result of a generic call (see below).
+- A struct literal with a missing field is accepted on purpose, because the zero-default rule of the ir lowers an omitted field to a zero value. The catalogue item L-TYPES-023 (rule: reject) stays a known_gap item and waits for a decision of the user.
 - A call of a method or of an imported function that has no result, used as a value, is not seen: sema cannot see its
   result (`INVALID_RESULT_USE`, 3054).
 - The type arguments of a generic type are compared (3014) only for two types of one head name and one argument
