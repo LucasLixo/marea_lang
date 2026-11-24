@@ -374,6 +374,10 @@ write-borrow parameter.
 | L-OWNERSHIP-046 | A structure is used after it was moved into an owned parameter | 3070 @34 |
 | L-OWNERSHIP-048 | An owned parameter is used after it was moved on | 3070 @25 |
 | L-OWNERSHIP-050 | A structure is used after the box that holds it was moved | 3070 @26 |
+| L-OWNERSHIP-051 | A field is moved out and the owner is used | 3072 @26 |
+| L-OWNERSHIP-053 | A field is moved out and then the whole structure is moved | 3072 @26 |
+| L-OWNERSHIP-054 | An element of a vector is moved out and the vector is used | 3072 @21 |
+| L-OWNERSHIP-055 | A for each element is moved out of the loop owner | 3072 @21 |
 | L-OWNERSHIP-058 | A local with no initial value is read | 3065 @20 |
 | L-OWNERSHIP-060 | A local is assigned in one branch only and then read | 3065 @20 |
 | L-OWNERSHIP-062 | A local is assigned in one arm of switch only and then read | 3065 @20 |
@@ -434,10 +438,6 @@ write-borrow parameter.
 |---|---|---|
 | L-OWNERSHIP-042 | A structure is moved in one branch and used after the branch | gap: #198 NEW, rule: reject |
 | L-OWNERSHIP-044 | A structure is moved in one arm of switch and used after it | gap: #198 NEW, rule: reject |
-| L-OWNERSHIP-051 | A field is moved out and the owner is used | gap: #199 NEW, rule: reject |
-| L-OWNERSHIP-053 | A field is moved out and then the whole structure is moved | gap: #199 NEW, rule: reject |
-| L-OWNERSHIP-054 | An element of a vector is moved out and the vector is used | gap: #199 NEW, rule: reject |
-| L-OWNERSHIP-055 | A for each element is moved out of the loop owner | gap: #199 NEW, rule: reject |
 | L-OWNERSHIP-056 | A read-only borrow is moved out | gap: #200 NEW, rule: reject |
 | L-OWNERSHIP-057 | A file constant is moved out | gap: #200 NEW, rule: reject |
 | L-OWNERSHIP-142 | An existing value is given to an owned parameter with no word | 3016 @29 |
@@ -1087,8 +1087,9 @@ Facts the items fix, checked by running the compiler:
   literal, else branch, method, operator, generic with a bound (items 034 to 039).
 - The word that makes an assignment explicit is checked on a name that is a plain value (3016, items 040, 041, 045), on a
   returned borrow (3018, items 043, 044, 046, 047, 048) and on one call that shares a write borrow (3019, item 042). The
-  same word swapped from `copy` to `move` is never checked against the source: a `move` of a borrow, a file constant, a
-  `for each` element or a field is accepted (issues #199 and #200, items 013, 015, 050 to 052, 056 to 060, 066).
+  same word swapped from `copy` to `move` is never checked against the source: a `move` of a borrow or a file constant
+  is accepted (issue #200, items 013, 050, 052, 056 to 060, 066). A `move` of a `for each` element, of a field or of an
+  element of an owner gives 3072 (issue #199, items 015, 051, 053 to 055, 057).
 - The use of a value after `move` gives 3070, and a second move gives 3071, through every path tried here: a loop in a
   `fork_join` block, the body of a partition, a generic function, a method call and a second move into a generic
   function (issue #198, items 001, 002, 004, 016, 026, 027, 030). A move in only some arms of a branch is accepted by
@@ -1125,6 +1126,7 @@ generic or an alias leads to is not checked by sema either (see the sema doc, Ga
 | L-ADVERSARIAL-011 | A field of a borrow is returned from an arm of switch | 3018 @38 |
 | L-ADVERSARIAL-012 | A contract method stores its receiver in a write borrow | 3018 @41, 3016 @41 |
 | L-ADVERSARIAL-014 | A contract method writes its receiver with the default borrow | 3069 @41 |
+| L-ADVERSARIAL-015 | A for each element is moved into an owned parameter | 3072 @37 |
 | L-ADVERSARIAL-016 | A value moved into an owned parameter is spawned afterwards | 3070 @59 |
 | L-ADVERSARIAL-017 | A local with no initial value is spawned | 3065 @56 |
 | L-ADVERSARIAL-018 | A literal out of range is the argument of a spawn | 3033 @61 |
@@ -1158,8 +1160,10 @@ generic or an alias leads to is not checked by sema either (see the sema doc, Ga
 | L-ADVERSARIAL-047 | Mutant of L-TYPES-111: the owned wrapper is dropped from a generic parameter that is returned | 3018 @11 |
 | L-ADVERSARIAL-048 | Mutant of L-TYPES-075: the copy word is dropped from a generic result | 3018 @25 |
 | L-ADVERSARIAL-049 | Mutant of L-BINDINGS-092: the unsafe word is dropped | 2004 @14, 2004 @14, 2005 @15, 3022 @10 |
+| L-ADVERSARIAL-051 | Mutant of L-OWNERSHIP-014: copy is swapped for move on a for each element | 3072 @22 |
 | L-ADVERSARIAL-054 | Mutant of L-OWNERSHIP-078: the write attribute becomes read-only on the owner of the elements that two calls write | 3069 @26, 3069 @26 |
 | L-ADVERSARIAL-055 | Mutant of L-OWNERSHIP-106: the write attribute becomes read-only on a primitive parameter that the body writes | 3069 @21 |
+| L-ADVERSARIAL-057 | Mutant of L-OWNERSHIP-118: copy is swapped for move in a return of a for each element | 3072 @22 |
 | L-ADVERSARIAL-061 | Mutant of L-PARALLEL-001: the mutable word is dropped from a for each that writes its element | 3069 @40 |
 | L-ADVERSARIAL-062 | Mutant of L-PARALLEL-006: the write attribute becomes read-only on the source of a partition mutable | 3069 @54, 3069 @55 |
 | L-ADVERSARIAL-063 | Mutant of L-PARALLEL-006: the write attribute is dropped from the source of a partition mutable | 3069 @54, 3069 @55 |
@@ -1178,14 +1182,11 @@ generic or an alias leads to is not checked by sema either (see the sema doc, Ga
 |---|---|---|
 | L-ADVERSARIAL-003 | A value moved in an arm of switch is spawned after the switch | gap: #198 NEW, rule: reject |
 | L-ADVERSARIAL-013 | A contract method moves its receiver into a write borrow | gap: #200 NEW, rule: reject |
-| L-ADVERSARIAL-015 | A for each element is moved into an owned parameter | gap: #199 NEW, rule: reject |
 | L-ADVERSARIAL-023 | The source of a partition mutable is read in the body while the parts are written | gap: #232 NEW, rule: reject |
 | L-ADVERSARIAL-050 | Mutant of L-OWNERSHIP-012: copy is swapped for move on a borrowed parameter | gap: #200 NEW, rule: reject |
-| L-ADVERSARIAL-051 | Mutant of L-OWNERSHIP-014: copy is swapped for move on a for each element | gap: #199 NEW, rule: reject |
 | L-ADVERSARIAL-052 | Mutant of L-OWNERSHIP-024: copy is swapped for move on a file constant | gap: #200 NEW, rule: reject |
 | L-ADVERSARIAL-053 | Mutant of L-OWNERSHIP-047: the move word is dropped from an owned argument | 3016 @35 |
 | L-ADVERSARIAL-056 | Mutant of L-OWNERSHIP-114: copy is swapped for move in a return of a borrow | gap: #200 NEW, rule: reject |
-| L-ADVERSARIAL-057 | Mutant of L-OWNERSHIP-118: copy is swapped for move in a return of a for each element | gap: #199 NEW, rule: reject |
 | L-ADVERSARIAL-058 | Mutant of L-OWNERSHIP-122: copy is swapped for move on a borrow stored in a struct literal | gap: #200 NEW, rule: reject |
 | L-ADVERSARIAL-059 | Mutant of L-OWNERSHIP-124: copy is swapped for move on a borrow stored in a field | gap: #200 NEW, rule: reject |
 | L-ADVERSARIAL-060 | Mutant of L-OWNERSHIP-127: copy is swapped for move on a borrow appended to a vector | gap: #200 NEW, rule: reject |
@@ -1239,7 +1240,7 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 
 | area | accept | reject | known_gap |
 |---|---|---|---|
-| adversarial | 0 | 59 | 13 |
+| adversarial | 0 | 62 | 10 |
 | bindings | 33 | 80 | 0 |
 | coverage | 0 | 1 | 0 |
 | examples | 20 | 0 | 0 |
@@ -1247,11 +1248,11 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | interop | 17 | 28 | 0 |
 | memory | 15 | 18 | 0 |
 | namespaces | 17 | 34 | 0 |
-| ownership | 65 | 72 | 8 |
+| ownership | 65 | 76 | 4 |
 | parallel | 19 | 36 | 4 |
 | seed | 1 | 2 | 0 |
 | types | 60 | 132 | 4 |
-| total | 266 | 516 | 29 |
+| total | 266 | 523 | 22 |
 
 ## Parity plan
 

@@ -335,7 +335,15 @@ arm of an `if`/`elseif`/`else` or `switch` starts from the state the statement s
 the statement has an `else` or `default`, and a `do` block is not a branch. The body of a loop (`while`, `for`, `for each`,
 `partition`) starts from the state the loop started with, and nothing it moves counts after the loop, because it may run zero times. A
 body that moves a local declared outside the loop, and has no `break` or `return` among its own statements, would move it again on
-the next turn: `VALUE_MOVED_AGAIN` at the `move`. A move of a field or an element (`move x.inner`) marks nothing here.
+the next turn: `VALUE_MOVED_AGAIN` at the `move`. A move of a field or an element (`move x.inner`, `move xs[0]`) of a local that is not a borrow, when the part is not by value and sema can
+see its type, marks that part: the entry keeps the chain of the first part moved out (`partAt`), and it saves, loads and merges with the
+`moved` bit in the frame of a branch, but a part counts after a branch only when every arm that reaches the end moved the same part. A
+later use of a path that holds the moved part (`x`, passed or moved whole, or a method called on it) or lies inside it (`x.inner.y`, the
+part itself again) is `USE_OF_PARTIALLY_MOVED_VALUE` (3072), raised at the access; a path that differs from it at a field name or a
+literal index (`x.count`, `xs[1]`) is not a use. An index that is not an integer literal is never equal to another index, so it is never
+compared. A plain assignment to the part, or to a path that holds it, or to the whole local, makes the part live again. A `move` of a
+`for each` loop name, whose collection is a `vector`, `array` or `slice` (also inside `owned`) of a type that is not by value, is also
+3072 at the name, because the loop reads the collection again on the next turn; a loop with a key and a value is not read.
 
 **Integer literal range.** An integer literal (decimal, `0x` or `0b`, with `_` between digits, with one
 leading minus and any parentheses) must fit the integer primitive it meets: `sinteger8` to `sinteger64`, `uinteger8`
@@ -920,6 +928,7 @@ or rejects.
 | 3069 | `WRITE_THROUGH_READ_ONLY_BORROW` | `function f(p: Point) p.x = 1; end`, `for each v in mutable xs do end` with `xs` read-only, `write_point(p)` with a read-only `p`, `write_point(make_point())` or `set(1)` for a write-borrow parameter |
 | 3070 | `USE_OF_MOVED_VALUE` | `local b: Point = move a; local c: sinteger32 = a.x;`, `take(move a); read(a);`, `spawn read(a);` or `a.sum()` after `a` was moved, also after a `do` block or after every arm of a branch moved it |
 | 3071 | `VALUE_MOVED_AGAIN` | `move a;` twice, or `move a` of a local declared outside the loop in a loop body that has no `break` or `return` of its own, at the name or at the `move` |
+| 3072 | `USE_OF_PARTIALLY_MOVED_VALUE` | `local s: Shape = move o.inner; local x: float32 = o.inner.x;`, `move o.inner;` then `take(move o);`, `o.total()` after `move o.inner`, `move v[0]; ... v[0].x`, or `move item` of a `for each` element of a collection of a type that is not by value, at the access or at the name |
 | 3073 | `VALUE_CHANGED_WHILE_BORROWED` | `for each x in v do v[0] = ...; end`, `for each x in v do local o: vector<P> = move v; end`, `for each x in mutable v do v.append(...); end`, `with p as view do p.x = 2; end` or `with p as view do local o: P = move p; end`: the source of a `for each` or a `with` block is written, moved or changed by a library call (`append`, `insert`, `remove`, `clear`, `pop`, `push`, `resize`) in the body |
 | 3074 | `CONFLICTING_PARALLEL_ACCESS` | `spawn write(a); spawn write(a);`, `spawn write(a); spawn read(a);`, `spawn write(a); a.y = 5;` or a `spawn write(a);` in a loop in a `fork_join` block when `a` is declared before the block, and `partition xs ...` with a `spawn write(xs)` in the same block |
 
@@ -1135,9 +1144,11 @@ or rejects.
   source (a `with` name that is a view of it), is not seen. A write or a move in a nested function-like body is not a case, because the language
   has none. Two elements of one vector overlap in a call unless both indices are integer literals of two values, so `two_write(v[i], v[j])` is
   rejected even when `i` and `j` differ at run time.
-- The move state (3070, 3071) is the first check built on that design. It covers a whole local or parameter only: a move of a field or
-  an element (`move x.inner`, `move xs[0]`), a moved loop variable and a moved `with` name are not tracked, the partial move is a later
-  rule. A move in some arms of an `if` or `switch` only, and a move in a loop body that a `break` or `return` ends, are accepted by the
+- The move state (3070, 3071) is the first check built on that design. It covers a whole local or parameter only; the moved part
+  (3072) is a second, narrower state on the same entry. A moved `with` name is not tracked. The moved part keeps one chain per local
+  (the first), so a second moved part, a part moved with a computed index, a part whose type sema cannot see (a library type, a
+  generic), a part moved in a loop body (a second turn is not reported) and a part reached through a borrow are not tracked, and a use
+  of one of them is accepted by the rounding rule. A move in some arms of an `if` or `switch` only, and a move in a loop body that a `break` or `return` ends, are accepted by the
   rounding rule, so `L-OWNERSHIP-042`, `L-OWNERSHIP-044` and `L-ADVERSARIAL-003` stay `known_gap`. A loop body that has a `break` or a
   `return` among its own statements is never reported, even if the move comes after a conditional `break`. A `break` or `continue`
   inside an arm does not end the arm for the merge, only a `return`-style end does. A name read through a function-type local is a read

@@ -21,6 +21,7 @@ namespace
     constexpr MAREA_Uinteger32 INVALID_SPAWN{ MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_SPAWN_ARGUMENT };
     constexpr MAREA_Uinteger32 USE_MOVED{ MAREA_SEMA_DIAGNOSTIC_CODE_USE_OF_MOVED_VALUE };
     constexpr MAREA_Uinteger32 MOVED_AGAIN{ MAREA_SEMA_DIAGNOSTIC_CODE_VALUE_MOVED_AGAIN };
+    constexpr MAREA_Uinteger32 PARTLY_MOVED{ MAREA_SEMA_DIAGNOSTIC_CODE_USE_OF_PARTIALLY_MOVED_VALUE };
 
     const std::string SHAPE{ "structure Shape x: float32; end structure Outer inner: Shape; end function make(): Shape return Shape{ x = 1.0 }; end " };
 
@@ -475,6 +476,54 @@ TEST(MAREASemaOwnership, UseAfterMoveOfOpaqueOwnerAndMethodReceiver)
     EXPECT_EQ(MAREA_codesOf(SHAPE + "implementation Shape function sum(self: Shape): float32 return self.x; end end function f(): float32 local a: Shape = make(); local b: Shape = move a; return a.sum(); end"), Codes{ USE_MOVED }) << "A method call on a moved value must raise USE_OF_MOVED_VALUE.";
 
     EXPECT_EQ(MAREA_codesOf("function sink<Item>(value: owned<Item>) where Item: Movable end function twice<Item>(value: owned<Item>) where Item: Movable sink(move value); sink(move value); end"), Codes{ MOVED_AGAIN }) << "A generic owned parameter moved twice must raise VALUE_MOVED_AGAIN.";
+}
+
+TEST(MAREASemaOwnership, UseAfterPartMoved)
+{
+    GTEST_COUT << "Validating a use of an owner after a field or an element of it was moved out raises USE_OF_PARTIALLY_MOVED_VALUE, and a disjoint part, a reassigned part and a by value part raise nothing." << std::endl;
+
+    const std::string OUTER{ SHAPE + "function sum(a: Shape): float32 return a.x; end " };
+
+    EXPECT_EQ(MAREA_codesOf(OUTER + "function f() local o: Outer = Outer{ inner = make() }; local s: Shape = move o.inner; local t: Shape = move o; end"), Codes{ PARTLY_MOVED }) << "A move of the whole owner after a field was moved out must raise USE_OF_PARTIALLY_MOVED_VALUE.";
+
+    EXPECT_EQ(MAREA_codesOf(OUTER + "function f() local o: Outer = Outer{ inner = make() }; local s: Shape = move o.inner; local x: float32 = o.inner.x; end"), Codes{ PARTLY_MOVED }) << "A read below the moved field must raise USE_OF_PARTIALLY_MOVED_VALUE.";
+
+    EXPECT_EQ(MAREA_codesOf(OUTER + "function f() local o: Outer = Outer{ inner = make() }; local s: Shape = move o.inner; local r: float32 = sum(o.inner); end"), Codes{ PARTLY_MOVED }) << "A read of the moved field itself must raise USE_OF_PARTIALLY_MOVED_VALUE.";
+
+    EXPECT_EQ(MAREA_codesOf(OUTER + "function f() local o: Outer = Outer{ inner = make() }; local s: Shape = move o.inner; local t: Shape = move o.inner; end"), Codes{ PARTLY_MOVED }) << "A second move of the same field must raise USE_OF_PARTIALLY_MOVED_VALUE.";
+
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "implementation Outer function total(self: Outer): float32 return 1.0; end end function f(): float32 local o: Outer = Outer{ inner = make() }; local s: Shape = move o.inner; return o.total(); end"), Codes{ PARTLY_MOVED }) << "A method call on the owner after a field was moved out must raise USE_OF_PARTIALLY_MOVED_VALUE.";
+
+    EXPECT_TRUE(MAREA_codesOf("structure Pair a: Shape; b: Shape; end " + SHAPE + "function f() local p: Pair = Pair{ a = make(), b = make() }; local s: Shape = move p.a; local x: float32 = p.b.x; end").empty()) << "A read of a sibling field must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(OUTER + "function f() local o: Outer = Outer{ inner = make() }; local s: Shape = move o.inner; o.inner = make(); local x: float32 = o.inner.x; end").empty()) << "An assignment to the moved field must make it live again.";
+
+    EXPECT_TRUE(MAREA_codesOf(OUTER + "function f() local o: Outer = Outer{ inner = make() }; local s: Shape = move o.inner; o = Outer{ inner = make() }; local x: float32 = o.inner.x; end").empty()) << "An assignment to the whole owner must make it live again.";
+
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f() local s: Shape = make(); local x: float32 = move s.x; local y: float32 = s.x; end").empty()) << "A by value field is copied, so a move of it must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(OUTER + "function f(n: sinteger32) local o: Outer = Outer{ inner = make() }; if n == 1 then local s: Shape = move o.inner; end end local x: float32 = o.inner.x; end").empty()) << "A part moved in one arm only must round toward valid.";
+
+    EXPECT_EQ(MAREA_codesOf(OUTER + "function f(n: sinteger32) local o: Outer = Outer{ inner = make() }; if n == 1 then local s: Shape = move o.inner; end else local t: Shape = move o.inner; end end local x: float32 = o.inner.x; end"), Codes{ PARTLY_MOVED }) << "A part moved in every arm must reach after the branch.";
+}
+
+TEST(MAREASemaOwnership, UseAfterElementMoved)
+{
+    GTEST_COUT << "Validating a use of a collection after an element was moved out, and a move of a for each element, raise USE_OF_PARTIALLY_MOVED_VALUE." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(v: owned<vector<Shape>>): float32 local s: Shape = move v[0]; return v[0].x; end"), Codes{ PARTLY_MOVED }) << "A read of the moved element must raise USE_OF_PARTIALLY_MOVED_VALUE.";
+
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function take(v: owned<vector<Shape>>) end function f(v: owned<vector<Shape>>) local s: Shape = move v[0]; take(move v); end"), Codes{ PARTLY_MOVED }) << "A move of the whole collection after an element was moved out must raise USE_OF_PARTIALLY_MOVED_VALUE.";
+
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(v: owned<vector<Shape>>): float32 local s: Shape = move v[0]; return v[1].x; end").empty()) << "A read of another literal index must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(v: owned<vector<Shape>>, i: sinteger32, j: sinteger32): float32 local s: Shape = move v[i]; return v[j].x; end").empty()) << "A computed index is never compared, so it must raise nothing.";
+
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(v: vector<Shape>) for each item in v do local s: Shape = move item; end end"), Codes{ PARTLY_MOVED }) << "A move of a for each element must raise USE_OF_PARTIALLY_MOVED_VALUE.";
+
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(v: owned<vector<Shape>>, w: owned<vector<Shape>>) for each item in v do local o: vector<Shape> = move w; break; end end").empty()) << "A move of the collection itself is not a move of a loop element, so it must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("function f(v: vector<sinteger32>) for each item in v do local s: sinteger32 = move item; end end").empty()) << "A by value for each element is copied, so a move of it must raise nothing.";
 }
 
 TEST(MAREASemaOwnership, FieldOfABorrowCannotBeReturned)
