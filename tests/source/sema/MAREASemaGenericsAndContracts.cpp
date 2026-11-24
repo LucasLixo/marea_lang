@@ -343,7 +343,7 @@ TEST(MAREASemaGenericsAndContracts, UnseenReceiverIsNotChecked)
 
     EXPECT_EQ(fixture.MAREA_semaCodes(), Codes{}) << "A library type must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("function run<Item>(value: Item) value.anything(); end").empty()) << "A generic parameter must raise nothing.";
+    EXPECT_EQ(MAREA_codesOf("function run<Item>(value: Item) value.anything(); end"), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_BOUND_OPERATION_NOT_GIVEN }) << "A generic parameter with no bound must raise BOUND_OPERATION_NOT_GIVEN.";
 }
 
 TEST(MAREASemaGenericsAndContracts, NarrowedTypeArgumentRaisesMismatch)
@@ -374,4 +374,42 @@ TEST(MAREASemaGenericsAndContracts, MatchingTypeArgumentRaisesNothing)
     EXPECT_TRUE(MAREA_codesOf("function check<Item>(values: array<Item, 4>): sinteger32 local second: array<sinteger32, 4> = values; return 1; end").empty()) << "A generic parameter argument must raise nothing.";
 
     EXPECT_TRUE(MAREA_codesOf("type Small = sinteger8; function check(values: array<Small, 4>): sinteger32 local second: array<sinteger8, 4> = values; return 1; end").empty()) << "An alias argument must raise nothing.";
+}
+
+TEST(MAREASemaGenericsAndContracts, OperatorOnGenericValueIsRejected)
+{
+    GTEST_COUT << "Validating an operator on a generic value that no bound gives raises BOUND_OPERATION_NOT_GIVEN." << std::endl;
+
+    constexpr MAREA_Uinteger32 NOT_GIVEN{ MAREA_SEMA_DIAGNOSTIC_CODE_BOUND_OPERATION_NOT_GIVEN };
+
+    EXPECT_EQ(MAREA_codesOf("function add<Item>(left: Item, right: Item): Item return left + right; end"), Codes{ NOT_GIVEN }) << "A + on Item must raise.";
+    EXPECT_EQ(MAREA_codesOf("function less<Item>(left: Item, right: Item): boolean return left < right; end"), Codes{ NOT_GIVEN }) << "A < on Item must raise.";
+    EXPECT_EQ(MAREA_codesOf("function same<Item>(left: Item, right: Item): boolean return left == right; end"), Codes{ NOT_GIVEN }) << "A == on Item must raise.";
+    EXPECT_EQ(MAREA_codesOf("function grow<Item>(#[semantics = reference_mutable] x: Item, y: Item) x += y; end"), Codes{ NOT_GIVEN }) << "A += on Item must raise.";
+}
+
+TEST(MAREASemaGenericsAndContracts, MemberCallOnGenericValueNeedsABound)
+{
+    GTEST_COUT << "Validating a member call on a generic value needs a listed contract with that function." << std::endl;
+
+    constexpr MAREA_Uinteger32 NOT_GIVEN{ MAREA_SEMA_DIAGNOSTIC_CODE_BOUND_OPERATION_NOT_GIVEN };
+
+    EXPECT_EQ(MAREA_codesOf("function f<Item>(a: Item): sinteger32 return a.size(); end"), Codes{ NOT_GIVEN }) << "A call with no where must raise.";
+    EXPECT_EQ(MAREA_codesOf("contract Printable function describe(self: Self): sinteger32; end function f<Item>(a: Item): sinteger32 where Item: Printable return a.size(); end"), Codes{ NOT_GIVEN }) << "A call that the contract does not list must raise.";
+    EXPECT_TRUE(MAREA_codesOf(COMPARABLE + "function f<Item>(left: Item, right: Item): boolean where Item: Comparable return left.less(right); end").empty()) << "A call that the contract lists must raise nothing.";
+
+    MAREA_SemaFixture fixture([](const std::string &, const MAREA_AstNode **) { return MAREA_SEMA_IMPORT_RESULT_EXTERNAL; });
+
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; import c.lib { Shape }; function f<Item>(left: Item): sinteger32 where Item: Shape return left.size(); end"), MAREA_SEMA_EXCEPT_SUCCESS);
+
+    EXPECT_EQ(fixture.MAREA_semaCodes(), Codes{}) << "A contract that the file does not declare must raise nothing.";
+}
+
+TEST(MAREASemaGenericsAndContracts, GenericThatOnlyMovesDataRaisesNothing)
+{
+    GTEST_COUT << "Validating a generic that copies, moves or uses primitives raises nothing." << std::endl;
+
+    EXPECT_TRUE(MAREA_codesOf("function first<Item>(a: Item): Item where Item: Copyable return copy a; end").empty()) << "A copy must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function pass<Item>(a: Item): Item where Item: Movable return move a; end").empty()) << "A move must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function count<Item>(a: Item): sinteger32 local x: sinteger32 = 1; local y: sinteger32 = 2; return x + y; end").empty()) << "An operator on primitives inside a generic function must raise nothing.";
 }

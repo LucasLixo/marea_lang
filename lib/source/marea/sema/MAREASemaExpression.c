@@ -764,6 +764,12 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsOpaqueName(const MAREA_SemaContext *co
     return (local == MAREA_NULLPTR) ? MAREA_BOOLEAN_FALSE : MAREA_G_IsOpaqueType(context, local->declaration);
 }
 
+// INFO: no contract has an operator, so no bound gives one: an operator with a generic side is an error in the definition.
+static MAREA_Boolean MAREA_CALL MAREA_G_HasGenericSide(const MAREA_G_Shape *left, const MAREA_G_Shape *right)
+{
+    return ((left->kind == MAREA_G_SHAPE_KIND_GENERIC) || (right->kind == MAREA_G_SHAPE_KIND_GENERIC)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
 // INFO: the operand rule runs only when the two sides agree in type, so one node never carries TYPE_MISMATCH and an operand code together.
 static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckOperands(MAREA_SemaContext *context, const MAREA_AstNode *expression)
 {
@@ -782,6 +788,12 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckOperands(MAREA_SemaContext *cont
     const MAREA_G_Shape right = MAREA_G_ShapeOf(context, rightNode, 0);
 
     const MAREA_TokenKind operatorKind = MAREA_AstNodeGetOperator(expression);
+
+    if (MAREA_G_HasGenericSide(&left, &right) == MAREA_BOOLEAN_TRUE) {
+        MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_BOUND_OPERATION_NOT_GIVEN, MAREA_AstNodeGetPosition(expression), "a generic value has no operator without a bound");
+
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
 
     const MAREA_SemaExcept result = MAREA_G_CheckPair(context, MAREA_AstNodeGetPosition(expression), operatorKind, &left, &right, "operands of a binary operator differ in type, one is");
 
@@ -813,6 +825,12 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckCompound(MAREA_SemaContext *cont
     const MAREA_G_Shape value = MAREA_G_ShapeOf(context, valueNode, 0);
 
     const MAREA_TokenKind operatorKind = MAREA_AstNodeGetOperator(assignment);
+
+    if (MAREA_G_HasGenericSide(&target, &value) == MAREA_BOOLEAN_TRUE) {
+        MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_BOUND_OPERATION_NOT_GIVEN, MAREA_AstNodeGetPosition(assignment), "a generic value has no operator without a bound");
+
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
 
     const MAREA_SemaExcept result = MAREA_G_CheckPair(context, MAREA_AstNodeGetPosition(assignment), operatorKind, &target, &value, "sides of a compound assignment differ in type, one is");
 
