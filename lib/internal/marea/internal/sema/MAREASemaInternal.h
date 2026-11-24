@@ -816,8 +816,8 @@ MAREA_BEGIN_EXTERN_C
      * @brief Reads the effective passing mode of a PARAMETER: its own "semantics" attribute
      * (value_read_only, reference_read_only or reference_mutable), or, when it has none, the default by
      * type class - a primitive or the one documented by-value exception (an enum) is VALUE_READ_ONLY,
-     * anything else is REFERENCE_MUTABLE. The one place every ownership check reads a parameter's
-     * passing mode.
+     * a move-in type (owned, task, vector) is REFERENCE_MUTABLE (it is never a borrow), anything else is
+     * REFERENCE_READ_ONLY. The one place every ownership check reads a parameter's passing mode.
      * @param context Context of the run. Must not be null.
      * @param parameter PARAMETER node. Must not be null.
      * @return The effective semantics.
