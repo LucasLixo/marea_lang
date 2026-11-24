@@ -162,7 +162,7 @@ TEST(MAREAIrParallel, ContinueInsideWithTargetsTheEnclosingForRangeAndGetsItsSte
     GTEST_COUT << "Validating a continue inside a with body inside a for-range loop still runs the step of the loop first." << std::endl;
 
     const std::string
-        rendered{ MAREA_lowerBody("", "scratch: arena, a: boolean", "for index in 0 .. 3 do with scratch as inner do if a then continue; end end end end") };
+        rendered{ MAREA_lowerBody("", "scratch: arena, a: boolean", "for index in 0 .. 3 do with scratch as inner do if a then continue; end end end") };
 
     EXPECT_NE(rendered.find("(WITH_STATEMENT inner (IDENTIFIER scratch) (BLOCK (IF_STATEMENT (IDENTIFIER a) (BLOCK (BLOCK (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER index) (IDENTIFIER $last)) (BLOCK (BREAK_STATEMENT))) (ASSIGNMENT op=PLUS_EQUAL (IDENTIFIER index) (INTEGER_LITERAL 1)) (CONTINUE_STATEMENT))))))"), std::string::npos) << "The continue must carry the step: " << rendered;
 }
