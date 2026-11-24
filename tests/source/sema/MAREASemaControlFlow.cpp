@@ -270,7 +270,7 @@ TEST(MAREASemaControlFlow, ConstantAndItsLiteralAreTheSameCaseValue)
 
     EXPECT_TRUE(MAREA_codesOf(MAX + "function f(MAX: sinteger32): sinteger32 switch MAX case MAX then return 1; end case 100 then return 2; end default then return 3; end end end").empty()) << "A local that hides the constant must not be resolved to it.";
 
-    EXPECT_TRUE(MAREA_codesOf("constant A: sinteger32 = B; constant B: sinteger32 = A; function f(n: sinteger32): sinteger32 switch n case A then return 1; end case 1 then return 2; end default then return 3; end end end").empty()) << "A cycle of constants must end without a false repeat.";
+    EXPECT_EQ(MAREA_codesOf("constant A: sinteger32 = B; constant B: sinteger32 = A; function f(n: sinteger32): sinteger32 switch n case A then return 1; end case 1 then return 2; end default then return 3; end end end"), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_CYCLIC_CONSTANT }) << "A cycle of constants must end without a false repeat and raise only CYCLIC_CONSTANT.";
 }
 
 TEST(MAREASemaControlFlow, QualifiedNamesAreNotResolvedToAConstantOfTheLastName)

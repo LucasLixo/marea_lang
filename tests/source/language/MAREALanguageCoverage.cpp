@@ -78,7 +78,7 @@ namespace
         { "shift count too large", "0", "reject 3035" },
         { "recursive type by value", "221", "gap" },
         { "cyclic alias", "221", "gap" },
-        { "cyclic constant", "249", "gap" },
+        { "cyclic constant", "0", "reject 3055" },
         { "overlapping implementation", "225", "gap" },
         { "unreachable switch arm", "0", "reject 3025 2010" },
         { "import cycle", "250", "none" },
