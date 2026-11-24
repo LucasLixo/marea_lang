@@ -88,6 +88,8 @@ MAREA_BEGIN_EXTERN_C
         MAREA_SemaNameTable generics;
         MAREA_SemaNameTable locals;
         MAREA_SemaNameTable references;
+        MAREA_IntegerSize localStart;
+        MAREA_IntegerSize functionLocalStart;
         const MAREA_AstNode *root;
         const MAREA_AstNode *function;
         const MAREA_AstNode *implementation;
@@ -108,6 +110,8 @@ MAREA_BEGIN_EXTERN_C
         MAREA_IntegerSize genericCount;
         MAREA_IntegerSize localCount;
         MAREA_IntegerSize referenceCount;
+        MAREA_IntegerSize localStart;
+        MAREA_IntegerSize functionLocalStart;
         MAREA_Uinteger32 selfDepth;
         MAREA_Uinteger32 forkDepth;
         MAREA_Uinteger32 partitionDepth;
@@ -1061,6 +1065,16 @@ MAREA_BEGIN_EXTERN_C
      * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
      */
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressions(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
+     * @brief Reports NAME_ALREADY_DECLARED for a name that is declared twice in one scope: a generic parameter
+     * that repeats an earlier one or names a top-level declaration, a repeated parameter, and a local that repeats
+     * a parameter or a local of the same block. A name that hides one of an outer block raises nothing.
+     * @param context Context of the run. Must not be null.
+     * @param node Node about to be visited. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckDuplicateNames(MAREA_SemaContext * context, const MAREA_AstNode *node);
 
     /**
      * @brief Records the name of a for, for each, partition or with statement in the local scope with no type, so
