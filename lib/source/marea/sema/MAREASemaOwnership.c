@@ -67,8 +67,24 @@ MAREA_SemaParameterSemantics MAREA_CALL MAREA_SemaGetParameterSemantics(const MA
         return MAREA_SEMA_PARAMETER_SEMANTICS_REFERENCE_MUTABLE;
     }
 
-    // INFO: the default by type class: a primitive or the one documented by-value exception (an enum) is VALUE_READ_ONLY, anything else is REFERENCE_MUTABLE.
-    return (MAREA_G_IsByValue(context, MAREA_SemaChildAt(parameter, 1), MAREA_BOOLEAN_FALSE) == MAREA_BOOLEAN_TRUE) ? MAREA_SEMA_PARAMETER_SEMANTICS_VALUE_READ_ONLY : MAREA_SEMA_PARAMETER_SEMANTICS_REFERENCE_MUTABLE;
+    const MAREA_AstNode *type = MAREA_SemaChildAt(parameter, 1);
+
+    // INFO: the default by type class: a primitive or the one documented by-value exception (an enum) is VALUE_READ_ONLY, a move-in type (owned, task, vector) keeps REFERENCE_MUTABLE, anything else is a read-only borrow.
+    if (MAREA_G_IsByValue(context, type, MAREA_BOOLEAN_FALSE) == MAREA_BOOLEAN_TRUE) {
+        return MAREA_SEMA_PARAMETER_SEMANTICS_VALUE_READ_ONLY;
+    }
+
+    const MAREA_AstNode *declaration = MAREA_NULLPTR;
+
+    const MAREA_Character8 *name = MAREA_NULLPTR;
+
+    MAREA_IntegerSize length = 0;
+
+    if (MAREA_SemaClassifyType(context, type, &declaration, &name, &length) == MAREA_SEMA_TYPE_CLASS_MOVE_BUILTIN) {
+        return MAREA_SEMA_PARAMETER_SEMANTICS_REFERENCE_MUTABLE;
+    }
+
+    return MAREA_SEMA_PARAMETER_SEMANTICS_REFERENCE_READ_ONLY;
 }
 
 static MAREA_Boolean MAREA_CALL MAREA_G_IsBorrowParameter(const MAREA_SemaContext *context, const MAREA_AstNode *parameter)

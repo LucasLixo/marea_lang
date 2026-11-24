@@ -60,8 +60,8 @@ static const MAREA_AstNode *MAREA_CALL MAREA_G_FindChild(const MAREA_AstNode *no
     return MAREA_NULLPTR;
 }
 
-// INFO: the public top-level function or constant of a namespace tree, or null. A type or a symbol that is not public is not one.
-static const MAREA_AstNode *MAREA_CALL MAREA_G_FindPublicValue(const MAREA_AstNode *root, const MAREA_Character8 *name, MAREA_IntegerSize nameLength)
+// INFO: the top-level function or constant of a namespace tree that is not explicitly private, or null. A type is not one.
+static const MAREA_AstNode *MAREA_CALL MAREA_G_FindVisibleValue(const MAREA_AstNode *root, const MAREA_Character8 *name, MAREA_IntegerSize nameLength)
 {
     const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(root);
 
@@ -76,7 +76,7 @@ static const MAREA_AstNode *MAREA_CALL MAREA_G_FindPublicValue(const MAREA_AstNo
             continue;
         }
 
-        if ((MAREA_SemaAttributeHasMember(root, declaration, "visibility", "public") == MAREA_BOOLEAN_FALSE) || ((MAREA_G_IsKind(declaration, MAREA_AST_KIND_FUNCTION_DECLARATION) == MAREA_BOOLEAN_FALSE) && (MAREA_G_IsKind(declaration, MAREA_AST_KIND_CONSTANT_DECLARATION) == MAREA_BOOLEAN_FALSE))) {
+        if ((MAREA_SemaIsPrivate(root, declaration) == MAREA_BOOLEAN_TRUE) || ((MAREA_G_IsKind(declaration, MAREA_AST_KIND_FUNCTION_DECLARATION) == MAREA_BOOLEAN_FALSE) && (MAREA_G_IsKind(declaration, MAREA_AST_KIND_CONSTANT_DECLARATION) == MAREA_BOOLEAN_FALSE))) {
             continue;
         }
 
@@ -84,66 +84,6 @@ static const MAREA_AstNode *MAREA_CALL MAREA_G_FindPublicValue(const MAREA_AstNo
     }
 
     return MAREA_NULLPTR;
-}
-
-// INFO: the namespace a name entry stands for, as the resolver knows it: a namespace import is its qualifier then its own name, a symbol import is the namespace of its qualifier.
-static MAREA_SemaTypedAstExcept MAREA_CALL MAREA_G_NamespaceOf(MAREA_SemaContext *context, const MAREA_SemaName *entry, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength)
-{
-    *outText = MAREA_NULLPTR;
-    *outLength = 0;
-
-    const MAREA_Character8 *name = (entry->original != MAREA_NULLPTR) ? entry->original : entry->text;
-
-    const MAREA_IntegerSize NAME_LENGTH = (entry->original != MAREA_NULLPTR) ? entry->originalLength : entry->length;
-
-    if (entry->kind == MAREA_SEMA_NAME_KIND_IMPORTED_SYMBOL) {
-        *outText = entry->qualifier;
-        *outLength = entry->qualifierLength;
-
-        return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
-    }
-
-    if (entry->qualifierLength == 0) {
-        *outText = name;
-        *outLength = NAME_LENGTH;
-
-        return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
-    }
-
-    MAREA_Null memory = MAREA_NULLPTR;
-
-    if (MAREA_ArenaAllocate(context->arena, (entry->qualifierLength + NAME_LENGTH + MAREA_INTEGER_SIZE(1)), MAREA_INTEGER_SIZE(1), &memory) != MAREA_ARENA_EXCEPT_SUCCESS) {
-        return MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_OUT_OF_MEMORY;
-    }
-
-    MAREA_Character8 *joined = memory;
-
-    memcpy(joined, entry->qualifier, entry->qualifierLength);
-
-    joined[entry->qualifierLength] = '.';
-
-    memcpy((joined + entry->qualifierLength + MAREA_INTEGER_SIZE(1)), name, NAME_LENGTH);
-
-    *outText = joined;
-    *outLength = (entry->qualifierLength + NAME_LENGTH + MAREA_INTEGER_SIZE(1));
-
-    return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
-}
-
-// INFO: the tree of a namespace, only when the resolver answers FOUND for it.
-static const MAREA_AstNode *MAREA_CALL MAREA_G_FoundRoot(const MAREA_SemaContext *context, const MAREA_Character8 *text, MAREA_IntegerSize length)
-{
-    if ((context->resolver == MAREA_NULLPTR) || (context->resolver->resolve == MAREA_NULLPTR) || (text == MAREA_NULLPTR) || (length == 0)) {
-        return MAREA_NULLPTR;
-    }
-
-    MAREA_SemaImportResult result = MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
-
-    const MAREA_AstNode *root = MAREA_NULLPTR;
-
-    context->resolver->resolve(context->resolver->userData, text, length, &result, &root);
-
-    return (result == MAREA_SEMA_IMPORT_RESULT_FOUND) ? root : MAREA_NULLPTR;
 }
 
 static MAREA_SemaTypeFrame *MAREA_CALL MAREA_G_NewFrame(MAREA_SemaContext *context)
@@ -164,7 +104,7 @@ static MAREA_SemaTypeFrame *MAREA_CALL MAREA_G_NewFrame(MAREA_SemaContext *conte
 // INFO: the declared type of a public function or constant of a FOUND tree. A function with generic parameters gets a frame with the type arguments written at the call, or none, on top of the frame that marks the other file.
 static MAREA_SemaTypedAstExcept MAREA_CALL MAREA_G_ValueType(MAREA_SemaContext *context, const MAREA_AstNode *root, const MAREA_Character8 *namespaceText, MAREA_IntegerSize namespaceLength, const MAREA_Character8 *name, MAREA_IntegerSize nameLength, const MAREA_AstNode *callTypeArguments, MAREA_SemaExprType *outType)
 {
-    const MAREA_AstNode *declaration = MAREA_G_FindPublicValue(root, name, nameLength);
+    const MAREA_AstNode *declaration = MAREA_G_FindVisibleValue(root, name, nameLength);
 
     if (declaration == MAREA_NULLPTR) {
         return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
@@ -249,13 +189,13 @@ MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedAstFoundMemberType(MAREA_Sema
 
     MAREA_IntegerSize namespaceLength = 0;
 
-    const MAREA_SemaTypedAstExcept JOINED = MAREA_G_NamespaceOf(context, entry, &namespaceText, &namespaceLength);
+    const MAREA_SemaTypedAstExcept JOINED = MAREA_SemaNamespaceOf(context, entry, &namespaceText, &namespaceLength);
 
     if (JOINED != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) {
         return JOINED;
     }
 
-    const MAREA_AstNode *root = MAREA_G_FoundRoot(context, namespaceText, namespaceLength);
+    const MAREA_AstNode *root = MAREA_SemaFoundRoot(context, namespaceText, namespaceLength);
 
     if (root == MAREA_NULLPTR) {
         return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
@@ -291,7 +231,7 @@ MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedAstFoundNameType(MAREA_SemaCo
         return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
     }
 
-    const MAREA_AstNode *root = MAREA_G_FoundRoot(context, entry->qualifier, entry->qualifierLength);
+    const MAREA_AstNode *root = MAREA_SemaFoundRoot(context, entry->qualifier, entry->qualifierLength);
 
     if (root == MAREA_NULLPTR) {
         return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
@@ -363,7 +303,7 @@ MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedAstExternalMemberSignature(MA
 
     MAREA_IntegerSize namespaceLength = 0;
 
-    const MAREA_SemaTypedAstExcept JOINED = MAREA_G_NamespaceOf(context, entry, &namespaceText, &namespaceLength);
+    const MAREA_SemaTypedAstExcept JOINED = MAREA_SemaNamespaceOf(context, entry, &namespaceText, &namespaceLength);
 
     if (JOINED != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) {
         return JOINED;
@@ -426,7 +366,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_ImportedSymbolIsType(const MAREA_SemaCon
         return MAREA_BOOLEAN_TRUE;
     }
 
-    const MAREA_AstNode *root = MAREA_G_FoundRoot(context, entry->qualifier, entry->qualifierLength);
+    const MAREA_AstNode *root = MAREA_SemaFoundRoot(context, entry->qualifier, entry->qualifierLength);
 
     if (root == MAREA_NULLPTR) {
         return MAREA_BOOLEAN_FALSE;
