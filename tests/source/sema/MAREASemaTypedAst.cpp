@@ -493,13 +493,32 @@ TEST(MAREASemaTypedAst, ReadOnlyBorrowParameterOwnershipIsBorrow)
     EXPECT_EQ(MAREA_SemaTypedNodeGetOwnershipMode(parameter), MAREA_SEMA_OWNERSHIP_MODE_BORROW) << "A reference_read_only structure parameter must carry ownership mode BORROW.";
 }
 
-TEST(MAREASemaTypedAst, MutableBorrowParameterOwnershipIsMutableBorrow)
+TEST(MAREASemaTypedAst, DefaultParameterOwnershipIsBorrow)
 {
-    GTEST_COUT << "Validating a plain structure parameter defaults to ownership mode MUTABLE_BORROW, since a non-primitive defaults to reference_mutable." << std::endl;
+    GTEST_COUT << "Validating a plain structure parameter with no attribute defaults to ownership mode BORROW, since a non-primitive defaults to reference_read_only." << std::endl;
 
     MAREA_SemaFixture fixture;
 
     ASSERT_EQ(fixture.MAREA_sema("namespace main; structure Shape x: float32; end function f(s: Shape) end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
+
+    const MAREA_SemaTypedNode *outRoot{ nullptr };
+
+    ASSERT_EQ(MAREA_SemaBuildTypedAst(fixture.context, fixture.parser.root, &outRoot), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "A checked root with zero errors must build.";
+
+    const MAREA_SemaTypedNode *parameter{ MAREA_findTypedNodeByKind(outRoot, MAREA_AST_KIND_PARAMETER) };
+
+    ASSERT_NE(parameter, nullptr) << "The typed tree must carry the parameter node.";
+
+    EXPECT_EQ(MAREA_SemaTypedNodeGetOwnershipMode(parameter), MAREA_SEMA_OWNERSHIP_MODE_BORROW) << "A structure parameter with no attribute must carry ownership mode BORROW.";
+}
+
+TEST(MAREASemaTypedAst, MutableBorrowParameterOwnershipIsMutableBorrow)
+{
+    GTEST_COUT << "Validating a plain structure parameter with an explicit reference_mutable has ownership mode MUTABLE_BORROW." << std::endl;
+
+    MAREA_SemaFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; structure Shape x: float32; end function f(#[semantics = reference_mutable] s: Shape) end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
 
     const MAREA_SemaTypedNode *outRoot{ nullptr };
 

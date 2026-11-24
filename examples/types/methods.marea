@@ -57,7 +57,7 @@ end
 -- Second block: change the value.
 #[visibility = public]
 implementation Vector2
-    function scale(self: Vector2, factor: float64)
+    function scale(#[semantics = reference_mutable] self: Vector2, factor: float64)
         self.x *= factor;
         self.y *= factor;
     end
