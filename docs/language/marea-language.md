@@ -516,7 +516,7 @@ lifecycle operator (3027) and structured `fork_join` with `partition` and `spawn
 
 ## Functions and calls
 
-Function declaration and call, parameters and defaults, the result and `return value;` on every path, recursion, function types as values, the passing mode of a parameter, and the diagnostics 3010, 3011, 3017 to 3019, 3022, 3030, 3032 and 3053 as these show them. The items sit in `tests/language/<class>/functions/`.
+Function declaration and call, parameters and defaults, the result and `return value;` on every path, recursion, function types as values, the passing mode of a parameter, and the diagnostics 3010, 3011, 3017 to 3019, 3022, 3030, 3032, 3053 and 3054 as these show them. The items sit in `tests/language/<class>/functions/`.
 
 ### Functions and calls: accept
 
@@ -592,21 +592,14 @@ Function declaration and call, parameters and defaults, the result and `return v
 | L-FUNCTIONS-063 | a function type argument whose signature does not match the parameter type | 3053 @20 |
 | L-FUNCTIONS-064 | a call of a function type value with too many arguments | 3010 @12 |
 | L-FUNCTIONS-065 | a return with no value in a function that has a result | 3022 @9 |
+| L-FUNCTIONS-066 | a return with a value in a function that has no result | 3054 @10 |
+| L-FUNCTIONS-067 | the result of a function with no result used as a value | 3054 @14 |
 | L-FUNCTIONS-068 | a function used before its declaration (the grammar says a name is declared before use) | 3004 @10 |
 | L-FUNCTIONS-069 | two parameters with one name | 3003 @9 |
 | L-FUNCTIONS-070 | a parameter that shares its name with a local of the body | 3003 @10 |
+| L-FUNCTIONS-071 | a call of a value that is not a function | 3011 @11 |
 | L-FUNCTIONS-072 | a non-boolean value as the result of a boolean function | 3011 @10 |
 | L-FUNCTIONS-073 | a condition of an integer type in an if | 3043 @10 |
-
-### Functions and calls: known_gap
-
-| Id | Shows | Expected |
-|---|---|---|
-| L-FUNCTIONS-066 | a return with a value in a function that has no result | gap: 3011, rule: reject, issue #215 |
-| L-FUNCTIONS-067 | the result of a function with no result used as a value | gap: 3011, rule: reject, issue #215 |
-| L-FUNCTIONS-071 | a call of a value that is not a function | gap: 3011, rule: reject, issue #215 |
-
-Known gaps of this area share their issues: #215, #220, #221, #222, #223, #225. An issue lists the items that show it in the area; an item flips to `reject` the day its rule is implemented.
 
 ## Types and control flow
 
@@ -1259,7 +1252,7 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | bindings | 33 | 80 | 0 |
 | coverage | 0 | 1 | 0 |
 | examples | 20 | 0 | 0 |
-| functions | 19 | 51 | 3 |
+| functions | 19 | 54 | 0 |
 | interop | 17 | 27 | 1 |
 | memory | 15 | 11 | 7 |
 | namespaces | 17 | 34 | 0 |
@@ -1267,7 +1260,7 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | parallel | 19 | 26 | 14 |
 | seed | 1 | 2 | 0 |
 | types | 60 | 119 | 17 |
-| total | 266 | 450 | 95 |
+| total | 266 | 453 | 92 |
 
 ## Parity plan
 
@@ -1300,6 +1293,7 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 | 3043 | `sema` | [marea-sema.md](../sema/marea-sema.md), `NON_BOOLEAN_CONDITION` |
 | 3049-3050 | `sema` | [marea-sema.md](../sema/marea-sema.md), `UNKNOWN_TYPE_FUNCTION` and `OPERATOR_SIGNATURE_MISMATCH` |
 | 3053 | `sema` | [marea-sema.md](../sema/marea-sema.md), `FUNCTION_TYPE_MISMATCH` |
+| 3054 | `sema` | [marea-sema.md](../sema/marea-sema.md), `INVALID_RESULT_USE` |
 | 3055 | `sema` | [marea-sema.md](../sema/marea-sema.md), `CYCLIC_CONSTANT` |
 | 3059 | `sema` | [marea-sema.md](../sema/marea-sema.md), `COMPILE_TIME_ASSERTION_FAILED` |
 | 3060-3061 | `sema` | [marea-sema.md](../sema/marea-sema.md), `UNKNOWN_MACRO` and `INVALID_MACRO_ARGUMENT` |
