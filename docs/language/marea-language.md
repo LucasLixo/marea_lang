@@ -268,8 +268,8 @@ arm of `switch`, loop.
 
 What sema enforces today is small: 3016 (an existing structure, field or element assigned with no word), 3017
 (`value_read_only` on a non-primitive), 3018 (a borrow or a field of a borrow returned, stored in a field, appended to a vector, or a partition part stored outside its body), 3019 (a bare name passed twice
-with a write borrow among them), 3032 (a file constant, or a field or element of one, as a write borrow), 3069 (a write through a read-only
-borrow, and a write borrow of a call result or a literal). Everything else in the known_gap tables below is accepted
+with a write borrow among them, or two places of one call that overlap, a field and its owner, one field or element twice, a loop element and its own vector, a value and a move of it, when one is a write borrow), 3032 (a file constant, or a field or element of one, as a write borrow), 3069 (a write through a read-only
+borrow, and a write borrow of a call result or a literal), 3073 (the source of a `for each` or a `with` block written, moved or appended to inside its body). Everything else in the known_gap tables below is accepted
 today. The holes are grouped by kind: memory, permission and aliasing. A gap that shares an
 issue shows one hole through more than one program.
 
@@ -385,6 +385,14 @@ write-borrow parameter.
 | L-OWNERSHIP-071 | A parameter is passed to two write-borrow parameters | 3019 @25 |
 | L-OWNERSHIP-072 | A for each element is passed to two write-borrow parameters | 3019 @26 |
 | L-OWNERSHIP-073 | One value is passed to two write-borrow parameters in a branch | 3019 @31 |
+| L-OWNERSHIP-074 | A field and its owner are passed to a write and a read borrow | 3019 @29 |
+| L-OWNERSHIP-076 | One field is passed to two write-borrow parameters | 3019 @30 |
+| L-OWNERSHIP-077 | One element is passed to two write-borrow parameters | 3019 @25 |
+| L-OWNERSHIP-079 | A value is passed to a write borrow and moved in the same call | 3019 @29 |
+| L-OWNERSHIP-082 | A vector is moved while a for each reads it | 3073 @21 |
+| L-OWNERSHIP-084 | An element is written while a for each reads the vector | 3073 @21 |
+| L-OWNERSHIP-086 | The source of a with block is written inside the block | 3073 @26 |
+| L-OWNERSHIP-088 | The source of a with block is moved inside the block | 3073 @26 |
 | L-OWNERSHIP-089 | A parameter with no attribute is written (rule 2: the default borrow is read-only) | 3069 @20 |
 | L-OWNERSHIP-092 | A field of an explicit read-only borrow is written | 3069 @20 |
 | L-OWNERSHIP-093 | A field of an explicit read-only borrow is changed with a compound operator | 3069 @20 |
@@ -434,19 +442,6 @@ write-borrow parameter.
 | L-OWNERSHIP-057 | A file constant is moved out | gap: #200 NEW, rule: reject |
 | L-OWNERSHIP-142 | An existing value is given to an owned parameter with no word | 3016 @29 |
 
-#### Aliasing holes
-
-| Id | Shows | Expected |
-|---|---|---|
-| L-OWNERSHIP-074 | A field and its owner are passed to a write and a read borrow | gap: #201 3019, rule: reject |
-| L-OWNERSHIP-076 | One field is passed to two write-borrow parameters | gap: #201 3019, rule: reject |
-| L-OWNERSHIP-077 | One element is passed to two write-borrow parameters | gap: #201 3019, rule: reject |
-| L-OWNERSHIP-079 | A value is passed to a write borrow and moved in the same call | gap: #201 3019, rule: reject |
-| L-OWNERSHIP-082 | A vector is moved while a for each reads it | gap: #202 3019, rule: reject |
-| L-OWNERSHIP-084 | An element is written while a for each reads the vector | gap: #202 3019, rule: reject |
-| L-OWNERSHIP-086 | The source of a with block is written inside the block | gap: #202 3019, rule: reject |
-| L-OWNERSHIP-088 | The source of a with block is moved inside the block | gap: #202 3019, rule: reject |
-
 ## Memory and regions
 
 Scopes that end, data that goes up with `return value;` and `move`, `construct` and `destroy`, the explicit call of a
@@ -482,7 +477,7 @@ lifecycle operator (3027) and structured `fork_join` with `partition` and `spawn
 | L-MEMORY-006 | An inner owner is used after it moved up | 3070 @28 |
 | L-MEMORY-007 | An outer owner is moved down into an inner scope and used after | 3070 @28 |
 | L-MEMORY-008 | A name of a nested scope block does not leave it | 3004 @28 |
-| L-MEMORY-009 | A reference stored in an outer local from an inner scope | 3016 @27 |
+| L-MEMORY-009 | A reference stored in an outer local from an inner scope | 3073 @27, 3016 @27 |
 | L-MEMORY-017 | The destroy operator is called by its bare name | 3004 @34, 3027 @34 |
 | L-MEMORY-018 | The destroy operator is called by the static form | 3027 @34 |
 | L-MEMORY-019 | The construct operator is called by the static form | 3027 @34 |
@@ -1122,6 +1117,8 @@ generic or an alias leads to is not checked by sema either (see the sema doc, Ga
 | L-ADVERSARIAL-002 | An outer local is moved in the body of a partition, once for each part | 3071 @59 |
 | L-ADVERSARIAL-004 | A generic function moves its argument twice | 3071 @40 |
 | L-ADVERSARIAL-005 | A value is passed to a generic function twice as a write borrow | 3019 @40 |
+| L-ADVERSARIAL-006 | A for each mutable element and its own vector are passed to one call | 3019 @40 |
+| L-ADVERSARIAL-007 | A for each mutable appends to the vector it walks | 3073 @37 |
 | L-ADVERSARIAL-008 | A partition mutable of a field and a worker that reads the owner of that field | 3074 @73 |
 | L-ADVERSARIAL-009 | A read-only borrow is passed to a generic function that writes it | 3069 @39 |
 | L-ADVERSARIAL-010 | A file constant is passed to a generic function as a write borrow | 3032 @41 |
@@ -1180,8 +1177,6 @@ generic or an alias leads to is not checked by sema either (see the sema doc, Ga
 | Id | Shows | Expected |
 |---|---|---|
 | L-ADVERSARIAL-003 | A value moved in an arm of switch is spawned after the switch | gap: #198 NEW, rule: reject |
-| L-ADVERSARIAL-006 | A for each mutable element and its own vector are passed to one call | gap: #202 3019, rule: reject |
-| L-ADVERSARIAL-007 | A for each mutable appends to the vector it walks | gap: #202 3019, rule: reject |
 | L-ADVERSARIAL-013 | A contract method moves its receiver into a write borrow | gap: #200 NEW, rule: reject |
 | L-ADVERSARIAL-015 | A for each element is moved into an owned parameter | gap: #199 NEW, rule: reject |
 | L-ADVERSARIAL-023 | The source of a partition mutable is read in the body while the parts are written | gap: #232 NEW, rule: reject |
@@ -1244,7 +1239,7 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 
 | area | accept | reject | known_gap |
 |---|---|---|---|
-| adversarial | 0 | 57 | 15 |
+| adversarial | 0 | 59 | 13 |
 | bindings | 33 | 80 | 0 |
 | coverage | 0 | 1 | 0 |
 | examples | 20 | 0 | 0 |
@@ -1252,11 +1247,11 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | interop | 17 | 28 | 0 |
 | memory | 15 | 18 | 0 |
 | namespaces | 17 | 34 | 0 |
-| ownership | 65 | 64 | 16 |
+| ownership | 65 | 72 | 8 |
 | parallel | 19 | 36 | 4 |
 | seed | 1 | 2 | 0 |
 | types | 60 | 132 | 4 |
-| total | 266 | 506 | 39 |
+| total | 266 | 516 | 29 |
 
 ## Parity plan
 

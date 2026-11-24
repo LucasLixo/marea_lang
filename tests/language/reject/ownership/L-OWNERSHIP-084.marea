@@ -1,9 +1,8 @@
--- gap: #202 3019
--- rule: reject
+-- expect: 3073 @21
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- The source of a with block is written inside the block.
+-- An element is written while a for each reads the vector.
 
 namespace main;
 
@@ -17,14 +16,9 @@ structure Box
     count: sinteger32;
 end
 
-function make_point(): Point
-    return Point{ x = 1, y = 2 };
-end
-
-function check(): sinteger32
-    local point: Point = make_point();
-    with point as view do
-        point.x = 2;
+function check(#[semantics = reference_mutable] points: vector<Point>): sinteger32
+    for each item in points do
+        points[0] = Point{ x = 1, y = 1 };
     end
     return 1;
 end
