@@ -178,8 +178,14 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaVisit(MAREA_SemaContext *context, const MA
         result = MAREA_SemaCheckNamedType(context, node);
 
         if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
+            result = MAREA_SemaCheckVisibility(context, node);
+        }
+
+        if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
             result = MAREA_SemaInstantiationEnter(context, node, &entered);
         }
+    } else if (kind == MAREA_AST_KIND_MEMBER_ACCESS) {
+        result = MAREA_SemaCheckVisibility(context, node);
     } else if (kind == MAREA_AST_KIND_WHERE_CLAUSE) {
         result = MAREA_SemaCheckWhereClause(context, node);
     } else if (kind == MAREA_AST_KIND_CALL_EXPRESSION) {
