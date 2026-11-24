@@ -1095,6 +1095,21 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckConstantCycles(MAREA_SemaContext * context, const MAREA_AstNode *root);
 
     /**
+     * @brief Reports COMPILE_TIME_ASSERTION_FAILED for a compile_error macro call, whatever its arguments are, and for
+     * a static_assert macro call with two arguments whose condition is a constant that is false. The condition is
+     * read by a small evaluator: boolean and integer literals, a file constant (depth limit 32, so a cycle ends as
+     * unknown), parentheses, not, unary minus, and, or, the comparisons and + - * / % over 64-bit integers. Overflow,
+     * a division by zero, a call, size_of, align_of, a name that is not a file constant (a local or a parameter of
+     * the same name hides the constant) and every other node are unknown, and an unknown condition is accepted. Any
+     * other macro, and a static_assert with another argument count, is skipped. The message holds the text of the
+     * string literal argument when there is one.
+     * @param context Context of the run. Must not be null.
+     * @param call Macro call node. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER when an argument is null, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckMacroEvaluation(MAREA_SemaContext * context, const MAREA_AstNode *call);
+
+    /**
      * @brief Tells whether a number literal fits a primitive type under the rule of MAREA_SemaCheckExpressionFit:
      * an integer literal fits any number type, a float literal fits float32 and float64 only.
      * @param kind MAREA_AST_KIND_INTEGER_LITERAL or MAREA_AST_KIND_FLOAT_LITERAL. Any other kind gives false.
