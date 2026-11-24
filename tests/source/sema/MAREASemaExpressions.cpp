@@ -864,7 +864,7 @@ TEST(MAREASemaExpressions, ResultOfAFunctionWithNoResultIsNotAValue)
 
     EXPECT_TRUE(MAREA_codesOf("type Op = function(value: sinteger32): sinteger32; function run(operation: Op): sinteger32 local value: sinteger32 = operation(1); return value; end").empty()) << "A function type value that is called must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("structure Holder value: sinteger32; end function run(holder: Holder): sinteger32 local value: sinteger32 = holder.run(); return value; end").empty()) << "A method call has an unknown result and must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("structure Holder run: function(): sinteger32; end function run(holder: Holder): sinteger32 local value: sinteger32 = holder.run(); return value; end").empty()) << "A call through a callback field has an unknown result and must raise nothing.";
 }
 
 TEST(MAREASemaExpressions, CallOfAValueThatIsNotAFunction)
