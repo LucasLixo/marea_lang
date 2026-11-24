@@ -55,11 +55,11 @@ TEST(MAREASemaCondition, IfAndElseifConditionNeedBoolean)
 {
     GTEST_COUT << "Validating an if or elseif condition that is not a boolean raises NON_BOOLEAN_CONDITION." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf(MAREA_function("if i then return; end end")), Codes{ CONDITION }) << "An integer if condition must raise 3043.";
+    EXPECT_EQ(MAREA_codesOf(MAREA_function("if i then return; end")), Codes{ CONDITION }) << "An integer if condition must raise 3043.";
 
-    EXPECT_EQ(MAREA_codesOf(MAREA_function("if p then return; end elseif i then return; end end")), Codes{ CONDITION }) << "An integer elseif condition must raise 3043.";
+    EXPECT_EQ(MAREA_codesOf(MAREA_function("if p then return; elseif i then return; end")), Codes{ CONDITION }) << "An integer elseif condition must raise 3043.";
 
-    EXPECT_EQ(MAREA_codesOf(MAREA_function("if s then return; end end")), Codes{ CONDITION }) << "A string if condition must raise 3043.";
+    EXPECT_EQ(MAREA_codesOf(MAREA_function("if s then return; end")), Codes{ CONDITION }) << "A string if condition must raise 3043.";
 }
 
 TEST(MAREASemaCondition, BooleanConditionIsSilent)
@@ -82,7 +82,7 @@ TEST(MAREASemaCondition, BooleanConditionIsSilent)
 
     EXPECT_TRUE(MAREA_codesOf(MAREA_function("while (p) do return; end")).empty()) << "A parenthesized boolean must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf(MAREA_function("if p then return; end elseif q then return; end end")).empty()) << "Boolean if and elseif conditions must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf(MAREA_function("if p then return; elseif q then return; end")).empty()) << "Boolean if and elseif conditions must raise nothing.";
 }
 
 TEST(MAREASemaCondition, UnknownTypeIsSilent)
@@ -98,5 +98,5 @@ TEST(MAREASemaCondition, SwitchSubjectIsNotACondition)
 {
     GTEST_COUT << "Validating a switch subject of an integer type raises nothing." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf(MAREA_function("switch i case 1 then return; end end")).empty()) << "An integer switch subject must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf(MAREA_function("switch i case 1 then return; end")).empty()) << "An integer switch subject must raise nothing.";
 }

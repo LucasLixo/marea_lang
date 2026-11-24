@@ -62,6 +62,6 @@ TEST(MAREASemaLocalInitializer, NestedBlocksAreChecked)
     GTEST_COUT << "Validating a local with no value in an if, a switch arm and a loop raises 3065 for each." << std::endl;
 
     EXPECT_EQ(MAREA_codesOf(MAREA_function("while flag do local a: sinteger32; end")), Codes{ NO_VALUE }) << "A local in a loop must raise 3065.";
-    EXPECT_EQ(MAREA_codesOf(MAREA_function("if flag then local a: sinteger32; end end")), Codes{ NO_VALUE }) << "A local in an if must raise 3065.";
-    EXPECT_EQ(MAREA_codesOf("function s(n: sinteger32) switch n case 1 then local a: sinteger32; end end end"), Codes{ NO_VALUE }) << "A local in a switch arm must raise 3065.";
+    EXPECT_EQ(MAREA_codesOf(MAREA_function("if flag then local a: sinteger32; end")), Codes{ NO_VALUE }) << "A local in an if must raise 3065.";
+    EXPECT_EQ(MAREA_codesOf("function s(n: sinteger32) switch n case 1 then local a: sinteger32; end end"), Codes{ NO_VALUE }) << "A local in a switch arm must raise 3065.";
 }
