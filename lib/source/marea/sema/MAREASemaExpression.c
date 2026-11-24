@@ -656,6 +656,23 @@ MAREA_Boolean MAREA_CALL MAREA_SemaPrimitiveOfExpression(const MAREA_SemaContext
     return MAREA_G_PrimitiveOfShape(&shape, outName, outLength);
 }
 
+MAREA_Boolean MAREA_CALL MAREA_SemaExpressionIsKnownNotArray(const MAREA_SemaContext *context, const MAREA_AstNode *expression)
+{
+    const MAREA_G_Shape shape = MAREA_G_ShapeOf(context, expression, 0);
+
+    // INFO: any other shape, UNKNOWN included, is accepted: a slice, a pointer, a library type and a call result are a Gap.
+    switch (shape.kind) {
+    case MAREA_G_SHAPE_KIND_INTEGER_LITERAL:
+    case MAREA_G_SHAPE_KIND_FLOAT_LITERAL:
+    case MAREA_G_SHAPE_KIND_PRIMITIVE:
+    case MAREA_G_SHAPE_KIND_STRUCTURE:
+    case MAREA_G_SHAPE_KIND_ENUM:
+        return MAREA_BOOLEAN_TRUE;
+    default:
+        return MAREA_BOOLEAN_FALSE;
+    }
+}
+
 MAREA_Boolean MAREA_CALL MAREA_SemaNumberLiteralFitsPrimitive(MAREA_AstKind kind, const MAREA_Character8 *name, MAREA_IntegerSize length)
 {
     if ((kind != MAREA_AST_KIND_INTEGER_LITERAL) && (kind != MAREA_AST_KIND_FLOAT_LITERAL)) {
