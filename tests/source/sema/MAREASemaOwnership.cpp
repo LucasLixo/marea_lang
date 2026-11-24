@@ -408,15 +408,25 @@ TEST(MAREASemaOwnership, UseAfterMoveStraightLine)
 
 TEST(MAREASemaOwnership, UseAfterMoveInScopesAndBranches)
 {
-    GTEST_COUT << "Validating a move in a nested block, an if arm or a switch arm: a do block proves the move, a branch proves it only when every arm does." << std::endl;
+    GTEST_COUT << "Validating a move in a nested block, an if arm or a switch arm: a move in any arm that reaches the end counts after the branch." << std::endl;
 
     EXPECT_EQ(MAREA_codesOf(SHAPE + "function f() local a: Shape = make(); do local b: Shape = move a; end local c: float32 = a.x; end"), Codes{ USE_MOVED }) << "A move in a do block must reach the outer scope.";
 
     EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(n: sinteger32) local a: Shape = make(); if n == 1 then local b: Shape = move a; else local c: Shape = move a; end local d: float32 = a.x; end"), Codes{ USE_MOVED }) << "A move in every arm of an if must reach after it.";
 
-    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(n: sinteger32) local a: Shape = make(); if n == 1 then local b: Shape = move a; end local d: float32 = a.x; end").empty()) << "A move in one arm of an if with no else is only maybe, so it must round toward valid.";
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(n: sinteger32) local a: Shape = make(); if n == 1 then local b: Shape = move a; end local d: float32 = a.x; end"), Codes{ USE_MOVED }) << "A move in one arm of an if with no else is maybe moved, so a read after it must raise USE_OF_MOVED_VALUE.";
 
-    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(n: sinteger32) local a: Shape = make(); if n == 1 then local b: Shape = move a; elseif n == 2 then local c: Shape = move a; else local d: Shape = make(); end local e: float32 = a.x; end").empty()) << "A move missing from one arm must round toward valid.";
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(n: sinteger32) local a: Shape = make(); if n == 1 then local b: Shape = move a; end local c: Shape = move a; end"), Codes{ MOVED_AGAIN }) << "A move after a branch that maybe moved the local must raise VALUE_MOVED_AGAIN.";
+
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(n: sinteger32) local a: Shape = make(); if n == 1 then local b: Shape = move a; a = make(); else a = make(); end local d: float32 = a.x; end").empty()) << "A local that every arm of an if with an else made live again must be live after it.";
+
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(n: sinteger32) local a: Shape = make(); local b: Shape = move a; if n == 1 then a = make(); end local d: float32 = a.x; end"), Codes{ USE_MOVED }) << "An if with no else keeps the moved state of the path that skips the arm.";
+
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(n: sinteger32): float32 local a: Shape = make(); if n == 1 then local b: Shape = move a; return 1.0; else local c: float32 = a.x; end return a.x; end").empty()) << "An arm that moves and returns must stay out of the merge when a sibling arm does not move.";
+
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(n: sinteger32): float32 local a: Shape = make(); while n < 2 do if n == 0 then local b: Shape = move a; break; end end local c: float32 = a.x; return c; end").empty()) << "An arm that moves and breaks leaves the loop, so it must not count in the merge nor after the loop.";
+
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(n: sinteger32) local a: Shape = make(); if n == 1 then local b: Shape = move a; elseif n == 2 then local c: Shape = move a; else local d: Shape = make(); end local e: float32 = a.x; end"), Codes{ USE_MOVED }) << "A move in some arms must make the local maybe moved after the if.";
 
     EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(n: sinteger32): float32 local a: Shape = make(); if n == 1 then local b: Shape = move a; return 1.0; end return a.x; end").empty()) << "An arm that returns must not count in the merge.";
 
@@ -426,7 +436,7 @@ TEST(MAREASemaOwnership, UseAfterMoveInScopesAndBranches)
 
     EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(n: sinteger32) local a: Shape = make(); switch n case 1 then local b: Shape = move a; default then local c: Shape = move a; end local d: float32 = a.x; end"), Codes{ USE_MOVED }) << "A move in every arm of a switch with a default must reach after it.";
 
-    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(n: sinteger32) local a: Shape = make(); switch n case 1 then local b: Shape = move a; default then end local d: float32 = a.x; end").empty()) << "A switch arm that does not move must round toward valid.";
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(n: sinteger32) local a: Shape = make(); switch n case 1 then local b: Shape = move a; default then end local d: float32 = a.x; end"), Codes{ USE_MOVED }) << "A switch arm that moves must make the local maybe moved after the switch.";
 }
 
 TEST(MAREASemaOwnership, UseAfterMoveInLoops)
@@ -446,6 +456,8 @@ TEST(MAREASemaOwnership, UseAfterMoveInLoops)
     EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(n: sinteger32) local a: Shape = make(); while n < 2 do local b: Shape = move a; a = make(); end end").empty()) << "A body that makes the local live again must raise nothing.";
 
     EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(n: sinteger32): float32 local a: Shape = make(); while n < 2 do if n == 0 then local b: Shape = move a; break; end end return 0.0; end").empty()) << "A guarded move that leaves the loop must raise nothing.";
+
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(n: sinteger32) local a: Shape = make(); while n < 2 do if n == 0 then local b: Shape = move a; end end end"), Codes{ MOVED_AGAIN }) << "A conditional move of an outer local in a body that does not leave the loop must raise VALUE_MOVED_AGAIN.";
 }
 
 TEST(MAREASemaOwnership, UseAfterMoveOfOwnedParameterAndCallArgument)
