@@ -45,7 +45,7 @@ The first line is the header. It has one of three forms:
 A `known_gap` item has `-- rule: reject` or `-- rule: accept` as its second line: the outcome the language has
 decided. A `-- rule:` line in another class is an error. The copyright header follows, then the program.
 
-The codes are the lex codes 1001-1006, the parse codes 2001-2010 and the sema codes 3001-3076 (3023 is retired, and not every other number of the range is a live code).
+The codes are the lex codes 1001-1006, the parse codes 2001-2010 and the sema codes 3001-3077 (3023 is retired, and not every other number of the range is a live code).
 The `@<line>` of the form is optional for the parser of the header, but a `reject` item with a code that has no
 `@<line>` fails.
 
@@ -667,6 +667,7 @@ Function declaration and call, parameters and defaults, the result and `return v
 | L-TYPES-020 | a field read assigned to a local of another type | 3011 @15 |
 | L-TYPES-021 | a struct literal field of another type than the field | 3011 @15 |
 | L-TYPES-022 | a nested field of a type that does not exist, after a valid field | 3009 @16 |
+| L-TYPES-023 | a struct literal with a missing field | 3077 @15 |
 | L-TYPES-024 | a struct literal with a field that the structure does not have | 3044 @15 |
 | L-TYPES-025 | a struct literal that gives one field twice | 3012 @15 |
 | L-TYPES-026 | a field read of a field that the structure does not have | 3044 @15 |
@@ -794,7 +795,6 @@ Function declaration and call, parameters and defaults, the result and `return v
 
 | Id | Shows | Expected |
 |---|---|---|
-| L-TYPES-023 | a struct literal with a missing field | gap: NEW, rule: reject, issue #220; stays open because the zero-default rule of the ir accepts an omitted field |
 | L-TYPES-070 | a switch arm whose value has another type than the switch value | gap: 3011, rule: reject, issue #222 |
 | L-TYPES-071 | a case value of a variant of another enum | gap: 3011, rule: reject, issue #222 |
 | L-TYPES-147 | a for range with a bound of another type | gap: 3011, rule: reject, issue #222 |
@@ -1255,8 +1255,8 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | ownership | 65 | 76 | 4 |
 | parallel | 19 | 40 | 0 |
 | seed | 1 | 2 | 0 |
-| types | 60 | 132 | 4 |
-| total | 266 | 528 | 17 |
+| types | 60 | 133 | 3 |
+| total | 266 | 529 | 16 |
 
 ## Parity plan
 
@@ -1277,7 +1277,7 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 |---|---|---|
 | 1001-1006 | `lex` | [marea-lex.md](../lex/marea-lex.md) |
 | 2001-2010 | `parse` | [marea-ast.md](../ast/marea-ast.md) |
-| 3001-3032 | `sema` | [marea-sema.md](../sema/marea-sema.md) (3033 to 3076 follow in the rows below) |
+| 3001-3032 | `sema` | [marea-sema.md](../sema/marea-sema.md) (3033 to 3077 follow in the rows below) |
 | 3056 | `sema` | [marea-sema.md](../sema/marea-sema.md), `RESERVED_MACRO_NAME` |
 | 3057-3058 | `sema` | [marea-sema.md](../sema/marea-sema.md), `OPAQUE_TYPE_MISUSE` and `OPAQUE_FIELD_BY_VALUE` |
 | 3033 | `sema` | [marea-sema.md](../sema/marea-sema.md), `LITERAL_OUT_OF_RANGE` |
@@ -1302,6 +1302,7 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 | 3066-3068 | `sema` | [marea-sema.md](../sema/marea-sema.md), `PRIVATE_SYMBOL_ACCESS`, `PRIVATE_TYPE_ACCESS`, `PRIVATE_FIELD_ACCESS`, no item reaches them (see Gaps) |
 | 3069 | `sema` | [marea-sema.md](../sema/marea-sema.md), `WRITE_THROUGH_READ_ONLY_BORROW` |
 | 3075-3076 | `sema` | [marea-sema.md](../sema/marea-sema.md), `PARTITION_BODY_WRITES_OUTER_NAME` and `PARTITION_SOURCE_USED_IN_BODY` |
+| 3077 | `sema` | [marea-sema.md](../sema/marea-sema.md), `MISSING_FIELD` |
 | 4004-4006 | `ir` | [marea-ir.md](../ir/marea-ir.md), no item reaches them (see Gaps) |
 
 ## Gaps
@@ -1351,7 +1352,7 @@ The coverage test holds this list; an example that gains an item must leave it.
 
 ### Diagnostic codes with no reject item
 
-Every live lex, parse and sema code (1001-1006, 2001-2010, 3001-3076 without 3023 and the numbers no code uses) has a `reject` item, except 3066,
+Every live lex, parse and sema code (1001-1006, 2001-2010, 3001-3077 without 3023 and the numbers no code uses) has a `reject` item, except 3066,
 3067 and 3068: no item can reach a second namespace (issue #250), and `tests/source/sema/MAREASemaVisibility.cpp`
 proves them. The ir codes
 4004, 4005 and 4006 are exempt: the runner runs lex, parse and sema only, so no item can reach the ir. The exemption ends

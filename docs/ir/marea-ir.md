@@ -552,6 +552,7 @@ Each diagnostic carries the position of the construct that raised it. The messag
 
 ## Gaps
 
+- The `ZERO_VALUE` for an omitted struct field is unreachable: an omitted field is now `MISSING_FIELD` (3077) in sema, so no accepted program reaches it. It awaits removal in a follow-up apply, and the five tests of it are `DISABLED_` until then.
 - The resolved type is read from sema as it is, so it is as complete as sema makes it. In the 23 examples, 45 expression
   nodes of the lowered trees have no resolved type, all of them untyped on purpose (calls of `EXTERNAL` functions
   and library members with no signature, their callees, and the operations and `spawn` derived from them); the
