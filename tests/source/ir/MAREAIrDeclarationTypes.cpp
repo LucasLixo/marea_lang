@@ -65,7 +65,10 @@ namespace
 
             const std::string RESOLVED{ MAREA_resolvedOf(node) };
 
-            const bool HEAD_MATCHES{ (RESOLVED.compare(0, NAME.size(), NAME) == 0) && ((RESOLVED.size() == NAME.size()) || (RESOLVED[NAME.size()] == '<')) };
+            // INFO: an imported type has its full path as the type name, while sema spells the resolved type with the last segment or two, so the head of the resolved type may be the end of the name.
+            const std::string HEAD{ RESOLVED.substr(0, RESOLVED.find('<')) };
+
+            const bool HEAD_MATCHES{ (NAME == HEAD) || ((NAME.size() > HEAD.size()) && (NAME.compare(NAME.size() - HEAD.size(), HEAD.size(), HEAD) == 0) && (NAME[NAME.size() - HEAD.size() - 1] == '.')) };
 
             if (HEAD_MATCHES == false) {
                 mismatch += file + ": " + MAREA_IrKindGetName(MAREA_IrNodeGetKind(node)) + " " + MAREA_irText(node) + " type=" + NAME + " resolved=" + RESOLVED + "\n";
@@ -102,17 +105,17 @@ TEST(MAREAIrDeclarationTypes, EveryDeclarationKindKeepsTheTypeArgumentsInTheDump
                                          "enum Shape Quad(corners: array<sinteger32, 4>); end "
                                          "function take(values: array<sinteger32, 4>): array<sinteger32, 4> local copy_of: array<sinteger32, 4> = values; return copy_of; end") };
 
-    EXPECT_TRUE(MAREA_has(DUMP, "CONSTANT_DECLARATION \"TABLE\" type=array resolved=array<sinteger32,4>")) << DUMP;
+    EXPECT_TRUE(MAREA_has(DUMP, "CONSTANT_DECLARATION \"TABLE\" type=c.array resolved=array<sinteger32,4>")) << DUMP;
 
-    EXPECT_TRUE(MAREA_has(DUMP, "FIELD_DECLARATION \"items\" type=array resolved=array<sinteger32,4>")) << DUMP;
+    EXPECT_TRUE(MAREA_has(DUMP, "FIELD_DECLARATION \"items\" type=c.array resolved=array<sinteger32,4>")) << DUMP;
 
-    EXPECT_TRUE(MAREA_has(DUMP, "VARIANT_FIELD \"corners\" type=array resolved=array<sinteger32,4>")) << DUMP;
+    EXPECT_TRUE(MAREA_has(DUMP, "VARIANT_FIELD \"corners\" type=c.array resolved=array<sinteger32,4>")) << DUMP;
 
-    EXPECT_TRUE(MAREA_has(DUMP, "PARAMETER \"values\" type=array resolved=array<sinteger32,4>")) << DUMP;
+    EXPECT_TRUE(MAREA_has(DUMP, "PARAMETER \"values\" type=c.array resolved=array<sinteger32,4>")) << DUMP;
 
-    EXPECT_TRUE(MAREA_has(DUMP, "LOCAL_DECLARATION \"copy_of\" type=array resolved=array<sinteger32,4>")) << DUMP;
+    EXPECT_TRUE(MAREA_has(DUMP, "LOCAL_DECLARATION \"copy_of\" type=c.array resolved=array<sinteger32,4>")) << DUMP;
 
-    EXPECT_TRUE(MAREA_has(DUMP, "FUNCTION_DECLARATION \"take\" type=array resolved=array<sinteger32,4>")) << DUMP;
+    EXPECT_TRUE(MAREA_has(DUMP, "FUNCTION_DECLARATION \"take\" type=c.array resolved=array<sinteger32,4>")) << DUMP;
 }
 
 TEST(MAREAIrDeclarationTypes, NestedTypeArgumentsStayWhole)
@@ -121,9 +124,9 @@ TEST(MAREAIrDeclarationTypes, NestedTypeArgumentsStayWhole)
 
     const std::string DUMP{ MAREA_dumpOf("namespace main; import c.array as array; import c.vector as vector; function f(grid: array<array<sinteger32, 2>, 3>, rows: vector<array<float32, 2>>) end") };
 
-    EXPECT_TRUE(MAREA_has(DUMP, "PARAMETER \"grid\" type=array resolved=array<array<sinteger32,2>,3>")) << DUMP;
+    EXPECT_TRUE(MAREA_has(DUMP, "PARAMETER \"grid\" type=c.array resolved=array<array<sinteger32,2>,3>")) << DUMP;
 
-    EXPECT_TRUE(MAREA_has(DUMP, "PARAMETER \"rows\" type=vector resolved=vector<array<float32,2>>")) << DUMP;
+    EXPECT_TRUE(MAREA_has(DUMP, "PARAMETER \"rows\" type=c.vector resolved=vector<array<float32,2>>")) << DUMP;
 }
 
 TEST(MAREAIrDeclarationTypes, AliasOfAGenericTypeKeepsTheFullTypeItStandsFor)
@@ -132,9 +135,9 @@ TEST(MAREAIrDeclarationTypes, AliasOfAGenericTypeKeepsTheFullTypeItStandsFor)
 
     const std::string DUMP{ MAREA_dumpOf("namespace main; import c.array as array; type Grid = array<sinteger32, 4>; function f(g: Grid) local h: Grid = g; end") };
 
-    EXPECT_TRUE(MAREA_has(DUMP, "PARAMETER \"g\" type=array resolved=array<sinteger32,4>")) << DUMP;
+    EXPECT_TRUE(MAREA_has(DUMP, "PARAMETER \"g\" type=c.array resolved=array<sinteger32,4>")) << DUMP;
 
-    EXPECT_TRUE(MAREA_has(DUMP, "LOCAL_DECLARATION \"h\" type=array resolved=array<sinteger32,4>")) << DUMP;
+    EXPECT_TRUE(MAREA_has(DUMP, "LOCAL_DECLARATION \"h\" type=c.array resolved=array<sinteger32,4>")) << DUMP;
 }
 
 TEST(MAREAIrDeclarationTypes, FunctionTypeOnEveryDeclarationKindIsNotLost)

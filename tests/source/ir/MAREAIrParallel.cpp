@@ -93,7 +93,7 @@ TEST(MAREAIrParallel, SpawnResultBoundToALocalKeepsItsTypeName)
 {
     GTEST_COUT << "Validating a spawn used as the initializer of a local keeps the local type name and the spawn." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerBody("function work(a: sinteger32): sinteger32 return a; end", "", "fork_join local result: task<sinteger32> = spawn work(1); end"), "(BLOCK (FORK_JOIN_BLOCK (BLOCK (LOCAL_DECLARATION result :task (UNARY_EXPRESSION op=KEYWORD_SPAWN (CALL_EXPRESSION :sinteger32 (IDENTIFIER work) (ARGUMENT_LIST (INTEGER_LITERAL 1))))))))") << "The task local must hold the spawn.";
+    EXPECT_EQ(MAREA_lowerBody("function work(a: sinteger32): sinteger32 return a; end", "", "fork_join local result: task<sinteger32> = spawn work(1); end"), "(BLOCK (FORK_JOIN_BLOCK (BLOCK (LOCAL_DECLARATION result :concurrency.task (UNARY_EXPRESSION op=KEYWORD_SPAWN (CALL_EXPRESSION :sinteger32 (IDENTIFIER work) (ARGUMENT_LIST (INTEGER_LITERAL 1))))))))") << "The task local must hold the spawn.";
 }
 
 TEST(MAREAIrParallel, SpawnResultAsAnArgumentStaysInTheCall)

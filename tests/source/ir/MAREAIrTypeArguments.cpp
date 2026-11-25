@@ -126,11 +126,11 @@ TEST(MAREAIrTypeArguments, TypeKeepsItsOwnTypeArguments)
 {
     GTEST_COUT << "Validating a type operand keeps its type arguments: a nested type and a value argument." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerConstant("uinteger64", "size_of<list<sinteger32>>()"), "(CALL_EXPRESSION (BUILTIN_NAME size_of (TYPE_NAME list (TYPE_NAME sinteger32))) (ARGUMENT_LIST))") << "A nested type must be a child of its head.";
+    EXPECT_EQ(MAREA_lowerConstant("uinteger64", "size_of<list<sinteger32>>()"), "(CALL_EXPRESSION (BUILTIN_NAME size_of (TYPE_NAME collections.list (TYPE_NAME sinteger32))) (ARGUMENT_LIST))") << "A nested type must be a child of its head.";
 
     EXPECT_EQ(MAREA_lowerConstant("uinteger64", "size_of<demo.array<float32, 4>>()"), "(CALL_EXPRESSION (BUILTIN_NAME size_of (TYPE_NAME demo.array (TYPE_NAME float32) (INTEGER_LITERAL 4))) (ARGUMENT_LIST))") << "A value argument must be an INTEGER_LITERAL child, in order.";
 
-    EXPECT_EQ(MAREA_lowerConstant("uinteger64", "size_of<list<list<float32>>>()"), "(CALL_EXPRESSION (BUILTIN_NAME size_of (TYPE_NAME list (TYPE_NAME list (TYPE_NAME float32)))) (ARGUMENT_LIST))") << "A type must nest to any depth.";
+    EXPECT_EQ(MAREA_lowerConstant("uinteger64", "size_of<list<list<float32>>>()"), "(CALL_EXPRESSION (BUILTIN_NAME size_of (TYPE_NAME collections.list (TYPE_NAME collections.list (TYPE_NAME float32)))) (ARGUMENT_LIST))") << "A type must nest to any depth.";
 }
 
 TEST(MAREAIrTypeArguments, TypeKeepsADottedNameWhole)
@@ -144,7 +144,7 @@ TEST(MAREAIrTypeArguments, StaticCallLowersToATypeQualifiedMember)
 {
     GTEST_COUT << "Validating list<T>.filled(...) lowers to a call of a member of a TYPE_NAME." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerLocal("", "list<sinteger32>", "list<sinteger32>.filled(8, 0)"), "(CALL_EXPRESSION (MEMBER_ACCESS (TYPE_NAME list (TYPE_NAME sinteger32)) (IDENTIFIER filled)) (ARGUMENT_LIST (INTEGER_LITERAL 8) (INTEGER_LITERAL 0)))") << "The call must keep its callee and arguments layout, with the type as the receiver.";
+    EXPECT_EQ(MAREA_lowerLocal("", "list<sinteger32>", "list<sinteger32>.filled(8, 0)"), "(CALL_EXPRESSION (MEMBER_ACCESS (TYPE_NAME collections.list (TYPE_NAME sinteger32)) (IDENTIFIER filled)) (ARGUMENT_LIST (INTEGER_LITERAL 8) (INTEGER_LITERAL 0)))") << "The call must keep its callee and arguments layout, with the type as the receiver.";
 }
 
 TEST(MAREAIrTypeArguments, StaticCallKeepsAValueArgument)
@@ -158,7 +158,7 @@ TEST(MAREAIrTypeArguments, StaticCallResultCanBeUsedAgain)
 {
     GTEST_COUT << "Validating a static call lowers as the receiver of a later member call and as an argument." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerLocal("", "sinteger32", "list<sinteger32>.filled(8, 0).length()"), "(CALL_EXPRESSION (MEMBER_ACCESS (CALL_EXPRESSION (MEMBER_ACCESS (TYPE_NAME list (TYPE_NAME sinteger32)) (IDENTIFIER filled)) (ARGUMENT_LIST (INTEGER_LITERAL 8) (INTEGER_LITERAL 0))) (IDENTIFIER length)) (ARGUMENT_LIST))") << "A static call must be a plain expression for its parent.";
+    EXPECT_EQ(MAREA_lowerLocal("", "sinteger32", "list<sinteger32>.filled(8, 0).length()"), "(CALL_EXPRESSION (MEMBER_ACCESS (CALL_EXPRESSION (MEMBER_ACCESS (TYPE_NAME collections.list (TYPE_NAME sinteger32)) (IDENTIFIER filled)) (ARGUMENT_LIST (INTEGER_LITERAL 8) (INTEGER_LITERAL 0))) (IDENTIFIER length)) (ARGUMENT_LIST))") << "A static call must be a plain expression for its parent.";
 }
 
 TEST(MAREAIrTypeArguments, TypeAndBuiltinNodesCarryPositions)
@@ -203,7 +203,7 @@ TEST(MAREAIrTypeArguments, NonGenericStaticCallIsUnchanged)
 {
     GTEST_COUT << "Validating a static call on a type with no type arguments is a plain member call." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerLocal("", "list<sinteger32>", "list.origin()"), "(CALL_EXPRESSION (MEMBER_ACCESS (IDENTIFIER list) (IDENTIFIER origin)) (ARGUMENT_LIST))") << "A type with no type arguments is an IDENTIFIER, as before.";
+    EXPECT_EQ(MAREA_lowerLocal("", "list<sinteger32>", "list.origin()"), "(CALL_EXPRESSION (MEMBER_ACCESS (IDENTIFIER collections.list) (IDENTIFIER origin)) (ARGUMENT_LIST))") << "A type with no type arguments is an IDENTIFIER, as before.";
 }
 
 TEST(MAREAIrTypeArguments, FunctionOfTheUnitWithABuiltinNameStaysAGeneric)
@@ -398,6 +398,6 @@ TEST(MAREAIrTypeArguments, DumpShowsTheNewKinds)
     EXPECT_NE(DUMP.find("      LOCAL_DECLARATION \"wide\" type=sinteger64 resolved=sinteger64\n        CALL_EXPRESSION type=sinteger64 resolved=sinteger64\n          BUILTIN_NAME \"convert\"\n            TYPE_NAME \"sinteger64\"\n          ARGUMENT_LIST\n            IDENTIFIER \"count\" resolved=sinteger32\n"), std::string::npos) << "The built-in call must dump with its name, its type and its argument.\n"
                                                                                                                                                                                                                                                                                                                                             << DUMP;
 
-    EXPECT_NE(DUMP.find("        CALL_EXPRESSION\n          MEMBER_ACCESS\n            TYPE_NAME \"list\"\n              TYPE_NAME \"sinteger32\"\n            IDENTIFIER \"filled\"\n          ARGUMENT_LIST\n"), std::string::npos) << "The static call must dump with its type as the receiver.\n"
-                                                                                                                                                                                                                                      << DUMP;
+    EXPECT_NE(DUMP.find("        CALL_EXPRESSION\n          MEMBER_ACCESS\n            TYPE_NAME \"collections.list\"\n              TYPE_NAME \"sinteger32\"\n            IDENTIFIER \"filled\"\n          ARGUMENT_LIST\n"), std::string::npos) << "The static call must dump with its type as the receiver.\n"
+                                                                                                                                                                                                                                                  << DUMP;
 }

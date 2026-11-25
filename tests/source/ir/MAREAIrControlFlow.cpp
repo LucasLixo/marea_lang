@@ -513,7 +513,7 @@ TEST(MAREAIrControlFlow, ForEachKeepsTheCollectionAsOneChildEvaluatedByTheNode)
 
     const std::string rendered{ MAREA_lowerBody("import collections.list as list; function source(): list<sinteger32> return source(); end", "", "for each value in source() do end") };
 
-    EXPECT_NE(rendered.find("(FOR_EACH_STATEMENT value (CALL_EXPRESSION :list (IDENTIFIER source) (ARGUMENT_LIST)) (BLOCK))"), std::string::npos) << "The call must be the collection child: " << rendered;
+    EXPECT_NE(rendered.find("(FOR_EACH_STATEMENT value (CALL_EXPRESSION :collections.list (IDENTIFIER source) (ARGUMENT_LIST)) (BLOCK))"), std::string::npos) << "The call must be the collection child: " << rendered;
 }
 
 TEST(MAREAIrControlFlow, ForEachContinueAndBreakStayAsTheyAre)

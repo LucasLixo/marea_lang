@@ -91,7 +91,7 @@ static MAREA_IntegerSize MAREA_CALL MAREA_G_CountAliases(const MAREA_SemaTypedNo
 
         const MAREA_AstKind KIND = MAREA_IrTypedKind(item);
 
-        if (KIND == MAREA_AST_KIND_IMPORT_DECLARATION) {
+        if ((KIND == MAREA_AST_KIND_IMPORT_DECLARATION) || (KIND == MAREA_AST_KIND_REQUIRE_DECLARATION)) {
             count = (count + MAREA_SemaTypedNodeGetChildCount(item));
         } else if (KIND == MAREA_AST_KIND_TYPE_DECLARATION) {
             count = (count + MAREA_INTEGER_SIZE(1));
@@ -101,7 +101,29 @@ static MAREA_IntegerSize MAREA_CALL MAREA_G_CountAliases(const MAREA_SemaTypedNo
     return count;
 }
 
-static MAREA_IrExcept MAREA_CALL MAREA_G_AppendAlias(MAREA_IrContext *context, const MAREA_AstNode *alias, const MAREA_AstNode *original, MAREA_Boolean isImport, MAREA_Boolean wholeLast)
+// INFO: left, a dot, then right, as one text in the arena.
+static MAREA_IrExcept MAREA_CALL MAREA_G_JoinWithDot(MAREA_IrContext *context, const MAREA_Character8 *left, MAREA_IntegerSize leftLength, const MAREA_Character8 *right, MAREA_IntegerSize rightLength, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength)
+{
+    MAREA_Null memory = MAREA_NULLPTR;
+
+    if (MAREA_ArenaAllocate(context->arena, (leftLength + MAREA_INTEGER_SIZE(1) + rightLength), MAREA_INTEGER_SIZE(1), &memory) != MAREA_ARENA_EXCEPT_SUCCESS) {
+        return MAREA_IR_EXCEPT_ERROR_OUT_OF_MEMORY;
+    }
+
+    MAREA_Character8 *joined = memory;
+
+    memcpy(joined, left, leftLength);
+    joined[leftLength] = '.';
+    memcpy((joined + leftLength + MAREA_INTEGER_SIZE(1)), right, rightLength);
+
+    *outText = joined;
+    *outLength = (leftLength + MAREA_INTEGER_SIZE(1) + rightLength);
+
+    return MAREA_IR_EXCEPT_SUCCESS;
+}
+
+// INFO: one alias entry. The original is the full path that the alias stands for: the path of the import for a namespace or a one-symbol alias, and the namespace of the import then the member path for a member of a list, so two members of one name in two namespaces never share a lowered name. namespacePath is null for a local type alias, whose original is the path as written.
+static MAREA_IrExcept MAREA_CALL MAREA_G_AppendAlias(MAREA_IrContext *context, const MAREA_AstNode *alias, const MAREA_AstNode *original, const MAREA_AstNode *namespacePath, MAREA_Boolean isImport)
 {
     MAREA_IrAlias *entry = &context->aliases[context->aliasCount];
 
@@ -111,24 +133,21 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_AppendAlias(MAREA_IrContext *context, c
     entry->isFunction = MAREA_BOOLEAN_FALSE;
     entry->hasArguments = MAREA_BOOLEAN_FALSE;
 
-    if (wholeLast == MAREA_BOOLEAN_TRUE) {
-        // INFO: a whole-path alias names the last segment of its path, as the same import does without "as".
-        const MAREA_AstNode *last = MAREA_NULLPTR;
+    MAREA_IrExcept result = MAREA_G_JoinSegments(context, original, &entry->original, &entry->originalLength);
 
-        const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(original);
+    if ((result == MAREA_IR_EXCEPT_SUCCESS) && (namespacePath != MAREA_NULLPTR)) {
+        const MAREA_Character8 *prefix = MAREA_NULLPTR;
+        MAREA_IntegerSize prefixLength = MAREA_INTEGER_SIZE(0);
 
-        if ((COUNT == MAREA_INTEGER_SIZE(0)) || (MAREA_AstNodeGetChildAt(original, (COUNT - MAREA_INTEGER_SIZE(1)), &last) != MAREA_AST_EXCEPT_SUCCESS)) {
-            return MAREA_IR_EXCEPT_SUCCESS;
+        result = MAREA_G_JoinSegments(context, namespacePath, &prefix, &prefixLength);
+
+        if (result == MAREA_IR_EXCEPT_SUCCESS) {
+            result = MAREA_G_JoinWithDot(context, prefix, prefixLength, entry->original, entry->originalLength, &entry->original, &entry->originalLength);
         }
+    }
 
-        entry->original = MAREA_AstNodeGetText(last);
-        entry->originalLength = MAREA_AstNodeGetTextLength(last);
-    } else {
-        const MAREA_IrExcept result = MAREA_G_JoinSegments(context, original, &entry->original, &entry->originalLength);
-
-        if (result != MAREA_IR_EXCEPT_SUCCESS) {
-            return result;
-        }
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
     }
 
     context->aliasCount = (context->aliasCount + MAREA_INTEGER_SIZE(1));
@@ -150,12 +169,12 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_AddImport(MAREA_IrContext *context, con
         for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(1); index < COUNT; index = (index + MAREA_INTEGER_SIZE(1))) {
             const MAREA_SemaTypedNode *member = MAREA_IrTypedChildAt(item, index);
 
-            // INFO: a member without "as" binds its own path, so it has no alias to lower.
+            // INFO: a member without "as" binds no name, so it has no alias to lower.
             if ((MAREA_IrTypedKind(member) != MAREA_AST_KIND_IMPORT_MEMBER) || (MAREA_SemaTypedNodeGetChildCount(member) < MAREA_INTEGER_SIZE(2))) {
                 continue;
             }
 
-            const MAREA_IrExcept result = MAREA_G_AppendAlias(context, MAREA_SemaTypedNodeGetAstNode(MAREA_IrTypedChildAt(member, MAREA_INTEGER_SIZE(1))), MAREA_SemaTypedNodeGetAstNode(MAREA_IrTypedChildAt(member, MAREA_INTEGER_SIZE(0))), MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_FALSE);
+            const MAREA_IrExcept result = MAREA_G_AppendAlias(context, MAREA_SemaTypedNodeGetAstNode(MAREA_IrTypedChildAt(member, MAREA_INTEGER_SIZE(1))), MAREA_SemaTypedNodeGetAstNode(MAREA_IrTypedChildAt(member, MAREA_INTEGER_SIZE(0))), path, MAREA_BOOLEAN_TRUE);
 
             if (result != MAREA_IR_EXCEPT_SUCCESS) {
                 return result;
@@ -169,7 +188,8 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_AddImport(MAREA_IrContext *context, con
         return MAREA_IR_EXCEPT_SUCCESS;
     }
 
-    return MAREA_G_AppendAlias(context, MAREA_SemaTypedNodeGetAstNode(MAREA_IrTypedChildAt(item, MAREA_INTEGER_SIZE(1))), path, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_TRUE);
+    // INFO: an alias of a whole path stands for the full path, namespace or symbol, never for its last segment alone.
+    return MAREA_G_AppendAlias(context, MAREA_SemaTypedNodeGetAstNode(MAREA_IrTypedChildAt(item, MAREA_INTEGER_SIZE(1))), path, MAREA_NULLPTR, MAREA_BOOLEAN_TRUE);
 }
 
 // INFO: an alias without generic parameters is lowered when its right side is a named type, with or without concrete type arguments, or a function type.
@@ -206,7 +226,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_AddTypeAlias(MAREA_IrContext *context, 
         return MAREA_IR_EXCEPT_SUCCESS;
     }
 
-    const MAREA_IrExcept RESULT = MAREA_G_AppendAlias(context, MAREA_SemaTypedNodeGetAstNode(name), MAREA_SemaTypedNodeGetAstNode(MAREA_IrTypedChildAt(type, MAREA_INTEGER_SIZE(0))), MAREA_BOOLEAN_FALSE, MAREA_BOOLEAN_FALSE);
+    const MAREA_IrExcept RESULT = MAREA_G_AppendAlias(context, MAREA_SemaTypedNodeGetAstNode(name), MAREA_SemaTypedNodeGetAstNode(MAREA_IrTypedChildAt(type, MAREA_INTEGER_SIZE(0))), MAREA_NULLPTR, MAREA_BOOLEAN_FALSE);
 
     if ((RESULT == MAREA_IR_EXCEPT_SUCCESS) && (MAREA_IrTypedFindChild(type, MAREA_AST_KIND_TYPE_ARGUMENTS) != MAREA_NULLPTR)) {
         context->aliases[(context->aliasCount - MAREA_INTEGER_SIZE(1))].hasArguments = MAREA_BOOLEAN_TRUE;
@@ -251,7 +271,7 @@ MAREA_IrExcept MAREA_CALL MAREA_IrAliasBuild(MAREA_IrContext *context, const MAR
 
         MAREA_IrExcept result = MAREA_IR_EXCEPT_SUCCESS;
 
-        if (KIND == MAREA_AST_KIND_IMPORT_DECLARATION) {
+        if ((KIND == MAREA_AST_KIND_IMPORT_DECLARATION) || (KIND == MAREA_AST_KIND_REQUIRE_DECLARATION)) {
             result = MAREA_G_AddImport(context, item);
         } else if (KIND == MAREA_AST_KIND_TYPE_DECLARATION) {
             result = MAREA_G_AddTypeAlias(context, item);
