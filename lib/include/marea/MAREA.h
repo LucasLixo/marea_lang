@@ -29,6 +29,7 @@
 
     #include "marea/bytecode/MAREABytecode.h"
     #include "marea/bytecode/MAREABytecodeFormat.h"
+    #include "marea/bytecode/MAREABytecodeGenerate.h"
     #include "marea/bytecode/MAREABytecodeOpcode.h"
 
 #endif

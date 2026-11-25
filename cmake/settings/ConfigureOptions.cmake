@@ -63,7 +63,14 @@ macro(ConfigureOptions)
         MAREA_OPTION_TARGET_BYTECODE
         "Build the Marea-Bytecode library"
         ON
-        "MAREA_OPTION_TARGET_BASE"
+        "MAREA_OPTION_TARGET_IR"
+        OFF
+    )
+    cmake_dependent_option(
+        MAREA_OPTION_TARGET_VM
+        "Build the Marea-Vm library"
+        ON
+        "MAREA_OPTION_TARGET_BYTECODE"
         OFF
     )
 endmacro()

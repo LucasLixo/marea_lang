@@ -228,7 +228,7 @@ struct MAREA_BytecodeFixture
             const std::uint64_t INSTRUCTIONS{ next(5) };
 
             for (std::uint64_t instruction{ 0 }; instruction < INSTRUCTIONS; ++instruction) {
-                MAREA_addInstruction(module, FUNCTION, static_cast<std::uint16_t>(next(2)), static_cast<std::uint16_t>(next(65536)), static_cast<std::uint16_t>(next(65536)), static_cast<std::uint16_t>(next(65536)));
+                MAREA_addInstruction(module, FUNCTION, static_cast<std::uint16_t>(next(MAREA_BYTECODE_OPCODE_COUNT)), static_cast<std::uint16_t>(next(65536)), static_cast<std::uint16_t>(next(65536)), static_cast<std::uint16_t>(next(65536)));
             }
         }
 
