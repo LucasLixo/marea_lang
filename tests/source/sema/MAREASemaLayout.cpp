@@ -264,8 +264,6 @@ TEST(MAREASemaLayout, PackAndAlignChangeTheLayout)
     MAREA_expectStructure("namespace main; #[align = 16] structure P a: uinteger8; end", 0, 16, 16, { 0 });
 
     MAREA_expectStructure("namespace main; structure P a: uinteger8; #[align = 8] b: uinteger8; end", 0, 16, 8, { 0, 8 });
-
-    MAREA_expectStructure("namespace main; #![pack = 1] structure P a: uinteger8; b: uinteger32; end", 0, 5, 1, { 0, 1 });
 }
 
 TEST(MAREASemaLayout, StructureHeldByValueIsMeasuredInPlace)
@@ -384,7 +382,7 @@ TEST(MAREASemaLayout, EnumImportedFromAnotherFileIsUndecided)
 
     MAREA_expectUndecided("namespace main; import a.b { Shape as Shape }; structure Point x: uinteger8; end structure S s: Shape; end", MAREA_AST_KIND_STRUCTURE_DECLARATION, 1, MAREA_SEMA_MEASURE_REASON_UNRESOLVED, 1, RESOLVE);
 
-    MAREA_expectUndecided("namespace main; #![pack = 1] import a.b { Wide as Wide }; structure S w: Wide; end", MAREA_AST_KIND_STRUCTURE_DECLARATION, 0, MAREA_SEMA_MEASURE_REASON_UNRESOLVED, 1, RESOLVE);
+    MAREA_expectUndecided("namespace main; #![layout = c] import a.b { Wide as Wide }; structure S w: Wide; end", MAREA_AST_KIND_STRUCTURE_DECLARATION, 0, MAREA_SEMA_MEASURE_REASON_UNRESOLVED, 1, RESOLVE);
 }
 
 TEST(MAREASemaLayout, ARegisteredArrayOfPrimitivesIsMeasuredFromItsDescriptor)
