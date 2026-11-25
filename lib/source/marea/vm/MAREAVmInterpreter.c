@@ -306,7 +306,32 @@ static MAREA_Uinteger64 MAREA_CALL MAREA_G_VmIntegerPower(MAREA_Boolean negative
 typedef struct MAREA_VmFrame
 {
     MAREA_Uinteger64 registers[MAREA_VM_FRAME_REGISTER_LIMIT];
+    MAREA_Byte memory[MAREA_VM_FRAME_MEMORY_LIMIT];
 } MAREA_VmFrame;
+
+// INFO: an address a composite opcode reads is always the bit pattern of a pointer into the memory area of some
+// frame still on the call chain (this one, or an ancestor that passed it down as an argument, directly or as the
+// receiver of a method). MAREA_BytecodeGeneratorAllocateFrame and MAREA_BytecodeGenerate are the only source of
+// such an address, so a null one only comes from a malformed module: reported as a vm limit, never dereferenced.
+static MAREA_Boolean MAREA_CALL MAREA_G_VmAddressDecode(MAREA_Uinteger64 address, MAREA_Byte **outPointer)
+{
+    MAREA_Byte *pointer = MAREA_NULLPTR;
+
+    memcpy(&pointer, &address, sizeof(pointer));
+
+    *outPointer = pointer;
+
+    return (pointer != MAREA_NULLPTR);
+}
+
+static MAREA_Uinteger64 MAREA_CALL MAREA_G_VmAddressOf(MAREA_Byte *pointer)
+{
+    MAREA_Uinteger64 address = MAREA_UINTEGER_64(0);
+
+    memcpy(&address, &pointer, sizeof(pointer));
+
+    return address;
+}
 
 static MAREA_VmResult MAREA_CALL MAREA_G_VmTrapResult(MAREA_BytecodeTrapCode trap)
 {
@@ -357,6 +382,7 @@ MAREA_VmExcept MAREA_CALL MAREA_VmRun(MAREA_VmContext *context, const MAREA_Byte
     MAREA_VmFrame frame;
 
     memset(frame.registers, 0, sizeof(frame.registers));
+    memset(frame.memory, 0, sizeof(frame.memory));
 
     for (MAREA_Uinteger32 index = MAREA_UINTEGER_32(0); index < argumentCount; index += MAREA_UINTEGER_32(1)) {
         if (index >= MAREA_VM_FRAME_REGISTER_LIMIT) {
@@ -800,6 +826,159 @@ MAREA_VmExcept MAREA_CALL MAREA_VmRun(MAREA_VmContext *context, const MAREA_Byte
             *outResult = MAREA_G_VmTrapResult((MAREA_BytecodeTrapCode)A);
 
             return MAREA_VM_EXCEPT_SUCCESS;
+        case MAREA_BYTECODE_OPCODE_ZERO:
+        {
+            if (B == MAREA_UINTEGER_32(0)) {
+                frame.registers[A] = MAREA_UINTEGER_64(0);
+
+                break;
+            }
+
+            MAREA_Byte *pointer = MAREA_NULLPTR;
+
+            if (!MAREA_G_VmAddressDecode(frame.registers[A], &pointer)) {
+                return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
+            }
+
+            memset(pointer, 0, (size_t)B);
+
+            break;
+        }
+        case MAREA_BYTECODE_OPCODE_ADDRESS_OF:
+        {
+            if (B >= MAREA_VM_FRAME_MEMORY_LIMIT) {
+                return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
+            }
+
+            frame.registers[A] = MAREA_G_VmAddressOf(&frame.memory[B]);
+
+            break;
+        }
+        case MAREA_BYTECODE_OPCODE_FIELD:
+        {
+            if (B >= MAREA_VM_FRAME_REGISTER_LIMIT) {
+                return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
+            }
+
+            MAREA_Byte *pointer = MAREA_NULLPTR;
+
+            if (!MAREA_G_VmAddressDecode(frame.registers[B], &pointer)) {
+                return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
+            }
+
+            frame.registers[A] = MAREA_G_VmAddressOf((pointer + C));
+
+            break;
+        }
+        case MAREA_BYTECODE_OPCODE_LOAD:
+        {
+            if (B >= MAREA_VM_FRAME_REGISTER_LIMIT) {
+                return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
+            }
+
+            const MAREA_Uinteger8 KIND = (MAREA_Uinteger8)C;
+
+            if (KIND >= MAREA_BYTECODE_NUMBER_KIND_COUNT) {
+                return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
+            }
+
+            MAREA_Byte *pointer = MAREA_NULLPTR;
+
+            if (!MAREA_G_VmAddressDecode(frame.registers[B], &pointer)) {
+                return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
+            }
+
+            if (KIND == MAREA_BYTECODE_NUMBER_KIND_FLOAT_32) {
+                MAREA_Float32 narrow = MAREA_FLOAT_32(0.0);
+
+                memcpy(&narrow, pointer, sizeof(narrow));
+
+                frame.registers[A] = MAREA_G_VmFromDouble(KIND, (MAREA_Float64)narrow);
+            } else if (KIND == MAREA_BYTECODE_NUMBER_KIND_FLOAT_64) {
+                MAREA_Uinteger64 bits = MAREA_UINTEGER_64(0);
+
+                memcpy(&bits, pointer, sizeof(bits));
+
+                frame.registers[A] = bits;
+            } else {
+                const MAREA_Uinteger32 WIDTHS[MAREA_BYTECODE_NUMBER_KIND_COUNT] = { 1, 2, 4, 8, 1, 2, 4, 8, 4, 8 };
+                MAREA_Uinteger64 bits = MAREA_UINTEGER_64(0);
+
+                memcpy(&bits, pointer, (size_t)WIDTHS[KIND]);
+
+                frame.registers[A] = MAREA_G_VmNormalize(KIND, bits);
+            }
+
+            break;
+        }
+        case MAREA_BYTECODE_OPCODE_STORE:
+        {
+            if (B >= MAREA_VM_FRAME_REGISTER_LIMIT) {
+                return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
+            }
+
+            const MAREA_Uinteger8 KIND = (MAREA_Uinteger8)C;
+
+            if (KIND >= MAREA_BYTECODE_NUMBER_KIND_COUNT) {
+                return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
+            }
+
+            MAREA_Byte *pointer = MAREA_NULLPTR;
+
+            if (!MAREA_G_VmAddressDecode(frame.registers[A], &pointer)) {
+                return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
+            }
+
+            const MAREA_Uinteger32 WIDTHS[MAREA_BYTECODE_NUMBER_KIND_COUNT] = { 1, 2, 4, 8, 1, 2, 4, 8, 4, 8 };
+
+            if (KIND == MAREA_BYTECODE_NUMBER_KIND_FLOAT_32) {
+                const MAREA_Float32 NARROW = (MAREA_Float32)MAREA_G_VmAsDouble(frame.registers[B]);
+
+                memcpy(pointer, &NARROW, sizeof(NARROW));
+            } else {
+                memcpy(pointer, &frame.registers[B], (size_t)WIDTHS[KIND]);
+            }
+
+            break;
+        }
+        case MAREA_BYTECODE_OPCODE_COPY_BYTES:
+        {
+            if (B >= MAREA_VM_FRAME_REGISTER_LIMIT) {
+                return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
+            }
+
+            MAREA_Byte *destination = MAREA_NULLPTR;
+            MAREA_Byte *source = MAREA_NULLPTR;
+
+            if (!MAREA_G_VmAddressDecode(frame.registers[A], &destination) || !MAREA_G_VmAddressDecode(frame.registers[B], &source)) {
+                return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
+            }
+
+            memmove(destination, source, (size_t)C);
+
+            break;
+        }
+        case MAREA_BYTECODE_OPCODE_LOAD_DATA_BLOCK:
+        {
+            const MAREA_Byte *bytes = MAREA_NULLPTR;
+            MAREA_IntegerSize size = MAREA_INTEGER_SIZE(0);
+
+            if (MAREA_BytecodeModuleGetData(module, B, &bytes, &size) != MAREA_BYTECODE_EXCEPT_SUCCESS) {
+                return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
+            }
+
+            MAREA_Byte *pointer = MAREA_NULLPTR;
+
+            if (!MAREA_G_VmAddressDecode(frame.registers[A], &pointer)) {
+                return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
+            }
+
+            if (size > MAREA_INTEGER_SIZE(0)) {
+                memcpy(pointer, bytes, (size_t)size);
+            }
+
+            break;
+        }
         default:
             return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
         }
