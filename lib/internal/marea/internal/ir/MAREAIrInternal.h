@@ -347,6 +347,16 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_IrExcept MAREA_CALL MAREA_IrLowerBlock(MAREA_IrContext * context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode);
 
     /**
+     * @brief Tells whether a name is a local type alias of the unit (type Alias = Name;), not an alias of an import
+     * and not an alias of a function type.
+     * @param context Context of the run, with the alias table built. Must not be null.
+     * @param text Name to look up.
+     * @param length Byte length of text.
+     * @return MAREA_BOOLEAN_TRUE for a local type alias, otherwise MAREA_BOOLEAN_FALSE.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_IrAliasIsLocalType(const MAREA_IrContext *context, const MAREA_Character8 *text, MAREA_IntegerSize length);
+
+    /**
      * @brief Lowers a MACRO_CALL typed node that the IR keeps for a later stage: build_value! (a bare name) and the macro
      * of a shipped library (a qualified name, with the alias of a namespace replaced by the namespace). The result is a
      * MACRO_CALL node with the name as its text, one ARGUMENT_LIST child of the lowered arguments, and the resolved type of

@@ -461,3 +461,10 @@ MAREA_Boolean MAREA_CALL MAREA_IrAliasTypeIsLossy(MAREA_IrContext *context, cons
 
     return lossy;
 }
+
+MAREA_Boolean MAREA_CALL MAREA_IrAliasIsLocalType(const MAREA_IrContext *context, const MAREA_Character8 *text, MAREA_IntegerSize length)
+{
+    const MAREA_IrAlias *entry = MAREA_G_FindAlias(context, text, length, MAREA_BOOLEAN_FALSE);
+
+    return ((entry != MAREA_NULLPTR) && (entry->isImport == MAREA_BOOLEAN_FALSE) && (entry->isFunction == MAREA_BOOLEAN_FALSE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
