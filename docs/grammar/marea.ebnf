@@ -59,9 +59,11 @@ keyword             = "and" | "as" | "break" | "case" | "constant" | "continue" 
                     | "copy" | "default" | "do" | "each" | "else" | "elseif" | "end" | "enum" | "false"
                     | "for" | "fork_join" | "function" | "if" | "implementation" | "import"
                     | "in" | "into" | "local" | "move" | "mutable" | "namespace"
-                    | "not" | "opaque" | "or" | "partition" | "return" | "spawn"
+                    | "not" | "opaque" | "or" | "partition" | "require" | "return" | "spawn"
                     | "structure" | "switch" | "then" | "true" | "type" | "unsafe" | "where"
                     | "while" | "with" ;
+(* "when", "all" and "any" are not reserved. They are identifiers that take a meaning only inside *)
+(* the attribute item when(...) (see attribute_item, below). *)
 (* "reference" is retired: it is a plain identifier now. A parameter's passing mode is its *)
 (* "semantics" attribute (see parameter, below) and "mutable" stays reserved only for *)
 (* "for each" and "partition" - never on a parameter any more. *)
@@ -84,7 +86,8 @@ operator_token      = "+" | "-" | "*" | "/" | "%" | "**"
                     | "<<=" | ">>=" | "&=" | "|=" | "^=" ;
 separator_token    = "(" | ")" | "[" | "]" | "{" | "}" | "," | ";" | ":" | "." | ".." | "!"
                     | "#[" | "#![" ;
-(* In a type argument list, the lexer may split ">>" in two ">" tokens. See note 2. *)
+(* The lexer always reads ">>" as one token. In a type argument list the parser splits it in two *)
+(* ">" tokens. See note 2. *)
 
 
 (* ================================ 2. Names and files =============================== *)
@@ -93,7 +96,7 @@ qualified_name      = identifier, { ".", identifier } ;
 
 compilation_unit    = namespace_declaration,
                       { file_attribute },
-                      { import_declaration },
+                      { import_declaration | require_declaration },
                       { top_level_item } ;
 
 (* The name must be the folder path of the file, relative to the project root, plus the file *)
@@ -101,17 +104,27 @@ compilation_unit    = namespace_declaration,
 (* reserved as the first part of a namespace. *)
 namespace_declaration = "namespace", qualified_name, ";" ;
 
+(* "import" brings in other Marea files of the project. "require" brings in what the C side *)
+(* registered (the roots "c" and "marea", and any root a host registers). The two words take the *)
+(* same forms, they sit in the header of the file in any order, and the parser builds a *)
+(* different node for each (IMPORT_DECLARATION, REQUIRE_DECLARATION). Which names each word *)
+(* may reach is a checker rule. *)
 (* The word after the namespace path decides the form: "as" or ";" is the whole path form, *)
-(* "{" is the member list. A list holds at least one member and has no trailing comma. "as" *)
-(* and a list never mix on one import. The braces are a list, never a block. See note 14.   *)
-import_declaration  = "import", qualified_name, ( [ "as", identifier ] | import_member_list ), ";" ;
+(* "{" is the member list, "." followed by "*" is the wildcard form. A list holds at least one *)
+(* member and has no trailing comma. "as", a list and the wildcard never mix on one declaration. *)
+(* A star that is not the last part of the path, or a star with no path before it, is an error. *)
+(* The braces are a list, never a block. See note 14. *)
+import_declaration  = "import", qualified_name,
+                      ( [ "as", identifier ] | import_member_list | ".", "*" ), ";" ;
+require_declaration = "require", qualified_name,
+                      ( [ "as", identifier ] | import_member_list | ".", "*" ), ";" ;
 
 import_member_list  = "{", import_member, { ",", import_member }, "}" ;
 
 (* A member names a symbol of the imported namespace: a function, a type or a constant by one *)
-(* name, or an enum variant by a two part path such as Color.Red. The local name is the alias, *)
-(* or the last segment of the member path. The grammar accepts any path: the checker allows   *)
-(* only one or two parts. *)
+(* name, or an enum variant by a two part path such as Color.Red. The local name is the alias: *)
+(* the checker requires an "as" on every member. The grammar accepts any path and a member *)
+(* with no alias: the checker allows only one or two parts. *)
 import_member        = qualified_name, [ "as", identifier ] ;
 
 
@@ -126,8 +139,23 @@ import_member        = qualified_name, [ "as", identifier ] ;
 (* operator_token, "[]", "()", "convert", "construct" or "destroy". An unknown key is an error. *)
 attribute           = "#[", attribute_item, { ",", attribute_item }, "]" ;
 file_attribute      = "#![", attribute_item, { ",", attribute_item }, "]" ;
-attribute_item      = identifier, [ "=", attribute_value ] ;
+attribute_item      = plain_attribute_item | when_item ;
+plain_attribute_item = identifier, [ "=", attribute_value ] ;
 attribute_value     = boolean_literal | integer_literal | string_literal | qualified_name ;
+
+(* when(predicate, key = value, ...) gives the listed items a condition: they apply only when the *)
+(* predicate holds on the target. The word "when" is an identifier, and the "(" after it chooses *)
+(* this form: a "when" with no "(" is a plain item with the key "when". The listed items are plain *)
+(* items, so a when item never nests in another one. A when item is legal wherever an attribute *)
+(* list is. The parser reads the shape only. The predicate names (architecture, operating_system, *)
+(* feature, compiler, pointer_width, endianness), their values, and what a predicate that the *)
+(* target does not answer means (false) are checker rules. See note 15. *)
+when_item           = "when", "(", when_predicate, ",", plain_attribute_item,
+                      { ",", plain_attribute_item }, ")" ;
+when_predicate      = when_comparison | when_combinator ;
+when_comparison     = identifier, "=", ( string_literal | integer_literal ) ;
+when_combinator     = ( "all" | "any" ), "(", when_predicate, { ",", when_predicate }, ")"
+                    | "not", "(", when_predicate, ")" ;
 
 
 (* ================================ 4. Top level items =============================== *)
@@ -223,6 +251,7 @@ statement           = local_declaration
                     | expression_statement
                     | if_statement
                     | while_statement
+                    | do_while_statement
                     | for_range_statement
                     | for_each_statement
                     | switch_statement
@@ -254,6 +283,11 @@ if_statement        = "if", expression, "then", block,
 
 while_statement     = "while", expression, "do", block, "end" ;
 
+(* The body runs first, then the condition: the body runs at least once. One "end" closes the *)
+(* whole statement. A "while" that comes straight after the body statements, and whose condition *)
+(* is followed by "end", is the test of the do-while. See note 16. *)
+do_while_statement  = "do", block, "while", expression, "end" ;
+
 (* "first .. last" includes both ends. *)
 for_range_statement = "for", identifier, "in", expression, "..", expression, "do", block, "end" ;
 
@@ -281,7 +315,8 @@ return_statement    = "return", [ expression ], ";" ;
 break_statement     = "break", ";" ;
 continue_statement  = "continue", ";" ;
 
-(* A scope without a function. A name inside it ends at its "end". *)
+(* A scope without a function. A name inside it ends at its "end". A "do" body that ends with *)
+(* "while", a condition and "end" is a do_while_statement instead. See note 16. *)
 scope_block         = "do", block, "end" ;
 
 (* A block where a raw pointer and an unchecked conversion are allowed. *)
@@ -368,8 +403,10 @@ macro_call          = ( identifier | "namespace" ), "!", "(", [ argument_list ],
 (* 1. Statement end. Every statement ends with ";". A construct that ends with "end" has no   *)
 (*    ";" after the "end". A field, a variant and a contract function end with ";".          *)
 (* 2. Generic call and ">>". In "f<T>(x)" the "<" starts type arguments when a matching ">"  *)
-(*    is followed by "(" or "{". Otherwise it is a comparison. In a type, the lexer splits    *)
-(*    ">>" in two ">" tokens: array<array<float32>>.                                         *)
+(*    is followed by "(" or "{". Otherwise it is a comparison. The lexer always reads ">>" as  *)
+(*    one token; the parser splits it in two ">" tokens in a type: array<array<float32>>. The *)
+(*    scan that decides accepts a function type whose parameter has an attribute, so        *)
+(*    f<function(#[semantics = reference_mutable] a: T)>(x) holds type arguments.           *)
 (* 3. Literal and "{". A "{" after a type name starts a literal. The "{" never starts a      *)
 (*    block, so "if a then" cannot be mistaken for a literal.                                *)
 (* 4. "parallel" stays a namespace name. The block word is "fork_join" (decided).             *)
@@ -378,8 +415,9 @@ macro_call          = ( identifier | "namespace" ), "!", "(", [ argument_list ],
 (*    resolves it (decided).                                                              *)
 (* 7. Out of this grammar by design: the checker rules (ownership, arena, contracts, switch  *)
 (*    coverage, attribute keys and values, the match of the namespace with the path).        *)
-(* 8. Not in version 0: block comments, #[when(...)], derive, user macros, string            *)
-(*    interpolation, a lambda.                                                               *)
+(* 8. Not in version 0: block comments (a comment is "--" to the end of the line, decided),   *)
+(*    derive, user macros, string interpolation, a lambda. The attribute item when(...) is   *)
+(*    in the grammar since the plan of 2026-11-24 (see attribute_item and note 15).          *)
 (* 9. Return and references. A function with a return type ends every path with an explicit   *)
 (*    "return value;". The last expression is NOT a return value. "return;" leaves a function *)
 (*    that has no return type. A function type without ": Type" is the type of such a       *)
@@ -417,3 +455,21 @@ macro_call          = ( identifier | "namespace" ), "!", "(", [ argument_list ],
 (*     c. Enum variant or constant: a member of an import list names it, a variant by a two   *)
 (*        part path ("Color.Red as Crimson"). Renaming inside one file without an import is   *)
 (*        out of scope: a local declaration already has its own name.                         *)
+(*     "require" takes the same three import forms. The wildcard "import a.b.*;" and          *)
+(*     "require c.*;" bind no name and take no "as" and no member list.                       *)
+(* 15. The when item. when(architecture = "x86_64", backend = intrinsics) reads: the listed    *)
+(*     items apply when the predicate holds. The parser builds a WHEN_ITEM node with the        *)
+(*     predicate first, then the plain items. A predicate is a comparison (a name, "=", then a  *)
+(*     string or an integer) or all(...), any(...) or not(...) of predicates. One node kind     *)
+(*     serves every predicate name: the name is an IDENTIFIER child, so a new predicate needs   *)
+(*     no change of the grammar or of the parser. Sema owns the names, the values, the target   *)
+(*     description, the precedence over a plain item of the same key and the conflict rule.     *)
+(* 16. do ... while. After "do" and its block, the next word decides: "end" closes a scope      *)
+(*     block, "while" starts the test of a do-while. A "while" inside the body can also start   *)
+(*     an ordinary while statement, so the parser reads "while" and the condition, then looks   *)
+(*     at the word after the condition: "end" (or the end of the file) means the test of the    *)
+(*     enclosing do-while, anything else means an ordinary while, which needs its "do". An      *)
+(*     ordinary while cannot be followed by "end" right after its condition, so the parser      *)
+(*     never backtracks. Only a "while" that is a direct statement of the do body is the        *)
+(*     candidate for the test; a "while" nested in another statement stays an ordinary one.     *)
+(*     A name declared in the body is not visible in the condition (sema).                      *)
