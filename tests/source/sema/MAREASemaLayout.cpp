@@ -387,11 +387,22 @@ TEST(MAREASemaLayout, EnumImportedFromAnotherFileIsUndecided)
     MAREA_expectUndecided("namespace main; #![pack = 1] import a.b { Wide as Wide }; structure S w: Wide; end", MAREA_AST_KIND_STRUCTURE_DECLARATION, 0, MAREA_SEMA_MEASURE_REASON_UNRESOLVED, 1, RESOLVE);
 }
 
+TEST(MAREASemaLayout, ARegisteredArrayOfPrimitivesIsMeasuredFromItsDescriptor)
+{
+    GTEST_COUT << "Validating an inline run a descriptor describes (an index protocol, no role, a copy class) with a primitive element and a literal count is measured: size is count times element size, alignment is the element's." << std::endl;
+
+    MAREA_expectStructure("namespace main; structure S a: uinteger8; b: demo.array<sinteger32, 4>; end", 0, 20, 4, { 0, 4 });
+
+    MAREA_expectStructure("namespace main; structure S a: demo.array<uinteger8, 3>; b: uinteger16; end", 0, 6, 2, { 0, 4 });
+
+    MAREA_expectStructure("namespace main; structure S a: uinteger8; b: demo.array<demo.array<float64, 2>, 2>; end", 0, 40, 8, { 0, 8 });
+}
+
 TEST(MAREASemaLayout, LibraryTypeIsUndecided)
 {
     GTEST_COUT << "Validating a structure or an enum that holds a library type is undecided, with the library reason." << std::endl;
 
-    const std::vector<std::string> LIBRARY_TYPES{ "string", "demo.array<sinteger32, 4>", "demo.vector<sinteger32>", "demo.slice<sinteger32>", "demo.task<sinteger32>", "demo.owned<sinteger32>" };
+    const std::vector<std::string> LIBRARY_TYPES{ "string", "demo.array<demo.vector<sinteger32>, 4>", "demo.vector<sinteger32>", "demo.slice<sinteger32>", "demo.task<sinteger32>", "demo.owned<sinteger32>" };
 
     for (const std::string &type : LIBRARY_TYPES) {
         MAREA_expectUndecided("namespace main; structure S a: uinteger8; b: " + type + "; end", MAREA_AST_KIND_STRUCTURE_DECLARATION, 0, MAREA_SEMA_MEASURE_REASON_LIBRARY_TYPE, 2);

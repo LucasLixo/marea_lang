@@ -189,7 +189,6 @@ TEST(MAREASemaGenericsAndContracts, TypeArgumentCountMustMatch)
 
     EXPECT_EQ(MAREA_codesOf("structure H a: demo.vector<float32, 4>; end"), Codes{ ARGUMENT_MISMATCH }) << "A vector takes one type and no size.";
 
-
     EXPECT_TRUE(MAREA_codesOf("structure H a: demo.array<float32, 4>; b: demo.vector<float32>; end").empty()) << "The two valid shapes must raise nothing.";
 
     EXPECT_EQ(MAREA_codesOf("structure H a: sinteger32<float32>; end"), Codes{ ARGUMENT_MISMATCH }) << "A primitive takes no arguments.";
