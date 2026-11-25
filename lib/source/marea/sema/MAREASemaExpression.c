@@ -222,7 +222,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_Fits(const MAREA_G_Shape *target, const 
 }
 
 // INFO: pointer, slice and a function type are not classified yet and stay unknown. An enum is a plain integer and its conversion rule is not decided.
-static MAREA_G_ShapeKind MAREA_CALL MAREA_G_ShapeKindOfClass(MAREA_SemaTypeClass typeClass, const MAREA_AstNode *declaration, const MAREA_Character8 *name, MAREA_IntegerSize length)
+static MAREA_G_ShapeKind MAREA_CALL MAREA_G_ShapeKindOfClass(const MAREA_SemaContext *context, const MAREA_AstNode *type, MAREA_SemaTypeClass typeClass, const MAREA_AstNode *declaration)
 {
     switch (typeClass) {
     case MAREA_SEMA_TYPE_CLASS_USER:
@@ -238,7 +238,12 @@ static MAREA_G_ShapeKind MAREA_CALL MAREA_G_ShapeKindOfClass(MAREA_SemaTypeClass
     case MAREA_SEMA_TYPE_CLASS_MOVE_BUILTIN:
         return MAREA_G_SHAPE_KIND_BUILTIN;
     case MAREA_SEMA_TYPE_CLASS_COPY_BUILTIN:
-        return (MAREA_G_TextIs(name, length, "array") == MAREA_BOOLEAN_TRUE) ? MAREA_G_SHAPE_KIND_BUILTIN : MAREA_G_SHAPE_KIND_UNKNOWN;
+    {
+        // INFO: a copied inline run (an index-protocol type with no handle role) is a built-in shape; a view or a raw pointer is not.
+        const MAREA_TypeDescriptor *descriptor = MAREA_NULLPTR;
+
+        return ((MAREA_SemaDescriptorOfType(context, type, &descriptor) == MAREA_BOOLEAN_TRUE) && (descriptor->hasIndexProtocol == MAREA_BOOLEAN_TRUE) && (descriptor->roles == MAREA_TYPE_ROLE_NONE)) ? MAREA_G_SHAPE_KIND_BUILTIN : MAREA_G_SHAPE_KIND_UNKNOWN;
+    }
     default:
         return MAREA_G_SHAPE_KIND_UNKNOWN;
     }
@@ -267,7 +272,7 @@ static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOfType(const MAREA_SemaContext *con
         return MAREA_G_ShapeUnknown();
     }
 
-    const MAREA_G_ShapeKind kind = MAREA_G_ShapeKindOfClass(typeClass, declaration, name, length);
+    const MAREA_G_ShapeKind kind = MAREA_G_ShapeKindOfClass(context, type, typeClass, declaration);
 
     if (kind == MAREA_G_SHAPE_KIND_UNKNOWN) {
         return MAREA_G_ShapeUnknown();

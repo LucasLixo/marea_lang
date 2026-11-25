@@ -248,7 +248,7 @@ TEST(MAREASemaTypedAstLiteral, LiteralWithNoContextTakesTheDefault)
 
     EXPECT_EQ(MAREA_integers("namespace main; function g<Item>(a: Item) end function f() g(5); end"), Types{ "sinteger32" }) << "A parameter of a generic type fixes no primitive, so the default is used.";
 
-    EXPECT_EQ(MAREA_integers("namespace main; function f(a: array<sinteger32, 4>): sinteger32 return a[0]; end"), (Types{ "sinteger32", "sinteger32" })) << "A size argument and an index are not values of a context, so each keeps the default.";
+    EXPECT_EQ(MAREA_integers("namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; function f(a: demo.array<sinteger32, 4>): sinteger32 return a[0]; end"), (Types{ "sinteger32", "sinteger32" })) << "A size argument and an index are not values of a context, so each keeps the default.";
 }
 
 TEST(MAREASemaTypedAstLiteral, StringCharacterAndBooleanKeepTheirOwnType)

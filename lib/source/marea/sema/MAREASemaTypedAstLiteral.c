@@ -251,9 +251,11 @@ static const MAREA_AstNode *MAREA_CALL MAREA_G_FieldType(const MAREA_AstNode *st
     return MAREA_NULLPTR;
 }
 
-static MAREA_Boolean MAREA_CALL MAREA_G_IsElementContainer(const MAREA_Character8 *name, MAREA_IntegerSize length)
+static MAREA_Boolean MAREA_CALL MAREA_G_IsElementContainer(const MAREA_SemaContext *context, const MAREA_AstNode *type)
 {
-    return ((MAREA_SemaTextEquals(name, length, "array", strlen("array")) == MAREA_BOOLEAN_TRUE) || (MAREA_SemaTextEquals(name, length, "vector", strlen("vector")) == MAREA_BOOLEAN_TRUE) || (MAREA_SemaTextEquals(name, length, "slice", strlen("slice")) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+    const MAREA_TypeDescriptor *descriptor = MAREA_NULLPTR;
+
+    return ((MAREA_SemaDescriptorOfType(context, type, &descriptor) == MAREA_BOOLEAN_TRUE) && (descriptor->hasIndexProtocol == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
 // INFO: an entry of a literal value takes the declared type of its field in a structure, or the element type in an array, a vector or a slice. Any other library type is not guessed.
@@ -279,7 +281,7 @@ static void MAREA_CALL MAREA_G_ApplyLiteralValue(const MAREA_SemaContext *contex
 
     const MAREA_AstNode *firstArgument = (arguments == MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_SemaChildAt(arguments, 0);
 
-    const MAREA_AstNode *element = ((IS_STRUCTURE == MAREA_BOOLEAN_FALSE) && ((CLASS == MAREA_SEMA_TYPE_CLASS_COPY_BUILTIN) || (CLASS == MAREA_SEMA_TYPE_CLASS_MOVE_BUILTIN)) && (MAREA_G_IsElementContainer(name, length) == MAREA_BOOLEAN_TRUE) && (MAREA_G_IsType(firstArgument) == MAREA_BOOLEAN_TRUE)) ? firstArgument : MAREA_NULLPTR;
+    const MAREA_AstNode *element = ((IS_STRUCTURE == MAREA_BOOLEAN_FALSE) && ((CLASS == MAREA_SEMA_TYPE_CLASS_COPY_BUILTIN) || (CLASS == MAREA_SEMA_TYPE_CLASS_MOVE_BUILTIN)) && (MAREA_G_IsElementContainer(context, type) == MAREA_BOOLEAN_TRUE) && (MAREA_G_IsType(firstArgument) == MAREA_BOOLEAN_TRUE)) ? firstArgument : MAREA_NULLPTR;
 
     for (MAREA_IntegerSize index = 1; index < built->childCount; ++index) {
         const MAREA_SemaTypedNode *entry = built->children[index];

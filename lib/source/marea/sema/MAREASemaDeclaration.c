@@ -334,21 +334,23 @@ static MAREA_Boolean MAREA_CALL MAREA_G_MemberHoldsTarget(MAREA_G_ValueWalk *wal
     return MAREA_BOOLEAN_FALSE;
 }
 
-// INFO: owned, vector, pointer, slice, task and a function type are indirect, so only a structure, an enum, an alias to one and the element of an array are followed.
+// INFO: an owner, a vector, a raw pointer, a view, a spawn handle and a function type are indirect, so only a structure, an enum, an alias to one and the element of an inline run (an index-protocol type with no role and a copy class) are followed.
 static MAREA_Boolean MAREA_CALL MAREA_G_HoldsTarget(MAREA_G_ValueWalk *walk, const MAREA_AstNode *type, const MAREA_AstNode *generics, MAREA_IntegerSize depth)
 {
     const MAREA_Character8 *name = MAREA_NULLPTR;
 
     MAREA_IntegerSize nameLength = 0;
 
-    if ((MAREA_G_PlainTypeName(type, &name, &nameLength) == MAREA_BOOLEAN_FALSE) || (MAREA_SemaGenericParameterIndex(generics, name, nameLength) < ((generics == MAREA_NULLPTR) ? MAREA_INTEGER_SIZE(0) : MAREA_AstNodeGetChildCount(generics)))) {
-        return MAREA_BOOLEAN_FALSE;
-    }
+    const MAREA_TypeDescriptor *descriptor = MAREA_NULLPTR;
 
-    if (MAREA_SemaTextEquals(name, nameLength, "array", MAREA_INTEGER_SIZE(5)) == MAREA_BOOLEAN_TRUE) {
-        const MAREA_AstNode *arguments = MAREA_G_FindKind(type, MAREA_AST_KIND_TYPE_ARGUMENTS);
+    if (MAREA_SemaDescriptorOfType(walk->context, type, &descriptor) == MAREA_BOOLEAN_TRUE) {
+        const MAREA_AstNode *arguments = ((descriptor->hasIndexProtocol == MAREA_BOOLEAN_TRUE) && (descriptor->roles == MAREA_TYPE_ROLE_NONE) && (descriptor->ownershipClass == MAREA_TYPE_OWNERSHIP_CLASS_COPY)) ? MAREA_G_FindKind(type, MAREA_AST_KIND_TYPE_ARGUMENTS) : MAREA_NULLPTR;
 
         return (arguments == MAREA_NULLPTR) ? MAREA_BOOLEAN_FALSE : MAREA_G_HoldsTarget(walk, MAREA_SemaChildAt(arguments, 0), generics, depth);
+    }
+
+    if ((MAREA_G_PlainTypeName(type, &name, &nameLength) == MAREA_BOOLEAN_FALSE) || (MAREA_SemaGenericParameterIndex(generics, name, nameLength) < ((generics == MAREA_NULLPTR) ? MAREA_INTEGER_SIZE(0) : MAREA_AstNodeGetChildCount(generics)))) {
+        return MAREA_BOOLEAN_FALSE;
     }
 
     const MAREA_AstNode *declaration = MAREA_G_LocalDeclaration(walk->context, name, nameLength);

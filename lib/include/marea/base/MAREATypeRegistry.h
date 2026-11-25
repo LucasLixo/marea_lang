@@ -166,6 +166,15 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_TypeDescriptor *MAREA_CALL MAREA_TypeRegistryFind(const MAREA_TypeRegistry *registry, const MAREA_Character8 *namespaceText, MAREA_IntegerSize namespaceLength, const MAREA_Character8 *name, MAREA_IntegerSize nameLength);
 
     /**
+     * @brief Finds the first registered type that holds a role, so that sema can write the type a role
+     * names (the handle of a spawn, the part of a partition) without ever reading a type name.
+     * @param registry Registry to ask. A null registry finds nothing.
+     * @param role One role bit.
+     * @return The descriptor, or null when no registered type holds the role.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_TypeDescriptor *MAREA_CALL MAREA_TypeRegistryFindByRole(const MAREA_TypeRegistry *registry, MAREA_TypeRole role);
+
+    /**
      * @brief Registers one C function for a shipped library, through the internal entry. Called only
      * through MAREA_REGISTER_FUNCTION, never directly.
      * @param registry Registry to change. Must not be null.

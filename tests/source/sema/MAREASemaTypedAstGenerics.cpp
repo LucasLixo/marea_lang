@@ -130,10 +130,10 @@ TEST(MAREASemaTypedAstGenerics, ExplicitTypeArgumentsAreStillUnaffected)
 
 TEST(MAREASemaTypedAstGenerics, CompoundParameterBindsThroughItsArguments)
 {
-    GTEST_COUT << "Validating a compound parameter such as array<Item,4> binds Item from the matching argument." << std::endl;
+    GTEST_COUT << "Validating a compound parameter such as demo.array<Item,4> binds Item from the matching argument." << std::endl;
 
-    const std::string SOURCE{ "namespace main; function first<Item>(values: array<Item,4>): Item where Item: Copyable return copy values[0]; end "
-                              "function run(data: array<sinteger32,4>): sinteger32 return first(data); end" };
+    const std::string SOURCE{ "namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; function first<Item>(values: demo.array<Item,4>): Item where Item: Copyable return copy values[0]; end "
+                              "function run(data: demo.array<sinteger32,4>): sinteger32 return first(data); end" };
 
     MAREA_expectGenericType(SOURCE, MAREA_AST_KIND_CALL_EXPRESSION, 0, "sinteger32");
 }

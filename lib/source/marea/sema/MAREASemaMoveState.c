@@ -253,36 +253,25 @@ static const MAREA_AstNode *MAREA_CALL MAREA_G_TypeArgument(const MAREA_AstNode 
     return MAREA_NULLPTR;
 }
 
-static MAREA_Boolean MAREA_CALL MAREA_G_NameIs(const MAREA_Character8 *text, MAREA_IntegerSize length, const char *expected)
-{
-    return ((strlen(expected) == length) && (memcmp(expected, text, length) == 0)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
-}
-
-// INFO: an owned wrapper is seen through, so the element of owned<vector<T>> is T. Any other shape gives null and the element is never guessed.
+// INFO: an owner-role wrapper is seen through, so the element of an owner of a vector of T is T. Any other shape gives null and the element is never guessed.
 static const MAREA_AstNode *MAREA_CALL MAREA_G_ElementOf(const MAREA_SemaContext *context, const MAREA_AstNode *collection)
 {
     const MAREA_AstNode *type = collection;
 
     for (MAREA_IntegerSize depth = 0; (type != MAREA_NULLPTR) && (depth < 2); ++depth) {
-        const MAREA_AstNode *declaration = MAREA_NULLPTR;
+        const MAREA_TypeDescriptor *descriptor = MAREA_NULLPTR;
 
-        const MAREA_Character8 *name = MAREA_NULLPTR;
-
-        MAREA_IntegerSize length = 0;
-
-        const MAREA_SemaTypeClass CLASS = MAREA_SemaClassifyType(context, type, &declaration, &name, &length);
-
-        if (((CLASS != MAREA_SEMA_TYPE_CLASS_MOVE_BUILTIN) && (CLASS != MAREA_SEMA_TYPE_CLASS_COPY_BUILTIN)) || (name == MAREA_NULLPTR)) {
+        if (MAREA_SemaDescriptorOfType(context, type, &descriptor) == MAREA_BOOLEAN_FALSE) {
             return MAREA_NULLPTR;
         }
 
-        if (MAREA_G_NameIs(name, length, "owned") == MAREA_BOOLEAN_TRUE) {
+        if ((descriptor->roles & MAREA_TYPE_ROLE_OWNER) != MAREA_TYPE_ROLE_NONE) {
             type = MAREA_G_TypeArgument(type);
 
             continue;
         }
 
-        return ((MAREA_G_NameIs(name, length, "vector") == MAREA_BOOLEAN_TRUE) || (MAREA_G_NameIs(name, length, "array") == MAREA_BOOLEAN_TRUE) || (MAREA_G_NameIs(name, length, "slice") == MAREA_BOOLEAN_TRUE)) ? MAREA_G_TypeArgument(type) : MAREA_NULLPTR;
+        return (descriptor->hasIndexProtocol == MAREA_BOOLEAN_TRUE) ? MAREA_G_TypeArgument(type) : MAREA_NULLPTR;
     }
 
     return MAREA_NULLPTR;

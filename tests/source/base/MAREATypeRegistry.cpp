@@ -90,6 +90,23 @@ TEST(MAREATypeRegistry, InternalEntryRegistersAndFindsUnderAReservedRoot)
     EXPECT_EQ(found->roles, MAREA_TYPE_ROLE_RAW_POINTER) << "The found descriptor must carry the role it was registered with.";
 }
 
+TEST(MAREATypeRegistry, FindByRoleReturnsTheFirstTypeThatHoldsTheRole)
+{
+    GTEST_COUT << "Validating MAREA_TypeRegistryFindByRole gives the registered type that holds a role, and null for a role no type holds." << std::endl;
+
+    MAREA_RegistryFixture fixture;
+
+    const MAREA_TypeDescriptor TASK = MAREA_descriptorOf("c.threads", "Handle", MAREA_TYPE_ROLE_SPAWN_HANDLE, MAREA_TYPE_OWNERSHIP_CLASS_MOVE, MAREA_INTEGER_SIZE(1), MAREA_BOOLEAN_FALSE);
+
+    ASSERT_EQ(MAREA_TypeRegistryRegisterInternal(fixture.registry, MAREA_LIBRARY_FLAG_C_THREADS, &TASK), MAREA_TYPE_REGISTRY_EXCEPT_SUCCESS) << "The internal entry must register the fixture.";
+
+    EXPECT_EQ(MAREA_TypeRegistryFindByRole(fixture.registry, MAREA_TYPE_ROLE_SPAWN_HANDLE), &TASK) << "The spawn handle role must find the registered type.";
+
+    EXPECT_EQ(MAREA_TypeRegistryFindByRole(fixture.registry, MAREA_TYPE_ROLE_OWNER), nullptr) << "A role no type holds must find nothing.";
+
+    EXPECT_EQ(MAREA_TypeRegistryFindByRole(nullptr, MAREA_TYPE_ROLE_OWNER), nullptr) << "A null registry must find nothing.";
+}
+
 TEST(MAREATypeRegistry, FindReturnsNullForAnUnregisteredType)
 {
     GTEST_COUT << "Validating MAREA_TypeRegistryFind returns null for a name nothing registered." << std::endl;

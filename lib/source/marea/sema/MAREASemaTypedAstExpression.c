@@ -396,8 +396,7 @@ static MAREA_G_Peeled MAREA_CALL MAREA_G_Peel(const MAREA_SemaContext *context, 
 }
 
 // INFO: a member or an element is read through an owner-role wrapper, because the owner of a value is
-// named as the value itself. A registered type is read by its role; a type the registry does not know
-// falls back to the old bare "owned".
+// named as the value itself. A registered type is read by its role, never by its name.
 static MAREA_G_Peeled MAREA_CALL MAREA_G_PeelOwned(const MAREA_SemaContext *context, MAREA_SemaExprType *type, MAREA_G_Nominal *outNominal)
 {
     for (MAREA_IntegerSize step = 0; step < MAREA_G_EXPRESSION_PEEL_LIMIT; ++step) {
@@ -409,23 +408,13 @@ static MAREA_G_Peeled MAREA_CALL MAREA_G_PeelOwned(const MAREA_SemaContext *cont
 
         const MAREA_TypeDescriptor *descriptor = MAREA_NULLPTR;
 
-        MAREA_Boolean isOwner = MAREA_BOOLEAN_FALSE;
-
-        const MAREA_AstNode *arguments = MAREA_NULLPTR;
-
-        if (MAREA_SemaDescriptorOfType(context, type->node, &descriptor) == MAREA_BOOLEAN_TRUE) {
-            isOwner = ((descriptor->roles & MAREA_TYPE_ROLE_OWNER) != MAREA_TYPE_ROLE_NONE) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
-
-            arguments = MAREA_G_FindChild(type->node, MAREA_AST_KIND_TYPE_ARGUMENTS);
-        } else {
-            const MAREA_AstNode *head = MAREA_G_SingleSegment(MAREA_SemaChildAt(type->node, 0));
-
-            arguments = (head == MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_G_FindChild(type->node, MAREA_AST_KIND_TYPE_ARGUMENTS);
-
-            isOwner = ((head != MAREA_NULLPTR) && (MAREA_G_TextIs(MAREA_AstNodeGetText(head), MAREA_AstNodeGetTextLength(head), "owned") == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+        if ((MAREA_SemaDescriptorOfType(context, type->node, &descriptor) == MAREA_BOOLEAN_FALSE) || ((descriptor->roles & MAREA_TYPE_ROLE_OWNER) == MAREA_TYPE_ROLE_NONE)) {
+            return PEELED;
         }
 
-        if ((arguments == MAREA_NULLPTR) || (isOwner == MAREA_BOOLEAN_FALSE) || (MAREA_G_IsType(MAREA_SemaChildAt(arguments, 0)) == MAREA_BOOLEAN_FALSE)) {
+        const MAREA_AstNode *arguments = MAREA_G_FindChild(type->node, MAREA_AST_KIND_TYPE_ARGUMENTS);
+
+        if ((arguments == MAREA_NULLPTR) || (MAREA_G_IsType(MAREA_SemaChildAt(arguments, 0)) == MAREA_BOOLEAN_FALSE)) {
             return PEELED;
         }
 
@@ -738,37 +727,16 @@ static MAREA_SemaExprType MAREA_CALL MAREA_G_TypeOfMemberAccess(MAREA_G_Resolver
     return MAREA_G_ImplementationMemberType(resolver, &receiver, MAREA_AstNodeGetText(member), MAREA_AstNodeGetTextLength(member), callTypeArguments);
 }
 
-// INFO: a registered type with the index protocol gives an element, and one with the raw pointer role
-// too when it is asked for; a type the registry does not know falls back to the old bare, or c or
-// marea qualified, array, slice, vector and pointer.
+// INFO: a registered type with the index protocol gives an element, and one with the raw pointer role too when it is asked for.
 static MAREA_Boolean MAREA_CALL MAREA_G_IsElementContainer(const MAREA_SemaContext *context, const MAREA_AstNode *named, MAREA_Boolean withPointer)
 {
     const MAREA_TypeDescriptor *descriptor = MAREA_NULLPTR;
 
-    if (MAREA_SemaDescriptorOfType(context, named, &descriptor) == MAREA_BOOLEAN_TRUE) {
-        return ((descriptor->hasIndexProtocol == MAREA_BOOLEAN_TRUE) || ((withPointer == MAREA_BOOLEAN_TRUE) && ((descriptor->roles & MAREA_TYPE_ROLE_RAW_POINTER) != MAREA_TYPE_ROLE_NONE))) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
-    }
-
-    const MAREA_AstNode *qualified = MAREA_SemaChildAt(named, 0);
-
-    const MAREA_IntegerSize SEGMENTS = (MAREA_G_IsKind(qualified, MAREA_AST_KIND_QUALIFIED_NAME) == MAREA_BOOLEAN_TRUE) ? MAREA_AstNodeGetChildCount(qualified) : MAREA_INTEGER_SIZE(0);
-
-    if ((SEGMENTS < 1) || (SEGMENTS > 2)) {
+    if (MAREA_SemaDescriptorOfType(context, named, &descriptor) == MAREA_BOOLEAN_FALSE) {
         return MAREA_BOOLEAN_FALSE;
     }
 
-    // INFO: a library is named bare, or under one of the two reserved first segments.
-    if ((SEGMENTS == 2) && (MAREA_G_TextIs(MAREA_AstNodeGetText(MAREA_SemaChildAt(qualified, 0)), MAREA_AstNodeGetTextLength(MAREA_SemaChildAt(qualified, 0)), "c") == MAREA_BOOLEAN_FALSE) && (MAREA_G_TextIs(MAREA_AstNodeGetText(MAREA_SemaChildAt(qualified, 0)), MAREA_AstNodeGetTextLength(MAREA_SemaChildAt(qualified, 0)), "marea") == MAREA_BOOLEAN_FALSE)) {
-        return MAREA_BOOLEAN_FALSE;
-    }
-
-    const MAREA_AstNode *last = MAREA_SemaChildAt(qualified, (SEGMENTS - 1));
-
-    const MAREA_Character8 *text = MAREA_AstNodeGetText(last);
-
-    const MAREA_IntegerSize LENGTH = MAREA_AstNodeGetTextLength(last);
-
-    return ((MAREA_G_TextIs(text, LENGTH, "array") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextIs(text, LENGTH, "slice") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextIs(text, LENGTH, "vector") == MAREA_BOOLEAN_TRUE) || ((withPointer == MAREA_BOOLEAN_TRUE) && (MAREA_G_TextIs(text, LENGTH, "pointer") == MAREA_BOOLEAN_TRUE))) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+    return ((descriptor->hasIndexProtocol == MAREA_BOOLEAN_TRUE) || ((withPointer == MAREA_BOOLEAN_TRUE) && ((descriptor->roles & MAREA_TYPE_ROLE_RAW_POINTER) != MAREA_TYPE_ROLE_NONE))) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
 MAREA_Boolean MAREA_CALL MAREA_SemaTypedAstElementOf(const MAREA_SemaContext *context, const MAREA_SemaExprType *collection, MAREA_Boolean withPointer, MAREA_SemaExprType *outElement)
@@ -1045,7 +1013,7 @@ static MAREA_SemaExprType MAREA_CALL MAREA_G_TypeOfBinary(const MAREA_SemaTypedN
     }
 }
 
-// INFO: spawn of a call gives a task of the type of the call, written task<T>, in the arena.
+// INFO: spawn of a call gives the spawn-handle type of the type of the call, in the arena.
 static MAREA_SemaExprType MAREA_CALL MAREA_G_TypeOfSpawn(MAREA_G_Resolver *resolver, const MAREA_SemaTypedNode *built)
 {
     const MAREA_SemaExprType OPERAND = MAREA_G_TypeOfChild(built, 0);
@@ -1071,22 +1039,19 @@ if ((RENDERED != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) || (text == MAREA_NULLPTR)
     return MAREA_G_TypeNone();
 }
 
-MAREA_Null memory = MAREA_NULLPTR;
+const MAREA_Character8 *wrapped = MAREA_NULLPTR;
 
-if (MAREA_ArenaAllocate(resolver->context->arena, (length + MAREA_INTEGER_SIZE(6)), MAREA_INTEGER_SIZE(1), &memory) != MAREA_ARENA_EXCEPT_SUCCESS) {
+MAREA_IntegerSize wrappedLength = 0;
+
+const MAREA_SemaExcept WRAPPED = MAREA_SemaWrapInRoleType(resolver->context, MAREA_TYPE_ROLE_SPAWN_HANDLE, text, length, &wrapped, &wrappedLength);
+
+if (WRAPPED != MAREA_SEMA_EXCEPT_SUCCESS) {
     resolver->outOfMemory = MAREA_BOOLEAN_TRUE;
 
     return MAREA_G_TypeNone();
 }
 
-MAREA_Character8 *buffer = memory;
-
-memcpy(buffer, "task<", MAREA_INTEGER_SIZE(5));
-memcpy((buffer + MAREA_INTEGER_SIZE(5)), text, length);
-
-buffer[(length + MAREA_INTEGER_SIZE(5))] = '>';
-
-return MAREA_G_TypeOfText(buffer, (length + MAREA_INTEGER_SIZE(6)));
+return (wrapped == MAREA_NULLPTR) ? MAREA_G_TypeNone() : MAREA_G_TypeOfText(wrapped, wrappedLength);
 }
 
 static MAREA_SemaExprType MAREA_CALL MAREA_G_TypeOfUnary(MAREA_G_Resolver *resolver, const MAREA_SemaTypedNode *built)

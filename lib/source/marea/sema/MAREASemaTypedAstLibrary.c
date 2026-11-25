@@ -5,11 +5,11 @@
 
 #include <string.h>
 
-// INFO: the libraries this rule knows, each with the canonical "c.<name>" namespace the signature function of the
-// resolver is asked with, and the generic parameter names sema recognizes inside a signature's result text: a
-// result spelled with one of them stands for the receiver's own type argument at that place, read in the receiver's
-// frame. array has two (the element, then the fixed size), table has two (the key, then the value), and vector,
-// slice, pointer, owned and task have one (the element).
+// INFO: one library type this rule reads: its canonical namespace, the full written path of the type, which is
+// what the signature function of the resolver is asked with, and the generic parameter names sema recognizes
+// inside a signature's result text: a result spelled with one of them stands for the receiver's own type
+// argument at that place, read in the receiver's frame. A registered type takes its facts from its descriptor,
+// never from its name: the names are positional, Item then Count.
 typedef struct MAREA_G_LibraryShape
 {
     const MAREA_Character8 *name;
@@ -20,19 +20,7 @@ typedef struct MAREA_G_LibraryShape
     MAREA_IntegerSize parameterCount;
 } MAREA_G_LibraryShape;
 
-static const MAREA_Character8 *const MAREA_G_ARRAY_PARAMETERS[2] = { "Item", "Count" };
-static const MAREA_Character8 *const MAREA_G_ONE_PARAMETER[1] = { "Item" };
-static const MAREA_Character8 *const MAREA_G_TABLE_PARAMETERS[2] = { "Key", "Value" };
-
-static const MAREA_G_LibraryShape MAREA_G_LIBRARY_SHAPES[7] = {
-    { "array", MAREA_INTEGER_SIZE(5), "c.array", MAREA_INTEGER_SIZE(7), MAREA_G_ARRAY_PARAMETERS, MAREA_INTEGER_SIZE(2) },
-    { "vector", MAREA_INTEGER_SIZE(6), "c.vector", MAREA_INTEGER_SIZE(8), MAREA_G_ONE_PARAMETER, MAREA_INTEGER_SIZE(1) },
-    { "slice", MAREA_INTEGER_SIZE(5), "c.slice", MAREA_INTEGER_SIZE(7), MAREA_G_ONE_PARAMETER, MAREA_INTEGER_SIZE(1) },
-    { "pointer", MAREA_INTEGER_SIZE(7), "c.pointer", MAREA_INTEGER_SIZE(9), MAREA_G_ONE_PARAMETER, MAREA_INTEGER_SIZE(1) },
-    { "owned", MAREA_INTEGER_SIZE(5), "c.owned", MAREA_INTEGER_SIZE(7), MAREA_G_ONE_PARAMETER, MAREA_INTEGER_SIZE(1) },
-    { "task", MAREA_INTEGER_SIZE(4), "c.task", MAREA_INTEGER_SIZE(6), MAREA_G_ONE_PARAMETER, MAREA_INTEGER_SIZE(1) },
-    { "table", MAREA_INTEGER_SIZE(5), "c.table", MAREA_INTEGER_SIZE(7), MAREA_G_TABLE_PARAMETERS, MAREA_INTEGER_SIZE(2) },
-};
+static const MAREA_Character8 *const MAREA_G_POSITIONAL_PARAMETERS[2] = { "Item", "Count" };
 
 static MAREA_Boolean MAREA_CALL MAREA_G_IsKind(const MAREA_AstNode *node, MAREA_AstKind kind)
 {
@@ -64,56 +52,36 @@ static const MAREA_AstNode *MAREA_CALL MAREA_G_FindChild(const MAREA_AstNode *no
     return MAREA_NULLPTR;
 }
 
-static const MAREA_G_LibraryShape *MAREA_CALL MAREA_G_FindShape(const MAREA_Character8 *name, MAREA_IntegerSize nameLength)
-{
-    const MAREA_IntegerSize COUNT = (sizeof(MAREA_G_LIBRARY_SHAPES) / sizeof(MAREA_G_LIBRARY_SHAPES[0]));
-
-    for (MAREA_IntegerSize index = 0; index < COUNT; ++index) {
-        const MAREA_G_LibraryShape *shape = &MAREA_G_LIBRARY_SHAPES[index];
-
-        if (MAREA_G_TextIs(name, nameLength, shape->name) == MAREA_BOOLEAN_TRUE) {
-            return shape;
-        }
-    }
-
-    return MAREA_NULLPTR;
-}
-
-// INFO: a NAMED_TYPE or a GENERIC_NAME names a library, bare or under the reserved namespace c, when its qualified
-// name has one segment (the library name) or two with the first "c". Gives the shape and the TYPE_ARGUMENTS node of
-// the receiver, or null when the receiver gives none.
-static const MAREA_G_LibraryShape *MAREA_CALL MAREA_G_LibraryHeadOf(const MAREA_AstNode *typeExpression, const MAREA_AstNode **outArguments)
+// INFO: a NAMED_TYPE or a GENERIC_NAME names a registered type when the registry knows its full written path.
+// Gives the shape and the TYPE_ARGUMENTS node of the receiver, or false when the registry does not know it.
+static MAREA_Boolean MAREA_CALL MAREA_G_LibraryHeadOf(MAREA_SemaContext *context, const MAREA_AstNode *typeExpression, MAREA_G_LibraryShape *outShape, const MAREA_AstNode **outArguments)
 {
     *outArguments = MAREA_NULLPTR;
 
-    if ((MAREA_G_IsKind(typeExpression, MAREA_AST_KIND_NAMED_TYPE) == MAREA_BOOLEAN_FALSE) && (MAREA_G_IsKind(typeExpression, MAREA_AST_KIND_GENERIC_NAME) == MAREA_BOOLEAN_FALSE)) {
-        return MAREA_NULLPTR;
+    const MAREA_TypeDescriptor *descriptor = MAREA_NULLPTR;
+
+    if (MAREA_SemaDescriptorOfType(context, typeExpression, &descriptor) == MAREA_BOOLEAN_FALSE) {
+        return MAREA_BOOLEAN_FALSE;
     }
 
-    const MAREA_AstNode *qualified = MAREA_SemaChildAt(typeExpression, 0);
+    const MAREA_Character8 *joined = MAREA_NULLPTR;
 
-    const MAREA_IntegerSize SEGMENTS = (MAREA_G_IsKind(qualified, MAREA_AST_KIND_QUALIFIED_NAME) == MAREA_BOOLEAN_TRUE) ? MAREA_AstNodeGetChildCount(qualified) : MAREA_INTEGER_SIZE(0);
+    MAREA_IntegerSize joinedLength = 0;
 
-    if ((SEGMENTS < 1) || (SEGMENTS > 2)) {
-        return MAREA_NULLPTR;
+    if (MAREA_SemaQualifiedNameJoin(context, MAREA_SemaChildAt(typeExpression, 0), &joined, &joinedLength) != MAREA_SEMA_EXCEPT_SUCCESS) {
+        return MAREA_BOOLEAN_FALSE;
     }
 
-    // INFO: a library is named bare, or under one of the two reserved first segments.
-    if ((SEGMENTS == 2) && (MAREA_G_TextIs(MAREA_AstNodeGetText(MAREA_SemaChildAt(qualified, 0)), MAREA_AstNodeGetTextLength(MAREA_SemaChildAt(qualified, 0)), "c") == MAREA_BOOLEAN_FALSE) && (MAREA_G_TextIs(MAREA_AstNodeGetText(MAREA_SemaChildAt(qualified, 0)), MAREA_AstNodeGetTextLength(MAREA_SemaChildAt(qualified, 0)), "marea") == MAREA_BOOLEAN_FALSE)) {
-        return MAREA_NULLPTR;
-    }
-
-    const MAREA_AstNode *last = MAREA_SemaChildAt(qualified, (SEGMENTS - 1));
-
-    const MAREA_G_LibraryShape *shape = MAREA_G_FindShape(MAREA_AstNodeGetText(last), MAREA_AstNodeGetTextLength(last));
-
-    if (shape == MAREA_NULLPTR) {
-        return MAREA_NULLPTR;
-    }
+    outShape->name = descriptor->name;
+    outShape->nameLength = descriptor->nameLength;
+    outShape->namespaceText = joined;
+    outShape->namespaceLength = joinedLength;
+    outShape->parameters = MAREA_G_POSITIONAL_PARAMETERS;
+    outShape->parameterCount = (descriptor->typeParameterCount < MAREA_INTEGER_SIZE(2)) ? descriptor->typeParameterCount : MAREA_INTEGER_SIZE(2);
 
     *outArguments = MAREA_G_FindChild(typeExpression, MAREA_AST_KIND_TYPE_ARGUMENTS);
 
-    return shape;
+    return MAREA_BOOLEAN_TRUE;
 }
 
 // INFO: asks the resolver's optional signature function for one member of the library's own canonical namespace; a
@@ -203,9 +171,9 @@ MAREA_SemaExprType MAREA_CALL MAREA_SemaTypedAstLibraryCallType(MAREA_SemaContex
 
     const MAREA_SemaTypeFrame *frame = MAREA_NULLPTR;
 
-    const MAREA_G_LibraryShape *shape = MAREA_G_LibraryHeadOf(base, &arguments);
+    MAREA_G_LibraryShape shape;
 
-    if (shape == MAREA_NULLPTR) {
+    if (MAREA_G_LibraryHeadOf(context, base, &shape, &arguments) == MAREA_BOOLEAN_FALSE) {
         // INFO: not a static call on the type itself; read the already-typed base value of the member access and
         // peel it down to a plain NAMED_TYPE, the way an array's element is read before MAREA_SemaTypedAstElementOf
         // looks at the type arguments.
@@ -223,9 +191,7 @@ MAREA_SemaExprType MAREA_CALL MAREA_SemaTypedAstLibraryCallType(MAREA_SemaContex
             return MAREA_G_TypeNone();
         }
 
-        shape = MAREA_G_LibraryHeadOf(peeled.node, &arguments);
-
-        if (shape == MAREA_NULLPTR) {
+        if (MAREA_G_LibraryHeadOf(context, peeled.node, &shape, &arguments) == MAREA_BOOLEAN_FALSE) {
             return MAREA_G_TypeNone();
         }
 
@@ -234,13 +200,13 @@ MAREA_SemaExprType MAREA_CALL MAREA_SemaTypedAstLibraryCallType(MAREA_SemaContex
         frame = peeled.frame;
     }
 
-    const MAREA_SemaSignature *signature = MAREA_G_QuerySignature(context, shape, member);
+    const MAREA_SemaSignature *signature = MAREA_G_QuerySignature(context, &shape, member);
 
     if (signature == MAREA_NULLPTR) {
         return MAREA_G_TypeNone();
     }
 
-    return MAREA_G_SubstituteResult(shape, receiver, arguments, frame, signature);
+    return MAREA_G_SubstituteResult(&shape, receiver, arguments, frame, signature);
 }
 
 MAREA_Boolean MAREA_CALL MAREA_SemaTypedAstTableValueOf(const MAREA_SemaContext *context, const MAREA_SemaExprType *collection, MAREA_SemaExprType *outValue)
@@ -253,11 +219,17 @@ MAREA_Boolean MAREA_CALL MAREA_SemaTypedAstTableValueOf(const MAREA_SemaContext 
         return MAREA_BOOLEAN_FALSE;
     }
 
-    const MAREA_AstNode *arguments = MAREA_NULLPTR;
+    // INFO: a keyed table is a registered type with two type parameters and no index protocol: the second
+    // argument is the value.
+    const MAREA_TypeDescriptor *descriptor = MAREA_NULLPTR;
 
-    const MAREA_G_LibraryShape *shape = MAREA_G_LibraryHeadOf(peeled.node, &arguments);
+    if ((MAREA_SemaDescriptorOfType(context, peeled.node, &descriptor) == MAREA_BOOLEAN_FALSE) || (descriptor->typeParameterCount != MAREA_INTEGER_SIZE(2)) || (descriptor->hasIndexProtocol == MAREA_BOOLEAN_TRUE)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
 
-    if ((shape == MAREA_NULLPTR) || (MAREA_G_TextIs(shape->name, shape->nameLength, "table") == MAREA_BOOLEAN_FALSE) || (arguments == MAREA_NULLPTR) || (MAREA_AstNodeGetChildCount(arguments) < 2)) {
+    const MAREA_AstNode *arguments = MAREA_G_FindChild(peeled.node, MAREA_AST_KIND_TYPE_ARGUMENTS);
+
+    if ((arguments == MAREA_NULLPTR) || (MAREA_AstNodeGetChildCount(arguments) < 2)) {
         return MAREA_BOOLEAN_FALSE;
     }
 

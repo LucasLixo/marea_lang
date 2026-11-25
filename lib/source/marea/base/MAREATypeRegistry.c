@@ -248,6 +248,23 @@ const MAREA_TypeDescriptor *MAREA_CALL MAREA_TypeRegistryFind(const MAREA_TypeRe
     return MAREA_NULLPTR;
 }
 
+const MAREA_TypeDescriptor *MAREA_CALL MAREA_TypeRegistryFindByRole(const MAREA_TypeRegistry *registry, MAREA_TypeRole role)
+{
+    if ((registry == MAREA_NULLPTR) || (role == MAREA_TYPE_ROLE_NONE)) {
+        return MAREA_NULLPTR;
+    }
+
+    for (MAREA_IntegerSize index = 0; index < registry->typeCount; ++index) {
+        const MAREA_TypeDescriptor *descriptor = registry->types[index].descriptor;
+
+        if ((descriptor->roles & role) != MAREA_TYPE_ROLE_NONE) {
+            return descriptor;
+        }
+    }
+
+    return MAREA_NULLPTR;
+}
+
 MAREA_TypeRegistryExcept MAREA_CALL MAREA_TypeRegistryRegisterInternalFunction(MAREA_TypeRegistry *registry, MAREA_LibraryFlag owner, const MAREA_Character8 *namespaceText, MAREA_IntegerSize namespaceLength, const MAREA_Character8 *name, MAREA_IntegerSize nameLength, MAREA_Null functionPointer)
 {
     if ((registry == MAREA_NULLPTR) || (namespaceText == MAREA_NULLPTR) || (name == MAREA_NULLPTR) || (functionPointer == MAREA_NULLPTR)) {

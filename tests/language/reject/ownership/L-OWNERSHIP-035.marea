@@ -6,7 +6,7 @@
 
 namespace main;
 
-require c.array;
+require demo.vector;
 
 structure Point
     x: sinteger32;
@@ -18,7 +18,7 @@ structure Box
     count: sinteger32;
 end
 
-function check(#[semantics = reference_read_only] values: c.array<sinteger32>): sinteger32
-    local second: c.array<sinteger32> = values;
+function check(#[semantics = reference_read_only] values: demo.vector<sinteger32>): sinteger32
+    local second: demo.vector<sinteger32> = values;
     return 1;
 end

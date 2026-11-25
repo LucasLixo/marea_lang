@@ -317,11 +317,11 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExprType MAREA_CALL MAREA_SemaTypedAstTypeOfOperands(const MAREA_SemaTypedNode *built);
 
     /**
-     * @brief Reads the element type of a collection: the first type argument of array, slice and vector, and of
-     * pointer when it is asked for, bare or under the reserved namespace c, also through owned<T>.
+     * @brief Reads the element type of a collection: the first type argument of a registered type with the
+     * index protocol, and of one with the raw pointer role when it is asked for, also through a type with the owner role.
      * @param context Context the node is being built with. Must not be null.
      * @param collection Type of the collection. Must not be null.
-     * @param withPointer True when pointer<T> is a collection too, as it is for an index access.
+     * @param withPointer True when a raw pointer type is a collection too, as it is for an index access.
      * @param outElement Receives the element type. Must not be null.
      * @return True when the collection is one of them and the element was read, else false and outElement is empty.
      */
@@ -478,7 +478,7 @@ MAREA_BEGIN_EXTERN_C
     /**
      * @brief Peels an expression type down to a plain NAMED_TYPE, the same way MAREA_SemaTypedAstElementOf reads a
      * collection before it looks at the type arguments: a generic parameter a frame fills, Self, a local alias with
-     * no generic parameters and owned<T> are all followed. A structure, an enum, a type sema cannot peel or a step
+     * no generic parameters and a type with the owner role are all followed. A structure, an enum, a type sema cannot peel or a step
      * limit reached gives false, and outPeeled is left as a copy of type.
      * @param context Context the node is being built with. Must not be null.
      * @param type Type to peel. Must not be null.
@@ -489,13 +489,12 @@ MAREA_BEGIN_EXTERN_C
 
     /**
      * @brief Types a call whose callee is a member of a library type the host gave a signature for: a static call
-     * on the type itself (array<T,N>.filled(0.0), c.array<sinteger32>.filled(8, 0)), or an instance call on a value
-     * whose type is array, vector, slice, pointer, owned, task or table, bare or under the reserved namespace c
-     * (tasks.append(x), item.result()). The signature is asked of the resolver the same way the signature of an
-     * EXTERNAL member is, keyed by the canonical "c.<name>" namespace and the member name, never by the namespace an
-     * import gave the name. A result spelled "Self" gives the receiver's own type; a result that names one of the
-     * library's own generic parameters (array: Item, Count; table: Key, Value; vector, slice, pointer, owned, task:
-     * Item) gives the receiver's type argument at that place, read in the receiver's own frame; any other spelling is
+     * on a registered type itself (Type<T, N>.filled(0.0)), or an instance call on a value
+     * whose type is a registered type (tasks.append(x), item.result()).
+     * The signature is asked of the resolver the same way the signature of an EXTERNAL member is, keyed by the
+     * full written path of the registered type and the member name. A result spelled "Self" gives the receiver's
+     * own type; a result that names one of the positional generic parameters of the descriptor (Item, then Count)
+     * gives the receiver's type argument at that place, read in the receiver's own frame; any other spelling is
      * the literal result, exactly as an EXTERNAL call's signature is read. A resolver with no signature function, a
      * receiver that is not one of these library types, or a member the signature function does not know, leaves this
      * empty: the call stays exactly as opaque as before this rule existed.
@@ -946,6 +945,21 @@ MAREA_BEGIN_EXTERN_C
      * @return True when a descriptor was found, false otherwise (outDescriptor is null).
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaDescriptorOfType(const MAREA_SemaContext *context, const MAREA_AstNode *type, const MAREA_TypeDescriptor **outDescriptor);
+
+    /**
+     * @brief Writes the type that a role names around one argument, as text in the arena of the context:
+     * "namespace.Name<argument>", with the full path of the registered type that holds the role. Sema
+     * uses it for the handle of a spawn and the part of a partition, so it never writes a type name itself.
+     * @param context Context of the run. Must not be null.
+     * @param role One role bit.
+     * @param argumentText Text of the type argument.
+     * @param argumentLength Length of argumentText.
+     * @param outText Receives the text. Must not be null.
+     * @param outLength Receives the length. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS with outText set, or with outText null when no registered type holds
+     * the role (the type stays unknown), or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaWrapInRoleType(MAREA_SemaContext * context, MAREA_TypeRole role, const MAREA_Character8 *argumentText, MAREA_IntegerSize argumentLength, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength);
 
     /**
      * @brief Finds the declared type of an expression when it is cheap to know: a local or parameter, a

@@ -235,9 +235,9 @@ TEST(MAREASemaTypedAstScopes, DeclaredNamesOfALoopHaveTheTypeOfTheirLoop)
 
     MAREA_expectScopeType("namespace main; function f(n: sinteger32): sinteger32 local t: sinteger32 = 0; for i in 0 .. n do t += i; end return t; end", "i", 0, "sinteger32");
 
-    MAREA_expectScopeType("namespace main; function f(v: array<float32, 4>): float32 local t: float32 = 0.0; for each k, x in v do t += x; end return t; end", "k", 0, "uinteger64");
+    MAREA_expectScopeType("namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; function f(v: demo.array<float32, 4>): float32 local t: float32 = 0.0; for each k, x in v do t += x; end return t; end", "k", 0, "uinteger64");
 
-    MAREA_expectScopeType("namespace main; function f(v: array<float32, 4>): float32 local t: float32 = 0.0; for each k, x in v do t += x; end return t; end", "x", 0, "float32");
+    MAREA_expectScopeType("namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; function f(v: demo.array<float32, 4>): float32 local t: float32 = 0.0; for each k, x in v do t += x; end return t; end", "x", 0, "float32");
 }
 
 TEST(MAREASemaTypedAstScopes, ForRangeCounterChildHasTheTypeOfTheBounds)
@@ -279,18 +279,18 @@ TEST(MAREASemaTypedAstScopes, ForEachCollectionChildHasItsResolvedType)
 
     MAREA_expectHeaderType("namespace main; require demo.slice; function f(v: demo.slice<float32>): float32 local t: float32 = 0.0; for each x in mutable v do t += x; end return t; end", MAREA_AST_KIND_FOR_EACH_STATEMENT, 1, "demo.slice<float32>", MAREA_EXTERNAL_RESOLVE);
 
-    MAREA_expectHeaderType("namespace main; require c.array; import collections.array as array; function f(v: c.array<sinteger32>): sinteger32 local t: sinteger32 = 0; for each x in v do t += x; end return t; end", MAREA_AST_KIND_FOR_EACH_STATEMENT, 1, "c.array<sinteger32>", MAREA_EXTERNAL_RESOLVE);
+    MAREA_expectHeaderType("namespace main; function f(v: demo.array<sinteger32, 4>): sinteger32 local t: sinteger32 = 0; for each x in v do t += x; end return t; end", MAREA_AST_KIND_FOR_EACH_STATEMENT, 1, "demo.array<sinteger32,4>", MAREA_EXTERNAL_RESOLVE);
 }
 
 TEST(MAREASemaTypedAstScopes, ForEachNameChildrenHaveTheirType)
 {
     GTEST_COUT << "Validating the value child of a for each has the element type and the key child has uinteger64, read from the statement itself." << std::endl;
 
-    const std::string ONE{ "namespace main; function f(v: array<float32, 4>): float32 local t: float32 = 0.0; for each x in v do t += x; end return t; end" };
+    const std::string ONE{ "namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; function f(v: demo.array<float32, 4>): float32 local t: float32 = 0.0; for each x in v do t += x; end return t; end" };
 
     MAREA_expectHeaderType(ONE, MAREA_AST_KIND_FOR_EACH_STATEMENT, 0, "float32");
 
-    const std::string TWO{ "namespace main; function f(v: vector<sinteger16>): sinteger16 local t: sinteger16 = 0; local n: uinteger64 = 0; for each k, x in v do n += k; t += x; end return t; end" };
+    const std::string TWO{ "namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; function f(v: demo.vector<sinteger16>): sinteger16 local t: sinteger16 = 0; local n: uinteger64 = 0; for each k, x in v do n += k; t += x; end return t; end" };
 
     MAREA_expectHeaderType(TWO, MAREA_AST_KIND_FOR_EACH_STATEMENT, 0, "uinteger64");
 
@@ -314,7 +314,7 @@ TEST(MAREASemaTypedAstScopes, NestedLoopsKeepTheirOwnNameTypes)
 {
     GTEST_COUT << "Validating an inner loop that reuses an outer name types its own declared name, not the outer one." << std::endl;
 
-    const std::string SOURCE{ "namespace main; function f(n: uinteger64, v: array<float32, 4>): float32 local t: float32 = 0.0; for i in 0 .. n do for each i in v do t += i; end end return t; end" };
+    const std::string SOURCE{ "namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; function f(n: uinteger64, v: demo.array<float32, 4>): float32 local t: float32 = 0.0; for i in 0 .. n do for each i in v do t += i; end end return t; end" };
 
     // The first declared i is the counter of the range, the second is the value of the for each.
     MAREA_expectScopeType(SOURCE, "i", 0, "uinteger64");
@@ -332,21 +332,21 @@ TEST(MAREASemaTypedAstScopes, ForEachValueIsTheElementType)
 
     MAREA_expectScopeType("namespace main; require demo.slice; function f(v: demo.slice<float32>): float32 local t: float32 = 0.0; for each x in mutable v do t += x; end return t; end", "x", 1, "float32", MAREA_EXTERNAL_RESOLVE);
 
-    MAREA_expectScopeType("namespace main; require c.array; import collections.array as array; function f(v: c.array<sinteger32>): sinteger32 local t: sinteger32 = 0; for each x in v do t += x; end return t; end", "x", 1, "sinteger32", MAREA_EXTERNAL_RESOLVE);
+    MAREA_expectScopeType("namespace main; function f(v: demo.array<sinteger32, 4>): sinteger32 local t: sinteger32 = 0; for each x in v do t += x; end return t; end", "x", 1, "sinteger32", MAREA_EXTERNAL_RESOLVE);
 }
 
 TEST(MAREASemaTypedAstScopes, ForEachElementOfAGenericTypeIsKeptWhole)
 {
     GTEST_COUT << "Validating the element of a collection of a generic type is spelled whole." << std::endl;
 
-    MAREA_expectScopeType("namespace main; require c.array; import collections.array as array; import concurrency.task as task; function consume(x: task<float32>) end function f(v: c.array<task<float32>>) for each x in v do consume(x); end end", "x", 2, "task<float32>", MAREA_EXTERNAL_RESOLVE);
+    MAREA_expectScopeType("namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; function consume(x: demo.task<float32>) end function f(v: demo.vector<demo.task<float32>>) for each x in v do consume(x); end end", "x", 2, "demo.task<float32>", MAREA_EXTERNAL_RESOLVE);
 }
 
 TEST(MAREASemaTypedAstScopes, ForEachKeyIsTheIndexType)
 {
     GTEST_COUT << "Validating the key of a for each with two names is uinteger64 and the value is the element." << std::endl;
 
-    const std::string SOURCE{ "namespace main; function f(v: array<float32, 4>): float32 local t: float32 = 0.0; local n: uinteger64 = 0; for each k, x in v do n += k; t += x; end return t; end" };
+    const std::string SOURCE{ "namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; function f(v: demo.array<float32, 4>): float32 local t: float32 = 0.0; local n: uinteger64 = 0; for each k, x in v do n += k; t += x; end return t; end" };
 
     MAREA_expectScopeType(SOURCE, "k", 1, "uinteger64");
 
@@ -364,18 +364,18 @@ TEST(MAREASemaTypedAstScopes, PartitionPartIsASliceOfTheValue)
 {
     GTEST_COUT << "Validating a partition part is a slice of the element type of the value, whatever the collection." << std::endl;
 
-    MAREA_expectScopeType("namespace main; require c.array; import collections.array as array; function consume(p: slice<float32>) end function f(#[semantics = reference_mutable] v: c.array<float32>) fork_join partition mutable v into 4 as part do consume(part); end end end", "part", 1, "slice<float32>", MAREA_EXTERNAL_RESOLVE);
+    MAREA_expectScopeType("namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; function consume(p: demo.slice<float32>) end function f(#[semantics = reference_mutable] v: demo.vector<float32>) fork_join partition mutable v into 4 as part do consume(part); end end end", "part", 1, "demo.slice<float32>", MAREA_EXTERNAL_RESOLVE);
 
-    MAREA_expectScopeType("namespace main; function consume(p: slice<uinteger8>) end function f(v: array<uinteger8, 8>) fork_join partition v into 2 as part do consume(part); end end end", "part", 1, "slice<uinteger8>");
+    MAREA_expectScopeType("namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; function consume(p: demo.slice<uinteger8>) end function f(v: demo.array<uinteger8, 8>) fork_join partition v into 2 as part do consume(part); end end end", "part", 1, "demo.slice<uinteger8>");
 
-    MAREA_expectScopeType("namespace main; function consume(p: slice<sinteger32>) end function f(v: slice<sinteger32>) fork_join partition v into 2 as part do consume(part); end end end", "part", 1, "slice<sinteger32>");
+    MAREA_expectScopeType("namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; function consume(p: demo.slice<sinteger32>) end function f(v: demo.slice<sinteger32>) fork_join partition v into 2 as part do consume(part); end end end", "part", 1, "demo.slice<sinteger32>");
 }
 
 TEST(MAREASemaTypedAstScopes, WithNameHasTheTypeOfItsExpression)
 {
     GTEST_COUT << "Validating a with name has the type of its expression, and none when the expression has none." << std::endl;
 
-    MAREA_expectScopeType("namespace main; function use(x: slice<float32>) end function f(v: slice<float32>) with v as view do use(view); end end", "view", 1, "slice<float32>");
+    MAREA_expectScopeType("namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; function use(x: demo.slice<float32>) end function f(v: demo.slice<float32>) with v as view do use(view); end end", "view", 1, "demo.slice<float32>");
 
     MAREA_expectScopeType("namespace main; function f(n: sinteger64): sinteger64 local t: sinteger64 = 0; with n as m do t += m; end return t; end", "m", 1, "sinteger64");
 
@@ -386,7 +386,7 @@ TEST(MAREASemaTypedAstScopes, InnerNameShadowsAnOuterOne)
 {
     GTEST_COUT << "Validating a nested statement gives its own type to a name that hides an outer one, and the outer one is back at the end." << std::endl;
 
-    const std::string SOURCE{ "namespace main; function f(n: uinteger64, v: array<float32, 4>): float32 local t: float32 = 0.0; local u: uinteger64 = 0; for i in 0 .. n do for each i in v do t += i; end u += i; end return t; end" };
+    const std::string SOURCE{ "namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; function f(n: uinteger64, v: demo.array<float32, 4>): float32 local t: float32 = 0.0; local u: uinteger64 = 0; for i in 0 .. n do for each i in v do t += i; end u += i; end return t; end" };
 
     // The first use of the name is read by the inner loop, the second by the outer one.
     MAREA_expectScopeType(SOURCE, "i", 2, "float32");
@@ -398,7 +398,7 @@ TEST(MAREASemaTypedAstScopes, NestedStatementsEachKeepTheirOwnName)
 {
     GTEST_COUT << "Validating nested statements of different kinds type each of their names." << std::endl;
 
-    const std::string SOURCE{ "namespace main; function consume(x: float32, k: uinteger8) end function f(n: uinteger8, v: slice<float32>) for i in 0 .. n do for each x in v do consume(x, i); end end end" };
+    const std::string SOURCE{ "namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; function consume(x: float32, k: uinteger8) end function f(n: uinteger8, v: demo.slice<float32>) for i in 0 .. n do for each x in v do consume(x, i); end end end" };
 
     MAREA_expectScopeType(SOURCE, "x", 2, "float32");
 
@@ -431,7 +431,7 @@ TEST(MAREASemaTypedAstScopes, ExpressionsMadeFromAScopeNameAreTyped)
 {
     GTEST_COUT << "Validating an index access and an operation made from a loop name take its type." << std::endl;
 
-    const std::string SOURCE{ "namespace main; function f(v: array<float32, 4>): float32 local t: float32 = 0.0; for i in 0 .. 3 do t += v[i] * v[i]; end return t; end" };
+    const std::string SOURCE{ "namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; function f(v: demo.array<float32, 4>): float32 local t: float32 = 0.0; for i in 0 .. 3 do t += v[i] * v[i]; end return t; end" };
 
     MAREA_expectScopeType(SOURCE, "i", 1, "sinteger32");
 }

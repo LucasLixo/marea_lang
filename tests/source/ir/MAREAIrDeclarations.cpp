@@ -37,11 +37,11 @@ TEST(MAREAIrDeclarations, TypeNameOfAGenericTypeIsItsHeadName)
 
     MAREA_IrFixture fixture;
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; function total(values: slice<sinteger32>) end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; function total(values: demo.slice<sinteger32>) end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     const MAREA_IrNode *parameters{ MAREA_irChild(MAREA_irChild(fixture.module, 0), 0) };
 
-    EXPECT_EQ(MAREA_irTypeName(MAREA_irChild(parameters, 0)), "slice") << "The type name must be the head name.";
+    EXPECT_EQ(MAREA_irTypeName(MAREA_irChild(parameters, 0)), "demo.slice") << "The type name must be the head name.";
 }
 
 TEST(MAREAIrDeclarations, ImportAndNamespaceProduceNoNode)

@@ -59,7 +59,7 @@ TEST(MAREASemaGenericsAndContracts, ValueGenericSizesAVector)
 {
     GTEST_COUT << "Validating a value generic is usable as a array size." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("structure Buffer<Item, constant Count: sinteger32> items: array<Item, Count>; end").empty()) << "A value generic must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("structure Buffer<Item, constant Count: sinteger32> items: demo.array<Item, Count>; end").empty()) << "A value generic must raise nothing.";
 }
 
 TEST(MAREASemaGenericsAndContracts, ContractMetByImplementation)
@@ -136,11 +136,11 @@ TEST(MAREASemaGenericsAndContracts, CopyableNeedsAPrimitiveAnArrayOrAnEnum)
 
 TEST(MAREASemaGenericsAndContracts, MovableNeedsAnOwnedOrMoveOnlyType)
 {
-    GTEST_COUT << "Validating Movable is met by owned<T> and a move_only type." << std::endl;
+    GTEST_COUT << "Validating Movable is met by demo.owned<T> and a move_only type." << std::endl;
 
     const std::string TAKE{ "function take<Item>(a: demo.owned<Item>): demo.owned<Item> where Item: Movable return a; end " };
 
-    EXPECT_TRUE(MAREA_codesOf(TAKE + "function run(a: demo.owned<sinteger32>): demo.owned<sinteger32> return take<demo.owned<sinteger32>>(move a); end").empty()) << "owned<T> must be Movable.";
+    EXPECT_TRUE(MAREA_codesOf(TAKE + "function run(a: demo.owned<sinteger32>): demo.owned<sinteger32> return take<demo.owned<sinteger32>>(move a); end").empty()) << "demo.owned<T> must be Movable.";
 
     EXPECT_TRUE(MAREA_codesOf(TAKE + "#[move_only] structure Token x: sinteger32; end function run(a: demo.owned<Token>): demo.owned<Token> return take<Token>(move a); end").empty()) << "A move_only type must be Movable.";
 
@@ -183,17 +183,14 @@ TEST(MAREASemaGenericsAndContracts, TypeArgumentCountMustMatch)
 
     EXPECT_EQ(MAREA_codesOf("structure Plain x: float32; end structure H a: Plain<sinteger32>; end"), Codes{ ARGUMENT_MISMATCH }) << "Arguments on a non-generic type must raise GENERIC_ARGUMENT_MISMATCH.";
 
-    EXPECT_EQ(MAREA_codesOf("structure H a: pointer<sinteger32, sinteger32>; end"), Codes{ ARGUMENT_MISMATCH }) << "A core generic type has a fixed count.";
+    EXPECT_EQ(MAREA_codesOf("structure H a: demo.slice<sinteger32, sinteger32>; end"), Codes{ ARGUMENT_MISMATCH }) << "A core generic type has a fixed count.";
 
-    EXPECT_EQ(MAREA_codesOf("structure H a: array<float32>; end"), Codes{ ARGUMENT_MISMATCH }) << "An array takes a type and a size.";
+    EXPECT_EQ(MAREA_codesOf("structure H a: demo.array<float32, 4, 4>; end"), Codes{ ARGUMENT_MISMATCH }) << "An array takes exactly two arguments.";
 
-    EXPECT_EQ(MAREA_codesOf("structure H a: array<float32, 4, 4>; end"), Codes{ ARGUMENT_MISMATCH }) << "An array takes exactly two arguments.";
+    EXPECT_EQ(MAREA_codesOf("structure H a: demo.vector<float32, 4>; end"), Codes{ ARGUMENT_MISMATCH }) << "A vector takes one type and no size.";
 
-    EXPECT_EQ(MAREA_codesOf("structure H a: vector<float32, 4>; end"), Codes{ ARGUMENT_MISMATCH }) << "A vector takes one type and no size.";
 
-    EXPECT_EQ(MAREA_codesOf("structure H a: vector; end"), Codes{ ARGUMENT_MISMATCH }) << "A vector takes one argument.";
-
-    EXPECT_TRUE(MAREA_codesOf("structure H a: array<float32, 4>; b: vector<float32>; end").empty()) << "The two valid shapes must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("structure H a: demo.array<float32, 4>; b: demo.vector<float32>; end").empty()) << "The two valid shapes must raise nothing.";
 
     EXPECT_EQ(MAREA_codesOf("structure H a: sinteger32<float32>; end"), Codes{ ARGUMENT_MISMATCH }) << "A primitive takes no arguments.";
 }
@@ -204,7 +201,7 @@ TEST(MAREASemaGenericsAndContracts, TypeArgumentKindMustMatch)
 
     EXPECT_EQ(MAREA_codesOf("structure Box<Item> v: Item; end structure H a: Box<4>; end"), Codes{ ARGUMENT_MISMATCH }) << "A number for a type parameter must raise GENERIC_ARGUMENT_MISMATCH.";
 
-    EXPECT_TRUE(MAREA_codesOf("structure Buffer<Item, constant Count: sinteger32> v: array<Item, Count>; end structure H a: Buffer<float32, 4>; end").empty()) << "A number for a value parameter must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("structure Buffer<Item, constant Count: sinteger32> v: demo.array<Item, Count>; end structure H a: Buffer<float32, 4>; end").empty()) << "A number for a value parameter must raise nothing.";
 }
 
 TEST(MAREASemaGenericsAndContracts, UnknownContractIsRejected)
@@ -235,7 +232,7 @@ TEST(MAREASemaGenericsAndContracts, CallOfALocalThatHidesAFunctionIsNotChecked)
 
     EXPECT_TRUE(MAREA_codesOf("function f(count: sinteger32) end function g(f: function(text: string, other: string), name: string) f(name, name); end").empty()) << "A name argument and a wrong count of the hidden function must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("function f(count: sinteger32) end function g<Item>(names: slice<Item>) for each f in names do f(\"x\"); end end").empty()) << "A binder that hides a function must raise nothing for its own call.";
+    EXPECT_TRUE(MAREA_codesOf("function f(count: sinteger32) end function g<Item>(names: demo.slice<Item>) for each f in names do f(\"x\"); end end").empty()) << "A binder that hides a function must raise nothing for its own call.";
 
     EXPECT_EQ(MAREA_codesOf("function f(count: sinteger32) end function g() f(\"x\"); end"), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH }) << "A call of the function itself must still raise TYPE_MISMATCH.";
 }
@@ -301,7 +298,7 @@ TEST(MAREASemaGenericsAndContracts, LiteralMustFitThePrimitiveType)
 
     EXPECT_EQ(MAREA_codesOf("function f(a: string) end function g() f('a'); end"), Codes{ MISMATCH }) << "A character for a string must raise TYPE_MISMATCH.";
 
-    EXPECT_TRUE(MAREA_codesOf("function f(a: pointer<sinteger32>) end function g() f(\"text\"); end").empty()) << "A non-primitive type must not be guessed.";
+    EXPECT_TRUE(MAREA_codesOf("function f(a: demo.slice<sinteger32>) end function g() f(\"text\"); end").empty()) << "A non-primitive type must not be guessed.";
 }
 
 TEST(MAREASemaGenericsAndContracts, MissingTypeFunctionIsRejected)
@@ -355,30 +352,30 @@ TEST(MAREASemaGenericsAndContracts, NarrowedTypeArgumentRaisesMismatch)
 {
     GTEST_COUT << "Validating a generic type whose type arguments differ from the declared type raises GENERIC_ARGUMENT_MISMATCH." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf("function check(values: array<sinteger32, 4>): sinteger32 local second: array<sinteger8, 4> = values; return 1; end"), Codes{ ARGUMENT_MISMATCH }) << "A narrowed array element must raise GENERIC_ARGUMENT_MISMATCH.";
+    EXPECT_EQ(MAREA_codesOf("function check(values: demo.array<sinteger32, 4>): sinteger32 local second: demo.array<sinteger8, 4> = values; return 1; end"), Codes{ ARGUMENT_MISMATCH }) << "A narrowed array element must raise GENERIC_ARGUMENT_MISMATCH.";
 
-    EXPECT_EQ(MAREA_codesOf("function check(values: array<sinteger32, 4>): sinteger32 local second: array<sinteger32, 8> = values; return 1; end"), Codes{ ARGUMENT_MISMATCH }) << "A different array size must raise GENERIC_ARGUMENT_MISMATCH.";
+    EXPECT_EQ(MAREA_codesOf("function check(values: demo.array<sinteger32, 4>): sinteger32 local second: demo.array<sinteger32, 8> = values; return 1; end"), Codes{ ARGUMENT_MISMATCH }) << "A different array size must raise GENERIC_ARGUMENT_MISMATCH.";
 
-    EXPECT_EQ(MAREA_codesOf("function check(#[semantics = reference_read_only] values: vector<sinteger32>): sinteger32 local second: vector<sinteger8> = copy values; return 1; end"), Codes{ ARGUMENT_MISMATCH }) << "A narrowed vector element through copy must raise GENERIC_ARGUMENT_MISMATCH.";
+    EXPECT_EQ(MAREA_codesOf("function check(#[semantics = reference_read_only] values: demo.vector<sinteger32>): sinteger32 local second: demo.vector<sinteger8> = copy values; return 1; end"), Codes{ ARGUMENT_MISMATCH }) << "A narrowed vector element through copy must raise GENERIC_ARGUMENT_MISMATCH.";
 
     const std::string PAIR{ "structure Pair<First, Second> first: First; second: Second; end " };
 
     EXPECT_EQ(MAREA_codesOf(PAIR + "function make(): Pair<sinteger32, float64> return Pair<sinteger8, float64>{ first = 1, second = 2.0 }; end"), Codes{ ARGUMENT_MISMATCH }) << "A returned struct literal with a narrowed argument must raise GENERIC_ARGUMENT_MISMATCH.";
 
-    EXPECT_EQ(MAREA_codesOf("function take(values: array<sinteger8, 4>): sinteger32 return 1; end function check(values: array<sinteger32, 4>): sinteger32 return take(values); end"), Codes{ ARGUMENT_MISMATCH }) << "A call argument with a narrowed type argument must raise GENERIC_ARGUMENT_MISMATCH.";
+    EXPECT_EQ(MAREA_codesOf("function take(values: demo.array<sinteger8, 4>): sinteger32 return 1; end function check(values: demo.array<sinteger32, 4>): sinteger32 return take(values); end"), Codes{ ARGUMENT_MISMATCH }) << "A call argument with a narrowed type argument must raise GENERIC_ARGUMENT_MISMATCH.";
 }
 
 TEST(MAREASemaGenericsAndContracts, MatchingTypeArgumentRaisesNothing)
 {
     GTEST_COUT << "Validating equal, generic, aliased and wrapped type arguments raise nothing." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("function check(values: array<sinteger32, 4>): sinteger32 local second: array<sinteger32, 4> = values; return 1; end").empty()) << "Equal type arguments must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function check(values: demo.array<sinteger32, 4>): sinteger32 local second: demo.array<sinteger32, 4> = values; return 1; end").empty()) << "Equal type arguments must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("structure Point x: sinteger32; end function check(points: owned<vector<Point>>): sinteger32 local other: vector<Point> = move points; return 1; end").empty()) << "A move of an owned vector into a vector must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("structure Point x: sinteger32; end function check(points: demo.owned<demo.vector<Point>>): sinteger32 local other: demo.vector<Point> = move points; return 1; end").empty()) << "A move of an owned vector into a vector must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("function check<Item>(values: array<Item, 4>): sinteger32 local second: array<sinteger32, 4> = values; return 1; end").empty()) << "A generic parameter argument must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function check<Item>(values: demo.array<Item, 4>): sinteger32 local second: demo.array<sinteger32, 4> = values; return 1; end").empty()) << "A generic parameter argument must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("type Small = sinteger8; function check(values: array<Small, 4>): sinteger32 local second: array<sinteger8, 4> = values; return 1; end").empty()) << "An alias argument must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("type Small = sinteger8; function check(values: demo.array<Small, 4>): sinteger32 local second: demo.array<sinteger8, 4> = values; return 1; end").empty()) << "An alias argument must raise nothing.";
 }
 
 TEST(MAREASemaGenericsAndContracts, OperatorOnGenericValueIsRejected)

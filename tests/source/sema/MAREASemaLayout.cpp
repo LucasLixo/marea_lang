@@ -391,7 +391,7 @@ TEST(MAREASemaLayout, LibraryTypeIsUndecided)
 {
     GTEST_COUT << "Validating a structure or an enum that holds a library type is undecided, with the library reason." << std::endl;
 
-    const std::vector<std::string> LIBRARY_TYPES{ "string", "array<sinteger32, 4>", "vector<sinteger32>", "pointer<sinteger32>", "slice<sinteger32>", "task<sinteger32>", "owned<sinteger32>" };
+    const std::vector<std::string> LIBRARY_TYPES{ "string", "demo.array<sinteger32, 4>", "demo.vector<sinteger32>", "demo.slice<sinteger32>", "demo.task<sinteger32>", "demo.owned<sinteger32>" };
 
     for (const std::string &type : LIBRARY_TYPES) {
         MAREA_expectUndecided("namespace main; structure S a: uinteger8; b: " + type + "; end", MAREA_AST_KIND_STRUCTURE_DECLARATION, 0, MAREA_SEMA_MEASURE_REASON_LIBRARY_TYPE, 2);
@@ -565,7 +565,7 @@ TEST(MAREASemaLayout, ConvertDiagnosticsStayTheSame)
 
     EXPECT_EQ(codesOf(HEAD + "structure P k: Kind; end structure Q k: Kind; end function f(p: P) local q: Q = convert<Q>(p); end"), std::vector<MAREA_Uinteger32>{ 3011 }) << "A structure with an enum field is still not compared, so convert is still refused.";
 
-    EXPECT_EQ(codesOf("namespace main; structure Inner a: uinteger8; end #[layout = c] structure P i: Inner; end #[layout = c] structure Q i: Inner; end function f(p: P) local q: Q = convert<Q>(p); end"), std::vector<MAREA_Uinteger32>{ 3011 }) << "A marea structure inside a c structure is still not compared.";
+    EXPECT_EQ(codesOf("namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; structure Inner a: uinteger8; end #[layout = c] structure P i: Inner; end #[layout = c] structure Q i: Inner; end function f(p: P) local q: Q = convert<Q>(p); end"), std::vector<MAREA_Uinteger32>{ 3011 }) << "A marea structure inside a c structure is still not compared.";
 
     EXPECT_TRUE(codesOf("namespace main; #[layout = c] structure P a: uinteger8; b: uinteger32; end #[layout = c] structure Q c: uinteger8; d: uinteger32; end function f(p: P) local q: Q = convert<Q>(p); end").empty()) << "Two c structures with the same shape are still compatible.";
 }

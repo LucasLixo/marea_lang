@@ -194,16 +194,16 @@ TEST(MAREASemaTypedAstExpressions, CopyAndMoveAreTheOperandType)
 
     MAREA_expectExpressionType("namespace main; structure Shape x: float32; end function f(s: Shape): Shape return copy s; end", MAREA_AST_KIND_UNARY_EXPRESSION, 0, "Shape");
 
-    MAREA_expectExpressionType("namespace main; function f(a: array<sinteger32, 4>): array<sinteger32, 4> return copy a; end", MAREA_AST_KIND_UNARY_EXPRESSION, 0, "array<sinteger32,4>");
+    MAREA_expectExpressionType("namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; function f(a: demo.array<sinteger32, 4>): demo.array<sinteger32, 4> return copy a; end", MAREA_AST_KIND_UNARY_EXPRESSION, 0, "demo.array<sinteger32,4>");
 
-    MAREA_expectExpressionType("namespace main; structure Shape x: float32; end function f(s: owned<Shape>): owned<Shape> return move s; end", MAREA_AST_KIND_UNARY_EXPRESSION, 0, "owned<Shape>");
+    MAREA_expectExpressionType("namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; structure Shape x: float32; end function f(s: demo.owned<Shape>): demo.owned<Shape> return move s; end", MAREA_AST_KIND_UNARY_EXPRESSION, 0, "demo.owned<Shape>");
 }
 
 TEST(MAREASemaTypedAstExpressions, IdentifierIsTheTypeOfItsDeclaration)
 {
     GTEST_COUT << "Validating an identifier gives the full type of its parameter, local or constant." << std::endl;
 
-    MAREA_expectIdentifierType("namespace main; function f(a: array<sinteger32, 4>): array<sinteger32, 4> return copy a; end", "a", 1, "array<sinteger32,4>");
+    MAREA_expectIdentifierType("namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; function f(a: demo.array<sinteger32, 4>): demo.array<sinteger32, 4> return copy a; end", "a", 1, "demo.array<sinteger32,4>");
 
     MAREA_expectIdentifierType("namespace main; function f(): float32 local x: float32 = 1.0; return x; end", "x", 1, "float32");
 
@@ -272,7 +272,7 @@ TEST(MAREASemaTypedAstExpressions, MemberAccessIsTheFieldType)
 
     MAREA_expectExpressionType("namespace main; structure Point x: float64; y: float32; end function f(p: Point): float32 return p.y; end", MAREA_AST_KIND_MEMBER_ACCESS, 0, "float32");
 
-    MAREA_expectExpressionType("namespace main; structure Line points: vector<float32>; end function f(l: Line): vector<float32> return move l.points; end", MAREA_AST_KIND_MEMBER_ACCESS, 0, "vector<float32>");
+    MAREA_expectExpressionType("namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; structure Line points: demo.vector<float32>; end function f(l: Line): demo.vector<float32> return move l.points; end", MAREA_AST_KIND_MEMBER_ACCESS, 0, "demo.vector<float32>");
 }
 
 TEST(MAREASemaTypedAstExpressions, NestedMemberAccessFollowsTheChain)
@@ -290,11 +290,11 @@ TEST(MAREASemaTypedAstExpressions, MemberOfAGenericStructureSubstitutesTheArgume
 {
     GTEST_COUT << "Validating a field of a generic structure is written with the type arguments of the receiver." << std::endl;
 
-    const std::string SOURCE{ "namespace main; structure Box<Item> value: Item; items: array<Item, 4>; end function f(b: Box<sinteger32>): sinteger32 return b.value; end function g(b: Box<float32>): array<float32, 4> return copy b.items; end" };
+    const std::string SOURCE{ "namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; structure Box<Item> value: Item; items: demo.array<Item, 4>; end function f(b: Box<sinteger32>): sinteger32 return b.value; end function g(b: Box<float32>): demo.array<float32, 4> return copy b.items; end" };
 
     MAREA_expectExpressionType(SOURCE, MAREA_AST_KIND_MEMBER_ACCESS, 0, "sinteger32");
 
-    MAREA_expectExpressionType(SOURCE, MAREA_AST_KIND_MEMBER_ACCESS, 1, "array<float32,4>");
+    MAREA_expectExpressionType(SOURCE, MAREA_AST_KIND_MEMBER_ACCESS, 1, "demo.array<float32,4>");
 }
 
 TEST(MAREASemaTypedAstExpressions, MemberOfAnImportedTypeHasNoType)
@@ -322,22 +322,22 @@ TEST(MAREASemaTypedAstExpressions, IndexAccessIsTheElementType)
 {
     GTEST_COUT << "Validating an index access on an array, a vector and a slice gives the element type." << std::endl;
 
-    MAREA_expectExpressionType("namespace main; function f(a: array<sinteger32, 4>): sinteger32 return a[1]; end", MAREA_AST_KIND_INDEX_ACCESS, 0, "sinteger32");
+    MAREA_expectExpressionType("namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; function f(a: demo.array<sinteger32, 4>): sinteger32 return a[1]; end", MAREA_AST_KIND_INDEX_ACCESS, 0, "sinteger32");
 
-    MAREA_expectExpressionType("namespace main; function f(v: vector<float32>): float32 return v[0]; end", MAREA_AST_KIND_INDEX_ACCESS, 0, "float32");
+    MAREA_expectExpressionType("namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; function f(v: demo.vector<float32>): float32 return v[0]; end", MAREA_AST_KIND_INDEX_ACCESS, 0, "float32");
 
-    MAREA_expectExpressionType("namespace main; function f(s: slice<uinteger8>): uinteger8 return s[2]; end", MAREA_AST_KIND_INDEX_ACCESS, 0, "uinteger8");
+    MAREA_expectExpressionType("namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; function f(s: demo.slice<uinteger8>): uinteger8 return s[2]; end", MAREA_AST_KIND_INDEX_ACCESS, 0, "uinteger8");
 
-    MAREA_expectExpressionType("namespace main; function f(a: array<array<float32, 2>, 3>): float32 return a[1][0]; end", MAREA_AST_KIND_INDEX_ACCESS, 0, "float32");
+    MAREA_expectExpressionType("namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; function f(a: demo.array<demo.array<float32, 2>, 3>): float32 return a[1][0]; end", MAREA_AST_KIND_INDEX_ACCESS, 0, "float32");
 
-    MAREA_expectExpressionType("namespace main; function f(a: array<array<float32, 2>, 3>): float32 return a[1][0]; end", MAREA_AST_KIND_INDEX_ACCESS, 1, "array<float32,2>");
+    MAREA_expectExpressionType("namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; function f(a: demo.array<demo.array<float32, 2>, 3>): float32 return a[1][0]; end", MAREA_AST_KIND_INDEX_ACCESS, 1, "demo.array<float32,2>");
 }
 
 TEST(MAREASemaTypedAstExpressions, IndexOfAFieldOfAGenericStructureSubstitutes)
 {
     GTEST_COUT << "Validating an element of a field of a generic structure carries the receiver type argument." << std::endl;
 
-    MAREA_expectExpressionType("namespace main; structure Buffer<Item> items: array<Item, 4>; end function f(b: Buffer<float32>): float32 return b.items[0]; end", MAREA_AST_KIND_INDEX_ACCESS, 0, "float32");
+    MAREA_expectExpressionType("namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; structure Buffer<Item> items: demo.array<Item, 4>; end function f(b: Buffer<float32>): float32 return b.items[0]; end", MAREA_AST_KIND_INDEX_ACCESS, 0, "float32");
 }
 
 TEST(MAREASemaTypedAstExpressions, CallIsTheDeclaredReturnType)
@@ -346,7 +346,7 @@ TEST(MAREASemaTypedAstExpressions, CallIsTheDeclaredReturnType)
 
     MAREA_expectExpressionType("namespace main; function g(a: sinteger32): float64 return 1.0; end function f(x: sinteger32): float64 return g(x); end", MAREA_AST_KIND_CALL_EXPRESSION, 0, "float64");
 
-    MAREA_expectExpressionType("namespace main; function g(): vector<array<sinteger32, 4>> return vector<array<sinteger32, 4>>{}; end function f(): vector<array<sinteger32, 4>> return g(); end", MAREA_AST_KIND_CALL_EXPRESSION, 0, "vector<array<sinteger32,4>>");
+    MAREA_expectExpressionType("namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; function g(): demo.vector<demo.array<sinteger32, 4>> return demo.vector<demo.array<sinteger32, 4>>{}; end function f(): demo.vector<demo.array<sinteger32, 4>> return g(); end", MAREA_AST_KIND_CALL_EXPRESSION, 0, "demo.vector<demo.array<sinteger32,4>>");
 }
 
 TEST(MAREASemaTypedAstExpressions, GenericCallWithExplicitArgumentsSubstitutes)
@@ -394,7 +394,7 @@ TEST(MAREASemaTypedAstExpressions, StructureLiteralIsTheWrittenType)
 
     MAREA_expectExpressionType("namespace main; structure Point x: float32; y: float32; end function f(a: float32): Point return Point{ x = a, y = a }; end", MAREA_AST_KIND_LITERAL_VALUE, 0, "Point");
 
-    MAREA_expectExpressionType("namespace main; function f(a: float32): array<float32, 2> return array<float32, 2>{ a, a }; end", MAREA_AST_KIND_LITERAL_VALUE, 0, "array<float32,2>");
+    MAREA_expectExpressionType("namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; function f(a: float32): demo.array<float32, 2> return demo.array<float32, 2>{ a, a }; end", MAREA_AST_KIND_LITERAL_VALUE, 0, "demo.array<float32,2>");
 
     MAREA_expectExpressionType("namespace main; structure Pair<First, Second> first: First; second: Second; end function f(a: float32): Pair<float32, float32> return Pair<float32, float32>{ first = a, second = a }; end", MAREA_AST_KIND_LITERAL_VALUE, 0, "Pair<float32,float32>");
 }
@@ -432,11 +432,11 @@ TEST(MAREASemaTypedAstExpressions, CallOfALibraryFunctionHasNoType)
 
 TEST(MAREASemaTypedAstExpressions, MemberThroughAnOwnerIsTheFieldType)
 {
-    GTEST_COUT << "Validating a member read on an owned<T> value gives the field type of T." << std::endl;
+    GTEST_COUT << "Validating a member read on an demo.owned<T> value gives the field type of T." << std::endl;
 
-    MAREA_expectExpressionType("namespace main; structure Shape x: float32; end function f(s: owned<Shape>): float32 return s.x; end", MAREA_AST_KIND_MEMBER_ACCESS, 0, "float32");
+    MAREA_expectExpressionType("namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; structure Shape x: float32; end function f(s: demo.owned<Shape>): float32 return s.x; end", MAREA_AST_KIND_MEMBER_ACCESS, 0, "float32");
 
-    MAREA_expectExpressionType("namespace main; function f(a: owned<array<float64, 3>>): float64 return a[0]; end", MAREA_AST_KIND_INDEX_ACCESS, 0, "float64");
+    MAREA_expectExpressionType("namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; function f(a: demo.owned<demo.array<float64, 3>>): float64 return a[0]; end", MAREA_AST_KIND_INDEX_ACCESS, 0, "float64");
 }
 
 TEST(MAREASemaTypedAstExpressions, EnumVariantFieldIsReadOnTheEnum)
@@ -464,7 +464,7 @@ TEST(MAREASemaTypedAstExpressions, ValueParameterOfAGenericIsItsDeclaredType)
 {
     GTEST_COUT << "Validating a value parameter such as Count in <constant Count: sinteger32> gives its declared type." << std::endl;
 
-    MAREA_expectIdentifierType("namespace main; structure Buffer<Item, constant Count: sinteger32> items: array<Item, Count>; end implementation<Item, constant Count: sinteger32> Buffer<Item, Count> function capacity(self: Buffer<Item, Count>): sinteger32 return Count; end end", "Count", 5, "sinteger32");
+    MAREA_expectIdentifierType("namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; structure Buffer<Item, constant Count: sinteger32> items: demo.array<Item, Count>; end implementation<Item, constant Count: sinteger32> Buffer<Item, Count> function capacity(self: Buffer<Item, Count>): sinteger32 return Count; end end", "Count", 5, "sinteger32");
 }
 
 TEST(MAREASemaTypedAstExpressions, SelfInAnImplementationIsTheImplementedType)
@@ -562,14 +562,14 @@ TEST(MAREASemaTypedAstExpressions, SpawnIsATaskOfTheResult)
 {
     GTEST_COUT << "Validating spawn of a call gives a task of the type of the call." << std::endl;
 
-    MAREA_expectExpressionType("namespace main; function work(a: float32): float32 return a; end function f(a: float32) fork_join local t: task<float32> = spawn work(a); end end", MAREA_AST_KIND_UNARY_EXPRESSION, 0, "task<float32>");
+    MAREA_expectExpressionType("namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; function work(a: float32): float32 return a; end function f(a: float32) fork_join local t: demo.task<float32> = spawn work(a); end end", MAREA_AST_KIND_UNARY_EXPRESSION, 0, "demo.task<float32>");
 }
 
 TEST(MAREASemaTypedAstExpressions, ExpressionTypeIsTheSameOnTwoRuns)
 {
     GTEST_COUT << "Validating two builds of one source give the same text for an expression." << std::endl;
 
-    const std::string SOURCE{ "namespace main; structure Box<Item> value: Item; end function f(b: Box<array<float32, 2>>): array<float32, 2> return copy b.value; end" };
+    const std::string SOURCE{ "namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; structure Box<Item> value: Item; end function f(b: Box<demo.array<float32, 2>>): demo.array<float32, 2> return copy b.value; end" };
 
     MAREA_SemaFixture first;
 
@@ -581,7 +581,7 @@ TEST(MAREASemaTypedAstExpressions, ExpressionTypeIsTheSameOnTwoRuns)
 
     ASSERT_EQ(ONE.except, MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "The first run must resolve.";
 
-    EXPECT_EQ(ONE.text, "array<float32,2>") << "A nested argument must be substituted whole.";
+    EXPECT_EQ(ONE.text, "demo.array<float32,2>") << "A nested argument must be substituted whole.";
 
     EXPECT_EQ(ONE.text, TWO.text) << "Two runs must give the same text.";
 }

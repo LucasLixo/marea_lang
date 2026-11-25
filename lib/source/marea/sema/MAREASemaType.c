@@ -20,12 +20,6 @@ static const MAREA_Character8 *const MAREA_G_BuiltinTypes[] = {
     "float64",
     "character",
     "string",
-    "array",
-    "vector",
-    "pointer",
-    "owned",
-    "slice",
-    "task",
 };
 
 static MAREA_Boolean MAREA_CALL MAREA_G_TextEquals(const MAREA_Character8 *left, MAREA_IntegerSize leftLength, const MAREA_Character8 *right)
@@ -94,6 +88,51 @@ MAREA_Boolean MAREA_CALL MAREA_SemaDescriptorOfType(const MAREA_SemaContext *con
     *outDescriptor = MAREA_TypeRegistryFind(context->typeRegistry, joined, NAMESPACE_LENGTH, MAREA_AstNodeGetText(last), NAME_LENGTH);
 
     return (*outDescriptor != MAREA_NULLPTR) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
+MAREA_SemaExcept MAREA_CALL MAREA_SemaWrapInRoleType(MAREA_SemaContext *context, MAREA_TypeRole role, const MAREA_Character8 *argumentText, MAREA_IntegerSize argumentLength, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength)
+{
+    *outText = MAREA_NULLPTR;
+    *outLength = 0;
+
+    const MAREA_TypeDescriptor *descriptor = MAREA_TypeRegistryFindByRole(context->typeRegistry, role);
+
+    if (descriptor == MAREA_NULLPTR) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    // INFO: namespace, one dot, name, "<", argument, ">".
+    const MAREA_IntegerSize TOTAL = (descriptor->namespaceLength + descriptor->nameLength + argumentLength + MAREA_INTEGER_SIZE(3));
+
+    MAREA_Null memory = MAREA_NULLPTR;
+
+    if (MAREA_ArenaAllocate(context->arena, TOTAL, MAREA_INTEGER_SIZE(1), &memory) != MAREA_ARENA_EXCEPT_SUCCESS) {
+        return MAREA_SEMA_EXCEPT_ERROR_OUT_OF_MEMORY;
+    }
+
+    MAREA_Character8 *buffer = memory;
+
+    MAREA_IntegerSize cursor = 0;
+
+    memcpy(buffer, descriptor->namespaceText, descriptor->namespaceLength);
+    cursor += descriptor->namespaceLength;
+
+    buffer[cursor++] = '.';
+
+    memcpy((buffer + cursor), descriptor->name, descriptor->nameLength);
+    cursor += descriptor->nameLength;
+
+    buffer[cursor++] = '<';
+
+    memcpy((buffer + cursor), argumentText, argumentLength);
+    cursor += argumentLength;
+
+    buffer[cursor++] = '>';
+
+    *outText = buffer;
+    *outLength = TOTAL;
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
 }
 
 static MAREA_Boolean MAREA_CALL MAREA_G_IsTypeDeclaration(const MAREA_AstNode *declaration)
@@ -294,17 +333,6 @@ void MAREA_CALL MAREA_SemaScopeLeave(MAREA_SemaContext *context, MAREA_SemaScope
     context->unsafeDepth = mark.unsafeDepth;
 }
 
-static MAREA_IntegerSize MAREA_CALL MAREA_G_BuiltinArity(const MAREA_Character8 *text, MAREA_IntegerSize length)
-{
-    if (MAREA_G_TextEquals(text, length, "array") == MAREA_BOOLEAN_TRUE) {
-        return MAREA_INTEGER_SIZE(2);
-    }
-
-    const MAREA_Boolean TAKES_ONE = (MAREA_G_TextEquals(text, length, "pointer") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextEquals(text, length, "owned") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextEquals(text, length, "slice") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextEquals(text, length, "vector") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextEquals(text, length, "task") == MAREA_BOOLEAN_TRUE);
-
-    return (TAKES_ONE == MAREA_BOOLEAN_TRUE) ? MAREA_INTEGER_SIZE(1) : MAREA_INTEGER_SIZE(0);
-}
-
 static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckArity(MAREA_SemaContext *context, const MAREA_AstNode *node, const MAREA_AstNode *declaration, const MAREA_Character8 *name, MAREA_IntegerSize nameLength)
 {
     const MAREA_AstNode *arguments = MAREA_SemaChildAt(node, 1);
@@ -316,7 +344,7 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckArity(MAREA_SemaContext *context
     MAREA_IntegerSize expected = 0;
 
     if (declaration == MAREA_NULLPTR) {
-        expected = MAREA_G_BuiltinArity(name, nameLength);
+        expected = MAREA_INTEGER_SIZE(0);
     } else {
         const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(declaration);
 
@@ -396,14 +424,9 @@ static MAREA_Boolean MAREA_CALL MAREA_G_HasKnownLayout(const MAREA_SemaContext *
         return MAREA_BOOLEAN_TRUE;
     }
 
-    switch (MAREA_SemaClassifyType(context, type, &declaration, &name, &length)) {
-    case MAREA_SEMA_TYPE_CLASS_PRIMITIVE:
-    case MAREA_SEMA_TYPE_CLASS_USER:
-    case MAREA_SEMA_TYPE_CLASS_GENERIC:
-        return MAREA_BOOLEAN_TRUE;
-    default:
-        return MAREA_BOOLEAN_FALSE;
-    }
+    // INFO: a type sema cannot see (an external one, or an unknown name that its own check reports) is not
+    // guessed here; only a function type, the one shape that is known to have no layout, is rejected.
+    return (MAREA_SemaClassifyType(context, type, &declaration, &name, &length) == MAREA_SEMA_TYPE_CLASS_COPY_BUILTIN) ? MAREA_BOOLEAN_FALSE : MAREA_BOOLEAN_TRUE;
 }
 
 // INFO: an element type with no measured layout cannot be held by value (decision 28 of the
@@ -468,6 +491,16 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckNamedType(MAREA_SemaContext *context,
 
     if (RAW_POINTER_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
         return RAW_POINTER_RESULT;
+    }
+
+    // INFO: a registered type takes no more type arguments than its descriptor declares; a library may also
+    // be written with fewer, so a missing argument is the library's own business.
+    const MAREA_TypeDescriptor *registered = MAREA_NULLPTR;
+
+    const MAREA_AstNode *writtenArguments = MAREA_G_FindTypeArguments(node);
+
+    if ((writtenArguments != MAREA_NULLPTR) && (MAREA_SemaDescriptorOfType(context, node, &registered) == MAREA_BOOLEAN_TRUE) && (MAREA_AstNodeGetChildCount(writtenArguments) > registered->typeParameterCount)) {
+        return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_GENERIC_ARGUMENT_MISMATCH, MAREA_AstNodeGetPosition(node), "type arguments do not match the generic parameters of", registered->name, registered->nameLength);
     }
 
     const MAREA_AstNode *qualifiedName = MAREA_SemaChildAt(node, 0);

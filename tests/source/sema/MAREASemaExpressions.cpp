@@ -65,7 +65,7 @@ TEST(MAREASemaExpressions, NameMustHaveTheDeclaredType)
 
     EXPECT_TRUE(MAREA_codesOf("function f(a: sinteger32) end function g(n: sinteger32) f(n); local m: sinteger32 = n; end").empty()) << "A name of the same type must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("function f(a: pointer<sinteger32>) end function g(s: string) f(s); end").empty()) << "A non-primitive target must not be guessed.";
+    EXPECT_TRUE(MAREA_codesOf("function f(a: demo.slice<sinteger32>) end function g(s: string) f(s); end").empty()) << "A non-primitive target must not be guessed.";
 }
 
 TEST(MAREASemaExpressions, FieldAndStructureAreTyped)
@@ -181,13 +181,13 @@ TEST(MAREASemaExpressions, BinaryOperandOfAnUnknownTypeIsAccepted)
 
     const std::string POINT{ "structure Point x: float32; end enum Color red; end " };
 
-    EXPECT_TRUE(MAREA_codesOf(POINT + "function g(p: Point, c: Color, a: sinteger32, q: pointer<sinteger32>) p == a; c == a; c + 1; q + a; a + q; end").empty()) << "A structure, an enum and a pointer must not be compared with a primitive.";
+    EXPECT_TRUE(MAREA_codesOf(POINT + "function g(p: Point, c: Color, a: sinteger32, q: demo.slice<sinteger32>) p == a; c == a; c + 1; q + a; a + q; end").empty()) << "A structure, an enum and a pointer must not be compared with a primitive.";
 
     EXPECT_TRUE(MAREA_codesOf("function same<Item>(a: Item): Item return copy a; end function g(a: sinteger32, b: float64) same(a) + b; same(b) + a; end").empty()) << "The result of a generic call must not be guessed.";
 
     EXPECT_TRUE(MAREA_codesOf("function g(a: float64) for i in 0 .. 3 do i + a; end end").empty()) << "A binder with no known type must not be guessed.";
 
-    EXPECT_TRUE(MAREA_codesOf("function g(v: uinteger32, n: sinteger32, q: pointer<sinteger32>) v << n; v >> n; q << n; n << q; end").empty()) << "A shift with an unknown operand must not be guessed.";
+    EXPECT_TRUE(MAREA_codesOf("function g(v: uinteger32, n: sinteger32, q: demo.slice<sinteger32>) v << n; v >> n; q << n; n << q; end").empty()) << "A shift with an unknown operand must not be guessed.";
 }
 
 TEST(MAREASemaExpressions, ShiftCountIsAnyIntegerAndTheResultIsTheLeftType)
@@ -553,7 +553,7 @@ TEST(MAREASemaExpressions, ConvertOfAnUnknownTypeIsAccepted)
 
     EXPECT_TRUE(MAREA_codesOf("function g<Item>(x: Item, a: sinteger32) local n: sinteger32 = convert<sinteger32>(x); local y: Item = convert<Item>(a); end").empty()) << "A generic parameter is not decided.";
 
-    EXPECT_TRUE(MAREA_codesOf("function g(a: sinteger32, v: pointer<sinteger32>) local n: sinteger32 = convert<sinteger32>(v); convert<pointer<sinteger32>>(a); end").empty()) << "A pointer is a type that sema does not sort.";
+    EXPECT_TRUE(MAREA_codesOf("function g(a: sinteger32, v: demo.slice<sinteger32>) local n: sinteger32 = convert<sinteger32>(v); convert<demo.slice<sinteger32>>(a); end").empty()) << "A pointer is a type that sema does not sort.";
 
     EXPECT_TRUE(MAREA_codesOf("import lib; function g(a: sinteger32) local n: sinteger32 = convert<sinteger32>(a.missing); local m: sinteger32 = convert<sinteger32>(lib.get(a)); end").empty()) << "An operand of unknown type must raise nothing.";
 
@@ -620,7 +620,7 @@ TEST(MAREASemaExpressions, ConvertBetweenStructuresRejectsWhatSemaCannotMeasure)
     const std::string STRUCTURES{ "#[layout = c] structure Text name: string; end "
                                   "#[layout = c] structure Other label: string; end "
                                   "#[layout = c] structure Number x: sinteger32; end "
-                                  "#[layout = c] structure Handle raw: pointer<sinteger32>; end "
+                                  "#[layout = c] structure Handle raw: demo.slice<sinteger32>; end "
                                   "#[layout = c] structure Holder<Item> value: Item; end "
                                   "#[layout = c] structure Again<Item> value: Item; end " };
 
@@ -735,20 +735,20 @@ TEST(MAREASemaExpressions, OwnedTaskVectorAndArrayValuesAreKnownShapesNeverCompa
 {
     GTEST_COUT << "Validating an owned, a task, a vector and an array value are classified and never compared with a primitive." << std::endl;
 
-    MAREA_expectOpaqueValueAccepted("", "owned<sinteger32>", "An owned");
+    MAREA_expectOpaqueValueAccepted("", "demo.owned<sinteger32>", "An owned");
 
-    MAREA_expectOpaqueValueAccepted("", "task<sinteger32>", "A task");
+    MAREA_expectOpaqueValueAccepted("", "demo.task<sinteger32>", "A task");
 
-    MAREA_expectOpaqueValueAccepted("", "array<float32, 4>", "An array");
+    MAREA_expectOpaqueValueAccepted("", "demo.array<float32, 4>", "An array");
 
-    MAREA_expectOpaqueValueAccepted("", "vector<float32>", "A vector");
+    MAREA_expectOpaqueValueAccepted("", "demo.vector<float32>", "A vector");
 }
 
 TEST(MAREASemaExpressions, OpaqueKindsStayUnknownAtAFieldAccess)
 {
     GTEST_COUT << "Validating a field of an opaque kind is accepted at every slot." << std::endl;
 
-    const std::string HEAD{ "enum Color red; end structure Box c: Color; o: owned<sinteger32>; v: array<float32, 4>; end function f(a: sinteger32) end function g(b: Box) " };
+    const std::string HEAD{ "enum Color red; end structure Box c: Color; o: demo.owned<sinteger32>; v: demo.array<float32, 4>; end function f(a: sinteger32) end function g(b: Box) " };
 
     EXPECT_TRUE(MAREA_codesOf(HEAD + "f(b.c); f(b.o); f(b.v); local n: sinteger32 = b.c + 1; end").empty()) << "A field of an opaque kind must not be compared with a primitive.";
 }
@@ -845,7 +845,7 @@ TEST(MAREASemaExpressions, OpaqueTypeUsedThroughABorrowOrAnOwnerIsAccepted)
 
     EXPECT_TRUE(MAREA_codesOf(OPAQUE + "function g(a: T) end function f(a: T) g(a); end").empty()) << "An opaque name passed as a borrow must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf(OPAQUE + "function g(a: T) end function f(a: owned<T>) g(a); end").empty()) << "An owner passed as a borrow must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf(OPAQUE + "function g(a: T) end function f(a: demo.owned<T>) g(a); end").empty()) << "An owner passed as a borrow must raise nothing.";
 
     EXPECT_TRUE(MAREA_codesOf("require c.texture as texture; " + OPAQUE + "function f(a: T): sinteger32 return c.texture.width(a); end").empty()) << "A C call with an opaque argument must raise nothing.";
 
@@ -929,11 +929,11 @@ TEST(MAREASemaExpressions, ForEachFieldIsTyped)
 
     const std::string POINT{ "structure Point x: sinteger32; end " };
 
-    EXPECT_EQ(MAREA_codesOf(POINT + "function check(points: owned<vector<Point>>) for each item in points do local x: sinteger8 = item.x; end end"), Codes{ MISMATCH }) << "A narrower local for a for each field must raise TYPE_MISMATCH.";
+    EXPECT_EQ(MAREA_codesOf(POINT + "function check(points: demo.owned<demo.vector<Point>>) for each item in points do local x: sinteger8 = item.x; end end"), Codes{ MISMATCH }) << "A narrower local for a for each field must raise TYPE_MISMATCH.";
 
-    EXPECT_TRUE(MAREA_codesOf(POINT + "function check(points: owned<vector<Point>>) for each item in points do local x: sinteger32 = item.x; end end").empty()) << "An equal local for a for each field must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf(POINT + "function check(points: demo.owned<demo.vector<Point>>) for each item in points do local x: sinteger32 = item.x; end end").empty()) << "An equal local for a for each field must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("function check(points: owned<vector<Unknown>>) for each item in points do local x: sinteger8 = item.x; end end").empty()) << "An element of an unknown type must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function check(points: demo.owned<demo.vector<Unknown>>) for each item in points do local x: sinteger8 = item.x; end end").empty()) << "An element of an unknown type must raise nothing.";
 }
 
 TEST(MAREASemaExpressions, StructLiteralFieldsMatchTheStructure)
@@ -954,7 +954,7 @@ TEST(MAREASemaExpressions, StructLiteralFieldsMatchTheStructure)
 
     EXPECT_TRUE(MAREA_codesOf("structure Pair<A, B> first: A; second: B; end function make(): Pair<sinteger32, float64> return Pair<sinteger32, float64>{ first = 1, second = 2.0 }; end").empty()) << "A literal of a generic structure must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("function make(): array<sinteger32, 2> return array<sinteger32, 2>{ 1, 2 }; end").empty()) << "An array literal must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function make(): demo.array<sinteger32, 2> return demo.array<sinteger32, 2>{ 1, 2 }; end").empty()) << "An array literal must raise nothing.";
 }
 
 TEST(MAREASemaExpressions, StructLiteralMustNameEveryField)
@@ -979,7 +979,7 @@ TEST(MAREASemaExpressions, StructLiteralMustNameEveryField)
 
     EXPECT_TRUE(MAREA_codesOf("structure Empty end function make(): Empty return Empty{}; end").empty()) << "A structure without fields must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("function make(): slice<float32> return slice<float32>{}; end").empty()) << "A library type literal must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function make(): demo.slice<float32> return demo.slice<float32>{}; end").empty()) << "A library type literal must raise nothing.";
 
     EXPECT_TRUE(MAREA_codesOf("structure Pair<A, B> first: A; second: B; end function make(): Pair<sinteger32, float64> return Pair<sinteger32, float64>{ first = 1 }; end").empty()) << "A literal of a generic structure must raise nothing.";
 }

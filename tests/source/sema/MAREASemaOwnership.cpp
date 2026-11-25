@@ -32,7 +32,7 @@ namespace
 
         MAREA_IGNORE(MAREA_SemaContextSetTypeRegistry(fixture.context, MAREA_buildLibraryRegistry(fixture.parser.lexer.arena)));
 
-        if (fixture.MAREA_sema("namespace main; require c.array; require c.slice; require c.task; require c.pointer; require c.vector; require c.table; require c.owned; require vulkan; require demo.owned; require demo.array; require demo.vector; " + body) != MAREA_SEMA_EXCEPT_SUCCESS) {
+        if (fixture.MAREA_sema("namespace main; require c.array; require c.slice; require c.task; require c.pointer; require c.vector; require c.table; require c.owned; require vulkan; require demo.owned; require demo.array; require demo.vector; require demo.table; " + body) != MAREA_SEMA_EXCEPT_SUCCESS) {
             return { 0 };
         }
 
@@ -71,7 +71,7 @@ namespace
 
         MAREA_IGNORE(MAREA_SemaContextSetTypeRegistry(fixture.context, MAREA_buildLibraryRegistry(fixture.parser.lexer.arena)));
 
-        if (fixture.MAREA_sema("namespace main; require c.array; require c.slice; require c.task; require c.pointer; require c.vector; require c.table; require c.owned; require vulkan; require demo.owned; require demo.array; require demo.vector; " + body) != MAREA_SEMA_EXCEPT_SUCCESS) {
+        if (fixture.MAREA_sema("namespace main; require c.array; require c.slice; require c.task; require c.pointer; require c.vector; require c.table; require c.owned; require vulkan; require demo.owned; require demo.array; require demo.vector; require demo.table; " + body) != MAREA_SEMA_EXCEPT_SUCCESS) {
             return 99;
         }
 
@@ -122,7 +122,7 @@ TEST(MAREASemaOwnership, ParameterModesAreAccepted)
 
     EXPECT_TRUE(MAREA_codesOf("enum Color red; end function f(#[semantics = reference_read_only] c: Color) end").empty()) << "A forced borrow of an enum, the by-value exception, must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(o: owned<Shape>) end").empty()) << "A move-in must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(o: demo.owned<Shape>) end").empty()) << "A move-in must raise nothing.";
 }
 
 TEST(MAREASemaOwnership, ValueReadOnlyOnANonPrimitiveIsRejected)
@@ -142,7 +142,7 @@ TEST(MAREASemaOwnership, AssignmentOfAnExistingValueNeedsAWord)
 
     EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(#[semantics = reference_mutable] a: Shape, o: Outer) a = o.inner; end"), Codes{ NEEDS_WORD }) << "A field must raise ASSIGNMENT_NEEDS_COPY_OR_MOVE.";
 
-    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(#[semantics = reference_mutable] a: Shape, items: vector<Shape>) a = items[0]; end"), Codes{ NEEDS_WORD }) << "An element must raise ASSIGNMENT_NEEDS_COPY_OR_MOVE.";
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(#[semantics = reference_mutable] a: Shape, items: demo.vector<Shape>) a = items[0]; end"), Codes{ NEEDS_WORD }) << "An element must raise ASSIGNMENT_NEEDS_COPY_OR_MOVE.";
 
     EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(b: Shape) local a: Shape = b; end"), Codes{ NEEDS_WORD }) << "A local initializer must raise ASSIGNMENT_NEEDS_COPY_OR_MOVE.";
 }
@@ -164,7 +164,7 @@ TEST(MAREASemaOwnership, CopyAndMoveSatisfyTheRule)
 
     EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(#[semantics = reference_mutable] a: Shape, b: Shape) a = copy b; end").empty()) << "copy must satisfy the rule.";
 
-    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(#[semantics = reference_mutable] a: Shape, b: owned<Shape>) a = move b; end").empty()) << "move must satisfy the rule.";
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(#[semantics = reference_mutable] a: Shape, b: demo.owned<Shape>) a = move b; end").empty()) << "move must satisfy the rule.";
 
     EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(b: Shape) local a: Shape = copy b; end").empty()) << "copy in a local initializer must satisfy the rule.";
 }
@@ -216,9 +216,9 @@ TEST(MAREASemaOwnership, UnknownTypesAreNotGuessed)
 
 TEST(MAREASemaOwnership, LibraryStorageTypeNeedsAWord)
 {
-    GTEST_COUT << "Validating a c.array, c.vector, c.table, c.owned or c.task assigned from an existing value needs copy or move." << std::endl;
+    GTEST_COUT << "Validating a demo.array, demo.vector, demo.table, demo.owned or demo.task assigned from an existing value needs copy or move." << std::endl;
 
-    const char *const TYPES[] = { "c.array<sinteger32>", "c.vector<sinteger32>", "c.table<sinteger32, sinteger32>", "c.owned<sinteger32>", "c.task<sinteger32>" };
+    const char *const TYPES[] = { "demo.vector<sinteger32>", "demo.table<sinteger32, sinteger32>", "demo.owned<sinteger32>", "demo.task<sinteger32>" };
 
     for (const char *type : TYPES) {
         const std::string T{ type };
@@ -571,7 +571,7 @@ TEST(MAREASemaOwnership, BorrowCannotBeAppendedToAVector)
 {
     GTEST_COUT << "Validating a borrow passed to append raises REFERENCE_ESCAPES_SCOPE and a copy does not." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(#[semantics = reference_mutable] shapes: vector<Shape>, s: Shape) shapes.append(s); end"), Codes{ ESCAPES }) << "A borrow appended to a vector must raise REFERENCE_ESCAPES_SCOPE.";
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(#[semantics = reference_mutable] shapes: demo.vector<Shape>, s: Shape) shapes.append(s); end"), Codes{ ESCAPES }) << "A borrow appended to a vector must raise REFERENCE_ESCAPES_SCOPE.";
 
-    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(#[semantics = reference_mutable] shapes: vector<Shape>, s: Shape) shapes.append(copy s); end").empty()) << "A copy appended to a vector must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(#[semantics = reference_mutable] shapes: demo.vector<Shape>, s: Shape) shapes.append(copy s); end").empty()) << "A copy appended to a vector must raise nothing.";
 }

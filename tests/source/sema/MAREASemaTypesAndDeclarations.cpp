@@ -45,7 +45,7 @@ TEST(MAREASemaTypesAndDeclarations, SignedAndUnsignedIntegerNamesResolve)
 {
     GTEST_COUT << "Validating every sinteger and uinteger width resolves, also inside a generic." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("structure S a: sinteger8; b: sinteger16; c: sinteger32; d: sinteger64; e: uinteger8; f: uinteger16; g: uinteger32; h: uinteger64; i: pointer<sinteger32>; j: slice<uinteger8>; end").empty()) << "A sinteger or uinteger name must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("structure S a: sinteger8; b: sinteger16; c: sinteger32; d: sinteger64; e: uinteger8; f: uinteger16; g: uinteger32; h: uinteger64; i: demo.slice<sinteger32>; j: demo.slice<uinteger8>; end").empty()) << "A sinteger or uinteger name must raise nothing.";
 }
 
 TEST(MAREASemaTypesAndDeclarations, RetiredIntegerNamesAreUnknownTypes)
@@ -54,7 +54,7 @@ TEST(MAREASemaTypesAndDeclarations, RetiredIntegerNamesAreUnknownTypes)
 
     for (const char *name : { "integer8", "integer16", "integer32", "integer64", "unsigned8", "unsigned16", "unsigned32", "unsigned64" }) {
         EXPECT_EQ(MAREA_codesOf(std::string("structure S a: ") + name + "; end"), Codes{ UNKNOWN_TYPE }) << "The retired name " << name << " must raise UNKNOWN_TYPE.";
-        EXPECT_EQ(MAREA_codesOf(std::string("structure S a: pointer<") + name + ">; end"), Codes{ UNKNOWN_TYPE }) << "The retired name " << name << " must raise UNKNOWN_TYPE inside a generic.";
+        EXPECT_EQ(MAREA_codesOf(std::string("structure S a: demo.slice<") + name + ">; end"), Codes{ UNKNOWN_TYPE }) << "The retired name " << name << " must raise UNKNOWN_TYPE inside a generic.";
     }
 }
 
@@ -62,14 +62,14 @@ TEST(MAREASemaTypesAndDeclarations, CoreGenericTypesResolve)
 {
     GTEST_COUT << "Validating array, vector, pointer, owned, slice and task resolve." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("structure S a: array<float32, 4>; f: vector<float32>; b: pointer<sinteger32>; c: owned<string>; d: slice<uinteger8>; e: task<float32>; end").empty()) << "A core generic type must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("structure S a: demo.array<float32, 4>; f: demo.vector<float32>; b: demo.slice<sinteger32>; c: demo.owned<string>; d: demo.slice<uinteger8>; e: demo.task<float32>; end").empty()) << "A core generic type must raise nothing.";
 }
 
 TEST(MAREASemaTypesAndDeclarations, CoreGenericTypeTakesAGenericParameter)
 {
     GTEST_COUT << "Validating a core generic type accepts a generic parameter of the declaration." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("structure Box<Item> inner: pointer<Item>; end").empty()) << "A generic parameter must be in scope.";
+    EXPECT_TRUE(MAREA_codesOf("structure Box<Item> inner: demo.slice<Item>; end").empty()) << "A generic parameter must be in scope.";
 }
 
 TEST(MAREASemaTypesAndDeclarations, ExternalTypesResolve)
@@ -118,14 +118,14 @@ TEST(MAREASemaTypesAndDeclarations, UnknownTypeInsideTypeArgumentIsRejected)
 {
     GTEST_COUT << "Validating a missing type inside a type argument is rejected." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf("structure S a: pointer<Missing>; end"), Codes{ UNKNOWN_TYPE }) << "A missing type argument must raise UNKNOWN_TYPE.";
+    EXPECT_EQ(MAREA_codesOf("structure S a: demo.slice<Missing>; end"), Codes{ UNKNOWN_TYPE }) << "A missing type argument must raise UNKNOWN_TYPE.";
 }
 
 TEST(MAREASemaTypesAndDeclarations, LocalTypesResolve)
 {
     GTEST_COUT << "Validating a structure, an enum, an opaque type and a type alias of the file resolve." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("structure Point x: float32; end enum Color red; green; end opaque structure Handle; type Alias = Point; structure Holder a: Point; b: Color; c: pointer<Handle>; d: Alias; end").empty()) << "A local type must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("structure Point x: float32; end enum Color red; green; end opaque structure Handle; type Alias = Point; structure Holder a: Point; b: Color; c: demo.slice<Handle>; d: Alias; end").empty()) << "A local type must raise nothing.";
 }
 
 TEST(MAREASemaTypesAndDeclarations, FunctionNameIsNotAType)
@@ -315,7 +315,7 @@ TEST(MAREASemaTypesAndDeclarations, EnumTagTypeOfAnotherKindRaisesInvalidEnumTag
 
     constexpr MAREA_Uinteger32 INVALID_TAG{ MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_ENUM_TAG_TYPE };
 
-    for (const char *name : { "float32", "float64", "string", "boolean", "SomeStruct", "pointer<sinteger32>" }) {
+    for (const char *name : { "float32", "float64", "string", "boolean", "SomeStruct", "demo.slice<sinteger32>" }) {
         EXPECT_EQ(MAREA_codesOf(std::string("structure SomeStruct a: sinteger32; end enum A : ") + name + " Red; end"), Codes{ INVALID_TAG }) << "The tag " << name << " must raise INVALID_ENUM_TAG_TYPE.";
     }
 }
@@ -328,9 +328,9 @@ TEST(MAREASemaTypesAndDeclarations, OpaqueTypeHeldByValueInAFieldRaisesOpaqueFie
 
     EXPECT_EQ(MAREA_codesOf("opaque structure T; structure H a: sinteger32; t: T; u: T; end"), (Codes{ OPAQUE_BY_VALUE, OPAQUE_BY_VALUE })) << "Each opaque field must raise once.";
 
-    EXPECT_TRUE(MAREA_codesOf("opaque structure T; structure H t: owned<T>; end").empty()) << "An owner of an opaque type in a field must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("opaque structure T; structure H t: demo.owned<T>; end").empty()) << "An owner of an opaque type in a field must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("opaque structure T; structure H t: pointer<T>; end").empty()) << "A pointer to an opaque type in a field must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("opaque structure T; structure H t: demo.slice<T>; end").empty()) << "A pointer to an opaque type in a field must raise nothing.";
 
     EXPECT_TRUE(MAREA_codesOf("structure S a: sinteger32; end structure H s: S; end").empty()) << "An ordinary structure held by value must raise nothing.";
 
@@ -345,7 +345,7 @@ TEST(MAREASemaTypesAndDeclarations, StructureHoldingItselfByValueIsRecursiveType
 
     EXPECT_EQ(MAREA_codesOf("structure Node next: Node; end"), Codes{ RECURSIVE }) << "A direct self field must raise once.";
     EXPECT_EQ(MAREA_codesOf("structure Left other: Right; end structure Right other: Left; end"), (Codes{ RECURSIVE, RECURSIVE })) << "Two structures that hold each other must raise once each.";
-    EXPECT_EQ(MAREA_codesOf("structure A items: array<A, 2>; end"), Codes{ RECURSIVE }) << "An array holds its element inline.";
+    EXPECT_EQ(MAREA_codesOf("structure A items: demo.array<A, 2>; end"), Codes{ RECURSIVE }) << "An array holds its element inline.";
     EXPECT_EQ(MAREA_codesOf("type Same = Node; structure Node next: Same; end"), Codes{ RECURSIVE }) << "An alias must be followed.";
     EXPECT_EQ(MAREA_codesOf("enum Tree Leaf; Branch(inner: Tree); end"), Codes{ RECURSIVE }) << "A variant field that holds the enum by value must raise.";
 }
@@ -354,7 +354,7 @@ TEST(MAREASemaTypesAndDeclarations, IndirectSelfReferenceIsAccepted)
 {
     GTEST_COUT << "Validating an indirect self reference and a plain nesting raise nothing." << std::endl;
 
-    for (const char *wrapper : { "owned", "vector", "pointer", "slice" }) {
+    for (const char *wrapper : { "demo.owned", "demo.vector", "demo.slice" }) {
         EXPECT_TRUE(MAREA_codesOf(std::string("structure Node next: ") + wrapper + "<Node>; end").empty()) << "The wrapper " << wrapper << " is indirect.";
     }
 
