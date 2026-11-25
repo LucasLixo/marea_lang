@@ -99,7 +99,7 @@ order, read the same way `MAREA_BytecodeModuleGetParameter` and `MAREA_BytecodeM
   the call opcode. A null address (only a malformed module can produce one; `MAREA_BytecodeGenerate` never does)
   is `MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE`, never a dereference. There is no dedicated index opcode: a
   bounds-checked element access is `lt_u` against the known length, `jump_if_not` to a `trap`
-  (`MAREA_BYTECODE_TRAP_CODE_INDEX_OUT_OF_RANGE`), the same pattern a generated `if` already uses, proven directly
+  (`MAREA_BYTECODE_TRAP_CODE_INDEX_OUT_OF_BOUNDS`), the same pattern a generated `if` already uses, proven directly
   in `tests/source/vm/MAREAVm.cpp` against a hand-built module (`IndexOutOfRangeTrapsOnABoundsCheckedArray`).
 
 ## Diagnostics

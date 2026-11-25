@@ -609,7 +609,7 @@ TEST(MAREAVm, IndexOutOfRangeTrapsOnABoundsCheckedArray)
     fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_JUMP_IF_NOT, 2, 2, 0);
     fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_LOAD, 9, 3, MAREA_BYTECODE_NUMBER_KIND_SINTEGER_32);
     fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_RETURN, 9, 0, 0);
-    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_TRAP, MAREA_BYTECODE_TRAP_CODE_INDEX_OUT_OF_RANGE, 0, 0);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_TRAP, MAREA_BYTECODE_TRAP_CODE_INDEX_OUT_OF_BOUNDS, 0, 0);
 
     const MAREA_VmResult INSIDE{ fixture.MAREA_run(module, FUNCTION, { 2 }) };
 
@@ -619,7 +619,7 @@ TEST(MAREAVm, IndexOutOfRangeTrapsOnABoundsCheckedArray)
 
     ASSERT_TRUE(OUTSIDE.trapped) << "An index at or past the length must trap.";
 
-    EXPECT_EQ(OUTSIDE.trap, MAREA_BYTECODE_TRAP_CODE_INDEX_OUT_OF_RANGE) << "The trap code must say index out of range.";
+    EXPECT_EQ(OUTSIDE.trap, MAREA_BYTECODE_TRAP_CODE_INDEX_OUT_OF_BOUNDS) << "The trap code must say index out of range.";
 }
 
 TEST(MAREAVm, LoadDataBlockCopiesABlobIntoFrameMemory)

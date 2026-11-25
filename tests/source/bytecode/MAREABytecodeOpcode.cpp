@@ -109,7 +109,7 @@ TEST(MAREABytecodeOpcode, NumberKindsAndTrapCodesHaveFixedValues)
 
     EXPECT_EQ(MAREA_BYTECODE_TRAP_CODE_STACK_OVERFLOW, 7U) << "A stack overflow must be 7.";
 
-    EXPECT_EQ(MAREA_BYTECODE_TRAP_CODE_INDEX_OUT_OF_RANGE, 8U) << "An index out of range must be 8.";
+    EXPECT_EQ(MAREA_BYTECODE_TRAP_CODE_INDEX_OUT_OF_BOUNDS, 8U) << "An index out of range must be 8.";
 
     EXPECT_EQ(MAREA_BYTECODE_TRAP_CODE_COUNT, 9U) << "There must be nine codes with the one for no trap.";
 }

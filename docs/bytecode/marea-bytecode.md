@@ -69,7 +69,7 @@ null argument or an index past the count the same way. Every count accessor on a
   the two conditional jumps, call and return) and the composite family this slice adds (`zero`, `addr_of`, `field`,
   `load`, `store`, `copy_bytes`, `load_data_block`, see "Composite values" below), plus one `trap` opcode whose
   operand is a `MAREA_BytecodeTrapCode` (division by zero, a shift out of range, a negative exponent, a convert
-  out of range, `unreachable!()`, a missing return, a stack overflow, an index out of range). A later slice (host
+  out of range, `unreachable!()`, a missing return, a stack overflow, an index out of bounds). A later slice (host
   calls, `fork_join`) adds an opcode as one more value and one more row of the name table of
   `MAREABytecodeOpcode.c`. `MAREABytecodeOpcode.h` documents the operand meaning of every opcode in full.
 - **Data.** A list of read-only blobs, such as the bytes of an embedded file. A blob may be empty, and two equal blobs
