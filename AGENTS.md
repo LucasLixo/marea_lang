@@ -40,7 +40,8 @@ programs are in [examples](examples).
   through the one C registration macro that the language never replaces, and `marea.{lib}`, the creations of the language
   that have no direct counterpart in C (`marea.array`, `marea.vector`, `marea.tuple`, `marea.math`), written in Marea or in
   C11 (a C11 one is registered through the same macro). Planned: `c.memory`, `c.threads`, `c.string`, `c.io`,
-  `c.filesystem` and `c.time`. A host can replace a library or runtime function from C.
+  `c.filesystem` and `c.time`. A host can replace a runtime function from C (`alloc`, `free`) and register its own
+  libraries under any root except the reserved `c` and `marea`.
 - **Entry point.** `main` is an ordinary function in `sema`: it has no fixed signature and none is required to exist,
   so a host that drives its own lifecycle needs no `main`. The fixed shape (`arguments: array<string>`, result
   `integer32`) belongs to a future standalone driver, which does not exist yet.
