@@ -41,6 +41,11 @@ if(NOT TARGET marea::vm)
     list(FILTER MAREA_TESTS_SOURCES EXCLUDE REGEX "/source/vm/")
 endif()
 
+# INFO: cgen is a separate backend of the ir (never bytecode or vm), so its test filter is its own region.
+if(NOT TARGET marea::cgen)
+    list(FILTER MAREA_TESTS_SOURCES EXCLUDE REGEX "/source/cgen/")
+endif()
+
 add_executable(marea_tests ${MAREA_TESTS_SOURCES})
 
 target_include_directories(marea_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include" "${CMAKE_CURRENT_SOURCE_DIR}")
@@ -82,6 +87,25 @@ endif()
 
 if(TARGET marea::vm)
     target_link_libraries(marea_tests PRIVATE marea::vm)
+endif()
+
+# INFO: cgen's own link block, separate from the bytecode/vm region above so a parallel worker never collides.
+if(TARGET marea::cgen)
+    target_link_libraries(marea_tests PRIVATE marea::cgen)
+endif()
+
+target_compile_definitions(marea_tests PRIVATE "MAREA_TESTS_CGEN_C_COMPILER=\"${CMAKE_C_COMPILER}\"")
+
+# INFO: the cgen tests also exercise every other C11 compiler this machine has, beyond CMAKE_C_COMPILER.
+find_program(MAREA_TESTS_CGEN_CLANG "clang")
+find_program(MAREA_TESTS_CGEN_GCC "gcc")
+
+if(MAREA_TESTS_CGEN_CLANG)
+    target_compile_definitions(marea_tests PRIVATE "MAREA_TESTS_CGEN_CLANG=\"${MAREA_TESTS_CGEN_CLANG}\"")
+endif()
+
+if(MAREA_TESTS_CGEN_GCC)
+    target_compile_definitions(marea_tests PRIVATE "MAREA_TESTS_CGEN_GCC=\"${MAREA_TESTS_CGEN_GCC}\"")
 endif()
 
 gtest_discover_tests(marea_tests)
