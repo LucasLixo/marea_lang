@@ -34,12 +34,13 @@ programs are in [examples](examples).
   backend built with clang or gcc (maximum performance). Both must give the same observable behavior, and a parity
   test runs every example through both. There is no JIT. Hot reload is not a language feature: the host reloads
   modules through a small C module API (load, unload, interface hash, find by name).
-- **No standard library.** The core has the primitives, `structure`, `enum` and function types. Every other type
-  (`array`, `vector`, `pointer`, `owned`, `slice`, `task`, `string`, and later table, handle, arena, text, io) is a
-  library, imported under one of two reserved first segments: `c.{lib}`, a thin border with C registered through the
-  one C registration macro that the language never replaces, and `marea.{lib}`, the libraries the Marea project ships,
-  written in Marea. For now `array`, `vector`, `pointer`, `owned`, `slice`, `task` and `string` all stay under
-  `c.{lib}`, until a real `marea.{lib}` library exists. A host can replace a library or runtime function from C.
+- **No standard library.** The core has the primitives (`string` is one), `structure`, `enum` and function types. Every
+  other type (`array`, `vector`, `tuple`, and the pointer, owner, view and task types) is a library, imported under one
+  of two reserved first segments: `c.{lib}`, only the direct abstractions of the libc and ports of it (as `c.character`), registered
+  through the one C registration macro that the language never replaces, and `marea.{lib}`, the creations of the language
+  that have no direct counterpart in C (`marea.array`, `marea.vector`, `marea.tuple`, `marea.math`), written in Marea or in
+  C11 (a C11 one is registered through the same macro). Planned: `c.memory`, `c.threads`, `c.string`, `c.io`,
+  `c.filesystem` and `c.time`. A host can replace a library or runtime function from C.
 - **Entry point.** `main` is an ordinary function in `sema`: it has no fixed signature and none is required to exist,
   so a host that drives its own lifecycle needs no `main`. The fixed shape (`arguments: array<string>`, result
   `integer32`) belongs to a future standalone driver, which does not exist yet.
