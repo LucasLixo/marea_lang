@@ -24,7 +24,45 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsAssignmentOperator(MAREA_TokenKind kin
     }
 }
 
-MAREA_AstNode *MAREA_CALL MAREA_ParseBlock(MAREA_ParseState *state)
+typedef struct MAREA_G_DoWhileTest
+{
+    MAREA_AstNode *condition;
+    MAREA_Boolean found;
+} MAREA_G_DoWhileTest;
+
+static void MAREA_CALL MAREA_G_ParseBodyAndEnd(MAREA_ParseState *state, MAREA_AstNode *node, const MAREA_Character8 *endMessage);
+
+// INFO: A while that is a direct statement of a do body is either an ordinary while or the test of the do-while. The word after the condition decides: end or the end of the file is the test.
+static MAREA_AstNode *MAREA_CALL MAREA_G_ParseWhileOrTest(MAREA_ParseState *state, MAREA_G_DoWhileTest *test)
+{
+    const MAREA_SourcePosition POSITION = MAREA_TokenGetPosition(MAREA_ParsePeekToken(state, MAREA_INTEGER_SIZE(0)));
+
+    MAREA_IGNORE(MAREA_ParseAdvance(state));
+
+    MAREA_AstNode *condition = MAREA_ParseExpression(state);
+
+    const MAREA_TokenKind kind = MAREA_ParsePeekKind(state, MAREA_INTEGER_SIZE(0));
+
+    if ((kind == MAREA_TOKEN_KIND_KEYWORD_END) || (kind == MAREA_TOKEN_KIND_END_OF_FILE)) {
+        test->condition = condition;
+        test->found = MAREA_BOOLEAN_TRUE;
+
+        return MAREA_NULLPTR;
+    }
+
+    MAREA_AstNode *statement = MAREA_ParseNodeBeginAt(state, MAREA_AST_KIND_WHILE_STATEMENT, POSITION);
+
+    MAREA_ParseNodeAdd(state, statement, condition);
+
+    MAREA_IGNORE(MAREA_ParseExpect(state, MAREA_TOKEN_KIND_KEYWORD_DO, "expected 'do' after the condition"));
+
+    MAREA_G_ParseBodyAndEnd(state, statement, "expected 'end' to close the while");
+
+    return statement;
+}
+
+// INFO: With a test, the block is the body of a do. The loop stops at the test of the do-while and leaves the end for the caller. Without a test, the block is the plain block of the grammar.
+static MAREA_AstNode *MAREA_CALL MAREA_G_ParseBlock(MAREA_ParseState *state, MAREA_G_DoWhileTest *test)
 {
     MAREA_AstNode *block = MAREA_ParseNodeBegin(state, MAREA_AST_KIND_BLOCK);
 
@@ -45,6 +83,18 @@ MAREA_AstNode *MAREA_CALL MAREA_ParseBlock(MAREA_ParseState *state)
             break;
         }
 
+        if ((test != MAREA_NULLPTR) && (kind == MAREA_TOKEN_KIND_KEYWORD_WHILE)) {
+            MAREA_AstNode *statement = MAREA_G_ParseWhileOrTest(state, test);
+
+            if (test->found == MAREA_BOOLEAN_TRUE) {
+                break;
+            }
+
+            MAREA_ParseNodeAdd(state, block, statement);
+
+            continue;
+        }
+
         const MAREA_IntegerSize before = state->index;
 
         MAREA_ParseNodeAdd(state, block, MAREA_ParseStatement(state));
@@ -61,6 +111,11 @@ MAREA_AstNode *MAREA_CALL MAREA_ParseBlock(MAREA_ParseState *state)
     MAREA_ParseNodeEnd(state, block);
 
     return block;
+}
+
+MAREA_AstNode *MAREA_CALL MAREA_ParseBlock(MAREA_ParseState *state)
+{
+    return MAREA_G_ParseBlock(state, MAREA_NULLPTR);
 }
 
 static MAREA_AstNode *MAREA_CALL MAREA_G_ParseLocal(MAREA_ParseState *state)
@@ -359,6 +414,35 @@ static MAREA_AstNode *MAREA_CALL MAREA_G_ParseScope(MAREA_ParseState *state, MAR
     return statement;
 }
 
+// INFO: A do body that ends at end is a scope block. One that ends at while, a condition and end is a do-while. The node starts at the do word, so it is made after the body is read.
+static MAREA_AstNode *MAREA_CALL MAREA_G_ParseDo(MAREA_ParseState *state)
+{
+    const MAREA_SourcePosition POSITION = MAREA_TokenGetPosition(MAREA_ParsePeekToken(state, MAREA_INTEGER_SIZE(0)));
+
+    MAREA_IGNORE(MAREA_ParseAdvance(state));
+
+    MAREA_G_DoWhileTest test = {
+        .condition = MAREA_NULLPTR,
+        .found = MAREA_BOOLEAN_FALSE,
+    };
+
+    MAREA_AstNode *body = MAREA_G_ParseBlock(state, &test);
+
+    MAREA_AstNode *statement = MAREA_ParseNodeBeginAt(state, (test.found == MAREA_BOOLEAN_TRUE) ? MAREA_AST_KIND_DO_WHILE_STATEMENT : MAREA_AST_KIND_SCOPE_BLOCK, POSITION);
+
+    MAREA_ParseNodeAdd(state, statement, body);
+
+    if (test.found == MAREA_BOOLEAN_TRUE) {
+        MAREA_ParseNodeAdd(state, statement, test.condition);
+    }
+
+    MAREA_ParseExpectEnd(state, (test.found == MAREA_BOOLEAN_TRUE) ? "expected 'end' to close the do-while" : "expected 'end' to close the scope");
+
+    MAREA_ParseNodeEnd(state, statement);
+
+    return statement;
+}
+
 static MAREA_AstNode *MAREA_CALL MAREA_G_ParseExpressionStatement(MAREA_ParseState *state)
 {
     MAREA_AstNode *expression = MAREA_ParseExpression(state);
@@ -420,7 +504,7 @@ static MAREA_AstNode *MAREA_CALL MAREA_G_ParseStatementByKind(MAREA_ParseState *
     case MAREA_TOKEN_KIND_KEYWORD_CONTINUE:
         return MAREA_G_ParseSimple(state, MAREA_AST_KIND_CONTINUE_STATEMENT, "expected ';' after the continue");
     case MAREA_TOKEN_KIND_KEYWORD_DO:
-        return MAREA_G_ParseScope(state, MAREA_AST_KIND_SCOPE_BLOCK, "expected 'end' to close the scope");
+        return MAREA_G_ParseDo(state);
     case MAREA_TOKEN_KIND_KEYWORD_UNSAFE:
         return MAREA_G_ParseScope(state, MAREA_AST_KIND_UNSAFE_BLOCK, "expected 'end' to close the unsafe block");
     case MAREA_TOKEN_KIND_KEYWORD_FORK_JOIN:

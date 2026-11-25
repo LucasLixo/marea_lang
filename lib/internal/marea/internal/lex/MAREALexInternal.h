@@ -90,8 +90,11 @@ MAREA_SourcePosition MAREA_CALL MAREA_LexCursorMakePosition(const MAREA_LexCurso
  * @param code Lexer diagnostic code.
  * @param position Position the diagnostic refers to.
  * @param message NUL-terminated message, copied by the sink. Must not be null.
+ * @return MAREA_LEX_EXCEPT_SUCCESS, or MAREA_LEX_EXCEPT_ERROR_OUT_OF_MEMORY when the sink cannot store
+ * the diagnostic. The caller must stop lexing and pass the value up, so a lost diagnostic never
+ * looks like a clean run.
  */
-void MAREA_CALL MAREA_LexCursorReportDiagnostic(const MAREA_LexCursor *cursor, MAREA_LexDiagnosticCode code, MAREA_SourcePosition position, const MAREA_Character8 *message);
+MAREA_NODISCARD MAREA_LexExcept MAREA_CALL MAREA_LexCursorReportDiagnostic(const MAREA_LexCursor *cursor, MAREA_LexDiagnosticCode code, MAREA_SourcePosition position, const MAREA_Character8 *message);
 
 /**
  * @brief Appends a token to the list, growing its backing array by doubling when full.
@@ -112,6 +115,32 @@ MAREA_LexExcept MAREA_CALL MAREA_LexTokenListAppend(MAREA_TokenList *list, MAREA
  * @return MAREA_BOOLEAN_TRUE when byte is a hexadecimal digit, else MAREA_BOOLEAN_FALSE.
  */
 MAREA_Boolean MAREA_CALL MAREA_LexIsHexDigit(MAREA_Sinteger32 byte);
+
+/**
+ * @brief Returns whether byte may not appear unescaped in a string or character literal: a byte of 0x80
+ * or above, a control byte other than tab, and the delete byte. Shared by the string and character
+ * scanners.
+ * @param byte Byte value to classify, as returned by MAREA_LexCursorPeek.
+ * @return MAREA_BOOLEAN_TRUE when byte is a bad literal byte, else MAREA_BOOLEAN_FALSE.
+ */
+MAREA_Boolean MAREA_CALL MAREA_LexIsBadLiteralByte(MAREA_Sinteger32 byte);
+
+/**
+ * @brief Reads the escape that follows a backslash the caller already consumed, and reports a bad one.
+ * The literal goes on either way: the cursor moves past a valid escape, past the one wrong byte of an
+ * invalid escape (but never past a line end), and past the letter x of a bad hex escape. Shared by the
+ * string and character scanners.
+ * @param cursor Cursor positioned at the byte after the backslash. Must not be null, and must not be at
+ * the end of the source.
+ * @param startOffset Byte offset where the literal started.
+ * @param startLine Line where the literal started.
+ * @param startColumn Column where the literal started.
+ * @param allowSingleQuote MAREA_BOOLEAN_TRUE for a character literal, where the escape \' is valid;
+ * MAREA_BOOLEAN_FALSE for a string literal.
+ * @return MAREA_LEX_EXCEPT_SUCCESS, or MAREA_LEX_EXCEPT_ERROR_OUT_OF_MEMORY when the sink cannot store
+ * the diagnostic of a bad escape.
+ */
+MAREA_NODISCARD MAREA_LexExcept MAREA_CALL MAREA_LexScanEscape(MAREA_LexCursor *cursor, MAREA_IntegerSize startOffset, MAREA_Uinteger32 startLine, MAREA_Uinteger32 startColumn, MAREA_Boolean allowSingleQuote);
 
 /**
  * @brief Scans a number literal (decimal, 0x hexadecimal or 0b binary, with an optional float

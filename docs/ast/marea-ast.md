@@ -4,7 +4,10 @@
 
 The `parse` stage turns the token list of the `lex` stage into a syntax tree. It reads public data
 (tokens) and writes public data (a tree and diagnostics). It has no global state, never prints and
-never reads the disk. The grammar is [marea.ebnf](../grammar/marea.ebnf).
+never reads the disk. The grammar is [marea.ebnf](../grammar/marea.ebnf). The parser reads the shape
+only: the rules that the grammar gives to "the checker" (the namespace against the path, attribute keys
+and values, ownership, switch coverage, the names and values of a `when` predicate) are not parsed, by
+design, and belong to the `sema` stage.
 
 ## Use
 
@@ -62,14 +65,18 @@ field or member that owns it.
 
 | Kind | Children |
 |---|---|
-| `COMPILATION_UNIT` | `NAMESPACE_DECLARATION`, `FILE_ATTRIBUTE*`, `IMPORT_DECLARATION*`, item* |
+| `COMPILATION_UNIT` | `NAMESPACE_DECLARATION`, `FILE_ATTRIBUTE*`, (`IMPORT_DECLARATION` or `REQUIRE_DECLARATION`)*, item* |
 | `NAMESPACE_DECLARATION` | `QUALIFIED_NAME` |
-| `IMPORT_DECLARATION` (flag HAS_ALIAS or HAS_MEMBERS, never both) | `QUALIFIED_NAME` (the namespace), then [`IDENTIFIER` alias] when HAS_ALIAS, or `IMPORT_MEMBER`+ when HAS_MEMBERS |
+| `IMPORT_DECLARATION` (flag HAS_ALIAS, HAS_MEMBERS or WILDCARD, never two of them) | `QUALIFIED_NAME` (the namespace, without the `.*` of a wildcard), then [`IDENTIFIER` alias] when HAS_ALIAS, or `IMPORT_MEMBER`+ when HAS_MEMBERS |
+| `REQUIRE_DECLARATION` (same flags as an import) | the same children as `IMPORT_DECLARATION` |
 | `IMPORT_MEMBER` (flag HAS_ALIAS) | `QUALIFIED_NAME` (the member path, one or two parts for the checker), [`IDENTIFIER` alias] |
 | `QUALIFIED_NAME` | `IDENTIFIER`+ |
 | `IDENTIFIER`, `INTEGER_LITERAL`, `FLOAT_LITERAL`, `STRING_LITERAL`, `CHARACTER_LITERAL`, `BOOLEAN_LITERAL` | none, they have text (a string or a character keeps its quotes and is not decoded) |
-| `ATTRIBUTE`, `FILE_ATTRIBUTE` | `ATTRIBUTE_ITEM`+ |
+| `ATTRIBUTE`, `FILE_ATTRIBUTE` | (`ATTRIBUTE_ITEM` or `WHEN_ITEM`)+ |
 | `ATTRIBUTE_ITEM` | `IDENTIFIER` key [`BOOLEAN_LITERAL`, `INTEGER_LITERAL`, `STRING_LITERAL` or `QUALIFIED_NAME`] |
+| `WHEN_ITEM` | predicate (`WHEN_COMPARISON` or `WHEN_COMBINATOR`), `ATTRIBUTE_ITEM`+ (plain items only: a `when` never nests) |
+| `WHEN_COMPARISON` | `IDENTIFIER` (the predicate name), `STRING_LITERAL` or `INTEGER_LITERAL` (the value) |
+| `WHEN_COMBINATOR` | `IDENTIFIER` (`all`, `any` or `not`, as written), predicate+ (exactly one for `not`) |
 | `CONSTANT_DECLARATION` | `ATTRIBUTE*`, `IDENTIFIER`, type, expr |
 | `TYPE_DECLARATION` | `ATTRIBUTE*`, `IDENTIFIER`, [`GENERIC_PARAMETERS`], type |
 | `STRUCTURE_DECLARATION` | `ATTRIBUTE*`, `IDENTIFIER`, [`GENERIC_PARAMETERS`], `FIELD_DECLARATION*` |
@@ -99,6 +106,7 @@ field or member that owns it.
 | `ELSEIF_CLAUSE` | expr, `BLOCK` |
 | `ELSE_CLAUSE` | `BLOCK` |
 | `WHILE_STATEMENT` | expr, `BLOCK` |
+| `DO_WHILE_STATEMENT` | `BLOCK` (the body, runs first), expr (the condition) |
 | `FOR_RANGE_STATEMENT` | `IDENTIFIER`, first expr, last expr, `BLOCK` |
 | `FOR_EACH_STATEMENT` (flag MUTABLE) | `IDENTIFIER`, [`IDENTIFIER`], expr, `BLOCK` |
 | `SWITCH_STATEMENT` | expr, `SWITCH_ARM*`, [`DEFAULT_ARM`] |
@@ -125,13 +133,16 @@ field or member that owns it.
 | `MACRO_CALL` | `IDENTIFIER` (text is the macro name), `ARGUMENT_LIST` |
 | `ERROR_NODE` | none, placed at the bad token |
 
-The flag values are MUTABLE 1, CONSTANT 4, HAS_ALIAS 8, FILE 16 and HAS_MEMBERS 32. Bit 2
+The flag values are MUTABLE 1, CONSTANT 4, HAS_ALIAS 8, FILE 16, HAS_MEMBERS 32 and WILDCARD 64. Bit 2
 (REFERENCE) is retired: the parser never sets it any more. A `PARAMETER`'s own `#[semantics = ...]`
 attribute, adopted last so the name, type and default keep their fixed positions (unlike every
 other declaration, whose attributes lead), is the one source sema reads for its passing mode -
 see [the sema stage doc](../sema/marea-sema.md) ("Ownership").
-The word after the namespace path of an import decides its form: `as` or `;` is the whole path
-form, `{` is the member list. For example, `import a.b { f as g, T };` dumps as:
+The word after the namespace path of an import or a require decides its form: `as` or `;` is the whole
+path form, `{` is the member list, and `.` followed by `*` is the wildcard. The wildcard sets the flag
+WILDCARD and adds no child: `import a.b.*;` is an `IMPORT_DECLARATION flags=64` with the `QUALIFIED_NAME`
+`a.b` only. `require` builds `REQUIRE_DECLARATION` in the same places (the header of the file takes the
+two words in any order); which names each word may reach is sema's rule. For example, `import a.b { f as g, T };` dumps as:
 
 ```
   IMPORT_DECLARATION flags=32
@@ -150,10 +161,40 @@ form, `{` is the member list. For example, `import a.b { f as g, T };` dumps as:
 The parser keeps no word list of its own for names: `array<T, 4>` and `vector<T>` are both a `NAMED_TYPE` whose
 `TYPE_ARGUMENTS` hold types or an `INTEGER_LITERAL` (the split of a fixed `array` from a growable `vector`, and
 which names are primitives such as `character`, is sema's). An `enum` tag type (`enum Light : uinteger8`) is
-any type to the parser, a type child right after the name; that it must be an integer primitive is sema's rule.
+any type to the parser, a type child right after the name (`float32`, `string` and `boolean` parse, and a test pins
+it); that it must be an integer primitive is sema's rule.
 An attribute is read as a plain list: the parser never checks a key or a value, so `#[visibility = public]`,
 `#[operator = "construct"]` (a `STRING_LITERAL` value) and `#[semantics = reference_mutable]` (a
 `QUALIFIED_NAME` value) are the same shape as an unknown key.
+
+A `when` item is `when(predicate, key = value, ...)`: a predicate, then the plain items that apply when it
+holds. The parser builds three kinds and no kind per predicate name: a `WHEN_COMPARISON` holds the name as an
+`IDENTIFIER` and the value, and a `WHEN_COMBINATOR` holds `all`, `any` or `not` and its predicates, so a new
+predicate name needs no change of the parser. Sema owns the names (`architecture`, `operating_system`,
+`feature`, `compiler`, `pointer_width`, `endianness`), the values, the target description and the meaning of
+a predicate that the target does not answer. For example,
+`#[when(not(feature = "sse2"), backend = scalar)] function f() end` dumps as:
+
+```
+  FUNCTION_DECLARATION
+    ATTRIBUTE
+      WHEN_ITEM
+        WHEN_COMBINATOR
+          IDENTIFIER "not"
+          WHEN_COMPARISON
+            IDENTIFIER "feature"
+            STRING_LITERAL "\"sse2\""
+        ATTRIBUTE_ITEM
+          IDENTIFIER "backend"
+          QUALIFIED_NAME
+            IDENTIFIER "scalar"
+    IDENTIFIER "f"
+    PARAMETER_LIST
+    BLOCK
+```
+
+A `do` body that ends at `end` is a `SCOPE_BLOCK`; one that ends at `while`, a condition and `end` is a
+`DO_WHILE_STATEMENT` with the body `BLOCK` first and the condition second (see "Lookahead rules").
 
 `reference` is not a reserved word any more (it lexes as an `IDENTIFIER`), and `mutable` is read only by
 `for each` and `partition`, never on a parameter.
@@ -164,8 +205,8 @@ multiplicative operators and `**` are all `BINARY_EXPRESSION` with the token kin
 Creating a value has two spellings and the parser tells them apart by the next token only. `Point{ x = 1.0 }`
 is a `LITERAL_VALUE`. `Point(1.0)` is an ordinary `CALL_EXPRESSION` whose callee is an `IDENTIFIER` (or a
 `MEMBER_ACCESS` chain for a qualified type name): the parser does not know the name is a type, so deciding
-that it is a construction call is sema's job. No test builds a call on a type name on purpose; the shape is
-the same one `f(1)` has in `PostfixChains`.
+that it is a construction call is sema's job. `MAREAParserExpressions` (`CallOnATypeNameBuildsAPlainCall`)
+pins the shape, which is the same one `f(1)` has.
 
 ## Precedence
 
@@ -180,9 +221,10 @@ operators on its left: `-a ** 2` is `-(a ** 2)`, and the right side may be unary
 - **Type arguments in an expression.** A `<` after a name starts type arguments only when a balanced
   `>` closes it and the token after that is `(` (a call) or `{` (a literal value), or `.` when the
   name is a primary (`array<float32>.filled(0.0)` is a `GENERIC_NAME`). Between the brackets only
-  type tokens are allowed: names, `.`, `,`, integers, `function`, `:` and balanced parentheses. A `#[` is not in
-  that vocabulary, so a function type with a parameter attribute inside the brackets of an expression
-  (`f<function(#[semantics = reference_mutable] a: T)>(x)`) is read as a comparison (see Gaps). A `>>`
+  type tokens are allowed: names, `.`, `,`, integers, `function`, `:` and balanced parentheses. An
+  attribute is also allowed, but only inside the parentheses of a function type: `#[`, `]`, `=`, a string
+  and `true` or `false` count as type tokens between a `#[` and its `]`, and nowhere else. So
+  `f<function(#[semantics = reference_mutable] a: T)>(x)` is a generic call. A `>>`
   closes two levels.
   The scan is limited to 1024 tokens and allocates
   nothing. Otherwise the `<` is a comparison. `a < b > (c)` is therefore a generic call.
@@ -193,6 +235,20 @@ operators on its left: `-a ** 2` is `-(a ** 2)`, and the right side may be unary
 - **Statement.** A statement that is not a keyword statement is parsed as an expression first. When
   an assignment operator follows, it is an `ASSIGNMENT`; a bare macro call is a `MACRO_STATEMENT`;
   anything else is an `EXPRESSION_STATEMENT`.
+- **`do`.** After `do` and its body, `end` closes a `SCOPE_BLOCK` and `while` starts the test of a
+  `DO_WHILE_STATEMENT`. A `while` that is a direct statement of the `do` body can also start an ordinary
+  `while`, so the parser reads `while` and the condition and then looks at the next token: `end` or the end
+  of the file means the test of the enclosing do-while, anything else an ordinary `while`, which needs its
+  `do` (a missing one is reported as for any `while`). An ordinary `while` cannot be followed by `end` right
+  after its condition, so there is no backtracking and the condition is parsed once. A `while` inside
+  another statement of the body (an `if`, a nested `while`) is always an ordinary one. Nesting is safe:
+  `do while a do end while b end` is an ordinary `while` inside a do-while.
+- **`when`.** The identifier `when` followed by `(` inside an attribute list starts a `WHEN_ITEM`. A `when`
+  with no `(` is a plain key. A predicate is a comparison (`name = "text"` or `name = 12`) or `all(...)`,
+  `any(...)` or `not(...)` of predicates, told apart by the name and the `(` after it; the combinators nest
+  within the depth limit.
+- **Import and require.** `import` and `require` are keywords; a `.` followed by `*` after the path is the
+  wildcard, and nothing but `;` may follow it.
 - **`for`.** `for each` starts a `FOR_EACH_STATEMENT`, any other `for` a `FOR_RANGE_STATEMENT`.
 - **Macro name.** `name!(` is a macro call. The word `namespace` may also name a macro
   (`namespace!()`), the one keyword exception that the grammar lists in `macro_call`.
@@ -211,6 +267,20 @@ operators on its left: `-a ** 2` is `-(a ** 2)`, and the right side may be unary
   `;` is then reported at the same token, so it adds no second diagnostic, and the parser goes on
   with the next import or item. A token that cannot start a member ends the list and the top level
   recovery skips to the next `;`.
+- A wildcard import or require followed by `as` or `{` is reported once (`EXPECTED_TOKEN`) and the rest of
+  the declaration is skipped like any other bad top level token. A star with no path before it
+  (`import *;`), a star that is not last (`require c.*.math;`) and a missing `;` after the star are
+  `EXPECTED_TOKEN` too. A `require` after a declaration is reported like an `import` there
+  (`EXPECTED_DECLARATION`) and is still read as a `REQUIRE_DECLARATION`.
+- A do-while that reaches the end of the file after its condition gives one `UNTERMINATED_BLOCK` and is
+  still a `DO_WHILE_STATEMENT`. A missing condition (`do ... while end`) gives `EXPECTED_EXPRESSION` and an
+  `ERROR_NODE` for the condition. A `do` body that stops at a declaration word is reported and keeps the next
+  declaration.
+- A `when` item with no predicate, with no attribute after the predicate, with a predicate name and no
+  `=`, with a value that is not a string or an integer, or with no `)` is reported at the bad token and the
+  attribute list goes on: the `)` and the `]` are still read, so the declaration after the attribute parses.
+  A `when` inside a `when` has no meaning to the parser (the word is a plain key there), so it ends in the
+  error of the missing `)` or `]`.
 - A block stops at `elseif`, `else`, `case`, `default` or `end`, at the end of the file, or at the start
   of a top level declaration, so an unfinished body never hides the next function. An `if` and a
   `switch` close with exactly one `end` for the whole statement. A branch of an `if` (the `if` branch,
@@ -219,7 +289,7 @@ operators on its left: `-a ** 2` is `-(a ** 2)`, and the right side may be unary
   closing `end`. The old form, with an `end` after every branch or arm and one more for the statement,
   is reported: the `end` of a branch closes the statement, so the next `elseif`, `else`, `case` or
   `default` is a stray token and the last `end` is a stray token or an unterminated block.
-- Nesting is limited to 256 levels of expression, statement and type. Deeper input gives
+- Nesting is limited to 256 levels of expression, statement, type and `when` predicate. Deeper input gives
   `RECURSION_TOO_DEEP` and that construct is left unparsed.
 
 ## Diagnostics
@@ -228,28 +298,32 @@ All are errors, from 2001 up. A diagnostic is not repeated at the same byte offs
 
 | Code | Name | Example |
 |---|---|---|
-| 2001 | `EXPECTED_TOKEN` | `namespace main` (no `;`), `import a { };` (empty member list), `import a { f, };`, `import a { f as };`, `import a as b { f };` |
-| 2002 | `EXPECTED_EXPRESSION` | `constant x: sinteger32 = 1 +;` |
+| 2001 | `EXPECTED_TOKEN` | `namespace main` (no `;`), `import a { };` (empty member list), `import a { f, };`, `import a { f as };`, `import a as b { f };`, `import a.* as x;`, `import *;`, `require c.*.math;`, a `when` with no attribute after the predicate |
+| 2002 | `EXPECTED_EXPRESSION` | `constant x: sinteger32 = 1 +;`, a `do ... while end` with no condition |
 | 2003 | `EXPECTED_TYPE` | `constant x: = 1;` |
-| 2004 | `EXPECTED_DECLARATION` | `namespace main; 42;`, an import after a declaration |
+| 2004 | `EXPECTED_DECLARATION` | `namespace main; 42;`, an import or a require after a declaration |
 | 2005 | `UNEXPECTED_TOKEN` | a stray `end`, `case` outside a `switch`, an `else` after a statement that an earlier `end` already closed (the old per-branch form), or a default value in a function type parameter (`function(a: sinteger32 = 0)`, the tree is still built) |
 | 2006 | `CHAINED_COMPARISON` | `a < b < c` (the tree is still built) |
 | 2007 | `MISSING_NAMESPACE` | a file that does not start with `namespace` |
-| 2008 | `RECURSION_TOO_DEEP` | 300 nested parentheses, `if` blocks or type arguments |
-| 2009 | `UNTERMINATED_BLOCK` | a structure, function or other block that reaches the end of the file |
+| 2008 | `RECURSION_TOO_DEEP` | 300 nested parentheses, `if` blocks, type arguments, `do` blocks or `not(` predicates |
+| 2009 | `UNTERMINATED_BLOCK` | a structure, function, do-while or other block that reaches the end of the file |
 | 2010 | `DEFAULT_ARM_NOT_LAST` | `switch a default then x = 1; case 2 then y = 2; end` (the tree is still built) |
 
 ## Gaps
 
-- A function type that carries a parameter attribute (`#[semantics = ...]`) inside the type arguments of
-  an expression is not found by the type-argument scan, so `f<function(#[semantics = reference_mutable] a: T)>(x)`
-  parses as comparisons. In a type position the same text parses (`MAREAParserTypes`, `FunctionTypes`). No
-  test covers the expression case; this is read from the scan's token list in `MAREAParseExpression.c`.
-- No test builds a call on a type name (`Point(1.0)`) or an `enum` tag type that is not an integer; both
-  parse as plain calls and plain types, and the construction and tag rules are sema's.
-- The semantic rules that the grammar gives to "the checker" are not parsed: the namespace against
-  the path, attribute keys and values, ownership, switch coverage.
-- An `IMPORT_MEMBER` path may have any number of parts in the tree. This is not a parser gap: only one
-  part (a function, a type or a constant) or two parts (an enum variant) are valid, and that rule is
-  sema's job by design, enforced in `MAREA_G_MemberResolves` (`MAREASemaNamespace.c`), like the other
-  rules the grammar gives to "the checker".
+- The `sema` stage does not know the new nodes yet, so they are accepted without a check:
+  a `REQUIRE_DECLARATION` is skipped (a `require` of a name that nothing registered raises nothing);
+  an `import` with the WILDCARD flag is checked as a plain `import` of the same path (the flag is
+  ignored); a `DO_WHILE_STATEMENT` is not a loop for sema (its condition is not checked and not required
+  to be a boolean, a `break` or `continue` in its body is `JUMP_OUTSIDE_LOOP`, and a `return` in its body
+  does not complete a function); a `WHEN_ITEM` is skipped by the attribute check (no predicate name, value
+  or conflict is checked). Later changes of `sema` close each of these.
+- The `ir` stage does not lower a `DO_WHILE_STATEMENT`: in a test, a function whose body holds one was left
+  out of the module with no diagnostic in the sink. A later change of `ir` lowers it to the loop that the
+  IR already has.
+- A `when` item cannot hold another `when` item: the listed items are plain, and the word `when` inside one
+  is a plain key that fails at the next token, with a generic message.
+- An `IMPORT_MEMBER` path may have any number of parts in the tree. Only one part (a function, a type or a
+  constant) or two parts (an enum variant) are valid, and sema enforces it (`MAREA_G_MemberResolves` in
+  `MAREASemaNamespace.c`). The rule that every member of a list needs an alias is decided but not in sema
+  yet; the parser accepts a member with no alias.

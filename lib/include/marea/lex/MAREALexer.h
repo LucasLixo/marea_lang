@@ -87,8 +87,9 @@ MAREA_BEGIN_EXTERN_C
      * @param outList Receives the produced token list. Must not be null.
      * @return MAREA_LEX_EXCEPT_SUCCESS, MAREA_LEX_EXCEPT_ERROR_NULL_POINTER when context, outList, or
      * source with a non-zero length is null, MAREA_LEX_EXCEPT_ERROR_SOURCE_TOO_LARGE when length
-     * exceeds UINT32_MAX, or MAREA_LEX_EXCEPT_ERROR_OUT_OF_MEMORY when growing the list or allocating
-     * a token fails.
+     * exceeds UINT32_MAX, or MAREA_LEX_EXCEPT_ERROR_OUT_OF_MEMORY when growing the list, allocating
+     * a token or storing a diagnostic in the sink fails. Lexing stops at the first such failure, so a
+     * lost diagnostic is never a silent success, and the output list is not set.
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_LexExcept MAREA_CALL MAREA_LexTokenize(MAREA_LexContext * context, const MAREA_Character8 *source, MAREA_IntegerSize length, MAREA_TokenList **outList);
 
