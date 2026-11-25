@@ -59,11 +59,12 @@ static MAREA_Uinteger32 MAREA_CALL MAREA_G_BinaryLevel(MAREA_TokenKind kind)
     }
 }
 
-// INFO: Token level scan, no allocation. The less than at start opens type arguments only if a balanced closing angle bracket follows with only type tokens between.
+// INFO: Token level scan, no allocation. The less than at start opens type arguments only if a balanced closing angle bracket follows with only type tokens between. An attribute is a type token only inside a function type, where a parameter may carry one.
 static MAREA_IntegerSize MAREA_CALL MAREA_G_ScanTypeArguments(const MAREA_ParseState *state, MAREA_IntegerSize start)
 {
     MAREA_Sinteger32 angleDepth = 0;
     MAREA_Sinteger32 parenDepth = 0;
+    MAREA_Boolean inAttribute = MAREA_BOOLEAN_FALSE;
 
     for (MAREA_IntegerSize ahead = start; ahead < (start + MAREA_PARSE_SCAN_LIMIT); ahead = (ahead + MAREA_INTEGER_SIZE(1))) {
         switch (MAREA_ParsePeekKind(state, ahead)) {
@@ -99,6 +100,29 @@ static MAREA_IntegerSize MAREA_CALL MAREA_G_ScanTypeArguments(const MAREA_ParseS
             }
 
             parenDepth = (parenDepth - 1);
+            break;
+        case MAREA_TOKEN_KIND_HASH_BRACKET:
+            if ((parenDepth == 0) || (inAttribute == MAREA_BOOLEAN_TRUE)) {
+                return MAREA_INTEGER_SIZE(0);
+            }
+
+            inAttribute = MAREA_BOOLEAN_TRUE;
+            break;
+        case MAREA_TOKEN_KIND_RIGHT_BRACKET:
+            if (inAttribute == MAREA_BOOLEAN_FALSE) {
+                return MAREA_INTEGER_SIZE(0);
+            }
+
+            inAttribute = MAREA_BOOLEAN_FALSE;
+            break;
+        case MAREA_TOKEN_KIND_EQUAL:
+        case MAREA_TOKEN_KIND_STRING_LITERAL:
+        case MAREA_TOKEN_KIND_KEYWORD_TRUE:
+        case MAREA_TOKEN_KIND_KEYWORD_FALSE:
+            if (inAttribute == MAREA_BOOLEAN_FALSE) {
+                return MAREA_INTEGER_SIZE(0);
+            }
+
             break;
         case MAREA_TOKEN_KIND_IDENTIFIER:
         case MAREA_TOKEN_KIND_DOT:

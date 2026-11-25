@@ -587,7 +587,7 @@ TEST(MAREAParserDeclarations, WhenMalformedFormsAreReported)
         "#[when(architecture = , backend = scalar)] function f() end",
         "#[when(architecture = \"x86_64\", backend = scalar] function f() end",
         "#[when(not(), backend = scalar)] function f() end",
-        "#[when(all(architecture = \"x86_64\"), backend = scalar)] function f() end",
+        "#[when(all(), backend = scalar)] function f() end",
         "#[when(any(), backend = scalar)] function f() end",
         "#[when(not(architecture = \"x86_64\", feature = \"sse2\"), backend = scalar)] function f() end",
         "#[when(architecture = \"x86_64\", when(feature = \"sse2\", backend = scalar))] function f() end",
