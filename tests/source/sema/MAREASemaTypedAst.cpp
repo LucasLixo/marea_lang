@@ -5,6 +5,7 @@
 
 #include "marea/sema/MAREASemaTypedAst.h"
 
+#include "tests/MAREALibraryRegistryHelpers.hpp"
 #include "tests/MAREASemaHelpers.hpp"
 
 namespace
@@ -535,9 +536,11 @@ TEST(MAREASemaTypedAst, OwnedParameterOwnershipIsMove)
 {
     GTEST_COUT << "Validating an owned<T> parameter has ownership mode MOVE." << std::endl;
 
-    MAREA_SemaFixture fixture;
+    MAREA_SemaFixture fixture([](const std::string &text, const MAREA_AstNode **) { return (text.rfind("demo.", 0) == 0) ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND; });
 
-    ASSERT_EQ(fixture.MAREA_sema("namespace main; structure Shape x: float32; end function f(o: owned<Shape>) end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
+    MAREA_IGNORE(MAREA_SemaContextSetTypeRegistry(fixture.context, MAREA_buildLibraryRegistry(fixture.parser.lexer.arena)));
+
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; require demo.owned; structure Shape x: float32; end function f(o: demo.owned<Shape>) end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
 
     const MAREA_SemaTypedNode *outRoot{ nullptr };
 

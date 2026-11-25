@@ -1566,15 +1566,6 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckOperatorOperands(MAREA_SemaContext * context, MAREA_TokenKind operatorKind, const MAREA_AstNode *left, const MAREA_AstNode *right, MAREA_SourcePosition position);
 
     /**
-     * @brief Raises RAW_POINTER_OUTSIDE_UNSAFE when a local is declared with the type pointer and no unsafe block
-     * encloses it. A parameter, a return type and a structure field are not checked.
-     * @param context Context of the run. Must not be null.
-     * @param local The LOCAL_DECLARATION node. Must not be null.
-     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
-     */
-    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckRawPointerLocal(MAREA_SemaContext * context, const MAREA_AstNode *local);
-
-    /**
      * @brief Raises LOCAL_WITHOUT_INITIAL_VALUE when a local has no written value, that is, fewer than three
      * children. The check is syntactic: a branch that assigns the local later does not change it. A local with an
      * error node as its name or type is not checked.

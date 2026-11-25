@@ -5,6 +5,7 @@
 
 #include "marea/sema/MAREASemaTypedAst.h"
 
+#include "tests/MAREALibraryRegistryHelpers.hpp"
 #include "tests/MAREASemaHelpers.hpp"
 
 namespace
@@ -43,6 +44,8 @@ namespace
     MAREA_ScopeTypeResult MAREA_scopeTypeOf(const std::string &source, const std::string &name, std::size_t nth, MAREA_ResolveCallback resolve = nullptr)
     {
         MAREA_SemaFixture fixture(resolve);
+
+        MAREA_IGNORE(MAREA_SemaContextSetTypeRegistry(fixture.context, MAREA_buildLibraryRegistry(fixture.parser.lexer.arena)));
 
         MAREA_ScopeTypeResult result;
 
@@ -136,6 +139,8 @@ namespace
     MAREA_ScopeTypeResult MAREA_headerChildTypeOf(const std::string &source, MAREA_AstKind kind, MAREA_IntegerSize childIndex, MAREA_ResolveCallback resolve = nullptr)
     {
         MAREA_SemaFixture fixture(resolve);
+
+        MAREA_IGNORE(MAREA_SemaContextSetTypeRegistry(fixture.context, MAREA_buildLibraryRegistry(fixture.parser.lexer.arena)));
 
         MAREA_ScopeTypeResult result;
 
@@ -268,11 +273,11 @@ TEST(MAREASemaTypedAstScopes, ForEachCollectionChildHasItsResolvedType)
 {
     GTEST_COUT << "Validating the collection child of a for each carries the full resolved type of the collection." << std::endl;
 
-    MAREA_expectHeaderType("namespace main; function f(v: array<float32, 4>): float32 local t: float32 = 0.0; for each x in v do t += x; end return t; end", MAREA_AST_KIND_FOR_EACH_STATEMENT, 1, "array<float32,4>");
+    MAREA_expectHeaderType("namespace main; require demo.array; function f(v: demo.array<float32, 4>): float32 local t: float32 = 0.0; for each x in v do t += x; end return t; end", MAREA_AST_KIND_FOR_EACH_STATEMENT, 1, "demo.array<float32,4>", MAREA_EXTERNAL_RESOLVE);
 
-    MAREA_expectHeaderType("namespace main; function f(v: vector<uinteger8>): uinteger8 local t: uinteger8 = 0; for each k, x in v do t += x; end return t; end", MAREA_AST_KIND_FOR_EACH_STATEMENT, 2, "vector<uinteger8>");
+    MAREA_expectHeaderType("namespace main; require demo.vector; function f(v: demo.vector<uinteger8>): uinteger8 local t: uinteger8 = 0; for each k, x in v do t += x; end return t; end", MAREA_AST_KIND_FOR_EACH_STATEMENT, 2, "demo.vector<uinteger8>", MAREA_EXTERNAL_RESOLVE);
 
-    MAREA_expectHeaderType("namespace main; function f(v: slice<float32>): float32 local t: float32 = 0.0; for each x in mutable v do t += x; end return t; end", MAREA_AST_KIND_FOR_EACH_STATEMENT, 1, "slice<float32>");
+    MAREA_expectHeaderType("namespace main; require demo.slice; function f(v: demo.slice<float32>): float32 local t: float32 = 0.0; for each x in mutable v do t += x; end return t; end", MAREA_AST_KIND_FOR_EACH_STATEMENT, 1, "demo.slice<float32>", MAREA_EXTERNAL_RESOLVE);
 
     MAREA_expectHeaderType("namespace main; require c.array; import collections.array as array; function f(v: c.array<sinteger32>): sinteger32 local t: sinteger32 = 0; for each x in v do t += x; end return t; end", MAREA_AST_KIND_FOR_EACH_STATEMENT, 1, "c.array<sinteger32>", MAREA_EXTERNAL_RESOLVE);
 }
@@ -321,11 +326,11 @@ TEST(MAREASemaTypedAstScopes, ForEachValueIsTheElementType)
 {
     GTEST_COUT << "Validating the value of a for each is the element type of an array, a vector and a slice." << std::endl;
 
-    MAREA_expectScopeType("namespace main; function f(v: array<float32, 4>): float32 local t: float32 = 0.0; for each x in v do t += x; end return t; end", "x", 1, "float32");
+    MAREA_expectScopeType("namespace main; require demo.array; function f(v: demo.array<float32, 4>): float32 local t: float32 = 0.0; for each x in v do t += x; end return t; end", "x", 1, "float32", MAREA_EXTERNAL_RESOLVE);
 
-    MAREA_expectScopeType("namespace main; function f(v: vector<uinteger8>): uinteger8 local t: uinteger8 = 0; for each x in v do t += x; end return t; end", "x", 1, "uinteger8");
+    MAREA_expectScopeType("namespace main; require demo.vector; function f(v: demo.vector<uinteger8>): uinteger8 local t: uinteger8 = 0; for each x in v do t += x; end return t; end", "x", 1, "uinteger8", MAREA_EXTERNAL_RESOLVE);
 
-    MAREA_expectScopeType("namespace main; function f(v: slice<float32>): float32 local t: float32 = 0.0; for each x in mutable v do t += x; end return t; end", "x", 1, "float32");
+    MAREA_expectScopeType("namespace main; require demo.slice; function f(v: demo.slice<float32>): float32 local t: float32 = 0.0; for each x in mutable v do t += x; end return t; end", "x", 1, "float32", MAREA_EXTERNAL_RESOLVE);
 
     MAREA_expectScopeType("namespace main; require c.array; import collections.array as array; function f(v: c.array<sinteger32>): sinteger32 local t: sinteger32 = 0; for each x in v do t += x; end return t; end", "x", 1, "sinteger32", MAREA_EXTERNAL_RESOLVE);
 }

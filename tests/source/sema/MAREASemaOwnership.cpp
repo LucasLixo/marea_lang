@@ -3,6 +3,7 @@
 
 #include "tests/dependencies.hpp"
 
+#include "tests/MAREALibraryRegistryHelpers.hpp"
 #include "tests/MAREASemaHelpers.hpp"
 
 // INFO: internal header on purpose: the default passing mode is read through MAREA_SemaGetParameterSemantics, which no public header exposes.
@@ -29,7 +30,9 @@ namespace
     {
         MAREA_SemaFixture fixture([](const std::string &, const MAREA_AstNode **) { return MAREA_SEMA_IMPORT_RESULT_EXTERNAL; });
 
-        if (fixture.MAREA_sema("namespace main; require c.array; require c.slice; require c.task; require c.pointer; require c.vector; require c.table; require c.owned; require vulkan; " + body) != MAREA_SEMA_EXCEPT_SUCCESS) {
+        MAREA_IGNORE(MAREA_SemaContextSetTypeRegistry(fixture.context, MAREA_buildLibraryRegistry(fixture.parser.lexer.arena)));
+
+        if (fixture.MAREA_sema("namespace main; require c.array; require c.slice; require c.task; require c.pointer; require c.vector; require c.table; require c.owned; require vulkan; require demo.owned; require demo.array; require demo.vector; " + body) != MAREA_SEMA_EXCEPT_SUCCESS) {
             return { 0 };
         }
 
@@ -66,7 +69,9 @@ namespace
     {
         MAREA_SemaFixture fixture([](const std::string &, const MAREA_AstNode **) { return MAREA_SEMA_IMPORT_RESULT_EXTERNAL; });
 
-        if (fixture.MAREA_sema("namespace main; require c.array; require c.slice; require c.task; require c.pointer; require c.vector; require c.table; require c.owned; require vulkan; " + body) != MAREA_SEMA_EXCEPT_SUCCESS) {
+        MAREA_IGNORE(MAREA_SemaContextSetTypeRegistry(fixture.context, MAREA_buildLibraryRegistry(fixture.parser.lexer.arena)));
+
+        if (fixture.MAREA_sema("namespace main; require c.array; require c.slice; require c.task; require c.pointer; require c.vector; require c.table; require c.owned; require vulkan; require demo.owned; require demo.array; require demo.vector; " + body) != MAREA_SEMA_EXCEPT_SUCCESS) {
             return 99;
         }
 
@@ -98,9 +103,9 @@ TEST(MAREASemaOwnership, ParameterWithNoAttributeDefaultsByTypeClass)
 
     EXPECT_EQ(MAREA_firstParameterSemantics("function f(a: c.array<float32>) end"), REFERENCE_READ_ONLY) << "A qualified library type must default to REFERENCE_READ_ONLY.";
 
-    EXPECT_EQ(MAREA_firstParameterSemantics(SHAPE + "function f(o: owned<Shape>) end"), REFERENCE_MUTABLE) << "A move-in owned must keep REFERENCE_MUTABLE.";
+    EXPECT_EQ(MAREA_firstParameterSemantics(SHAPE + "function f(o: demo.owned<Shape>) end"), REFERENCE_MUTABLE) << "A move-in owned must keep REFERENCE_MUTABLE.";
 
-    EXPECT_EQ(MAREA_firstParameterSemantics(SHAPE + "function f(v: vector<Shape>) end"), REFERENCE_MUTABLE) << "A move-in vector must keep REFERENCE_MUTABLE.";
+    EXPECT_EQ(MAREA_firstParameterSemantics(SHAPE + "function f(v: demo.vector<Shape>) end"), REFERENCE_MUTABLE) << "A move-in vector must keep REFERENCE_MUTABLE.";
 
     EXPECT_EQ(MAREA_firstParameterSemantics(SHAPE + "function f(#[semantics = reference_mutable] s: Shape) end"), REFERENCE_MUTABLE) << "An explicit attribute must win over the default.";
 }
@@ -146,11 +151,11 @@ TEST(MAREASemaOwnership, ArrayCopiesByValueAndVectorNeedsAWord)
 {
     GTEST_COUT << "Validating an array is assigned as a value and a vector needs copy or move." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("function f(a: array<float32, 4>, b: array<float32, 4>) a = b; end").empty()) << "An array must be assigned without a word.";
+    EXPECT_TRUE(MAREA_codesOf("function f(a: demo.array<float32, 4>, b: demo.array<float32, 4>) a = b; end").empty()) << "An array must be assigned without a word.";
 
-    EXPECT_EQ(MAREA_codesOf("function f(a: vector<float32>, b: vector<float32>) a = b; end"), Codes{ NEEDS_WORD }) << "A vector must raise ASSIGNMENT_NEEDS_COPY_OR_MOVE.";
+    EXPECT_EQ(MAREA_codesOf("function f(a: demo.vector<float32>, b: demo.vector<float32>) a = b; end"), Codes{ NEEDS_WORD }) << "A vector must raise ASSIGNMENT_NEEDS_COPY_OR_MOVE.";
 
-    EXPECT_TRUE(MAREA_codesOf("function f(a: vector<float32>, b: vector<float32>) a = move b; end").empty()) << "A move of a vector must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function f(a: demo.vector<float32>, b: demo.vector<float32>) a = move b; end").empty()) << "A move of a vector must raise nothing.";
 }
 
 TEST(MAREASemaOwnership, CopyAndMoveSatisfyTheRule)
@@ -250,7 +255,7 @@ TEST(MAREASemaOwnership, ReturningOwnedValuesIsAccepted)
 {
     GTEST_COUT << "Validating a move-in parameter, a value, a copy and a local can be returned." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(o: owned<Shape>): owned<Shape> return o; end").empty()) << "A move-in must be returnable.";
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(o: demo.owned<Shape>): demo.owned<Shape> return o; end").empty()) << "A move-in must be returnable.";
 
     EXPECT_TRUE(MAREA_codesOf("function f(n: sinteger32): sinteger32 return n; end").empty()) << "A by-value parameter must be returnable.";
 
@@ -368,13 +373,13 @@ TEST(MAREASemaOwnership, ExistingValueGivenToOwnedParameterNeedsCopyOrMove)
 {
     GTEST_COUT << "Validating a name, field or element given to an owned parameter raises ASSIGNMENT_NEEDS_COPY_OR_MOVE once; copy, move, a call result and a literal raise nothing." << std::endl;
 
-    const std::string TAKE{ SHAPE + "function take(a: owned<Shape>) end " };
+    const std::string TAKE{ SHAPE + "function take(a: demo.owned<Shape>) end " };
 
     EXPECT_EQ(MAREA_codesOf(TAKE + "function f(s: Shape) take(s); end"), Codes{ NEEDS_WORD }) << "A name given to an owned parameter must raise ASSIGNMENT_NEEDS_COPY_OR_MOVE.";
 
     EXPECT_EQ(MAREA_codesOf(TAKE + "function f(o: Outer) take(o.inner); end"), Codes{ NEEDS_WORD }) << "A field given to an owned parameter must raise ASSIGNMENT_NEEDS_COPY_OR_MOVE.";
 
-    EXPECT_EQ(MAREA_codesOf(TAKE + "function f(v: vector<Shape>) take(v[0]); end"), Codes{ NEEDS_WORD }) << "An element given to an owned parameter must raise ASSIGNMENT_NEEDS_COPY_OR_MOVE.";
+    EXPECT_EQ(MAREA_codesOf(TAKE + "function f(v: demo.vector<Shape>) take(v[0]); end"), Codes{ NEEDS_WORD }) << "An element given to an owned parameter must raise ASSIGNMENT_NEEDS_COPY_OR_MOVE.";
 
     EXPECT_TRUE(MAREA_codesOf(TAKE + "function f(s: Shape) take(move s); end").empty()) << "A move argument must raise nothing.";
 
@@ -384,9 +389,9 @@ TEST(MAREASemaOwnership, ExistingValueGivenToOwnedParameterNeedsCopyOrMove)
 
     EXPECT_TRUE(MAREA_codesOf(TAKE + "function f() take(Shape{ x = 1.0 }); end").empty()) << "A literal must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function take(a: vector<Shape>) end function f(v: vector<Shape>) take(v); end").empty()) << "A vector parameter is not checked by this rule.";
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function take(a: demo.vector<Shape>) end function f(v: demo.vector<Shape>) take(v); end").empty()) << "A vector parameter is not checked by this rule.";
 
-    EXPECT_EQ(MAREA_codesOf(SHAPE + "function take<Item>(a: owned<Item>) end function f(s: Shape) take(s); end"), Codes{ NEEDS_WORD }) << "A generic owned parameter given a known structure must raise ASSIGNMENT_NEEDS_COPY_OR_MOVE.";
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function take<Item>(a: demo.owned<Item>) end function f(s: Shape) take(s); end"), Codes{ NEEDS_WORD }) << "A generic owned parameter given a known structure must raise ASSIGNMENT_NEEDS_COPY_OR_MOVE.";
 }
 
 TEST(MAREASemaOwnership, UseAfterMoveStraightLine)
@@ -464,30 +469,30 @@ TEST(MAREASemaOwnership, UseAfterMoveOfOwnedParameterAndCallArgument)
 {
     GTEST_COUT << "Validating a move into an owned parameter, a move of an owned parameter and a spawn argument after the move." << std::endl;
 
-    const std::string TAKE{ SHAPE + "function take(a: owned<Shape>): float32 return a.x; end function read(#[semantics = reference_read_only] a: Shape): float32 return a.x; end " };
+    const std::string TAKE{ SHAPE + "function take(a: demo.owned<Shape>): float32 return a.x; end function read(#[semantics = reference_read_only] a: Shape): float32 return a.x; end " };
 
     EXPECT_EQ(MAREA_codesOf(TAKE + "function f() local a: Shape = make(); local r: float32 = take(move a); local s: float32 = read(a); end"), Codes{ USE_MOVED }) << "A read after a move into an owned parameter must raise USE_OF_MOVED_VALUE.";
 
-    EXPECT_EQ(MAREA_codesOf(TAKE + "function f(a: owned<Shape>): float32 local r: float32 = take(move a); return a.x; end"), Codes{ USE_MOVED }) << "A read of an owned parameter after it was moved on must raise USE_OF_MOVED_VALUE.";
+    EXPECT_EQ(MAREA_codesOf(TAKE + "function f(a: demo.owned<Shape>): float32 local r: float32 = take(move a); return a.x; end"), Codes{ USE_MOVED }) << "A read of an owned parameter after it was moved on must raise USE_OF_MOVED_VALUE.";
 
-    EXPECT_EQ(MAREA_codesOf(TAKE + "function f(a: owned<Shape>) local r: float32 = take(move a); local s: float32 = take(move a); end"), Codes{ MOVED_AGAIN }) << "A second move of an owned parameter must raise VALUE_MOVED_AGAIN.";
+    EXPECT_EQ(MAREA_codesOf(TAKE + "function f(a: demo.owned<Shape>) local r: float32 = take(move a); local s: float32 = take(move a); end"), Codes{ MOVED_AGAIN }) << "A second move of an owned parameter must raise VALUE_MOVED_AGAIN.";
 
-    EXPECT_EQ(MAREA_codesOf(TAKE + "function f(a: owned<Shape>) local r: float32 = take(move a); fork_join spawn read(a); end end"), (Codes{ INVALID_SPAWN, USE_MOVED })) << "A spawn argument after the move must raise USE_OF_MOVED_VALUE besides the spawn rule.";
+    EXPECT_EQ(MAREA_codesOf(TAKE + "function f(a: demo.owned<Shape>) local r: float32 = take(move a); fork_join spawn read(a); end end"), (Codes{ INVALID_SPAWN, USE_MOVED })) << "A spawn argument after the move must raise USE_OF_MOVED_VALUE besides the spawn rule.";
 
-    EXPECT_EQ(MAREA_codesOf(TAKE + "function f(a: owned<Shape>): float32 local r: float32 = take(move a); return r + a.x; end"), Codes{ USE_MOVED }) << "A read in a later expression must raise USE_OF_MOVED_VALUE.";
+    EXPECT_EQ(MAREA_codesOf(TAKE + "function f(a: demo.owned<Shape>): float32 local r: float32 = take(move a); return r + a.x; end"), Codes{ USE_MOVED }) << "A read in a later expression must raise USE_OF_MOVED_VALUE.";
 
-    EXPECT_TRUE(MAREA_codesOf(TAKE + "function f(a: owned<Shape>): float32 return take(move a); end").empty()) << "A single move must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf(TAKE + "function f(a: demo.owned<Shape>): float32 return take(move a); end").empty()) << "A single move must raise nothing.";
 }
 
 TEST(MAREASemaOwnership, UseAfterMoveOfOpaqueOwnerAndMethodReceiver)
 {
     GTEST_COUT << "Validating an owner of an opaque type, a method receiver and a generic owned parameter after a move." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf("opaque structure Texture; function show(#[semantics = reference_read_only] t: Texture) end function f(a: owned<Texture>) local b: owned<Texture> = move a; show(a); end"), Codes{ USE_MOVED }) << "An owned opaque value used after a move must raise USE_OF_MOVED_VALUE.";
+    EXPECT_EQ(MAREA_codesOf("opaque structure Texture; function show(#[semantics = reference_read_only] t: Texture) end function f(a: demo.owned<Texture>) local b: demo.owned<Texture> = move a; show(a); end"), Codes{ USE_MOVED }) << "An owned opaque value used after a move must raise USE_OF_MOVED_VALUE.";
 
     EXPECT_EQ(MAREA_codesOf(SHAPE + "implementation Shape function sum(self: Shape): float32 return self.x; end end function f(): float32 local a: Shape = make(); local b: Shape = move a; return a.sum(); end"), Codes{ USE_MOVED }) << "A method call on a moved value must raise USE_OF_MOVED_VALUE.";
 
-    EXPECT_EQ(MAREA_codesOf("function sink<Item>(value: owned<Item>) where Item: Movable end function twice<Item>(value: owned<Item>) where Item: Movable sink(move value); sink(move value); end"), Codes{ MOVED_AGAIN }) << "A generic owned parameter moved twice must raise VALUE_MOVED_AGAIN.";
+    EXPECT_EQ(MAREA_codesOf("function sink<Item>(value: demo.owned<Item>) where Item: Movable end function twice<Item>(value: demo.owned<Item>) where Item: Movable sink(move value); sink(move value); end"), Codes{ MOVED_AGAIN }) << "A generic owned parameter moved twice must raise VALUE_MOVED_AGAIN.";
 }
 
 TEST(MAREASemaOwnership, UseAfterPartMoved)
@@ -523,19 +528,19 @@ TEST(MAREASemaOwnership, UseAfterElementMoved)
 {
     GTEST_COUT << "Validating a use of a collection after an element was moved out, and a move of a for each element, raise USE_OF_PARTIALLY_MOVED_VALUE." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(v: owned<vector<Shape>>): float32 local s: Shape = move v[0]; return v[0].x; end"), Codes{ PARTLY_MOVED }) << "A read of the moved element must raise USE_OF_PARTIALLY_MOVED_VALUE.";
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(v: demo.owned<demo.vector<Shape>>): float32 local s: Shape = move v[0]; return v[0].x; end"), Codes{ PARTLY_MOVED }) << "A read of the moved element must raise USE_OF_PARTIALLY_MOVED_VALUE.";
 
-    EXPECT_EQ(MAREA_codesOf(SHAPE + "function take(v: owned<vector<Shape>>) end function f(v: owned<vector<Shape>>) local s: Shape = move v[0]; take(move v); end"), Codes{ PARTLY_MOVED }) << "A move of the whole collection after an element was moved out must raise USE_OF_PARTIALLY_MOVED_VALUE.";
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function take(v: demo.owned<demo.vector<Shape>>) end function f(v: demo.owned<demo.vector<Shape>>) local s: Shape = move v[0]; take(move v); end"), Codes{ PARTLY_MOVED }) << "A move of the whole collection after an element was moved out must raise USE_OF_PARTIALLY_MOVED_VALUE.";
 
-    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(v: owned<vector<Shape>>): float32 local s: Shape = move v[0]; return v[1].x; end").empty()) << "A read of another literal index must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(v: demo.owned<demo.vector<Shape>>): float32 local s: Shape = move v[0]; return v[1].x; end").empty()) << "A read of another literal index must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(v: owned<vector<Shape>>, i: sinteger32, j: sinteger32): float32 local s: Shape = move v[i]; return v[j].x; end").empty()) << "A computed index is never compared, so it must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(v: demo.owned<demo.vector<Shape>>, i: sinteger32, j: sinteger32): float32 local s: Shape = move v[i]; return v[j].x; end").empty()) << "A computed index is never compared, so it must raise nothing.";
 
-    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(v: vector<Shape>) for each item in v do local s: Shape = move item; end end"), Codes{ PARTLY_MOVED }) << "A move of a for each element must raise USE_OF_PARTIALLY_MOVED_VALUE.";
+    EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(v: demo.vector<Shape>) for each item in v do local s: Shape = move item; end end"), Codes{ PARTLY_MOVED }) << "A move of a for each element must raise USE_OF_PARTIALLY_MOVED_VALUE.";
 
-    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(v: owned<vector<Shape>>, w: owned<vector<Shape>>) for each item in v do local o: vector<Shape> = move w; break; end end").empty()) << "A move of the collection itself is not a move of a loop element, so it must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(v: demo.owned<demo.vector<Shape>>, w: demo.owned<demo.vector<Shape>>) for each item in v do local o: demo.vector<Shape> = move w; break; end end").empty()) << "A move of the collection itself is not a move of a loop element, so it must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("function f(v: vector<sinteger32>) for each item in v do local s: sinteger32 = move item; end end").empty()) << "A by value for each element is copied, so a move of it must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function f(v: demo.vector<sinteger32>) for each item in v do local s: sinteger32 = move item; end end").empty()) << "A by value for each element is copied, so a move of it must raise nothing.";
 }
 
 TEST(MAREASemaOwnership, FieldOfABorrowCannotBeReturned)

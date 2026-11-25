@@ -379,8 +379,9 @@ static const MAREA_AstNode *MAREA_CALL MAREA_G_FindTypeArguments(const MAREA_Ast
 // INFO: whether sema knows the type has a measured layout at this shallow level: a primitive always
 // does, a user structure or enum always does (its own layout record decides the detail), and a generic
 // parameter is trusted until it is filled with a concrete argument (checked again then, at the call or
-// the instantiation that fills it, not here). A function type or another registered type with no
-// layout of its own is rejected.
+// the instantiation that fills it, not here). A registered type has the shape its descriptor gives (a
+// handle for a task, an owner or a pointer, an inline run for an array), and its own type arguments are
+// checked when its own node is visited. A function type is rejected.
 static MAREA_Boolean MAREA_CALL MAREA_G_HasKnownLayout(const MAREA_SemaContext *context, const MAREA_AstNode *type)
 {
     const MAREA_AstNode *declaration = MAREA_NULLPTR;
@@ -388,6 +389,12 @@ static MAREA_Boolean MAREA_CALL MAREA_G_HasKnownLayout(const MAREA_SemaContext *
     const MAREA_Character8 *name = MAREA_NULLPTR;
 
     MAREA_IntegerSize length = 0;
+
+    const MAREA_TypeDescriptor *descriptor = MAREA_NULLPTR;
+
+    if (MAREA_SemaDescriptorOfType(context, type, &descriptor) == MAREA_BOOLEAN_TRUE) {
+        return MAREA_BOOLEAN_TRUE;
+    }
 
     switch (MAREA_SemaClassifyType(context, type, &declaration, &name, &length)) {
     case MAREA_SEMA_TYPE_CLASS_PRIMITIVE:
@@ -423,6 +430,28 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckElementLayout(MAREA_SemaContext 
     return MAREA_SEMA_EXCEPT_SUCCESS;
 }
 
+// INFO: a raw pointer exists only inside an unsafe block, in every place a type is written (issue
+// #190, decision 30 of the 2026-11-24 plan): a parameter, a result, a field, an alias, and nested
+// inside another written type's own type arguments. MAREA_SemaCheckNamedType runs once for every
+// written NAMED_TYPE, so this one hook covers all of them; a local's own check (MAREASemaRawPointer.c)
+// stays the one place still reporting with the local's own name in the message.
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckRawPointerPlacement(MAREA_SemaContext *context, const MAREA_AstNode *node)
+{
+    if (context->unsafeDepth > 0) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_TypeDescriptor *descriptor = MAREA_NULLPTR;
+
+    if ((MAREA_SemaDescriptorOfType(context, node, &descriptor) == MAREA_BOOLEAN_FALSE) || ((descriptor->roles & MAREA_TYPE_ROLE_RAW_POINTER) == MAREA_TYPE_ROLE_NONE)) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_RAW_POINTER_OUTSIDE_UNSAFE, MAREA_AstNodeGetPosition(node), "a raw pointer exists only inside an unsafe block");
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
 MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckNamedType(MAREA_SemaContext *context, const MAREA_AstNode *node)
 {
     if ((context == MAREA_NULLPTR) || (node == MAREA_NULLPTR)) {
@@ -433,6 +462,12 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckNamedType(MAREA_SemaContext *context,
 
     if (ELEMENT_LAYOUT_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
         return ELEMENT_LAYOUT_RESULT;
+    }
+
+    const MAREA_SemaExcept RAW_POINTER_RESULT = MAREA_G_CheckRawPointerPlacement(context, node);
+
+    if (RAW_POINTER_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+        return RAW_POINTER_RESULT;
     }
 
     const MAREA_AstNode *qualifiedName = MAREA_SemaChildAt(node, 0);

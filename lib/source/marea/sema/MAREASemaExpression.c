@@ -1408,12 +1408,9 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressions(MAREA_SemaContext *contex
         return MAREA_SemaCheckLiteralFields(context, node);
     case MAREA_AST_KIND_LOCAL_DECLARATION:
     {
-        const MAREA_SemaExcept pointerResult = MAREA_SemaCheckRawPointerLocal(context, node);
-
-        if (pointerResult != MAREA_SEMA_EXCEPT_SUCCESS) {
-            return pointerResult;
-        }
-
+        // INFO: the raw pointer role check runs once per written NAMED_TYPE (MAREA_SemaCheckNamedType,
+        // MAREASemaType.c), which this local's own type node reaches through the recursive visit below;
+        // no separate call is needed here.
         const MAREA_SemaExcept initializerResult = MAREA_SemaCheckLocalInitializer(context, node);
 
         if (initializerResult != MAREA_SEMA_EXCEPT_SUCCESS) {

@@ -127,11 +127,15 @@ static const MAREA_AstNode *MAREA_CALL MAREA_G_InferTypedResultType(MAREA_SemaCo
     if (KIND == MAREA_AST_KIND_INDEX_ACCESS) {
         const MAREA_AstNode *base = MAREA_G_InferTypedResultType(context, MAREA_SemaChildAt(expression, 0));
 
+        const MAREA_TypeDescriptor *descriptor = MAREA_NULLPTR;
+
         const MAREA_Character8 *name = MAREA_NULLPTR;
 
         MAREA_IntegerSize nameLength = 0;
 
-        if ((MAREA_G_TypedAstSingleName(base, &name, &nameLength) == MAREA_BOOLEAN_FALSE) || ((MAREA_G_TypedAstTextIs(name, nameLength, "array") == MAREA_BOOLEAN_FALSE) && (MAREA_G_TypedAstTextIs(name, nameLength, "slice") == MAREA_BOOLEAN_FALSE) && (MAREA_G_TypedAstTextIs(name, nameLength, "vector") == MAREA_BOOLEAN_FALSE) && (MAREA_G_TypedAstTextIs(name, nameLength, "pointer") == MAREA_BOOLEAN_FALSE))) {
+        const MAREA_Boolean HAS_ELEMENT = (MAREA_SemaDescriptorOfType(context, base, &descriptor) == MAREA_BOOLEAN_TRUE) ? ((descriptor->hasIndexProtocol == MAREA_BOOLEAN_TRUE) || ((descriptor->roles & MAREA_TYPE_ROLE_RAW_POINTER) != MAREA_TYPE_ROLE_NONE)) : ((MAREA_G_TypedAstSingleName(base, &name, &nameLength) == MAREA_BOOLEAN_TRUE) && ((MAREA_G_TypedAstTextIs(name, nameLength, "array") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TypedAstTextIs(name, nameLength, "slice") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TypedAstTextIs(name, nameLength, "vector") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TypedAstTextIs(name, nameLength, "pointer") == MAREA_BOOLEAN_TRUE)));
+
+        if (HAS_ELEMENT == MAREA_BOOLEAN_FALSE) {
             return MAREA_NULLPTR;
         }
 
