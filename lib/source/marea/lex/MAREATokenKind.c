@@ -46,6 +46,7 @@ static const MAREA_Character8 *const MAREA_G_TokenKindNames[] = {
     "KEYWORD_OPAQUE",
     "KEYWORD_OR",
     "KEYWORD_PARTITION",
+    "KEYWORD_REQUIRE",
     "KEYWORD_RETURN",
     "KEYWORD_SPAWN",
     "KEYWORD_STRUCTURE",

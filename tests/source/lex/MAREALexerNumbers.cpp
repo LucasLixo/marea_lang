@@ -166,6 +166,25 @@ TEST(MAREALexerNumbers, ExponentNeedsDigits)
     EXPECT_EQ(secondFixture.MAREA_kinds(), (std::vector<MAREA_TokenKind>{ MAREA_TOKEN_KIND_INTEGER_LITERAL, MAREA_TOKEN_KIND_IDENTIFIER, MAREA_TOKEN_KIND_PLUS, MAREA_TOKEN_KIND_END_OF_FILE })) << "'1e+' must lex as the integer 1, the identifier e, then a plus.";
 }
 
+TEST(MAREALexerNumbers, UpperCasePrefixIsNotAPrefix)
+{
+    GTEST_COUT << "Validating 0X and 0B are not prefixes: the prefix letters are lower case only, so the lexer splits the number from the name." << std::endl;
+
+    MAREA_LexFixture firstFixture;
+
+    ASSERT_EQ(firstFixture.MAREA_lex("0X1"), MAREA_LEX_EXCEPT_SUCCESS) << "Lexing must succeed.";
+
+    EXPECT_EQ(firstFixture.MAREA_texts(), (std::vector<std::string>{ "0", "X1", "" })) << "'0X1' must lex as the integer 0 and the identifier X1.";
+
+    EXPECT_TRUE(firstFixture.MAREA_diagnosticCodes().empty()) << "The lexer stays silent here; a later stage rejects the identifier X1 where it is not declared.";
+
+    MAREA_LexFixture secondFixture;
+
+    ASSERT_EQ(secondFixture.MAREA_lex("0B1"), MAREA_LEX_EXCEPT_SUCCESS) << "Lexing must succeed.";
+
+    EXPECT_EQ(secondFixture.MAREA_texts(), (std::vector<std::string>{ "0", "B1", "" })) << "'0B1' must lex as the integer 0 and the identifier B1.";
+}
+
 TEST(MAREALexerNumbers, NumberGluedToLetters)
 {
     GTEST_COUT << "Validating a number immediately followed by letters splits into two tokens with no diagnostic." << std::endl;
