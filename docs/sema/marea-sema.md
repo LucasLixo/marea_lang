@@ -1109,6 +1109,7 @@ if (MAREA_SemaTypeLayoutGetVerdict(layout) == MAREA_SEMA_MEASURE_VERDICT_MEASURE
 
 | Accessor | Gives |
 |---|---|
+| `MAREA_SemaTypedNodeGetBackend` | the backend of a typed function, resolved by the build of the typed tree against the target of the context (the function attribute over the file attribute, a holding `when` over a plain item, `auto` replaced by `intrinsics`, then `vector_extension`, then `scalar`), a NUL terminated member name. `ERROR_NO_BACKEND` for any node that is not a function of a file in `marea.math`, `ERROR_NULL_POINTER` for a null argument |
 | `MAREA_SemaTypedNodeGetLayout` | the layout of a typed structure or enum declaration. `ERROR_NO_LAYOUT` for any other node (an opaque structure included), `ERROR_NULL_POINTER` for a null argument |
 | `MAREA_SemaTypeLayoutGetVerdict` | `MAREA_SEMA_MEASURE_VERDICT_MEASURED` or `MAREA_SEMA_MEASURE_VERDICT_UNDECIDED` |
 | `MAREA_SemaTypeLayoutGetReason` | `MAREA_SEMA_MEASURE_REASON_NONE` when measured, else the reason (below) |
@@ -1303,8 +1304,8 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
   Backend rows that need a library that does not exist yet (`marea.math`) are proven by files written in the tests under that
   namespace, and a project file under the root `marea` is always `RESERVED_NAMESPACE_ROOT`, so a shipped `marea.math` file
   cannot pass the checks of sema clean until a shipped-file entry exists.
-- The IR does not lower a macro with a qualified name and gives no diagnostic for a macro statement of that shape, and it does
-  not lower `build_value!` or `do ... while` yet (apply `ir-language-update`).
+- The IR lowers `build_value!`, a macro with a qualified name and `do ... while` now (see the ir doc, "Macros" and "Do-while
+  lowering"). A macro call has no resolved type in the typed tree, so the IR reads the type from the declaration around it.
 - A type that holds a table (two type parameters, no index protocol) is found by that shape, not by a role: a keyed collection
   has no role of its own in the roles table yet.
 - Renaming on use inside one file (without an import) is not offered: a local declaration has its own name.

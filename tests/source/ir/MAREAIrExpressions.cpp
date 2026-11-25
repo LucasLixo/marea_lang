@@ -179,7 +179,7 @@ TEST(MAREAIrExpressions, IndexedLiteralKeepsIndexEntries)
 {
     GTEST_COUT << "Validating a literal of keyed values keeps one INDEX_ENTRY per key and value." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerInitializer("", "table<string, sinteger32>", "table<string, sinteger32>{ [\"a\"] = 1 }"), "(LITERAL_VALUE :table (INDEX_ENTRY (STRING_LITERAL \"a\") (INTEGER_LITERAL 1)))") << "A keyed entry must keep its key and value.";
+    EXPECT_EQ(MAREA_lowerInitializer("", "table<string, sinteger32>", "table<string, sinteger32>{ [\"a\"] = 1 }"), "(LITERAL_VALUE :collections.table (INDEX_ENTRY (STRING_LITERAL \"a\") (INTEGER_LITERAL 1)))") << "A keyed entry must keep its key and value.";
 }
 
 TEST(MAREAIrExpressions, EnumVariantFieldKeepsItsInitializer)

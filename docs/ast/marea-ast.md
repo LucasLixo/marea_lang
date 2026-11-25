@@ -320,9 +320,8 @@ All are errors, from 2001 up. A diagnostic is not repeated at the same byte offs
   to be a boolean, a `break` or `continue` in its body is `JUMP_OUTSIDE_LOOP`, and a `return` in its body
   does not complete a function); a `WHEN_ITEM` is skipped by the attribute check (no predicate name, value
   or conflict is checked). Later changes of `sema` close each of these.
-- The `ir` stage does not lower a `DO_WHILE_STATEMENT`: in a test, a function whose body holds one was left
-  out of the module with no diagnostic in the sink. A later change of `ir` lowers it to the loop that the
-  IR already has.
+- The `ir` stage lowers a `DO_WHILE_STATEMENT` to `WHILE true` with the body, then a test that leaves the loop, and
+  each `continue` of the loop goes to that test (see the ir doc, "Do-while lowering").
 - A `when` item cannot hold another `when` item: the listed items are plain, and the word `when` inside one
   is a plain key that fails at the next token, with a generic message.
 - An `IMPORT_MEMBER` path may have any number of parts in the tree. Only one part (a function, a type or a

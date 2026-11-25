@@ -124,7 +124,7 @@ TEST(MAREAIrExamples, EveryExampleDumpsAsText)
 
         ASSERT_EQ(MAREA_IrModuleDump(fixture.sema.parser.lexer.arena, fixture.module, &text, &length), MAREA_IR_EXCEPT_SUCCESS) << "The dump of " << file.relativePath << " must succeed.";
 
-        EXPECT_EQ(std::string(text, length).compare(0, 7, "MODULE\n"), 0) << "The dump of " << file.relativePath << " must start with MODULE.";
+        EXPECT_EQ(std::string(text, length).compare(0, 8, "MODULE \""), 0) << "The dump of " << file.relativePath << " must start with MODULE.";
     }
 }
 

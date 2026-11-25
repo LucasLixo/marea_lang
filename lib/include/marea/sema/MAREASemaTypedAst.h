@@ -50,6 +50,7 @@ MAREA_BEGIN_EXTERN_C
         MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NO_TYPE = MAREA_UINTEGER_8(4),
         MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NO_LAYOUT = MAREA_UINTEGER_8(5),
         MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_UNDECIDED = MAREA_UINTEGER_8(6),
+        MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NO_BACKEND = MAREA_UINTEGER_8(7),
     } MAREA_SemaTypedAstExcept;
 
     /**
@@ -145,6 +146,20 @@ MAREA_BEGIN_EXTERN_C
      * an expression needs a type argument that sema does not know.
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedNodeGetResolvedType(const MAREA_SemaTypedNode *node, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength);
+
+    /**
+     * @brief Returns the backend of a function: the member of the key backend that decides for it, already
+     * resolved by sema against the target description of the context (see the sema doc, "Backend"): the
+     * function attribute over the file attribute, a when item that holds over a plain item, and auto replaced by
+     * the best backend the target gives. Only a function of a file in marea.math has one.
+     * @param node Typed node to query. Must not be null.
+     * @param outText Receives the member name (auto never, only scalar, vector_extension or intrinsics), NUL
+     * terminated, valid for the lifetime of the arena, or null when there is none. Must not be null.
+     * @param outLength Receives the byte length of outText, 0 when outText is null. Must not be null.
+     * @return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS, ERROR_NULL_POINTER when node, outText or outLength is null, or
+     * ERROR_NO_BACKEND when the node is not a function of a file in marea.math.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedNodeGetBackend(const MAREA_SemaTypedNode *node, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength);
 
     /**
      * @brief Returns the resolved ownership mode of a typed node.

@@ -274,6 +274,19 @@ TEST(MAREAIrLayout, StructureHoldingALibraryTypeIsUndecided)
     EXPECT_EQ(MAREA_IrLayoutGetKind(MAREA_layoutAt(fixture.module, 1)), MAREA_IR_LAYOUT_KIND_ENUM) << "An undecided entry keeps its kind.";
 }
 
+TEST(MAREAIrLayout, StructureHoldingARegisteredInlineRunIsMeasuredFromItsDescriptor)
+{
+    GTEST_COUT << "Validating a structure that holds marea.array.Array<sinteger32, 4> is measured from the descriptor of the registry, and the table copies the numbers." << std::endl;
+
+    MAREA_IrFixture fixture(RESOLVE_EXTERNAL);
+
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; require marea.array; structure S a: uinteger8; b: marea.array.Array<sinteger32, 4>; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+
+    ASSERT_EQ(MAREA_IrModuleGetLayoutCount(fixture.module), 1U) << "The structure must have one entry.";
+
+    MAREA_expectStructure(fixture.module, 0, "S", 20, 4, { 0, 4 });
+}
+
 TEST(MAREAIrLayout, OpaqueStructureIsUndecidedWithTheOpaqueReason)
 {
     GTEST_COUT << "Validating an opaque structure has an entry that is undecided with the opaque reason and no member." << std::endl;
@@ -388,7 +401,7 @@ TEST(MAREAIrLayout, DroppedDeclarationHasNoEntry)
 
     MAREA_IrFixture fixture(RESOLVE_EXTERNAL);
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; structure Before a: uinteger8; end enum Gone A(v: uinteger64 = size_of<function(value: sinteger32): sinteger32>()); end structure After b: uinteger16; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; import collections.identity as identity; structure Before a: uinteger8; end enum Gone A(v: sinteger32 = identity<sinteger32>(1)); end structure After b: uinteger16; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     ASSERT_EQ(fixture.MAREA_irCodes().size(), 1U) << "The gap inside the enum must be reported once.";
 

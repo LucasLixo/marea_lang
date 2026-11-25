@@ -40,7 +40,7 @@ TEST(MAREAIrDump, SmallModuleHasAnExactText)
     ASSERT_EQ(fixture.MAREA_lower("namespace main; structure Point x: float64; end function f(a: sinteger32): sinteger32 local b: sinteger32 = a + 1; return b; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     EXPECT_EQ(MAREA_dumpOf(fixture), MAREA_lines({
-                                         "MODULE",
+                                         "MODULE \"main\"",
                                          "  STRUCTURE_DECLARATION \"Point\"",
                                          "    FIELD_DECLARATION \"x\" type=float64 resolved=float64",
                                          "  FUNCTION_DECLARATION \"f\" type=sinteger32 resolved=sinteger32",
@@ -67,7 +67,7 @@ TEST(MAREAIrDump, EmptyModuleIsOneLine)
 
     ASSERT_EQ(fixture.MAREA_lower("namespace main;"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
-    EXPECT_EQ(MAREA_dumpOf(fixture), "MODULE\n") << "An empty module must be one line.";
+    EXPECT_EQ(MAREA_dumpOf(fixture), "MODULE \"main\"\n") << "An empty module must be one line.";
 }
 
 TEST(MAREAIrDump, FlagsAndOperatorsAreWritten)
@@ -79,7 +79,7 @@ TEST(MAREAIrDump, FlagsAndOperatorsAreWritten)
     ASSERT_EQ(fixture.MAREA_lower("namespace main; function run() for index in 0 .. 3 do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     EXPECT_EQ(MAREA_dumpOf(fixture), MAREA_lines({
-                                         "MODULE",
+                                         "MODULE \"main\"",
                                          "  FUNCTION_DECLARATION \"run\"",
                                          "    PARAMETER_LIST",
                                          "    BLOCK",
@@ -199,10 +199,10 @@ TEST(MAREAIrDump, ForEachDumpsItsNameFlagAndChildren)
     ASSERT_EQ(fixture.MAREA_lower("namespace main; import collections.list as list; function run(#[semantics = reference_mutable] values: list<sinteger32>) for each key, value in mutable values do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     EXPECT_EQ(MAREA_dumpOf(fixture), MAREA_lines({
-                                         "MODULE",
+                                         "MODULE \"main\"",
                                          "  FUNCTION_DECLARATION \"run\"",
                                          "    PARAMETER_LIST",
-                                         "      PARAMETER \"values\" type=list resolved=list<sinteger32> flags=1",
+                                         "      PARAMETER \"values\" type=collections.list resolved=list<sinteger32> flags=1",
                                          "    BLOCK",
                                          "      FOR_EACH_STATEMENT \"value\" flags=1",
                                          "        IDENTIFIER \"key\"",

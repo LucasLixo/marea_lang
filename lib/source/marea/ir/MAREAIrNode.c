@@ -59,6 +59,8 @@ static const MAREA_Character8 *const MAREA_G_IrKindNames[] = {
     MAREA_NULLPTR, // INFO: the retired value of ZERO_VALUE, kept so that no later kind moves; it names no kind.
     "CONSTRUCT_CALL",
     "DESTROY_CALL",
+    "BACKEND_ATTRIBUTE",
+    "MACRO_CALL",
 };
 
 MAREA_STATIC_ASSERT((sizeof(MAREA_G_IrKindNames) / sizeof(MAREA_G_IrKindNames[0])) == MAREA_IR_KIND_COUNT, "MAREA_G_IrKindNames must have one entry per IR kind.");

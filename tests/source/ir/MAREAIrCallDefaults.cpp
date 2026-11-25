@@ -212,9 +212,25 @@ TEST(MAREAIrCallDefaults, CallOfAnImportedModuleFunctionStaysUnfilled)
     EXPECT_TRUE(fixture.MAREA_irCodes().empty()) << "The unfilled call raises no ir diagnostic.";
 }
 
-TEST(MAREAIrCallDefaults, StaticCallThroughATypeAliasKeepsItsWrittenArguments)
+TEST(MAREAIrCallDefaults, StaticCallThroughATypeAliasFillsItsDefault)
 {
-    GTEST_COUT << "Validating Alias.make(1.0), where Alias is a local type alias, is not followed to the type: the call keeps its written arguments." << std::endl;
+    GTEST_COUT << "Validating Alias.make(1.0), where Alias is a local type alias, is followed to the type and fills the default." << std::endl;
 
-    EXPECT_EQ(MAREA_argumentsOf("namespace main; " + VECTOR + "type Alias = Vector2; function run() local v: Vector2 = Alias.make(1.0); end", "make"), "(ARGUMENT_LIST (FLOAT_LITERAL 1.0))") << "The ir does not follow a type alias written as the receiver of a static call.";
+    EXPECT_EQ(MAREA_argumentsOf("namespace main; " + VECTOR + "type Alias = Vector2; function run() local v: Vector2 = Alias.make(1.0); end", "make"), "(ARGUMENT_LIST (FLOAT_LITERAL 1.0) (FLOAT_LITERAL 4.0))") << "The ir follows a type alias written as the receiver of a static call.";
+}
+
+TEST(MAREAIrCallDefaults, StaticCallThroughSelfFillsItsDefault)
+{
+    GTEST_COUT << "Validating Self.make(1.0) inside an implementation of the same type fills the default." << std::endl;
+
+    EXPECT_EQ(MAREA_argumentsOf("namespace main; " + VECTOR + "implementation Vector2 function twin(): Vector2 return Self.make(1.0); end end", "make"), "(ARGUMENT_LIST (FLOAT_LITERAL 1.0) (FLOAT_LITERAL 4.0))") << "Self names the type of the enclosing implementation.";
+}
+
+TEST(MAREAIrCallDefaults, StaticCallThroughSelfInsideAnotherTypeUsesThatType)
+{
+    GTEST_COUT << "Validating Self names the type of the block that holds the call, not another type with a function of the same name." << std::endl;
+
+    const std::string OTHER{ "structure Other z: float64; end implementation Other function make(z: float64, scale: float64 = 9.0): Other return Other{ z = z }; end function twin(): Other return Self.make(1.0); end end " };
+
+    EXPECT_EQ(MAREA_argumentsOf("namespace main; " + VECTOR + OTHER, "make"), "(ARGUMENT_LIST (FLOAT_LITERAL 1.0) (FLOAT_LITERAL 9.0))") << "The call must be filled from Other.make.";
 }

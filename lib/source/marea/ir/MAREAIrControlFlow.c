@@ -16,11 +16,11 @@ static const MAREA_Character8 MAREA_G_BoundPrefix[] = "$last";
 // INFO: the most decimal digits of the largest unsigned integer of 64 bits.
 #define MAREA_G_BOUND_DIGITS MAREA_INTEGER_SIZE(20)
 
-// INFO: the name of the hidden local that holds the scrutinee of a switch; the dollar sign cannot start a source identifier.
-static const MAREA_Character8 MAREA_G_SwitchName[] = "$switch";
+// INFO: the start of the name of the hidden local that holds the scrutinee of a switch; the dollar sign cannot start a source identifier. The number of the switch in its function follows it.
+static const MAREA_Character8 MAREA_G_SwitchPrefix[] = "$switch";
 
-// INFO: the name of the hidden local that holds the value of a return until the destroy calls ran; the dollar sign cannot start a source identifier.
-static const MAREA_Character8 MAREA_G_ReturnName[] = "$return";
+// INFO: the start of the name of the hidden local that holds the value of a return until the destroy calls ran; the dollar sign cannot start a source identifier. The number of the hoisted return in its function follows it.
+static const MAREA_Character8 MAREA_G_ReturnPrefix[] = "$return";
 
 // INFO: the place of the bound name among the children of a with statement (value, name, body) and of a partition statement (value, count, name, body).
 static const MAREA_IntegerSize MAREA_G_WithNameIndex = MAREA_INTEGER_SIZE(1);
@@ -114,26 +114,56 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerLocal(MAREA_IrContext *context, co
     return result;
 }
 
-// INFO: unreachable!() is the one built-in macro that has a lowering; every other macro is a Gap.
+// INFO: unreachable!() has a node of its own. build_value! and a macro that a library registered (a qualified name) are kept as a MACRO_CALL in an expression statement. Every other macro is a Gap.
 static MAREA_IrExcept MAREA_CALL MAREA_G_LowerMacroStatement(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode)
 {
     const MAREA_SemaTypedNode *call = MAREA_IrTypedFindChild(typed, MAREA_AST_KIND_MACRO_CALL);
 
     const MAREA_SemaTypedNode *name = MAREA_IrTypedFindChild(call, MAREA_AST_KIND_IDENTIFIER);
 
-    if (name == MAREA_NULLPTR) {
-        return MAREA_IR_EXCEPT_SUCCESS;
+    if ((call != MAREA_NULLPTR) && (name != MAREA_NULLPTR)) {
+        const MAREA_AstNode *nameAst = MAREA_SemaTypedNodeGetAstNode(name);
+
+        const MAREA_IntegerSize LENGTH = strlen("unreachable");
+
+        if ((MAREA_AstNodeGetTextLength(nameAst) == LENGTH) && (memcmp(MAREA_AstNodeGetText(nameAst), "unreachable", LENGTH) == 0)) {
+            return MAREA_IrNodeCreate(context, MAREA_IR_KIND_UNREACHABLE_STATEMENT, MAREA_SemaTypedNodeGetAstNode(typed), outNode);
+        }
+    }
+
+    MAREA_Boolean handled = MAREA_BOOLEAN_FALSE;
+
+    MAREA_IrNode *macro = MAREA_NULLPTR;
+
+    MAREA_IrExcept result = (call == MAREA_NULLPTR) ? MAREA_IR_EXCEPT_SUCCESS : MAREA_IrLowerMacroCall(context, call, &handled, &macro);
+
+    if ((result != MAREA_IR_EXCEPT_SUCCESS) || (call == MAREA_NULLPTR)) {
+        return result;
+    }
+
+    if (handled == MAREA_BOOLEAN_TRUE) {
+        if (macro == MAREA_NULLPTR) {
+            return MAREA_IR_EXCEPT_SUCCESS;
+        }
+
+        MAREA_IrNode *statement = MAREA_NULLPTR;
+
+        result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_EXPRESSION_STATEMENT, MAREA_SemaTypedNodeGetAstNode(typed), &statement);
+
+        if (result == MAREA_IR_EXCEPT_SUCCESS) {
+            result = MAREA_IrNodeAppendChild(context, statement, macro);
+        }
+
+        if (result == MAREA_IR_EXCEPT_SUCCESS) {
+            *outNode = statement;
+        }
+
+        return result;
     }
 
     const MAREA_AstNode *nameAst = MAREA_SemaTypedNodeGetAstNode(name);
 
-    const MAREA_IntegerSize LENGTH = strlen("unreachable");
-
-    if ((MAREA_AstNodeGetTextLength(nameAst) != LENGTH) || (memcmp(MAREA_AstNodeGetText(nameAst), "unreachable", LENGTH) != 0)) {
-        return MAREA_IrRaise(context, MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_MACRO, MAREA_SemaTypedNodeGetAstNode(typed), "Macro is not supported by the IR yet:", MAREA_AstNodeGetText(nameAst), MAREA_AstNodeGetTextLength(nameAst));
-    }
-
-    return MAREA_IrNodeCreate(context, MAREA_IR_KIND_UNREACHABLE_STATEMENT, MAREA_SemaTypedNodeGetAstNode(typed), outNode);
+    return MAREA_IrRaise(context, MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_MACRO, MAREA_SemaTypedNodeGetAstNode(typed), "Macro is not supported by the IR yet:", MAREA_AstNodeGetText(nameAst), MAREA_AstNodeGetTextLength(nameAst));
 }
 
 // INFO: a synthetic node keeps only the position of the AST node it stands for, so its text and flags are cleared.
@@ -323,15 +353,15 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_PrefixContinues(MAREA_IrContext *contex
     return MAREA_IR_EXCEPT_SUCCESS;
 }
 
-// INFO: gives the next for-range loop of the function the name of its hidden bound, "$last" and its number, so two loops of one function never share one. The name ends with a NUL byte, as every reference to it needs.
-static MAREA_IrExcept MAREA_CALL MAREA_G_CreateBoundName(MAREA_IrContext *context, const MAREA_Character8 **outName)
+// INFO: gives a hidden local the name prefix and its number, and adds one to the counter, so two hidden locals of one kind in one function never share a name. The name ends with a NUL byte, as every reference to it needs.
+static MAREA_IrExcept MAREA_CALL MAREA_G_CreateNumberedName(MAREA_IrContext *context, const MAREA_Character8 *prefix, MAREA_IntegerSize *counter, const MAREA_Character8 **outName)
 {
     MAREA_Character8 digits[MAREA_G_BOUND_DIGITS];
 
     MAREA_IntegerSize digitCount = MAREA_INTEGER_SIZE(0);
-    MAREA_IntegerSize rest = context->loopCount;
+    MAREA_IntegerSize rest = *counter;
 
-    context->loopCount = (context->loopCount + MAREA_INTEGER_SIZE(1));
+    *counter = (*counter + MAREA_INTEGER_SIZE(1));
 
     do {
         digits[digitCount] = (MAREA_Character8)('0' + (rest % MAREA_INTEGER_SIZE(10)));
@@ -339,7 +369,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_CreateBoundName(MAREA_IrContext *contex
         rest = (rest / MAREA_INTEGER_SIZE(10));
     } while (rest != MAREA_INTEGER_SIZE(0));
 
-    const MAREA_IntegerSize PREFIX_LENGTH = strlen(MAREA_G_BoundPrefix);
+    const MAREA_IntegerSize PREFIX_LENGTH = strlen(prefix);
 
     MAREA_Null memory = MAREA_NULLPTR;
 
@@ -349,7 +379,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_CreateBoundName(MAREA_IrContext *contex
 
     MAREA_Character8 *name = memory;
 
-    memcpy(name, MAREA_G_BoundPrefix, PREFIX_LENGTH);
+    memcpy(name, prefix, PREFIX_LENGTH);
 
     for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < digitCount; index = (index + MAREA_INTEGER_SIZE(1))) {
         name[(PREFIX_LENGTH + index)] = digits[(digitCount - MAREA_INTEGER_SIZE(1) - index)];
@@ -360,6 +390,12 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_CreateBoundName(MAREA_IrContext *contex
     *outName = name;
 
     return MAREA_IR_EXCEPT_SUCCESS;
+}
+
+// INFO: gives the next for-range loop of the function the name of its hidden bound, "$last" and its number.
+static MAREA_IrExcept MAREA_CALL MAREA_G_CreateBoundName(MAREA_IrContext *context, const MAREA_Character8 **outName)
+{
+    return MAREA_G_CreateNumberedName(context, MAREA_G_BoundPrefix, &context->loopCount, outName);
 }
 
 // INFO: for name in first .. last do body end becomes BLOCK(LOCAL name = first, LOCAL $lastN = last, WHILE name <= $lastN: body, step), where N is the number of the loop in its function, the outer loop first.
@@ -558,7 +594,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_CreateComparison(MAREA_IrContext *conte
     result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_BINARY_EXPRESSION, valueAst, &comparison);
 
     if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_G_CreateReference(context, switchAst, MAREA_G_SwitchName, switchLocal, &reference);
+        result = MAREA_G_CreateReference(context, switchAst, switchLocal->text, switchLocal, &reference);
     }
 
     if (result == MAREA_IR_EXCEPT_SUCCESS) {
@@ -774,8 +810,16 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_CreateSwitchScope(MAREA_IrContext *cont
         return result;
     }
 
-    local->text = MAREA_G_SwitchName;
-    local->textLength = (MAREA_Uinteger32)strlen(MAREA_G_SwitchName);
+    const MAREA_Character8 *name = MAREA_NULLPTR;
+
+    result = MAREA_G_CreateNumberedName(context, MAREA_G_SwitchPrefix, &context->switchCount, &name);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    local->text = name;
+    local->textLength = (MAREA_Uinteger32)strlen(name);
 
     // INFO: the hidden local holds the scrutinee, so it has the type of the scrutinee.
     MAREA_IrNodeShareResolvedType(local, scrutinee);
@@ -947,6 +991,199 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerForEach(MAREA_IrContext *context, 
     return MAREA_IR_EXCEPT_SUCCESS;
 }
 
+// INFO: the text of the condition of the loop that a do-while becomes.
+static const MAREA_Character8 MAREA_G_TrueText[] = "true";
+
+// INFO: builds IF NOT condition THEN BREAK, the test at the end of a do-while body. The condition is lowered again from its typed node each time, so no node is ever used in two places. A gap in the condition makes no node and raises its own diagnostic.
+static MAREA_IrExcept MAREA_CALL MAREA_G_CreateLeaveTest(MAREA_IrContext *context, const MAREA_AstNode *loopAst, const MAREA_SemaTypedNode *conditionTyped, MAREA_IrNode **outTest)
+{
+    MAREA_IrNode *condition = MAREA_NULLPTR;
+
+    *outTest = MAREA_NULLPTR;
+
+    MAREA_IrExcept result = MAREA_IrLowerExpression(context, conditionTyped, &condition);
+
+    if ((result != MAREA_IR_EXCEPT_SUCCESS) || (condition == MAREA_NULLPTR)) {
+        return result;
+    }
+
+    MAREA_IrNode *test = MAREA_NULLPTR;
+    MAREA_IrNode *negation = MAREA_NULLPTR;
+    MAREA_IrNode *leave = MAREA_NULLPTR;
+    MAREA_IrNode *breakNode = MAREA_NULLPTR;
+
+    result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_IF_STATEMENT, loopAst, &test);
+
+    if (result == MAREA_IR_EXCEPT_SUCCESS) {
+        result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_UNARY_EXPRESSION, loopAst, &negation);
+    }
+
+    if (result == MAREA_IR_EXCEPT_SUCCESS) {
+        result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_BLOCK, loopAst, &leave);
+    }
+
+    if (result == MAREA_IR_EXCEPT_SUCCESS) {
+        result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_BREAK_STATEMENT, loopAst, &breakNode);
+    }
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    MAREA_G_KeepOnlyPosition(test);
+    MAREA_G_KeepOnlyPosition(negation);
+    MAREA_G_KeepOnlyPosition(leave);
+    MAREA_G_KeepOnlyPosition(breakNode);
+
+    negation->operatorKind = MAREA_TOKEN_KIND_KEYWORD_NOT;
+    MAREA_IrNodeSetResolvedTypeStatic(negation, MAREA_G_TestType);
+
+    MAREA_IrNode *parents[] = { negation, leave, test, test };
+    MAREA_IrNode *children[] = { condition, breakNode, negation, leave };
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < MAREA_ARRAY_SIZE(parents); index = (index + MAREA_INTEGER_SIZE(1))) {
+        result = MAREA_IrNodeAppendChild(context, parents[index], children[index]);
+
+        if (result != MAREA_IR_EXCEPT_SUCCESS) {
+            return result;
+        }
+    }
+
+    *outTest = test;
+
+    return MAREA_IR_EXCEPT_SUCCESS;
+}
+
+// INFO: a continue of a do-while goes to the test, so each continue that targets the loop becomes BLOCK(test, continue). A nested while or for each stops the walk, because a continue inside it targets that loop; a nested do-while is a while by now, so it stops it too. A gap in the condition ends the walk with its diagnostic, and complete is false.
+static MAREA_IrExcept MAREA_CALL MAREA_G_PrefixContinuesWithTest(MAREA_IrContext *context, const MAREA_AstNode *loopAst, const MAREA_SemaTypedNode *conditionTyped, MAREA_IrNode *node, MAREA_Boolean *outComplete)
+{
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < node->childCount; index = (index + MAREA_INTEGER_SIZE(1))) {
+        MAREA_IrNode *child = node->children[index];
+
+        if ((child->kind == MAREA_IR_KIND_WHILE_STATEMENT) || (child->kind == MAREA_IR_KIND_FOR_EACH_STATEMENT)) {
+            continue;
+        }
+
+        if (child->kind != MAREA_IR_KIND_CONTINUE_STATEMENT) {
+            const MAREA_IrExcept result = MAREA_G_PrefixContinuesWithTest(context, loopAst, conditionTyped, child, outComplete);
+
+            if ((result != MAREA_IR_EXCEPT_SUCCESS) || (*outComplete == MAREA_BOOLEAN_FALSE)) {
+                return result;
+            }
+
+            continue;
+        }
+
+        MAREA_IrNode *test = MAREA_NULLPTR;
+
+        MAREA_IrExcept result = MAREA_G_CreateLeaveTest(context, loopAst, conditionTyped, &test);
+
+        if ((result != MAREA_IR_EXCEPT_SUCCESS) || (test == MAREA_NULLPTR)) {
+            *outComplete = MAREA_BOOLEAN_FALSE;
+
+            return result;
+        }
+
+        MAREA_IrNode *wrapper = MAREA_NULLPTR;
+
+        result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_BLOCK, loopAst, &wrapper);
+
+        if (result == MAREA_IR_EXCEPT_SUCCESS) {
+            MAREA_G_KeepOnlyPosition(wrapper);
+            result = MAREA_IrNodeAppendChild(context, wrapper, test);
+        }
+
+        if (result == MAREA_IR_EXCEPT_SUCCESS) {
+            result = MAREA_IrNodeAppendChild(context, wrapper, child);
+        }
+
+        if (result != MAREA_IR_EXCEPT_SUCCESS) {
+            return result;
+        }
+
+        node->children[index] = wrapper;
+    }
+
+    return MAREA_IR_EXCEPT_SUCCESS;
+}
+
+// INFO: do body while cond end becomes WHILE true BLOCK(BLOCK(body), IF NOT cond THEN BREAK), so the body runs first and in its own scope, which the test cannot read. The IR has only the while loop, so both backends read this one shape.
+static MAREA_IrExcept MAREA_CALL MAREA_G_LowerDoWhile(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode)
+{
+    if (MAREA_SemaTypedNodeGetChildCount(typed) < MAREA_INTEGER_SIZE(2)) {
+        return MAREA_IR_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_AstNode *loopAst = MAREA_SemaTypedNodeGetAstNode(typed);
+
+    const MAREA_SemaTypedNode *conditionTyped = MAREA_IrTypedChildAt(typed, MAREA_INTEGER_SIZE(1));
+
+    MAREA_IrNode *body = MAREA_NULLPTR;
+
+    MAREA_IrExcept result = MAREA_IrLowerBlock(context, MAREA_IrTypedChildAt(typed, MAREA_INTEGER_SIZE(0)), &body);
+
+    if ((result != MAREA_IR_EXCEPT_SUCCESS) || (body == MAREA_NULLPTR)) {
+        return result;
+    }
+
+    MAREA_IrNode *test = MAREA_NULLPTR;
+
+    result = MAREA_G_CreateLeaveTest(context, loopAst, conditionTyped, &test);
+
+    if ((result != MAREA_IR_EXCEPT_SUCCESS) || (test == MAREA_NULLPTR)) {
+        return result;
+    }
+
+    MAREA_IrNode *loop = MAREA_NULLPTR;
+    MAREA_IrNode *always = MAREA_NULLPTR;
+    MAREA_IrNode *loopBody = MAREA_NULLPTR;
+
+    result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_WHILE_STATEMENT, loopAst, &loop);
+
+    if (result == MAREA_IR_EXCEPT_SUCCESS) {
+        result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_BOOLEAN_LITERAL, loopAst, &always);
+    }
+
+    if (result == MAREA_IR_EXCEPT_SUCCESS) {
+        result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_BLOCK, loopAst, &loopBody);
+    }
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    MAREA_G_KeepOnlyPosition(loop);
+    MAREA_G_KeepOnlyPosition(loopBody);
+
+    always->text = MAREA_G_TrueText;
+    always->textLength = (MAREA_Uinteger32)strlen(MAREA_G_TrueText);
+    always->flags = MAREA_UINTEGER_32(0);
+    MAREA_IrNodeSetResolvedTypeStatic(always, MAREA_G_TestType);
+
+    MAREA_Boolean complete = MAREA_BOOLEAN_TRUE;
+
+    result = MAREA_G_PrefixContinuesWithTest(context, loopAst, conditionTyped, body, &complete);
+
+    if ((result != MAREA_IR_EXCEPT_SUCCESS) || (complete == MAREA_BOOLEAN_FALSE)) {
+        return result;
+    }
+
+    MAREA_IrNode *parents[] = { loopBody, loopBody, loop, loop };
+    MAREA_IrNode *children[] = { body, test, always, loopBody };
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < MAREA_ARRAY_SIZE(parents); index = (index + MAREA_INTEGER_SIZE(1))) {
+        result = MAREA_IrNodeAppendChild(context, parents[index], children[index]);
+
+        if (result != MAREA_IR_EXCEPT_SUCCESS) {
+            return result;
+        }
+    }
+
+    *outNode = loop;
+
+    return MAREA_IR_EXCEPT_SUCCESS;
+}
+
 static MAREA_IrExcept MAREA_CALL MAREA_G_LowerStatement(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode)
 {
     if (typed == MAREA_NULLPTR) {
@@ -972,6 +1209,8 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerStatement(MAREA_IrContext *context
         return MAREA_G_LowerKept(context, MAREA_IR_KIND_ELSE_CLAUSE, typed, outNode);
     case MAREA_AST_KIND_WHILE_STATEMENT:
         return MAREA_G_LowerKept(context, MAREA_IR_KIND_WHILE_STATEMENT, typed, outNode);
+    case MAREA_AST_KIND_DO_WHILE_STATEMENT:
+        return MAREA_G_LowerDoWhile(context, typed, outNode);
     case MAREA_AST_KIND_RETURN_STATEMENT:
         return MAREA_G_LowerKept(context, MAREA_IR_KIND_RETURN_STATEMENT, typed, outNode);
     case MAREA_AST_KIND_BREAK_STATEMENT:
@@ -1112,9 +1351,9 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_MaterializeDestroys(MAREA_IrContext *co
 // INFO: true when the value of a return is already the hidden local $return, so an outer wrap must not hoist it again.
 static MAREA_Boolean MAREA_CALL MAREA_G_IsReturnReference(const MAREA_IrNode *value)
 {
-    const MAREA_IntegerSize LENGTH = strlen(MAREA_G_ReturnName);
+    const MAREA_IntegerSize LENGTH = strlen(MAREA_G_ReturnPrefix);
 
-    return ((value->kind == MAREA_IR_KIND_IDENTIFIER) && (value->textLength == (MAREA_Uinteger32)LENGTH) && (memcmp(value->text, MAREA_G_ReturnName, LENGTH) == 0)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+    return ((value->kind == MAREA_IR_KIND_IDENTIFIER) && (value->textLength > (MAREA_Uinteger32)LENGTH) && (memcmp(value->text, MAREA_G_ReturnPrefix, LENGTH) == 0)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
 // INFO: moves the value of a RETURN_STATEMENT into a new LOCAL_DECLARATION $return and leaves IDENTIFIER $return as the value, so
@@ -1142,15 +1381,24 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_HoistReturnValue(MAREA_IrContext *conte
     }
 
     MAREA_G_KeepOnlyPosition(declaration);
-    declaration->text = MAREA_G_ReturnName;
-    declaration->textLength = (MAREA_Uinteger32)strlen(MAREA_G_ReturnName);
+
+    const MAREA_Character8 *name = MAREA_NULLPTR;
+
+    result = MAREA_G_CreateNumberedName(context, MAREA_G_ReturnPrefix, &context->returnCount, &name);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    declaration->text = name;
+    declaration->textLength = (MAREA_Uinteger32)strlen(name);
 
     // INFO: the hidden local holds the returned value, so it has the type of that value.
     MAREA_IrNodeShareResolvedType(declaration, value);
 
     MAREA_IrNode *reference = MAREA_NULLPTR;
 
-    result = MAREA_G_CreateReference(context, positionAst, MAREA_G_ReturnName, declaration, &reference);
+    result = MAREA_G_CreateReference(context, positionAst, name, declaration, &reference);
 
     if (result != MAREA_IR_EXCEPT_SUCCESS) {
         return result;
