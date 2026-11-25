@@ -3,6 +3,7 @@
 
 #include "tests/dependencies.hpp"
 
+#include "tests/MAREALibraryRegistryHelpers.hpp"
 #include "tests/MAREASemaHelpers.hpp"
 
 #include <algorithm>
@@ -243,6 +244,8 @@ namespace
         MAREA_RunResult result;
 
         MAREA_SemaFixture fixture([](const std::string &text, const MAREA_AstNode **) { return MAREA_resolveLibrary(text); });
+
+        MAREA_IGNORE(MAREA_SemaContextSetTypeRegistry(fixture.context, MAREA_buildLibraryRegistry(fixture.parser.lexer.arena)));
 
         result.except = fixture.MAREA_sema(source, "main.marea");
 

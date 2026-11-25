@@ -48,6 +48,8 @@ target_include_directories(marea_tests PRIVATE "${MAREA_FOLDER_LIB_INTERNAL}")
 
 target_compile_definitions(marea_tests PRIVATE "MAREA_TESTS_EXAMPLES_DIRECTORY=\"${MAREA_FOLDER_EXAMPLES}\"")
 
+target_compile_definitions(marea_tests PRIVATE "MAREA_TESTS_SEMA_SOURCE_DIRECTORY=\"${MAREA_FOLDER_LIB_SOURCE}/marea/sema\"")
+
 target_compile_definitions(marea_tests PRIVATE "MAREA_TESTS_LANGUAGE_DIRECTORY=\"${MAREA_FOLDER_TESTS}/language\"")
 
 if(TARGET marea::base)

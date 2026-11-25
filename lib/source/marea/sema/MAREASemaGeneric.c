@@ -600,20 +600,23 @@ static MAREA_SemaTypeClass MAREA_CALL MAREA_G_Classify(const MAREA_SemaContext *
         return MAREA_SEMA_TYPE_CLASS_COPY_BUILTIN;
     }
 
+    // INFO: a library registers roles and an ownership class, never a name: a registered type is sorted
+    // by its descriptor before a bare single name is even looked for.
+    const MAREA_TypeDescriptor *descriptor = MAREA_NULLPTR;
+
+    if (MAREA_SemaDescriptorOfType(context, type, &descriptor) == MAREA_BOOLEAN_TRUE) {
+        *outName = descriptor->name;
+        *outLength = descriptor->nameLength;
+
+        return (descriptor->ownershipClass == MAREA_TYPE_OWNERSHIP_CLASS_MOVE) ? MAREA_SEMA_TYPE_CLASS_MOVE_BUILTIN : MAREA_SEMA_TYPE_CLASS_COPY_BUILTIN;
+    }
+
     if (MAREA_G_SingleName(type, outName, outLength) == MAREA_BOOLEAN_FALSE) {
         return MAREA_SEMA_TYPE_CLASS_EXTERNAL;
     }
 
     if (MAREA_SemaIsGenericInScope(context, *outName, *outLength) == MAREA_BOOLEAN_TRUE) {
         return MAREA_SEMA_TYPE_CLASS_GENERIC;
-    }
-
-    if ((MAREA_G_TextIs(*outName, *outLength, "owned") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextIs(*outName, *outLength, "task") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextIs(*outName, *outLength, "vector") == MAREA_BOOLEAN_TRUE)) {
-        return MAREA_SEMA_TYPE_CLASS_MOVE_BUILTIN;
-    }
-
-    if ((MAREA_G_TextIs(*outName, *outLength, "array") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextIs(*outName, *outLength, "pointer") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextIs(*outName, *outLength, "slice") == MAREA_BOOLEAN_TRUE)) {
-        return MAREA_SEMA_TYPE_CLASS_COPY_BUILTIN;
     }
 
     if (MAREA_SemaIsPrimitiveTypeName(*outName, *outLength) == MAREA_BOOLEAN_TRUE) {
@@ -684,9 +687,11 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsSatisfied(const MAREA_SemaContext *con
             return MAREA_BOOLEAN_TRUE;
         }
 
-        // INFO: an array is copied element by element, so it is Copyable only when its element is. A pointer and a slice copy the handle.
+        // INFO: an inline run (an index-protocol type with no role) is copied element by element, so it is Copyable only when its element is. A pointer and a view copy the handle.
         if (CLASS == MAREA_SEMA_TYPE_CLASS_COPY_BUILTIN) {
-            if (MAREA_G_TextIs(name, nameLength, "array") == MAREA_BOOLEAN_FALSE) {
+            const MAREA_TypeDescriptor *descriptor = MAREA_NULLPTR;
+
+            if ((MAREA_SemaDescriptorOfType(context, type, &descriptor) == MAREA_BOOLEAN_FALSE) || (descriptor->hasIndexProtocol == MAREA_BOOLEAN_FALSE) || (descriptor->roles != MAREA_TYPE_ROLE_NONE)) {
                 return MAREA_BOOLEAN_TRUE;
             }
 
@@ -787,11 +792,13 @@ const MAREA_AstNode *MAREA_CALL MAREA_SemaInferType(const MAREA_SemaContext *con
     if (KIND == MAREA_AST_KIND_INDEX_ACCESS) {
         const MAREA_AstNode *base = MAREA_SemaInferType(context, MAREA_SemaChildAt(expression, 0));
 
-        const MAREA_Character8 *name = MAREA_NULLPTR;
+        const MAREA_TypeDescriptor *descriptor = MAREA_NULLPTR;
 
-        MAREA_IntegerSize nameLength = 0;
+        // INFO: a registered type with the index protocol (an array, a vector or a view) has an element at
+        // index 0; a raw pointer is index-worthy too.
+        const MAREA_Boolean HAS_ELEMENT = (MAREA_SemaDescriptorOfType(context, base, &descriptor) == MAREA_BOOLEAN_TRUE) ? (((descriptor->hasIndexProtocol == MAREA_BOOLEAN_TRUE) || ((descriptor->roles & MAREA_TYPE_ROLE_RAW_POINTER) != MAREA_TYPE_ROLE_NONE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE) : MAREA_BOOLEAN_FALSE;
 
-        if ((MAREA_G_SingleName(base, &name, &nameLength) == MAREA_BOOLEAN_FALSE) || ((MAREA_G_TextIs(name, nameLength, "array") == MAREA_BOOLEAN_FALSE) && (MAREA_G_TextIs(name, nameLength, "slice") == MAREA_BOOLEAN_FALSE) && (MAREA_G_TextIs(name, nameLength, "vector") == MAREA_BOOLEAN_FALSE) && (MAREA_G_TextIs(name, nameLength, "pointer") == MAREA_BOOLEAN_FALSE))) {
+        if (HAS_ELEMENT == MAREA_BOOLEAN_FALSE) {
             return MAREA_NULLPTR;
         }
 
@@ -840,6 +847,25 @@ static MAREA_Boolean MAREA_CALL MAREA_G_ArgumentsDiffer(const MAREA_SemaContext 
 
     if ((MAREA_AstNodeGetKind(left) == MAREA_AST_KIND_INTEGER_LITERAL) && (MAREA_AstNodeGetKind(right) == MAREA_AST_KIND_INTEGER_LITERAL)) {
         return (MAREA_SemaTextEquals(MAREA_AstNodeGetText(left), MAREA_AstNodeGetTextLength(left), MAREA_AstNodeGetText(right), MAREA_AstNodeGetTextLength(right)) == MAREA_BOOLEAN_TRUE) ? MAREA_BOOLEAN_FALSE : MAREA_BOOLEAN_TRUE;
+    }
+
+    // INFO: two registered types compare by their descriptor identity, never by a bare name: the same
+    // descriptor's own type arguments differ the same way a user structure's do; a different descriptor,
+    // or only one side registered, is never proven to differ.
+    const MAREA_TypeDescriptor *leftDescriptor = MAREA_NULLPTR;
+
+    const MAREA_TypeDescriptor *rightDescriptor = MAREA_NULLPTR;
+
+    const MAREA_Boolean LEFT_REGISTERED = MAREA_SemaDescriptorOfType(context, left, &leftDescriptor);
+
+    const MAREA_Boolean RIGHT_REGISTERED = MAREA_SemaDescriptorOfType(context, right, &rightDescriptor);
+
+    if ((LEFT_REGISTERED == MAREA_BOOLEAN_TRUE) || (RIGHT_REGISTERED == MAREA_BOOLEAN_TRUE)) {
+        if ((LEFT_REGISTERED == MAREA_BOOLEAN_FALSE) || (RIGHT_REGISTERED == MAREA_BOOLEAN_FALSE) || (leftDescriptor != rightDescriptor)) {
+            return MAREA_BOOLEAN_FALSE;
+        }
+
+        return MAREA_G_ArgumentListDiffers(context, MAREA_G_FindChild(left, MAREA_AST_KIND_TYPE_ARGUMENTS), MAREA_G_FindChild(right, MAREA_AST_KIND_TYPE_ARGUMENTS), (depth + 1));
     }
 
     const MAREA_Character8 *leftName = MAREA_NULLPTR;
@@ -897,13 +923,16 @@ const MAREA_AstNode *MAREA_CALL MAREA_SemaElementType(const MAREA_SemaContext *c
 {
     const MAREA_AstNode *type = MAREA_SemaInferType(context, collection);
 
-    // INFO: one owned wrapper is peeled, then the first argument of vector, array or slice is the element.
+    // INFO: one owner-role wrapper is peeled, then the first type argument of a registered type with the
+    // index protocol is the element.
     for (MAREA_Uinteger32 step = 0; step < 2; ++step) {
-        const MAREA_Character8 *name = MAREA_NULLPTR;
+        const MAREA_TypeDescriptor *descriptor = MAREA_NULLPTR;
 
-        MAREA_IntegerSize length = 0;
+        if (MAREA_SemaDescriptorOfType(context, type, &descriptor) == MAREA_BOOLEAN_FALSE) {
+            return MAREA_NULLPTR;
+        }
 
-        const MAREA_AstNode *arguments = (MAREA_G_SingleName(type, &name, &length) == MAREA_BOOLEAN_TRUE) ? MAREA_G_FindChild(type, MAREA_AST_KIND_TYPE_ARGUMENTS) : MAREA_NULLPTR;
+        const MAREA_AstNode *arguments = MAREA_G_FindChild(type, MAREA_AST_KIND_TYPE_ARGUMENTS);
 
         const MAREA_AstNode *first = (arguments == MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_SemaChildAt(arguments, 0);
 
@@ -911,13 +940,13 @@ const MAREA_AstNode *MAREA_CALL MAREA_SemaElementType(const MAREA_SemaContext *c
             return MAREA_NULLPTR;
         }
 
-        if ((step == 0) && (MAREA_G_TextIs(name, length, "owned") == MAREA_BOOLEAN_TRUE)) {
+        if ((step == 0) && ((descriptor->roles & MAREA_TYPE_ROLE_OWNER) != MAREA_TYPE_ROLE_NONE)) {
             type = first;
 
             continue;
         }
 
-        return ((MAREA_G_TextIs(name, length, "vector") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextIs(name, length, "array") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextIs(name, length, "slice") == MAREA_BOOLEAN_TRUE)) ? first : MAREA_NULLPTR;
+        return (descriptor->hasIndexProtocol == MAREA_BOOLEAN_TRUE) ? first : MAREA_NULLPTR;
     }
 
     return MAREA_NULLPTR;

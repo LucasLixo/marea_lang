@@ -5,6 +5,7 @@
 
 #include "marea/sema/MAREASemaTypedAst.h"
 
+#include "tests/MAREALibraryRegistryHelpers.hpp"
 #include "tests/MAREASemaHelpers.hpp"
 
 #include <algorithm>
@@ -107,6 +108,8 @@ TEST(MAREASemaTypedAstExamples, EveryExampleBuildsATypedTreeWithoutCrashing)
 
     for (const MAREA_ExampleFile &file : FILES) {
         MAREA_SemaFixture fixture(RESOLVE);
+
+        MAREA_IGNORE(MAREA_SemaContextSetTypeRegistry(fixture.context, MAREA_buildLibraryRegistry(fixture.parser.lexer.arena)));
 
         ASSERT_EQ(fixture.MAREA_sema(file.source, file.relativePath), MAREA_SEMA_EXCEPT_SUCCESS) << "The check of " << file.relativePath << " must succeed.";
 
@@ -462,6 +465,8 @@ TEST(MAREASemaTypedAstExamples, EveryUntypedExpressionOfEveryExampleIsInAnAllowe
     for (const MAREA_ExampleFile &file : FILES) {
         MAREA_SemaFixture fixture(RESOLVE);
 
+        MAREA_IGNORE(MAREA_SemaContextSetTypeRegistry(fixture.context, MAREA_buildLibraryRegistry(fixture.parser.lexer.arena)));
+
         ASSERT_EQ(MAREA_SemaImportResolverSetSignatureFunction(fixture.resolver, &MAREA_fixtureSignatureThunk), MAREA_SEMA_EXCEPT_SUCCESS);
 
         ASSERT_EQ(fixture.MAREA_sema(file.source, file.relativePath), MAREA_SEMA_EXCEPT_SUCCESS) << "The check of " << file.relativePath << " must succeed.";
@@ -596,6 +601,8 @@ TEST(MAREASemaTypedAstExamples, EveryLiteralOfEveryExampleHasAResolvedType)
     for (const MAREA_ExampleFile &file : FILES) {
         MAREA_SemaFixture fixture(RESOLVE);
 
+        MAREA_IGNORE(MAREA_SemaContextSetTypeRegistry(fixture.context, MAREA_buildLibraryRegistry(fixture.parser.lexer.arena)));
+
         ASSERT_EQ(fixture.MAREA_sema(file.source, file.relativePath), MAREA_SEMA_EXCEPT_SUCCESS) << "The check of " << file.relativePath << " must succeed.";
 
         ASSERT_EQ(fixture.MAREA_errorCount(), MAREA_INTEGER_SIZE(0)) << "The example " << file.relativePath << " must check with zero errors.";
@@ -700,6 +707,8 @@ TEST(MAREASemaTypedAstExamples, EveryLoopNameOfEveryExampleHasATypeUnlessItsHead
 
     for (const MAREA_ExampleFile &file : FILES) {
         MAREA_SemaFixture fixture(RESOLVE);
+
+        MAREA_IGNORE(MAREA_SemaContextSetTypeRegistry(fixture.context, MAREA_buildLibraryRegistry(fixture.parser.lexer.arena)));
 
         ASSERT_EQ(fixture.MAREA_sema(file.source, file.relativePath), MAREA_SEMA_EXCEPT_SUCCESS) << "The check of " << file.relativePath << " must succeed.";
 

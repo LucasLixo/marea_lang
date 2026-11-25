@@ -5,6 +5,7 @@
 -- A value is copied into an owned parameter.
 
 namespace main;
+require demo.owned;
 
 structure Point
     x: sinteger32;
@@ -20,7 +21,7 @@ function make_point(): Point
     return Point{ x = 1, y = 2 };
 end
 
-function take_point(point: owned<Point>): sinteger32
+function take_point(point: demo.owned<Point>): sinteger32
     return point.x;
 end
 

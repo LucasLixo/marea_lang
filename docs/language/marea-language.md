@@ -274,8 +274,8 @@ today. The holes are grouped by kind: memory, permission and aliasing. A gap tha
 issue shows one hole through more than one program.
 
 Settled rule 2 (the default borrow is read-only) holds in sema, the grammar and the examples: a parameter with no
-attribute is a read-only borrow, unless its type is by value (a primitive, an enum, `array`, `pointer`, `slice`) or
-moves in (`owned`, `task`, `vector`). A write needs the explicit `#[semantics = reference_mutable]`. Sema rejects a
+attribute is a read-only borrow, unless its type is by value (a primitive, an enum, a registered type of the copy class) or
+moves in (a registered type of the move class). A write needs the explicit `#[semantics = reference_mutable]`. Sema rejects a
 write through a read-only borrow with 3069: an assignment, a `for each ... in mutable` or `partition mutable` over a
 read-only source, a read-only borrow given to a write-borrow parameter, and a call result or a literal given to a
 write-borrow parameter.
@@ -804,7 +804,8 @@ Function declaration and call, parameters and defaults, the result and `return v
 Namespaces, `main`, imports and the resolver outcomes, the reserved first segments `c` and `marea`, and
 visibility. The items sit in `tests/language/<class>/namespaces/`. Every item is one file named `main.marea` for the
 runner, so its namespace is `main`; a namespace of another name gives 3002 (L-NAMESPACES-024 to 027). The runner
-answers `EXTERNAL` to a `c.` name, to `demo` and every `demo.` name (the neutral root of the fixtures), and to the
+registers the library types the items write (`demo.array`, `demo.vector`, `demo.slice`, `demo.pointer`, `demo.owned`, `demo.task`) with
+their roles and ownership class, because sema knows no library by name, and answers `EXTERNAL` to a `c.` name, to `demo` and every `demo.` name (the neutral root of the fixtures), and to the
 three names `marea.array`, `marea.memory` and `marea.tasks`. It answers `NOT_FOUND` to every other name, so
 `marea.text`, a project namespace and the namespace itself give 3001 (L-NAMESPACES-020 to 023, 038, 039, 042, 057).
 An import binds no name: the use writes the full path, and a short name exists only through `as`
@@ -1006,7 +1007,7 @@ Facts the items fix, checked by running the compiler:
 - A part is a name of the body only: its use after the `end` of the body is the undeclared name 3004 (item 080).
 - A parameter with no attribute is a read-only borrow (settled rule 2), so `spawn` accepts it as a name that is not a
   write-borrow parameter. `examples/parallel/scaling.marea` writes `#[semantics = reference_mutable]` on the two
-  parameters it writes (`scale_slice`, `scale_all`) and requires `c.array`, `c.slice` and `c.task`.
+  parameters it writes (`scale_slice`, `scale_all`) and requires `marea.array`, `c.memory` and `c.threads`.
 
 ### Parallel code: accept
 
@@ -1122,7 +1123,7 @@ Facts the items fix, checked by running the compiler:
 - The type of a field read through a `for each` variable is compared now (item 070, 3011), as for a parameter, a local
   or an index, and the type arguments of a library type or of a user generic structure are compared with the declared
   type (items 067 to 069, 3014). A pair that mentions a generic parameter, an alias or an import, and a different head
-  such as `owned<vector<T>>` into `vector<T>`, is still accepted.
+  such as an owner of a vector of `T` into a vector of `T`, is still accepted.
 - A file constant passed to a generic function that takes a write borrow gives 3032, as for any function (item 010); a
   spawn of a write borrow of a call result through a generic function gives 3020 (item 029).
 
@@ -1330,6 +1331,9 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
   second file.
 - The codes 3066, 3067 and 3068 (a private symbol, type or field of another namespace) have no item for the same
   reason: they need a second namespace (issue #250). `tests/source/sema/MAREASemaVisibility.cpp` proves them.
+- The code 3082 (`ELEMENT_WITHOUT_MEASURED_LAYOUT`, an element with no measured layout held by value) has no item
+  yet: no shipped library type exists for an item to write, since sema now knows no library and only reads the
+  descriptors a registry holds (a library type in an item is the fixture root `demo`, registered by the runner). `tests/source/sema/MAREASemaTypeRegistry.cpp` proves the code with a fixture descriptor instead.
 - The runner compares the codes of a `reject` item in the order the compiler gives them, so an item over two stages
   depends on the order of the stages (lex, then parse, then sema).
 - A known_gap item must be accepted today, so a valid program that the compiler rejects by mistake has no item. Known:

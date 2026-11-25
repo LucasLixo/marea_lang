@@ -9,14 +9,14 @@ require marea.array;
 
 #[visibility = public]
 function show_collections(): sinteger32
-    -- marea.array<T>: elements of one type. An element of a primitive type is copied out.
-    local values: marea.array<float32> = marea.array<float32>{ 1.0, 2.0, 3.0 };
+    -- marea.array.Array<T>: elements of one type. An element of a primitive type is copied out.
+    local values: marea.array.Array<float32> = marea.array.Array<float32>{ 1.0, 2.0, 3.0 };
     local first: float32 = values[0];
 
-    -- array<T, N>: the size is part of the type.
-    local fixed: array<float32, 4> = array<float32, 4>{ 0.0, 0.0, 0.0, 0.0 };
+    -- marea.array.Array<T, N>: the size is part of the type.
+    local fixed: marea.array.Array<float32, 4> = marea.array.Array<float32, 4>{ 0.0, 0.0, 0.0, 0.0 };
 
-    -- array<T, N>: N values stored inline, copied like a primitive.
-    local direction: array<float32, 4> = array<float32, 4>{ 1.0, 0.0, 0.0, 0.0 };
+    -- marea.array.Array<T, N>: N values stored inline, copied like a primitive.
+    local direction: marea.array.Array<float32, 4> = marea.array.Array<float32, 4>{ 1.0, 0.0, 0.0, 0.0 };
     return 0;
 end

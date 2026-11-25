@@ -80,6 +80,7 @@ typedef struct MAREA_G_FieldShape
     MAREA_IntegerSize length;
     const MAREA_AstNode *declaration;
     MAREA_Uinteger64 size;
+    MAREA_Uinteger64 alignment;
     MAREA_Uinteger64 explicitAlignment;
     MAREA_G_ShapeKind kind;
     MAREA_SemaMeasureReason reason;
@@ -117,6 +118,19 @@ static MAREA_IntegerSize MAREA_CALL MAREA_G_CountChildren(const MAREA_AstNode *n
 }
 
 // INFO: the members of a declaration: the variants of an enum, else the fields of a structure.
+static const MAREA_AstNode *MAREA_CALL MAREA_G_FindChildOfKind(const MAREA_AstNode *node, MAREA_AstKind kind)
+{
+    for (MAREA_IntegerSize index = 0; index < MAREA_AstNodeGetChildCount(node); ++index) {
+        const MAREA_AstNode *child = MAREA_SemaChildAt(node, index);
+
+        if (MAREA_G_IsKind(child, kind) == MAREA_BOOLEAN_TRUE) {
+            return child;
+        }
+    }
+
+    return MAREA_NULLPTR;
+}
+
 static MAREA_IntegerSize MAREA_CALL MAREA_G_CountMembers(const MAREA_AstNode *declaration)
 {
     return MAREA_G_CountChildren(declaration, (MAREA_G_IsKind(declaration, MAREA_AST_KIND_ENUM_DECLARATION) == MAREA_BOOLEAN_TRUE) ? MAREA_AST_KIND_VARIANT_DECLARATION : MAREA_AST_KIND_FIELD_DECLARATION);
@@ -140,11 +154,42 @@ static void MAREA_CALL MAREA_G_ClassifyType(const MAREA_SemaContext *context, co
     outShape->length = 0;
     outShape->declaration = MAREA_NULLPTR;
     outShape->size = 0;
+    outShape->alignment = 0;
     outShape->kind = MAREA_G_SHAPE_KIND_UNDECIDED;
     outShape->reason = MAREA_SEMA_MEASURE_REASON_LIBRARY_TYPE;
 
     if (MAREA_G_IsKind(type, MAREA_AST_KIND_FUNCTION_TYPE) == MAREA_BOOLEAN_TRUE) {
         outShape->reason = MAREA_SEMA_MEASURE_REASON_FUNCTION_TYPE;
+
+        return;
+    }
+
+    // INFO: a registered inline run (an index protocol, no role, a copy class) with a measured element and a
+    // literal count is measured from its descriptor: the size is the count times the element size and the
+    // alignment is the element's. Any other registered type has the layout its library gives, which sema does not see.
+    const MAREA_TypeDescriptor *descriptor = MAREA_NULLPTR;
+
+    if (MAREA_SemaDescriptorOfType(context, type, &descriptor) == MAREA_BOOLEAN_TRUE) {
+        const MAREA_AstNode *arguments = MAREA_G_FindChildOfKind(type, MAREA_AST_KIND_TYPE_ARGUMENTS);
+
+        MAREA_Uinteger64 count = 0;
+
+        if ((descriptor->hasIndexProtocol == MAREA_BOOLEAN_FALSE) || (descriptor->roles != MAREA_TYPE_ROLE_NONE) || (descriptor->ownershipClass != MAREA_TYPE_OWNERSHIP_CLASS_COPY) || (arguments == MAREA_NULLPTR) || (MAREA_AstNodeGetChildCount(arguments) != 2) || (MAREA_SemaAttributeReadInteger(arguments, &count) == MAREA_BOOLEAN_FALSE) || (count == 0)) {
+            return;
+        }
+
+        MAREA_G_FieldShape element = { 0 };
+
+        MAREA_G_ClassifyType(context, MAREA_SemaChildAt(arguments, 0), &element);
+
+        if (element.kind != MAREA_G_SHAPE_KIND_PRIMITIVE) {
+            return;
+        }
+
+        outShape->kind = MAREA_G_SHAPE_KIND_PRIMITIVE;
+        outShape->reason = MAREA_SEMA_MEASURE_REASON_NONE;
+        outShape->size = (count * element.size);
+        outShape->alignment = (element.alignment > 0) ? element.alignment : element.size;
 
         return;
     }
@@ -255,7 +300,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_PlaceShape(MAREA_G_State *state, MAREA_G
 
     MAREA_Uinteger64 size = shape->size;
 
-    MAREA_Uinteger64 natural = shape->size;
+    MAREA_Uinteger64 natural = (shape->alignment > 0) ? shape->alignment : shape->size;
 
     if (shape->kind != MAREA_G_SHAPE_KIND_PRIMITIVE) {
         MAREA_G_Measure inner = { 0 };

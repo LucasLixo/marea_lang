@@ -1,10 +1,12 @@
--- expect: 3073 @21
+-- expect: 3073 @23
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
 -- A vector is moved while a for each reads it.
 
 namespace main;
+require demo.owned;
+require demo.vector;
 
 structure Point
     x: sinteger32;
@@ -16,9 +18,9 @@ structure Box
     count: sinteger32;
 end
 
-function check(points: owned<vector<Point>>): sinteger32
+function check(points: demo.owned<demo.vector<Point>>): sinteger32
     for each item in points do
-        local other: vector<Point> = move points;
+        local other: demo.vector<Point> = move points;
         break;
     end
     return 1;

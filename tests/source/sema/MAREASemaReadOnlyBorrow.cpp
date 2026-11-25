@@ -3,6 +3,7 @@
 
 #include "tests/dependencies.hpp"
 
+#include "tests/MAREALibraryRegistryHelpers.hpp"
 #include "tests/MAREASemaHelpers.hpp"
 
 namespace
@@ -15,7 +16,9 @@ namespace
     {
         MAREA_SemaFixture fixture([](const std::string &, const MAREA_AstNode **) { return MAREA_SEMA_IMPORT_RESULT_EXTERNAL; });
 
-        if (fixture.MAREA_sema("namespace main; import c.array as array; " + SHAPES + body) != MAREA_SEMA_EXCEPT_SUCCESS) {
+        MAREA_IGNORE(MAREA_SemaContextSetTypeRegistry(fixture.context, MAREA_buildLibraryRegistry(fixture.parser.lexer.arena)));
+
+        if (fixture.MAREA_sema("namespace main; import c.array as array; require demo.owned; require demo.vector; " + SHAPES + body) != MAREA_SEMA_EXCEPT_SUCCESS) {
             return { 0 };
         }
 
@@ -60,9 +63,9 @@ TEST(MAREASemaReadOnlyBorrow, ParameterWithNoAttributeFollowsItsDefault)
 
     EXPECT_EQ(MAREA_codesOf("function f(p: Point) p.x = 1; end"), ONE) << "A default structure parameter is a read-only borrow.";
 
-    EXPECT_EQ(MAREA_codesOf("function f(o: owned<Point>) o.x = 1; end"), NONE) << "An owned parameter is a move-in type.";
+    EXPECT_EQ(MAREA_codesOf("function f(o: demo.owned<Point>) o.x = 1; end"), NONE) << "An owned parameter is a move-in type.";
 
-    EXPECT_EQ(MAREA_codesOf("function f(v: vector<Point>) v[0] = make_point(); end"), NONE) << "A vector parameter is a move-in type.";
+    EXPECT_EQ(MAREA_codesOf("function f(v: demo.vector<Point>) v[0] = make_point(); end"), NONE) << "A vector parameter is a move-in type.";
 }
 
 TEST(MAREASemaReadOnlyBorrow, ForEachVariableOverAReadOnlySourceIsReadOnly)

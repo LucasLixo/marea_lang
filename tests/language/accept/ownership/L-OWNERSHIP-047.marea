@@ -5,6 +5,7 @@
 -- A structure is last used by the call that moves it.
 
 namespace main;
+require demo.owned;
 
 structure Point
     x: sinteger32;
@@ -24,7 +25,7 @@ function read_point(#[semantics = reference_read_only] point: Point): sinteger32
     return point.x;
 end
 
-function take_point(point: owned<Point>): sinteger32
+function take_point(point: demo.owned<Point>): sinteger32
     return point.x;
 end
 

@@ -5,6 +5,7 @@
 -- A value is passed to a write borrow and another is moved in the same call.
 
 namespace main;
+require demo.owned;
 
 structure Point
     x: sinteger32;
@@ -20,7 +21,7 @@ function make_point(): Point
     return Point{ x = 1, y = 2 };
 end
 
-function write_take(#[semantics = reference_mutable] first: Point, second: owned<Point>)
+function write_take(#[semantics = reference_mutable] first: Point, second: demo.owned<Point>)
     first.x = second.x;
 end
 

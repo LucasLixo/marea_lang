@@ -5,6 +5,8 @@
 -- A vector is moved after a for each ended.
 
 namespace main;
+require demo.owned;
+require demo.vector;
 
 structure Point
     x: sinteger32;
@@ -16,10 +18,10 @@ structure Box
     count: sinteger32;
 end
 
-function check(points: owned<vector<Point>>): sinteger32
+function check(points: demo.owned<demo.vector<Point>>): sinteger32
     for each item in points do
         local x: sinteger32 = item.x;
     end
-    local other: vector<Point> = move points;
+    local other: demo.vector<Point> = move points;
     return 1;
 end

@@ -1,10 +1,11 @@
--- expect: 3070 @25
+-- expect: 3070 @26
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
 -- An owned parameter is used after it was moved on.
 
 namespace main;
+require demo.owned;
 
 structure Point
     x: sinteger32;
@@ -16,11 +17,11 @@ structure Box
     count: sinteger32;
 end
 
-function take_point(point: owned<Point>): sinteger32
+function take_point(point: demo.owned<Point>): sinteger32
     return point.x;
 end
 
-function check(point: owned<Point>): sinteger32
+function check(point: demo.owned<Point>): sinteger32
     local result: sinteger32 = take_point(move point);
     local again: sinteger32 = point.x;
     return 1;

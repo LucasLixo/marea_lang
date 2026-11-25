@@ -128,7 +128,7 @@ TEST(MAREAIrTypeArguments, TypeKeepsItsOwnTypeArguments)
 
     EXPECT_EQ(MAREA_lowerConstant("uinteger64", "size_of<list<sinteger32>>()"), "(CALL_EXPRESSION (BUILTIN_NAME size_of (TYPE_NAME list (TYPE_NAME sinteger32))) (ARGUMENT_LIST))") << "A nested type must be a child of its head.";
 
-    EXPECT_EQ(MAREA_lowerConstant("uinteger64", "size_of<array<float32, 4>>()"), "(CALL_EXPRESSION (BUILTIN_NAME size_of (TYPE_NAME array (TYPE_NAME float32) (INTEGER_LITERAL 4))) (ARGUMENT_LIST))") << "A value argument must be an INTEGER_LITERAL child, in order.";
+    EXPECT_EQ(MAREA_lowerConstant("uinteger64", "size_of<demo.array<float32, 4>>()"), "(CALL_EXPRESSION (BUILTIN_NAME size_of (TYPE_NAME demo.array (TYPE_NAME float32) (INTEGER_LITERAL 4))) (ARGUMENT_LIST))") << "A value argument must be an INTEGER_LITERAL child, in order.";
 
     EXPECT_EQ(MAREA_lowerConstant("uinteger64", "size_of<list<list<float32>>>()"), "(CALL_EXPRESSION (BUILTIN_NAME size_of (TYPE_NAME list (TYPE_NAME list (TYPE_NAME float32)))) (ARGUMENT_LIST))") << "A type must nest to any depth.";
 }
@@ -151,7 +151,7 @@ TEST(MAREAIrTypeArguments, StaticCallKeepsAValueArgument)
 {
     GTEST_COUT << "Validating a static call on a type with a value argument keeps it, in order." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerLocal("", "array<float32, 16>", "array<float32, 16>.filled(0.0)"), "(CALL_EXPRESSION (MEMBER_ACCESS (TYPE_NAME array (TYPE_NAME float32) (INTEGER_LITERAL 16)) (IDENTIFIER filled)) (ARGUMENT_LIST (FLOAT_LITERAL 0.0)))") << "The value argument must follow the type argument.";
+    EXPECT_EQ(MAREA_lowerLocal("", "demo.array<float32, 16>", "demo.array<float32, 16>.filled(0.0)"), "(CALL_EXPRESSION (MEMBER_ACCESS (TYPE_NAME demo.array (TYPE_NAME float32) (INTEGER_LITERAL 16)) (IDENTIFIER filled)) (ARGUMENT_LIST (FLOAT_LITERAL 0.0)))") << "The value argument must follow the type argument.";
 }
 
 TEST(MAREAIrTypeArguments, StaticCallResultCanBeUsedAgain)

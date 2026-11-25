@@ -1,4 +1,4 @@
--- expect: 3018 @11
+-- expect: 3018 @12
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
@@ -6,8 +6,9 @@
 -- Mutant of L-TYPES-111: the owned wrapper is dropped from a generic parameter that is returned.
 
 namespace main;
+require demo.owned;
 
-function same<Item>(value: Item): owned<Item> where Item: Movable
+function same<Item>(value: Item): demo.owned<Item> where Item: Movable
     return value;
 end
 

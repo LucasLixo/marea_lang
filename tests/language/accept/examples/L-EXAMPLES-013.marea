@@ -6,6 +6,7 @@
 -- Step 7a: collections. Each one has its types fixed when it is created.
 
 namespace main;
+require demo.array;
 
 require marea.array;
 
@@ -15,10 +16,10 @@ function show_collections(): sinteger32
     local values: marea.array<float32> = marea.array<float32>{ 1.0, 2.0, 3.0 };
     local first: float32 = values[0];
 
-    -- array<T, N>: the size is part of the type.
-    local fixed: array<float32, 4> = array<float32, 4>{ 0.0, 0.0, 0.0, 0.0 };
+    -- demo.array<T, N>: the size is part of the type.
+    local fixed: demo.array<float32, 4> = demo.array<float32, 4>{ 0.0, 0.0, 0.0, 0.0 };
 
-    -- array<T, N>: N values stored inline, copied like a primitive.
-    local direction: array<float32, 4> = array<float32, 4>{ 1.0, 0.0, 0.0, 0.0 };
+    -- demo.array<T, N>: N values stored inline, copied like a primitive.
+    local direction: demo.array<float32, 4> = demo.array<float32, 4>{ 1.0, 0.0, 0.0, 0.0 };
     return 0;
 end
