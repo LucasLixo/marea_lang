@@ -15,7 +15,7 @@ namespace
             return (text.compare(0, 12, "collections.") == 0) ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
         });
 
-        if (fixture.MAREA_lower("namespace main; import collections.table; " + prefix + " constant VALUE: " + type + " = " + expression + ";") != MAREA_IR_EXCEPT_SUCCESS) {
+        if (fixture.MAREA_lower("namespace main; import collections.table as table; " + prefix + " constant VALUE: " + type + " = " + expression + ";") != MAREA_IR_EXCEPT_SUCCESS) {
             return "<lower failed>";
         }
 

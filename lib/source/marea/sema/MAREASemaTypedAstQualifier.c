@@ -170,18 +170,18 @@ MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedAstFoundMemberType(MAREA_Sema
 
     *outType = MAREA_G_NoType();
 
-    if ((MAREA_G_IsKind(base, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_FALSE) || (MAREA_G_IsKind(member, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_FALSE)) {
+    if (MAREA_G_IsKind(member, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_FALSE) {
         return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
     }
 
-    const MAREA_Character8 *text = MAREA_AstNodeGetText(base);
+    // INFO: a local or a parameter hides a namespace, a generic parameter is no namespace, and a full path counts only when a cover reaches it.
+    const MAREA_SemaName *entry = MAREA_NULLPTR;
 
-    const MAREA_IntegerSize LENGTH = MAREA_AstNodeGetTextLength(base);
+    if (MAREA_SemaBaseEntry(context, base, member, &entry) != MAREA_SEMA_EXCEPT_SUCCESS) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_OUT_OF_MEMORY;
+    }
 
-    const MAREA_SemaName *entry = MAREA_SemaNameTableFind(context, text, LENGTH);
-
-    // INFO: a local or a parameter hides a namespace, and a generic parameter is no namespace.
-    if ((MAREA_SemaLocalFind(context, text, LENGTH) != MAREA_NULLPTR) || (MAREA_SemaIsGenericInScope(context, text, LENGTH) == MAREA_BOOLEAN_TRUE) || (entry == MAREA_NULLPTR) || (entry->kind != MAREA_SEMA_NAME_KIND_NAMESPACE)) {
+    if ((entry == MAREA_NULLPTR) || (entry->kind != MAREA_SEMA_NAME_KIND_NAMESPACE)) {
         return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
     }
 
@@ -240,28 +240,26 @@ MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedAstFoundNameType(MAREA_SemaCo
     return MAREA_G_ValueType(context, root, entry->qualifier, entry->qualifierLength, name, NAME_LENGTH, callTypeArguments, outType);
 }
 
-// INFO: true when the resolver answers EXTERNAL for a namespace text; the signature function is never asked for a namespace the resolver does not call EXTERNAL.
+// INFO: true when a resolver answers EXTERNAL for a namespace text; the signature function is never asked for a namespace that no resolver calls EXTERNAL.
 static MAREA_Boolean MAREA_CALL MAREA_G_IsExternalNamespace(const MAREA_SemaContext *context, const MAREA_Character8 *text, MAREA_IntegerSize length)
 {
-    if ((context->resolver == MAREA_NULLPTR) || (context->resolver->resolve == MAREA_NULLPTR) || (text == MAREA_NULLPTR) || (length == 0)) {
+    if ((context->resolver == MAREA_NULLPTR) || (text == MAREA_NULLPTR) || (length == 0)) {
         return MAREA_BOOLEAN_FALSE;
     }
 
-    MAREA_SemaImportResult result = MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
-
     const MAREA_AstNode *root = MAREA_NULLPTR;
 
-    context->resolver->resolve(context->resolver->userData, text, length, &result, &root);
-
-    return (result == MAREA_SEMA_IMPORT_RESULT_EXTERNAL) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+    return (MAREA_SemaResolveNamespace(context, text, length, &root) == MAREA_SEMA_IMPORT_RESULT_EXTERNAL) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
-// INFO: asks the optional signature function for one member of a namespace already known to be EXTERNAL; a resolver with none, or an answer other than FOUND, leaves outSignature null.
+// INFO: asks the optional signature function of the resolver that knows the namespace for one member of a namespace already known to be EXTERNAL; a resolver with none, or an answer other than FOUND, leaves outSignature null.
 static void MAREA_CALL MAREA_G_QuerySignature(const MAREA_SemaContext *context, const MAREA_Character8 *namespaceText, MAREA_IntegerSize namespaceLength, const MAREA_Character8 *memberText, MAREA_IntegerSize memberLength, const MAREA_SemaSignature **outSignature)
 {
     *outSignature = MAREA_NULLPTR;
 
-    if ((context->resolver == MAREA_NULLPTR) || (context->resolver->signature == MAREA_NULLPTR)) {
+    const MAREA_SemaImportResolver *owner = MAREA_SemaResolverOf(context, namespaceText, namespaceLength);
+
+    if ((owner == MAREA_NULLPTR) || (owner->signature == MAREA_NULLPTR)) {
         return;
     }
 
@@ -269,7 +267,7 @@ static void MAREA_CALL MAREA_G_QuerySignature(const MAREA_SemaContext *context, 
 
     const MAREA_SemaSignature *signature = MAREA_NULLPTR;
 
-    context->resolver->signature(context->resolver->userData, namespaceText, namespaceLength, memberText, memberLength, &result, &signature);
+    owner->signature(owner->userData, namespaceText, namespaceLength, memberText, memberLength, &result, &signature);
 
     if (result == MAREA_SEMA_IMPORT_RESULT_FOUND) {
         *outSignature = signature;
@@ -284,18 +282,18 @@ MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedAstExternalMemberSignature(MA
 
     *outSignature = MAREA_NULLPTR;
 
-    if ((MAREA_G_IsKind(base, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_FALSE) || (MAREA_G_IsKind(member, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_FALSE)) {
+    if (MAREA_G_IsKind(member, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_FALSE) {
         return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
     }
 
-    const MAREA_Character8 *text = MAREA_AstNodeGetText(base);
+    // INFO: the base is read exactly as MAREA_SemaTypedAstFoundMemberType reads it.
+    const MAREA_SemaName *entry = MAREA_NULLPTR;
 
-    const MAREA_IntegerSize LENGTH = MAREA_AstNodeGetTextLength(base);
+    if (MAREA_SemaBaseEntry(context, base, member, &entry) != MAREA_SEMA_EXCEPT_SUCCESS) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_OUT_OF_MEMORY;
+    }
 
-    const MAREA_SemaName *entry = MAREA_SemaNameTableFind(context, text, LENGTH);
-
-    // INFO: a local or a parameter hides a namespace, and a generic parameter is no namespace, exactly as MAREA_SemaTypedAstFoundMemberType reads the base.
-    if ((MAREA_SemaLocalFind(context, text, LENGTH) != MAREA_NULLPTR) || (MAREA_SemaIsGenericInScope(context, text, LENGTH) == MAREA_BOOLEAN_TRUE) || (entry == MAREA_NULLPTR) || (entry->kind != MAREA_SEMA_NAME_KIND_NAMESPACE)) {
+    if ((entry == MAREA_NULLPTR) || (entry->kind != MAREA_SEMA_NAME_KIND_NAMESPACE)) {
         return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
     }
 
@@ -393,8 +391,37 @@ static MAREA_Boolean MAREA_CALL MAREA_G_ImportedSymbolIsType(const MAREA_SemaCon
     return MAREA_BOOLEAN_FALSE;
 }
 
-MAREA_Boolean MAREA_CALL MAREA_SemaTypedAstIsQualifier(const MAREA_SemaContext *context, const MAREA_AstNode *node, const MAREA_AstNode *parent, MAREA_IntegerSize index)
+// INFO: a chain such as demo.io before the member of demo.io.puts is the written path of a namespace or of a type of one, so it qualifies the member and is no value.
+static MAREA_Boolean MAREA_CALL MAREA_G_IsNamespaceChain(MAREA_SemaContext *context, const MAREA_AstNode *chain)
 {
+    const MAREA_Character8 *text = MAREA_NULLPTR;
+
+    MAREA_IntegerSize length = 0;
+
+    if ((MAREA_SemaChainJoin(context, chain, &text, &length, MAREA_NULLPTR) != MAREA_SEMA_EXCEPT_SUCCESS) || (text == MAREA_NULLPTR)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    MAREA_SemaPathStatus status = MAREA_SEMA_PATH_STATUS_NOT_A_PATH;
+
+    const MAREA_Character8 *namespaceText = MAREA_NULLPTR;
+
+    MAREA_IntegerSize namespaceLength = 0;
+
+    if ((MAREA_SemaClassifyPath(context, text, length, MAREA_BOOLEAN_FALSE, &status, &namespaceText, &namespaceLength) != MAREA_SEMA_EXCEPT_SUCCESS) || (status != MAREA_SEMA_PATH_STATUS_COVERED)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    // INFO: the chain is covered and some prefix of it is a namespace, so it is a namespace or a type of one, never a value.
+    return ((namespaceLength > 0) && (namespaceText != MAREA_NULLPTR)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
+MAREA_Boolean MAREA_CALL MAREA_SemaTypedAstIsQualifier(MAREA_SemaContext *context, const MAREA_AstNode *node, const MAREA_AstNode *parent, MAREA_IntegerSize index)
+{
+    if ((context != MAREA_NULLPTR) && (MAREA_G_IsKind(node, MAREA_AST_KIND_MEMBER_ACCESS) == MAREA_BOOLEAN_TRUE) && (MAREA_G_IsKind(parent, MAREA_AST_KIND_MEMBER_ACCESS) == MAREA_BOOLEAN_TRUE) && (index == 0)) {
+        return MAREA_G_IsNamespaceChain(context, node);
+    }
+
     if ((context == MAREA_NULLPTR) || (MAREA_G_IsKind(node, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_FALSE) || (MAREA_G_IsKind(parent, MAREA_AST_KIND_MEMBER_ACCESS) == MAREA_BOOLEAN_FALSE) || (index != 0)) {
         return MAREA_BOOLEAN_FALSE;
     }

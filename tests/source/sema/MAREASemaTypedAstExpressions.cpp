@@ -301,7 +301,7 @@ TEST(MAREASemaTypedAstExpressions, MemberOfAnImportedTypeHasNoType)
 {
     GTEST_COUT << "Validating a member of a value whose type sema has no tree for has no type." << std::endl;
 
-    MAREA_expectExpressionNoType("namespace main; import c.shapes { Shape }; function f(s: Shape): float32 return s.size; end", MAREA_AST_KIND_MEMBER_ACCESS, 0, MAREA_EXTERNAL_RESOLVE);
+    MAREA_expectExpressionNoType("namespace main; import c.shapes { Shape as Shape }; function f(s: Shape): float32 return s.size; end", MAREA_AST_KIND_MEMBER_ACCESS, 0, MAREA_EXTERNAL_RESOLVE);
 }
 
 TEST(MAREASemaTypedAstExpressions, MemberOfAGenericParameterHasNoType)
@@ -427,7 +427,7 @@ TEST(MAREASemaTypedAstExpressions, CallOfALibraryFunctionHasNoType)
 
     MAREA_expectExpressionNoType("namespace main; import c.math.sqrt as square_root; function f(x: float64): float64 return square_root(x); end", MAREA_AST_KIND_CALL_EXPRESSION, 0, MAREA_EXTERNAL_RESOLVE);
 
-    MAREA_expectExpressionNoType("namespace main; import c.stdio; function f(text: string) stdio.puts(text); end", MAREA_AST_KIND_MEMBER_ACCESS, 0, MAREA_EXTERNAL_RESOLVE);
+    MAREA_expectExpressionNoType("namespace main; import c.stdio as stdio; function f(text: string) stdio.puts(text); end", MAREA_AST_KIND_MEMBER_ACCESS, 0, MAREA_EXTERNAL_RESOLVE);
 }
 
 TEST(MAREASemaTypedAstExpressions, MemberThroughAnOwnerIsTheFieldType)
@@ -506,7 +506,7 @@ TEST(MAREASemaTypedAstExpressions, NamespaceAndTypeNamesHaveNoTypeAsValues)
 
     MAREA_SemaFixture fixture(MAREA_EXTERNAL_RESOLVE);
 
-    const MAREA_ExpressionTypeResult RESULT{ MAREA_expressionTypeOf(fixture, "namespace main; import c.stdio; function f(text: string) stdio.puts(text); end", MAREA_AST_KIND_IDENTIFIER, 1, "stdio") };
+    const MAREA_ExpressionTypeResult RESULT{ MAREA_expressionTypeOf(fixture, "namespace main; import c.stdio as stdio; function f(text: string) stdio.puts(text); end", MAREA_AST_KIND_IDENTIFIER, 1, "stdio") };
 
     ASSERT_TRUE(RESULT.found) << "The namespace name must be read once as a value.";
 

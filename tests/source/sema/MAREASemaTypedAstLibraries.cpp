@@ -171,7 +171,7 @@ TEST(MAREASemaTypedAstLibraries, StaticCallOnAFixedArrayTypeGivesTheReceiverType
 
     MAREA_LibraryFixture fixture(MAREA_externalLibraries(), MAREA_librarySignatures());
 
-    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nimport collections.array;\nfunction f(): sinteger32\n    local fixed: array<float32, 16> = array<float32, 16>.filled(0.0);\n    return 0;\nend\n"));
+    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nimport collections.array as array;\nfunction f(): sinteger32\n    local fixed: array<float32, 16> = array<float32, 16>.filled(0.0);\n    return 0;\nend\n"));
 
     const MAREA_SemaTypedNode *call{ MAREA_nth(fixture, MAREA_AST_KIND_CALL_EXPRESSION, 0) };
 
@@ -186,7 +186,7 @@ TEST(MAREASemaTypedAstLibraries, StaticCallUnderTheReservedNamespaceGivesTheRece
 
     MAREA_LibraryFixture fixture(MAREA_externalLibraries(), MAREA_librarySignatures());
 
-    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nimport collections.array;\nfunction f(): sinteger32\n    local scratch: c.array<sinteger32> = c.array<sinteger32>.filled(8, 0);\n    return 0;\nend\n"));
+    ASSERT_TRUE(fixture.MAREA_build("namespace main; require c.array;\nimport collections.array as array;\nfunction f(): sinteger32\n    local scratch: c.array<sinteger32> = c.array<sinteger32>.filled(8, 0);\n    return 0;\nend\n"));
 
     const MAREA_SemaTypedNode *call{ MAREA_nth(fixture, MAREA_AST_KIND_CALL_EXPRESSION, 0) };
 
@@ -201,7 +201,7 @@ TEST(MAREASemaTypedAstLibraries, InstanceCallOfATypeParameterNameGivesTheTypeArg
 
     MAREA_LibraryFixture fixture(MAREA_externalLibraries(), MAREA_librarySignatures());
 
-    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nimport collections.array;\nfunction f(values: array<float32, 4>): float32\n    return values.sum();\nend\n"));
+    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nimport collections.array as array;\nfunction f(values: array<float32, 4>): float32\n    return values.sum();\nend\n"));
 
     const MAREA_SemaTypedNode *call{ MAREA_nth(fixture, MAREA_AST_KIND_CALL_EXPRESSION, 0) };
 
@@ -216,7 +216,7 @@ TEST(MAREASemaTypedAstLibraries, SizeArgumentIsNotATypeSoItStaysUntyped)
 
     MAREA_LibraryFixture fixture(MAREA_externalLibraries(), MAREA_librarySignatures());
 
-    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nimport collections.array;\nfunction f(values: array<float32, 4>): sinteger32\n    return values.count();\nend\n"));
+    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nimport collections.array as array;\nfunction f(values: array<float32, 4>): sinteger32\n    return values.count();\nend\n"));
 
     const MAREA_SemaTypedNode *call{ MAREA_nth(fixture, MAREA_AST_KIND_CALL_EXPRESSION, 0) };
 
@@ -231,7 +231,7 @@ TEST(MAREASemaTypedAstLibraries, TaskResultGivesTheTaskTypeArgument)
 
     MAREA_LibraryFixture fixture(MAREA_externalLibraries(), MAREA_librarySignatures());
 
-    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nimport concurrency.task;\nfunction f(item: task<float32>): float32\n    return item.result();\nend\n"));
+    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nimport concurrency.task as task;\nfunction f(item: task<float32>): float32\n    return item.result();\nend\n"));
 
     const MAREA_SemaTypedNode *call{ MAREA_nth(fixture, MAREA_AST_KIND_CALL_EXPRESSION, 0) };
 
@@ -246,7 +246,7 @@ TEST(MAREASemaTypedAstLibraries, AppendOnAReceiverUnderTheReservedNamespaceIsTyp
 
     MAREA_LibraryFixture fixture(MAREA_externalLibraries(), MAREA_librarySignatures());
 
-    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nimport collections.array;\nfunction f(): sinteger32\n    local values: c.array<float32> = c.array<float32>{};\n    values.append(1.0);\n    return 0;\nend\n"));
+    ASSERT_TRUE(fixture.MAREA_build("namespace main; require c.array;\nimport collections.array as array;\nfunction f(): sinteger32\n    local values: c.array<float32> = c.array<float32>{};\n    values.append(1.0);\n    return 0;\nend\n"));
 
     const MAREA_SemaTypedNode *call{ MAREA_nth(fixture, MAREA_AST_KIND_CALL_EXPRESSION, 0) };
 
@@ -261,7 +261,7 @@ TEST(MAREASemaTypedAstLibraries, TableIndexGivesTheValueType)
 
     MAREA_LibraryFixture fixture(MAREA_externalLibraries(), MAREA_librarySignatures());
 
-    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nimport collections.table;\nfunction f(scores: table<string, sinteger32>): sinteger32\n    return scores[\"ana\"];\nend\n"));
+    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nimport collections.table as table;\nfunction f(scores: table<string, sinteger32>): sinteger32\n    return scores[\"ana\"];\nend\n"));
 
     const MAREA_SemaTypedNode *access{ MAREA_nth(fixture, MAREA_AST_KIND_INDEX_ACCESS, 0) };
 
@@ -276,7 +276,7 @@ TEST(MAREASemaTypedAstLibraries, ArrayIndexStillGivesTheElementType)
 
     MAREA_LibraryFixture fixture(MAREA_externalLibraries(), MAREA_librarySignatures());
 
-    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nimport collections.array;\nfunction f(values: c.array<float32>): float32\n    return values[0];\nend\n"));
+    ASSERT_TRUE(fixture.MAREA_build("namespace main; require c.array;\nimport collections.array as array;\nfunction f(values: c.array<float32>): float32\n    return values[0];\nend\n"));
 
     const MAREA_SemaTypedNode *access{ MAREA_nth(fixture, MAREA_AST_KIND_INDEX_ACCESS, 0) };
 
@@ -291,7 +291,7 @@ TEST(MAREASemaTypedAstLibraries, MemberWithNoSignatureStaysOpaque)
 
     MAREA_LibraryFixture fixture(MAREA_externalLibraries(), MAREA_librarySignatures());
 
-    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nimport collections.array;\nfunction f(values: array<float32, 4>): float32\n    return values.unknown_member();\nend\n"));
+    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nimport collections.array as array;\nfunction f(values: array<float32, 4>): float32\n    return values.unknown_member();\nend\n"));
 
     const MAREA_SemaTypedNode *call{ MAREA_nth(fixture, MAREA_AST_KIND_CALL_EXPRESSION, 0) };
 
@@ -306,7 +306,7 @@ TEST(MAREASemaTypedAstLibraries, NoSignatureFunctionChangesNothing)
 
     MAREA_LibraryFixture fixture(MAREA_externalLibraries(), nullptr);
 
-    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nimport collections.array;\nfunction f(values: array<float32, 4>): array<float32, 4>\n    local fixed: array<float32, 4> = array<float32, 4>.filled(0.0);\n    local total: float32 = values.sum();\n    return fixed;\nend\n"));
+    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nimport collections.array as array;\nfunction f(values: array<float32, 4>): array<float32, 4>\n    local fixed: array<float32, 4> = array<float32, 4>.filled(0.0);\n    local total: float32 = values.sum();\n    return fixed;\nend\n"));
 
     EXPECT_EQ(MAREA_typeOf(MAREA_nth(fixture, MAREA_AST_KIND_CALL_EXPRESSION, 0)), "<none>") << "The static call must stay untyped.";
 

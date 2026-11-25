@@ -729,7 +729,8 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsElementContainer(const MAREA_AstNode *
         return MAREA_BOOLEAN_FALSE;
     }
 
-    if ((SEGMENTS == 2) && (MAREA_G_TextIs(MAREA_AstNodeGetText(MAREA_SemaChildAt(qualified, 0)), MAREA_AstNodeGetTextLength(MAREA_SemaChildAt(qualified, 0)), "c") == MAREA_BOOLEAN_FALSE)) {
+    // INFO: a library is named bare, or under one of the two reserved first segments.
+    if ((SEGMENTS == 2) && (MAREA_G_TextIs(MAREA_AstNodeGetText(MAREA_SemaChildAt(qualified, 0)), MAREA_AstNodeGetTextLength(MAREA_SemaChildAt(qualified, 0)), "c") == MAREA_BOOLEAN_FALSE) && (MAREA_G_TextIs(MAREA_AstNodeGetText(MAREA_SemaChildAt(qualified, 0)), MAREA_AstNodeGetTextLength(MAREA_SemaChildAt(qualified, 0)), "marea") == MAREA_BOOLEAN_FALSE)) {
         return MAREA_BOOLEAN_FALSE;
     }
 

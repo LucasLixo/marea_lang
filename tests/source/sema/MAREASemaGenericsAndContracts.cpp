@@ -339,7 +339,7 @@ TEST(MAREASemaGenericsAndContracts, UnseenReceiverIsNotChecked)
 
     MAREA_SemaFixture fixture([](const std::string &, const MAREA_AstNode **) { return MAREA_SEMA_IMPORT_RESULT_EXTERNAL; });
 
-    ASSERT_EQ(fixture.MAREA_sema("namespace main; import c.lib { Thing }; function run(value: Thing) value.go(); Thing.make(); end"), MAREA_SEMA_EXCEPT_SUCCESS);
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; import c.lib { Thing as Thing }; function run(value: Thing) value.go(); Thing.make(); end"), MAREA_SEMA_EXCEPT_SUCCESS);
 
     EXPECT_EQ(fixture.MAREA_semaCodes(), Codes{}) << "A library type must raise nothing.";
 
@@ -400,7 +400,7 @@ TEST(MAREASemaGenericsAndContracts, MemberCallOnGenericValueNeedsABound)
 
     MAREA_SemaFixture fixture([](const std::string &, const MAREA_AstNode **) { return MAREA_SEMA_IMPORT_RESULT_EXTERNAL; });
 
-    ASSERT_EQ(fixture.MAREA_sema("namespace main; import c.lib { Shape }; function f<Item>(left: Item): sinteger32 where Item: Shape return left.size(); end"), MAREA_SEMA_EXCEPT_SUCCESS);
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; import c.lib { Shape as Shape }; function f<Item>(left: Item): sinteger32 where Item: Shape return left.size(); end"), MAREA_SEMA_EXCEPT_SUCCESS);
 
     EXPECT_EQ(fixture.MAREA_semaCodes(), Codes{}) << "A contract that the file does not declare must raise nothing.";
 }

@@ -15,7 +15,7 @@ namespace
     {
         MAREA_SemaFixture fixture([](const std::string &, const MAREA_AstNode **) { return MAREA_SEMA_IMPORT_RESULT_EXTERNAL; });
 
-        if (fixture.MAREA_sema("namespace main; import c.array; " + SHAPES + body) != MAREA_SEMA_EXCEPT_SUCCESS) {
+        if (fixture.MAREA_sema("namespace main; import c.array as array; " + SHAPES + body) != MAREA_SEMA_EXCEPT_SUCCESS) {
             return { 0 };
         }
 
@@ -114,7 +114,7 @@ TEST(MAREASemaReadOnlyBorrow, ReadOnlyBorrowGivenToAWriteBorrowIsRejected)
 
     EXPECT_EQ(MAREA_codesOf(HEAD + "function f(#[semantics = reference_mutable] p: Point) write_point(p); end"), NONE) << "A mutable parameter must be accepted.";
 
-    EXPECT_EQ(MAREA_codesOf(HEAD + "import c.task; function f(#[semantics = reference_read_only] p: Point) fork_join spawn write_point(p); end end"), ONE) << "A spawn of a read-only parameter must be rejected.";
+    EXPECT_EQ(MAREA_codesOf(HEAD + "import c.task as task; function f(#[semantics = reference_read_only] p: Point) fork_join spawn write_point(p); end end"), ONE) << "A spawn of a read-only parameter must be rejected.";
 }
 
 TEST(MAREASemaReadOnlyBorrow, TemporaryGivenToAWriteBorrowIsRejected)
@@ -136,7 +136,7 @@ TEST(MAREASemaReadOnlyBorrow, PartitionMutableNeedsAWritableSource)
 {
     GTEST_COUT << "Validating that partition mutable over a read-only source reports once and the part of a writable one may be written." << std::endl;
 
-    const std::string HEAD{ "import c.slice; import c.task; function scale(#[semantics = reference_mutable] part: c.slice<float32>) end " };
+    const std::string HEAD{ "import c.slice as slice; import c.task as task; function scale(#[semantics = reference_mutable] part: c.slice<float32>) end " };
 
     EXPECT_EQ(MAREA_codesOf(HEAD + "function f(#[semantics = reference_read_only] values: c.array<float32>) fork_join partition mutable values into 2 as part do end end end"), ONE) << "A read-only source must be rejected.";
 

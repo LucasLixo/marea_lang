@@ -8,7 +8,7 @@
 namespace
 {
     const MAREA_ResolveCallback RESOLVE_EXTERNAL{ [](const std::string &text, const MAREA_AstNode **) {
-        return (text.compare(0, 2, "c.") == 0) ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
+        return ((text.compare(0, 2, "c.") == 0) || (text.compare(0, 6, "marea.") == 0) || (text.compare(0, 5, "demo.") == 0)) ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
     } };
 } // namespace
 
@@ -50,7 +50,7 @@ TEST(MAREAIrDeclarations, ImportAndNamespaceProduceNoNode)
 
     MAREA_IrFixture fixture(RESOLVE_EXTERNAL);
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; import c.math.sqrt; constant A: sinteger32 = 1;"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; import c.math.sqrt as sqrt; constant A: sinteger32 = 1;"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     ASSERT_EQ(MAREA_IrNodeGetChildCount(fixture.module), 1U) << "Only the constant must remain.";
 

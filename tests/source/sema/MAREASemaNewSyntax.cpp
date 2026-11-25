@@ -10,7 +10,7 @@ TEST(MAREASemaNewSyntax, NodesOfTheNewSyntaxDoNotStopSema)
     GTEST_COUT << "Validating sema runs to the end over a require, a wildcard, a do-while and a when item, which the parser builds and sema does not check yet." << std::endl;
 
     const std::vector<std::string> SOURCES{
-        "require c.stdio; function f() end",
+        "require c.stdio as stdio; function f() end",
         "require c.*; function f() end",
         "require marea.math as math; function f() end",
         "import game.*; function f() end",
@@ -33,7 +33,7 @@ TEST(MAREASemaNewSyntax, NodesOfTheNewSyntaxWithAResolverThatKnowsNothing)
     GTEST_COUT << "Validating sema runs to the end over the new syntax when the resolver answers not found for every namespace." << std::endl;
 
     const std::vector<std::string> SOURCES{
-        "require c.stdio; function f() end",
+        "require c.stdio as stdio; function f() end",
         "import game.*; function f() end",
         "function f() do while true end end",
     };

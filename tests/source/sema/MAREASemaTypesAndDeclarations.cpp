@@ -76,7 +76,7 @@ TEST(MAREASemaTypesAndDeclarations, ExternalTypesResolve)
 {
     GTEST_COUT << "Validating a type the resolver reports as EXTERNAL resolves." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("structure S a: list<sinteger32>; b: table<string, sinteger32>; c: handle<sinteger32>; d: collections.list<sinteger32>; e: c.math.Vector3; end").empty()) << "An external type must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("import collections.list; require c.math.Vector3; structure S a: list<sinteger32>; b: table<string, sinteger32>; c: handle<sinteger32>; d: collections.list<sinteger32>; e: c.math.Vector3; end").empty()) << "An external type must raise nothing.";
 }
 
 TEST(MAREASemaTypesAndDeclarations, UnknownTypeIsRejected)
@@ -141,7 +141,7 @@ TEST(MAREASemaTypesAndDeclarations, ImportedTypeResolves)
 
     auto resolve = [](const std::string &, const MAREA_AstNode **) { return MAREA_SEMA_IMPORT_RESULT_EXTERNAL; };
 
-    EXPECT_TRUE(MAREA_codesOf("import arenas.Arena; structure S a: Arena; end", resolve).empty()) << "An imported symbol must resolve as a type.";
+    EXPECT_TRUE(MAREA_codesOf("import arenas.Arena as Arena; structure S a: Arena; end", resolve).empty()) << "An imported symbol must resolve as a type.";
 }
 
 TEST(MAREASemaTypesAndDeclarations, EnumWithTypedDefaultedFields)
@@ -268,15 +268,15 @@ TEST(MAREASemaTypesAndDeclarations, AliasTypeMatchesTheOriginalInAContractSignat
 
     const std::string WHOLE{ "implementation Score function join(self: Score, other: Alias): boolean return true; end end " };
 
-    EXPECT_TRUE(MAREA_codesOf("import lib.Thing; import lib.Thing as Alias; " + BASE + WHOLE + RUN, external).empty()) << "A whole-path import alias must equal the original.";
+    EXPECT_TRUE(MAREA_codesOf("import lib.Thing as Thing; import lib.Thing as Alias; " + BASE + WHOLE + RUN, external).empty()) << "A whole-path import alias must equal the original.";
 
     const std::string MEMBER{ "implementation Score function join(self: Score, other: Alias): boolean return true; end end " };
 
-    EXPECT_TRUE(MAREA_codesOf("import lib.Thing; import lib { Thing as Alias }; " + BASE + MEMBER + RUN, external).empty()) << "A member alias must equal the original.";
+    EXPECT_TRUE(MAREA_codesOf("import lib.Thing as Thing; import lib { Thing as Alias }; " + BASE + MEMBER + RUN, external).empty()) << "A member alias must equal the original.";
 
     const std::string WRONG{ "implementation Score function join(self: Score, other: Alias): boolean return true; end end " };
 
-    EXPECT_EQ(MAREA_codesOf("import lib.Thing; import lib { Other as Alias }; " + BASE + WRONG + RUN, external), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_CONTRACT_NOT_SATISFIED }) << "An alias of another type must still miss the contract.";
+    EXPECT_EQ(MAREA_codesOf("import lib.Thing as Thing; import lib { Other as Alias }; " + BASE + WRONG + RUN, external), Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_CONTRACT_NOT_SATISFIED }) << "An alias of another type must still miss the contract.";
 }
 
 TEST(MAREASemaTypesAndDeclarations, AliasesOfDifferentNamespacesDoNotMatchInAContractSignature)
@@ -334,7 +334,7 @@ TEST(MAREASemaTypesAndDeclarations, OpaqueTypeHeldByValueInAFieldRaisesOpaqueFie
 
     EXPECT_TRUE(MAREA_codesOf("structure S a: sinteger32; end structure H s: S; end").empty()) << "An ordinary structure held by value must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("structure H t: c.math.Vector3; end").empty()) << "A type of another file is not checked.";
+    EXPECT_TRUE(MAREA_codesOf("require c.math.Vector3; structure H t: c.math.Vector3; end").empty()) << "A type of another file is not checked.";
 }
 
 TEST(MAREASemaTypesAndDeclarations, StructureHoldingItselfByValueIsRecursiveType)

@@ -10,7 +10,7 @@
 namespace
 {
     const MAREA_ResolveCallback RESOLVE_C{ [](const std::string &text, const MAREA_AstNode **) {
-        return (text.compare(0, 2, "c.") == 0) ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
+        return ((text.compare(0, 2, "c.") == 0) || (text.compare(0, 6, "marea.") == 0) || (text.compare(0, 5, "demo.") == 0)) ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
     } };
 
     std::string MAREA_resolved(const MAREA_IrNode *node)
@@ -145,7 +145,7 @@ TEST(MAREAIrResolvedType, HeadOnlyTypeNameIsUnchanged)
 
     MAREA_IrFixture fixture{ RESOLVE_C };
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; import c.array; function f(a: array<sinteger32, 4>) end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; import c.array as array; function f(a: array<sinteger32, 4>) end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     const MAREA_IrNode *parameter{ MAREA_findKind(fixture.module, MAREA_IR_KIND_PARAMETER) };
 
@@ -183,7 +183,7 @@ TEST(MAREAIrResolvedType, UntypedExpressionIsLeftOutOnce)
 
     MAREA_IrFixture fixture{ RESOLVE_C };
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; import c.stdio; function f() local x: sinteger32 = stdio.value; end function g() end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; import c.stdio as stdio; function f() local x: sinteger32 = stdio.value; end function g() end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     EXPECT_EQ(fixture.MAREA_irCodes(), std::vector<MAREA_Uinteger32>{ MAREA_IR_DIAGNOSTIC_CODE_UNTYPED_EXPRESSION }) << "One untyped expression must raise 4006 once.";
 
@@ -200,7 +200,7 @@ TEST(MAREAIrResolvedType, UntypedOnPurposeStaysInTheTree)
 
     MAREA_IrFixture fixture{ RESOLVE_C };
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; import c.stdio; function f() stdio.puts(\"a\"); end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; import c.stdio as stdio; function f() stdio.puts(\"a\"); end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     EXPECT_TRUE(fixture.MAREA_irCodes().empty()) << "A call that sema leaves untyped on purpose must raise nothing.";
 
@@ -376,7 +376,7 @@ TEST(MAREAIrResolvedType, ForEachValueCarriesTheElementTypeOfTheCollection)
 
     MAREA_IrFixture fixture(RESOLVE_C);
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; import c.array; function f(values: array<float32,4>) for each value in values do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; import c.array as array; function f(values: array<float32,4>) for each value in values do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     const MAREA_IrNode *loop{ MAREA_findKind(fixture.module, MAREA_IR_KIND_FOR_EACH_STATEMENT) };
 
@@ -397,7 +397,7 @@ TEST(MAREAIrResolvedType, ForEachKeyIsTypedUinteger64AndTheValueByTheElement)
 
     MAREA_IrFixture fixture(RESOLVE_C);
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; import c.vector; function f(values: vector<uinteger8>) for each key, value in values do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; import c.vector as vector; function f(values: vector<uinteger8>) for each key, value in values do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     const MAREA_IrNode *loop{ MAREA_findKind(fixture.module, MAREA_IR_KIND_FOR_EACH_STATEMENT) };
 
@@ -424,7 +424,7 @@ TEST(MAREAIrResolvedType, ForEachValueOfAnElementWithTypeArgumentsKeepsTheHeadAn
 
     MAREA_IrFixture fixture(RESOLVE_C);
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; import c.array; function f(rows: array<array<sinteger32,4>,2>) for each row in rows do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; import c.array as array; function f(rows: array<array<sinteger32,4>,2>) for each row in rows do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     const MAREA_IrNode *loop{ MAREA_findKind(fixture.module, MAREA_IR_KIND_FOR_EACH_STATEMENT) };
 
@@ -441,7 +441,7 @@ TEST(MAREAIrResolvedType, ForEachValueOfAFunctionTypeHasAResolvedTypeAndNoTypeNa
 
     MAREA_IrFixture fixture(RESOLVE_C);
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; import c.array; type Step = function(value: sinteger32): sinteger32; function f(steps: array<Step,2>) for each step in steps do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; import c.array as array; type Step = function(value: sinteger32): sinteger32; function f(steps: array<Step,2>) for each step in steps do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     const MAREA_IrNode *loop{ MAREA_findKind(fixture.module, MAREA_IR_KIND_FOR_EACH_STATEMENT) };
 
@@ -458,7 +458,7 @@ TEST(MAREAIrResolvedType, ForEachValueOfADottedElementTypeKeepsTheDottedHead)
 
     MAREA_IrFixture fixture(RESOLVE_C);
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; import c.array; function f(rows: array<c.array<sinteger32>,2>) for each row in rows do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; import c.array as array; function f(rows: array<c.array<sinteger32>,2>) for each row in rows do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     const MAREA_IrNode *loop{ MAREA_findKind(fixture.module, MAREA_IR_KIND_FOR_EACH_STATEMENT) };
 
@@ -475,7 +475,7 @@ TEST(MAREAIrResolvedType, ForEachNamesStayWithoutATypeWhenSemaGivesNone)
 
     MAREA_IrFixture fixture(RESOLVE_C);
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; import c.collections.list; function f(values: list<sinteger32>) for each key, value in values do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; import c.collections.list as list; function f(values: list<sinteger32>) for each key, value in values do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     const MAREA_IrNode *loop{ MAREA_findKind(fixture.module, MAREA_IR_KIND_FOR_EACH_STATEMENT) };
 

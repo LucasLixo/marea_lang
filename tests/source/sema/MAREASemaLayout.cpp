@@ -382,9 +382,9 @@ TEST(MAREASemaLayout, EnumImportedFromAnotherFileIsUndecided)
         return (name == "a.b") ? MAREA_SEMA_IMPORT_RESULT_FOUND : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
     } };
 
-    MAREA_expectUndecided("namespace main; import a.b { Shape }; structure Point x: uinteger8; end structure S s: Shape; end", MAREA_AST_KIND_STRUCTURE_DECLARATION, 1, MAREA_SEMA_MEASURE_REASON_UNRESOLVED, 1, RESOLVE);
+    MAREA_expectUndecided("namespace main; import a.b { Shape as Shape }; structure Point x: uinteger8; end structure S s: Shape; end", MAREA_AST_KIND_STRUCTURE_DECLARATION, 1, MAREA_SEMA_MEASURE_REASON_UNRESOLVED, 1, RESOLVE);
 
-    MAREA_expectUndecided("namespace main; #![pack = 1] import a.b { Wide }; structure S w: Wide; end", MAREA_AST_KIND_STRUCTURE_DECLARATION, 0, MAREA_SEMA_MEASURE_REASON_UNRESOLVED, 1, RESOLVE);
+    MAREA_expectUndecided("namespace main; #![pack = 1] import a.b { Wide as Wide }; structure S w: Wide; end", MAREA_AST_KIND_STRUCTURE_DECLARATION, 0, MAREA_SEMA_MEASURE_REASON_UNRESOLVED, 1, RESOLVE);
 }
 
 TEST(MAREASemaLayout, LibraryTypeIsUndecided)
@@ -399,7 +399,7 @@ TEST(MAREASemaLayout, LibraryTypeIsUndecided)
         MAREA_expectUndecided("namespace main; enum E A; B(v: " + type + "); end", MAREA_AST_KIND_ENUM_DECLARATION, 0, MAREA_SEMA_MEASURE_REASON_LIBRARY_TYPE, 2);
     }
 
-    MAREA_expectUndecided("namespace main; import c.stdio; structure S a: uinteger8; f: stdio.File; end", MAREA_AST_KIND_STRUCTURE_DECLARATION, 0, MAREA_SEMA_MEASURE_REASON_LIBRARY_TYPE, 2, MAREA_EXTERNAL_RESOLVE);
+    MAREA_expectUndecided("namespace main; import c.stdio as stdio; structure S a: uinteger8; f: stdio.File; end", MAREA_AST_KIND_STRUCTURE_DECLARATION, 0, MAREA_SEMA_MEASURE_REASON_LIBRARY_TYPE, 2, MAREA_EXTERNAL_RESOLVE);
 }
 
 TEST(MAREASemaLayout, HoldingAnUndecidedTypeIsUndecided)

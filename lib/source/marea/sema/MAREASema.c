@@ -96,16 +96,18 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaContextSetRequireResolver(MAREA_SemaContex
         return MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER;
     }
 
-    MAREA_IGNORE(registry);
+    context->requireResolver = registry;
 
     return MAREA_SEMA_EXCEPT_SUCCESS;
 }
 
 MAREA_SemaImportResolver *MAREA_CALL MAREA_SemaContextGetRequireResolver(const MAREA_SemaContext *context)
 {
-    MAREA_IGNORE(context);
+    if (context == MAREA_NULLPTR) {
+        return MAREA_NULLPTR;
+    }
 
-    return MAREA_NULLPTR;
+    return context->requireResolver;
 }
 
 void MAREA_CALL MAREA_SemaReport(MAREA_SemaContext *context, MAREA_SemaDiagnosticCode code, MAREA_SourcePosition position, const MAREA_Character8 *message)

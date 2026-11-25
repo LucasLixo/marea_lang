@@ -126,7 +126,7 @@ TEST(MAREASemaExamples, EveryExampleChecksClean)
             return MAREA_SEMA_IMPORT_RESULT_FOUND;
         }
 
-        const bool EXTERNAL{ MAREA_startsWith(text, "collections.") || MAREA_startsWith(text, "concurrency.") || MAREA_startsWith(text, "arenas.") || (text == "text") || MAREA_startsWith(text, "c.") };
+        const bool EXTERNAL{ MAREA_startsWith(text, "collections.") || MAREA_startsWith(text, "concurrency.") || MAREA_startsWith(text, "arenas.") || (text == "text") || MAREA_startsWith(text, "c.") || MAREA_startsWith(text, "marea.") || MAREA_startsWith(text, "demo.") };
 
         return EXTERNAL ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
     } };

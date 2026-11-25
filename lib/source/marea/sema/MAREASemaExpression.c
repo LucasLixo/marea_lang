@@ -895,14 +895,14 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsNamespaceRoot(const MAREA_SemaContext 
     return ((first != MAREA_NULLPTR) && (MAREA_G_NodeTextIs(first, name) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
-// INFO: c is the reserved namespace of C, size_of, align_of and convert are the built-in calls and Self is the type of an implementation block.
+// INFO: size_of, align_of and convert are the built-in calls and Self is the type of an implementation block. c is no built-in name: it is a reserved first segment of a full path.
 static MAREA_Boolean MAREA_CALL MAREA_G_IsBuiltInName(const MAREA_AstNode *name)
 {
     const MAREA_Character8 *text = MAREA_AstNodeGetText(name);
 
     const MAREA_IntegerSize length = MAREA_AstNodeGetTextLength(name);
 
-    return ((MAREA_G_TextIs(text, length, "c") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextIs(text, length, "convert") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextIs(text, length, "size_of") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextIs(text, length, "align_of") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextIs(text, length, "Self") == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+    return ((MAREA_G_TextIs(text, length, "convert") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextIs(text, length, "size_of") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextIs(text, length, "align_of") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextIs(text, length, "Self") == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
 static MAREA_Boolean MAREA_CALL MAREA_G_IsDeclaredName(const MAREA_SemaContext *context, const MAREA_AstNode *name)
@@ -912,6 +912,51 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsDeclaredName(const MAREA_SemaContext *
     }
 
     return ((MAREA_G_IsBuiltInName(name) == MAREA_BOOLEAN_TRUE) || (MAREA_G_IsNamespaceRoot(context, name) == MAREA_BOOLEAN_TRUE) || (MAREA_G_FindImplementationConstant(context, name) != MAREA_NULLPTR)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
+// INFO: a chain whose first name no declaration of the file binds is a full path into another namespace. A cover must reach it: with one the chain is accepted whole, without one it is UNIMPORTED_NAMESPACE, and a chain that no resolver knows is left to the check of the name.
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckFullPath(MAREA_SemaContext *context, const MAREA_AstNode *chain, MAREA_Boolean *outHandled)
+{
+    *outHandled = MAREA_BOOLEAN_FALSE;
+
+    const MAREA_Character8 *text = MAREA_NULLPTR;
+
+    MAREA_IntegerSize length = 0;
+
+    const MAREA_AstNode *head = MAREA_NULLPTR;
+
+    const MAREA_SemaExcept JOIN_RESULT = MAREA_SemaChainJoin(context, chain, &text, &length, &head);
+
+    if ((JOIN_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) || (text == MAREA_NULLPTR) || (head == chain) || (MAREA_G_IsDeclaredName(context, head) == MAREA_BOOLEAN_TRUE)) {
+        return JOIN_RESULT;
+    }
+
+    MAREA_SemaPathStatus status = MAREA_SEMA_PATH_STATUS_NOT_A_PATH;
+
+    const MAREA_SemaExcept CLASSIFY_RESULT = MAREA_SemaClassifyPath(context, text, length, MAREA_BOOLEAN_TRUE, &status, MAREA_NULLPTR, MAREA_NULLPTR);
+
+    if (CLASSIFY_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+        return CLASSIFY_RESULT;
+    }
+
+    if (status == MAREA_SEMA_PATH_STATUS_COVERED) {
+        *outHandled = MAREA_BOOLEAN_TRUE;
+
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    if (status == MAREA_SEMA_PATH_STATUS_UNIMPORTED) {
+        *outHandled = MAREA_BOOLEAN_TRUE;
+
+        return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_UNIMPORTED_NAMESPACE, MAREA_AstNodeGetPosition(head), "a namespace that no import or require covers:", text, length);
+    }
+
+    // INFO: a chain under a path that an import or a require names, with no resolver that knows it, is the fault of that declaration, which already reported it.
+    if ((status == MAREA_SEMA_PATH_STATUS_UNKNOWN) && (MAREA_SemaPathIsCovered(context, text, length) == MAREA_BOOLEAN_TRUE)) {
+        *outHandled = MAREA_BOOLEAN_TRUE;
+    }
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
 }
 
 // INFO: a name is declared before it is used, so a bare name that stands for a function of this file that starts after the use is not yet declared. A local of the same name hides the function, and a constant initializer has no function, so it keeps its freedom.
@@ -1215,7 +1260,17 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckValue(MAREA_SemaContext *context
 
         const MAREA_Boolean METHOD_CALLEE = ((callee != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(callee) == MAREA_AST_KIND_MEMBER_ACCESS) && (MAREA_G_IsOpaqueName(context, MAREA_SemaChildAt(callee, 0)) == MAREA_BOOLEAN_FALSE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 
-        MAREA_SemaExcept result = (METHOD_CALLEE == MAREA_BOOLEAN_TRUE) ? MAREA_G_CheckValue(context, MAREA_SemaChildAt(callee, 0), (depth + 1), checkNames) : MAREA_G_CheckValue(context, callee, (depth + 1), checkNames);
+        MAREA_Boolean fullPath = MAREA_BOOLEAN_FALSE;
+
+        MAREA_SemaExcept result = MAREA_SEMA_EXCEPT_SUCCESS;
+
+        if ((checkNames == MAREA_BOOLEAN_TRUE) && (callee != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(callee) == MAREA_AST_KIND_MEMBER_ACCESS)) {
+            result = MAREA_G_CheckFullPath(context, callee, &fullPath);
+        }
+
+        if ((result == MAREA_SEMA_EXCEPT_SUCCESS) && (fullPath == MAREA_BOOLEAN_FALSE)) {
+            result = (METHOD_CALLEE == MAREA_BOOLEAN_TRUE) ? MAREA_G_CheckValue(context, MAREA_SemaChildAt(callee, 0), (depth + 1), checkNames) : MAREA_G_CheckValue(context, callee, (depth + 1), checkNames);
+        }
 
         if ((result == MAREA_SEMA_EXCEPT_SUCCESS) && (MAREA_AstNodeGetChildCount(expression) > 1)) {
             result = MAREA_G_CheckValueOfChildren(context, expression, 1, depth, checkNames);
@@ -1261,6 +1316,16 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckValue(MAREA_SemaContext *context
     {
         // INFO: the name that starts a member chain is checked like any other name, so a namespace that no import binds, or that only its original name reaches through an alias, is undeclared.
         const MAREA_AstNode *base = MAREA_SemaChildAt(expression, 0);
+
+        if (checkNames == MAREA_BOOLEAN_TRUE) {
+            MAREA_Boolean fullPath = MAREA_BOOLEAN_FALSE;
+
+            const MAREA_SemaExcept PATH_RESULT = MAREA_G_CheckFullPath(context, expression, &fullPath);
+
+            if ((PATH_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) || (fullPath == MAREA_BOOLEAN_TRUE)) {
+                return PATH_RESULT;
+            }
+        }
 
         if (MAREA_G_IsOpaqueName(context, base) == MAREA_BOOLEAN_TRUE) {
             MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_OPAQUE_TYPE_MISUSE, MAREA_AstNodeGetPosition(expression), "an opaque type has no fields");

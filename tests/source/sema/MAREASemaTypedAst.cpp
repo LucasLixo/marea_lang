@@ -88,7 +88,7 @@ TEST(MAREASemaTypedAst, ImportMemberListIsCarriedIntoTheShadowTree)
 
     MAREA_SemaFixture fixture([](const std::string &, const MAREA_AstNode **) { return MAREA_SEMA_IMPORT_RESULT_EXTERNAL; });
 
-    ASSERT_EQ(fixture.MAREA_sema("namespace main; import a.b { f as g, T };"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check.";
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; import a.b { f as g, T as T };"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check.";
 
     ASSERT_EQ(fixture.MAREA_errorCount(), MAREA_INTEGER_SIZE(0)) << "The source must raise no error.";
 
@@ -860,7 +860,7 @@ TEST(MAREASemaTypedAst, ResolvedTypeKeepsADottedNameWhole)
 
     MAREA_SemaFixture fixture([](const std::string &, const MAREA_AstNode **) { return MAREA_EXTERNAL_RESULT; });
 
-    const MAREA_ResolvedTypeResult RESULT{ MAREA_resolvedTypeOf(fixture, "namespace main; function f(a: c.array<string>) end", MAREA_AST_KIND_PARAMETER) };
+    const MAREA_ResolvedTypeResult RESULT{ MAREA_resolvedTypeOf(fixture, "namespace main; require c.array; function f(a: c.array<string>) end", MAREA_AST_KIND_PARAMETER) };
 
     ASSERT_EQ(RESULT.except, MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "A dotted type has a resolved type.";
 

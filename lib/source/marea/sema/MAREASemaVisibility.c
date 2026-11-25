@@ -54,17 +54,15 @@ MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaNamespaceOf(MAREA_SemaContext *con
 
 const MAREA_AstNode *MAREA_CALL MAREA_SemaFoundRoot(const MAREA_SemaContext *context, const MAREA_Character8 *text, MAREA_IntegerSize length)
 {
-    if ((context == MAREA_NULLPTR) || (context->resolver == MAREA_NULLPTR) || (context->resolver->resolve == MAREA_NULLPTR) || (text == MAREA_NULLPTR) || (length == 0)) {
+    if ((context == MAREA_NULLPTR) || (context->resolver == MAREA_NULLPTR) || (text == MAREA_NULLPTR) || (length == 0)) {
         return MAREA_NULLPTR;
     }
 
-    MAREA_SemaImportResult result = MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
-
     const MAREA_AstNode *root = MAREA_NULLPTR;
 
-    context->resolver->resolve(context->resolver->userData, text, length, &result, &root);
+    const MAREA_SemaImportResult RESULT = MAREA_SemaResolveNamespace(context, text, length, &root);
 
-    return (result == MAREA_SEMA_IMPORT_RESULT_FOUND) ? root : MAREA_NULLPTR;
+    return (RESULT == MAREA_SEMA_IMPORT_RESULT_FOUND) ? root : MAREA_NULLPTR;
 }
 
 static MAREA_Boolean MAREA_CALL MAREA_G_IsKind(const MAREA_AstNode *node, MAREA_AstKind kind)
@@ -237,7 +235,7 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckMemberAccess(MAREA_SemaContext *
 
     const MAREA_AstNode *member = MAREA_SemaChildAt(node, 1);
 
-    if ((MAREA_G_IsKind(base, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_FALSE) || (MAREA_G_IsKind(member, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_FALSE)) {
+    if (MAREA_G_IsKind(member, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_FALSE) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
@@ -246,6 +244,39 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckMemberAccess(MAREA_SemaContext *
     const MAREA_IntegerSize MEMBER_LENGTH = MAREA_AstNodeGetTextLength(member);
 
     const MAREA_AstNode *root = MAREA_NULLPTR;
+
+    // INFO: a namespace written with its full path is read through the cover that reaches it.
+    if (MAREA_G_IsKind(base, MAREA_AST_KIND_MEMBER_ACCESS) == MAREA_BOOLEAN_TRUE) {
+        const MAREA_SemaName *entry = MAREA_NULLPTR;
+
+        const MAREA_SemaExcept ENTRY_RESULT = MAREA_SemaBaseEntry(context, base, member, &entry);
+
+        if ((ENTRY_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) || (entry == MAREA_NULLPTR) || (entry->kind != MAREA_SEMA_NAME_KIND_NAMESPACE)) {
+            return ENTRY_RESULT;
+        }
+
+        const MAREA_Character8 *namespaceText = MAREA_NULLPTR;
+
+        MAREA_IntegerSize namespaceLength = 0;
+
+        if (MAREA_SemaNamespaceOf(context, entry, &namespaceText, &namespaceLength) != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) {
+            return MAREA_SEMA_EXCEPT_ERROR_OUT_OF_MEMORY;
+        }
+
+        root = MAREA_SemaFoundRoot(context, namespaceText, namespaceLength);
+
+        const MAREA_AstNode *declaration = (root == MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_G_FindDeclaration(root, memberText, MEMBER_LENGTH);
+
+        if ((declaration != MAREA_NULLPTR) && (MAREA_SemaIsPrivate(root, declaration) == MAREA_BOOLEAN_TRUE)) {
+            return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_PRIVATE_SYMBOL_ACCESS, MAREA_AstNodeGetPosition(member), "symbol is private:", memberText, MEMBER_LENGTH);
+        }
+
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    if (MAREA_G_IsKind(base, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_FALSE) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
 
     const MAREA_SemaExcept ROOT_RESULT = MAREA_G_NamespaceRoot(context, base, MAREA_BOOLEAN_TRUE, &root);
 

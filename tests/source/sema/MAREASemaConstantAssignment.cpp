@@ -64,7 +64,7 @@ TEST(MAREASemaConstantAssignment, ElementPathRootedInConstantIsReported)
 {
     GTEST_COUT << "Validating that an element path rooted in a file constant raises ASSIGNMENT_TO_CONSTANT." << std::endl;
 
-    const Codes CODES{ MAREA_codesOfProgram("namespace main; constant TABLE: c.array<sinteger32> = c.array<sinteger32>{ 1, 2 }; function f() TABLE[0] = 1; end") };
+    const Codes CODES{ MAREA_codesOfProgram("namespace main; require c.array; constant TABLE: c.array<sinteger32> = c.array<sinteger32>{ 1, 2 }; function f() TABLE[0] = 1; end") };
 
     EXPECT_NE(std::find(CODES.begin(), CODES.end(), TO_CONSTANT), CODES.end()) << "An index path rooted in a constant must raise.";
 }

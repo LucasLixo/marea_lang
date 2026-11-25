@@ -95,7 +95,7 @@ TEST(MAREAIrAliases, VariantAliasLowersToTheTwoPartPath)
 {
     GTEST_COUT << "Validating a variant alias lowers to the member path as written, joined with a dot." << std::endl;
 
-    const std::string DUMP{ MAREA_dumpOf("namespace main; import collections.shade { Color, Color.red as Crimson }; function run() local c: Color = Crimson; end") };
+    const std::string DUMP{ MAREA_dumpOf("namespace main; import collections.shade { Color as Color, Color.red as Crimson }; function run() local c: Color = Crimson; end") };
 
     EXPECT_TRUE(MAREA_has(DUMP, "IDENTIFIER \"Color.red\"")) << "The variant must be the original path: " << DUMP;
     EXPECT_FALSE(MAREA_has(DUMP, "Crimson")) << "The alias must not appear: " << DUMP;
@@ -235,7 +235,7 @@ TEST(MAREAIrAliases, MemberListNamesAreBoundForBuiltinLookup)
 
     const Codes GENERIC{ 4004 };
 
-    EXPECT_EQ(MAREA_codesOf("namespace main; import collections.list { size_of }; function run(): sinteger32 return size_of<sinteger32>(); end"), GENERIC) << "A member with a built-in name binds it, so the call is a user generic.";
+    EXPECT_EQ(MAREA_codesOf("namespace main; import collections.list { size_of as size_of }; function run(): sinteger32 return size_of<sinteger32>(); end"), GENERIC) << "A member with a built-in name binds it, so the call is a user generic.";
 
     EXPECT_EQ(MAREA_codesOf("namespace main; import collections.list { helper as size_of }; function run(): sinteger32 return size_of<sinteger32>(); end"), GENERIC) << "An alias with a built-in name binds it.";
 
@@ -246,7 +246,7 @@ TEST(MAREAIrAliases, GenericTypeAliasStillRaises)
 {
     GTEST_COUT << "Validating a generic type alias of the unit keeps raising UNINSTANTIATED_GENERIC." << std::endl;
 
-    const Codes CODES{ MAREA_codesOf("namespace main; import collections.list; type Many<Item> = list<Item>; function run(): sinteger32 return Many<sinteger32>.filled(8, 0).length(); end") };
+    const Codes CODES{ MAREA_codesOf("namespace main; import collections.list as list; type Many<Item> = list<Item>; function run(): sinteger32 return Many<sinteger32>.filled(8, 0).length(); end") };
 
     ASSERT_FALSE(CODES.empty()) << "The generic alias must raise.";
 
@@ -288,7 +288,7 @@ TEST(MAREAIrAliases, TypeArgumentAliasLowersToTheHeadName)
 {
     GTEST_COUT << "Validating an alias of a type with concrete type arguments lowers to the head name, as the written type does." << std::endl;
 
-    const std::string DUMP{ MAREA_dumpOf("namespace main; import collections.list; type Ints = list<sinteger32>; type More = Ints; structure Box value: Ints; end function take(e: More) local x: Ints = e; end") };
+    const std::string DUMP{ MAREA_dumpOf("namespace main; import collections.list as list; type Ints = list<sinteger32>; type More = Ints; structure Box value: Ints; end function take(e: More) local x: Ints = e; end") };
 
     EXPECT_TRUE(MAREA_has(DUMP, "FIELD_DECLARATION \"value\" type=list")) << "The field type must be the head name: " << DUMP;
     EXPECT_TRUE(MAREA_has(DUMP, "PARAMETER \"e\" type=list")) << "The chain must reach the head name: " << DUMP;
@@ -301,7 +301,7 @@ TEST(MAREAIrAliases, TypeOperandThroughALossyAliasRaises)
 {
     GTEST_COUT << "Validating a type operand named by an alias that carries type arguments raises, so no argument is lost." << std::endl;
 
-    const Codes CODES{ MAREA_codesOf("namespace main; import collections.list; type Ints = list<sinteger32>; constant SIZE: uinteger64 = size_of<Ints>();") };
+    const Codes CODES{ MAREA_codesOf("namespace main; import collections.list as list; type Ints = list<sinteger32>; constant SIZE: uinteger64 = size_of<Ints>();") };
 
     ASSERT_FALSE(CODES.empty()) << "The operand must raise.";
 

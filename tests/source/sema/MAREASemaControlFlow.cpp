@@ -21,7 +21,7 @@ namespace
     {
         MAREA_SemaFixture fixture([](const std::string &, const MAREA_AstNode **) { return MAREA_SEMA_IMPORT_RESULT_EXTERNAL; });
 
-        if (fixture.MAREA_sema("namespace main; " + body) != MAREA_SEMA_EXCEPT_SUCCESS) {
+        if (fixture.MAREA_sema("namespace main; require c.array; require c.slice; require c.task; require c.pointer; require c.vector; require c.table; require c.owned; require vulkan; " + body) != MAREA_SEMA_EXCEPT_SUCCESS) {
             return { 0 };
         }
 
@@ -406,25 +406,25 @@ TEST(MAREASemaControlFlow, SwitchOverAnImportedEnumChecksCoverage)
 
     MAREA_SemaFixture member(RESOLVE);
 
-    ASSERT_EQ(member.MAREA_sema("namespace main; import a.b { Color }; " + PARTIAL), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+    ASSERT_EQ(member.MAREA_sema("namespace main; import a.b { Color as Color }; " + PARTIAL), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
 
     EXPECT_EQ(member.MAREA_semaCodes(), Codes{ NON_EXHAUSTIVE }) << "A missing variant of a member import must raise NON_EXHAUSTIVE_SWITCH.";
 
     MAREA_SemaFixture whole(RESOLVE);
 
-    ASSERT_EQ(whole.MAREA_sema("namespace main; import a.b.Color; " + PARTIAL), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+    ASSERT_EQ(whole.MAREA_sema("namespace main; import a.b.Color as Color; " + PARTIAL), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
 
     EXPECT_EQ(whole.MAREA_semaCodes(), Codes{ NON_EXHAUSTIVE }) << "A missing variant of a whole-path import must raise NON_EXHAUSTIVE_SWITCH.";
 
     MAREA_SemaFixture covered(RESOLVE);
 
-    ASSERT_EQ(covered.MAREA_sema("namespace main; import a.b { Color }; " + FULL), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+    ASSERT_EQ(covered.MAREA_sema("namespace main; import a.b { Color as Color }; " + FULL), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
 
     EXPECT_TRUE(covered.MAREA_semaCodes().empty()) << "Every variant covered must raise nothing.";
 
     MAREA_SemaFixture defaulted(RESOLVE);
 
-    ASSERT_EQ(defaulted.MAREA_sema("namespace main; import a.b { Color }; " + DEFAULTED), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+    ASSERT_EQ(defaulted.MAREA_sema("namespace main; import a.b { Color as Color }; " + DEFAULTED), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
 
     EXPECT_TRUE(defaulted.MAREA_semaCodes().empty()) << "A default arm must raise nothing.";
 }
@@ -454,7 +454,7 @@ TEST(MAREASemaControlFlow, SwitchOverAnExternalEnumIsStillExempt)
 
     MAREA_SemaFixture fixture([](const std::string &, const MAREA_AstNode **) { return MAREA_SEMA_IMPORT_RESULT_EXTERNAL; });
 
-    ASSERT_EQ(fixture.MAREA_sema("namespace main; import a.b { Color }; function f(c: Color): sinteger32 switch c case Color.red then return 1; end end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; import a.b { Color as Color }; function f(c: Color): sinteger32 switch c case Color.red then return 1; end end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
 
     EXPECT_TRUE(fixture.MAREA_semaCodes().empty()) << "An external type has no tree, so it must raise nothing.";
 }

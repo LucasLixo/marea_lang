@@ -221,7 +221,7 @@ TEST(MAREASemaTypedAstScopes, RangeCounterOfAnUntypedBoundHasNoType)
 {
     GTEST_COUT << "Validating the counter of a for range is not guessed when the bound that decides has no type." << std::endl;
 
-    MAREA_expectScopeNoType("namespace main; import c.limits; function f(): sinteger32 local t: sinteger32 = 0; for i in 0 .. limits.top() do t += i; end return t; end", "i", 1, MAREA_EXTERNAL_RESOLVE);
+    MAREA_expectScopeNoType("namespace main; import c.limits as limits; function f(): sinteger32 local t: sinteger32 = 0; for i in 0 .. limits.top() do t += i; end return t; end", "i", 1, MAREA_EXTERNAL_RESOLVE);
 }
 
 TEST(MAREASemaTypedAstScopes, DeclaredNamesOfALoopHaveTheTypeOfTheirLoop)
@@ -261,7 +261,7 @@ TEST(MAREASemaTypedAstScopes, ForRangeCounterOfAnUntypedBoundHasNoTypeOnTheState
 {
     GTEST_COUT << "Validating the counter child of a for range is not guessed when the bound that decides has no type." << std::endl;
 
-    MAREA_expectHeaderNoType("namespace main; import c.limits; function f(): sinteger32 local t: sinteger32 = 0; for i in 0 .. limits.top() do t += i; end return t; end", MAREA_AST_KIND_FOR_RANGE_STATEMENT, 0, MAREA_EXTERNAL_RESOLVE);
+    MAREA_expectHeaderNoType("namespace main; import c.limits as limits; function f(): sinteger32 local t: sinteger32 = 0; for i in 0 .. limits.top() do t += i; end return t; end", MAREA_AST_KIND_FOR_RANGE_STATEMENT, 0, MAREA_EXTERNAL_RESOLVE);
 }
 
 TEST(MAREASemaTypedAstScopes, ForEachCollectionChildHasItsResolvedType)
@@ -274,7 +274,7 @@ TEST(MAREASemaTypedAstScopes, ForEachCollectionChildHasItsResolvedType)
 
     MAREA_expectHeaderType("namespace main; function f(v: slice<float32>): float32 local t: float32 = 0.0; for each x in mutable v do t += x; end return t; end", MAREA_AST_KIND_FOR_EACH_STATEMENT, 1, "slice<float32>");
 
-    MAREA_expectHeaderType("namespace main; import collections.array; function f(v: c.array<sinteger32>): sinteger32 local t: sinteger32 = 0; for each x in v do t += x; end return t; end", MAREA_AST_KIND_FOR_EACH_STATEMENT, 1, "c.array<sinteger32>", MAREA_EXTERNAL_RESOLVE);
+    MAREA_expectHeaderType("namespace main; require c.array; import collections.array as array; function f(v: c.array<sinteger32>): sinteger32 local t: sinteger32 = 0; for each x in v do t += x; end return t; end", MAREA_AST_KIND_FOR_EACH_STATEMENT, 1, "c.array<sinteger32>", MAREA_EXTERNAL_RESOLVE);
 }
 
 TEST(MAREASemaTypedAstScopes, ForEachNameChildrenHaveTheirType)
@@ -296,7 +296,7 @@ TEST(MAREASemaTypedAstScopes, ForEachNameChildrenOfAnUntypedCollectionHaveNoType
 {
     GTEST_COUT << "Validating a for each over a collection with no type leaves both loop names without a type, and never guesses the key." << std::endl;
 
-    const std::string SOURCE{ "namespace main; import c.things; function consume(x: sinteger32, k: uinteger64) end function f() for each k, x in things.all() do consume(x, k); end end" };
+    const std::string SOURCE{ "namespace main; import c.things as things; function consume(x: sinteger32, k: uinteger64) end function f() for each k, x in things.all() do consume(x, k); end end" };
 
     MAREA_expectHeaderNoType(SOURCE, MAREA_AST_KIND_FOR_EACH_STATEMENT, 0, MAREA_EXTERNAL_RESOLVE);
 
@@ -327,14 +327,14 @@ TEST(MAREASemaTypedAstScopes, ForEachValueIsTheElementType)
 
     MAREA_expectScopeType("namespace main; function f(v: slice<float32>): float32 local t: float32 = 0.0; for each x in mutable v do t += x; end return t; end", "x", 1, "float32");
 
-    MAREA_expectScopeType("namespace main; import collections.array; function f(v: c.array<sinteger32>): sinteger32 local t: sinteger32 = 0; for each x in v do t += x; end return t; end", "x", 1, "sinteger32", MAREA_EXTERNAL_RESOLVE);
+    MAREA_expectScopeType("namespace main; require c.array; import collections.array as array; function f(v: c.array<sinteger32>): sinteger32 local t: sinteger32 = 0; for each x in v do t += x; end return t; end", "x", 1, "sinteger32", MAREA_EXTERNAL_RESOLVE);
 }
 
 TEST(MAREASemaTypedAstScopes, ForEachElementOfAGenericTypeIsKeptWhole)
 {
     GTEST_COUT << "Validating the element of a collection of a generic type is spelled whole." << std::endl;
 
-    MAREA_expectScopeType("namespace main; import collections.array; import concurrency.task; function consume(x: task<float32>) end function f(v: c.array<task<float32>>) for each x in v do consume(x); end end", "x", 2, "task<float32>", MAREA_EXTERNAL_RESOLVE);
+    MAREA_expectScopeType("namespace main; require c.array; import collections.array as array; import concurrency.task as task; function consume(x: task<float32>) end function f(v: c.array<task<float32>>) for each x in v do consume(x); end end", "x", 2, "task<float32>", MAREA_EXTERNAL_RESOLVE);
 }
 
 TEST(MAREASemaTypedAstScopes, ForEachKeyIsTheIndexType)
@@ -352,14 +352,14 @@ TEST(MAREASemaTypedAstScopes, ForEachOverAnUntypedCollectionHasNoType)
 {
     GTEST_COUT << "Validating the value of a for each is not guessed when the collection has no type." << std::endl;
 
-    MAREA_expectScopeNoType("namespace main; import c.things; function consume(x: sinteger32) end function f() for each x in things.all() do consume(x); end end", "x", 2, MAREA_EXTERNAL_RESOLVE);
+    MAREA_expectScopeNoType("namespace main; import c.things as things; function consume(x: sinteger32) end function f() for each x in things.all() do consume(x); end end", "x", 2, MAREA_EXTERNAL_RESOLVE);
 }
 
 TEST(MAREASemaTypedAstScopes, PartitionPartIsASliceOfTheValue)
 {
     GTEST_COUT << "Validating a partition part is a slice of the element type of the value, whatever the collection." << std::endl;
 
-    MAREA_expectScopeType("namespace main; import collections.array; function consume(p: slice<float32>) end function f(#[semantics = reference_mutable] v: c.array<float32>) fork_join partition mutable v into 4 as part do consume(part); end end end", "part", 1, "slice<float32>", MAREA_EXTERNAL_RESOLVE);
+    MAREA_expectScopeType("namespace main; require c.array; import collections.array as array; function consume(p: slice<float32>) end function f(#[semantics = reference_mutable] v: c.array<float32>) fork_join partition mutable v into 4 as part do consume(part); end end end", "part", 1, "slice<float32>", MAREA_EXTERNAL_RESOLVE);
 
     MAREA_expectScopeType("namespace main; function consume(p: slice<uinteger8>) end function f(v: array<uinteger8, 8>) fork_join partition v into 2 as part do consume(part); end end end", "part", 1, "slice<uinteger8>");
 
@@ -374,7 +374,7 @@ TEST(MAREASemaTypedAstScopes, WithNameHasTheTypeOfItsExpression)
 
     MAREA_expectScopeType("namespace main; function f(n: sinteger64): sinteger64 local t: sinteger64 = 0; with n as m do t += m; end return t; end", "m", 1, "sinteger64");
 
-    MAREA_expectScopeNoType("namespace main; import c.gpu; function use(x: sinteger32) end function f() with gpu.map() as view do use(view); end end", "view", 1, MAREA_EXTERNAL_RESOLVE);
+    MAREA_expectScopeNoType("namespace main; import c.gpu as gpu; function use(x: sinteger32) end function f() with gpu.map() as view do use(view); end end", "view", 1, MAREA_EXTERNAL_RESOLVE);
 }
 
 TEST(MAREASemaTypedAstScopes, InnerNameShadowsAnOuterOne)

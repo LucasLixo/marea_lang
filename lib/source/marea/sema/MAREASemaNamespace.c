@@ -215,10 +215,10 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_AddName(MAREA_SemaContext *context, M
     return MAREA_G_BindName(context, position, text, length, kind, declaration, MAREA_NULLPTR, MAREA_INTEGER_SIZE(0));
 }
 
-// INFO: c is the reserved namespace of C, so an alias or a type name must not hide it.
+// INFO: c and marea are the reserved first segments of a namespace, so an alias or a type name must not hide them.
 static MAREA_SemaExcept MAREA_CALL MAREA_G_ReportReserved(MAREA_SemaContext *context, MAREA_SourcePosition position, const MAREA_Character8 *text, MAREA_IntegerSize length, MAREA_Boolean *outReserved)
 {
-    *outReserved = MAREA_SemaTextEquals(text, length, "c", MAREA_INTEGER_SIZE(1));
+    *outReserved = ((MAREA_SemaTextEquals(text, length, "c", MAREA_INTEGER_SIZE(1)) == MAREA_BOOLEAN_TRUE) || (MAREA_SemaTextEquals(text, length, "marea", MAREA_INTEGER_SIZE(5)) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 
     if (*outReserved == MAREA_BOOLEAN_FALSE) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
@@ -307,15 +307,27 @@ MAREA_Boolean MAREA_CALL MAREA_SemaEnumHasVariant(const MAREA_AstNode *enumerati
     return MAREA_BOOLEAN_FALSE;
 }
 
-static MAREA_SemaImportResult MAREA_CALL MAREA_G_Resolve(const MAREA_SemaContext *context, const MAREA_Character8 *text, MAREA_IntegerSize length, const MAREA_AstNode **outRoot)
+static MAREA_SemaImportResult MAREA_CALL MAREA_G_Resolve(const MAREA_SemaContext *context, MAREA_SemaCoverKind kind, const MAREA_Character8 *text, MAREA_IntegerSize length, const MAREA_AstNode **outRoot)
 {
-    MAREA_SemaImportResult result = MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
+    return MAREA_SemaResolveForKeyword(context, kind, text, length, outRoot);
+}
 
-    *outRoot = MAREA_NULLPTR;
+// INFO: an unresolved import is 3001, an unresolved require is 3079. With two resolvers, the message says when the other keyword would find the name.
+static MAREA_SemaExcept MAREA_CALL MAREA_G_ReportUnresolved(MAREA_SemaContext *context, MAREA_SemaCoverKind kind, MAREA_SourcePosition position, const MAREA_Character8 *text, MAREA_IntegerSize length)
+{
+    const MAREA_Boolean IS_REQUIRE = (kind == MAREA_SEMA_COVER_KIND_REQUIRE) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 
-    context->resolver->resolve(context->resolver->userData, text, length, &result, outRoot);
+    const MAREA_SemaCoverKind OTHER = (IS_REQUIRE == MAREA_BOOLEAN_TRUE) ? MAREA_SEMA_COVER_KIND_IMPORT : MAREA_SEMA_COVER_KIND_REQUIRE;
 
-    return result;
+    const MAREA_AstNode *otherRoot = MAREA_NULLPTR;
+
+    const MAREA_Boolean OTHER_KNOWS = ((context->requireResolver != MAREA_NULLPTR) && (MAREA_G_Resolve(context, OTHER, text, length, &otherRoot) != MAREA_SEMA_IMPORT_RESULT_NOT_FOUND)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+
+    if (IS_REQUIRE == MAREA_BOOLEAN_TRUE) {
+        return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_UNRESOLVED_REQUIRE, position, (OTHER_KNOWS == MAREA_BOOLEAN_TRUE) ? "a project file, use import:" : "unresolved require:", text, length);
+    }
+
+    return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_UNRESOLVED_IMPORT, position, (OTHER_KNOWS == MAREA_BOOLEAN_TRUE) ? "registered on the C side, use require:" : "unresolved import:", text, length);
 }
 
 static MAREA_Boolean MAREA_CALL MAREA_G_IsPlainName(const MAREA_AstNode *qualifiedName)
@@ -462,7 +474,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_MemberResolves(const MAREA_AstNode *path
     return ((MAREA_AstNodeGetKind(symbol) == MAREA_AST_KIND_ENUM_DECLARATION) && (MAREA_SemaEnumHasVariant(symbol, MAREA_AstNodeGetText(variant), MAREA_AstNodeGetTextLength(variant)) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
-static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckImportMember(MAREA_SemaContext *context, const MAREA_AstNode *member, const MAREA_Character8 *namespaceText, MAREA_IntegerSize namespaceLength, MAREA_SemaImportResult namespaceResult, const MAREA_AstNode *namespaceRoot)
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckImportMember(MAREA_SemaContext *context, MAREA_SemaCoverKind kind, const MAREA_AstNode *member, const MAREA_Character8 *namespaceText, MAREA_IntegerSize namespaceLength, MAREA_SemaImportResult namespaceResult, const MAREA_AstNode *namespaceRoot)
 {
     const MAREA_AstNode *path = MAREA_SemaChildAt(member, 0);
 
@@ -498,10 +510,27 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckImportMember(MAREA_SemaContext *
         result = MAREA_G_JoinDotted(context, namespaceText, namespaceLength, original, originalLength, &full, &fullLength);
 
         if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
-            result = MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_UNRESOLVED_IMPORT, MAREA_AstNodeGetPosition(member), "unresolved import:", full, fullLength);
+            result = MAREA_G_ReportUnresolved(context, kind, MAREA_AstNodeGetPosition(member), full, fullLength);
         }
 
         if (result != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return result;
+        }
+    }
+
+    // INFO: a member makes its full path legal; only a member with an alias binds a name.
+    {
+        const MAREA_Character8 *covered = MAREA_NULLPTR;
+
+        MAREA_IntegerSize coveredLength = 0;
+
+        result = MAREA_G_JoinDotted(context, namespaceText, namespaceLength, original, originalLength, &covered, &coveredLength);
+
+        if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
+            result = MAREA_SemaCoverAdd(context, kind, MAREA_AstNodeGetPosition(member), covered, coveredLength);
+        }
+
+        if ((result != MAREA_SEMA_EXCEPT_SUCCESS) || (alias == MAREA_NULLPTR)) {
             return result;
         }
     }
@@ -523,7 +552,7 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckImportMember(MAREA_SemaContext *
     return MAREA_G_BindQualified(context, MAREA_AstNodeGetPosition(localName), MAREA_AstNodeGetText(localName), MAREA_AstNodeGetTextLength(localName), MAREA_SEMA_NAME_KIND_IMPORTED_SYMBOL, enumeration, original, originalLength, namespaceText, namespaceLength);
 }
 
-static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckImportMembers(MAREA_SemaContext *context, const MAREA_AstNode *import, const MAREA_AstNode *namespaceName)
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckImportMembers(MAREA_SemaContext *context, MAREA_SemaCoverKind kind, const MAREA_AstNode *import, const MAREA_AstNode *namespaceName)
 {
     const MAREA_Character8 *joined = MAREA_NULLPTR;
 
@@ -537,7 +566,7 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckImportMembers(MAREA_SemaContext 
 
     const MAREA_AstNode *foundRoot = MAREA_NULLPTR;
 
-    const MAREA_SemaImportResult NAMESPACE_RESULT = MAREA_G_Resolve(context, joined, joinedLength, &foundRoot);
+    const MAREA_SemaImportResult NAMESPACE_RESULT = MAREA_G_Resolve(context, kind, joined, joinedLength, &foundRoot);
 
     const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(import);
 
@@ -548,7 +577,7 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckImportMembers(MAREA_SemaContext 
             continue;
         }
 
-        result = MAREA_G_CheckImportMember(context, member, joined, joinedLength, NAMESPACE_RESULT, foundRoot);
+        result = MAREA_G_CheckImportMember(context, kind, member, joined, joinedLength, NAMESPACE_RESULT, foundRoot);
 
         if (result != MAREA_SEMA_EXCEPT_SUCCESS) {
             return result;
@@ -558,7 +587,8 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckImportMembers(MAREA_SemaContext 
     return MAREA_SEMA_EXCEPT_SUCCESS;
 }
 
-static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckImport(MAREA_SemaContext *context, const MAREA_AstNode *import)
+// INFO: an import or a require makes its full path legal and binds no name. Only "as" binds a name: the alias stands for the whole path. A wildcard covers every path below its namespace and never binds.
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckImport(MAREA_SemaContext *context, MAREA_SemaCoverKind coverKind, const MAREA_AstNode *import)
 {
     const MAREA_AstNode *qualifiedName = MAREA_SemaChildAt(import, 0);
 
@@ -579,7 +609,7 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckImport(MAREA_SemaContext *contex
     }
 
     if ((MAREA_AstNodeGetFlags(import) & MAREA_AST_FLAG_HAS_MEMBERS) != 0) {
-        return MAREA_G_CheckImportMembers(context, import, qualifiedName);
+        return MAREA_G_CheckImportMembers(context, coverKind, import, qualifiedName);
     }
 
     const MAREA_AstNode *alias = MAREA_NULLPTR;
@@ -590,7 +620,7 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckImport(MAREA_SemaContext *contex
 
     const MAREA_Boolean HAS_NAMED_ALIAS = ((alias != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(alias) == MAREA_AST_KIND_IDENTIFIER)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 
-    const MAREA_AstNode *localName = (HAS_NAMED_ALIAS == MAREA_BOOLEAN_TRUE) ? alias : last;
+    const MAREA_Boolean WILDCARD = ((MAREA_AstNodeGetFlags(import) & MAREA_AST_FLAG_WILDCARD) != 0) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 
     const MAREA_Character8 *joined = MAREA_NULLPTR;
 
@@ -610,15 +640,15 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckImport(MAREA_SemaContext *contex
 
     const MAREA_AstNode *enumeration = MAREA_NULLPTR;
 
-    if (MAREA_G_Resolve(context, joined, joinedLength, &foundRoot) == MAREA_SEMA_IMPORT_RESULT_NOT_FOUND) {
+    if (MAREA_G_Resolve(context, coverKind, joined, joinedLength, &foundRoot) == MAREA_SEMA_IMPORT_RESULT_NOT_FOUND) {
         resolved = MAREA_BOOLEAN_FALSE;
         kind = MAREA_SEMA_NAME_KIND_IMPORTED_SYMBOL;
 
-        // INFO: the last segment may name a public symbol of the namespace one level up.
-        if (SEGMENT_COUNT > 1) {
+        // INFO: the last segment may name a public symbol of the namespace one level up, never for a wildcard.
+        if ((SEGMENT_COUNT > 1) && (WILDCARD == MAREA_BOOLEAN_FALSE)) {
             const MAREA_IntegerSize PARENT_LENGTH = (joinedLength - MAREA_AstNodeGetTextLength(last) - MAREA_INTEGER_SIZE(1));
 
-            const MAREA_SemaImportResult PARENT_RESULT = MAREA_G_Resolve(context, joined, PARENT_LENGTH, &foundRoot);
+            const MAREA_SemaImportResult PARENT_RESULT = MAREA_G_Resolve(context, coverKind, joined, PARENT_LENGTH, &foundRoot);
 
             if (PARENT_RESULT == MAREA_SEMA_IMPORT_RESULT_EXTERNAL) {
                 resolved = MAREA_BOOLEAN_TRUE;
@@ -633,21 +663,23 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckImport(MAREA_SemaContext *contex
     }
 
     if (resolved == MAREA_BOOLEAN_FALSE) {
-        const MAREA_SemaExcept REPORT_RESULT = MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_UNRESOLVED_IMPORT, MAREA_AstNodeGetPosition(import), "unresolved import:", joined, joinedLength);
+        const MAREA_SemaExcept REPORT_RESULT = MAREA_G_ReportUnresolved(context, coverKind, MAREA_AstNodeGetPosition(import), joined, joinedLength);
 
         if (REPORT_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
             return REPORT_RESULT;
         }
     }
 
+    const MAREA_SemaExcept COVER_RESULT = MAREA_SemaCoverAdd(context, coverKind, MAREA_AstNodeGetPosition(import), joined, joinedLength);
+
+    if ((COVER_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) || (HAS_NAMED_ALIAS == MAREA_BOOLEAN_FALSE) || (WILDCARD == MAREA_BOOLEAN_TRUE)) {
+        return COVER_RESULT;
+    }
+
     // INFO: the namespace of the last segment, empty for a one-segment path.
     const MAREA_IntegerSize QUALIFIER_LENGTH = (SEGMENT_COUNT > 1) ? (joinedLength - MAREA_AstNodeGetTextLength(last) - MAREA_INTEGER_SIZE(1)) : MAREA_INTEGER_SIZE(0);
 
     const MAREA_Character8 *qualifier = (QUALIFIER_LENGTH > 0) ? joined : MAREA_NULLPTR;
-
-    if (HAS_NAMED_ALIAS == MAREA_BOOLEAN_FALSE) {
-        return MAREA_G_BindQualified(context, MAREA_AstNodeGetPosition(localName), MAREA_AstNodeGetText(localName), MAREA_AstNodeGetTextLength(localName), kind, enumeration, MAREA_NULLPTR, MAREA_INTEGER_SIZE(0), qualifier, QUALIFIER_LENGTH);
-    }
 
     MAREA_Boolean reserved = MAREA_BOOLEAN_FALSE;
 
@@ -657,8 +689,40 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckImport(MAREA_SemaContext *contex
         return RESERVED_RESULT;
     }
 
-    // INFO: the alias resolves to the last segment of the path, what the same import binds without "as".
+    // INFO: the alias resolves to the last segment of the path.
     return MAREA_G_BindQualified(context, MAREA_AstNodeGetPosition(alias), MAREA_AstNodeGetText(alias), MAREA_AstNodeGetTextLength(alias), kind, enumeration, MAREA_AstNodeGetText(last), MAREA_AstNodeGetTextLength(last), qualifier, QUALIFIER_LENGTH);
+}
+
+// INFO: c and marea are the reserved first segments of a namespace. A file may declare a namespace under one only when the registry of the host (the require resolver, or the one resolver of the context) registered that name, so a shipped library written in Marea passes and a project file does not.
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckReservedRoot(MAREA_SemaContext *context, const MAREA_AstNode *qualifiedName)
+{
+    if (MAREA_G_IsPlainName(qualifiedName) == MAREA_BOOLEAN_FALSE) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_AstNode *first = MAREA_SemaChildAt(qualifiedName, 0);
+
+    if ((MAREA_SemaTextEquals(MAREA_AstNodeGetText(first), MAREA_AstNodeGetTextLength(first), "c", MAREA_INTEGER_SIZE(1)) == MAREA_BOOLEAN_FALSE) && (MAREA_SemaTextEquals(MAREA_AstNodeGetText(first), MAREA_AstNodeGetTextLength(first), "marea", MAREA_INTEGER_SIZE(5)) == MAREA_BOOLEAN_FALSE)) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_Character8 *joined = MAREA_NULLPTR;
+
+    MAREA_IntegerSize joinedLength = 0;
+
+    const MAREA_SemaExcept JOIN_RESULT = MAREA_SemaQualifiedNameJoin(context, qualifiedName, &joined, &joinedLength);
+
+    if (JOIN_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+        return JOIN_RESULT;
+    }
+
+    const MAREA_AstNode *registeredRoot = MAREA_NULLPTR;
+
+    if (MAREA_SemaResolveForKeyword(context, MAREA_SEMA_COVER_KIND_REQUIRE, joined, joinedLength, &registeredRoot) != MAREA_SEMA_IMPORT_RESULT_NOT_FOUND) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_RESERVED_NAMESPACE_ROOT, MAREA_AstNodeGetPosition(qualifiedName), "a file of the project cannot use a reserved first segment:", joined, joinedLength);
 }
 
 MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckNamespaceAndNames(MAREA_SemaContext *context, const MAREA_AstNode *root)
@@ -689,9 +753,15 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckNamespaceAndNames(MAREA_SemaContext *
 
             if ((qualifiedName != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(qualifiedName) == MAREA_AST_KIND_QUALIFIED_NAME)) {
                 result = MAREA_G_CheckNamespacePath(context, root, qualifiedName);
+
+                if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
+                    result = MAREA_G_CheckReservedRoot(context, qualifiedName);
+                }
             }
         } else if (KIND == MAREA_AST_KIND_IMPORT_DECLARATION) {
-            result = MAREA_G_CheckImport(context, child);
+            result = MAREA_G_CheckImport(context, MAREA_SEMA_COVER_KIND_IMPORT, child);
+        } else if (KIND == MAREA_AST_KIND_REQUIRE_DECLARATION) {
+            result = MAREA_G_CheckImport(context, MAREA_SEMA_COVER_KIND_REQUIRE, child);
         } else {
             const MAREA_Character8 *name = MAREA_NULLPTR;
 

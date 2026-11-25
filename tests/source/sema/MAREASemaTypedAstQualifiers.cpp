@@ -197,6 +197,7 @@ TEST(MAREASemaTypedAstQualifiers, AValueBeforeAMemberIsNotAQualifier)
     MAREA_QualifierFixture fixture;
 
     const std::string SOURCE{ "namespace main;\n"
+                              "require c.array;\n"
                               "structure Point x: float64; end\n"
                               "function f(point: Point, items: c.array<Point>): float64\n"
                               "  local origin: Point = Point{ x = 1.0 };\n"
@@ -227,7 +228,7 @@ TEST(MAREASemaTypedAstQualifiers, ExternalNamespaceIsAQualifierAndItsMembersKeep
     MAREA_QualifierFixture fixture;
 
     const std::string SOURCE{ "namespace main;\n"
-                              "import c.stdio;\n"
+                              "import c.stdio as stdio;\n"
                               "function f(text: string): sinteger32 return stdio.puts(text); end\n" };
 
     ASSERT_TRUE(fixture.MAREA_build(SOURCE)) << "The source must check and build.";
@@ -251,7 +252,7 @@ TEST(MAREASemaTypedAstQualifiers, NameWithNoDeclarationBeforeAMemberIsAQualifier
 
     MAREA_QualifierFixture fixture;
 
-    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nimport c.stdio;\nfunction f(text: string) stdio.puts(text); end\n")) << "The source must check and build.";
+    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nimport c.stdio as stdio;\nfunction f(text: string) stdio.puts(text); end\n")) << "The source must check and build.";
 
     const MAREA_SemaTypedNode *member{ MAREA_nth(fixture, MAREA_AST_KIND_MEMBER_ACCESS, 0) };
 
@@ -267,7 +268,7 @@ TEST(MAREASemaTypedAstQualifiers, FoundNamespaceFunctionHasItsDeclaredType)
     MAREA_QualifierFixture fixture;
 
     const std::string SOURCE{ "namespace main;\n"
-                              "import lib.shapes;\n"
+                              "import lib.shapes as shapes;\n"
                               "function f(): float64 return shapes.area(1.0, 2.0); end\n" };
 
     ASSERT_TRUE(fixture.MAREA_build(SOURCE, { { "lib.shapes", MAREA_SHAPES } })) << "The source must check and build.";
@@ -292,7 +293,7 @@ TEST(MAREASemaTypedAstQualifiers, FoundNamespaceConstantHasItsDeclaredType)
     MAREA_QualifierFixture fixture;
 
     const std::string SOURCE{ "namespace main;\n"
-                              "import lib.shapes;\n"
+                              "import lib.shapes as shapes;\n"
                               "function f(): sinteger32 return shapes.LIMIT; end\n" };
 
     ASSERT_TRUE(fixture.MAREA_build(SOURCE, { { "lib.shapes", MAREA_SHAPES } })) << "The source must check and build.";
@@ -336,7 +337,7 @@ TEST(MAREASemaTypedAstQualifiers, FoundNamespaceMemberThatIsPrivateIsRejectedBef
     MAREA_QualifierFixture fixture;
 
     const std::string SOURCE{ "namespace main;\n"
-                              "import lib.shapes;\n"
+                              "import lib.shapes as shapes;\n"
                               "function f(): sinteger32 return shapes.hidden(); end\n" };
 
     // INFO: the checker raises PRIVATE_SYMBOL_ACCESS, and the typed tree is built only for a file with no error.
@@ -352,7 +353,7 @@ TEST(MAREASemaTypedAstQualifiers, FoundNamespaceResultWrittenInThatFileIsQualifi
     MAREA_QualifierFixture fixture;
 
     const std::string SOURCE{ "namespace main;\n"
-                              "import lib.shapes;\n"
+                              "import lib.shapes as shapes;\n"
                               "structure Box height: float64; end\n"
                               "function f() local box: shapes.Box = shapes.make(1.0); end\n" };
 
@@ -368,7 +369,7 @@ TEST(MAREASemaTypedAstQualifiers, FoundNamespaceGenericResultTakesTheTypeArgumen
     MAREA_QualifierFixture fixture;
 
     const std::string SOURCE{ "namespace main;\n"
-                              "import lib.shapes;\n"
+                              "import lib.shapes as shapes;\n"
                               "function f(): sinteger32 return shapes.identity<sinteger32>(5); end\n" };
 
     ASSERT_TRUE(fixture.MAREA_build(SOURCE, { { "lib.shapes", MAREA_SHAPES } })) << "The source must check and build.";
@@ -383,7 +384,7 @@ TEST(MAREASemaTypedAstQualifiers, ALocalNameHidesAFoundNamespace)
     MAREA_QualifierFixture fixture;
 
     const std::string SOURCE{ "namespace main;\n"
-                              "import lib.shapes;\n"
+                              "import lib.shapes as shapes;\n"
                               "structure Point x: float64; end\n"
                               "function f(shapes: Point): float64 return shapes.x; end\n" };
 
@@ -403,7 +404,7 @@ TEST(MAREASemaTypedAstQualifiers, FoundNamespaceGenericResultWithNoTypeArgumentH
     MAREA_QualifierFixture fixture;
 
     const std::string SOURCE{ "namespace main;\n"
-                              "import lib.shapes;\n"
+                              "import lib.shapes as shapes;\n"
                               "function f(): sinteger32 return shapes.identity(5); end\n" };
 
     ASSERT_TRUE(fixture.MAREA_build(SOURCE, { { "lib.shapes", MAREA_SHAPES } })) << "The source must check and build.";
@@ -418,7 +419,7 @@ TEST(MAREASemaTypedAstQualifiers, FoundNamespaceAliasOfATypeIsFollowed)
     MAREA_QualifierFixture fixture;
 
     const std::string SOURCE{ "namespace main;\n"
-                              "import lib.shapes;\n"
+                              "import lib.shapes as shapes;\n"
                               "function f(): float64 return shapes.distance(); end\n" };
 
     const std::string SHAPES{ std::string(MAREA_SHAPES) + "type Meters = float64;\n#[visibility = public] function distance(): Meters return 1.0; end\n" };
@@ -435,7 +436,7 @@ TEST(MAREASemaTypedAstQualifiers, MemberOfAResultWrittenInAnotherFileIsNotReadIn
     MAREA_QualifierFixture fixture;
 
     const std::string SOURCE{ "namespace main;\n"
-                              "import lib.shapes;\n"
+                              "import lib.shapes as shapes;\n"
                               "structure Box width: sinteger8; end\n"
                               "function f(): sinteger8 return shapes.make(1.0).width; end\n" };
 

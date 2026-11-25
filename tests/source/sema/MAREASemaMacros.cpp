@@ -27,7 +27,7 @@ namespace
     // INFO: the statement runs in a function with a boolean parameter ok and an integer parameter count.
     Codes MAREA_codesOfStatement(const std::string &statement)
     {
-        return MAREA_codesOfProgram("namespace main;\nfunction check(ok: boolean, count: sinteger32)\n" + statement + "\nend\n");
+        return MAREA_codesOfProgram("namespace main;\nrequire c.array;\nfunction check(ok: boolean, count: sinteger32)\n" + statement + "\nend\n");
     }
 
     std::vector<std::string> MAREA_messagesOfStatement(const std::string &statement)
@@ -36,7 +36,7 @@ namespace
 
         std::vector<std::string> messages;
 
-        if (fixture.MAREA_sema("namespace main;\nfunction check(ok: boolean, count: sinteger32)\n" + statement + "\nend\n") != MAREA_SEMA_EXCEPT_SUCCESS) {
+        if (fixture.MAREA_sema("namespace main;\nrequire c.array;\nfunction check(ok: boolean, count: sinteger32)\n" + statement + "\nend\n") != MAREA_SEMA_EXCEPT_SUCCESS) {
             return messages;
         }
 

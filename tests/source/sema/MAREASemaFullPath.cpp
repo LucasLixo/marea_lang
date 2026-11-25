@@ -18,6 +18,7 @@ namespace
     constexpr MAREA_Uinteger32 UNIMPORTED{ MAREA_SEMA_DIAGNOSTIC_CODE_UNIMPORTED_NAMESPACE };
     constexpr MAREA_Uinteger32 UNRESOLVED_REQUIRE{ MAREA_SEMA_DIAGNOSTIC_CODE_UNRESOLVED_REQUIRE };
     constexpr MAREA_Uinteger32 AMBIGUOUS{ MAREA_SEMA_DIAGNOSTIC_CODE_AMBIGUOUS_NAMESPACE };
+    constexpr MAREA_Uinteger32 RESERVED_ROOT{ MAREA_SEMA_DIAGNOSTIC_CODE_RESERVED_NAMESPACE_ROOT };
 
     // The registry of a host: the roots c, marea and demo exist, with any namespace below them.
     MAREA_SemaImportResult MAREA_registered(const std::string &text)
@@ -321,4 +322,38 @@ TEST(MAREASemaFullPath, ANameInATypePositionNeedsItsCoverToo)
     ASSERT_EQ(two.fixture.MAREA_sema("namespace main; function f(values: marea.array<sinteger32>) end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
 
     EXPECT_EQ(two.fixture.MAREA_semaCodes(), std::vector<MAREA_Uinteger32>{ UNIMPORTED }) << "A registered type with no require must raise UNIMPORTED_NAMESPACE.";
+}
+
+TEST(MAREASemaFullPath, AProjectFileCannotDeclareAReservedRoot)
+{
+    GTEST_COUT << "Validating a project file cannot declare a namespace under c or marea." << std::endl;
+
+    MAREA_SemaFixture underC;
+
+    ASSERT_EQ(underC.MAREA_sema("namespace c.tools;", "c/tools.marea"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+
+    EXPECT_EQ(underC.MAREA_semaCodes(), std::vector<MAREA_Uinteger32>{ RESERVED_ROOT }) << "A namespace under c must raise RESERVED_NAMESPACE_ROOT.";
+
+    MAREA_SemaFixture underMarea;
+
+    ASSERT_EQ(underMarea.MAREA_sema("namespace marea.tools;", "marea/tools.marea"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+
+    EXPECT_EQ(underMarea.MAREA_semaCodes(), std::vector<MAREA_Uinteger32>{ RESERVED_ROOT }) << "A namespace under marea must raise RESERVED_NAMESPACE_ROOT.";
+
+    MAREA_SemaFixture user;
+
+    ASSERT_EQ(user.MAREA_sema("namespace tools;", "tools.marea"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+
+    EXPECT_TRUE(user.MAREA_semaCodes().empty()) << "A root of the project must raise nothing.";
+}
+
+TEST(MAREASemaFullPath, AHostMayRegisterANameUnderAReservedRoot)
+{
+    GTEST_COUT << "Validating a file may declare a namespace under marea when the host registered that name." << std::endl;
+
+    MAREA_SemaFixture fixture(MAREA_registry());
+
+    ASSERT_EQ(fixture.MAREA_sema("namespace marea.math;", "marea/math.marea"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+
+    EXPECT_TRUE(fixture.MAREA_semaCodes().empty()) << "A registered name must raise nothing.";
 }
