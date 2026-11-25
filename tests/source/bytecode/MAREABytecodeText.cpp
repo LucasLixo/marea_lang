@@ -347,7 +347,7 @@ TEST(MAREABytecodeText, BadTextGivesADiagnosticWithItsLine)
         { "member before a type", ".marea-bytecode 0.1\n.strings\n.types\n  member name none type t0 value 0\n.functions\n.data\n", MAREA_BYTECODE_DIAGNOSTIC_CODE_TEXT_SYNTAX, 4 },
         { "param before a function", ".marea-bytecode 0.1\n.strings\n.types\n.functions\n  param type t0 flags 0\n.data\n", MAREA_BYTECODE_DIAGNOSTIC_CODE_TEXT_SYNTAX, 5 },
         { "member in the functions section", MAREA_replace(GOOD, "  param type t1 flags 1", "  member name none type t0 value 0"), MAREA_BYTECODE_DIAGNOSTIC_CODE_TEXT_SYNTAX, 13 },
-        { "unknown opcode", MAREA_replace(GOOD, "ins nop 1 2 3", "ins jump 1 2 3"), MAREA_BYTECODE_DIAGNOSTIC_CODE_UNKNOWN_OPCODE, 14 },
+        { "unknown opcode", MAREA_replace(GOOD, "ins nop 1 2 3", "ins bogus 1 2 3"), MAREA_BYTECODE_DIAGNOSTIC_CODE_UNKNOWN_OPCODE, 14 },
         { "odd hex length", MAREA_replace(GOOD, "d0 00ff10", "d0 00ff1"), MAREA_BYTECODE_DIAGNOSTIC_CODE_TEXT_SYNTAX, 18 },
         { "bad hex digit", MAREA_replace(GOOD, "d0 00ff10", "d0 00fg10"), MAREA_BYTECODE_DIAGNOSTIC_CODE_TEXT_SYNTAX, 18 },
         { "string reference past the pool", MAREA_replace(GOOD, "name s0 size 4", "name s9 size 4"), MAREA_BYTECODE_DIAGNOSTIC_CODE_BAD_REFERENCE, 0 },
