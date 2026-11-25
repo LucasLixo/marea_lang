@@ -99,6 +99,6 @@ macro(ConfigureLibTargets)
     endif()
 
     if(MAREA_OPTION_TARGET_BYTECODE)
-        mareaaddstagelibrary(STAGE bytecode NAME Bytecode LINK base)
+        mareaaddstagelibrary(STAGE bytecode NAME Bytecode LINK ir)
     endif()
 endmacro()

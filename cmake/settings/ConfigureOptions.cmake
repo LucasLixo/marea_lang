@@ -63,7 +63,7 @@ macro(ConfigureOptions)
         MAREA_OPTION_TARGET_BYTECODE
         "Build the Marea-Bytecode library"
         ON
-        "MAREA_OPTION_TARGET_BASE"
+        "MAREA_OPTION_TARGET_IR"
         OFF
     )
 endmacro()

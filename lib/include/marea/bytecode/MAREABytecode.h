@@ -33,7 +33,8 @@ MAREA_BEGIN_EXTERN_C
     /**
      * @brief Diagnostic code emitted by bytecode, in the 5000-5999 range reserved for this stage. Every code
      * is an error. A binary error gives the byte offset in the position, with line 0. A text error gives the
-     * line and the column, both counted from 1.
+     * line and the column, both counted from 1. The codes from 5030 on come from MAREA_BytecodeGenerate: they give
+     * the source line and column of the IR node, and the source offset.
      */
     typedef enum MAREA_BytecodeDiagnosticCode
     {
@@ -50,6 +51,11 @@ MAREA_BEGIN_EXTERN_C
         MAREA_BYTECODE_DIAGNOSTIC_CODE_TEXT_BAD_INDEX = MAREA_UINTEGER_32(5022),
         MAREA_BYTECODE_DIAGNOSTIC_CODE_TEXT_BAD_NUMBER = MAREA_UINTEGER_32(5023),
         MAREA_BYTECODE_DIAGNOSTIC_CODE_TEXT_BAD_STRING = MAREA_UINTEGER_32(5024),
+        MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_CONSTRUCT = MAREA_UINTEGER_32(5030),
+        MAREA_BYTECODE_DIAGNOSTIC_CODE_UNRESOLVED_NAME = MAREA_UINTEGER_32(5031),
+        MAREA_BYTECODE_DIAGNOSTIC_CODE_OPERAND_OVERFLOW = MAREA_UINTEGER_32(5032),
+        MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE = MAREA_UINTEGER_32(5033),
+        MAREA_BYTECODE_DIAGNOSTIC_CODE_UNWALKABLE_COLLECTION = MAREA_UINTEGER_32(5034),
     } MAREA_BytecodeDiagnosticCode;
 
     /**
