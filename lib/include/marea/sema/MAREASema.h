@@ -115,7 +115,68 @@ MAREA_BEGIN_EXTERN_C
         // (hasIndexProtocol true, an array-shaped library type) needs that argument to have a measured
         // layout.
         MAREA_SEMA_DIAGNOSTIC_CODE_ELEMENT_WITHOUT_MEASURED_LAYOUT = MAREA_UINTEGER_32(3082),
+        // INFO: an explicit backend of marea.math that the target description or the compiler cannot give
+        // (decision 18 of the 2026-11-24 plan, file 17_BACKEND_ATTRIBUTE_WHEN.md). The plan proposed 3078 for it,
+        // but 3078 to 3082 were taken by the require work, so the next free number is used.
+        MAREA_SEMA_DIAGNOSTIC_CODE_BACKEND_UNAVAILABLE = MAREA_UINTEGER_32(3083),
+        // INFO: the backend key written in a file whose namespace is not marea.math or below it.
+        MAREA_SEMA_DIAGNOSTIC_CODE_ATTRIBUTE_NOT_ALLOWED_HERE = MAREA_UINTEGER_32(3084),
+        // INFO: a known key written at a place that the placement matrix of the plan (11_ATTRIBUTES_MAP.md,
+        // section 6) does not give it, and an export on a generic function.
+        MAREA_SEMA_DIAGNOSTIC_CODE_MISPLACED_ATTRIBUTE = MAREA_UINTEGER_32(3085),
+        // INFO: a value that the build gives to build_value! and that does not fit the type of the call.
+        MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_BUILD_VALUE = MAREA_UINTEGER_32(3086),
     } MAREA_SemaDiagnosticCode;
+
+    /**
+     * @brief The target description that the caller gives to sema: what a when(...) predicate and the
+     * availability of a backend are judged against. A plain struct, caller owned, not opaque, because the
+     * caller fills every field (CMake, or a host with no CMake) and sema only reads it during a check, never
+     * copies or frees it. A text is NUL terminated and may be null, and a null text, a zero pointer width and
+     * an empty feature list mean "not answered": a predicate on it is false. Context: the caller of sema
+     * knows the target and sema never reads the environment.
+     */
+    typedef struct MAREA_ALIGNED(8) MAREA_SemaTarget
+    {
+        const MAREA_Character8 *architecture;
+        const MAREA_Character8 *operatingSystem;
+        const MAREA_Character8 *compiler;
+        const MAREA_Character8 *endianness;
+        const MAREA_Character8 *const *features;
+        MAREA_IntegerSize featureCount;
+        MAREA_Uinteger32 pointerWidth;
+    } MAREA_SemaTarget;
+
+    /**
+     * @brief One name and text pair that the build gives to build_value!. Both texts are NUL terminated.
+     */
+    typedef struct MAREA_ALIGNED(8) MAREA_SemaSetting
+    {
+        const MAREA_Character8 *name;
+        const MAREA_Character8 *value;
+    } MAREA_SemaSetting;
+
+    /**
+     * @brief The build settings that the caller gives to sema: the pairs that build_value! reads. A plain
+     * struct, caller owned, not opaque, for the same reason as MAREA_SemaTarget. A name that no pair holds
+     * gives the default of the macro call.
+     */
+    typedef struct MAREA_ALIGNED(8) MAREA_SemaSettings
+    {
+        const MAREA_SemaSetting *pairs;
+        MAREA_IntegerSize count;
+    } MAREA_SemaSettings;
+
+    /**
+     * @brief The include resolver that the caller gives to sema: the one way a registered macro such as
+     * include_bytes! learns the size of a file, because sema never reads the disk. A plain struct, caller
+     * owned, not opaque, for the same reason as MAREA_SemaTarget.
+     */
+    typedef struct MAREA_ALIGNED(8) MAREA_SemaIncludeResolver
+    {
+        MAREA_MacroIncludeSizeFunction size;
+        MAREA_Null userData;
+    } MAREA_SemaIncludeResolver;
 
     /**
      * @brief Opaque context that drives MAREA_SemaCheckCompilationUnit: the arena, diagnostic sink and
@@ -191,6 +252,58 @@ MAREA_BEGIN_EXTERN_C
      * @return The registry, or null when none was set or context is null.
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_TypeRegistry *MAREA_CALL MAREA_SemaContextGetTypeRegistry(const MAREA_SemaContext *context);
+
+    /**
+     * @brief Sets the target description that a when(...) predicate and a backend are judged against. A
+     * context with none answers no predicate (every one is false), resolves the automatic backend to scalar
+     * and reports an explicit vector_extension or intrinsics backend as unavailable.
+     * @param context Context to change. Must not be null.
+     * @param target Description to read, or null to clear it. The caller keeps it valid while the context
+     * checks.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, or MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER when context is null.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaContextSetTarget(MAREA_SemaContext * context, const MAREA_SemaTarget *target);
+
+    /**
+     * @brief Returns the target description the context was given.
+     * @param context Context to query. Null returns null.
+     * @return The target, or null when none was set or context is null.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_SemaTarget *MAREA_CALL MAREA_SemaContextGetTarget(const MAREA_SemaContext *context);
+
+    /**
+     * @brief Sets the build settings that build_value! reads. A context with none gives every
+     * build_value! call its default.
+     * @param context Context to change. Must not be null.
+     * @param settings Settings to read, or null to clear them. The caller keeps them valid while the
+     * context checks.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, or MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER when context is null.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaContextSetSettings(MAREA_SemaContext * context, const MAREA_SemaSettings *settings);
+
+    /**
+     * @brief Returns the build settings the context was given.
+     * @param context Context to query. Null returns null.
+     * @return The settings, or null when none were set or context is null.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_SemaSettings *MAREA_CALL MAREA_SemaContextGetSettings(const MAREA_SemaContext *context);
+
+    /**
+     * @brief Sets the include resolver that a registered macro asks about a file. A context with none
+     * reports every file as missing, so a macro that needs one is INVALID_MACRO_ARGUMENT.
+     * @param context Context to change. Must not be null.
+     * @param resolver Resolver to use, or null to clear it. The caller keeps it valid while the context
+     * checks.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, or MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER when context is null.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaContextSetIncludeResolver(MAREA_SemaContext * context, const MAREA_SemaIncludeResolver *resolver);
+
+    /**
+     * @brief Returns the include resolver the context was given.
+     * @param context Context to query. Null returns null.
+     * @return The resolver, or null when none was set or context is null.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_SemaIncludeResolver *MAREA_CALL MAREA_SemaContextGetIncludeResolver(const MAREA_SemaContext *context);
 
     /**
      * @brief Checks one compilation unit. Every violation is reported to the sink. An ERROR_NODE left by

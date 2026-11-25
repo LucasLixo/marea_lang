@@ -244,3 +244,111 @@ TEST(MAREATypeRegistry, ReplacingAnUnknownRuntimeFunctionIsRejected)
 
     EXPECT_EQ(MAREA_TypeRegistryReplaceRuntimeFunction(fixture.registry, "not_a_hook", MAREA_INTEGER_SIZE(10), reinterpret_cast<MAREA_Null>(&MAREA_hostFunction)), MAREA_TYPE_REGISTRY_EXCEPT_ERROR_UNKNOWN_RUNTIME_FUNCTION) << "A name that is not a declared runtime hook must be rejected.";
 }
+
+namespace
+{
+    MAREA_Boolean MAREA_CALL MAREA_expandFixtureMacro(const MAREA_MacroExpandRequest *request, MAREA_IntegerSize *outCount)
+    {
+        *outCount = request->textLength;
+
+        return MAREA_BOOLEAN_TRUE;
+    }
+
+    const MAREA_MacroArgumentKind MAREA_FIXTURE_MACRO_ARGUMENTS[]{ MAREA_MACRO_ARGUMENT_KIND_STRING_LITERAL };
+
+    MAREA_MacroDescriptor MAREA_fixtureMacro(const MAREA_TypeDescriptor *resultType)
+    {
+        return MAREA_MacroDescriptor{
+            .namespaceText = "marea.array",
+            .namespaceLength = 11,
+            .name = "include_bytes",
+            .nameLength = 13,
+            .argumentKinds = MAREA_FIXTURE_MACRO_ARGUMENTS,
+            .argumentCount = 1,
+            .resultType = resultType,
+            .resultElementText = "uinteger8",
+            .resultElementLength = 9,
+            .expand = &MAREA_expandFixtureMacro,
+        };
+    }
+} // namespace
+
+TEST(MAREATypeRegistry, AShippedLibraryRegistersAMacroThatTheRegistryFinds)
+{
+    GTEST_COUT << "Validating a shipped library registers a compile-time macro through the internal entry and the registry finds it by namespace and name." << std::endl;
+
+    MAREA_RegistryFixture fixture;
+
+    const MAREA_TypeDescriptor RESULT{ MAREA_descriptorOf("marea.array", "Array", MAREA_TYPE_ROLE_NONE, MAREA_TYPE_OWNERSHIP_CLASS_COPY, 2, MAREA_BOOLEAN_TRUE) };
+
+    const MAREA_MacroDescriptor MACRO{ MAREA_fixtureMacro(&RESULT) };
+
+    ASSERT_EQ(MAREA_TypeRegistryRegisterInternalMacro(fixture.registry, MAREA_LIBRARY_FLAG_MAREA_ARRAY, &MACRO), MAREA_TYPE_REGISTRY_EXCEPT_SUCCESS) << "The internal entry must register the macro.";
+
+    EXPECT_EQ(MAREA_TypeRegistryFindMacro(fixture.registry, "marea.array", 11, "include_bytes", 13), &MACRO) << "The registry must find the descriptor it was given.";
+    EXPECT_EQ(MAREA_TypeRegistryFindMacro(fixture.registry, "marea.array", 11, "include_text", 12), nullptr) << "Another name must not be found.";
+    EXPECT_EQ(MAREA_TypeRegistryFindMacro(fixture.registry, "marea.vector", 12, "include_bytes", 13), nullptr) << "Another namespace must not be found.";
+    EXPECT_EQ(MAREA_TypeRegistryFindMacro(nullptr, "marea.array", 11, "include_bytes", 13), nullptr) << "A null registry must find nothing.";
+}
+
+TEST(MAREATypeRegistry, AMacroOfALibraryThatIsOffIsNotRegistered)
+{
+    GTEST_COUT << "Validating a macro of a library whose bit is off registers nothing, so the name is unknown." << std::endl;
+
+    MAREA_RegistryFixture fixture(MAREA_LIBRARY_FLAG_MAREA_VECTOR);
+
+    const MAREA_TypeDescriptor RESULT{ MAREA_descriptorOf("marea.array", "Array", MAREA_TYPE_ROLE_NONE, MAREA_TYPE_OWNERSHIP_CLASS_COPY, 2, MAREA_BOOLEAN_TRUE) };
+
+    const MAREA_MacroDescriptor MACRO{ MAREA_fixtureMacro(&RESULT) };
+
+    EXPECT_EQ(MAREA_TypeRegistryRegisterInternalMacro(fixture.registry, MAREA_LIBRARY_FLAG_MAREA_ARRAY, &MACRO), MAREA_TYPE_REGISTRY_EXCEPT_SUCCESS) << "A library that is off is a no-op success.";
+    EXPECT_EQ(MAREA_TypeRegistryFindMacro(fixture.registry, "marea.array", 11, "include_bytes", 13), nullptr) << "The macro of a library that is off must not be found.";
+}
+
+TEST(MAREATypeRegistry, AMacroRegistrationRejectsNullAndAMissingDependency)
+{
+    GTEST_COUT << "Validating the macro entry rejects a null argument, a null expander, and an owner whose dependency is off." << std::endl;
+
+    MAREA_RegistryFixture fixture(MAREA_LIBRARY_FLAG_MAREA_ARRAY);
+
+    const MAREA_TypeDescriptor RESULT{ MAREA_descriptorOf("marea.array", "Array", MAREA_TYPE_ROLE_NONE, MAREA_TYPE_OWNERSHIP_CLASS_COPY, 2, MAREA_BOOLEAN_TRUE) };
+
+    MAREA_MacroDescriptor macro{ MAREA_fixtureMacro(&RESULT) };
+
+    EXPECT_EQ(MAREA_TypeRegistryRegisterInternalMacro(nullptr, MAREA_LIBRARY_FLAG_MAREA_ARRAY, &macro), MAREA_TYPE_REGISTRY_EXCEPT_ERROR_NULL_POINTER) << "A null registry must be rejected.";
+    EXPECT_EQ(MAREA_TypeRegistryRegisterInternalMacro(fixture.registry, MAREA_LIBRARY_FLAG_MAREA_ARRAY, nullptr), MAREA_TYPE_REGISTRY_EXCEPT_ERROR_NULL_POINTER) << "A null descriptor must be rejected.";
+
+    macro.expand = nullptr;
+
+    EXPECT_EQ(MAREA_TypeRegistryRegisterInternalMacro(fixture.registry, MAREA_LIBRARY_FLAG_MAREA_ARRAY, &macro), MAREA_TYPE_REGISTRY_EXCEPT_ERROR_NULL_POINTER) << "A null expander must be rejected.";
+
+    ASSERT_EQ(MAREA_TypeRegistryDeclareDependency(fixture.registry, MAREA_LIBRARY_FLAG_MAREA_ARRAY, MAREA_LIBRARY_FLAG_MAREA_VECTOR), MAREA_TYPE_REGISTRY_EXCEPT_SUCCESS) << "Declaring a dependency must succeed.";
+
+    macro = MAREA_fixtureMacro(&RESULT);
+
+    EXPECT_EQ(MAREA_TypeRegistryRegisterInternalMacro(fixture.registry, MAREA_LIBRARY_FLAG_MAREA_ARRAY, &macro), MAREA_TYPE_REGISTRY_EXCEPT_ERROR_MISSING_DEPENDENCY) << "An owner whose dependency is off must be rejected.";
+}
+
+TEST(MAREATypeRegistry, TheExpanderOfARegisteredMacroRunsWithItsRequest)
+{
+    GTEST_COUT << "Validating the registered expander is callable through the descriptor and gives its count." << std::endl;
+
+    MAREA_RegistryFixture fixture;
+
+    const MAREA_TypeDescriptor RESULT{ MAREA_descriptorOf("marea.array", "Array", MAREA_TYPE_ROLE_NONE, MAREA_TYPE_OWNERSHIP_CLASS_COPY, 2, MAREA_BOOLEAN_TRUE) };
+
+    const MAREA_MacroDescriptor MACRO{ MAREA_fixtureMacro(&RESULT) };
+
+    ASSERT_EQ(MAREA_TypeRegistryRegisterInternalMacro(fixture.registry, MAREA_LIBRARY_FLAG_MAREA_ARRAY, &MACRO), MAREA_TYPE_REGISTRY_EXCEPT_SUCCESS) << "The internal entry must register the macro.";
+
+    const MAREA_MacroDescriptor *FOUND{ MAREA_TypeRegistryFindMacro(fixture.registry, "marea.array", 11, "include_bytes", 13) };
+
+    ASSERT_NE(FOUND, nullptr) << "The macro must be found.";
+
+    const MAREA_MacroExpandRequest REQUEST{ .text = "data.bin", .textLength = 8, .includeSize = nullptr, .includeUserData = nullptr };
+
+    MAREA_IntegerSize count{ 0 };
+
+    EXPECT_TRUE(FOUND->expand(&REQUEST, &count)) << "The expander must accept the request.";
+    EXPECT_EQ(count, MAREA_INTEGER_SIZE(8)) << "The expander must give its count.";
+}

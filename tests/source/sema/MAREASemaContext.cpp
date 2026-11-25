@@ -86,3 +86,62 @@ TEST(MAREASemaContext, EmptyNamespaceChecksClean)
 
     EXPECT_EQ(fixture.MAREA_errorCount(), 0U) << "A namespace-only file has no error.";
 }
+
+TEST(MAREASemaContext, CallerInputsAreEmptyOnANewContext)
+{
+    GTEST_COUT << "Validating a new context holds no target, no settings and no include resolver." << std::endl;
+
+    MAREA_SemaFixture fixture;
+
+    EXPECT_EQ(MAREA_SemaContextGetTarget(fixture.context), nullptr) << "A new context must hold no target.";
+    EXPECT_EQ(MAREA_SemaContextGetSettings(fixture.context), nullptr) << "A new context must hold no settings.";
+    EXPECT_EQ(MAREA_SemaContextGetIncludeResolver(fixture.context), nullptr) << "A new context must hold no include resolver.";
+}
+
+TEST(MAREASemaContext, CallerInputsRoundTripAndClear)
+{
+    GTEST_COUT << "Validating the target, the settings and the include resolver are stored as given and a null clears them." << std::endl;
+
+    MAREA_SemaFixture fixture;
+
+    const MAREA_SemaTarget TARGET{};
+
+    const MAREA_SemaSettings SETTINGS{};
+
+    const MAREA_SemaIncludeResolver INCLUDES{};
+
+    EXPECT_EQ(MAREA_SemaContextSetTarget(fixture.context, &TARGET), MAREA_SEMA_EXCEPT_SUCCESS) << "Setting a target must succeed.";
+    EXPECT_EQ(MAREA_SemaContextSetSettings(fixture.context, &SETTINGS), MAREA_SEMA_EXCEPT_SUCCESS) << "Setting the settings must succeed.";
+    EXPECT_EQ(MAREA_SemaContextSetIncludeResolver(fixture.context, &INCLUDES), MAREA_SEMA_EXCEPT_SUCCESS) << "Setting an include resolver must succeed.";
+
+    EXPECT_EQ(MAREA_SemaContextGetTarget(fixture.context), &TARGET) << "The target must be the one given.";
+    EXPECT_EQ(MAREA_SemaContextGetSettings(fixture.context), &SETTINGS) << "The settings must be the ones given.";
+    EXPECT_EQ(MAREA_SemaContextGetIncludeResolver(fixture.context), &INCLUDES) << "The include resolver must be the one given.";
+
+    EXPECT_EQ(MAREA_SemaContextSetTarget(fixture.context, nullptr), MAREA_SEMA_EXCEPT_SUCCESS) << "A null target clears it.";
+    EXPECT_EQ(MAREA_SemaContextSetSettings(fixture.context, nullptr), MAREA_SEMA_EXCEPT_SUCCESS) << "Null settings clear them.";
+    EXPECT_EQ(MAREA_SemaContextSetIncludeResolver(fixture.context, nullptr), MAREA_SEMA_EXCEPT_SUCCESS) << "A null include resolver clears it.";
+
+    EXPECT_EQ(MAREA_SemaContextGetTarget(fixture.context), nullptr) << "The target must be cleared.";
+    EXPECT_EQ(MAREA_SemaContextGetSettings(fixture.context), nullptr) << "The settings must be cleared.";
+    EXPECT_EQ(MAREA_SemaContextGetIncludeResolver(fixture.context), nullptr) << "The include resolver must be cleared.";
+}
+
+TEST(MAREASemaContext, CallerInputsRejectANullContext)
+{
+    GTEST_COUT << "Validating the caller input setters reject a null context and the getters give null." << std::endl;
+
+    const MAREA_SemaTarget TARGET{};
+
+    const MAREA_SemaSettings SETTINGS{};
+
+    const MAREA_SemaIncludeResolver INCLUDES{};
+
+    EXPECT_EQ(MAREA_SemaContextSetTarget(nullptr, &TARGET), MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER) << "A null context must be rejected for the target.";
+    EXPECT_EQ(MAREA_SemaContextSetSettings(nullptr, &SETTINGS), MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER) << "A null context must be rejected for the settings.";
+    EXPECT_EQ(MAREA_SemaContextSetIncludeResolver(nullptr, &INCLUDES), MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER) << "A null context must be rejected for the include resolver.";
+
+    EXPECT_EQ(MAREA_SemaContextGetTarget(nullptr), nullptr) << "A null context has no target.";
+    EXPECT_EQ(MAREA_SemaContextGetSettings(nullptr), nullptr) << "A null context has no settings.";
+    EXPECT_EQ(MAREA_SemaContextGetIncludeResolver(nullptr), nullptr) << "A null context has no include resolver.";
+}

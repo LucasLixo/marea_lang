@@ -80,6 +80,66 @@ MAREA_BEGIN_EXTERN_C
     } MAREA_TypeDescriptor;
 
     /**
+     * @brief Function the caller of sema gives to a macro expander so it learns the size of a file without
+     * reading the disk itself: the caller owns every read.
+     * @param userData Pointer the caller keeps with the function.
+     * @param path File path as written in the call, not NUL terminated.
+     * @param pathLength Length of path in bytes.
+     * @param outSize Receives the size of the file in bytes. Read only when the function returns true.
+     * @return True when the file exists and its size is known, false when it does not.
+     */
+    typedef MAREA_Boolean(MAREA_CALL * MAREA_MacroIncludeSizeFunction)(MAREA_Null userData, const MAREA_Character8 *path, MAREA_IntegerSize pathLength, MAREA_IntegerSize *outSize);
+
+    /**
+     * @brief What a macro expander is given: the text of the one string literal argument without its
+     * quotes, and the only way to ask about a file. A plain struct, read during one call.
+     */
+    typedef struct MAREA_ALIGNED(8) MAREA_MacroExpandRequest
+    {
+        const MAREA_Character8 *text;
+        MAREA_IntegerSize textLength;
+        MAREA_MacroIncludeSizeFunction includeSize;
+        MAREA_Null includeUserData;
+    } MAREA_MacroExpandRequest;
+
+    /**
+     * @brief C11 function of a shipped library that expands one compile-time macro call.
+     * @param request The argument text and the file-size function of the caller. Never null.
+     * @param outCount Receives the count that completes the result type (a byte count for a file). Read only
+     * when the function returns true.
+     * @return True when the call is valid, false when it is not (for example a file that does not exist).
+     */
+    typedef MAREA_Boolean(MAREA_CALL * MAREA_MacroExpandFunction)(const MAREA_MacroExpandRequest *request, MAREA_IntegerSize *outCount);
+
+    /**
+     * @brief The kind of one argument of a registered macro, checked by sema before the expander runs.
+     */
+    typedef enum MAREA_MacroArgumentKind
+    {
+        MAREA_MACRO_ARGUMENT_KIND_STRING_LITERAL = MAREA_UINTEGER_8(0),
+    } MAREA_MacroArgumentKind;
+
+    /**
+     * @brief One compile-time macro a shipped library registers: its namespace and name (the call is written
+     * with the path of the library, as in marea.array.include_bytes!), the kind of each argument, the type
+     * it gives (a registered type with an element type name and the count that the expander returns), and
+     * the expander. A plain struct, caller owned, with the same lifetime rule as MAREA_TypeDescriptor.
+     */
+    typedef struct MAREA_ALIGNED(8) MAREA_MacroDescriptor
+    {
+        const MAREA_Character8 *namespaceText;
+        MAREA_IntegerSize namespaceLength;
+        const MAREA_Character8 *name;
+        MAREA_IntegerSize nameLength;
+        const MAREA_MacroArgumentKind *argumentKinds;
+        MAREA_IntegerSize argumentCount;
+        const MAREA_TypeDescriptor *resultType;
+        const MAREA_Character8 *resultElementText;
+        MAREA_IntegerSize resultElementLength;
+        MAREA_MacroExpandFunction expand;
+    } MAREA_MacroDescriptor;
+
+    /**
      * @brief Result of a registry operation.
      */
     typedef enum MAREA_TypeRegistryExcept
@@ -164,6 +224,31 @@ MAREA_BEGIN_EXTERN_C
      * @return The descriptor, or null when none is registered under that namespace and name.
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_TypeDescriptor *MAREA_CALL MAREA_TypeRegistryFind(const MAREA_TypeRegistry *registry, const MAREA_Character8 *namespaceText, MAREA_IntegerSize namespaceLength, const MAREA_Character8 *name, MAREA_IntegerSize nameLength);
+
+    /**
+     * @brief Registers one compile-time macro on behalf of a shipped library, through the internal entry.
+     * There is no public entry: a user or a host never registers a macro, so the roots c and marea stay
+     * the only ones that hold one. A no-op success, nothing stored, when owner's bit is off in the enabled
+     * mask.
+     * @param registry Registry to change. Must not be null.
+     * @param owner Library that owns the macro; exactly one bit.
+     * @param descriptor Descriptor to register. Must not be null; its pointers must outlive the registry.
+     * @return MAREA_TYPE_REGISTRY_EXCEPT_SUCCESS, ERROR_NULL_POINTER when registry, descriptor or its
+     * expander is null, ERROR_OUT_OF_MEMORY, or ERROR_MISSING_DEPENDENCY, the same as
+     * MAREA_TypeRegistryRegisterInternal.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_TypeRegistryExcept MAREA_CALL MAREA_TypeRegistryRegisterInternalMacro(MAREA_TypeRegistry * registry, MAREA_LibraryFlag owner, const MAREA_MacroDescriptor *descriptor);
+
+    /**
+     * @brief Finds a registered macro by the namespace of its library and its name.
+     * @param registry Registry to query. Null returns null.
+     * @param namespaceText Dotted namespace text, not NUL terminated.
+     * @param namespaceLength Length of namespaceText in bytes.
+     * @param name Macro name without the "!", not NUL terminated.
+     * @param nameLength Length of name in bytes.
+     * @return The descriptor, or null when none is registered under that namespace and name.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_MacroDescriptor *MAREA_CALL MAREA_TypeRegistryFindMacro(const MAREA_TypeRegistry *registry, const MAREA_Character8 *namespaceText, MAREA_IntegerSize namespaceLength, const MAREA_Character8 *name, MAREA_IntegerSize nameLength);
 
     /**
      * @brief Finds the first registered type that holds a role, so that sema can write the type a role

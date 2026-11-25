@@ -11,6 +11,12 @@ typedef struct MAREA_G_TypeEntry
     const MAREA_TypeDescriptor *descriptor;
 } MAREA_G_TypeEntry;
 
+// INFO: one registered compile-time macro.
+typedef struct MAREA_G_MacroEntry
+{
+    const MAREA_MacroDescriptor *descriptor;
+} MAREA_G_MacroEntry;
+
 // INFO: one registered C function, under its namespace and its name.
 typedef struct MAREA_G_FunctionEntry
 {
@@ -48,6 +54,9 @@ struct MAREA_TypeRegistry
     MAREA_G_FunctionEntry *functions;
     MAREA_G_DependencyEntry *dependencies;
     MAREA_G_RuntimeHookEntry *hooks;
+    MAREA_G_MacroEntry *macros;
+    MAREA_IntegerSize macroCount;
+    MAREA_IntegerSize macroCapacity;
     MAREA_IntegerSize typeCount;
     MAREA_IntegerSize typeCapacity;
     MAREA_IntegerSize functionCount;
@@ -120,6 +129,9 @@ MAREA_TypeRegistryExcept MAREA_CALL MAREA_TypeRegistryCreate(MAREA_Arena *arena,
     registry->functions = MAREA_NULLPTR;
     registry->dependencies = MAREA_NULLPTR;
     registry->hooks = MAREA_NULLPTR;
+    registry->macros = MAREA_NULLPTR;
+    registry->macroCount = 0;
+    registry->macroCapacity = 0;
     registry->typeCount = 0;
     registry->typeCapacity = 0;
     registry->functionCount = 0;
@@ -381,6 +393,51 @@ MAREA_Null MAREA_CALL MAREA_TypeRegistryFindRuntimeFunction(const MAREA_TypeRegi
     for (MAREA_IntegerSize index = 0; index < registry->hookCount; ++index) {
         if (MAREA_G_TextEquals(registry->hooks[index].name, registry->hooks[index].nameLength, name, nameLength) == MAREA_BOOLEAN_TRUE) {
             return registry->hooks[index].functionPointer;
+        }
+    }
+
+    return MAREA_NULLPTR;
+}
+
+MAREA_TypeRegistryExcept MAREA_CALL MAREA_TypeRegistryRegisterInternalMacro(MAREA_TypeRegistry *registry, MAREA_LibraryFlag owner, const MAREA_MacroDescriptor *descriptor)
+{
+    if ((registry == MAREA_NULLPTR) || (descriptor == MAREA_NULLPTR) || (descriptor->expand == MAREA_NULLPTR)) {
+        return MAREA_TYPE_REGISTRY_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    if ((registry->enabledMask & owner) == MAREA_LIBRARY_FLAG_NONE) {
+        return MAREA_TYPE_REGISTRY_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_LibraryMask REQUIRED = MAREA_G_DependenciesOf(registry, owner);
+
+    if ((REQUIRED & ~registry->enabledMask) != MAREA_LIBRARY_FLAG_NONE) {
+        return
+MAREA_TYPE_REGISTRY_EXCEPT_ERROR_MISSING_DEPENDENCY
+;
+}
+
+MAREA_TypeRegistryExcept except = MAREA_TYPE_REGISTRY_EXCEPT_SUCCESS;
+
+const MAREA_G_MacroEntry ENTRY = { .descriptor = descriptor };
+
+MAREA_G_APPEND
+(registry, registry->macros, registry->macroCount, registry->macroCapacity, MAREA_G_MacroEntry, ENTRY, &except);
+
+return except;
+}
+
+const MAREA_MacroDescriptor *MAREA_CALL MAREA_TypeRegistryFindMacro(const MAREA_TypeRegistry *registry, const MAREA_Character8 *namespaceText, MAREA_IntegerSize namespaceLength, const MAREA_Character8 *name, MAREA_IntegerSize nameLength)
+{
+    if ((registry == MAREA_NULLPTR) || (namespaceText == MAREA_NULLPTR) || (name == MAREA_NULLPTR)) {
+        return MAREA_NULLPTR;
+    }
+
+    for (MAREA_IntegerSize index = 0; index < registry->macroCount; ++index) {
+        const MAREA_MacroDescriptor *descriptor = registry->macros[index].descriptor;
+
+        if ((MAREA_G_TextEquals(descriptor->namespaceText, descriptor->namespaceLength, namespaceText, namespaceLength) == MAREA_BOOLEAN_TRUE) && (MAREA_G_TextEquals(descriptor->name, descriptor->nameLength, name, nameLength) == MAREA_BOOLEAN_TRUE)) {
+            return descriptor;
         }
     }
 
