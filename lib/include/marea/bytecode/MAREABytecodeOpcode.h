@@ -38,6 +38,22 @@ MAREA_BEGIN_EXTERN_C
      *   number of arguments. The arguments are in a + 1 up, and they become the first registers of the new
      *   frame. The result comes back in a.
      * - trap: a is a MAREA_BytecodeTrapCode.
+     * - zero: a is the register that holds the address of a byte range in the frame's memory area, b is the
+     *   number of bytes to clear there. b of 0 clears register a itself (its own 64 bits) instead of memory.
+     * - addr_of: a is the destination register, b is a byte offset into the frame's own memory area. The
+     *   register receives the address of that offset, valid for the life of the frame (so a callee may read or
+     *   write through it while this frame is still on the call chain).
+     * - field: a is the destination register, b is a register that holds an address, c is a byte offset. The
+     *   register receives the address b plus c (pointer arithmetic on the bit pattern, never dereferenced here).
+     * - load: a is the destination register, b is a register that holds an address, c is a MAREA_BytecodeNumberKind
+     *   that says the width to read. The register receives the value at that address, normalized the same way a
+     *   typed arithmetic opcode would.
+     * - store: a is a register that holds an address, b is the register that holds the value, c is a
+     *   MAREA_BytecodeNumberKind that says the width to write. The low c bits of b are written at the address in a.
+     * - copy_bytes: a is a register that holds the destination address, b is a register that holds the source
+     *   address, c is the number of bytes to copy. The ranges may overlap.
+     * - load_data_block: a is a register that holds the destination address, b is the index of a blob of the
+     *   read-only data section. The blob's own bytes are copied there, as many as the blob holds.
      */
     typedef enum MAREA_BytecodeOpcode
     {
@@ -80,7 +96,14 @@ MAREA_BEGIN_EXTERN_C
         MAREA_BYTECODE_OPCODE_CALL = MAREA_UINTEGER_16(36),
         MAREA_BYTECODE_OPCODE_RETURN = MAREA_UINTEGER_16(37),
         MAREA_BYTECODE_OPCODE_TRAP = MAREA_UINTEGER_16(38),
-        MAREA_BYTECODE_OPCODE_COUNT = MAREA_UINTEGER_16(39),
+        MAREA_BYTECODE_OPCODE_ZERO = MAREA_UINTEGER_16(39),
+        MAREA_BYTECODE_OPCODE_ADDRESS_OF = MAREA_UINTEGER_16(40),
+        MAREA_BYTECODE_OPCODE_FIELD = MAREA_UINTEGER_16(41),
+        MAREA_BYTECODE_OPCODE_LOAD = MAREA_UINTEGER_16(42),
+        MAREA_BYTECODE_OPCODE_STORE = MAREA_UINTEGER_16(43),
+        MAREA_BYTECODE_OPCODE_COPY_BYTES = MAREA_UINTEGER_16(44),
+        MAREA_BYTECODE_OPCODE_LOAD_DATA_BLOCK = MAREA_UINTEGER_16(45),
+        MAREA_BYTECODE_OPCODE_COUNT = MAREA_UINTEGER_16(46),
     } MAREA_BytecodeOpcode;
 
     /**
@@ -116,7 +139,8 @@ MAREA_BEGIN_EXTERN_C
         MAREA_BYTECODE_TRAP_CODE_UNREACHABLE = MAREA_UINTEGER_8(5),
         MAREA_BYTECODE_TRAP_CODE_MISSING_RETURN = MAREA_UINTEGER_8(6),
         MAREA_BYTECODE_TRAP_CODE_STACK_OVERFLOW = MAREA_UINTEGER_8(7),
-        MAREA_BYTECODE_TRAP_CODE_COUNT = MAREA_UINTEGER_8(8),
+        MAREA_BYTECODE_TRAP_CODE_INDEX_OUT_OF_BOUNDS = MAREA_UINTEGER_8(8),
+        MAREA_BYTECODE_TRAP_CODE_COUNT = MAREA_UINTEGER_8(9),
     } MAREA_BytecodeTrapCode;
 
     /**

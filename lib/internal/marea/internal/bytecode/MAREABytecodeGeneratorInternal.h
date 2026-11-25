@@ -9,6 +9,7 @@
     #include "marea/base/MAREAArena.h"
     #include "marea/bytecode/MAREABytecode.h"
     #include "marea/bytecode/MAREABytecodeOpcode.h"
+    #include "marea/ir/MAREAIrLayout.h"
     #include "marea/ir/MAREAIrNode.h"
     #include "marea/lex/MAREATokenKind.h"
 
@@ -36,6 +37,11 @@ MAREA_BEGIN_EXTERN_C
         MAREA_BYTECODE_GENERATOR_KIND_BOOLEAN = MAREA_UINTEGER_8(10),
         MAREA_BYTECODE_GENERATOR_KIND_VOID = MAREA_UINTEGER_8(11),
         MAREA_BYTECODE_GENERATOR_KIND_NONE = MAREA_UINTEGER_8(12),
+        // INFO: a value of this kind is a structure or a plain-data enum: its register holds the address of its
+        // bytes (in this frame's own memory area, or in an ancestor's, when it came in as a parameter), never the
+        // bytes themselves. MAREA_BytecodeGeneratorAggregateKind is the only place that gives this kind out, and it
+        // also gives the bytecode type index, the size and the alignment that go with it.
+        MAREA_BYTECODE_GENERATOR_KIND_AGGREGATE = MAREA_UINTEGER_8(13),
     } MAREA_BytecodeGeneratorKind;
 
     /**
@@ -46,6 +52,14 @@ MAREA_BEGIN_EXTERN_C
     #endif
 
     /**
+     * @brief Largest byte offset the frame-area bump allocator gives out. The operand of addr_of and field is 16
+     * bits, and MAREA_VM_FRAME_MEMORY_LIMIT of the vm internal header must stay at or above this.
+     */
+    #if !defined(MAREA_BYTECODE_GENERATOR_FRAME_LIMIT)
+        #define MAREA_BYTECODE_GENERATOR_FRAME_LIMIT MAREA_UINTEGER_32(4096)
+    #endif
+
+    /**
      * @brief Number of levels of constants that read constants. A cycle stops at this depth.
      */
     #if !defined(MAREA_BYTECODE_GENERATOR_CONSTANT_DEPTH)
@@ -53,16 +67,36 @@ MAREA_BEGIN_EXTERN_C
     #endif
 
     /**
-     * @brief One name in scope: a parameter or a local, and the register that holds it.
+     * @brief One name in scope: a parameter or a local, and the register that holds it. aggregateType is the
+     * bytecode type index of the structure or enum the register's address names, or MAREA_BYTECODE_NONE when kind
+     * is not MAREA_BYTECODE_GENERATOR_KIND_AGGREGATE.
      */
     typedef struct MAREA_BytecodeGeneratorSymbol
     {
         const MAREA_Character8 *name;
         MAREA_IntegerSize length;
         MAREA_Uinteger32 registerIndex;
+        MAREA_Uinteger32 aggregateType;
         MAREA_Uinteger8 kind;
         MAREA_Uinteger8 padding[3];
     } MAREA_BytecodeGeneratorSymbol;
+
+    /**
+     * @brief One structure that has been given a row of the bytecode type table: the IR declaration (for its field
+     * list, read again whenever a field is read or written) and the row it was given (for size and alignment).
+     * Cached by name the first time a local, a parameter or a field needs it, the same way MAREA_BytecodeGenerator's
+     * own typeIndex caches a primitive.
+     */
+    typedef struct MAREA_BytecodeGeneratorAggregate
+    {
+        const MAREA_IrNode *declaration;
+        const MAREA_IrLayout *layout;
+        const MAREA_Character8 *name;
+        MAREA_IntegerSize nameLength;
+        MAREA_Uinteger32 typeIndex;
+        MAREA_Uinteger64 size;
+        MAREA_Uinteger64 alignment;
+    } MAREA_BytecodeGeneratorAggregate;
 
     /**
      * @brief One function of the IR module, known before any body is lowered, so a call finds it by name.
@@ -109,6 +143,7 @@ MAREA_BEGIN_EXTERN_C
         MAREA_BytecodeGeneratorLoop *loops;
         MAREA_Uinteger32 *patches;
         MAREA_Uinteger32 *endPatches;
+        MAREA_BytecodeGeneratorAggregate *aggregates;
         const MAREA_BytecodeGeneratorFunction *current;
         MAREA_IntegerSize namespaceLength;
         MAREA_IntegerSize functionCount;
@@ -127,9 +162,13 @@ MAREA_BEGIN_EXTERN_C
         MAREA_IntegerSize patchCapacity;
         MAREA_IntegerSize endPatchCount;
         MAREA_IntegerSize endPatchCapacity;
+        MAREA_IntegerSize aggregateCount;
+        MAREA_IntegerSize aggregateCapacity;
         MAREA_Uinteger32 typeIndex[MAREA_BYTECODE_NUMBER_KIND_COUNT + 1];
         MAREA_Uinteger32 nextRegister;
         MAREA_Uinteger32 maxRegister;
+        MAREA_Uinteger32 nextFrameOffset;
+        MAREA_Uinteger32 maxFrameOffset;
         MAREA_Uinteger32 constantDepth;
         MAREA_Boolean functionFailed;
         MAREA_Boolean anyFailed;
@@ -209,9 +248,11 @@ MAREA_BEGIN_EXTERN_C
      * @param length Number of bytes.
      * @param registerIndex Register of the value.
      * @param kind Kind of the value.
+     * @param aggregateIndex The structure's index into generator->aggregates when kind is
+     * MAREA_BYTECODE_GENERATOR_KIND_AGGREGATE, else MAREA_BYTECODE_NONE.
      * @return MAREA_BYTECODE_EXCEPT_SUCCESS or MAREA_BYTECODE_EXCEPT_ERROR_OUT_OF_MEMORY.
      */
-    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorPushSymbol(MAREA_BytecodeGenerator * generator, const MAREA_Character8 *name, MAREA_IntegerSize length, MAREA_Uinteger32 registerIndex, MAREA_Uinteger8 kind);
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorPushSymbol(MAREA_BytecodeGenerator * generator, const MAREA_Character8 *name, MAREA_IntegerSize length, MAREA_Uinteger32 registerIndex, MAREA_Uinteger8 kind, MAREA_Uinteger32 aggregateIndex);
 
     /**
      * @brief Finds the innermost name in scope.
@@ -254,6 +295,74 @@ MAREA_BEGIN_EXTERN_C
      * @return MAREA_BYTECODE_EXCEPT_SUCCESS or MAREA_BYTECODE_EXCEPT_ERROR_OUT_OF_MEMORY.
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorTypeIndex(MAREA_BytecodeGenerator * generator, MAREA_Uinteger8 kind, MAREA_Uinteger32 * outIndex);
+
+    /**
+     * @brief Reads the kind of a node's resolved type, the same as MAREA_BytecodeGeneratorKindOfNode, except that a
+     * type that names a structure of this unit (declared with STRUCTURE_DECLARATION, measured by sema, no field
+     * left undecided) gives MAREA_BYTECODE_GENERATOR_KIND_AGGREGATE instead of MAREA_BYTECODE_GENERATOR_KIND_NONE.
+     * The structure's own row of the bytecode type table is added on its first use (its fields, scalar or a
+     * nested structure, each a member with its offset read from the IR layout table) and cached by name after
+     * that, the same way a primitive's row is cached by typeIndex.
+     * @param generator State of the call. Must not be null.
+     * @param node Node to read. May be null.
+     * @param outKind Receives the kind. Must not be null.
+     * @param outAggregateIndex Receives the index into generator->aggregates, or MAREA_BYTECODE_NONE when outKind
+     * is not MAREA_BYTECODE_GENERATOR_KIND_AGGREGATE. Must not be null.
+     * @return MAREA_BYTECODE_EXCEPT_SUCCESS or MAREA_BYTECODE_EXCEPT_ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorAggregateKind(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node, MAREA_Uinteger8 *outKind, MAREA_Uinteger32 *outAggregateIndex);
+
+    /**
+     * @brief Finds one field of a structure already in generator->aggregates by its written name.
+     * @param generator State of the call. Must not be null.
+     * @param aggregateIndex Index into generator->aggregates, as MAREA_BytecodeGeneratorAggregateKind gave it.
+     * @param name Bytes of the field name. Must not be null.
+     * @param length Number of bytes.
+     * @param outOffset Receives the byte offset of the field from the start of the structure. Must not be null.
+     * @param outField Receives the FIELD_DECLARATION node of the field, for its own resolved type. Must not be
+     * null.
+     * @return MAREA_BOOLEAN_TRUE when the structure declares a field of that name, else MAREA_BOOLEAN_FALSE.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_BytecodeGeneratorAggregateField(const MAREA_BytecodeGenerator *generator, MAREA_Uinteger32 aggregateIndex, const MAREA_Character8 *name, MAREA_IntegerSize length, MAREA_Uinteger64 *outOffset, const MAREA_IrNode **outField);
+
+    /**
+     * @brief Reserves a byte range of the frame's own memory area, at or above the given alignment.
+     * @param generator State of the call. Must not be null.
+     * @param node Node for the diagnostic when the frame area is full. Must not be null.
+     * @param size Number of bytes to reserve.
+     * @param alignment Alignment the offset must land on; 1 when the caller has none to ask for.
+     * @param outOffset Receives the offset. It is 0 after a fault. Must not be null.
+     * @return MAREA_BYTECODE_EXCEPT_SUCCESS or MAREA_BYTECODE_EXCEPT_ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorAllocateFrame(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node, MAREA_Uinteger64 size, MAREA_Uinteger64 alignment, MAREA_Uinteger32 *outOffset);
+
+    /**
+     * @brief Lowers an expression that names the address of a structure value, without copying it: the register of
+     * a local or a parameter when the expression is a plain name, or a field's address when it is a MEMBER_ACCESS
+     * on another structure. Used to read a structure (MAREA_G_LowerMemberAccess) and as the source of a copy or a
+     * move (MAREA_BytecodeGeneratorConstructAggregate).
+     * @param generator State of the call. Must not be null.
+     * @param node Expression to lower. Must not be null.
+     * @param outRegister Receives the register that holds the address. Must not be null.
+     * @param outAggregateIndex Receives the structure's index into generator->aggregates. Must not be null.
+     * @return MAREA_BYTECODE_EXCEPT_SUCCESS or MAREA_BYTECODE_EXCEPT_ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorAggregateAddress(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node, MAREA_Uinteger32 *outRegister, MAREA_Uinteger32 *outAggregateIndex);
+
+    /**
+     * @brief Builds a structure value at a given address: the zero rule followed by a field store for a
+     * LITERAL_VALUE, a byte copy for a plain name or a field read of another structure, or a byte copy that then
+     * zeroes the source for `move name`. Recurses into MAREA_BytecodeGeneratorConstructAggregate for a field whose
+     * own value is itself a nested LITERAL_VALUE, so a structure inside a structure is built in one pass.
+     * @param generator State of the call. Must not be null.
+     * @param node The LITERAL_VALUE, the name, the field read or the `move` to build from. Must not be null.
+     * @param destinationAddress Register that already holds the address the value is built at (MAREA_BYTECODE_OPCODE_ADDRESS_OF
+     * or MAREA_BYTECODE_OPCODE_FIELD, emitted by the caller). Must not be null.
+     * @param aggregateIndex The structure's index into generator->aggregates, the type destinationAddress is built
+     * as.
+     * @return MAREA_BYTECODE_EXCEPT_SUCCESS or MAREA_BYTECODE_EXCEPT_ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorConstructAggregate(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node, MAREA_Uinteger32 destinationAddress, MAREA_Uinteger32 aggregateIndex);
 
     /**
      * @brief Reads the text of an integer literal: decimal, 0x, 0b, with underscores between digits.

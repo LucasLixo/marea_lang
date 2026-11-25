@@ -28,6 +28,17 @@ MAREA_BEGIN_EXTERN_C
     #endif
 
     /**
+     * @brief Largest number of bytes one frame keeps in its own memory area, the storage of a structure, an enum,
+     * an array or a tuple that a local of the function owns. MAREA_BytecodeGeneratorAllocateFrame refuses a
+     * function whose locals need more than this, so a run never sees an address past the end of it. The area sits
+     * on the native stack beside the register file, so a pointer into it stays valid for as long as this frame is
+     * on the call chain, including every call it makes.
+     */
+    #if !defined(MAREA_VM_FRAME_MEMORY_LIMIT)
+        #define MAREA_VM_FRAME_MEMORY_LIMIT MAREA_UINTEGER_32(4096)
+    #endif
+
+    /**
      * @brief The context every vm call reads: the arena and the sink it was created with.
      */
     typedef struct MAREA_VmContext

@@ -56,7 +56,7 @@ TEST(MAREABytecodeOpcode, TableOfTheScalarSlicesHasTheExactNames)
 {
     GTEST_COUT << "Validating the opcodes of the scalar slices keep their value and their spelling." << std::endl;
 
-    const std::vector<std::string> NAMES{ "nop", "return_void", "move", "load_imm", "load_data", "add", "sub", "mul", "div", "rem", "pow", "sat_add", "sat_sub", "sat_mul", "shl", "shr", "neg", "bit_not", "convert", "bit_and", "bit_or", "bit_xor", "not", "eq", "ne", "lt_s", "le_s", "lt_u", "le_u", "eq_f", "ne_f", "lt_f", "le_f", "jump", "jump_if", "jump_if_not", "call", "return", "trap" };
+    const std::vector<std::string> NAMES{ "nop", "return_void", "move", "load_imm", "load_data", "add", "sub", "mul", "div", "rem", "pow", "sat_add", "sat_sub", "sat_mul", "shl", "shr", "neg", "bit_not", "convert", "bit_and", "bit_or", "bit_xor", "not", "eq", "ne", "lt_s", "le_s", "lt_u", "le_u", "eq_f", "ne_f", "lt_f", "le_f", "jump", "jump_if", "jump_if_not", "call", "return", "trap", "zero", "addr_of", "field", "load", "store", "copy_bytes", "load_data_block" };
 
     ASSERT_EQ(static_cast<std::size_t>(MAREA_BYTECODE_OPCODE_COUNT), NAMES.size()) << "The count must be the number of names.";
 
@@ -109,5 +109,7 @@ TEST(MAREABytecodeOpcode, NumberKindsAndTrapCodesHaveFixedValues)
 
     EXPECT_EQ(MAREA_BYTECODE_TRAP_CODE_STACK_OVERFLOW, 7U) << "A stack overflow must be 7.";
 
-    EXPECT_EQ(MAREA_BYTECODE_TRAP_CODE_COUNT, 8U) << "There must be eight codes with the one for no trap.";
+    EXPECT_EQ(MAREA_BYTECODE_TRAP_CODE_INDEX_OUT_OF_BOUNDS, 8U) << "An index out of range must be 8.";
+
+    EXPECT_EQ(MAREA_BYTECODE_TRAP_CODE_COUNT, 9U) << "There must be nine codes with the one for no trap.";
 }

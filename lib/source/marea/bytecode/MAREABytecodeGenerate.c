@@ -109,7 +109,7 @@ static MAREA_BytecodeExcept MAREA_CALL MAREA_G_Publish(MAREA_BytecodeGenerator *
     MAREA_BYTECODE_TRY(MAREA_BytecodeModuleAddString(generator->module, entry->name, entry->nameLength, &name));
 
     MAREA_BytecodeFunctionInfo info = {
-        .frameArea = MAREA_UINTEGER_64(0),
+        .frameArea = (MAREA_Uinteger64)generator->maxFrameOffset,
         .name = name,
         .result = MAREA_BYTECODE_NONE,
         .registerCount = generator->maxRegister,
@@ -159,6 +159,8 @@ static MAREA_BytecodeExcept MAREA_CALL MAREA_G_LowerFunction(MAREA_BytecodeGener
     generator->patchCount = MAREA_INTEGER_SIZE(0);
     generator->nextRegister = MAREA_UINTEGER_32(0);
     generator->maxRegister = MAREA_UINTEGER_32(0);
+    generator->nextFrameOffset = MAREA_UINTEGER_32(0);
+    generator->maxFrameOffset = MAREA_UINTEGER_32(0);
     generator->constantDepth = MAREA_UINTEGER_32(0);
     generator->functionFailed = MAREA_BOOLEAN_FALSE;
 
@@ -182,7 +184,7 @@ static MAREA_BytecodeExcept MAREA_CALL MAREA_G_LowerFunction(MAREA_BytecodeGener
 
         MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorAllocate(generator, parameter, MAREA_UINTEGER_32(1), &registerIndex));
 
-        MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorPushSymbol(generator, MAREA_IrNodeGetText(parameter), MAREA_IrNodeGetTextLength(parameter), registerIndex, entry->parameterKinds[index]));
+        MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorPushSymbol(generator, MAREA_IrNodeGetText(parameter), MAREA_IrNodeGetTextLength(parameter), registerIndex, entry->parameterKinds[index], MAREA_BYTECODE_NONE));
     }
 
     if ((body == MAREA_NULLPTR) || (MAREA_IrNodeGetKind(body) != MAREA_IR_KIND_BLOCK)) {
