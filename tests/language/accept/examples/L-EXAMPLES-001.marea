@@ -9,7 +9,7 @@
 --                                      whatever the project mode
 -- A file attribute #![key = value] comes right after the namespace and sets the value for the
 -- whole file. A symbol attribute is closer, so it wins over the file, and the file wins over
--- the project (marea.toml).
+-- the project (the CMake build mode: MAREA_DEFAULT_INLINE and CMAKE_BUILD_TYPE).
 
 namespace main;
 

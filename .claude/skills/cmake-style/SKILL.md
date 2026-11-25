@@ -36,7 +36,7 @@ An upstream option of a third-party project keeps the spelling that project defi
 - An option is `option(MAREA_OPTION_<NAME> "Description" ON|OFF)`, with a description that says what it builds or changes. A normally built target is ON.
 - A rule between options uses `cmake_dependent_option` (`include(CMakeDependentOption)`), not a hand-written `if()` that forces a value. A message that explains a forced value, and a combination that has no valid fallback (`FATAL_ERROR`), stay outside it.
 - Options that build a subset of the project are named `MAREA_OPTION_TARGET_<THING>` (today `MAREA_OPTION_TARGET_TESTS`, ON, guarding `enable_testing()` and `add_subdirectory(tests)`).
-- Global defaults of the language come from CMake options and not from a `marea.toml`: `MAREA_DEFAULT_SIMD`, `MAREA_DEFAULT_INLINE` and `CMAKE_BUILD_TYPE` (planned, not in the repository yet; objective 37).
+- Global defaults of the language come from CMake options and not from a `marea.toml`: `MAREA_DEFAULT_INLINE` and `CMAKE_BUILD_TYPE` (SIMD is chosen by the `backend` attribute of `marea.math`, not by a global option) (planned, not in the repository yet; objective 37).
 - `MAREA_OPTION_SHARED_LIBS` selects a shared build, OFF by default (see `## Targets and linkage`; planned, not in the repository yet).
 
 Declare an option in `cmake/settings/ConfigureOptions.cmake`, in its one block. A folder path is defined once in `cmake/settings/ConfigureFolders.cmake` as `MAREA_FOLDER_*`; read that variable and never rebuild the path from `CMAKE_SOURCE_DIR`. `ConfigureMiseTools` checks that every tool of `mise.toml` [tools] provides its executables; a new tool there needs an entry in that file.
