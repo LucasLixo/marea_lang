@@ -34,7 +34,10 @@ MAREA_BEGIN_EXTERN_C
      * text is the qualified destroy function, "Type.name", and the one child is an IDENTIFIER naming the local
      * being destroyed). BACKEND_ATTRIBUTE follows them: the resolved backend of a function (see the sema doc, "Backend"), as the last
      * child of its FUNCTION_DECLARATION, after the body (the text is the member: scalar, vector_extension or intrinsics, never
-     * auto), so the first two children of a function keep their places. A function with no backend has no such child. The list ends with MAREA_IR_KIND_COUNT.
+     * auto), so the first two children of a function keep their places. A function with no backend has no such child. MACRO_CALL comes last: a compile-time macro that the
+     * IR keeps for a later stage (build_value! and the macro that a shipped library registers). The text is the name, with the
+     * alias of a namespace replaced by the namespace (marea.array.include_bytes), and the one child is the ARGUMENT_LIST of the
+     * lowered arguments, in the order they were written. It carries the resolved type of the call. The list ends with MAREA_IR_KIND_COUNT.
      */
     typedef enum MAREA_IrKind
     {
@@ -87,6 +90,7 @@ MAREA_BEGIN_EXTERN_C
         MAREA_IR_KIND_CONSTRUCT_CALL = (MAREA_IR_KIND_CHARACTER_LITERAL + 2),
         MAREA_IR_KIND_DESTROY_CALL,
         MAREA_IR_KIND_BACKEND_ATTRIBUTE,
+        MAREA_IR_KIND_MACRO_CALL,
 
         MAREA_IR_KIND_COUNT
     } MAREA_IrKind;

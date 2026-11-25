@@ -347,6 +347,19 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_IrExcept MAREA_CALL MAREA_IrLowerBlock(MAREA_IrContext * context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode);
 
     /**
+     * @brief Lowers a MACRO_CALL typed node that the IR keeps for a later stage: build_value! (a bare name) and the macro
+     * of a shipped library (a qualified name, with the alias of a namespace replaced by the namespace). The result is a
+     * MACRO_CALL node with the name as its text, one ARGUMENT_LIST child of the lowered arguments, and the resolved type of
+     * the call. Any other macro is not handled and nothing is raised, so the caller raises its own diagnostic.
+     * @param context Context of the run. Must not be null.
+     * @param typed MACRO_CALL typed node. Must not be null.
+     * @param outHandled Receives true when the macro is one the IR keeps, also when a gap in an argument left no node. Must not be null.
+     * @param outNode Receives the lowered node, or null. Must not be null.
+     * @return MAREA_IR_EXCEPT_SUCCESS, ERROR_NULL_POINTER when an argument is null, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_IrExcept MAREA_CALL MAREA_IrLowerMacroCall(MAREA_IrContext * context, const MAREA_SemaTypedNode *typed, MAREA_Boolean *outHandled, MAREA_IrNode **outNode);
+
+    /**
      * @brief Lowers a call that carries an explicit type operand: a built-in call (size_of, align_of or
      * convert with type arguments) or a static call on a written type (array<sinteger32>.filled(8, 0)). Any
      * other call is not handled and is left to the generic path of MAREA_IrLowerExpression.

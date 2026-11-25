@@ -645,11 +645,24 @@ MAREA_IrExcept MAREA_CALL MAREA_IrLowerDeclaration(MAREA_IrContext *context, con
         return MAREA_G_LowerImplementation(context, typed, parent);
     case MAREA_AST_KIND_MACRO_STATEMENT:
     {
-        const MAREA_SemaTypedNode *name = MAREA_IrTypedFindChild(MAREA_IrTypedFindChild(typed, MAREA_AST_KIND_MACRO_CALL), MAREA_AST_KIND_IDENTIFIER);
+        const MAREA_SemaTypedNode *call = MAREA_IrTypedFindChild(typed, MAREA_AST_KIND_MACRO_CALL);
 
-        const MAREA_AstNode *nameAst = MAREA_SemaTypedNodeGetAstNode(name);
+        // INFO: the name is a plain identifier, or a qualified name for the macro of a library; the message holds whichever is written.
+        const MAREA_SemaTypedNode *name = MAREA_IrTypedChildAt(call, MAREA_INTEGER_SIZE(0));
 
-        return MAREA_IrRaise(context, MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_MACRO, MAREA_SemaTypedNodeGetAstNode(typed), "A macro at module level is not supported by the IR yet:", MAREA_AstNodeGetText(nameAst), MAREA_AstNodeGetTextLength(nameAst));
+        const MAREA_Character8 *text = MAREA_NULLPTR;
+        MAREA_IntegerSize length = MAREA_INTEGER_SIZE(0);
+
+        if ((name != MAREA_NULLPTR) && (MAREA_IrTypedKind(name) == MAREA_AST_KIND_QUALIFIED_NAME)) {
+            if (MAREA_IrAstQualifiedNameSpan(MAREA_SemaTypedNodeGetAstNode(name), &text, &length) == MAREA_BOOLEAN_FALSE) {
+                text = MAREA_NULLPTR;
+            }
+        } else if (name != MAREA_NULLPTR) {
+            text = MAREA_AstNodeGetText(MAREA_SemaTypedNodeGetAstNode(name));
+            length = MAREA_AstNodeGetTextLength(MAREA_SemaTypedNodeGetAstNode(name));
+        }
+
+        return MAREA_IrRaise(context, MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_MACRO, MAREA_SemaTypedNodeGetAstNode(typed), "A macro at module level is not supported by the IR yet:", text, length);
     }
     default:
         // INFO: namespace, import, file attribute, type alias, contract and error nodes make no IR node.

@@ -697,6 +697,95 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerFieldEntry(MAREA_IrContext *contex
     return MAREA_IR_EXCEPT_SUCCESS;
 }
 
+// INFO: the one built-in macro that the IR keeps for a later stage, next to the macros of a shipped library: its value comes from the build, which the IR never reads.
+static const MAREA_Character8 MAREA_G_BuildValueName[] = "build_value";
+
+MAREA_IrExcept MAREA_CALL MAREA_IrLowerMacroCall(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_Boolean *outHandled, MAREA_IrNode **outNode)
+{
+    if ((context == MAREA_NULLPTR) || (typed == MAREA_NULLPTR) || (outHandled == MAREA_NULLPTR) || (outNode == MAREA_NULLPTR)) {
+        return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    *outHandled = MAREA_BOOLEAN_FALSE;
+    *outNode = MAREA_NULLPTR;
+
+    const MAREA_SemaTypedNode *name = MAREA_IrTypedChildAt(typed, MAREA_INTEGER_SIZE(0));
+
+    if (name == MAREA_NULLPTR) {
+        return MAREA_IR_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_Character8 *text = MAREA_NULLPTR;
+    MAREA_IntegerSize length = MAREA_INTEGER_SIZE(0);
+
+    if (MAREA_IrTypedKind(name) == MAREA_AST_KIND_QUALIFIED_NAME) {
+        // INFO: a call with a qualified name is a macro that a library registered; sema has already checked the name, the arguments and the expansion. An alias of a namespace is replaced by the namespace it stands for.
+        if (MAREA_IrAstQualifiedNameSpan(MAREA_SemaTypedNodeGetAstNode(name), &text, &length) == MAREA_BOOLEAN_FALSE) {
+            return MAREA_IR_EXCEPT_SUCCESS;
+        }
+
+        const MAREA_IrExcept ALIASED = MAREA_IrAliasType(context, text, length, &text, &length);
+
+        if (ALIASED != MAREA_IR_EXCEPT_SUCCESS) {
+            return ALIASED;
+        }
+    } else if (MAREA_IrTypedKind(name) == MAREA_AST_KIND_IDENTIFIER) {
+        text = MAREA_AstNodeGetText(MAREA_SemaTypedNodeGetAstNode(name));
+        length = MAREA_AstNodeGetTextLength(MAREA_SemaTypedNodeGetAstNode(name));
+
+        if ((length != strlen(MAREA_G_BuildValueName)) || (memcmp(text, MAREA_G_BuildValueName, length) != 0)) {
+            return MAREA_IR_EXCEPT_SUCCESS;
+        }
+    } else {
+        return MAREA_IR_EXCEPT_SUCCESS;
+    }
+
+    *outHandled = MAREA_BOOLEAN_TRUE;
+
+    MAREA_IrNode *node = MAREA_NULLPTR;
+
+    MAREA_IrExcept result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_MACRO_CALL, MAREA_SemaTypedNodeGetAstNode(typed), &node);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    node->text = text;
+    node->textLength = (MAREA_Uinteger32)length;
+    node->flags = MAREA_UINTEGER_32(0);
+
+    const MAREA_SemaTypedNode *arguments = MAREA_IrTypedFindChild(typed, MAREA_AST_KIND_ARGUMENT_LIST);
+
+    MAREA_IrNode *loweredArguments = MAREA_NULLPTR;
+
+    if (arguments != MAREA_NULLPTR) {
+        result = MAREA_IrLowerExpression(context, arguments, &loweredArguments);
+
+        // INFO: a gap in an argument already raised its diagnostic, and the call is left out.
+        if ((result != MAREA_IR_EXCEPT_SUCCESS) || (loweredArguments == MAREA_NULLPTR)) {
+            return result;
+        }
+
+        result = MAREA_IrNodeAppendChild(context, node, loweredArguments);
+
+        if (result != MAREA_IR_EXCEPT_SUCCESS) {
+            return result;
+        }
+    }
+
+    MAREA_Boolean typedResult = MAREA_BOOLEAN_FALSE;
+
+    result = MAREA_IrNodeSetResolvedTypeFromTyped(context, node, typed, &typedResult);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    *outNode = node;
+
+    return MAREA_IR_EXCEPT_SUCCESS;
+}
+
 static MAREA_IrExcept MAREA_CALL MAREA_G_LowerExpressionKind(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode)
 {
     switch (MAREA_IrTypedKind(typed)) {
@@ -743,7 +832,17 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerExpressionKind(MAREA_IrContext *co
     case MAREA_AST_KIND_GENERIC_NAME:
         return MAREA_G_RaiseGeneric(context, typed, "A generic name is not supported by the IR yet.");
     case MAREA_AST_KIND_MACRO_CALL:
+    {
+        MAREA_Boolean handled = MAREA_BOOLEAN_FALSE;
+
+        const MAREA_IrExcept KEPT = MAREA_IrLowerMacroCall(context, typed, &handled, outNode);
+
+        if ((KEPT != MAREA_IR_EXCEPT_SUCCESS) || (handled == MAREA_BOOLEAN_TRUE)) {
+            return KEPT;
+        }
+
         return MAREA_IrRaise(context, MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_MACRO, MAREA_SemaTypedNodeGetAstNode(typed), "A macro call inside an expression is not supported by the IR yet.", MAREA_NULLPTR, MAREA_INTEGER_SIZE(0));
+    }
     default:
         return MAREA_IR_EXCEPT_SUCCESS;
     }

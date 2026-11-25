@@ -114,26 +114,56 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerLocal(MAREA_IrContext *context, co
     return result;
 }
 
-// INFO: unreachable!() is the one built-in macro that has a lowering; every other macro is a Gap.
+// INFO: unreachable!() has a node of its own. build_value! and a macro that a library registered (a qualified name) are kept as a MACRO_CALL in an expression statement. Every other macro is a Gap.
 static MAREA_IrExcept MAREA_CALL MAREA_G_LowerMacroStatement(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode)
 {
     const MAREA_SemaTypedNode *call = MAREA_IrTypedFindChild(typed, MAREA_AST_KIND_MACRO_CALL);
 
     const MAREA_SemaTypedNode *name = MAREA_IrTypedFindChild(call, MAREA_AST_KIND_IDENTIFIER);
 
-    if (name == MAREA_NULLPTR) {
-        return MAREA_IR_EXCEPT_SUCCESS;
+    if ((call != MAREA_NULLPTR) && (name != MAREA_NULLPTR)) {
+        const MAREA_AstNode *nameAst = MAREA_SemaTypedNodeGetAstNode(name);
+
+        const MAREA_IntegerSize LENGTH = strlen("unreachable");
+
+        if ((MAREA_AstNodeGetTextLength(nameAst) == LENGTH) && (memcmp(MAREA_AstNodeGetText(nameAst), "unreachable", LENGTH) == 0)) {
+            return MAREA_IrNodeCreate(context, MAREA_IR_KIND_UNREACHABLE_STATEMENT, MAREA_SemaTypedNodeGetAstNode(typed), outNode);
+        }
+    }
+
+    MAREA_Boolean handled = MAREA_BOOLEAN_FALSE;
+
+    MAREA_IrNode *macro = MAREA_NULLPTR;
+
+    MAREA_IrExcept result = (call == MAREA_NULLPTR) ? MAREA_IR_EXCEPT_SUCCESS : MAREA_IrLowerMacroCall(context, call, &handled, &macro);
+
+    if ((result != MAREA_IR_EXCEPT_SUCCESS) || (call == MAREA_NULLPTR)) {
+        return result;
+    }
+
+    if (handled == MAREA_BOOLEAN_TRUE) {
+        if (macro == MAREA_NULLPTR) {
+            return MAREA_IR_EXCEPT_SUCCESS;
+        }
+
+        MAREA_IrNode *statement = MAREA_NULLPTR;
+
+        result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_EXPRESSION_STATEMENT, MAREA_SemaTypedNodeGetAstNode(typed), &statement);
+
+        if (result == MAREA_IR_EXCEPT_SUCCESS) {
+            result = MAREA_IrNodeAppendChild(context, statement, macro);
+        }
+
+        if (result == MAREA_IR_EXCEPT_SUCCESS) {
+            *outNode = statement;
+        }
+
+        return result;
     }
 
     const MAREA_AstNode *nameAst = MAREA_SemaTypedNodeGetAstNode(name);
 
-    const MAREA_IntegerSize LENGTH = strlen("unreachable");
-
-    if ((MAREA_AstNodeGetTextLength(nameAst) != LENGTH) || (memcmp(MAREA_AstNodeGetText(nameAst), "unreachable", LENGTH) != 0)) {
-        return MAREA_IrRaise(context, MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_MACRO, MAREA_SemaTypedNodeGetAstNode(typed), "Macro is not supported by the IR yet:", MAREA_AstNodeGetText(nameAst), MAREA_AstNodeGetTextLength(nameAst));
-    }
-
-    return MAREA_IrNodeCreate(context, MAREA_IR_KIND_UNREACHABLE_STATEMENT, MAREA_SemaTypedNodeGetAstNode(typed), outNode);
+    return MAREA_IrRaise(context, MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_MACRO, MAREA_SemaTypedNodeGetAstNode(typed), "Macro is not supported by the IR yet:", MAREA_AstNodeGetText(nameAst), MAREA_AstNodeGetTextLength(nameAst));
 }
 
 // INFO: a synthetic node keeps only the position of the AST node it stands for, so its text and flags are cleared.
