@@ -72,7 +72,7 @@ TEST(MAREAIrContext, LowerRejectsANodeThatIsNotACompilationUnit)
 
     const MAREA_IrNode *module{ nullptr };
 
-    EXPECT_EQ(MAREA_IrLowerCompilationUnit(fixture.context, child, &module), MAREA_IR_EXCEPT_ERROR_NULL_POINTER) << "A non-root typed node must be rejected.";
+    EXPECT_EQ(MAREA_IrLowerCompilationUnit(fixture.context, child, &module), MAREA_IR_EXCEPT_ERROR_BAD_ROOT) << "A non-root typed node must be rejected with its own value.";
 }
 
 TEST(MAREAIrContext, EmptyNamespaceLowersToAnEmptyModule)

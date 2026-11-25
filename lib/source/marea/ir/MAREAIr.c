@@ -313,7 +313,7 @@ MAREA_IrExcept MAREA_CALL MAREA_IrLowerCompilationUnit(MAREA_IrContext *context,
     }
 
     if (MAREA_AstNodeGetKind(MAREA_SemaTypedNodeGetAstNode(typedRoot)) != MAREA_AST_KIND_COMPILATION_UNIT) {
-        return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
+        return MAREA_IR_EXCEPT_ERROR_BAD_ROOT;
     }
 
     // INFO: the root and the alias table stay in the context only while the unit is lowered, so that a call can ask which names the unit binds and which names are aliases.
