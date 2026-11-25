@@ -412,14 +412,16 @@ MAREA_VmExcept MAREA_CALL MAREA_VmRun(MAREA_VmContext *context, const MAREA_Byte
 
             frame.registers[A] = frame.registers[B];
             break;
-        case MAREA_BYTECODE_OPCODE_LOAD_IMMEDIATE: {
+        case MAREA_BYTECODE_OPCODE_LOAD_IMMEDIATE:
+        {
             const MAREA_Uinteger32 IMMEDIATE = ((B & MAREA_UINTEGER_32(0xFFFF)) | (C << MAREA_UINTEGER_32(16)));
 
             frame.registers[A] = (MAREA_Uinteger64)(MAREA_Sinteger64)(MAREA_Sinteger32)IMMEDIATE;
 
             break;
         }
-        case MAREA_BYTECODE_OPCODE_LOAD_DATA: {
+        case MAREA_BYTECODE_OPCODE_LOAD_DATA:
+        {
             const MAREA_Byte *bytes = MAREA_NULLPTR;
             MAREA_IntegerSize size = MAREA_INTEGER_SIZE(0);
 
@@ -437,7 +439,8 @@ MAREA_VmExcept MAREA_CALL MAREA_VmRun(MAREA_VmContext *context, const MAREA_Byte
         }
         case MAREA_BYTECODE_OPCODE_ADD:
         case MAREA_BYTECODE_OPCODE_SUB:
-        case MAREA_BYTECODE_OPCODE_MUL: {
+        case MAREA_BYTECODE_OPCODE_MUL:
+        {
             if (B >= MAREA_VM_FRAME_REGISTER_LIMIT) {
                 return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
             }
@@ -475,7 +478,8 @@ MAREA_VmExcept MAREA_CALL MAREA_VmRun(MAREA_VmContext *context, const MAREA_Byte
             break;
         }
         case MAREA_BYTECODE_OPCODE_DIV:
-        case MAREA_BYTECODE_OPCODE_REM: {
+        case MAREA_BYTECODE_OPCODE_REM:
+        {
             if (B >= MAREA_VM_FRAME_REGISTER_LIMIT) {
                 return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
             }
@@ -519,7 +523,8 @@ MAREA_VmExcept MAREA_CALL MAREA_VmRun(MAREA_VmContext *context, const MAREA_Byte
 
             break;
         }
-        case MAREA_BYTECODE_OPCODE_POW: {
+        case MAREA_BYTECODE_OPCODE_POW:
+        {
             if (B >= MAREA_VM_FRAME_REGISTER_LIMIT) {
                 return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
             }
@@ -550,7 +555,8 @@ MAREA_VmExcept MAREA_CALL MAREA_VmRun(MAREA_VmContext *context, const MAREA_Byte
         }
         case MAREA_BYTECODE_OPCODE_SATURATING_ADD:
         case MAREA_BYTECODE_OPCODE_SATURATING_SUB:
-        case MAREA_BYTECODE_OPCODE_SATURATING_MUL: {
+        case MAREA_BYTECODE_OPCODE_SATURATING_MUL:
+        {
             if (B >= MAREA_VM_FRAME_REGISTER_LIMIT) {
                 return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
             }
@@ -582,7 +588,8 @@ MAREA_VmExcept MAREA_CALL MAREA_VmRun(MAREA_VmContext *context, const MAREA_Byte
             break;
         }
         case MAREA_BYTECODE_OPCODE_SHIFT_LEFT:
-        case MAREA_BYTECODE_OPCODE_SHIFT_RIGHT: {
+        case MAREA_BYTECODE_OPCODE_SHIFT_RIGHT:
+        {
             if (B >= MAREA_VM_FRAME_REGISTER_LIMIT) {
                 return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
             }
@@ -613,7 +620,8 @@ MAREA_VmExcept MAREA_CALL MAREA_VmRun(MAREA_VmContext *context, const MAREA_Byte
 
             break;
         }
-        case MAREA_BYTECODE_OPCODE_NEGATE: {
+        case MAREA_BYTECODE_OPCODE_NEGATE:
+        {
             if (B >= MAREA_VM_FRAME_REGISTER_LIMIT) {
                 return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
             }
@@ -644,7 +652,8 @@ MAREA_VmExcept MAREA_CALL MAREA_VmRun(MAREA_VmContext *context, const MAREA_Byte
             frame.registers[A] = ((frame.registers[B] == MAREA_UINTEGER_64(0)) ? MAREA_UINTEGER_64(1) : MAREA_UINTEGER_64(0));
 
             break;
-        case MAREA_BYTECODE_OPCODE_CONVERT: {
+        case MAREA_BYTECODE_OPCODE_CONVERT:
+        {
             if (B >= MAREA_VM_FRAME_REGISTER_LIMIT) {
                 return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
             }
@@ -696,7 +705,8 @@ MAREA_VmExcept MAREA_CALL MAREA_VmRun(MAREA_VmContext *context, const MAREA_Byte
         case MAREA_BYTECODE_OPCODE_EQUAL_FLOAT:
         case MAREA_BYTECODE_OPCODE_NOT_EQUAL_FLOAT:
         case MAREA_BYTECODE_OPCODE_LESS_FLOAT:
-        case MAREA_BYTECODE_OPCODE_LESS_EQUAL_FLOAT: {
+        case MAREA_BYTECODE_OPCODE_LESS_EQUAL_FLOAT:
+        {
             if ((B >= MAREA_VM_FRAME_REGISTER_LIMIT) || (C >= MAREA_VM_FRAME_REGISTER_LIMIT)) {
                 return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
             }
@@ -751,7 +761,8 @@ MAREA_VmExcept MAREA_CALL MAREA_VmRun(MAREA_VmContext *context, const MAREA_Byte
 
             break;
         case MAREA_BYTECODE_OPCODE_JUMP_IF:
-        case MAREA_BYTECODE_OPCODE_JUMP_IF_NOT: {
+        case MAREA_BYTECODE_OPCODE_JUMP_IF_NOT:
+        {
             const MAREA_Boolean TAKE = ((instruction.opcode == MAREA_BYTECODE_OPCODE_JUMP_IF) ? (frame.registers[A] != MAREA_UINTEGER_64(0)) : (frame.registers[A] == MAREA_UINTEGER_64(0)));
 
             if (TAKE) {
@@ -761,7 +772,8 @@ MAREA_VmExcept MAREA_CALL MAREA_VmRun(MAREA_VmContext *context, const MAREA_Byte
 
             break;
         }
-        case MAREA_BYTECODE_OPCODE_CALL: {
+        case MAREA_BYTECODE_OPCODE_CALL:
+        {
             if (C > (MAREA_VM_FRAME_REGISTER_LIMIT - A)) {
                 return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
             }

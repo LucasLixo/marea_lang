@@ -2,15 +2,17 @@
 
 ## Contract
 
-The `bytecode` stage holds the data model of the register bytecode and its two serializable forms. A
-`MAREA_BytecodeModule` has a string pool, a type table, a function table with the code of each function, and a
-read-only data section. The stage writes a module to a canonical binary form and to a canonical text form, and reads
-both back. It has no global state, never prints and never reads the disk: the caller gives it an arena (which owns
-every module and every output buffer) and a diagnostic sink in a `MAREA_BytecodeContext`. A malformed binary or text
-is a diagnostic, never a crash and never an error code. The stage links only `marea::base`, and it does not read the
-IR: the lowering from the IR to a module is a later slice. The CMake target is `Marea-Bytecode` (alias
+The `bytecode` stage holds the data model of the register bytecode and its two serializable forms, plus the one
+function that lowers an IR module into it. A `MAREA_BytecodeModule` has a string pool, a type table, a function
+table with the code of each function, and a read-only data section. The stage writes a module to a canonical binary
+form and to a canonical text form, and reads both back. It has no global state, never prints and never reads the
+disk: the caller gives it an arena (which owns every module and every output buffer) and a diagnostic sink in a
+`MAREA_BytecodeContext`. A malformed binary or text is a diagnostic, never a crash and never an error code; a
+construct `MAREA_BytecodeGenerate` cannot lower yet is the same, never an exception. The stage links `marea::ir`
+(for `MAREA_BytecodeGenerate` only; the binary and text forms need nothing past `marea::base`). `vm`, the next
+stage, reads a `MAREA_BytecodeModule` only: it never reads the IR. The CMake target is `Marea-Bytecode` (alias
 `marea::bytecode`, plus a shared target `Marea-Bytecode-Shared` when `MAREA_OPTION_SHARED_LIBS` is on), built when
-`MAREA_OPTION_TARGET_BYTECODE` is on. The option is on by default and depends on `MAREA_OPTION_TARGET_BASE`.
+`MAREA_OPTION_TARGET_BYTECODE` is on. The option is on by default and depends on `MAREA_OPTION_TARGET_IR`.
 
 Three laws hold for every module that passes the checks of the readers, and the tests run them over 200 generated
 modules each: `Deserialize(Serialize(m))` equals `m`, `Assemble(Disassemble(m))` equals `m`, and the text to binary to
@@ -61,9 +63,14 @@ null argument or an index past the count the same way. Every count accessor on a
   type index is its position in the table. Index 0 has no special meaning yet.
 - **Functions.** A name, a result type (an index or `MAREA_BYTECODE_NONE`), the register count, the size of the frame
   area, a flag word, a parameter list (a type and a flag word each) and the code of the function.
-- **Code.** One instruction is 64 bits: `opcode`, `a`, `b`, `c`, each 16 bits. The table of opcodes holds only `nop`
-  (0) and `return_void` (1). A later slice adds an opcode as one more value of `MAREA_BytecodeOpcode` and one more row
-  of the name table of `MAREABytecodeOpcode.c`.
+- **Code.** One instruction is 64 bits: `opcode`, `a`, `b`, `c`, each 16 bits. The table of opcodes (39 values,
+  `MAREA_BytecodeOpcode`) covers the scalar slices: move and constant loading, integer and float arithmetic with a
+  `MAREA_BytecodeNumberKind` operand (four signed widths, four unsigned widths, two floats), the saturating family,
+  bitwise and shift, convert, every comparison, jump and the two conditional jumps, call and return, and one `trap`
+  opcode whose operand is a `MAREA_BytecodeTrapCode` (division by zero, a shift out of range, a negative exponent,
+  a convert out of range, `unreachable!()`, a missing return, a stack overflow). A later slice (structures, arrays,
+  enums, lifecycle, host calls, `fork_join`) adds an opcode as one more value and one more row of the name table of
+  `MAREABytecodeOpcode.c`. `MAREABytecodeOpcode.h` documents the operand meaning of every opcode in full.
 - **Data.** A list of read-only blobs, such as the bytes of an embedded file. A blob may be empty, and two equal blobs
   keep two indexes.
 - **Open structures.** `MAREA_BytecodeTypeInfo`, `MAREA_BytecodeMemberInfo`, `MAREA_BytecodeFunctionInfo`,
@@ -153,11 +160,43 @@ d1 -
   `registers`, `flags` and a parameter `flags`, 64 bits for the others.
 - A blob is its bytes as hex pairs, or `-` when it is empty.
 
+## Lowering from the IR
+
+`MAREA_BytecodeGenerate(context, irModule, &outModule)` reads one `MAREA_IR_KIND_MODULE` node and writes one
+`MAREA_BytecodeModule`, or leaves `outModule` null with a diagnostic for the first construct it cannot lower.
+Covers the scalar slices only (integer and float expressions, locals, `return`, `if`, `while`, `switch`, `for`
+range, calls with scalar parameters, a borrow of a primitive, which the language already passes by value): a
+`structure`, `array`, `enum`, `string`, lifecycle call, host call or `fork_join` is `UNSUPPORTED_TYPE` or
+`UNSUPPORTED_CONSTRUCT`, left to a later slice.
+
+- **Registers.** A function keeps a flat list of virtual registers, numbered from 0, freed back to the mark of
+  their own block when it ends (so two sibling blocks reuse the same numbers) and never reused while still read.
+  A parameter takes the first registers, in order. `MAREA_BytecodeFunctionInfo.registerCount` is the widest point
+  the function reached, which may be higher than the number any single statement still holds.
+- **Scalar-only slice.** Only a primitive number kind and `boolean` lower; every other type gives
+  `UNSUPPORTED_TYPE` (5033) for a parameter, a local or a result. `for each` always gives `UNWALKABLE_COLLECTION`
+  (5034) in this slice, because no collection type is a bytecode value yet (B2 of the plan): the counted walk B3
+  describes needs an aggregate the vm cannot represent before the composites slice.
+  `do ... while`, `switch` and a `for` range desugar in the IR itself (see `docs/ir/marea-ir.md`) into `while`,
+  `if` and a hidden local and lower with no code of their own: lowering the one general `while`, `if`,
+  `BINARY_EXPRESSION` and `LOCAL_DECLARATION` already covers all three.
+- **Constants.** A module-level `CONSTANT_DECLARATION` is inlined at every read, not kept as a bytecode register
+  or a module constant; a constant that reads another constant is followed up to 32 levels deep. `build_value!`
+  lowers to its default, because this stage has no build settings.
+- **Calls.** A call whose callee is the bare name of a function of the same unit (the IR's own rule, see
+  "Call-default filling" of `docs/ir/marea-ir.md`) is found in a function table the generator fills before any
+  body is lowered, so a function may call one declared after it, or itself. The call opcode's window is one
+  result register plus one register per argument, right above the registers already in use; the callee's own
+  parameters land in that window. A callee outside the unit, through a member access, or with the wrong
+  argument count (a gap of the IR's own default filling) is `UNRESOLVED_NAME` or `UNSUPPORTED_CONSTRUCT`.
+  `convert<T>(x)` is the one built-in call this slice lowers, to the `convert` opcode.
+
 ## Diagnostics
 
 Every diagnostic is an error. A binary error has the byte offset in `position.offset` and line 0. A text error has the
 line and the column from 1, and the offset; an error that belongs to the whole input (an empty input, a missing section
-at the end, a reference found by the final check) has line 0.
+at the end, a reference found by the final check) has line 0. A generate diagnostic (5030 and above) gives the source
+line, column and offset of the IR node it was raised at.
 
 | Code | Name | Example |
 |---|---|---|
@@ -174,21 +213,35 @@ at the end, a reference found by the final check) has line 0.
 | 5022 | `TEXT_BAD_INDEX` | an item that does not carry the next number, or a reference with the wrong letter |
 | 5023 | `TEXT_BAD_NUMBER` | a number with a non-digit, with no digit, or above the limit of its field |
 | 5024 | `TEXT_BAD_STRING` | a string with no opening or closing quote, an unknown escape, a character that is not printable ASCII |
+| 5030 | `UNSUPPORTED_CONSTRUCT` | `fork_join`, a `structure`, a call with the wrong argument count, a call this slice cannot resolve to a function of the unit |
+| 5031 | `UNRESOLVED_NAME` | a name that is not a local, a parameter, a module constant or a function of the unit |
+| 5032 | `OPERAND_OVERFLOW` | a function needs more than 65535 registers, a jump farther than 32767 instructions, a module needs more than 65535 constants |
+| 5033 | `UNSUPPORTED_TYPE` | a parameter, a local or a result of a type that is not a scalar: `string`, a `structure`, an `enum`, an `array` |
+| 5034 | `UNWALKABLE_COLLECTION` | a `for each`, because no collection type is a bytecode value in this slice |
 
 The range 5000 to 5999 is reserved for this stage. The messages are fixed texts and do not name the value.
 
 ## Gaps
 
-- The stage does not read the IR yet: there is no `Generate`, and no function can be lowered into a module. Slice 3
-  of the design onward (expressions, control flow, calls, structures, lifecycle, host calls, `fork_join`) is not
-  built, and the opcode table has only `nop` and `return_void`.
+- `structure`, `enum`, `array`, `vector`, `tuple`, `string`, lifecycle calls (`construct`, `destroy`, `copy`,
+  `move`), host calls and `fork_join` are not lowered: slices 6 to 9 of the design, each `UNSUPPORTED_TYPE` or
+  `UNSUPPORTED_CONSTRUCT` today. A function with such a parameter, local or result lowers nothing, and
+  `MAREA_BytecodeGenerate` gives no module for the whole unit.
+- `for each` always gives `UNWALKABLE_COLLECTION`, even over a type sema can type the value of (an `array`, a
+  `vector`, a `slice`): no such type is a bytecode value yet, so there is nothing to build a counted loop from.
+  B3 of the plan (the counted loop the bytecode builds itself) waits on slice 6.
+- A call outside the unit (through an import, an alias, or a member access) is not resolved: the generator's
+  function table holds only the functions the IR module itself declares. `UNRESOLVED_NAME` covers it, the same
+  code a plain undeclared name gives; the two are not told apart, because no accepted program reaches the first
+  one yet (sema already rejects an undeclared callee before the IR is built).
 - The binary has no constants section, no exports, no interface hash and no debug section, so the module cannot
   state a C module API yet (load, unload, interface hash, find by name). The design numbers sections 3, 7, 8 and 9
   for these; they are unused in version 0.1.
 - No type index is reserved for `void`, and the module does not check that a structure's size and member offsets agree,
   or that an array's count and element give its size. The layout comes from sema later.
-- A register number, a frame area and a code offset in a function are not checked against each other, because no
-  instruction reads a register yet.
+- A register number, a frame area and a code offset in a function are not checked against each other at build
+  time by the binary and text readers; the `vm` stage bounds every register and jump target of its own accord
+  at run time instead, so a malformed module still cannot read or write past a frame.
 - The byte order is little endian on every host: the writer and the reader compose the bytes one by one, so no host
   byte order is assumed. The build and the tests ran on Linux only.
 - A module is limited by the format to 2^32 - 1 strings, types, functions, blobs and instructions, and the writer
