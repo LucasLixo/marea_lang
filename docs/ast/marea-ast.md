@@ -130,7 +130,7 @@ field or member that owns it.
 | `FIELD_ENTRY` | `IDENTIFIER`, expr |
 | `INDEX_ENTRY` | expr, expr |
 | `VALUE_ENTRY` | expr |
-| `MACRO_CALL` | `IDENTIFIER` (text is the macro name), `ARGUMENT_LIST` |
+| `MACRO_CALL` | `IDENTIFIER` (text is the macro name) or `QUALIFIED_NAME` (the macro of a library, `array.include_bytes!`), `ARGUMENT_LIST` |
 | `ERROR_NODE` | none, placed at the bad token |
 
 The flag values are MUTABLE 1, CONSTANT 4, HAS_ALIAS 8, FILE 16, HAS_MEMBERS 32 and WILDCARD 64. Bit 2
@@ -251,7 +251,9 @@ operators on its left: `-a ** 2` is `-(a ** 2)`, and the right side may be unary
   wildcard, and nothing but `;` may follow it.
 - **`for`.** `for each` starts a `FOR_EACH_STATEMENT`, any other `for` a `FOR_RANGE_STATEMENT`.
 - **Macro name.** `name!(` is a macro call. The word `namespace` may also name a macro
-  (`namespace!()`), the one keyword exception that the grammar lists in `macro_call`.
+  (`namespace!()`), the one keyword exception that the grammar lists in `macro_call`. Names joined by `.` before the
+  `!` (`array.include_bytes!(...)`, `marea.array.include_bytes!(...)`) are one `QUALIFIED_NAME` in the call; a single
+  name stays an `IDENTIFIER`. A macro statement at the top of a file is still a single name only.
 
 ## Recovery
 

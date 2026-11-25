@@ -1,0 +1,14 @@
+-- expect: 3061 @14
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A build_value macro over an enum with a field that has no default.
+
+namespace main;
+
+enum Step
+    Stay;
+    Move(x: sinteger32);
+end
+
+constant STEP: Step = build_value!("STEP", Step, Step.Stay);

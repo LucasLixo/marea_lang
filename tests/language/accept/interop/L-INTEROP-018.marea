@@ -1,0 +1,12 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A build_value macro takes its default, and a static_assert reads it.
+
+namespace main;
+
+constant LOG_LEVEL: sinteger32 = build_value!("LOG_LEVEL", sinteger32, 2);
+constant FAST: boolean = build_value!("FAST", boolean, false);
+
+static_assert!(LOG_LEVEL >= 0 and LOG_LEVEL <= 4, "LOG_LEVEL is 0 to 4");

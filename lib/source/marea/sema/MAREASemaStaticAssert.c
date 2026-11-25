@@ -168,6 +168,37 @@ static MAREA_G_Value MAREA_CALL MAREA_G_Compare(MAREA_TokenKind operatorKind, MA
 
 static MAREA_G_Value MAREA_CALL MAREA_G_Evaluate(const MAREA_SemaContext *context, const MAREA_AstNode *node, MAREA_Uinteger32 depth);
 
+// INFO: a build_value call is the value that the build gave when it gave one that sema reads (a boolean or an integer), and else its default, read one level deeper. A given text of another type, or a text that does not fit, is unknown.
+static MAREA_G_Value MAREA_CALL MAREA_G_EvaluateBuildValue(const MAREA_SemaContext *context, const MAREA_AstNode *node, MAREA_Uinteger32 depth)
+{
+    MAREA_Boolean boolean = MAREA_BOOLEAN_FALSE;
+
+    MAREA_Sinteger64 integer = 0;
+
+    switch (MAREA_SemaBuildValueGiven(context, node, &boolean, &integer)) {
+    case MAREA_SEMA_BUILD_GIVEN_BOOLEAN:
+        return MAREA_G_FromBoolean(boolean);
+    case MAREA_SEMA_BUILD_GIVEN_INTEGER:
+        return MAREA_G_FromInteger(integer);
+    case MAREA_SEMA_BUILD_GIVEN_UNKNOWN:
+        return MAREA_G_Unknown();
+    case MAREA_SEMA_BUILD_GIVEN_NOT_GIVEN:
+        break;
+    }
+
+    const MAREA_AstNode *name = MAREA_SemaChildAt(node, 0);
+
+    const MAREA_AstNode *list = MAREA_SemaChildAt(node, 1);
+
+    const MAREA_Boolean IS_BUILD_VALUE = ((name != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(name) == MAREA_AST_KIND_IDENTIFIER) && (MAREA_SemaTextEquals(MAREA_AstNodeGetText(name), MAREA_AstNodeGetTextLength(name), "build_value", 11) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+
+    if ((IS_BUILD_VALUE == MAREA_BOOLEAN_FALSE) || (list == MAREA_NULLPTR) || (MAREA_AstNodeGetChildCount(list) != 3)) {
+        return MAREA_G_Unknown();
+    }
+
+    return MAREA_G_Evaluate(context, MAREA_SemaChildAt(list, 2), (depth + 1));
+}
+
 // INFO: a name is a file constant only when no open scope declares a local or a parameter of the same name. The value of the constant is its initial value, read one level deeper so a cycle ends as unknown.
 static MAREA_G_Value MAREA_CALL MAREA_G_EvaluateName(const MAREA_SemaContext *context, const MAREA_AstNode *node, MAREA_Uinteger32 depth)
 {
@@ -275,6 +306,8 @@ static MAREA_G_Value MAREA_CALL MAREA_G_Evaluate(const MAREA_SemaContext *contex
     }
     case MAREA_AST_KIND_IDENTIFIER:
         return MAREA_G_EvaluateName(context, node, depth);
+    case MAREA_AST_KIND_MACRO_CALL:
+        return MAREA_G_EvaluateBuildValue(context, node, depth);
     case MAREA_AST_KIND_PARENTHESIZED_EXPRESSION:
         return MAREA_G_Evaluate(context, MAREA_SemaChildAt(node, 0), (depth + 1));
     case MAREA_AST_KIND_UNARY_EXPRESSION:

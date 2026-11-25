@@ -36,6 +36,9 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaContextCreate(MAREA_Arena *arena, MAREA_Di
     context->resolver = resolver;
     context->requireResolver = MAREA_NULLPTR;
     context->typeRegistry = MAREA_NULLPTR;
+    context->target = MAREA_NULLPTR;
+    context->settings = MAREA_NULLPTR;
+    context->includeResolver = MAREA_NULLPTR;
     context->covers = (MAREA_SemaCoverTable){ 0 };
     context->names = (MAREA_SemaNameTable){ 0 };
     context->generics = (MAREA_SemaNameTable){ 0 };
@@ -131,6 +134,54 @@ const MAREA_TypeRegistry *MAREA_CALL MAREA_SemaContextGetTypeRegistry(const MARE
     return context->typeRegistry;
 }
 
+MAREA_SemaExcept MAREA_CALL MAREA_SemaContextSetTarget(MAREA_SemaContext *context, const MAREA_SemaTarget *target)
+{
+    if (context == MAREA_NULLPTR) {
+        return MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    context->target = target;
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
+const MAREA_SemaTarget *MAREA_CALL MAREA_SemaContextGetTarget(const MAREA_SemaContext *context)
+{
+    return (context == MAREA_NULLPTR) ? MAREA_NULLPTR : context->target;
+}
+
+MAREA_SemaExcept MAREA_CALL MAREA_SemaContextSetSettings(MAREA_SemaContext *context, const MAREA_SemaSettings *settings)
+{
+    if (context == MAREA_NULLPTR) {
+        return MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    context->settings = settings;
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
+const MAREA_SemaSettings *MAREA_CALL MAREA_SemaContextGetSettings(const MAREA_SemaContext *context)
+{
+    return (context == MAREA_NULLPTR) ? MAREA_NULLPTR : context->settings;
+}
+
+MAREA_SemaExcept MAREA_CALL MAREA_SemaContextSetIncludeResolver(MAREA_SemaContext *context, const MAREA_SemaIncludeResolver *resolver)
+{
+    if (context == MAREA_NULLPTR) {
+        return MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    context->includeResolver = resolver;
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
+const MAREA_SemaIncludeResolver *MAREA_CALL MAREA_SemaContextGetIncludeResolver(const MAREA_SemaContext *context)
+{
+    return (context == MAREA_NULLPTR) ? MAREA_NULLPTR : context->includeResolver;
+}
+
 void MAREA_CALL MAREA_SemaReport(MAREA_SemaContext *context, MAREA_SemaDiagnosticCode code, MAREA_SourcePosition position, const MAREA_Character8 *message)
 {
     MAREA_IGNORE(MAREA_DiagnosticSinkAdd(context->sink, (MAREA_Uinteger32)code, MAREA_DIAGNOSTIC_SEVERITY_ERROR, position, message));
@@ -159,6 +210,43 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaReportNamed(MAREA_SemaContext *context, MA
     memcpy((message + prefixLength + MAREA_INTEGER_SIZE(2)), name, nameLength);
     message[(prefixLength + nameLength + MAREA_INTEGER_SIZE(2))] = '\'';
     message[(prefixLength + nameLength + MAREA_INTEGER_SIZE(3))] = '\0';
+
+    MAREA_SemaReport(context, code, position, message);
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
+// INFO: the message is the parts written one after the other, built in the arena of the context.
+MAREA_SemaExcept MAREA_CALL MAREA_SemaReportParts(MAREA_SemaContext *context, MAREA_SemaDiagnosticCode code, MAREA_SourcePosition position, const MAREA_Character8 *const *parts, const MAREA_IntegerSize *lengths, MAREA_IntegerSize count)
+{
+    MAREA_IntegerSize total = 1;
+
+    for (MAREA_IntegerSize index = 0; index < count; ++index) {
+        // ERROR: a total that does not fit in MAREA_IntegerSize would allocate a small block and then copy past it.
+        if (lengths[index] > (MAREA_INTEGER_SIZE_MAXIMUM - total)) {
+            return MAREA_SEMA_EXCEPT_ERROR_OUT_OF_MEMORY;
+        }
+
+        total += lengths[index];
+    }
+
+    MAREA_Null memory = MAREA_NULLPTR;
+
+    if (MAREA_ArenaAllocate(context->arena, total, MAREA_ALIGNOF(MAREA_Character8), &memory) != MAREA_ARENA_EXCEPT_SUCCESS) {
+        return MAREA_SEMA_EXCEPT_ERROR_OUT_OF_MEMORY;
+    }
+
+    MAREA_Character8 *message = memory;
+
+    MAREA_IntegerSize used = 0;
+
+    for (MAREA_IntegerSize index = 0; index < count; ++index) {
+        memcpy((message + used), parts[index], lengths[index]);
+
+        used += lengths[index];
+    }
+
+    message[used] = '\0';
 
     MAREA_SemaReport(context, code, position, message);
 

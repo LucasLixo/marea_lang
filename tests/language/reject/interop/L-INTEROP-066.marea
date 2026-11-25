@@ -1,0 +1,9 @@
+-- expect: 3011 @9
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A build_value macro whose type is not the declared type.
+
+namespace main;
+
+constant TITLE: string = build_value!("LOG_LEVEL", sinteger32, 2);

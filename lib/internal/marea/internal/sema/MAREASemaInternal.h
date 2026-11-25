@@ -149,6 +149,9 @@ MAREA_BEGIN_EXTERN_C
         MAREA_SemaImportResolver *resolver;
         MAREA_SemaImportResolver *requireResolver;
         const MAREA_TypeRegistry *typeRegistry;
+        const MAREA_SemaTarget *target;
+        const MAREA_SemaSettings *settings;
+        const MAREA_SemaIncludeResolver *includeResolver;
         MAREA_SemaCoverTable covers;
         MAREA_SemaNameTable names;
         MAREA_SemaNameTable generics;
@@ -590,6 +593,18 @@ MAREA_BEGIN_EXTERN_C
      * @return MAREA_SEMA_EXCEPT_SUCCESS, or MAREA_SEMA_EXCEPT_ERROR_OUT_OF_MEMORY when the arena cannot grow.
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaReportNamed(MAREA_SemaContext * context, MAREA_SemaDiagnosticCode code, MAREA_SourcePosition position, const MAREA_Character8 *prefix, const MAREA_Character8 *name, MAREA_IntegerSize nameLength);
+
+    /**
+     * @brief Adds a diagnostic whose message is the parts written one after the other.
+     * @param context Context of the run. Must not be null.
+     * @param code Diagnostic code.
+     * @param position Position of the offending node.
+     * @param parts Texts of the parts, not NUL terminated. Must not be null.
+     * @param lengths Length of each part in bytes. Must not be null.
+     * @param count Number of parts.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, or MAREA_SEMA_EXCEPT_ERROR_OUT_OF_MEMORY when the arena cannot grow.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaReportParts(MAREA_SemaContext * context, MAREA_SemaDiagnosticCode code, MAREA_SourcePosition position, const MAREA_Character8 *const *parts, const MAREA_IntegerSize *lengths, MAREA_IntegerSize count);
 
     /**
      * @brief Reads one child of a node without an out parameter.
@@ -1600,7 +1615,7 @@ MAREA_BEGIN_EXTERN_C
 
     /**
      * @brief Tells whether a name is one of the built-in macros: assert, debug_assert, unreachable, compile_error,
-     * static_assert, include_bytes, include_text, format, print, log, line, file and namespace.
+     * static_assert, include_bytes, include_text, format, print, log, line, file, namespace and build_value.
      * @param text Text of the name, not NUL terminated. May be null when length is 0.
      * @param length Length of text in bytes.
      * @return MAREA_BOOLEAN_TRUE for a built-in macro name, else MAREA_BOOLEAN_FALSE.
@@ -1637,8 +1652,83 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaMacroValue MAREA_CALL MAREA_SemaMacroValueOf(const MAREA_Character8 *text, MAREA_IntegerSize length);
 
     /**
-     * @brief Checks one call of a built-in macro (a MACRO_CALL node). A name that no built-in macro has is
-     * UNKNOWN_MACRO. A call with the wrong number of arguments, a literal of the wrong kind for a condition or a
+     * @brief The kind of type that the value of a macro call has, as far as sema types it.
+     */
+    typedef enum MAREA_SemaMacroTypeKind
+    {
+        MAREA_SEMA_MACRO_TYPE_KIND_UNKNOWN = MAREA_UINTEGER_8(0),
+        MAREA_SEMA_MACRO_TYPE_KIND_PRIMITIVE = MAREA_UINTEGER_8(1),
+        MAREA_SEMA_MACRO_TYPE_KIND_ENUM = MAREA_UINTEGER_8(2),
+        MAREA_SEMA_MACRO_TYPE_KIND_REGISTERED = MAREA_UINTEGER_8(3),
+    } MAREA_SemaMacroTypeKind;
+
+    /**
+     * @brief The type of the value of one macro call: a build_value! call has the type of its second argument
+     * (a primitive, or an enum with its declaration), and a call of a macro that a shipped library registers has
+     * the result type of the descriptor (the name is the name of that type). Every other call is UNKNOWN here.
+     */
+    typedef struct MAREA_SemaMacroType
+    {
+        const MAREA_AstNode *declaration;
+        const MAREA_Character8 *name;
+        MAREA_IntegerSize length;
+        MAREA_SemaMacroTypeKind kind;
+    } MAREA_SemaMacroType;
+
+    /**
+     * @brief Gives the type of the value of a macro call. build_value! with three arguments whose second one is a
+     * primitive type name or an enum of the file gives that type. A call whose qualified name a require covers
+     * and whose last name a registered macro owns gives the result type of the descriptor. A call with the wrong
+     * shape, an unknown name or a name of a library that is off gives UNKNOWN, and MAREA_SemaCheckMacro reports it.
+     * @param context Context of the run. Must not be null.
+     * @param call MACRO_CALL node. May be null, which gives UNKNOWN.
+     * @return The type.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaMacroType MAREA_CALL MAREA_SemaMacroTypeOf(const MAREA_SemaContext *context, const MAREA_AstNode *call);
+
+    /**
+     * @brief Checks the fit of the value of a registered macro call with the declared type it initializes. The
+     * declared type must be the result type of the descriptor, and its type arguments must be the element type
+     * of the descriptor and the count that the expander gives (the size of the file). A type that the registry
+     * does not know, a type with no type argument, and an expander that fails (MAREA_SemaCheckMacro reports it)
+     * raise nothing here. An expression that is no registered macro call raises nothing.
+     * @param context Context of the run. Must not be null.
+     * @param type NAMED_TYPE node that the value must have. May be null.
+     * @param expression Expression node. May be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null context, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckMacroResultFit(MAREA_SemaContext * context, const MAREA_AstNode *type, const MAREA_AstNode *expression);
+
+    /**
+     * @brief What the build gave to one build_value! call.
+     */
+    typedef enum MAREA_SemaBuildGiven
+    {
+        MAREA_SEMA_BUILD_GIVEN_NOT_GIVEN = MAREA_UINTEGER_8(0),
+        MAREA_SEMA_BUILD_GIVEN_UNKNOWN = MAREA_UINTEGER_8(1),
+        MAREA_SEMA_BUILD_GIVEN_BOOLEAN = MAREA_UINTEGER_8(2),
+        MAREA_SEMA_BUILD_GIVEN_INTEGER = MAREA_UINTEGER_8(3),
+    } MAREA_SemaBuildGiven;
+
+    /**
+     * @brief Reads the value that the build settings of the context give to a build_value! call. NOT_GIVEN when
+     * the context has no settings, no pair holds the name of the call, or the call is not a well-formed build_value!
+     * call (the default then stands). BOOLEAN or INTEGER when a pair holds a text that converts to a boolean or to an
+     * integer that fits 64 bits signed. UNKNOWN when the pair holds a text of another type (a float, a string, a
+     * character, an enum), a text that does not fit its type (MAREA_SemaCheckMacro reports it) or an integer that
+     * only fits 64 bits unsigned.
+     * @param context Context of the run. Must not be null.
+     * @param call MACRO_CALL node. May be null, which gives NOT_GIVEN.
+     * @param outBoolean Receives the boolean when the answer is BOOLEAN. May be null.
+     * @param outInteger Receives the integer when the answer is INTEGER. May be null.
+     * @return The answer.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaBuildGiven MAREA_CALL MAREA_SemaBuildValueGiven(const MAREA_SemaContext *context, const MAREA_AstNode *call, MAREA_Boolean *outBoolean, MAREA_Sinteger64 *outInteger);
+
+    /**
+     * @brief Checks one call of a macro (a MACRO_CALL node): a built-in macro by its bare name, build_value!, or a
+     * macro that a shipped library registers by its qualified name. A name that no macro has is UNKNOWN_MACRO, and a
+     * qualified name whose namespace no import or require covers is UNIMPORTED_NAMESPACE. A call with the wrong number of arguments, a literal of the wrong kind for a condition or a
      * text, a log level that is not one of trace, debug, info, warning and error, or a format text whose count of
      * {} differs from the count of values is INVALID_MACRO_ARGUMENT. At most one diagnostic is raised for a call. A
      * call with an ERROR_NODE below it raises nothing. The type of a value is never checked.

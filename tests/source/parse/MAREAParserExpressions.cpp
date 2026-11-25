@@ -197,6 +197,18 @@ TEST(MAREAParserExpressions, MacroCalls)
     });
 }
 
+TEST(MAREAParserExpressions, QualifiedMacroCalls)
+{
+    GTEST_COUT << "Validating a macro call whose name is a qualified name, written with an alias or a full path." << std::endl;
+
+    MAREA_expectCases({
+        { "array.include_bytes!(\"file\")", "(macro_call array.include_bytes (argument_list \"file\"))" },
+        { "marea.array.include_bytes!(\"file\")", "(macro_call marea.array.include_bytes (argument_list \"file\"))" },
+        { "a.b!()", "(macro_call a.b (argument_list))" },
+        { "a.b != c", "(binary:BANG_EQUAL (member_access a b) c)" },
+    });
+}
+
 TEST(MAREAParserExpressions, ChainedComparisonIsReported)
 {
     GTEST_COUT << "Validating a chained comparison gives CHAINED_COMPARISON and still builds the tree." << std::endl;

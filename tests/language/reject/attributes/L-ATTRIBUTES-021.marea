@@ -1,0 +1,16 @@
+-- expect: 3085 @14
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An inline key on a constant of an implementation.
+
+namespace main;
+
+structure S
+    x: sinteger32;
+end
+
+implementation S
+    #[inline = never]
+    constant LIMIT: sinteger32 = 1;
+end

@@ -394,9 +394,11 @@ literal_entry       = identifier, "=", expression
                     | "[", expression, "]", "=", expression
                     | expression ;
 
-(* A built-in macro. The name is reserved. The user cannot declare one. The word "namespace" is *)
-(* the one keyword that may name a macro, for the built-in namespace!(). See note 12. *)
-macro_call          = ( identifier | "namespace" ), "!", "(", [ argument_list ], ")" ;
+(* A built-in macro, or a macro that a shipped library registers. The name is reserved. The user *)
+(* cannot declare one. The word "namespace" is the one keyword that may name a macro, for the *)
+(* built-in namespace!(). A qualified name is the path of the library that registers the macro, as *)
+(* in array.include_bytes!("file"). See note 12. *)
+macro_call          = ( qualified_name | "namespace" ), "!", "(", [ argument_list ], ")" ;
 
 
 (* ======================================= Notes ===================================== *)
@@ -440,7 +442,9 @@ macro_call          = ( identifier | "namespace" ), "!", "(", [ argument_list ],
 (*    after every branch or arm and one more "end" for the statement, is a parse error.        *)
 (* 12. Macro name. A reserved word is never an identifier, but the built-in macro namespace!()  *)
 (*    gives the place of the call and shares its name with the keyword. The "!" and "(" after  *)
-(*    it tell the two apart, so "macro_call" lists "namespace" as the one exception.           *)
+(*    it tell the two apart, so "macro_call" lists "namespace" as the one exception. A name   *)
+(*    with dots before the "!" is a qualified name: the parser reads it as one name, and sema   *)
+(*    reads it as a full path (an alias, or the path of the library).                          *)
 (* 13. Entry point. A driver that builds a standalone program looks for one shape: a       *)
 (*     function named "main" in the namespace "main", with the signature "function        *)
 (*     main(arguments: array<string>): sinteger32". This is a checker/driver rule, as note  *)

@@ -206,7 +206,10 @@ TEST(MAREASemaAttributes, OperatorTakesTheFixedVocabulary)
 
         const std::string SOURCE{ LIFECYCLE ? ("structure P x: sinteger32; end implementation P #[operator = \"" + std::string(spelling) + "\"] function a() end end") : ("#[operator = \"" + std::string(spelling) + "\"] function a() end") };
 
-        EXPECT_TRUE(MAREA_codesOf(SOURCE).empty()) << "operator \"" << spelling << "\" must raise nothing.";
+        // INFO: the vocabulary check is the point here. A free function is no place for operator by the placement matrix, so the spellings written on one raise MISPLACED_ATTRIBUTE and nothing about their value.
+        const Codes EXPECTED{ LIFECYCLE ? Codes{} : Codes{ MAREA_SEMA_DIAGNOSTIC_CODE_MISPLACED_ATTRIBUTE } };
+
+        EXPECT_EQ(MAREA_codesOf(SOURCE), EXPECTED) << "operator \"" << spelling << "\" must be a value of the vocabulary.";
     }
 }
 
