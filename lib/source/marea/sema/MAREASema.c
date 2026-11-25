@@ -35,6 +35,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaContextCreate(MAREA_Arena *arena, MAREA_Di
     context->sink = sink;
     context->resolver = resolver;
     context->requireResolver = MAREA_NULLPTR;
+    context->typeRegistry = MAREA_NULLPTR;
     context->covers = (MAREA_SemaCoverTable){ 0 };
     context->names = (MAREA_SemaNameTable){ 0 };
     context->generics = (MAREA_SemaNameTable){ 0 };
@@ -108,6 +109,27 @@ MAREA_SemaImportResolver *MAREA_CALL MAREA_SemaContextGetRequireResolver(const M
     }
 
     return context->requireResolver;
+}
+
+// TODO: the type registry is not wired into the context yet: the setter keeps the field at null and
+// the getter always answers null, so every sema check that will read context->typeRegistry still sees
+// none, exactly as before this apply. Part 3 of the apply stores and reads the given pointer for real.
+MAREA_SemaExcept MAREA_CALL MAREA_SemaContextSetTypeRegistry(MAREA_SemaContext *context, const MAREA_TypeRegistry *registry)
+{
+    if (context == MAREA_NULLPTR) {
+        return MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    MAREA_IGNORE(registry);
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
+const MAREA_TypeRegistry *MAREA_CALL MAREA_SemaContextGetTypeRegistry(const MAREA_SemaContext *context)
+{
+    MAREA_IGNORE(context);
+
+    return MAREA_NULLPTR;
 }
 
 void MAREA_CALL MAREA_SemaReport(MAREA_SemaContext *context, MAREA_SemaDiagnosticCode code, MAREA_SourcePosition position, const MAREA_Character8 *message)

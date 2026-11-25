@@ -347,13 +347,13 @@ TEST(MAREASemaFullPath, AProjectFileCannotDeclareAReservedRoot)
     EXPECT_TRUE(user.MAREA_semaCodes().empty()) << "A root of the project must raise nothing.";
 }
 
-TEST(MAREASemaFullPath, AHostMayRegisterANameUnderAReservedRoot)
+TEST(MAREASemaFullPath, AProjectFileRaisesReservedNamespaceRootEvenWhenTheRegistryKnowsTheName)
 {
-    GTEST_COUT << "Validating a file may declare a namespace under marea when the host registered that name." << std::endl;
+    GTEST_COUT << "Validating a project file still raises RESERVED_NAMESPACE_ROOT under marea even when the host registered that name: the 2026-11-25 decision update makes the rule unconditional (sema-no-library-descriptors-roles), replacing the earlier conditional reading this test used to check." << std::endl;
 
     MAREA_SemaFixture fixture(MAREA_registry());
 
     ASSERT_EQ(fixture.MAREA_sema("namespace marea.math;", "marea/math.marea"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
 
-    EXPECT_TRUE(fixture.MAREA_semaCodes().empty()) << "A registered name must raise nothing.";
+    EXPECT_EQ(fixture.MAREA_semaCodes(), std::vector<MAREA_Uinteger32>{ RESERVED_ROOT }) << "A project file under marea must raise RESERVED_NAMESPACE_ROOT regardless of what the registry knows.";
 }

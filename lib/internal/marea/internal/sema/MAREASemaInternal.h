@@ -148,6 +148,7 @@ MAREA_BEGIN_EXTERN_C
         MAREA_DiagnosticSink *sink;
         MAREA_SemaImportResolver *resolver;
         MAREA_SemaImportResolver *requireResolver;
+        const MAREA_TypeRegistry *typeRegistry;
         MAREA_SemaCoverTable covers;
         MAREA_SemaNameTable names;
         MAREA_SemaNameTable generics;

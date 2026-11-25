@@ -8,6 +8,7 @@
     #include "marea/base/MAREAMacros.h"
     #include "marea/base/MAREAArena.h"
     #include "marea/base/MAREADiagnostic.h"
+    #include "marea/base/MAREATypeRegistry.h"
     #include "marea/parse/MAREAAst.h"
     #include "marea/sema/MAREASemaImportResolver.h"
 
@@ -109,6 +110,11 @@ MAREA_BEGIN_EXTERN_C
         MAREA_SEMA_DIAGNOSTIC_CODE_UNRESOLVED_REQUIRE = MAREA_UINTEGER_32(3079),
         MAREA_SEMA_DIAGNOSTIC_CODE_AMBIGUOUS_NAMESPACE = MAREA_UINTEGER_32(3080),
         MAREA_SEMA_DIAGNOSTIC_CODE_RESERVED_NAMESPACE_ROOT = MAREA_UINTEGER_32(3081),
+        // INFO: an element type with no measured layout held by value (decision 28 of the 2026-11-24 plan,
+        // file 14_UB_C_BORDER.md): a registered type whose descriptor holds its type argument by value
+        // (hasIndexProtocol true, an array-shaped library type) needs that argument to have a measured
+        // layout.
+        MAREA_SEMA_DIAGNOSTIC_CODE_ELEMENT_WITHOUT_MEASURED_LAYOUT = MAREA_UINTEGER_32(3082),
     } MAREA_SemaDiagnosticCode;
 
     /**
@@ -167,6 +173,24 @@ MAREA_BEGIN_EXTERN_C
      * @return The registry, or null when none was set or context is null.
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaImportResolver *MAREA_CALL MAREA_SemaContextGetRequireResolver(const MAREA_SemaContext *context);
+
+    /**
+     * @brief Sets the type registry sema reads roles and ownership from: the one place a library's
+     * type descriptors reach sema, so a NAMED_TYPE whose full path the registry answers is classified by
+     * its roles and its ownership class, never by its name. A context with none classifies every such
+     * path as it did with no library at all: an ordinary namespace member, EXTERNAL or unknown.
+     * @param context Context to change. Must not be null.
+     * @param registry Registry to read, or null to stop reading one.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, or MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER when context is null.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaContextSetTypeRegistry(MAREA_SemaContext * context, const MAREA_TypeRegistry *registry);
+
+    /**
+     * @brief Returns the type registry the context was given.
+     * @param context Context to query. Null returns null.
+     * @return The registry, or null when none was set or context is null.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_TypeRegistry *MAREA_CALL MAREA_SemaContextGetTypeRegistry(const MAREA_SemaContext *context);
 
     /**
      * @brief Checks one compilation unit. Every violation is reported to the sink. An ERROR_NODE left by
