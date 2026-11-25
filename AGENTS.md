@@ -35,7 +35,7 @@ programs are in [examples](examples).
   test runs every example through both. There is no JIT. Hot reload is not a language feature: the host reloads
   modules through a small C module API (load, unload, interface hash, find by name).
 - **No standard library.** The core has the primitives (`string` is one), `structure`, `enum` and function types. Every
-  other type (`array`, `vector`, `tuple`, and the pointer, owner, view and task types) is a library, imported under one
+  other type (`array`, `vector`, `tuple`, and the pointer, owner, view and task types) is a library, required under one
   of two reserved first segments: `c.{lib}`, only the direct abstractions of the libc and ports of it (as `c.character`), registered
   through the one C registration macro that the language never replaces, and `marea.{lib}`, the creations of the language
   that have no direct counterpart in C (`marea.array`, `marea.vector`, `marea.tuple`, `marea.math`), written in Marea or in
