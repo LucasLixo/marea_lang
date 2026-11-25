@@ -64,6 +64,43 @@ static MAREA_Boolean MAREA_CALL MAREA_G_TextEquals(const MAREA_Character8 *left,
     return ((leftLength == rightLength) && (memcmp(left, right, leftLength) == 0)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
+// INFO: the first dotted segment of namespaceText, the part before the first '.' or the whole text when
+// it has none.
+static MAREA_IntegerSize MAREA_CALL MAREA_G_FirstSegmentLength(const MAREA_Character8 *namespaceText, MAREA_IntegerSize namespaceLength)
+{
+    for (MAREA_IntegerSize index = 0; index < namespaceLength; ++index) {
+        if (namespaceText[index] == '.') {
+            return index;
+        }
+    }
+
+    return namespaceLength;
+}
+
+// INFO: c and marea are the two roots the language reserves for the libraries it ships; the public
+// entry never registers a name under either one.
+static MAREA_Boolean MAREA_CALL MAREA_G_IsReservedRoot(const MAREA_Character8 *namespaceText, MAREA_IntegerSize namespaceLength)
+{
+    const MAREA_IntegerSize FIRST_LENGTH = MAREA_G_FirstSegmentLength(namespaceText, namespaceLength);
+
+    return ((MAREA_G_TextEquals(namespaceText, FIRST_LENGTH, "c", MAREA_INTEGER_SIZE(1)) == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextEquals(namespaceText, FIRST_LENGTH, "marea", MAREA_INTEGER_SIZE(5)) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
+// INFO: every dependency declared for owner, combined with bitwise or; a library with no declared
+// dependency needs none.
+static MAREA_LibraryMask MAREA_CALL MAREA_G_DependenciesOf(const MAREA_TypeRegistry *registry, MAREA_LibraryFlag owner)
+{
+    MAREA_LibraryMask required = MAREA_LIBRARY_FLAG_NONE;
+
+    for (MAREA_IntegerSize index = 0; index < registry->dependencyCount; ++index) {
+        if (registry->dependencies[index].owner == owner) {
+            required |= registry->dependencies[index].dependsOn;
+        }
+    }
+
+    return required;
+}
+
 MAREA_TypeRegistryExcept MAREA_CALL MAREA_TypeRegistryCreate(MAREA_Arena *arena, MAREA_LibraryMask enabledMask, MAREA_TypeRegistry **outRegistry)
 {
     if ((arena == MAREA_NULLPTR) || (outRegistry == MAREA_NULLPTR)) {
@@ -141,16 +178,23 @@ MAREA_TypeRegistryExcept MAREA_CALL MAREA_TypeRegistryDeclareDependency(MAREA_Ty
     return except;
 }
 
-// TODO: the dependency check (decision 52) is not enforced yet: owner is always accepted, even when a
-// library MAREA_TypeRegistryDeclareDependency named for it is off. Part 3 of the apply reads the
-// dependency table this function already stores and rejects such a registration.
+// INFO: a library whose bit is off in the enabled mask registers nothing: a no-op success, so the
+// caller never has to ask the mask itself before registering.
 MAREA_TypeRegistryExcept MAREA_CALL MAREA_TypeRegistryRegisterInternal(MAREA_TypeRegistry *registry, MAREA_LibraryFlag owner, const MAREA_TypeDescriptor *descriptor)
 {
     if ((registry == MAREA_NULLPTR) || (descriptor == MAREA_NULLPTR)) {
         return MAREA_TYPE_REGISTRY_EXCEPT_ERROR_NULL_POINTER;
     }
 
-    MAREA_IGNORE(owner);
+    if ((registry->enabledMask & owner) == MAREA_LIBRARY_FLAG_NONE) {
+        return MAREA_TYPE_REGISTRY_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_LibraryMask REQUIRED = MAREA_G_DependenciesOf(registry, owner);
+
+    if ((REQUIRED & ~registry->enabledMask) != MAREA_LIBRARY_FLAG_NONE) {
+        return MAREA_TYPE_REGISTRY_EXCEPT_ERROR_MISSING_DEPENDENCY;
+    }
 
     MAREA_TypeRegistryExcept except = MAREA_TYPE_REGISTRY_EXCEPT_SUCCESS;
 
@@ -161,13 +205,16 @@ MAREA_TypeRegistryExcept MAREA_CALL MAREA_TypeRegistryRegisterInternal(MAREA_Typ
     return except;
 }
 
-// TODO: the reserved-root rejection (decision of 2026-11-25, row 11) is not enforced yet: a public
-// registration under c.* or marea.* is accepted here. Part 3 rejects it with
-// ERROR_RESERVED_NAMESPACE_ROOT.
+// INFO: the public entry, used by a user or a host, never registers a name under the reserved roots
+// c or marea: only the internal entry, used by a shipped library, may.
 MAREA_TypeRegistryExcept MAREA_CALL MAREA_TypeRegistryRegisterPublic(MAREA_TypeRegistry *registry, const MAREA_TypeDescriptor *descriptor)
 {
     if ((registry == MAREA_NULLPTR) || (descriptor == MAREA_NULLPTR)) {
         return MAREA_TYPE_REGISTRY_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    if (MAREA_G_IsReservedRoot(descriptor->namespaceText, descriptor->namespaceLength) == MAREA_BOOLEAN_TRUE) {
+        return MAREA_TYPE_REGISTRY_EXCEPT_ERROR_RESERVED_NAMESPACE_ROOT;
     }
 
     MAREA_TypeRegistryExcept except = MAREA_TYPE_REGISTRY_EXCEPT_SUCCESS;
@@ -202,7 +249,15 @@ MAREA_TypeRegistryExcept MAREA_CALL MAREA_TypeRegistryRegisterInternalFunction(M
         return MAREA_TYPE_REGISTRY_EXCEPT_ERROR_NULL_POINTER;
     }
 
-    MAREA_IGNORE(owner);
+    if ((registry->enabledMask & owner) == MAREA_LIBRARY_FLAG_NONE) {
+        return MAREA_TYPE_REGISTRY_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_LibraryMask REQUIRED = MAREA_G_DependenciesOf(registry, owner);
+
+    if ((REQUIRED & ~registry->enabledMask) != MAREA_LIBRARY_FLAG_NONE) {
+        return MAREA_TYPE_REGISTRY_EXCEPT_ERROR_MISSING_DEPENDENCY;
+    }
 
     MAREA_TypeRegistryExcept except = MAREA_TYPE_REGISTRY_EXCEPT_SUCCESS;
 
@@ -213,12 +268,15 @@ MAREA_TypeRegistryExcept MAREA_CALL MAREA_TypeRegistryRegisterInternalFunction(M
     return except;
 }
 
-// TODO: the reserved-root rejection is not enforced yet for a function either; see
-// MAREA_TypeRegistryRegisterPublic above.
+// INFO: the reserved-root rejection, the same as MAREA_TypeRegistryRegisterPublic above.
 MAREA_TypeRegistryExcept MAREA_CALL MAREA_TypeRegistryRegisterPublicFunction(MAREA_TypeRegistry *registry, const MAREA_Character8 *namespaceText, MAREA_IntegerSize namespaceLength, const MAREA_Character8 *name, MAREA_IntegerSize nameLength, MAREA_Null functionPointer)
 {
     if ((registry == MAREA_NULLPTR) || (namespaceText == MAREA_NULLPTR) || (name == MAREA_NULLPTR) || (functionPointer == MAREA_NULLPTR)) {
         return MAREA_TYPE_REGISTRY_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    if (MAREA_G_IsReservedRoot(namespaceText, namespaceLength) == MAREA_BOOLEAN_TRUE) {
+        return MAREA_TYPE_REGISTRY_EXCEPT_ERROR_RESERVED_NAMESPACE_ROOT;
     }
 
     MAREA_TypeRegistryExcept except = MAREA_TYPE_REGISTRY_EXCEPT_SUCCESS;
@@ -258,12 +316,16 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsRuntimeHookName(const MAREA_Character8
     return MAREA_BOOLEAN_FALSE;
 }
 
-// TODO: the runtime-hook allow list is not enforced yet: any name is accepted here. Part 3 rejects a
-// name that MAREA_G_IsRuntimeHookName does not know with ERROR_UNKNOWN_RUNTIME_FUNCTION.
+// INFO: the runtime-hook allow list: a name MAREA_G_IsRuntimeHookName does not know is rejected, so a
+// host never replaces an arbitrary name under the guise of a hook.
 MAREA_TypeRegistryExcept MAREA_CALL MAREA_TypeRegistryReplaceRuntimeFunction(MAREA_TypeRegistry *registry, const MAREA_Character8 *name, MAREA_IntegerSize nameLength, MAREA_Null functionPointer)
 {
     if ((registry == MAREA_NULLPTR) || (name == MAREA_NULLPTR) || (functionPointer == MAREA_NULLPTR)) {
         return MAREA_TYPE_REGISTRY_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    if (MAREA_G_IsRuntimeHookName(name, nameLength) == MAREA_BOOLEAN_FALSE) {
+        return MAREA_TYPE_REGISTRY_EXCEPT_ERROR_UNKNOWN_RUNTIME_FUNCTION;
     }
 
     for (MAREA_IntegerSize index = 0; index < registry->hookCount; ++index) {
