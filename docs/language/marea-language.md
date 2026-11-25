@@ -652,6 +652,8 @@ Function declaration and call, parameters and defaults, the result and `return v
 | L-TYPES-136 | the loop variable of a for range used in the body | ok |
 | L-TYPES-202 | a word that looks like a keyword but is not one | ok |
 | L-TYPES-203 | a name that starts with a primitive type name | ok |
+| L-TYPES-204 | A do-while loop whose condition reads a name of the outer scope | ok |
+| L-TYPES-205 | A do-while loop with a break and a continue in its body | ok |
 
 ### Types and control flow: reject
 
@@ -706,7 +708,7 @@ Function declaration and call, parameters and defaults, the result and `return v
 | L-TYPES-090 | a contract declared twice | 3003 @13 |
 | L-TYPES-091 | a construct function that is called directly | 3027 @22 |
 | L-TYPES-092 | a destroy function that is called directly | 3027 @22 |
-| L-TYPES-093 | a construct function at the top level | 3028 @10 |
+| L-TYPES-093 | a construct function at the top level | 3085 @9, 3028 @10 |
 | L-TYPES-094 | a destroy function with a parameter | 3029 @16 |
 | L-TYPES-095 | a construct function with a result | 3029 @16 |
 | L-TYPES-096 | a construct function with a parameter that has no default | 3029 @16 |
@@ -790,6 +792,8 @@ Function declaration and call, parameters and defaults, the result and `return v
 | L-TYPES-199 | a type declaration keyword used as an enum name | 2001 @9 |
 | L-TYPES-200 | a keyword used as a field name | 2001 @10, 2001 @10 |
 | L-TYPES-201 | a keyword used as an enum variant name | 2001 @10, 2001 @10 |
+| L-TYPES-206 | A do-while loop whose condition is an integer | 3043 @11 |
+| L-TYPES-207 | A do-while loop whose condition reads a name of its body | 3004 @12 |
 
 ### Types and control flow: known_gap
 
@@ -931,6 +935,7 @@ checked. The type `handle<T>` is rejected with 3009 by the type checker, so it h
 | L-INTEROP-016 | The unreachable macro after a branch that cannot run | ok |
 | L-INTEROP-017 | The place macros give the line, the file and the namespace | ok |
 | L-INTEROP-060 | An unsafe block with a plain local | ok |
+| L-INTEROP-018 | A build_value macro takes its default, and a static_assert reads it | ok |
 
 ### Macros and the C border: reject
 
@@ -964,11 +969,59 @@ checked. The type `handle<T>` is rejected with 3009 by the type checker, so it h
 | L-INTEROP-061 | A format macro result returned as an integer | 3011 @10 |
 | L-INTEROP-062 | An include_text macro with a number as the path | 3061 @9 |
 | L-INTEROP-063 | A borrowed opaque value returned by value | 3018 @12 |
+| L-INTEROP-064 | A build_value macro with no default | 3061 @9 |
+| L-INTEROP-065 | A build_value macro with a default of another type | 3011 @9 |
+| L-INTEROP-066 | A build_value macro whose type is not the declared type | 3011 @9 |
+| L-INTEROP-067 | A build_value macro over an enum with a field that has no default | 3061 @14 |
+| L-INTEROP-068 | A qualified macro call of a name that its library does not register | 3060 @12 |
+| L-INTEROP-069 | A qualified macro call of a library that no require covers | 3078 @10 |
+| L-INTEROP-070 | A qualified macro call of a file that the include resolver does not know | 3061 @12 |
 
 ### Macros and the C border: known_gap
 
 | Id | Shows | Expected |
 |---|---|---|
+
+## Attributes
+
+The attribute keys, the placement matrix of the attribute map, the `when` item and the `backend` key. The items sit in
+`tests/language/<class>/attributes/`. Every row of the placement matrix has a `reject` item (L-ATTRIBUTES-010 to
+023, code 3085). The catalogue runner gives sema no target description, no build settings and no include resolver, so
+every `when` predicate is false and `BACKEND_UNAVAILABLE` (3083) and `INVALID_BUILD_VALUE` (3086) have no item (see
+Gaps); `tests/source/sema/MAREASemaBackendWhen.cpp` and `tests/source/sema/MAREASemaBuildValue.cpp` prove them.
+
+### Attributes: accept
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-ATTRIBUTES-001 | A when item on a function, with no target given so the predicate is false | ok |
+| L-ATTRIBUTES-002 | A plain key and a when item on the same key | ok |
+| L-ATTRIBUTES-003 | Every key at a place that the placement matrix gives it | ok |
+
+### Attributes: reject
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-ATTRIBUTES-010 | An align key on the file | 3085 @9 |
+| L-ATTRIBUTES-011 | An align key on a top-level function | 3085 @9 |
+| L-ATTRIBUTES-012 | An inline key on a top-level constant | 3085 @9 |
+| L-ATTRIBUTES-013 | An inline key on a structure | 3085 @9 |
+| L-ATTRIBUTES-014 | A layout key on an opaque structure | 3085 @9 |
+| L-ATTRIBUTES-015 | An export key on an enum | 3085 @9 |
+| L-ATTRIBUTES-016 | A build key on a type alias | 3085 @9 |
+| L-ATTRIBUTES-017 | An align key on a contract | 3085 @9 |
+| L-ATTRIBUTES-018 | An export key on an implementation block | 3085 @13 |
+| L-ATTRIBUTES-019 | A pack key on a field of a structure | 3085 @10 |
+| L-ATTRIBUTES-020 | A layout key on a function of an implementation | 3085 @14 |
+| L-ATTRIBUTES-021 | An inline key on a constant of an implementation | 3085 @14 |
+| L-ATTRIBUTES-022 | A visibility key on a parameter | 3085 @13 |
+| L-ATTRIBUTES-023 | A visibility key on a macro statement | 3085 @9 |
+| L-ATTRIBUTES-024 | A backend key in a file that is not marea.math | 3084 @9 |
+| L-ATTRIBUTES-025 | Two when items that hold give the same key | 3007 @9 |
+| L-ATTRIBUTES-026 | A when item with a predicate name that does not exist | 3006 @9 |
+| L-ATTRIBUTES-027 | An export key on a generic function | 3085 @9 |
+| L-ATTRIBUTES-028 | An export label that is not a C identifier | 3006 @9 |
+| L-ATTRIBUTES-029 | A key at a wrong place inside a when item | 3085 @9 |
 
 ## Parallel code
 
@@ -1262,18 +1315,19 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | area | accept | reject | known_gap |
 |---|---|---|---|
 | adversarial | 0 | 64 | 8 |
+| attributes | 3 | 20 | 0 |
 | bindings | 33 | 80 | 0 |
 | coverage | 0 | 1 | 0 |
 | examples | 20 | 0 | 0 |
 | functions | 19 | 54 | 0 |
-| interop | 17 | 28 | 0 |
+| interop | 18 | 35 | 0 |
 | memory | 15 | 18 | 0 |
 | namespaces | 20 | 42 | 0 |
 | ownership | 65 | 78 | 2 |
 | parallel | 19 | 40 | 0 |
 | seed | 1 | 2 | 0 |
-| types | 60 | 133 | 3 |
-| total | 269 | 540 | 13 |
+| types | 62 | 135 | 3 |
+| total | 275 | 569 | 13 |
 
 ## Parity plan
 
@@ -1294,7 +1348,7 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 |---|---|---|
 | 1001-1006 | `lex` | [marea-lex.md](../lex/marea-lex.md) |
 | 2001-2010 | `parse` | [marea-ast.md](../ast/marea-ast.md) |
-| 3001-3032 | `sema` | [marea-sema.md](../sema/marea-sema.md) (3033 to 3081 follow in the rows below) |
+| 3001-3032 | `sema` | [marea-sema.md](../sema/marea-sema.md) (3033 to 3086 follow in the rows below) |
 | 3056 | `sema` | [marea-sema.md](../sema/marea-sema.md), `RESERVED_MACRO_NAME` |
 | 3057-3058 | `sema` | [marea-sema.md](../sema/marea-sema.md), `OPAQUE_TYPE_MISUSE` and `OPAQUE_FIELD_BY_VALUE` |
 | 3033 | `sema` | [marea-sema.md](../sema/marea-sema.md), `LITERAL_OUT_OF_RANGE` |
@@ -1321,6 +1375,7 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 | 3075-3076 | `sema` | [marea-sema.md](../sema/marea-sema.md), `PARTITION_BODY_WRITES_OUTER_NAME` and `PARTITION_SOURCE_USED_IN_BODY` |
 | 3077 | `sema` | [marea-sema.md](../sema/marea-sema.md), `MISSING_FIELD` |
 | 3078-3081 | `sema` | [marea-sema.md](../sema/marea-sema.md), `UNIMPORTED_NAMESPACE`, `UNRESOLVED_REQUIRE`, `AMBIGUOUS_NAMESPACE` and `RESERVED_NAMESPACE_ROOT` |
+| 3083-3086 | `sema` | [marea-sema.md](../sema/marea-sema.md), `BACKEND_UNAVAILABLE`, `ATTRIBUTE_NOT_ALLOWED_HERE`, `MISPLACED_ATTRIBUTE` and `INVALID_BUILD_VALUE`; 3083 and 3086 have no item (see Gaps) |
 | 4004-4006 | `ir` | [marea-ir.md](../ir/marea-ir.md), no item reaches them (see Gaps) |
 
 ## Gaps
@@ -1334,6 +1389,10 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 - The code 3082 (`ELEMENT_WITHOUT_MEASURED_LAYOUT`, an element with no measured layout held by value) has no item
   yet: no shipped library type exists for an item to write, since sema now knows no library and only reads the
   descriptors a registry holds (a library type in an item is the fixture root `demo`, registered by the runner). `tests/source/sema/MAREASemaTypeRegistry.cpp` proves the code with a fixture descriptor instead.
+- The codes 3083 (`BACKEND_UNAVAILABLE`) and 3086 (`INVALID_BUILD_VALUE`) have no item: the runner gives sema no target
+  description and no build settings, and `include_bytes!` of a library has no include resolver there either (the `reject`
+  item L-INTEROP-070 shows the missing-file case only). `tests/source/sema/MAREASemaBackendWhen.cpp`,
+  `tests/source/sema/MAREASemaBuildValue.cpp` and `tests/source/sema/MAREASemaRegisteredMacros.cpp` prove them.
 - The runner compares the codes of a `reject` item in the order the compiler gives them, so an item over two stages
   depends on the order of the stages (lex, then parse, then sema).
 - A known_gap item must be accepted today, so a valid program that the compiler rejects by mistake has no item. Known:
@@ -1373,8 +1432,8 @@ The coverage test holds this list; an example that gains an item must leave it.
 
 ### Diagnostic codes with no reject item
 
-Every live lex, parse and sema code (1001-1006, 2001-2010, 3001-3081 without 3023 and the numbers no code uses) has a `reject` item, except 3066,
-3067 and 3068: no item can reach a second namespace (issue #250), and `tests/source/sema/MAREASemaVisibility.cpp`
+Every live lex, parse and sema code (1001-1006, 2001-2010, 3001-3086 without 3023 and the numbers no code uses) has a `reject` item, except 3066,
+3067 and 3068 (3082, 3083 and 3086 are exempt as the Gaps list above says): no item can reach a second namespace (issue #250), and `tests/source/sema/MAREASemaVisibility.cpp`
 proves them. The ir codes
 4004, 4005 and 4006 are exempt: the runner runs lex, parse and sema only, so no item can reach the ir. The exemption ends
 when a runner or an apply makes the ir run in it. The retired codes 3023 and 4001-4003 are excluded and must not

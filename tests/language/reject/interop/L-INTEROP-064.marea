@@ -1,0 +1,9 @@
+-- expect: 3061 @9
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A build_value macro with no default.
+
+namespace main;
+
+constant LOG_LEVEL: sinteger32 = build_value!("LOG_LEVEL", sinteger32);

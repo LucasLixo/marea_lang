@@ -1,0 +1,13 @@
+-- expect: 3061 @12
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A qualified macro call of a file that the include resolver does not know.
+
+namespace main;
+
+require marea.array;
+
+function run()
+    marea.array.include_bytes!("x.bin");
+end

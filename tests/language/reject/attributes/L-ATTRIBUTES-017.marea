@@ -1,0 +1,12 @@
+-- expect: 3085 @9
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An align key on a contract.
+
+namespace main;
+
+#[align = 16]
+contract Shape
+    function area(): float64;
+end

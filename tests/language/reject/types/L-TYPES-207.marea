@@ -1,0 +1,13 @@
+-- expect: 3004 @12
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A do-while loop whose condition reads a name of its body.
+
+namespace main;
+
+function run()
+    do
+        local inner: sinteger32 = 0;
+    while inner < 3 end
+end

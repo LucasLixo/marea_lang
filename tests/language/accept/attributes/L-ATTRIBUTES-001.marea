@@ -1,0 +1,11 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A when item on a function, with no target given so the predicate is false.
+
+namespace main;
+
+#[when(architecture = "x86_64", inline = never)]
+function run()
+end

@@ -1,0 +1,11 @@
+-- expect: 3085 @9
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A key at a wrong place inside a when item.
+
+namespace main;
+
+#[when(architecture = "x86_64", align = 16)]
+function run()
+end
