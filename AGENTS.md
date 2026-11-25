@@ -40,7 +40,8 @@ programs are in [examples](examples).
   through the one C registration macro that the language never replaces, and `marea.{lib}`, the creations of the language
   that have no direct counterpart in C (`marea.array`, `marea.vector`, `marea.tuple`, `marea.math`), written in Marea or in
   C11 (a C11 one is registered through the same macro). Planned: `c.memory`, `c.threads`, `c.string`, `c.io`,
-  `c.filesystem` and `c.time`. A host can replace a library or runtime function from C.
+  `c.filesystem` and `c.time`. A host can replace a runtime function from C (`alloc`, `free`) and register its own
+  libraries under any root except the reserved `c` and `marea`.
 - **Entry point.** `main` is an ordinary function in `sema`: it has no fixed signature and none is required to exist,
   so a host that drives its own lifecycle needs no `main`. The fixed shape (`arguments: array<string>`, result
   `integer32`) belongs to a future standalone driver, which does not exist yet.
@@ -55,7 +56,9 @@ programs are in [examples](examples).
 - **Syntax rules.** Every statement ends with `;`. Every body ends with an explicit `end`, and curly braces are only
   for literals. A function with a return type ends every path with `return value;`. `switch` replaces `match`.
   Attributes `#[key = value]` carry visibility, inline, build, layout and more; the key of an enum takes a
-  member, and any other key takes `true` or `false`. Macros are only the built-in ones, never written by a user.
+  member, and any other key takes `true` or `false`. Macros are only the built-in ones of the language
+  (`build_value!`) and the compile-time macros that a shipped library registers (`marea.array.include_bytes!`),
+  never written by a user.
 - **One binding declaration, two consumers.** A single C registration macro exposes a function to the language
   runtime; there is no external binding generator and no per-language glue written by hand.
 - **C++ exists only for tests** (GoogleTest, see [cpp-testing](.claude/skills/cpp-testing/SKILL.md)). Production
