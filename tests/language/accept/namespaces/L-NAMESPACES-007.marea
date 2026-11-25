@@ -2,11 +2,11 @@
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- A c import is used by its last segment.
+-- A required C library is used through the alias of its last segment.
 
 namespace main;
 
-import c.stdio;
+require c.stdio as stdio;
 
 function show()
     stdio.puts("hello");

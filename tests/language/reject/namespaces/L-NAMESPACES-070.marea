@@ -1,0 +1,11 @@
+-- expect: 3078 @10
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A call of a namespace that no import or require covers.
+
+namespace main;
+
+function show()
+    demo.io.puts("hello");
+end

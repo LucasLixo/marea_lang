@@ -16,7 +16,7 @@
 
 namespace main;
 
-import collections.array;
+require marea.array;
 
 -- 16 bytes align: a SIMD load or a GPU uniform buffer can read it without a split.
 #[visibility = public, layout = c, align = 16]

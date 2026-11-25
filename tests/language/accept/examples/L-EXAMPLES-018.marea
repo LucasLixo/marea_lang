@@ -15,9 +15,9 @@
 
 namespace main;
 
-import c.array;
-import c.slice;
-import c.task;
+require c.array;
+require c.slice;
+require c.task;
 
 constant WORKER_COUNT: sinteger32 = 4;
 

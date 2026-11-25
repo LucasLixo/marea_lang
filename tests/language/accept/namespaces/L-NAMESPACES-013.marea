@@ -2,12 +2,12 @@
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- Two imports with different local names.
+-- Two requires with different local names.
 
 namespace main;
 
-import c.stdio;
-import c.math;
+require c.stdio as stdio;
+require c.math as math;
 
 function check(): float64
     stdio.puts("x");

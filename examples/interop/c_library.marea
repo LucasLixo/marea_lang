@@ -1,13 +1,14 @@
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- Step 13: C libraries. A c.* namespace calls the C function with its own name, and the
+-- Step 13: C libraries. A required namespace calls the C function with its own name, and the
 -- language converts the types at the border (string <-> char pointer, sinteger32 <-> int).
+-- The root "demo" is registered by the host of the tests, so the example names no real library.
 
 namespace interop.c_library;
 
-import c.math.pow as power;
-import c.stdio;
+require demo.math.pow as power;
+require demo.io;
 
 #[visibility = public]
 function show_c(): float64

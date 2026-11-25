@@ -1,0 +1,13 @@
+-- expect: 3079 @9
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A require of a name that nothing registered.
+
+namespace main;
+
+require nowhere.library;
+
+function check(): sinteger32
+    return 1;
+end

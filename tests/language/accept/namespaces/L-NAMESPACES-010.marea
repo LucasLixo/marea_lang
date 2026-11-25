@@ -2,11 +2,11 @@
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- An import list with two members, one of them renamed.
+-- A require list with two members, one of them renamed.
 
 namespace main;
 
-import c.math { pow, sqrt as root };
+require c.math { pow as pow, sqrt as root };
 
 function check(): float64
     return pow(2.0, 3.0) + root(4.0);

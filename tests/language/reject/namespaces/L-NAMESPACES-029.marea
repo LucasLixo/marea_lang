@@ -2,12 +2,12 @@
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- Two imports end in the same local name.
+-- Two requires end in the same local name.
 
 namespace main;
 
-import c.stdio;
-import c.other.stdio;
+require c.stdio as stdio;
+require c.other.stdio as stdio;
 
 function check()
     stdio.puts("x");

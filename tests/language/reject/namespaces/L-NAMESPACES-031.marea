@@ -2,11 +2,11 @@
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- An import name clashes with a function of the namespace.
+-- A require name clashes with a function of the namespace.
 
 namespace main;
 
-import c.stdio;
+require c.stdio as stdio;
 
 function stdio(): sinteger32
     return 1;
