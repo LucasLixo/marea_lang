@@ -6,8 +6,8 @@
 
 namespace main;
 
-import c.stdio as c;
+require c.stdio as c;
 
 function check()
-    c.puts("x");
+    local value: sinteger32 = 1;
 end

@@ -98,7 +98,8 @@ static const MAREA_G_LibraryShape *MAREA_CALL MAREA_G_LibraryHeadOf(const MAREA_
         return MAREA_NULLPTR;
     }
 
-    if ((SEGMENTS == 2) && (MAREA_G_TextIs(MAREA_AstNodeGetText(MAREA_SemaChildAt(qualified, 0)), MAREA_AstNodeGetTextLength(MAREA_SemaChildAt(qualified, 0)), "c") == MAREA_BOOLEAN_FALSE)) {
+    // INFO: a library is named bare, or under one of the two reserved first segments.
+    if ((SEGMENTS == 2) && (MAREA_G_TextIs(MAREA_AstNodeGetText(MAREA_SemaChildAt(qualified, 0)), MAREA_AstNodeGetTextLength(MAREA_SemaChildAt(qualified, 0)), "c") == MAREA_BOOLEAN_FALSE) && (MAREA_G_TextIs(MAREA_AstNodeGetText(MAREA_SemaChildAt(qualified, 0)), MAREA_AstNodeGetTextLength(MAREA_SemaChildAt(qualified, 0)), "marea") == MAREA_BOOLEAN_FALSE)) {
         return MAREA_NULLPTR;
     }
 
@@ -119,7 +120,13 @@ static const MAREA_G_LibraryShape *MAREA_CALL MAREA_G_LibraryHeadOf(const MAREA_
 // resolver with none, or an answer other than FOUND, gives null, exactly as an EXTERNAL call reads it.
 static const MAREA_SemaSignature *MAREA_CALL MAREA_G_QuerySignature(const MAREA_SemaContext *context, const MAREA_G_LibraryShape *shape, const MAREA_AstNode *member)
 {
-    if ((context->resolver == MAREA_NULLPTR) || (context->resolver->signature == MAREA_NULLPTR)) {
+    const MAREA_SemaImportResolver *owner = MAREA_SemaResolverOf(context, shape->namespaceText, shape->namespaceLength);
+
+    if (owner == MAREA_NULLPTR) {
+        owner = context->resolver;
+    }
+
+    if ((owner == MAREA_NULLPTR) || (owner->signature == MAREA_NULLPTR)) {
         return MAREA_NULLPTR;
     }
 
@@ -127,7 +134,7 @@ static const MAREA_SemaSignature *MAREA_CALL MAREA_G_QuerySignature(const MAREA_
 
     const MAREA_SemaSignature *signature = MAREA_NULLPTR;
 
-    context->resolver->signature(context->resolver->userData, shape->namespaceText, shape->namespaceLength, MAREA_AstNodeGetText(member), MAREA_AstNodeGetTextLength(member), &result, &signature);
+    owner->signature(owner->userData, shape->namespaceText, shape->namespaceLength, MAREA_AstNodeGetText(member), MAREA_AstNodeGetTextLength(member), &result, &signature);
 
     return (result == MAREA_SEMA_IMPORT_RESULT_FOUND) ? signature : MAREA_NULLPTR;
 }

@@ -8,7 +8,7 @@
 namespace
 {
     const MAREA_ResolveCallback RESOLVE_C{ [](const std::string &text, const MAREA_AstNode **) {
-        return (text.compare(0, 2, "c.") == 0) ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
+        return ((text.compare(0, 2, "c.") == 0) || (text.compare(0, 6, "marea.") == 0) || (text.compare(0, 5, "demo.") == 0)) ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
     } };
 
     std::string MAREA_dumpOf(const std::string &source)
@@ -96,7 +96,7 @@ TEST(MAREAIrDeclarationTypes, EveryDeclarationKindKeepsTheTypeArgumentsInTheDump
 {
     GTEST_COUT << "Validating a constant, a field, a variant field, a parameter, a local and a result type keep array<sinteger32,4> in full, next to the head name." << std::endl;
 
-    const std::string DUMP{ MAREA_dumpOf("namespace main; import c.array; "
+    const std::string DUMP{ MAREA_dumpOf("namespace main; import c.array as array; "
                                          "constant TABLE: array<sinteger32, 4> = array<sinteger32, 4>{ 1, 2, 3, 4 }; "
                                          "structure Holder items: array<sinteger32, 4>; end "
                                          "enum Shape Quad(corners: array<sinteger32, 4>); end "
@@ -119,7 +119,7 @@ TEST(MAREAIrDeclarationTypes, NestedTypeArgumentsStayWhole)
 {
     GTEST_COUT << "Validating a type argument that holds a type argument is kept whole in the resolved type, and the type name stays the head." << std::endl;
 
-    const std::string DUMP{ MAREA_dumpOf("namespace main; import c.array; import c.vector; function f(grid: array<array<sinteger32, 2>, 3>, rows: vector<array<float32, 2>>) end") };
+    const std::string DUMP{ MAREA_dumpOf("namespace main; import c.array as array; import c.vector as vector; function f(grid: array<array<sinteger32, 2>, 3>, rows: vector<array<float32, 2>>) end") };
 
     EXPECT_TRUE(MAREA_has(DUMP, "PARAMETER \"grid\" type=array resolved=array<array<sinteger32,2>,3>")) << DUMP;
 
@@ -130,7 +130,7 @@ TEST(MAREAIrDeclarationTypes, AliasOfAGenericTypeKeepsTheFullTypeItStandsFor)
 {
     GTEST_COUT << "Validating a local alias of array<sinteger32, 4> gives the full type the alias stands for, not the alias name." << std::endl;
 
-    const std::string DUMP{ MAREA_dumpOf("namespace main; import c.array; type Grid = array<sinteger32, 4>; function f(g: Grid) local h: Grid = g; end") };
+    const std::string DUMP{ MAREA_dumpOf("namespace main; import c.array as array; type Grid = array<sinteger32, 4>; function f(g: Grid) local h: Grid = g; end") };
 
     EXPECT_TRUE(MAREA_has(DUMP, "PARAMETER \"g\" type=array resolved=array<sinteger32,4>")) << DUMP;
 

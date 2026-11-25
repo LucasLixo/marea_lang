@@ -6,7 +6,7 @@
 
 namespace main;
 
-import c.array;
+require c.array;
 
 structure Point
     x: sinteger32;

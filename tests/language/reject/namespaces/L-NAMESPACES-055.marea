@@ -2,11 +2,11 @@
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- An import alias clashes with a function of the namespace.
+-- A require alias clashes with a function of the namespace.
 
 namespace main;
 
-import c.stdio as check;
+require c.stdio as check;
 
 function check()
     local v: sinteger32 = 1;

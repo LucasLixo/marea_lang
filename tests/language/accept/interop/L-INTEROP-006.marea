@@ -6,7 +6,7 @@
 
 namespace main;
 
-import c.vulkan;
+require c.vulkan as vulkan;
 
 opaque structure Texture;
 

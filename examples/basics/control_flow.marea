@@ -6,7 +6,7 @@
 
 namespace basics.control_flow;
 
-import collections.array;
+require marea.array;
 
 #[visibility = public]
 function classify(score: sinteger32): string
@@ -56,7 +56,7 @@ end
 
 -- "values" is a read-only borrow. The loop variable is a read-only borrow of one element.
 #[visibility = public]
-function sum_array(values: c.array<sinteger32>): sinteger32
+function sum_array(values: marea.array<sinteger32>): sinteger32
     local total: sinteger32 = 0;
     for each value in values do
         if value < 0 then

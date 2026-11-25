@@ -30,7 +30,7 @@
 
 namespace types.methods;
 
-import c.math.sqrt as square_root;
+require demo.math.sqrt as square_root;
 
 #[visibility = public]
 structure Vector2

@@ -183,13 +183,63 @@ TEST(MAREASemaTypedAstExternal, MemberAccessFormOfAnExternalCallIsTypedTheSameWa
 
     MAREA_ExternalFixture fixture(MAREA_externalCNamespace(), MAREA_powOnly());
 
-    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nimport c.math;\nfunction f(): float64 return math.pow(2.0, 10.0); end\n")) << "The source must check with zero errors and build.";
+    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nimport c.math as math;\nfunction f(): float64 return math.pow(2.0, 10.0); end\n")) << "The source must check with zero errors and build.";
 
     const MAREA_SemaTypedNode *call{ MAREA_nth(fixture, MAREA_AST_KIND_CALL_EXPRESSION, 0) };
 
     ASSERT_NE(call, nullptr);
 
     EXPECT_EQ(MAREA_typeOf(call), "float64") << "The member-access call must be typed with the declared result of the signature.";
+}
+
+TEST(MAREASemaTypedAstExternal, FullPathFormOfAnExternalCallIsTypedTheSameWay)
+{
+    GTEST_COUT << "Validating a call written with the full path of an EXTERNAL namespace is typed with the declared result, and that the inner chain is a qualifier." << std::endl;
+
+    MAREA_ExternalFixture fixture(MAREA_externalCNamespace(), MAREA_powOnly());
+
+    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nrequire c.math;\nfunction f(): float64 return c.math.pow(2.0, 10.0); end\n")) << "The source must check with zero errors and build.";
+
+    const MAREA_SemaTypedNode *call{ MAREA_nth(fixture, MAREA_AST_KIND_CALL_EXPRESSION, 0) };
+
+    ASSERT_NE(call, nullptr);
+
+    EXPECT_EQ(MAREA_typeOf(call), "float64") << "The full-path call must be typed with the declared result of the signature.";
+
+    const MAREA_SemaTypedNode *chain{ MAREA_nth(fixture, MAREA_AST_KIND_MEMBER_ACCESS, 1) };
+
+    ASSERT_NE(chain, nullptr);
+
+    EXPECT_TRUE(MAREA_SemaTypedNodeIsQualifier(chain)) << "The chain c.math before the member must be a qualifier, not a value.";
+}
+
+TEST(MAREASemaTypedAstExternal, FullPathOfAProjectNamespaceIsTypedFromItsTree)
+{
+    GTEST_COUT << "Validating a call written with the full path of a FOUND namespace takes the result type of the function of that tree." << std::endl;
+
+    MAREA_ParseFixture library;
+
+    ASSERT_EQ(library.MAREA_parse("namespace util.tools; #[visibility = public] function twice(value: sinteger32): sinteger32 return value * 2; end"), MAREA_PARSE_EXCEPT_SUCCESS) << "The library must parse.";
+
+    const MAREA_AstNode *libraryRoot{ library.root };
+
+    MAREA_ExternalFixture fixture([libraryRoot](const std::string &text, const MAREA_AstNode **outRoot) {
+        if (text == "util.tools") {
+            *outRoot = libraryRoot;
+
+            return MAREA_SEMA_IMPORT_RESULT_FOUND;
+        }
+
+        return MAREA_SEMA_IMPORT_RESULT_NOT_FOUND; },
+                                  MAREA_powOnly());
+
+    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nimport util.tools;\nfunction f(): sinteger32 return util.tools.twice(2); end\n")) << "The source must check with zero errors and build.";
+
+    const MAREA_SemaTypedNode *call{ MAREA_nth(fixture, MAREA_AST_KIND_CALL_EXPRESSION, 0) };
+
+    ASSERT_NE(call, nullptr);
+
+    EXPECT_EQ(MAREA_typeOf(call), "sinteger32") << "The full-path call must take the result type of the function.";
 }
 
 TEST(MAREASemaTypedAstExternal, WrongArgumentCountRaisesArgumentCountMismatch)
@@ -220,7 +270,7 @@ TEST(MAREASemaTypedAstExternal, MemberTheHostDoesNotKnowStaysOpaque)
 
     MAREA_ExternalFixture fixture(MAREA_externalCNamespace(), MAREA_powOnly());
 
-    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nimport c.stdio;\nfunction f(text: string): sinteger32 return stdio.puts(text); end\n")) << "The source must check with zero errors and build.";
+    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nimport c.stdio as stdio;\nfunction f(text: string): sinteger32 return stdio.puts(text); end\n")) << "The source must check with zero errors and build.";
 
     const MAREA_SemaTypedNode *call{ MAREA_nth(fixture, MAREA_AST_KIND_CALL_EXPRESSION, 0) };
 

@@ -28,7 +28,7 @@
 
 namespace main;
 
-import collections.array;
+require marea.array;
 
 -- A contract. The type that meets it is named in the signature as "Self".
 #[visibility = public]
@@ -59,7 +59,7 @@ end
 
 -- A reference can not be returned. The function gives a copy, so the type must be Copyable.
 #[visibility = public]
-function first_of<Item>(values: c.array<Item>): Item where Item: Copyable
+function first_of<Item>(values: marea.array<Item>): Item where Item: Copyable
     return copy values[0];
 end
 

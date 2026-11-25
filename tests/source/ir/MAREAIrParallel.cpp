@@ -15,7 +15,7 @@ namespace
 
     std::string MAREA_sourceOf(const std::string &prefix, const std::string &signature, const std::string &body)
     {
-        return "namespace main; import collections.list; import concurrency.task; import arenas.arena; " + prefix + " function run(" + signature + ") " + body + " end";
+        return "namespace main; import collections.list as list; import concurrency.task as task; import arenas.arena as arena; " + prefix + " function run(" + signature + ") " + body + " end";
     }
 
     std::string MAREA_lowerBody(const std::string &prefix, const std::string &signature, const std::string &body)

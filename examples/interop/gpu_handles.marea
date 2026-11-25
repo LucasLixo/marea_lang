@@ -20,8 +20,8 @@
 
 namespace interop.gpu_handles;
 
-import collections.slice;
-import c.vulkan;
+require marea.memory;
+require demo.gpu;
 
 -- Rule 1 and 2: the opaque types come from C, with the function that frees each one.
 opaque structure SwapChain;
@@ -38,22 +38,22 @@ end
 
 -- Rule 3: the function gives the owner up to the caller with "return".
 function create_swapchain(width: uinteger32, height: uinteger32): owned<SwapChain>
-    return vulkan.create_swapchain(width, height);
+    return demo.gpu.create_swapchain(width, height);
 end
 
 function create_texture(info: TextureInfo): owned<Texture>
-    return vulkan.create_texture(info);
+    return demo.gpu.create_texture(info);
 end
 
 -- A function that only uses the resources: a write borrow and a read borrow.
 function present(#[semantics = reference_mutable] swapchain: SwapChain, #[semantics = reference_read_only] texture: Texture)
-    vulkan.present(swapchain, texture);
+    demo.gpu.present(swapchain, texture);
 end
 
 -- Rule 6: a mapped buffer is a name that can not leave the block.
 function fill_texture(#[semantics = reference_mutable] texture: Texture, color: uinteger32)
-    with vulkan.map_texture(texture) as pixels do
-        for index in 0 .. slice.length(pixels) - 1 do
+    with demo.gpu.map_texture(texture) as pixels do
+        for index in 0 .. marea.memory.length(pixels) - 1 do
             pixels[index] = color;
         end
     end
@@ -63,7 +63,7 @@ end
 -- Rule 5: a raw pointer, only when a C function asks for one.
 function native_handle(swapchain: SwapChain): uinteger64
     unsafe
-        local raw: pointer<uinteger8> = vulkan.native_pointer(swapchain);
+        local raw: pointer<uinteger8> = demo.gpu.native_pointer(swapchain);
         return convert<uinteger64>(raw);
     end
 end

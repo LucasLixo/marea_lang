@@ -6,7 +6,7 @@
 
 namespace main;
 
-import c.vulkan;
+require c.vulkan as vulkan;
 
 function check()
     local raw: pointer<uinteger8> = vulkan.native_pointer();

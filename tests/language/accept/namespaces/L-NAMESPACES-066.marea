@@ -1,0 +1,14 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A wildcard require covers the full path of every namespace below it.
+
+namespace main;
+
+require demo.*;
+
+function show()
+    demo.io.puts("hello");
+    demo.math.pow(2.0, 3.0);
+end

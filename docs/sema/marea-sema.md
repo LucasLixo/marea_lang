@@ -4,7 +4,8 @@
 
 The `sema` stage checks the tree of the `parse` stage. It reads a public tree and writes diagnostics.
 It has no global state, never prints and never reads the disk: the caller gives it an arena, a
-diagnostic sink and an import resolver. `MAREA_SemaCheckCompilationUnit` itself returns no artifact
+diagnostic sink and an import resolver (and, when it has one, a second resolver for the names the host registered).
+`MAREA_SemaCheckCompilationUnit` itself returns no artifact
 beyond diagnostics; a separate, additive API builds the typed shadow tree the `ir` stage will consume
 - see [Typed AST hand-off](#typed-ast-hand-off). The typed node of a structure and of an enum also carries its size,
 its alignment and the offset of each member, see [Layout of a structure and an enum](#layout-of-a-structure-and-an-enum).
@@ -17,13 +18,14 @@ MAREA_SemaContext *sema;
 
 MAREA_SemaImportResolverCreate(arena, my_resolve_function, my_data, &resolver);
 MAREA_SemaContextCreate(arena, sink, resolver, &sema);
+MAREA_SemaContextSetRequireResolver(sema, registry);   /* optional, see "Two resolvers" */
 MAREA_SemaCheckCompilationUnit(sema, root);   /* once per file, dependencies first */
 ```
 
 `MAREA_SemaCheckCompilationUnit` returns an error only for a null argument or an out of memory. A rule
 violation is a diagnostic in the sink. A size that does not fit in `MAREA_IntegerSize` (a diagnostic
 message, or the growth of a name table) is also an out of memory: nothing is allocated or copied.
-Every sema diagnostic is an error, in the range 3001-3077. Not every number of the range is a live code: the
+Every sema diagnostic is an error, in the range 3001-3081. Not every number of the range is a live code: the
 Diagnostics table lists the live ones.
 The lexer file name decides the path rule, so call `MAREA_LexContextSetFileName` with a project
 relative path with forward slashes and the `.marea` extension before the lex step.
@@ -47,11 +49,44 @@ void resolve(void *userData, const char *text, size_t length,
 `import a.b.c;` asks for `a.b.c`. On `NOT_FOUND` sema asks for `a.b` and looks for a top-level symbol `c` that is not `#[visibility = private]`
 there. Both answers `NOT_FOUND` is `UNRESOLVED_IMPORT`. A name from an
 `EXTERNAL` namespace is opaque: it meets every contract, takes any arguments and gives no diagnostic.
-The local name of an import is its alias, or its last segment. A type name that no local rule knows
-is given to the resolver as a last step.
+A type name that no local rule knows is given to the resolver as a last step.
+
+### Full paths, covers and aliases
+
+An import or a require binds no name. It makes its full path legal in the file: it is a cover, the path and every path below it.
+`require marea.math;` makes `marea.math.Vector4Float32` and `marea.math.scalar.add(a, b)` legal, and `math.Vector4Float32`
+is `UNDECLARED_NAME` (the last segment alone never resolves, and a path is never cut). A name of another namespace that no
+cover reaches is `UNIMPORTED_NAMESPACE` (3078), in a value and in a type position too (`marea.array<sinteger32>` needs
+`require marea.array;` or `require marea.*;`). The namespace of the file and its own declarations need no cover. `c` is
+no built-in name any more: `c.stdio.puts(x)` needs `require c.stdio;`.
+
+| Written | Covers | Binds |
+|---|---|---|
+| `import N;` or `require N;` | `N` and every path below it | nothing |
+| `import N.*;` or `require N.*;` | the same, at any depth. `N` is asked of the resolver as a prefix | nothing |
+| `import N as x;` | the same | `x`, which stands for the whole path `N` (`x.sub.f()` is `N.sub.f()`) |
+| `import N.M.f as g;` | `N.M.f` | `g`, one symbol |
+| `import N.M { f as g, T };` | `N.M.f` and `N.M.T` | `g`; a member with no `as` binds no name |
+
+A wildcard cannot have an alias or a member list (a parse error). An alias named `c`, `marea`, a primitive type or a built-in
+macro is refused. One full path covered by an import and by a require (one path equal to, or below, the other) is
+`AMBIGUOUS_NAMESPACE` (3080), reported at the second declaration. A file of the project cannot declare a namespace that starts
+with `c` or `marea` unless the registry of the host registered that name (`RESERVED_NAMESPACE_ROOT`, 3081); a shipped
+library written in Marea is such a name, so it passes.
+
+### Two resolvers
+
+`import` brings a file of the project and is answered by the import resolver the context was created with. `require`
+brings a name that the host registered on the C side (`c.*`, `marea.*` and any other root) and is answered by the
+registry that `MAREA_SemaContextSetRequireResolver` sets. A context with no registry answers a require through the
+import resolver, so a host with one resolver needs no change. With a registry, an `import` of a name that only the registry
+knows is `UNRESOLVED_IMPORT` with the hint "registered on the C side, use require", and a `require` of a name that only
+the import resolver knows is `UNRESOLVED_REQUIRE` (3079) with the hint "a project file, use import". A use of a path asks
+the import resolver first, then the registry, and the signature function of the resolver that knows the namespace gives the
+signature of a member. A host may register a name under `c` or `marea`, and it then replaces what is shipped.
 
 `import a.b { f as g, T as U, Color.red as Crimson, MAX };` asks the resolver for `a.b` once, then
-binds one local name per member: its alias, or the last segment of its path. A member path has one
+binds one local name per member that has an alias (a member with no alias only covers its full path). A member path has one
 or two segments; a longer path is `UNRESOLVED_IMPORT`. For a `NOT_FOUND` namespace every member is
 unresolved. For `EXTERNAL` every member of one or two segments is accepted. For `FOUND` the first
 segment must be a top-level symbol of the tree that is not `#[visibility = private]`, and a two-segment member needs that symbol
@@ -64,8 +99,8 @@ parent is `FOUND`) also keeps that enum declaration with its local name, alias i
 class of that name is then `USER`, so a `switch` over it raises `NON_EXHAUSTIVE_SWITCH` like a
 same-file enum. Any other import, and every `EXTERNAL` one, keeps no declaration and stays `EXTERNAL`.
 
-Every import name keeps its original: the text the same import binds without `as` (the last segment
-of a whole path, the member path as written for a member, for example `Color.red`). The internal name
+Every import alias keeps its original: the last segment of a whole path, or the member path as written for a member
+(for example `Color.red`). The internal name
 table (`MAREA_SemaName`) holds it in `original` and `originalLength`, empty for a name that has none.
 The IR lowers an alias to this text. A type written with an alias compares equal to the type
 written with the original in a contract signature, and so does a local `type Name = Other;` (a chain
@@ -74,9 +109,9 @@ An import name also keeps its qualifier, the namespace it came from (`qualifier`
 and the comparison renders it with that namespace: `import a { T as X }; import b { T as Y };` make two
 types, while two aliases of one member of one namespace stay one type.
 
-The name `c` is the reserved namespace of C. An import alias named `c` (either form) or a `type`
+The names `c` and `marea` are the reserved first segments. An import alias named `c` or `marea` (either form) or a `type`
 named `c` is `NAME_ALREADY_DECLARED` with the message `name is reserved: 'c'`; an alias that is
-refused is not bound. A plain declaration or a plain `import c.x;` is not affected.
+refused is not bound. A plain declaration or a plain `require c.x;` is not affected.
 
 An import alias (either form) named like one of the 13 primitive types (`boolean`, `sinteger8` to `sinteger64`,
 `uinteger8` to `uinteger64`, `float32`, `float64`, `character`, `string`) is `NAME_ALREADY_DECLARED` with the
@@ -102,11 +137,11 @@ void signature(void *userData, const char *namespaceText, size_t namespaceLength
 
 Sema calls it only for a call whose callee names a member of a namespace the resolve function answers
 `EXTERNAL` for - never for a `FOUND` or `NOT_FOUND` namespace, and never when no signature function is
-set. The member is read the same way for a member access (`stdio.puts(text)`: namespace `c.stdio`,
-member `puts`) and for a bare name an import bound to one member (`import c.math.pow as power;` then
-`power(...)`: namespace `c.math`, member `pow`, the import's original name, not its alias). A 3-segment
-`import a.b.c;` into an `EXTERNAL` namespace never resolves its own full joined path to `NOT_FOUND` (every
-depth answers `EXTERNAL`), so its local name stays bound as a namespace with the member kept as its
+set. The member is read the same way for a member access with a full path (`c.stdio.puts(text)`: namespace `c.stdio`,
+member `puts`), for one through an alias (`require c.stdio as io;` then `io.puts(text)`) and for a bare name an alias bound
+to one member (`require c.math.pow as power;` then `power(...)`: namespace `c.math`, member `pow`, the original name, not
+the alias). A 3-segment `import a.b.c as d;` into an `EXTERNAL` namespace never resolves its own full joined path to
+`NOT_FOUND` (every depth answers `EXTERNAL`), so its local name stays bound as a namespace with the member kept as its
 `original` text, rather than becoming an `IMPORTED_SYMBOL` the way a deeper member of a `FOUND` namespace
 does; sema reads both shapes the same way here.
 
@@ -643,11 +678,13 @@ below them: operands, arguments, indexes, entries of a literal value) must be de
 `UNDECLARED_NAME` (3004) on it. A name is declared when it is a local or parameter in scope, the name of a
 `for`, `for each`, `partition` or `with` statement (hidden from the end of that statement), a declaration or
 import of the file, a generic parameter in scope, a constant of an `implementation` block inside that block only, the
-first segment of the file namespace, or one of the built-ins `c`, `size_of`, `align_of`, `convert` and `Self`.
+first segment of the file namespace, or one of the built-ins `size_of`, `align_of`, `convert` and `Self`.
 A member name, a field key of a literal value, a type and a macro call are not checked. The bare name that
-starts a member chain (`stdio.puts(text)`) is checked like any other name, so a namespace that no import binds,
-or that only the original name of an alias reaches (`import c.stdio as output;` then `stdio.puts(text)`), raises
-`UNDECLARED_NAME` (3004). The local that a
+starts a member chain is checked like any other name, with one more rule: a chain of identifiers whose first name nothing
+declares is read as a full path. When a resolver knows a prefix of it as a namespace, a cover must reach the path (a
+cover: the chain is accepted whole; none: `UNIMPORTED_NAMESPACE`, 3078). When no resolver knows any prefix, the first name
+is checked like any other name, so a short name that no alias binds (`require c.stdio;` then `stdio.puts(text)`), or that
+only the original name of an alias reaches, raises `UNDECLARED_NAME` (3004). The local that a
 `for`, `for each`, `partition` or `with` name hides is never used to type the name.
 A function is declared before its use: a bare function name inside a function body that stands before the declaration
 of that function in the file raises `UNDECLARED_NAME` (3004) with the message "function is used before its declaration".
@@ -747,7 +784,7 @@ every run. The canonical spelling:
 - An import alias is replaced the way the `ir` does it (see [the IR doc](../ir/marea-ir.md), "Aliases"): a whole-path
   alias by the last segment of its path, a member alias by the member path as written, and the head of a dotted name
   that is an import alias by that original, with the tail kept. Written type arguments are kept after it: with
-  `import c.collections.list as lst;`, `lst<sinteger32>` is `list<sinteger32>`. An import without `as` stands for itself.
+  `import c.collections.list as lst;`, `lst<sinteger32>` is `list<sinteger32>`. A full path written in the source is kept whole.
 - A local type alias without generic parameters, written with no type arguments, is replaced by the type it names, and
   a chain is followed up to 8 steps, as in the `ir`. Unlike the `ir`, which keeps only the head name, the arguments of
   the target are kept: with `type Grid = array<Point, 4>;`, `Grid` is `array<Point,4>`. A generic alias is kept as
@@ -818,14 +855,15 @@ is never in the list.
 value. `MAREA_SemaTypedNodeIsQualifier` is true for it, and it has no resolved type, so it is not an expression that
 misses a type. No local, parameter or generic parameter may have its name, and it is one of these: the name of a
 structure, an enum or an opaque type of the file (`Planet` in `Planet.Earth`, `Vector2` in `Vector2.origin()`); a
-namespace import or its alias, whatever the resolver answered (`stdio`, `lib`); an imported enum, or a type that a
-`FOUND` namespace declares and the file imports by name; a name with no declaration at all, which sema takes for a
-namespace (`stdio.puts` with no `import`). A function or a constant imported by name is a value, not a qualifier. Only
+alias of a namespace, whatever the resolver answered (`io`, `lib`); a chain that a cover reaches, which is the full path of a
+namespace or of a type of one (`c.stdio` in `c.stdio.puts`, flagged on the `MEMBER_ACCESS` node); an imported enum, or a
+type that a `FOUND` namespace declares and the file imports by name; a name with no declaration at all, which sema takes for a
+namespace. A function or a constant imported by name is a value, not a qualifier. Only
 an `IDENTIFIER` is flagged: a dotted type name such as `c.array` is not an expression. The member after a qualifier is
 typed by the rules above (an enum variant, a constant or a static function of the file) or by the rule below.
 
 **Members of a FOUND namespace.** When the name on the left of a member access stands for a namespace that the
-resolver answers `FOUND` (an import with or without an alias), the member is typed from the tree that the resolver gave.
+resolver answers `FOUND` (an alias, or a full path that a cover reaches), the member is typed from the tree that the resolver gave.
 Only a function that is not `#[visibility = private]` (its function type, so a call gives the declared result) and a
 constant (its declared type) are typed. A bare name that an import bound to one such symbol (`import a.b.c as d;`,
 `import a.b { c };`) is typed the same way. A type written in that other file is read in that file, never in this one.
@@ -964,10 +1002,10 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 
 | Code | Name | Example |
 |---|---|---|
-| 3001 | `UNRESOLVED_IMPORT` | `import a.b.c;` when the resolver finds neither `a.b.c` nor a `c` that is not private in `a.b`; `import a.b { f };` when `a.b` is not found, `f` is a private symbol of it or is missing, a two-part member is not a variant of an enum that is not private, or the member path has more than two parts |
+| 3001 | `UNRESOLVED_IMPORT` | `import a.b.*;` when `a.b` is not found; `import a.b.c;` when the resolver finds neither `a.b.c` nor a `c` that is not private in `a.b`; `import a.b { f };` when `a.b` is not found, `f` is a private symbol of it or is missing, a two-part member is not a variant of an enum that is not private, or the member path has more than two parts; with a registry, an `import` of a name that only the registry knows |
 | 3002 | `NAMESPACE_PATH_MISMATCH` | `namespace a.b.c;` in the file `a/b.marea` |
 | 3003 | `NAME_ALREADY_DECLARED` | `structure Item end function Item() end`, or an import (or an import alias, or a member alias) and a declaration or another import of one local name; an import alias or a `type` named `c` (message `name is reserved:`); an import alias named like a primitive type, `import c.foo as sinteger32;` (message `name is a primitive type:`); a generic parameter that repeats an earlier one of its list or names a top-level declaration, `pick<Item, Item>`; two parameters of one name; a body local that repeats a parameter or a local of the same block |
-| 3004 | `UNDECLARED_NAME` | `where Item: Missing`, or a constraint on a name that is not a generic parameter; `local x: sinteger32 = missing;`, `missing(1);`, `missing.field`, `stdio.puts(x)` with no import of `stdio`; a bare function name that stands in a function body before the function is declared in the file |
+| 3004 | `UNDECLARED_NAME` | `where Item: Missing`, or a constraint on a name that is not a generic parameter; `local x: sinteger32 = missing;`, `missing(1);`, `missing.field`, `stdio.puts(x)` when no alias binds `stdio` and no resolver knows it, `math.sqrt(x)` after `require marea.math;`; a bare function name that stands in a function body before the function is declared in the file |
 | 3005 | `UNKNOWN_ATTRIBUTE_KEY` | `#[frobnicate = true]`, `#[simd]`, `#[public]` |
 | 3006 | `INVALID_ATTRIBUTE_VALUE` | `#[inline = maybe]`, `#[build = 1]`, `#[visibility]`, `#[export]` |
 | 3007 | `CONFLICTING_ATTRIBUTES` | `#[pack = 1, align = 16]`, a key given twice (`visibility` twice included) |
@@ -1040,6 +1078,10 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 | 3075 | `PARTITION_BODY_WRITES_OUTER_NAME` | `local c: sinteger32 = 0; fork_join partition values into 2 as part do c += 1; end end` (also `point.x = 2;` and a parameter) | `a partition body cannot write an outer name: 'c'` |
 | 3076 | `PARTITION_SOURCE_USED_IN_BODY` | `partition mutable values into 2 as part do values[0] = 1.0; end` (a read or a `for each` over the source too, except in a `spawn`, which is 3020) | `the source of a partition mutable cannot be used in the body: 'values'` |
 | 3077 | `MISSING_FIELD` | `Point{ x = 1.0 }` or `Point{}` when `Point` also has the field `y` (the first missing field in declaration order, once per literal) | `struct literal misses a field 'y'` |
+| 3078 | `UNIMPORTED_NAMESPACE` | `c.stdio.puts(x);` with no `require` that reaches `c.stdio`; `function f(values: marea.array<sinteger32>) end` with no `require marea.array;` |
+| 3079 | `UNRESOLVED_REQUIRE` | `require nowhere.library;`, `require nowhere.*;`, or a `require` of a project file that only the import resolver knows (with a registry) |
+| 3080 | `AMBIGUOUS_NAMESPACE` | `import demo.io; require demo.*;`: one full path under both keywords |
+| 3081 | `RESERVED_NAMESPACE_ROOT` | `namespace marea.tools;` when the host registered no such name |
 
 ## Gaps
 
@@ -1060,6 +1102,15 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
   an index, a chain such as `a.b.c`), a field of a type that an imported symbol gives (`import a.b.Box;`), or a private
   symbol that a generic or an alias leads to.
 
+- The full-path rules read the member chain of a value or a call and the qualified name of a type. A full path to a type of a
+  `FOUND` namespace (`a.b.Item`, with no alias) is checked for its cover and its existence as a namespace prefix only: the
+  visibility checks of a type and of a field (3067, 3068), the layout of such a field and the typed spelling of the type
+  read the alias form (`import a.b as b;` then `b.Item`). A full path to an enum of a `FOUND` namespace with a variant
+  (`a.b.Color.Red`) is covered but not read for its variants.
+- A private member reached by the full path of a namespace is `PRIVATE_SYMBOL_ACCESS` (3066) as before; a cover that is
+  an unresolved declaration still covers its path, so the use raises nothing beyond the unresolved report.
+- The IR does not lower a full path yet: a chain before a member is only flagged as a qualifier, so the unit lowers like one
+  with an alias.
 - Two functions that call each other cannot be written, because a function must be declared before its use and the
   grammar has no forward declaration.
 - The name of a `for`, `for each`, `partition` or `with` statement is not checked against the names of its own

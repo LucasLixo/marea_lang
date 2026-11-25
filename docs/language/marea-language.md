@@ -45,7 +45,7 @@ The first line is the header. It has one of three forms:
 A `known_gap` item has `-- rule: reject` or `-- rule: accept` as its second line: the outcome the language has
 decided. A `-- rule:` line in another class is an error. The copyright header follows, then the program.
 
-The codes are the lex codes 1001-1006, the parse codes 2001-2010 and the sema codes 3001-3077 (3023 is retired, and not every other number of the range is a live code).
+The codes are the lex codes 1001-1006, the parse codes 2001-2010 and the sema codes 3001-3081 (3023 is retired, and not every other number of the range is a live code).
 The `@<line>` of the form is optional for the parser of the header, but a `reject` item with a code that has no
 `@<line>` fails.
 
@@ -804,8 +804,11 @@ Function declaration and call, parameters and defaults, the result and `return v
 Namespaces, `main`, imports and the resolver outcomes, the reserved first segments `c` and `marea`, and
 visibility. The items sit in `tests/language/<class>/namespaces/`. Every item is one file named `main.marea` for the
 runner, so its namespace is `main`; a namespace of another name gives 3002 (L-NAMESPACES-024 to 027). The runner
-answers `EXTERNAL` to a `c.` name and `NOT_FOUND` to every other name, so `marea.`, a project namespace and the
-namespace itself give 3001 (L-NAMESPACES-020 to 023, 038, 039, 042, 057). `main` is an ordinary function: it has no
+answers `EXTERNAL` to a `c.` name, to `demo` and every `demo.` name (the neutral root of the fixtures), and to the
+three names `marea.array`, `marea.memory` and `marea.tasks`. It answers `NOT_FOUND` to every other name, so
+`marea.text`, a project namespace and the namespace itself give 3001 (L-NAMESPACES-020 to 023, 038, 039, 042, 057).
+An import binds no name: the use writes the full path, and a short name exists only through `as`
+(L-NAMESPACES-007 to 014, 065 to 067, 070 to 076). An import or a require that no resolver finds gives 3001 or 3079. `main` is an ordinary function: it has no
 fixed signature and none is required (L-NAMESPACES-002 to 006).
 
 Settled rule 5 (a `private` name used from another namespace is a reject) is enforced by sema (3066, 3067 and 3068) and
@@ -826,17 +829,20 @@ import need the same second file, so they have no item either; a namespace that 
 | L-NAMESPACES-004 | main may have no result | ok |
 | L-NAMESPACES-005 | A file with no main at all | ok |
 | L-NAMESPACES-006 | main takes the argument array of the future driver | ok |
-| L-NAMESPACES-007 | A c import is used by its last segment | ok |
-| L-NAMESPACES-008 | A c import renamed by as | ok |
+| L-NAMESPACES-007 | A required C library is used through the alias of its last segment | ok |
+| L-NAMESPACES-008 | A required C library renamed by as | ok |
 | L-NAMESPACES-009 | One symbol of a c library renamed by as | ok |
-| L-NAMESPACES-010 | An import list with two members, one of them renamed | ok |
+| L-NAMESPACES-010 | A require list with two members, one of them renamed | ok |
 | L-NAMESPACES-011 | A public and a private function, the private one used inside the namespace | ok |
 | L-NAMESPACES-012 | A private constant and a private structure used inside the namespace | ok |
-| L-NAMESPACES-013 | Two imports with different local names | ok |
-| L-NAMESPACES-014 | The same C library imported twice under two aliases | ok |
+| L-NAMESPACES-013 | Two requires with different local names | ok |
+| L-NAMESPACES-014 | The same C library required twice under two aliases | ok |
 | L-NAMESPACES-015 | A file attribute after the namespace and a public function | ok |
 | L-NAMESPACES-063 | A private field of a public structure read inside its own namespace | ok |
 | L-NAMESPACES-064 | A private enum used inside its own namespace | ok |
+| L-NAMESPACES-065 | A call written with the full path of a required namespace | ok |
+| L-NAMESPACES-066 | A wildcard require covers the full path of every namespace below it | ok |
+| L-NAMESPACES-067 | A type of a required library written with its full path | ok |
 
 ### Namespaces and imports: reject
 
@@ -849,11 +855,11 @@ import need the same second file, so they have no item either; a namespace that 
 | L-NAMESPACES-024 | A namespace that does not match the file path | 3002 @7 |
 | L-NAMESPACES-025 | A namespace with an extra segment does not match the file path | 3002 @7 |
 | L-NAMESPACES-026 | A file cannot declare a namespace under the reserved first segment c | 3002 @7 |
-| L-NAMESPACES-027 | A file cannot declare a namespace under the reserved first segment marea | 3002 @7 |
-| L-NAMESPACES-028 | The same import twice gives a name that is already declared | 3003 @10 |
-| L-NAMESPACES-029 | Two imports end in the same local name | 3003 @10 |
-| L-NAMESPACES-030 | An alias clashes with an earlier import | 3003 @10 |
-| L-NAMESPACES-031 | An import name clashes with a function of the namespace | 3003 @11 |
+| L-NAMESPACES-027 | A file cannot declare a namespace under the reserved first segment marea | 3002 @7, 3081 @7 |
+| L-NAMESPACES-028 | The same require twice gives a name that is already declared | 3003 @10 |
+| L-NAMESPACES-029 | Two requires end in the same local name | 3003 @10 |
+| L-NAMESPACES-030 | An alias clashes with an earlier require | 3003 @10 |
+| L-NAMESPACES-031 | A require name clashes with a function of the namespace | 3003 @11 |
 | L-NAMESPACES-032 | An alias hides the reserved namespace c | 3003 @9 |
 | L-NAMESPACES-033 | A type alias named c hides the reserved namespace c | 3003 @9 |
 | L-NAMESPACES-034 | Two functions with the same name | 3003 @13 |
@@ -868,14 +874,22 @@ import need the same second file, so they have no item either; a namespace that 
 | L-NAMESPACES-050 | A call of a function that no scope declares | 3004 @10 |
 | L-NAMESPACES-051 | A user function named like a built-in macro | 3056 @9 |
 | L-NAMESPACES-052 | A local named like a built-in macro | 3056 @10 |
-| L-NAMESPACES-053 | An import alias that shadows a primitive type | 3003 @9 |
-| L-NAMESPACES-054 | An import alias named like a built-in macro | 3056 @9, 3004 @12 |
-| L-NAMESPACES-055 | An import alias clashes with a function of the namespace | 3003 @11 |
+| L-NAMESPACES-053 | A require alias that shadows a primitive type | 3003 @9 |
+| L-NAMESPACES-054 | A require alias named like a built-in macro | 3056 @9, 3004 @12 |
+| L-NAMESPACES-055 | A require alias clashes with a function of the namespace | 3003 @11 |
 | L-NAMESPACES-056 | Two visibility values on one function conflict | 3007 @9 |
 | L-NAMESPACES-057 | A marea import with a member list and no library behind it | 3001 @9 |
-| L-NAMESPACES-059 | The same member twice in one import list | 3003 @9 |
+| L-NAMESPACES-059 | The same member twice in one require list | 3003 @9 |
 | L-NAMESPACES-060 | A second namespace declaration in one file | 2004 @9 |
 | L-NAMESPACES-061 | The namespace declaration is not the first statement | 2007 @7, 2004 @11 |
+| L-NAMESPACES-070 | A call of a namespace that no import or require covers | 3078 @10 |
+| L-NAMESPACES-071 | A type of another namespace that no import or require covers | 3078 @9 |
+| L-NAMESPACES-072 | The last segment of a required path binds no name | 3004 @12 |
+| L-NAMESPACES-073 | A require of a name that nothing registered | 3079 @9 |
+| L-NAMESPACES-074 | A wildcard require of a namespace that nothing registered | 3079 @9 |
+| L-NAMESPACES-075 | One full path covered by an import and by a require | 3080 @10 |
+| L-NAMESPACES-076 | A wildcard require binds no short name | 3004 @12 |
+| L-NAMESPACES-077 | A file cannot declare a namespace under marea when the host did not register it | 3002 @7, 3081 @7 |
 
 ### Namespaces and imports: known_gap
 
@@ -925,7 +939,7 @@ checked. The type `handle<T>` is rejected with 3009 by the type checker, so it h
 | L-INTEROP-021 | A call of a macro that the compiler does not define | 3060 @10 |
 | L-INTEROP-022 | An opaque structure has no body | 2001 @10, 2005 @11 |
 | L-INTEROP-023 | A parameter of a type that no declaration names | 3009 @9 |
-| L-INTEROP-024 | An import placed after a function | 2004 @13 |
+| L-INTEROP-024 | A require placed after a function | 2004 @13 |
 | L-INTEROP-040 | An opaque structure is built with a struct literal | 3057 @12 |
 | L-INTEROP-041 | A field of an opaque structure is read | 3057 @12 |
 | L-INTEROP-042 | An operator is applied to two opaque values | 3057 @12 |
@@ -992,7 +1006,7 @@ Facts the items fix, checked by running the compiler:
 - A part is a name of the body only: its use after the `end` of the body is the undeclared name 3004 (item 080).
 - A parameter with no attribute is a read-only borrow (settled rule 2), so `spawn` accepts it as a name that is not a
   write-borrow parameter. `examples/parallel/scaling.marea` writes `#[semantics = reference_mutable]` on the two
-  parameters it writes (`scale_slice`, `scale_all`) and imports `c.array`, `c.slice` and `c.task`.
+  parameters it writes (`scale_slice`, `scale_all`) and requires `c.array`, `c.slice` and `c.task`.
 
 ### Parallel code: accept
 
@@ -1253,12 +1267,12 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | functions | 19 | 54 | 0 |
 | interop | 17 | 28 | 0 |
 | memory | 15 | 18 | 0 |
-| namespaces | 17 | 34 | 0 |
+| namespaces | 20 | 42 | 0 |
 | ownership | 65 | 78 | 2 |
 | parallel | 19 | 40 | 0 |
 | seed | 1 | 2 | 0 |
 | types | 60 | 133 | 3 |
-| total | 266 | 532 | 13 |
+| total | 269 | 540 | 13 |
 
 ## Parity plan
 
@@ -1279,7 +1293,7 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 |---|---|---|
 | 1001-1006 | `lex` | [marea-lex.md](../lex/marea-lex.md) |
 | 2001-2010 | `parse` | [marea-ast.md](../ast/marea-ast.md) |
-| 3001-3032 | `sema` | [marea-sema.md](../sema/marea-sema.md) (3033 to 3077 follow in the rows below) |
+| 3001-3032 | `sema` | [marea-sema.md](../sema/marea-sema.md) (3033 to 3081 follow in the rows below) |
 | 3056 | `sema` | [marea-sema.md](../sema/marea-sema.md), `RESERVED_MACRO_NAME` |
 | 3057-3058 | `sema` | [marea-sema.md](../sema/marea-sema.md), `OPAQUE_TYPE_MISUSE` and `OPAQUE_FIELD_BY_VALUE` |
 | 3033 | `sema` | [marea-sema.md](../sema/marea-sema.md), `LITERAL_OUT_OF_RANGE` |
@@ -1305,6 +1319,7 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 | 3069 | `sema` | [marea-sema.md](../sema/marea-sema.md), `WRITE_THROUGH_READ_ONLY_BORROW` |
 | 3075-3076 | `sema` | [marea-sema.md](../sema/marea-sema.md), `PARTITION_BODY_WRITES_OUTER_NAME` and `PARTITION_SOURCE_USED_IN_BODY` |
 | 3077 | `sema` | [marea-sema.md](../sema/marea-sema.md), `MISSING_FIELD` |
+| 3078-3081 | `sema` | [marea-sema.md](../sema/marea-sema.md), `UNIMPORTED_NAMESPACE`, `UNRESOLVED_REQUIRE`, `AMBIGUOUS_NAMESPACE` and `RESERVED_NAMESPACE_ROOT` |
 | 4004-4006 | `ir` | [marea-ir.md](../ir/marea-ir.md), no item reaches them (see Gaps) |
 
 ## Gaps
@@ -1354,7 +1369,7 @@ The coverage test holds this list; an example that gains an item must leave it.
 
 ### Diagnostic codes with no reject item
 
-Every live lex, parse and sema code (1001-1006, 2001-2010, 3001-3077 without 3023 and the numbers no code uses) has a `reject` item, except 3066,
+Every live lex, parse and sema code (1001-1006, 2001-2010, 3001-3081 without 3023 and the numbers no code uses) has a `reject` item, except 3066,
 3067 and 3068: no item can reach a second namespace (issue #250), and `tests/source/sema/MAREASemaVisibility.cpp`
 proves them. The ir codes
 4004, 4005 and 4006 are exempt: the runner runs lex, parse and sema only, so no item can reach the ir. The exemption ends

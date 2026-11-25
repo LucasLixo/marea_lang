@@ -24,12 +24,27 @@ namespace
     {
         MAREA_SemaFixture fixture([](const std::string &, const MAREA_AstNode **) { return MAREA_SEMA_IMPORT_RESULT_EXTERNAL; });
 
-        if (fixture.MAREA_sema("namespace main; " + body) != MAREA_SEMA_EXCEPT_SUCCESS) {
+        if (fixture.MAREA_sema("namespace main; require c.array; require c.slice; require c.task; require c.pointer; require c.vector; require c.table; require c.owned; require vulkan; " + body) != MAREA_SEMA_EXCEPT_SUCCESS) {
             return { 0 };
         }
 
         for (MAREA_Uinteger32 code : fixture.parser.MAREA_codes()) {
             EXPECT_GE(code, 3000U) << "The program must lex and parse without a diagnostic: " << body;
+        }
+
+        return fixture.MAREA_semaCodes();
+    }
+    // INFO: the registry of a host: a few roots exist, so a name that is no root is not a namespace and a bare name that starts a chain is undeclared.
+    Codes MAREA_strictCodesOf(const std::string &body)
+    {
+        MAREA_SemaFixture fixture([](const std::string &text, const MAREA_AstNode **) {
+            const auto BELOW{ [&text](const std::string &root) { return (text == root) || (text.rfind(root + ".", 0) == 0); } };
+
+            return (BELOW("c") || BELOW("marea")) ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
+        });
+
+        if (fixture.MAREA_sema("namespace main; " + body) != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return { 0 };
         }
 
         return fixture.MAREA_semaCodes();
@@ -329,19 +344,19 @@ TEST(MAREASemaExpressions, MemberAccessOnALocalAfterItsScopeEnded)
 
     const std::string POINT{ "structure Point x: sinteger32; end function make(): Point return Point{ x = 1 }; end " };
 
-    EXPECT_EQ(MAREA_codesOf(POINT + "function g(): sinteger32 do local inner: Point = make(); end local x: sinteger32 = inner.x; return x; end"), Codes{ UNDECLARED }) << "A field read after a do block must raise UNDECLARED_NAME once.";
+    EXPECT_EQ(MAREA_strictCodesOf(POINT + "function g(): sinteger32 do local inner: Point = make(); end local x: sinteger32 = inner.x; return x; end"), Codes{ UNDECLARED }) << "A field read after a do block must raise UNDECLARED_NAME once.";
 
     EXPECT_EQ(MAREA_codesOf(POINT + "function g() do local inner: Point = make(); local x: sinteger32 = inner.x; end end"), Codes{}) << "A read inside the block must raise nothing.";
 
-    EXPECT_EQ(MAREA_codesOf(POINT + "function g(a: sinteger32) while a < 1 do local inner: Point = make(); end local x: sinteger32 = inner.x; end"), Codes{ UNDECLARED }) << "A while body local must be gone after the loop.";
+    EXPECT_EQ(MAREA_strictCodesOf(POINT + "function g(a: sinteger32) while a < 1 do local inner: Point = make(); end local x: sinteger32 = inner.x; end"), Codes{ UNDECLARED }) << "A while body local must be gone after the loop.";
 
-    EXPECT_EQ(MAREA_codesOf(POINT + "function g(b: boolean) if b then local inner: Point = make(); end local x: sinteger32 = inner.x; end"), Codes{ UNDECLARED }) << "An if branch local must be gone after the branch.";
+    EXPECT_EQ(MAREA_strictCodesOf(POINT + "function g(b: boolean) if b then local inner: Point = make(); end local x: sinteger32 = inner.x; end"), Codes{ UNDECLARED }) << "An if branch local must be gone after the branch.";
 
-    EXPECT_EQ(MAREA_codesOf(POINT + "function g() do local inner: Point = make(); end inner.area(); end"), Codes{ UNDECLARED }) << "A method call on a departed local must raise UNDECLARED_NAME.";
+    EXPECT_EQ(MAREA_strictCodesOf(POINT + "function g() do local inner: Point = make(); end inner.area(); end"), Codes{ UNDECLARED }) << "A method call on a departed local must raise UNDECLARED_NAME.";
 
     EXPECT_EQ(MAREA_codesOf(POINT + "function g() do local inner: Point = make(); end local inner: Point = make(); local x: sinteger32 = inner.x; end"), Codes{}) << "A name declared again in the outer scope must be accepted.";
 
-    EXPECT_EQ(MAREA_codesOf(POINT + "function h() do local inner: Point = make(); end end function g() local x: sinteger32 = inner.x; end"), Codes{ UNDECLARED }) << "A local of another function is not a declaration.";
+    EXPECT_EQ(MAREA_strictCodesOf(POINT + "function h() do local inner: Point = make(); end end function g() local x: sinteger32 = inner.x; end"), Codes{ UNDECLARED }) << "A local of another function is not a declaration.";
 }
 
 TEST(MAREASemaExpressions, UndeclaredNameInAHeaderOrAConstant)
@@ -398,11 +413,11 @@ TEST(MAREASemaExpressions, KnownNamesAreNotReported)
 
     EXPECT_TRUE(MAREA_codesOf("structure Point x: float32; end function g(): Point return Point{ x = 1.0 }; end").empty()) << "A field key of a literal is not an expression name.";
 
-    EXPECT_TRUE(MAREA_codesOf("function g(a: sinteger32) c.stdio.puts(\"x\"); local b: sinteger32 = convert<sinteger32>(a); local s: uinteger64 = size_of<sinteger32>() + align_of<sinteger32>(); end").empty()) << "The reserved namespace c and the built-in calls must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("require c.stdio as stdio; function g(a: sinteger32) c.stdio.puts(\"x\"); local b: sinteger32 = convert<sinteger32>(a); local s: uinteger64 = size_of<sinteger32>() + align_of<sinteger32>(); end").empty()) << "The reserved namespace c and the built-in calls must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("import c.stdio; function g() stdio.puts(\"x\"); end").empty()) << "The bare name that starts a member chain is declared when an import binds it.";
+    EXPECT_TRUE(MAREA_codesOf("import c.stdio as stdio; function g() stdio.puts(\"x\"); end").empty()) << "The bare name that starts a member chain is declared when an import binds it.";
 
-    EXPECT_EQ(MAREA_codesOf("function g() local x: sinteger32 = missing.field; end"), Codes{ UNDECLARED }) << "The bare name that starts a member chain is checked like any other name.";
+    EXPECT_EQ(MAREA_strictCodesOf("function g() local x: sinteger32 = missing.field; end"), Codes{ UNDECLARED }) << "The bare name that starts a member chain is checked like any other name.";
 
     EXPECT_TRUE(MAREA_codesOf("structure Point x: float32; end function g(p: Point): float32 return p.x; end").empty()) << "A member name is not a bare name.";
 }
@@ -459,7 +474,7 @@ TEST(MAREASemaExpressions, ErrorNodeInAnExpressionIsSkipped)
     for (const char *body : { "function g() local x: sinteger32 = ; end", "function g() local x: sinteger32 = 1 + ; end", "function g() local x: sinteger32 = (; end" }) {
         MAREA_SemaFixture fixture;
 
-        EXPECT_EQ(fixture.MAREA_sema(std::string{ "namespace main; " } + body), MAREA_SEMA_EXCEPT_SUCCESS) << "A broken expression must not stop the sema run: " << body;
+        EXPECT_EQ(fixture.MAREA_sema(std::string{ "namespace main; require c.array; require c.slice; require c.task; require c.pointer; require c.vector; require c.table; require c.owned; require vulkan; " } + body), MAREA_SEMA_EXCEPT_SUCCESS) << "A broken expression must not stop the sema run: " << body;
 
         for (MAREA_Uinteger32 code : fixture.MAREA_semaCodes()) {
             EXPECT_NE(code, UNDECLARED) << body;
@@ -832,7 +847,7 @@ TEST(MAREASemaExpressions, OpaqueTypeUsedThroughABorrowOrAnOwnerIsAccepted)
 
     EXPECT_TRUE(MAREA_codesOf(OPAQUE + "function g(a: T) end function f(a: owned<T>) g(a); end").empty()) << "An owner passed as a borrow must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf(OPAQUE + "function f(a: T): sinteger32 return c.texture.width(a); end").empty()) << "A C call with an opaque argument must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("require c.texture as texture; " + OPAQUE + "function f(a: T): sinteger32 return c.texture.width(a); end").empty()) << "A C call with an opaque argument must raise nothing.";
 
     EXPECT_TRUE(MAREA_codesOf("structure S width: sinteger32; end function f(a: S): sinteger32 return a.width; end").empty()) << "A field read of an ordinary structure must raise nothing.";
 }
@@ -1004,5 +1019,5 @@ TEST(MAREASemaExpressions, FieldAccessNeedsAFieldOfTheStructure)
 
     EXPECT_TRUE(MAREA_codesOf(POINT + "function run(point: Alias): float64 return point.x; end").empty()) << "A read through an alias must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("function run(point: other.Point): float64 return point.z; end").empty()) << "A structure of another namespace must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("import other; function run(point: other.Point): float64 return point.z; end").empty()) << "A structure of another namespace must raise nothing.";
 }

@@ -384,12 +384,31 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckNamedType(MAREA_SemaContext *context,
         return JOIN_RESULT;
     }
 
+    // INFO: a type of another namespace is written with its full path, and a cover must reach that path.
+    if ((SEGMENT_COUNT > 1) && (entry == MAREA_NULLPTR)) {
+        MAREA_SemaPathStatus status = MAREA_SEMA_PATH_STATUS_NOT_A_PATH;
+
+        const MAREA_SemaExcept CLASSIFY_RESULT = MAREA_SemaClassifyPath(context, joined, joinedLength, MAREA_BOOLEAN_FALSE, &status, MAREA_NULLPTR, MAREA_NULLPTR);
+
+        if (CLASSIFY_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return CLASSIFY_RESULT;
+        }
+
+        if (status == MAREA_SEMA_PATH_STATUS_COVERED) {
+            return MAREA_SEMA_EXCEPT_SUCCESS;
+        }
+
+        if (status == MAREA_SEMA_PATH_STATUS_UNIMPORTED) {
+            return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_UNIMPORTED_NAMESPACE, MAREA_AstNodeGetPosition(node), "a namespace that no import or require covers:", joined, joinedLength);
+        }
+    }
+
     MAREA_SemaImportResult result = MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
 
     const MAREA_AstNode *foundRoot = MAREA_NULLPTR;
 
     if ((entry == MAREA_NULLPTR) || (entry->kind != MAREA_SEMA_NAME_KIND_DECLARATION)) {
-        context->resolver->resolve(context->resolver->userData, joined, joinedLength, &result, &foundRoot);
+        result = MAREA_SemaResolveNamespace(context, joined, joinedLength, &foundRoot);
     }
 
     if (result != MAREA_SEMA_IMPORT_RESULT_NOT_FOUND) {

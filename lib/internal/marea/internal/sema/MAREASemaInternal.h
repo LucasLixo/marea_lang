@@ -109,6 +109,36 @@ MAREA_BEGIN_EXTERN_C
     } MAREA_SemaCaptureTable;
 
     /**
+     * @brief Which keyword brought a namespace cover.
+     */
+    typedef enum MAREA_SemaCoverKind
+    {
+        MAREA_SEMA_COVER_KIND_IMPORT = MAREA_UINTEGER_8(0),
+        MAREA_SEMA_COVER_KIND_REQUIRE = MAREA_UINTEGER_8(1),
+    } MAREA_SemaCoverKind;
+
+    /**
+     * @brief One full path that an import or a require makes legal in the file: the path itself and every
+     * path below it. A cover binds no name. The text is in the arena of the context.
+     */
+    typedef struct MAREA_SemaCover
+    {
+        const MAREA_Character8 *text;
+        MAREA_IntegerSize length;
+        MAREA_SemaCoverKind kind;
+    } MAREA_SemaCover;
+
+    /**
+     * @brief Flat table of the covers of one file. The entries live in the arena of the context.
+     */
+    typedef struct MAREA_SemaCoverTable
+    {
+        MAREA_SemaCover *entries;
+        MAREA_IntegerSize count;
+        MAREA_IntegerSize capacity;
+    } MAREA_SemaCoverTable;
+
+    /**
      * @brief Body of the opaque sema context: the caller services, the name tables and the scope state of
      * the visit in progress.
      */
@@ -117,6 +147,8 @@ MAREA_BEGIN_EXTERN_C
         MAREA_Arena *arena;
         MAREA_DiagnosticSink *sink;
         MAREA_SemaImportResolver *resolver;
+        MAREA_SemaImportResolver *requireResolver;
+        MAREA_SemaCoverTable covers;
         MAREA_SemaNameTable names;
         MAREA_SemaNameTable generics;
         MAREA_SemaNameTable locals;
@@ -391,7 +423,7 @@ MAREA_BEGIN_EXTERN_C
      * @param index Position of node among the children of parent.
      * @return True when node is such a qualifier, false otherwise.
      */
-    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaTypedAstIsQualifier(const MAREA_SemaContext *context, const MAREA_AstNode *node, const MAREA_AstNode *parent, MAREA_IntegerSize index);
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaTypedAstIsQualifier(MAREA_SemaContext * context, const MAREA_AstNode *node, const MAREA_AstNode *parent, MAREA_IntegerSize index);
 
     /**
      * @brief Types the member of a member access whose base names a namespace that the resolver answers FOUND: a public
@@ -1596,6 +1628,111 @@ MAREA_BEGIN_EXTERN_C
      * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckMacro(MAREA_SemaContext * context, const MAREA_AstNode *call);
+
+    /**
+     * @brief How a use of a full path stands against the imports and requires of the file.
+     */
+    typedef enum MAREA_SemaPathStatus
+    {
+        MAREA_SEMA_PATH_STATUS_NOT_A_PATH = MAREA_UINTEGER_8(0),
+        MAREA_SEMA_PATH_STATUS_COVERED = MAREA_UINTEGER_8(1),
+        MAREA_SEMA_PATH_STATUS_UNIMPORTED = MAREA_UINTEGER_8(2),
+        MAREA_SEMA_PATH_STATUS_UNKNOWN = MAREA_UINTEGER_8(3),
+    } MAREA_SemaPathStatus;
+
+    /**
+     * @brief Asks the resolvers about a namespace: the import resolver first, then the require registry when
+     * the context has one.
+     * @param context Context of the run. Must not be null.
+     * @param text Text of the namespace, not NUL terminated.
+     * @param length Length of text in bytes.
+     * @param outRoot Receives the tree when the answer is FOUND, else null. Must not be null.
+     * @return The answer of the first resolver that does not say NOT_FOUND, else NOT_FOUND.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaImportResult MAREA_CALL MAREA_SemaResolveNamespace(const MAREA_SemaContext *context, const MAREA_Character8 *text, MAREA_IntegerSize length, const MAREA_AstNode **outRoot);
+
+    /**
+     * @brief Asks the resolver that a keyword uses about a namespace: the import resolver for an import, the
+     * require registry for a require (the import resolver again when the context has no registry).
+     * @param context Context of the run. Must not be null.
+     * @param kind Keyword of the declaration.
+     * @param text Text of the namespace, not NUL terminated.
+     * @param length Length of text in bytes.
+     * @param outRoot Receives the tree when the answer is FOUND, else null. Must not be null.
+     * @return The answer of the resolver of the keyword.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaImportResult MAREA_CALL MAREA_SemaResolveForKeyword(const MAREA_SemaContext *context, MAREA_SemaCoverKind kind, const MAREA_Character8 *text, MAREA_IntegerSize length, const MAREA_AstNode **outRoot);
+
+    /**
+     * @brief Gives the resolver that knows a namespace, for the signature of its members.
+     * @param context Context of the run. Must not be null.
+     * @param text Text of the namespace, not NUL terminated.
+     * @param length Length of text in bytes.
+     * @return The resolver, or null when none knows the namespace.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_SemaImportResolver *MAREA_CALL MAREA_SemaResolverOf(const MAREA_SemaContext *context, const MAREA_Character8 *text, MAREA_IntegerSize length);
+
+    /**
+     * @brief Records the full path that an import or a require makes legal, and reports AMBIGUOUS_NAMESPACE
+     * when a path that the other keyword covers is covered again by this one.
+     * @param context Context of the run. Must not be null.
+     * @param kind Keyword of the declaration.
+     * @param position Position of the declaration, for the report.
+     * @param text Text of the path, in the arena or the source.
+     * @param length Length of text in bytes.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaCoverAdd(MAREA_SemaContext * context, MAREA_SemaCoverKind kind, MAREA_SourcePosition position, const MAREA_Character8 *text, MAREA_IntegerSize length);
+
+    /**
+     * @brief Tells whether a full path is covered: it is a recorded path or it lies below one.
+     * @param context Context of the run. Must not be null.
+     * @param text Text of the path, not NUL terminated.
+     * @param length Length of text in bytes.
+     * @return True when covered.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaPathIsCovered(const MAREA_SemaContext *context, const MAREA_Character8 *text, MAREA_IntegerSize length);
+
+    /**
+     * @brief Joins an IDENTIFIER, or a MEMBER_ACCESS chain of identifiers, into its dotted text.
+     * @param context Context of the run. Must not be null.
+     * @param node Expression to read. May be null.
+     * @param outText Receives the text in the arena, or null when the node is no such chain. Must not be null.
+     * @param outLength Receives the length. Must not be null.
+     * @param outHead Receives the first IDENTIFIER of the chain, or null. May be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaChainJoin(MAREA_SemaContext * context, const MAREA_AstNode *node, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength, const MAREA_AstNode **outHead);
+
+    /**
+     * @brief Classifies the use of a dotted path whose first segment is no declared name of the file: NOT_A_PATH
+     * when the first segment is a local, a generic parameter or a name that is not a namespace alias, UNKNOWN when
+     * no prefix of the path is a namespace that a resolver knows, COVERED when a recorded cover reaches the path
+     * (or an alias stands for its first segment), UNIMPORTED when none does.
+     * @param context Context of the run. Must not be null.
+     * @param text Dotted text of the path, not NUL terminated.
+     * @param length Length of text in bytes.
+     * @param lastIsMember True when the last segment is a member and not a part of the namespace.
+     * @param outStatus Receives the status. Must not be null.
+     * @param outNamespace Receives the text of the longest namespace prefix, after an alias is expanded, in the
+     * arena. May be null.
+     * @param outNamespaceLength Receives its length. May be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaClassifyPath(MAREA_SemaContext * context, const MAREA_Character8 *text, MAREA_IntegerSize length, MAREA_Boolean lastIsMember, MAREA_SemaPathStatus *outStatus, const MAREA_Character8 **outNamespace, MAREA_IntegerSize *outNamespaceLength);
+
+    /**
+     * @brief Gives the name entry that a base of a member access stands for. A bare name gives its entry of the
+     * name table. A full path (a chain, or a bare name that is no table entry) that a cover reaches and whose
+     * whole text is a namespace gives a NAMESPACE entry made in the arena, as the import of that namespace used to
+     * bind. Anything else gives null.
+     * @param context Context of the run. Must not be null.
+     * @param base Base of the member access. May be null.
+     * @param member Member written after the base. May be null.
+     * @param outEntry Receives the entry, or null. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaBaseEntry(MAREA_SemaContext * context, const MAREA_AstNode *base, const MAREA_AstNode *member, const MAREA_SemaName **outEntry);
 
 MAREA_END_EXTERN_C
 

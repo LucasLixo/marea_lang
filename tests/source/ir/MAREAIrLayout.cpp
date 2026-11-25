@@ -16,7 +16,7 @@ namespace
     using Offsets = std::vector<std::uint64_t>;
 
     const MAREA_ResolveCallback RESOLVE_EXTERNAL{ [](const std::string &text, const MAREA_AstNode **) {
-        const bool EXTERNAL{ (text.compare(0, 12, "collections.") == 0) || (text.compare(0, 2, "c.") == 0) };
+        const bool EXTERNAL{ (text.compare(0, 12, "collections.") == 0) || ((text.compare(0, 2, "c.") == 0) || (text.compare(0, 6, "marea.") == 0) || (text.compare(0, 5, "demo.") == 0)) };
 
         return EXTERNAL ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
     } };
@@ -263,7 +263,7 @@ TEST(MAREAIrLayout, StructureHoldingALibraryTypeIsUndecided)
 
     MAREA_IrFixture fixture(RESOLVE_EXTERNAL);
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; import collections.array; structure S a: uinteger8; b: array<sinteger32, 4>; end enum E A; B(v: array<sinteger32, 4>); end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; import collections.array as array; structure S a: uinteger8; b: array<sinteger32, 4>; end enum E A; B(v: array<sinteger32, 4>); end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     ASSERT_EQ(MAREA_IrModuleGetLayoutCount(fixture.module), 2U) << "The unit must give the expected number of entries.";
 
@@ -522,7 +522,7 @@ TEST(MAREAIrLayout, DumpWritesTheTableAfterTheTree)
 
     MAREA_IrFixture fixture(RESOLVE_EXTERNAL);
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; import collections.array; structure P a: uinteger8; b: uinteger32; end enum Shape : uinteger8 Circle(radius: float32); Rect(w: float64, h: float64); Empty; end structure S v: array<sinteger32, 4>; end opaque structure Texture; enum Color Red; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; import collections.array as array; structure P a: uinteger8; b: uinteger32; end enum Shape : uinteger8 Circle(radius: float32); Rect(w: float64, h: float64); Empty; end structure S v: array<sinteger32, 4>; end opaque structure Texture; enum Color Red; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     EXPECT_EQ(MAREA_sectionOf(fixture), MAREA_lines({
                                             "LAYOUT_TABLE",
