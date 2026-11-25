@@ -10,109 +10,91 @@ endif()
 set_property(GLOBAL PROPERTY ConfigureLibTargetsGuard ON)
 unset(TEMP_GUARD_SET)
 
-# One library target per compiler stage, with its alias in the marea:: namespace
-macro(ConfigureLibTargets)
-    if(MAREA_OPTION_SHARED_LIBS)
-        set(MAREA_LIBRARY_TYPE SHARED)
-    else()
-        set(MAREA_LIBRARY_TYPE STATIC)
-    endif()
+# One stage library: a static target (Marea-<NAME>), a shared target (Marea-<NAME>-Shared), or both, as the options say
+function(MareaAddStageLibrary)
+    BasicParseArguments(
+        MareaAddStageLibrary
+        PARAM
+        ""
+        "STAGE;NAME"
+        "LINK"
+        REQUIRED
+        STAGE
+        NAME
+        TYPES
+        STAGE:STRING
+        NAME:STRING
+        ARGS
+        ${ARGN}
+    )
 
-    if(MAREA_OPTION_TARGET_BASE)
-        message(STATUS "Add target: Marea-Base")
+    file(GLOB TEMP_SOURCES CONFIGURE_DEPENDS "${MAREA_FOLDER_LIB_SOURCE}/marea/${PARAM_STAGE}/*.c")
 
-        file(GLOB MAREA_BASE_SOURCES CONFIGURE_DEPENDS "${MAREA_FOLDER_LIB_SOURCE}/marea/base/*.c")
-
-        add_library(Marea-Base ${MAREA_LIBRARY_TYPE} ${MAREA_BASE_SOURCES})
-        add_library(marea::base ALIAS Marea-Base)
-
-        target_link_libraries(Marea-Base PUBLIC marea::include PRIVATE marea::internal)
-
-        target_compile_options(Marea-Base PRIVATE "$<$<C_COMPILER_ID:Clang,AppleClang,GNU>:-Wall;-Wextra;-Wpedantic>")
-
-        if(MAREA_OPTION_SHARED_LIBS)
-            set_target_properties(Marea-Base PROPERTIES C_VISIBILITY_PRESET hidden)
-            target_compile_definitions(Marea-Base PRIVATE MAREA_ENABLE_EXPORT INTERFACE MAREA_ENABLE_IMPORT)
+    foreach(TEMP_KIND IN ITEMS STATIC SHARED)
+        if(NOT MAREA_OPTION_${TEMP_KIND}_LIBS)
+            continue()
         endif()
+
+        string(TOLOWER "${TEMP_KIND}" TEMP_KIND_LOWER)
+
+        if(TEMP_KIND STREQUAL "STATIC")
+            set(TEMP_TARGET "Marea-${PARAM_NAME}")
+        else()
+            set(TEMP_TARGET "Marea-${PARAM_NAME}-Shared")
+        endif()
+
+        message(STATUS "Add target: ${TEMP_TARGET}")
+
+        add_library(${TEMP_TARGET} ${TEMP_KIND} ${TEMP_SOURCES})
+        add_library(marea::${PARAM_STAGE}_${TEMP_KIND_LOWER} ALIAS ${TEMP_TARGET})
+
+        # The static and the shared library of one stage share the same base file name
+        set_target_properties(${TEMP_TARGET} PROPERTIES OUTPUT_NAME "Marea-${PARAM_NAME}")
+
+        target_link_libraries(${TEMP_TARGET} PUBLIC marea::include PRIVATE marea::internal)
+
+        target_compile_options(
+            ${TEMP_TARGET}
+            PRIVATE "$<$<C_COMPILER_ID:Clang,AppleClang,GNU>:-Wall;-Wextra;-Wpedantic>"
+        )
+
+        foreach(TEMP_LINK IN LISTS PARAM_LINK)
+            target_link_libraries(${TEMP_TARGET} PUBLIC marea::${TEMP_LINK}_${TEMP_KIND_LOWER})
+        endforeach()
+
+        if(TEMP_KIND STREQUAL "SHARED")
+            set_target_properties(${TEMP_TARGET} PROPERTIES C_VISIBILITY_PRESET hidden)
+            target_compile_definitions(${TEMP_TARGET} PRIVATE MAREA_ENABLE_EXPORT INTERFACE MAREA_ENABLE_IMPORT)
+        endif()
+    endforeach()
+
+    # The plain alias marea::<stage> names the static library when it exists, and the shared one otherwise
+    if(MAREA_OPTION_STATIC_LIBS)
+        add_library(marea::${PARAM_STAGE} ALIAS Marea-${PARAM_NAME})
+    else()
+        add_library(marea::${PARAM_STAGE} ALIAS Marea-${PARAM_NAME}-Shared)
+    endif()
+endfunction()
+
+# Every stage library, each one linking the stage before it
+macro(ConfigureLibTargets)
+    if(MAREA_OPTION_TARGET_BASE)
+        mareaaddstagelibrary(STAGE base NAME Base)
     endif()
 
     if(MAREA_OPTION_TARGET_LEX)
-        message(STATUS "Add target: Marea-Lex")
-
-        file(GLOB MAREA_LEX_SOURCES CONFIGURE_DEPENDS "${MAREA_FOLDER_LIB_SOURCE}/marea/lex/*.c")
-
-        add_library(Marea-Lex ${MAREA_LIBRARY_TYPE} ${MAREA_LEX_SOURCES})
-        add_library(marea::lex ALIAS Marea-Lex)
-
-        target_link_libraries(Marea-Lex PUBLIC marea::include PRIVATE marea::internal)
-
-        target_compile_options(Marea-Lex PRIVATE "$<$<C_COMPILER_ID:Clang,AppleClang,GNU>:-Wall;-Wextra;-Wpedantic>")
-
-        target_link_libraries(Marea-Lex PUBLIC marea::base)
-
-        if(MAREA_OPTION_SHARED_LIBS)
-            set_target_properties(Marea-Lex PROPERTIES C_VISIBILITY_PRESET hidden)
-            target_compile_definitions(Marea-Lex PRIVATE MAREA_ENABLE_EXPORT INTERFACE MAREA_ENABLE_IMPORT)
-        endif()
+        mareaaddstagelibrary(STAGE lex NAME Lex LINK base)
     endif()
 
     if(MAREA_OPTION_TARGET_PARSE)
-        message(STATUS "Add target: Marea-Parse")
-
-        file(GLOB MAREA_PARSE_SOURCES CONFIGURE_DEPENDS "${MAREA_FOLDER_LIB_SOURCE}/marea/parse/*.c")
-
-        add_library(Marea-Parse ${MAREA_LIBRARY_TYPE} ${MAREA_PARSE_SOURCES})
-        add_library(marea::parse ALIAS Marea-Parse)
-
-        target_link_libraries(Marea-Parse PUBLIC marea::include PRIVATE marea::internal)
-
-        target_compile_options(Marea-Parse PRIVATE "$<$<C_COMPILER_ID:Clang,AppleClang,GNU>:-Wall;-Wextra;-Wpedantic>")
-
-        target_link_libraries(Marea-Parse PUBLIC marea::lex)
-
-        if(MAREA_OPTION_SHARED_LIBS)
-            set_target_properties(Marea-Parse PROPERTIES C_VISIBILITY_PRESET hidden)
-            target_compile_definitions(Marea-Parse PRIVATE MAREA_ENABLE_EXPORT INTERFACE MAREA_ENABLE_IMPORT)
-        endif()
+        mareaaddstagelibrary(STAGE parse NAME Parse LINK lex)
     endif()
 
     if(MAREA_OPTION_TARGET_SEMA)
-        message(STATUS "Add target: Marea-Sema")
-
-        file(GLOB MAREA_SEMA_SOURCES CONFIGURE_DEPENDS "${MAREA_FOLDER_LIB_SOURCE}/marea/sema/*.c")
-
-        add_library(Marea-Sema ${MAREA_LIBRARY_TYPE} ${MAREA_SEMA_SOURCES})
-        add_library(marea::sema ALIAS Marea-Sema)
-
-        target_link_libraries(Marea-Sema PUBLIC marea::include PRIVATE marea::internal)
-
-        target_compile_options(Marea-Sema PRIVATE "$<$<C_COMPILER_ID:Clang,AppleClang,GNU>:-Wall;-Wextra;-Wpedantic>")
-
-        target_link_libraries(Marea-Sema PUBLIC marea::parse)
-
-        if(MAREA_OPTION_SHARED_LIBS)
-            set_target_properties(Marea-Sema PROPERTIES C_VISIBILITY_PRESET hidden)
-            target_compile_definitions(Marea-Sema PRIVATE MAREA_ENABLE_EXPORT INTERFACE MAREA_ENABLE_IMPORT)
-        endif()
+        mareaaddstagelibrary(STAGE sema NAME Sema LINK parse)
     endif()
 
     if(MAREA_OPTION_TARGET_IR)
-        message(STATUS "Add target: Marea-Ir")
-
-        file(GLOB MAREA_IR_SOURCES CONFIGURE_DEPENDS "${MAREA_FOLDER_LIB_SOURCE}/marea/ir/*.c")
-
-        add_library(Marea-Ir ${MAREA_LIBRARY_TYPE} ${MAREA_IR_SOURCES})
-        add_library(marea::ir ALIAS Marea-Ir)
-
-        target_link_libraries(Marea-Ir PUBLIC marea::include PRIVATE marea::internal)
-
-        target_compile_options(Marea-Ir PRIVATE "$<$<C_COMPILER_ID:Clang,AppleClang,GNU>:-Wall;-Wextra;-Wpedantic>")
-
-        target_link_libraries(Marea-Ir PUBLIC marea::sema)
-
-        if(MAREA_OPTION_SHARED_LIBS)
-            set_target_properties(Marea-Ir PROPERTIES C_VISIBILITY_PRESET hidden)
-            target_compile_definitions(Marea-Ir PRIVATE MAREA_ENABLE_EXPORT INTERFACE MAREA_ENABLE_IMPORT)
-        endif()
+        mareaaddstagelibrary(STAGE ir NAME Ir LINK sema)
     endif()
 endmacro()
