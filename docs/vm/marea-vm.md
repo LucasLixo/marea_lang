@@ -82,6 +82,25 @@ order, read the same way `MAREA_BytecodeModuleGetParameter` and `MAREA_BytecodeM
   A jump target, a function index and a data blob index are checked through the accessor they are read with. A
   module that reaches one of these checks is treated as malformed (`MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE`), not
   trusted to have passed `MAREA_BytecodeValidate`-style checks first.
+- **A composite value lives in the frame's own memory, addressed by a pointer.** Beside its register file, every
+  frame keeps `MAREA_VM_FRAME_MEMORY_LIMIT` (4096) bytes of its own, zero filled at the start of the call, the
+  same as the register file. `addr_of` turns a byte offset of that area into an address (the bit pattern of a
+  real `MAREA_Byte *`, decoded and re-encoded with `memcpy`, never a cast that assumes a representation);
+  `field` adds a constant byte offset to an address already held in a register; `load` and `store` read or write
+  one scalar there, normalized the same way a typed arithmetic opcode is; `zero` clears a byte range at an
+  address, or the register itself when the byte count is 0; `copy_bytes` duplicates a byte range between two
+  addresses (`memmove`, so the ranges may overlap); `load_data_block` copies one blob of the read-only data
+  section to an address, as many bytes as the blob holds. None of these opcodes reads the module's type table:
+  the byte offsets and the counts are baked into the instructions by `MAREA_BytecodeGenerate`, so the vm only
+  ever moves bytes it is told to, never a type it looks up itself. A composite address stays valid for as long
+  as its frame is on the call chain (including every call that frame makes), because the memory is the C stack
+  frame of the recursive `MAREA_VmRun` that owns it, exactly like the register file; passing one to another
+  function (a borrowed structure's own `self`, for instance) is an ordinary 64-bit argument, needing no change to
+  the call opcode. A null address (only a malformed module can produce one; `MAREA_BytecodeGenerate` never does)
+  is `MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE`, never a dereference. There is no dedicated index opcode: a
+  bounds-checked element access is `lt_u` against the known length, `jump_if_not` to a `trap`
+  (`MAREA_BYTECODE_TRAP_CODE_INDEX_OUT_OF_RANGE`), the same pattern a generated `if` already uses, proven directly
+  in `tests/source/vm/MAREAVm.cpp` against a hand-built module (`IndexOutOfRangeTrapsOnABoundsCheckedArray`).
 
 ## Diagnostics
 
@@ -92,13 +111,26 @@ of `docs/bytecode/marea-bytecode.md`), and every other fault is a `MAREA_VmExcep
 
 ## Gaps
 
-- Only the scalar opcodes of `MAREA_BytecodeGenerate`'s own current slice are interpreted (the stage covers
-  every opcode the format header defines today, so this gap only matters once a later apply adds structures,
-  arrays, enums, lifecycle, host calls or `fork_join` opcodes: this interpreter needs matching cases added then).
-- The frame is a fixed-size native array (`MAREA_VM_FRAME_REGISTER_LIMIT`, 256 registers) on the C call stack, not
-  an arena allocation, so a function that needs more registers than that is a vm limit
-  (`MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE`) rather than a language-defined trap. Raising the limit, or moving the
-  frame to the context's own arena, is future work, not needed by any test or example today.
+- Every opcode the format header defines today is interpreted, including the composite family this slice adds
+  (`zero`, `addr_of`, `field`, `load`, `store`, `copy_bytes`, `load_data_block`); a later apply's host call or
+  `fork_join` opcode still needs a matching case added here.
+- The composite opcodes move bytes at the address they are given with no bounds check of their own (the generator
+  is trusted to have reserved enough frame memory and to have computed every offset correctly); only a
+  dynamically indexed element, built from `lt_u` and a trap, is checked at run time. A malformed module that
+  gives `addr_of` an offset past `MAREA_VM_FRAME_MEMORY_LIMIT`, or a `field`, `copy_bytes` or `load_data_block`
+  a byte count that runs past the end of the area it was given, is undefined, the one place this interpreter
+  still trusts the module rather than checking it; `MAREA_BytecodeGenerate` itself never emits such an offset.
+  A tighter check (the address plus the count against the owning frame's own range) is future work.
+- `MAREA_BytecodeGenerate` does not yet lower a structure as a parameter, a call argument or a result, a user
+  `construct` or `destroy`, an `enum` with data, an `array`, a `vector`, a `tuple` or a `string` (see the Gaps of
+  `docs/bytecode/marea-bytecode.md`), so this interpreter has not run any of them through a generated program
+  yet; its own mechanics for a tagged union and for a bounds-checked array are proven directly against hand-built
+  modules instead (`tests/source/vm/MAREAVm.cpp`).
+- The frame is a fixed-size native array (`MAREA_VM_FRAME_REGISTER_LIMIT`, 256 registers, and
+  `MAREA_VM_FRAME_MEMORY_LIMIT`, 4096 bytes) on the C call stack, not an arena allocation, so a function that
+  needs more registers or more composite storage than that is a vm limit (`MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE`,
+  or `OPERAND_OVERFLOW` at generate time for the memory area) rather than a language-defined trap. Raising either
+  limit, or moving the frame to the context's own arena, is future work, not needed by any test or example today.
 - A call is native C recursion, one stack frame per bytecode call, bounded by `MAREA_VM_CALL_DEPTH_LIMIT` (512).
   A host that embeds the vm on a thread with a small stack may need to lower this limit; it is a compile-time
   constant, not yet read from a build setting.
