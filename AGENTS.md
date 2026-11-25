@@ -63,6 +63,8 @@ programs are in [examples](examples).
 
 ## Working model
 
+- **The main branch is `develop`.** It is the default branch; every branch starts from it and every PR targets it.
+  There is no `main` branch.
 - **Commit only through the `generate-commit` skill** ([.claude/skills/generate-commit/SKILL.md](.claude/skills/generate-commit/SKILL.md))
   - never a hand-written `git commit`, from the main session or from a subagent.
 - **Independent tasks in different areas go through [parallelize](.claude/skills/parallelize/SKILL.md)**; it
