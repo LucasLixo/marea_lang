@@ -388,7 +388,7 @@ TEST(MAREAIrLayout, DroppedDeclarationHasNoEntry)
 
     MAREA_IrFixture fixture(RESOLVE_EXTERNAL);
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; structure Before a: uinteger8; end enum Gone A(v: uinteger64 = size_of<function(value: sinteger32): sinteger32>()); end structure After b: uinteger16; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; import collections.identity as identity; structure Before a: uinteger8; end enum Gone A(v: sinteger32 = identity<sinteger32>(1)); end structure After b: uinteger16; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     ASSERT_EQ(fixture.MAREA_irCodes().size(), 1U) << "The gap inside the enum must be reported once.";
 

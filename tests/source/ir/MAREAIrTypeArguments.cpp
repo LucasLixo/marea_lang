@@ -290,26 +290,26 @@ TEST(MAREAIrTypeArguments, GenericNameOutsideACallStaysAGeneric)
     EXPECT_EQ(MAREA_codesOf("namespace main; import collections.list as list; constant LIMIT: sinteger32 = list<sinteger32>.LIMIT;"), Codes{ GENERIC }) << "Only the receiver of a call is lowered.";
 }
 
-TEST(MAREAIrTypeArguments, FunctionTypeArgumentStaysAGeneric)
+TEST(MAREAIrTypeArguments, FunctionTypeArgumentLowers)
 {
-    GTEST_COUT << "Validating a function type as a type argument is not lowered and raises 4004, for a built-in and for a static call." << std::endl;
+    GTEST_COUT << "Validating a function type as a type argument lowers, for a built-in and for a static call, and raises nothing." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf("namespace main; constant SIZE: uinteger64 = size_of<function(value: sinteger32): sinteger32>();"), Codes{ GENERIC }) << "A function type cannot be a TYPE_NAME, so the built-in call must raise.";
+    EXPECT_EQ(MAREA_codesOf("namespace main; constant SIZE: uinteger64 = size_of<function(value: sinteger32): sinteger32>();"), Codes{}) << "A function type is a TYPE_NAME now, so the built-in call must lower.";
 
-    EXPECT_EQ(MAREA_codesOf("namespace main; import collections.list as list; function run(): sinteger32 return list<function(value: sinteger32): sinteger32>.filled(8, 0).length(); end"), Codes{ GENERIC }) << "A function type cannot be a TYPE_NAME, so the static call must raise.";
+    EXPECT_EQ(MAREA_codesOf("namespace main; import collections.list as list; function run(): sinteger32 return list<function(value: sinteger32): sinteger32>.filled(8, 0).length(); end"), Codes{}) << "A function type is a TYPE_NAME now, so the static call must lower.";
 
-    EXPECT_EQ(MAREA_codesOf("namespace main; constant SIZE: uinteger64 = size_of<function(value: sinteger32): sinteger32>(); constant OTHER: sinteger32 = 1;"), Codes{ GENERIC }) << "The gap must be reported once and the next declaration must lower.";
+    EXPECT_EQ(MAREA_namesOf("namespace main; constant SIZE: uinteger64 = size_of<function(value: sinteger32): sinteger32>(); constant OTHER: sinteger32 = 1;"), "SIZE OTHER") << "Both constants must be kept.";
 }
 
-TEST(MAREAIrTypeArguments, NestedFunctionTypeArgumentStaysAGenericOnce)
+TEST(MAREAIrTypeArguments, NestedFunctionTypeArgumentLowersOnce)
 {
-    GTEST_COUT << "Validating a function type nested in a type argument is reported once and drops the declaration whole." << std::endl;
+    GTEST_COUT << "Validating a function type nested in a type argument lowers and keeps the declaration." << std::endl;
 
     const std::string SOURCE{ "namespace main; import collections.list as list; constant SIZE: uinteger64 = size_of<list<function(value: sinteger32): sinteger32>>(); function keep() end" };
 
-    EXPECT_EQ(MAREA_codesOf(SOURCE), Codes{ GENERIC }) << "The nested gap must be reported once.";
+    EXPECT_EQ(MAREA_codesOf(SOURCE), Codes{}) << "The nested function type must raise nothing.";
 
-    EXPECT_EQ(MAREA_namesOf(SOURCE), "keep") << "The constant must be dropped and the next declaration kept.";
+    EXPECT_EQ(MAREA_namesOf(SOURCE), "SIZE keep") << "The constant and the next declaration must be kept.";
 }
 
 TEST(MAREAIrTypeArguments, GapInAStaticCallArgumentDropsTheDeclaration)
