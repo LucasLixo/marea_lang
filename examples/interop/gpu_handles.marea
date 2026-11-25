@@ -8,19 +8,19 @@
 --      a parameter (a borrow) or an owner.
 --   2. A function of C frees it. The owner calls it when its scope ends, in
 --      the reverse order of creation. No GC, no finalizer, no forgotten free.
---   3. owned<T> is the only owner of a resource. It moves, it does not copy. A function that
+--   3. c.memory.Owned<T> is the only owner of a resource. It moves, it does not copy. A function that
 --      only uses the resource reads it with the default read-only borrow, or writes it with
 --      #[semantics = reference_mutable].
 --   4. handle<T> is an integer (index and generation) for resources that a table of the engine
---      owns. A stale handle is found at the use, not as a crash in the driver. owned<T> is for
+--      owns. A stale handle is found at the use, not as a crash in the driver. c.memory.Owned<T> is for
 --      one resource of one scope, handle<T> is for a pool. Both exist.
---   5. A raw pointer<T> exists only inside "unsafe ... end", for a C call that needs one.
+--   5. A raw c.memory.Pointer<T> exists only inside "unsafe ... end", for a C call that needs one.
 --   6. A mapped GPU buffer is opened with "with ... as name do ... end". The name is a slice that
 --      lives only in that block. At the "end" the buffer is unmapped.
 
 namespace interop.gpu_handles;
 
-require marea.memory;
+require c.memory;
 require demo.gpu;
 
 -- Rule 1 and 2: the opaque types come from C, with the function that frees each one.
@@ -37,11 +37,11 @@ structure TextureInfo
 end
 
 -- Rule 3: the function gives the owner up to the caller with "return".
-function create_swapchain(width: uinteger32, height: uinteger32): owned<SwapChain>
+function create_swapchain(width: uinteger32, height: uinteger32): c.memory.Owned<SwapChain>
     return demo.gpu.create_swapchain(width, height);
 end
 
-function create_texture(info: TextureInfo): owned<Texture>
+function create_texture(info: TextureInfo): c.memory.Owned<Texture>
     return demo.gpu.create_texture(info);
 end
 
@@ -53,7 +53,7 @@ end
 -- Rule 6: a mapped buffer is a name that can not leave the block.
 function fill_texture(#[semantics = reference_mutable] texture: Texture, color: uinteger32)
     with demo.gpu.map_texture(texture) as pixels do
-        for index in 0 .. marea.memory.length(pixels) - 1 do
+        for index in 0 .. c.memory.length(pixels) - 1 do
             pixels[index] = color;
         end
     end
@@ -63,16 +63,16 @@ end
 -- Rule 5: a raw pointer, only when a C function asks for one.
 function native_handle(swapchain: SwapChain): uinteger64
     unsafe
-        local raw: pointer<uinteger8> = demo.gpu.native_pointer(swapchain);
+        local raw: c.memory.Pointer<uinteger8> = demo.gpu.native_pointer(swapchain);
         return convert<uinteger64>(raw);
     end
 end
 
 #[visibility = public]
 function show_frame()
-    local swapchain: owned<SwapChain> = create_swapchain(1280, 720);
+    local swapchain: c.memory.Owned<SwapChain> = create_swapchain(1280, 720);
     local info: TextureInfo = TextureInfo{ width = 64, height = 64, format = 0 };
-    local texture: owned<Texture> = create_texture(info);
+    local texture: c.memory.Owned<Texture> = create_texture(info);
     fill_texture(texture, 0xFF0000FF);
     present(swapchain, texture);
     -- At the end of the function the scope frees what it owns: texture, then swapchain.
