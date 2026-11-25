@@ -32,7 +32,9 @@ MAREA_BEGIN_EXTERN_C
      * them; a Type{...} literal of a type with construct has a second child, the LITERAL_VALUE that is its initial value);
      * DESTROY_CALL is the explicit cleanup the ir inserts at a scope exit of a destructible local (the
      * text is the qualified destroy function, "Type.name", and the one child is an IDENTIFIER naming the local
-     * being destroyed). The list ends with MAREA_IR_KIND_COUNT.
+     * being destroyed). BACKEND_ATTRIBUTE follows them: the resolved backend of a function (see the sema doc, "Backend"), as the last
+     * child of its FUNCTION_DECLARATION, after the body (the text is the member: scalar, vector_extension or intrinsics, never
+     * auto), so the first two children of a function keep their places. A function with no backend has no such child. The list ends with MAREA_IR_KIND_COUNT.
      */
     typedef enum MAREA_IrKind
     {
@@ -84,6 +86,7 @@ MAREA_BEGIN_EXTERN_C
         MAREA_IR_KIND_CHARACTER_LITERAL,
         MAREA_IR_KIND_CONSTRUCT_CALL = (MAREA_IR_KIND_CHARACTER_LITERAL + 2),
         MAREA_IR_KIND_DESTROY_CALL,
+        MAREA_IR_KIND_BACKEND_ATTRIBUTE,
 
         MAREA_IR_KIND_COUNT
     } MAREA_IrKind;

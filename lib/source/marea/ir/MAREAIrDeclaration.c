@@ -443,6 +443,32 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerConstant(MAREA_IrContext *context,
     return MAREA_IrNodeAppendChild(context, parent, node);
 }
 
+// INFO: the backend that sema resolved for the function is the last child of the node, after the body. The text is the one of sema, which stays valid as long as the arena.
+static MAREA_IrExcept MAREA_CALL MAREA_G_AppendBackend(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode *function)
+{
+    const MAREA_Character8 *text = MAREA_NULLPTR;
+
+    MAREA_IntegerSize length = MAREA_INTEGER_SIZE(0);
+
+    if (MAREA_SemaTypedNodeGetBackend(typed, &text, &length) != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) {
+        return MAREA_IR_EXCEPT_SUCCESS;
+    }
+
+    MAREA_IrNode *backend = MAREA_NULLPTR;
+
+    MAREA_IrExcept result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_BACKEND_ATTRIBUTE, MAREA_SemaTypedNodeGetAstNode(typed), &backend);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    backend->text = text;
+    backend->textLength = (MAREA_Uinteger32)length;
+    backend->flags = MAREA_UINTEGER_32(0);
+
+    return MAREA_IrNodeAppendChild(context, function, backend);
+}
+
 static MAREA_IrExcept MAREA_CALL MAREA_G_LowerFunctionBody(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, const MAREA_Character8 *qualifier, MAREA_IntegerSize qualifierLength, MAREA_IrNode *parent)
 {
     if (MAREA_G_HasChildOfKind(typed, MAREA_AST_KIND_GENERIC_PARAMETERS) == MAREA_BOOLEAN_TRUE) {
@@ -519,6 +545,12 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerFunctionBody(MAREA_IrContext *cont
         if (result != MAREA_IR_EXCEPT_SUCCESS) {
             return result;
         }
+    }
+
+    result = MAREA_G_AppendBackend(context, typed, node);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
     }
 
     return MAREA_IrNodeAppendChild(context, parent, node);
