@@ -9,9 +9,6 @@
 #include <string>
 #include <vector>
 
-// INFO: The diagnostic sink takes its memory from its own arena, so only a failing malloc can make
-// MAREA_DiagnosticSinkAdd fail. On glibc this file replaces malloc by a function that fails on request;
-// every other platform skips the tests.
 #if defined(__GLIBC__) && defined(__linux__)
     #define MAREA_TESTS_CAN_FAIL_MALLOC 1
 #else
@@ -47,8 +44,6 @@ namespace
         std::string source;
     };
 
-    // INFO: One source for every place that reports a diagnostic: the main loop, the string scanner, the
-    // character scanner and the number scanner.
     const std::vector<MAREA_OutOfMemoryRow> MAREA_G_ROWS{
         { "unknown byte", "@" },
         { "unterminated string", "\"abc" },
@@ -64,8 +59,6 @@ namespace
         { "bad byte in character", "'\x80'" },
     };
 
-    // INFO: The lexer arena is separate from the sink arena. The lexer arena has room for the token list in
-    // its first chunk, so with a failing malloc only the sink can run out of memory.
     struct MAREA_OutOfMemoryFixture
     {
         MAREA_Arena *lexerArena{ nullptr };

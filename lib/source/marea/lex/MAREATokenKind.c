@@ -154,6 +154,7 @@ static const MAREA_G_KeywordRow MAREA_G_KeywordTable[] = {
     { .text = "opaque", .length = 6, .kind = MAREA_TOKEN_KIND_KEYWORD_OPAQUE },
     { .text = "or", .length = 2, .kind = MAREA_TOKEN_KIND_KEYWORD_OR },
     { .text = "partition", .length = 9, .kind = MAREA_TOKEN_KIND_KEYWORD_PARTITION },
+    { .text = "require", .length = 7, .kind = MAREA_TOKEN_KIND_KEYWORD_REQUIRE },
     { .text = "return", .length = 6, .kind = MAREA_TOKEN_KIND_KEYWORD_RETURN },
     { .text = "spawn", .length = 5, .kind = MAREA_TOKEN_KIND_KEYWORD_SPAWN },
     { .text = "structure", .length = 9, .kind = MAREA_TOKEN_KIND_KEYWORD_STRUCTURE },
@@ -167,7 +168,7 @@ static const MAREA_G_KeywordRow MAREA_G_KeywordTable[] = {
     { .text = "with", .length = 4, .kind = MAREA_TOKEN_KIND_KEYWORD_WITH },
 };
 
-MAREA_STATIC_ASSERT((sizeof(MAREA_G_KeywordTable) / sizeof(MAREA_G_KeywordTable[0])) == 43, "MAREA_G_KeywordTable must have 43 rows.");
+MAREA_STATIC_ASSERT((sizeof(MAREA_G_KeywordTable) / sizeof(MAREA_G_KeywordTable[0])) == 44, "MAREA_G_KeywordTable must have 44 rows.");
 
 const MAREA_Character8 *MAREA_CALL MAREA_TokenKindGetName(MAREA_TokenKind kind)
 {
