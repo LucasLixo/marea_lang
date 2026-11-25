@@ -16,11 +16,11 @@ static const MAREA_Character8 MAREA_G_BoundPrefix[] = "$last";
 // INFO: the most decimal digits of the largest unsigned integer of 64 bits.
 #define MAREA_G_BOUND_DIGITS MAREA_INTEGER_SIZE(20)
 
-// INFO: the name of the hidden local that holds the scrutinee of a switch; the dollar sign cannot start a source identifier.
-static const MAREA_Character8 MAREA_G_SwitchName[] = "$switch";
+// INFO: the start of the name of the hidden local that holds the scrutinee of a switch; the dollar sign cannot start a source identifier. The number of the switch in its function follows it.
+static const MAREA_Character8 MAREA_G_SwitchPrefix[] = "$switch";
 
-// INFO: the name of the hidden local that holds the value of a return until the destroy calls ran; the dollar sign cannot start a source identifier.
-static const MAREA_Character8 MAREA_G_ReturnName[] = "$return";
+// INFO: the start of the name of the hidden local that holds the value of a return until the destroy calls ran; the dollar sign cannot start a source identifier. The number of the hoisted return in its function follows it.
+static const MAREA_Character8 MAREA_G_ReturnPrefix[] = "$return";
 
 // INFO: the place of the bound name among the children of a with statement (value, name, body) and of a partition statement (value, count, name, body).
 static const MAREA_IntegerSize MAREA_G_WithNameIndex = MAREA_INTEGER_SIZE(1);
@@ -323,15 +323,15 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_PrefixContinues(MAREA_IrContext *contex
     return MAREA_IR_EXCEPT_SUCCESS;
 }
 
-// INFO: gives the next for-range loop of the function the name of its hidden bound, "$last" and its number, so two loops of one function never share one. The name ends with a NUL byte, as every reference to it needs.
-static MAREA_IrExcept MAREA_CALL MAREA_G_CreateBoundName(MAREA_IrContext *context, const MAREA_Character8 **outName)
+// INFO: gives a hidden local the name prefix and its number, and adds one to the counter, so two hidden locals of one kind in one function never share a name. The name ends with a NUL byte, as every reference to it needs.
+static MAREA_IrExcept MAREA_CALL MAREA_G_CreateNumberedName(MAREA_IrContext *context, const MAREA_Character8 *prefix, MAREA_IntegerSize *counter, const MAREA_Character8 **outName)
 {
     MAREA_Character8 digits[MAREA_G_BOUND_DIGITS];
 
     MAREA_IntegerSize digitCount = MAREA_INTEGER_SIZE(0);
-    MAREA_IntegerSize rest = context->loopCount;
+    MAREA_IntegerSize rest = *counter;
 
-    context->loopCount = (context->loopCount + MAREA_INTEGER_SIZE(1));
+    *counter = (*counter + MAREA_INTEGER_SIZE(1));
 
     do {
         digits[digitCount] = (MAREA_Character8)('0' + (rest % MAREA_INTEGER_SIZE(10)));
@@ -339,7 +339,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_CreateBoundName(MAREA_IrContext *contex
         rest = (rest / MAREA_INTEGER_SIZE(10));
     } while (rest != MAREA_INTEGER_SIZE(0));
 
-    const MAREA_IntegerSize PREFIX_LENGTH = strlen(MAREA_G_BoundPrefix);
+    const MAREA_IntegerSize PREFIX_LENGTH = strlen(prefix);
 
     MAREA_Null memory = MAREA_NULLPTR;
 
@@ -349,7 +349,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_CreateBoundName(MAREA_IrContext *contex
 
     MAREA_Character8 *name = memory;
 
-    memcpy(name, MAREA_G_BoundPrefix, PREFIX_LENGTH);
+    memcpy(name, prefix, PREFIX_LENGTH);
 
     for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < digitCount; index = (index + MAREA_INTEGER_SIZE(1))) {
         name[(PREFIX_LENGTH + index)] = digits[(digitCount - MAREA_INTEGER_SIZE(1) - index)];
@@ -360,6 +360,12 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_CreateBoundName(MAREA_IrContext *contex
     *outName = name;
 
     return MAREA_IR_EXCEPT_SUCCESS;
+}
+
+// INFO: gives the next for-range loop of the function the name of its hidden bound, "$last" and its number.
+static MAREA_IrExcept MAREA_CALL MAREA_G_CreateBoundName(MAREA_IrContext *context, const MAREA_Character8 **outName)
+{
+    return MAREA_G_CreateNumberedName(context, MAREA_G_BoundPrefix, &context->loopCount, outName);
 }
 
 // INFO: for name in first .. last do body end becomes BLOCK(LOCAL name = first, LOCAL $lastN = last, WHILE name <= $lastN: body, step), where N is the number of the loop in its function, the outer loop first.
@@ -558,7 +564,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_CreateComparison(MAREA_IrContext *conte
     result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_BINARY_EXPRESSION, valueAst, &comparison);
 
     if (result == MAREA_IR_EXCEPT_SUCCESS) {
-        result = MAREA_G_CreateReference(context, switchAst, MAREA_G_SwitchName, switchLocal, &reference);
+        result = MAREA_G_CreateReference(context, switchAst, switchLocal->text, switchLocal, &reference);
     }
 
     if (result == MAREA_IR_EXCEPT_SUCCESS) {
@@ -774,8 +780,16 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_CreateSwitchScope(MAREA_IrContext *cont
         return result;
     }
 
-    local->text = MAREA_G_SwitchName;
-    local->textLength = (MAREA_Uinteger32)strlen(MAREA_G_SwitchName);
+    const MAREA_Character8 *name = MAREA_NULLPTR;
+
+    result = MAREA_G_CreateNumberedName(context, MAREA_G_SwitchPrefix, &context->switchCount, &name);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    local->text = name;
+    local->textLength = (MAREA_Uinteger32)strlen(name);
 
     // INFO: the hidden local holds the scrutinee, so it has the type of the scrutinee.
     MAREA_IrNodeShareResolvedType(local, scrutinee);
@@ -1112,9 +1126,9 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_MaterializeDestroys(MAREA_IrContext *co
 // INFO: true when the value of a return is already the hidden local $return, so an outer wrap must not hoist it again.
 static MAREA_Boolean MAREA_CALL MAREA_G_IsReturnReference(const MAREA_IrNode *value)
 {
-    const MAREA_IntegerSize LENGTH = strlen(MAREA_G_ReturnName);
+    const MAREA_IntegerSize LENGTH = strlen(MAREA_G_ReturnPrefix);
 
-    return ((value->kind == MAREA_IR_KIND_IDENTIFIER) && (value->textLength == (MAREA_Uinteger32)LENGTH) && (memcmp(value->text, MAREA_G_ReturnName, LENGTH) == 0)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+    return ((value->kind == MAREA_IR_KIND_IDENTIFIER) && (value->textLength > (MAREA_Uinteger32)LENGTH) && (memcmp(value->text, MAREA_G_ReturnPrefix, LENGTH) == 0)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
 // INFO: moves the value of a RETURN_STATEMENT into a new LOCAL_DECLARATION $return and leaves IDENTIFIER $return as the value, so
@@ -1142,15 +1156,24 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_HoistReturnValue(MAREA_IrContext *conte
     }
 
     MAREA_G_KeepOnlyPosition(declaration);
-    declaration->text = MAREA_G_ReturnName;
-    declaration->textLength = (MAREA_Uinteger32)strlen(MAREA_G_ReturnName);
+
+    const MAREA_Character8 *name = MAREA_NULLPTR;
+
+    result = MAREA_G_CreateNumberedName(context, MAREA_G_ReturnPrefix, &context->returnCount, &name);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    declaration->text = name;
+    declaration->textLength = (MAREA_Uinteger32)strlen(name);
 
     // INFO: the hidden local holds the returned value, so it has the type of that value.
     MAREA_IrNodeShareResolvedType(declaration, value);
 
     MAREA_IrNode *reference = MAREA_NULLPTR;
 
-    result = MAREA_G_CreateReference(context, positionAst, MAREA_G_ReturnName, declaration, &reference);
+    result = MAREA_G_CreateReference(context, positionAst, name, declaration, &reference);
 
     if (result != MAREA_IR_EXCEPT_SUCCESS) {
         return result;

@@ -529,6 +529,8 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerFunction(MAREA_IrContext *context,
 {
     context->function = typed;
     context->loopCount = MAREA_INTEGER_SIZE(0);
+    context->switchCount = MAREA_INTEGER_SIZE(0);
+    context->returnCount = MAREA_INTEGER_SIZE(0);
 
     const MAREA_IrExcept result = MAREA_G_LowerFunctionBody(context, typed, qualifier, qualifierLength, parent);
 

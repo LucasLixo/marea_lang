@@ -41,7 +41,8 @@ MAREA_BEGIN_EXTERN_C
      * of the unit that is being lowered, which tells whether the unit binds a name of its own. The root is null
      * when no unit is being lowered. The alias table is built once per unit; function is the typed function that
      * is being lowered, or null at module level. loopCount is the number of for-range loops that the function
-     * being lowered has started so far; it names their hidden bounds apart and restarts at zero for each function.
+     * being lowered has started so far; it names their hidden bounds apart and restarts at zero for each function. switchCount and
+     * returnCount do the same for the hidden locals of a switch and of a hoisted return value.
      */
     struct MAREA_IrContext
     {
@@ -52,6 +53,8 @@ MAREA_BEGIN_EXTERN_C
         MAREA_IrAlias *aliases;
         MAREA_IntegerSize aliasCount;
         MAREA_IntegerSize loopCount;
+        MAREA_IntegerSize switchCount;
+        MAREA_IntegerSize returnCount;
     };
 
     /**

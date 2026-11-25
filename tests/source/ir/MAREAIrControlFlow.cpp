@@ -273,35 +273,35 @@ TEST(MAREAIrControlFlow, SwitchBecomesAHiddenLocalAndAnIfChain)
 {
     GTEST_COUT << "Validating a switch with a case and a default lowers to a scope with a hidden local and an if with an else." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerBody("", "a: sinteger32", "switch a case 1 then return; default then return; end"), "(BLOCK (BLOCK (LOCAL_DECLARATION $switch (IDENTIFIER a)) (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch) (INTEGER_LITERAL 1)) (BLOCK (RETURN_STATEMENT)) (ELSE_CLAUSE (BLOCK (RETURN_STATEMENT))))))") << "The switch must keep the shape of its desugaring.";
+    EXPECT_EQ(MAREA_lowerBody("", "a: sinteger32", "switch a case 1 then return; default then return; end"), "(BLOCK (BLOCK (LOCAL_DECLARATION $switch0 (IDENTIFIER a)) (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch0) (INTEGER_LITERAL 1)) (BLOCK (RETURN_STATEMENT)) (ELSE_CLAUSE (BLOCK (RETURN_STATEMENT))))))") << "The switch must keep the shape of its desugaring.";
 }
 
 TEST(MAREAIrControlFlow, SwitchCasesAfterTheFirstBecomeElseifClauses)
 {
     GTEST_COUT << "Validating each case after the first becomes an elseif clause and a switch without default has no else." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerBody("", "a: sinteger32", "switch a case 1 then return; case 2 then return; end"), "(BLOCK (BLOCK (LOCAL_DECLARATION $switch (IDENTIFIER a)) (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch) (INTEGER_LITERAL 1)) (BLOCK (RETURN_STATEMENT)) (ELSEIF_CLAUSE (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch) (INTEGER_LITERAL 2)) (BLOCK (RETURN_STATEMENT))))))") << "A second case must be an elseif clause, and no default means no else.";
+    EXPECT_EQ(MAREA_lowerBody("", "a: sinteger32", "switch a case 1 then return; case 2 then return; end"), "(BLOCK (BLOCK (LOCAL_DECLARATION $switch0 (IDENTIFIER a)) (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch0) (INTEGER_LITERAL 1)) (BLOCK (RETURN_STATEMENT)) (ELSEIF_CLAUSE (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch0) (INTEGER_LITERAL 2)) (BLOCK (RETURN_STATEMENT))))))") << "A second case must be an elseif clause, and no default means no else.";
 }
 
 TEST(MAREAIrControlFlow, SwitchCaseWithManyValuesJoinsThemWithOr)
 {
     GTEST_COUT << "Validating a case that lists three values joins the comparisons with or, grouped to the left." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerBody("", "a: sinteger32", "switch a case 1, 2, 3 then return; end"), "(BLOCK (BLOCK (LOCAL_DECLARATION $switch (IDENTIFIER a)) (IF_STATEMENT (BINARY_EXPRESSION op=KEYWORD_OR (BINARY_EXPRESSION op=KEYWORD_OR (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch) (INTEGER_LITERAL 1)) (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch) (INTEGER_LITERAL 2))) (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch) (INTEGER_LITERAL 3))) (BLOCK (RETURN_STATEMENT)))))") << "Many values must become one condition with or.";
+    EXPECT_EQ(MAREA_lowerBody("", "a: sinteger32", "switch a case 1, 2, 3 then return; end"), "(BLOCK (BLOCK (LOCAL_DECLARATION $switch0 (IDENTIFIER a)) (IF_STATEMENT (BINARY_EXPRESSION op=KEYWORD_OR (BINARY_EXPRESSION op=KEYWORD_OR (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch0) (INTEGER_LITERAL 1)) (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch0) (INTEGER_LITERAL 2))) (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch0) (INTEGER_LITERAL 3))) (BLOCK (RETURN_STATEMENT)))))") << "Many values must become one condition with or.";
 }
 
 TEST(MAREAIrControlFlow, SwitchWithOnlyADefaultRunsItsBlockAfterTheHiddenLocal)
 {
     GTEST_COUT << "Validating a switch with only a default keeps the scrutinee local and then the default block." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerBody("", "a: sinteger32", "switch a default then return; end"), "(BLOCK (BLOCK (LOCAL_DECLARATION $switch (IDENTIFIER a)) (BLOCK (RETURN_STATEMENT))))") << "A default alone has no condition to test.";
+    EXPECT_EQ(MAREA_lowerBody("", "a: sinteger32", "switch a default then return; end"), "(BLOCK (BLOCK (LOCAL_DECLARATION $switch0 (IDENTIFIER a)) (BLOCK (RETURN_STATEMENT))))") << "A default alone has no condition to test.";
 }
 
 TEST(MAREAIrControlFlow, SwitchWithoutArmsKeepsOnlyTheScrutinee)
 {
     GTEST_COUT << "Validating a switch with no arm still evaluates its scrutinee once, into the hidden local." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerBody("function ping(): sinteger32 return 1; end", "", "switch ping() end"), "(BLOCK (BLOCK (LOCAL_DECLARATION $switch (CALL_EXPRESSION :sinteger32 (IDENTIFIER ping) (ARGUMENT_LIST)))))") << "An empty switch must keep the call.";
+    EXPECT_EQ(MAREA_lowerBody("function ping(): sinteger32 return 1; end", "", "switch ping() end"), "(BLOCK (BLOCK (LOCAL_DECLARATION $switch0 (CALL_EXPRESSION :sinteger32 (IDENTIFIER ping) (ARGUMENT_LIST)))))") << "An empty switch must keep the call.";
 }
 
 TEST(MAREAIrControlFlow, SwitchEvaluatesTheScrutineeOnce)
@@ -310,7 +310,7 @@ TEST(MAREAIrControlFlow, SwitchEvaluatesTheScrutineeOnce)
 
     const std::string rendered{ MAREA_lowerBody("function pick(): sinteger32 return 1; end", "", "switch pick() case 1 then return; case 2 then return; end") };
 
-    EXPECT_NE(rendered.find("(LOCAL_DECLARATION $switch (CALL_EXPRESSION"), std::string::npos) << "The call must sit in the hidden local: " << rendered;
+    EXPECT_NE(rendered.find("(LOCAL_DECLARATION $switch0 (CALL_EXPRESSION"), std::string::npos) << "The call must sit in the hidden local: " << rendered;
 
     EXPECT_EQ(rendered.find("(IDENTIFIER pick)", rendered.find("(IF_STATEMENT")), std::string::npos) << "The cases must not call the scrutinee again: " << rendered;
 }
@@ -319,14 +319,14 @@ TEST(MAREAIrControlFlow, SwitchOnAnEnumComparesWithTheVariantAccess)
 {
     GTEST_COUT << "Validating a switch on an enum compares the hidden local with the lowered variant access." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerBody("enum Color red; green; end", "c: Color", "switch c case Color.red then return; case Color.green then return; end"), "(BLOCK (BLOCK (LOCAL_DECLARATION $switch (IDENTIFIER c)) (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch) (MEMBER_ACCESS (IDENTIFIER Color) (IDENTIFIER red))) (BLOCK (RETURN_STATEMENT)) (ELSEIF_CLAUSE (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch) (MEMBER_ACCESS (IDENTIFIER Color) (IDENTIFIER green))) (BLOCK (RETURN_STATEMENT))) (ELSE_CLAUSE (BLOCK (UNREACHABLE_STATEMENT))))))") << "A variant case must compare with the variant access.";
+    EXPECT_EQ(MAREA_lowerBody("enum Color red; green; end", "c: Color", "switch c case Color.red then return; case Color.green then return; end"), "(BLOCK (BLOCK (LOCAL_DECLARATION $switch0 (IDENTIFIER c)) (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch0) (MEMBER_ACCESS (IDENTIFIER Color) (IDENTIFIER red))) (BLOCK (RETURN_STATEMENT)) (ELSEIF_CLAUSE (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch0) (MEMBER_ACCESS (IDENTIFIER Color) (IDENTIFIER green))) (BLOCK (RETURN_STATEMENT))) (ELSE_CLAUSE (BLOCK (UNREACHABLE_STATEMENT))))))") << "A variant case must compare with the variant access.";
 }
 
 TEST(MAREAIrControlFlow, SwitchOverAnEnumWithoutDefaultEndsWithAnUnreachableElse)
 {
     GTEST_COUT << "Validating an enum switch that covers every variant and has no default ends its chain with an else holding UNREACHABLE_STATEMENT." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerBody("enum Color red; green; end", "c: Color", "switch c case Color.red then return; case Color.green then return; end"), "(BLOCK (BLOCK (LOCAL_DECLARATION $switch (IDENTIFIER c)) (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch) (MEMBER_ACCESS (IDENTIFIER Color) (IDENTIFIER red))) (BLOCK (RETURN_STATEMENT)) (ELSEIF_CLAUSE (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch) (MEMBER_ACCESS (IDENTIFIER Color) (IDENTIFIER green))) (BLOCK (RETURN_STATEMENT))) (ELSE_CLAUSE (BLOCK (UNREACHABLE_STATEMENT))))))") << "The proven-exhaustive chain must end with an unreachable else.";
+    EXPECT_EQ(MAREA_lowerBody("enum Color red; green; end", "c: Color", "switch c case Color.red then return; case Color.green then return; end"), "(BLOCK (BLOCK (LOCAL_DECLARATION $switch0 (IDENTIFIER c)) (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch0) (MEMBER_ACCESS (IDENTIFIER Color) (IDENTIFIER red))) (BLOCK (RETURN_STATEMENT)) (ELSEIF_CLAUSE (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch0) (MEMBER_ACCESS (IDENTIFIER Color) (IDENTIFIER green))) (BLOCK (RETURN_STATEMENT))) (ELSE_CLAUSE (BLOCK (UNREACHABLE_STATEMENT))))))") << "The proven-exhaustive chain must end with an unreachable else.";
 }
 
 TEST(MAREAIrControlFlow, SwitchOverAnEnumWithADefaultKeepsItsDefaultElse)
@@ -388,7 +388,7 @@ TEST(MAREAIrControlFlow, SwitchOverAnEnumWithOnlyADefaultHasNoUnreachableMarker)
 
     const std::string rendered{ MAREA_lowerBody("enum Color red; green; end", "c: Color", "switch c default then return; end") };
 
-    EXPECT_EQ(rendered, "(BLOCK (BLOCK (LOCAL_DECLARATION $switch (IDENTIFIER c)) (BLOCK (RETURN_STATEMENT))))") << "The default block must follow the hidden local, with no marker.";
+    EXPECT_EQ(rendered, "(BLOCK (BLOCK (LOCAL_DECLARATION $switch0 (IDENTIFIER c)) (BLOCK (RETURN_STATEMENT))))") << "The default block must follow the hidden local, with no marker.";
 }
 
 TEST(MAREAIrControlFlow, SwitchOverAnExternalTypeWithoutDefaultKeepsNoElse)
@@ -423,14 +423,14 @@ TEST(MAREAIrControlFlow, SwitchNestedInAnArmKeepsItsOwnHiddenLocal)
 {
     GTEST_COUT << "Validating a switch nested in an arm gets its own scope and hidden local, so the two never mix." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerBody("", "a: sinteger32, b: sinteger32", "switch a case 1 then switch b case 2 then return; end default then return; end"), "(BLOCK (BLOCK (LOCAL_DECLARATION $switch (IDENTIFIER a)) (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch) (INTEGER_LITERAL 1)) (BLOCK (BLOCK (LOCAL_DECLARATION $switch (IDENTIFIER b)) (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch) (INTEGER_LITERAL 2)) (BLOCK (RETURN_STATEMENT))))) (ELSE_CLAUSE (BLOCK (RETURN_STATEMENT))))))") << "The inner switch must sit in its own scope.";
+    EXPECT_EQ(MAREA_lowerBody("", "a: sinteger32, b: sinteger32", "switch a case 1 then switch b case 2 then return; end default then return; end"), "(BLOCK (BLOCK (LOCAL_DECLARATION $switch0 (IDENTIFIER a)) (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch0) (INTEGER_LITERAL 1)) (BLOCK (BLOCK (LOCAL_DECLARATION $switch1 (IDENTIFIER b)) (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch1) (INTEGER_LITERAL 2)) (BLOCK (RETURN_STATEMENT))))) (ELSE_CLAUSE (BLOCK (RETURN_STATEMENT))))))") << "The inner switch must sit in its own scope.";
 }
 
 TEST(MAREAIrControlFlow, SwitchArmBreakAndContinueTargetTheEnclosingLoop)
 {
     GTEST_COUT << "Validating a break in a switch arm stays a break and a continue in an arm of a for-range body still runs the step first." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerBody("", "a: sinteger32", "while true do switch a case 1 then break; default then continue; end end"), "(BLOCK (WHILE_STATEMENT (BOOLEAN_LITERAL true) (BLOCK (BLOCK (LOCAL_DECLARATION $switch (IDENTIFIER a)) (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch) (INTEGER_LITERAL 1)) (BLOCK (BREAK_STATEMENT)) (ELSE_CLAUSE (BLOCK (CONTINUE_STATEMENT))))))))") << "An arm must not swallow a break or a continue.";
+    EXPECT_EQ(MAREA_lowerBody("", "a: sinteger32", "while true do switch a case 1 then break; default then continue; end end"), "(BLOCK (WHILE_STATEMENT (BOOLEAN_LITERAL true) (BLOCK (BLOCK (LOCAL_DECLARATION $switch0 (IDENTIFIER a)) (IF_STATEMENT (BINARY_EXPRESSION op=EQUAL_EQUAL (IDENTIFIER $switch0) (INTEGER_LITERAL 1)) (BLOCK (BREAK_STATEMENT)) (ELSE_CLAUSE (BLOCK (CONTINUE_STATEMENT))))))))") << "An arm must not swallow a break or a continue.";
 
     const std::string rendered{ MAREA_lowerBody("", "a: sinteger32", "for index in 0 .. 3 do switch a case 1 then continue; end end") };
 
@@ -836,40 +836,40 @@ TEST(MAREAIrControlFlow, LoopBodyLocalIsDestroyedAtTheEndOfEveryIteration)
 
 TEST(MAREAIrControlFlow, ReturnWithAValueIsHoistedBeforeTheDestroys)
 {
-    GTEST_COUT << "Validating a return that carries a value reads the value into $return before the destroys of the locals it leaves." << std::endl;
+    GTEST_COUT << "Validating a return that carries a value reads the value into $return0 before the destroys of the locals it leaves." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerBody(MAREA_BOX, "", "local a: Box = Box(); return 1;", ": sinteger32"), "(BLOCK (LOCAL_DECLARATION a :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST))) (BLOCK (LOCAL_DECLARATION $return (INTEGER_LITERAL 1)) (DESTROY_CALL Box.drop (IDENTIFIER a)) (RETURN_STATEMENT (IDENTIFIER $return))))") << "The value must be evaluated first, then the destroy, then the return of the hidden local.";
+    EXPECT_EQ(MAREA_lowerBody(MAREA_BOX, "", "local a: Box = Box(); return 1;", ": sinteger32"), "(BLOCK (LOCAL_DECLARATION a :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST))) (BLOCK (LOCAL_DECLARATION $return0 (INTEGER_LITERAL 1)) (DESTROY_CALL Box.drop (IDENTIFIER a)) (RETURN_STATEMENT (IDENTIFIER $return0))))") << "The value must be evaluated first, then the destroy, then the return of the hidden local.";
 }
 
 TEST(MAREAIrControlFlow, ReturnValueReadingADestroyedLocalIsEvaluatedFirst)
 {
     GTEST_COUT << "Validating a return whose value names a destructible local evaluates that value before the destroy of the local." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerBody(MAREA_BOX, "", "local a: Box = Box(); return a.x;", ": sinteger32"), "(BLOCK (LOCAL_DECLARATION a :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST))) (BLOCK (LOCAL_DECLARATION $return (MEMBER_ACCESS (IDENTIFIER a) (IDENTIFIER x))) (DESTROY_CALL Box.drop (IDENTIFIER a)) (RETURN_STATEMENT (IDENTIFIER $return))))") << "The read of a.x must come before the destroy of a.";
+    EXPECT_EQ(MAREA_lowerBody(MAREA_BOX, "", "local a: Box = Box(); return a.x;", ": sinteger32"), "(BLOCK (LOCAL_DECLARATION a :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST))) (BLOCK (LOCAL_DECLARATION $return0 (MEMBER_ACCESS (IDENTIFIER a) (IDENTIFIER x))) (DESTROY_CALL Box.drop (IDENTIFIER a)) (RETURN_STATEMENT (IDENTIFIER $return0))))") << "The read of a.x must come before the destroy of a.";
 }
 
 TEST(MAREAIrControlFlow, NestedReturnWithAValueIsHoistedOnceAndDestroysInnerScopeFirst)
 {
-    GTEST_COUT << "Validating a value return through two destructible scopes holds one $return, the inner destroy first." << std::endl;
+    GTEST_COUT << "Validating a value return through two destructible scopes holds one $return0, the inner destroy first." << std::endl;
 
     const std::string
 RENDERED
 { MAREA_lowerBody(MAREA_BOX, "flag: boolean", "local a: Box = Box(); if flag then local b: Box = Box(); return a.x; end unreachable!();", ": sinteger32") };
 
-EXPECT_EQ(RENDERED, "(BLOCK (LOCAL_DECLARATION a :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST))) (IF_STATEMENT (IDENTIFIER flag) (BLOCK (LOCAL_DECLARATION b :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST))) (BLOCK (LOCAL_DECLARATION $return (MEMBER_ACCESS (IDENTIFIER a) (IDENTIFIER x))) (DESTROY_CALL Box.drop (IDENTIFIER b)) (BLOCK (DESTROY_CALL Box.drop (IDENTIFIER a)) (RETURN_STATEMENT (IDENTIFIER $return)))))) (UNREACHABLE_STATEMENT) (DESTROY_CALL Box.drop (IDENTIFIER a)))") << "The value must be hoisted once, then b destroyed, then a, then the return: " <<
+EXPECT_EQ(RENDERED, "(BLOCK (LOCAL_DECLARATION a :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST))) (IF_STATEMENT (IDENTIFIER flag) (BLOCK (LOCAL_DECLARATION b :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST))) (BLOCK (LOCAL_DECLARATION $return0 (MEMBER_ACCESS (IDENTIFIER a) (IDENTIFIER x))) (DESTROY_CALL Box.drop (IDENTIFIER b)) (BLOCK (DESTROY_CALL Box.drop (IDENTIFIER a)) (RETURN_STATEMENT (IDENTIFIER $return0)))))) (UNREACHABLE_STATEMENT) (DESTROY_CALL Box.drop (IDENTIFIER a)))") << "The value must be hoisted once, then b destroyed, then a, then the return: " <<
 RENDERED
 ;
 
-const std::string DECLARATION{ "LOCAL_DECLARATION $return" };
+const std::string DECLARATION{ "LOCAL_DECLARATION $return0" };
 
-EXPECT_EQ(RENDERED.find(DECLARATION, (RENDERED.find(DECLARATION) + 1)), std::string::npos) << "No block may hold a second $return declaration: " <<
+EXPECT_EQ(RENDERED.find(DECLARATION, (RENDERED.find(DECLARATION) + 1)), std::string::npos) << "No block may hold a second $return0 declaration: " <<
 RENDERED
 ;
 }
 
 TEST(MAREAIrControlFlow, ReturnWithNoValueIsNotHoisted)
 {
-    GTEST_COUT << "Validating a return with no value is wrapped with the destroys only, with no $return." << std::endl;
+    GTEST_COUT << "Validating a return with no value is wrapped with the destroys only, with no $return0." << std::endl;
 
     const std::string
 RENDERED
@@ -888,7 +888,7 @@ TEST(MAREAIrControlFlow, ReturnWithAValueInALoopBodyIsHoistedInsideTheLoop)
 RENDERED
 { MAREA_lowerBody(MAREA_BOX, "flag: boolean", "local a: Box = Box(); while flag do local b: Box = Box(); return a.x; end unreachable!();", ": sinteger32") };
 
-EXPECT_EQ(RENDERED, "(BLOCK (LOCAL_DECLARATION a :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST))) (WHILE_STATEMENT (IDENTIFIER flag) (BLOCK (LOCAL_DECLARATION b :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST))) (BLOCK (LOCAL_DECLARATION $return (MEMBER_ACCESS (IDENTIFIER a) (IDENTIFIER x))) (DESTROY_CALL Box.drop (IDENTIFIER b)) (BLOCK (DESTROY_CALL Box.drop (IDENTIFIER a)) (RETURN_STATEMENT (IDENTIFIER $return)))))) (UNREACHABLE_STATEMENT) (DESTROY_CALL Box.drop (IDENTIFIER a)))") << "The return inside the loop must hoist inside the loop body: " <<
+EXPECT_EQ(RENDERED, "(BLOCK (LOCAL_DECLARATION a :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST))) (WHILE_STATEMENT (IDENTIFIER flag) (BLOCK (LOCAL_DECLARATION b :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST))) (BLOCK (LOCAL_DECLARATION $return0 (MEMBER_ACCESS (IDENTIFIER a) (IDENTIFIER x))) (DESTROY_CALL Box.drop (IDENTIFIER b)) (BLOCK (DESTROY_CALL Box.drop (IDENTIFIER a)) (RETURN_STATEMENT (IDENTIFIER $return0)))))) (UNREACHABLE_STATEMENT) (DESTROY_CALL Box.drop (IDENTIFIER a)))") << "The return inside the loop must hoist inside the loop body: " <<
 RENDERED
 ;
 }

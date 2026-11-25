@@ -475,7 +475,7 @@ TEST(MAREAIrResolvedType, ForEachNamesStayWithoutATypeWhenSemaGivesNone)
 
 TEST(MAREAIrResolvedType, SwitchHiddenLocalAndTestsAreTyped)
 {
-    GTEST_COUT << "Validating the switch desugaring types $switch, its references and the tests built from it." << std::endl;
+    GTEST_COUT << "Validating the switch desugaring types $switch0, its references and the tests built from it." << std::endl;
 
     MAREA_IrFixture fixture;
 
@@ -483,9 +483,9 @@ TEST(MAREAIrResolvedType, SwitchHiddenLocalAndTestsAreTyped)
 
     const std::string DUMP{ MAREA_dumpOf(fixture) };
 
-    EXPECT_EQ(MAREA_lineOf(DUMP, "LOCAL_DECLARATION \"$switch\""), "LOCAL_DECLARATION \"$switch\" resolved=uinteger8") << DUMP;
+    EXPECT_EQ(MAREA_lineOf(DUMP, "LOCAL_DECLARATION \"$switch0\""), "LOCAL_DECLARATION \"$switch0\" resolved=uinteger8") << DUMP;
 
-    EXPECT_EQ(MAREA_countOf(DUMP, "IDENTIFIER \"$switch\" resolved=uinteger8"), std::size_t{ 3 }) << "Every read of $switch must be typed: " << DUMP;
+    EXPECT_EQ(MAREA_countOf(DUMP, "IDENTIFIER \"$switch0\" resolved=uinteger8"), std::size_t{ 3 }) << "Every read of $switch0 must be typed: " << DUMP;
 
     EXPECT_EQ(MAREA_countOf(DUMP, "BINARY_EXPRESSION resolved=boolean op=EQUAL_EQUAL"), std::size_t{ 3 }) << "Every case test must be boolean: " << DUMP;
 
@@ -494,7 +494,7 @@ TEST(MAREAIrResolvedType, SwitchHiddenLocalAndTestsAreTyped)
 
 TEST(MAREAIrResolvedType, ReturnHoistedThroughADestroyIsTyped)
 {
-    GTEST_COUT << "Validating $return and its read carry the type of the returned value." << std::endl;
+    GTEST_COUT << "Validating $return0 and its read carry the type of the returned value." << std::endl;
 
     MAREA_IrFixture fixture;
 
@@ -502,9 +502,9 @@ TEST(MAREAIrResolvedType, ReturnHoistedThroughADestroyIsTyped)
 
     const std::string DUMP{ MAREA_dumpOf(fixture) };
 
-    EXPECT_EQ(MAREA_lineOf(DUMP, "LOCAL_DECLARATION \"$return\""), "LOCAL_DECLARATION \"$return\" resolved=sinteger32") << DUMP;
+    EXPECT_EQ(MAREA_lineOf(DUMP, "LOCAL_DECLARATION \"$return0\""), "LOCAL_DECLARATION \"$return0\" resolved=sinteger32") << DUMP;
 
-    EXPECT_EQ(MAREA_countOf(DUMP, "IDENTIFIER \"$return\" resolved=sinteger32"), std::size_t{ 1 }) << DUMP;
+    EXPECT_EQ(MAREA_countOf(DUMP, "IDENTIFIER \"$return0\" resolved=sinteger32"), std::size_t{ 1 }) << DUMP;
 
     EXPECT_EQ(MAREA_lineOf(DUMP, "CONSTRUCT_CALL"), "CONSTRUCT_CALL type=Box resolved=Box") << DUMP;
 

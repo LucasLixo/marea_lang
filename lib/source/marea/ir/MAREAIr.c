@@ -38,6 +38,8 @@ MAREA_IrExcept MAREA_CALL MAREA_IrContextCreate(MAREA_Arena *arena, MAREA_Diagno
     context->aliases = MAREA_NULLPTR;
     context->aliasCount = MAREA_INTEGER_SIZE(0);
     context->loopCount = MAREA_INTEGER_SIZE(0);
+    context->switchCount = MAREA_INTEGER_SIZE(0);
+    context->returnCount = MAREA_INTEGER_SIZE(0);
 
     *outContext = context;
 
