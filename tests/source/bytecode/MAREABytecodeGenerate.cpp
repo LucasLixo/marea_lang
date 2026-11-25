@@ -475,3 +475,134 @@ TEST(MAREABytecodeGenerate, GeneratedModulesKeepTheRoundTripLaws)
 
     EXPECT_TRUE(MAREA_BytecodeModuleEquals(fixture.module, assembled)) << "The text round trip must keep the module.";
 }
+
+namespace
+{
+    bool MAREA_jumpsStayInTheFunction(const MAREA_GenerateFixture &fixture, std::uint32_t functionIndex)
+    {
+        MAREA_BytecodeFunctionInfo info{};
+
+        if (MAREA_BytecodeModuleGetFunction(fixture.module, functionIndex, &info) != MAREA_BYTECODE_EXCEPT_SUCCESS) {
+            return false;
+        }
+
+        for (std::uint32_t index{ 0 }; index < info.instructionCount; ++index) {
+            MAREA_BytecodeInstruction instruction{};
+
+            MAREA_IGNORE(MAREA_BytecodeModuleGetInstruction(fixture.module, functionIndex, index, &instruction));
+
+            if ((instruction.opcode == MAREA_BYTECODE_OPCODE_JUMP) || (instruction.opcode == MAREA_BYTECODE_OPCODE_JUMP_IF) || (instruction.opcode == MAREA_BYTECODE_OPCODE_JUMP_IF_NOT)) {
+                const std::int64_t TARGET{ static_cast<std::int64_t>(index) + 1 + static_cast<std::int16_t>(instruction.b) };
+
+                if ((TARGET < 0) || (TARGET >= static_cast<std::int64_t>(info.instructionCount))) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+} // namespace
+
+TEST(MAREABytecodeGenerate, IfJumpsOverItsBlock)
+{
+    GTEST_COUT << "Validating an if without else jumps over the block when the condition is false." << std::endl;
+
+    std::uint32_t registers{ 0 };
+
+    EXPECT_EQ(MAREA_join(MAREA_lowerFunction("(a: sinteger32): sinteger32", "if a < 0 then return 1; end return 2;", &registers)), "load_imm 2 0 0; lt_s 1 0 2; jump_if_not 1 2 0; load_imm 1 1 0; return 1 0 0; load_imm 1 2 0; return 1 0 0; trap 6 0 0; ") << "The jump lands on the first instruction after the block.";
+
+    EXPECT_EQ(registers, 3U) << "The temporaries of the condition are freed before the block.";
+}
+
+TEST(MAREABytecodeGenerate, IfWithElseJumpsOverTheElse)
+{
+    GTEST_COUT << "Validating an if with an else: the block ends with a jump over the else." << std::endl;
+
+    EXPECT_EQ(MAREA_join(MAREA_lowerFunction("(a: boolean): sinteger32", "if a then return 1; else return 2; end")), "jump_if_not 0 3 0; load_imm 1 1 0; return 1 0 0; jump 0 2 0; load_imm 1 2 0; return 1 0 0; trap 6 0 0; ") << "A boolean name is tested in its own register.";
+}
+
+TEST(MAREABytecodeGenerate, ElseIfChainJumpsToTheEnd)
+{
+    GTEST_COUT << "Validating an elseif chain: each arm that is taken jumps to the end of the chain." << std::endl;
+
+    MAREA_GenerateFixture fixture;
+
+    ASSERT_TRUE(fixture.MAREA_generate("namespace main; function f(a: boolean, b: boolean): sinteger32 local x: sinteger32 = 0; if a then x = 1; elseif b then x = 2; else x = 3; end return x; end")) << "The unit must generate.";
+
+    EXPECT_EQ(MAREA_join(fixture.MAREA_instructions(0)), "load_imm 2 0 0; jump_if_not 0 3 0; load_imm 3 1 0; move 2 3 0; jump 0 6 0; jump_if_not 1 3 0; load_imm 3 2 0; move 2 3 0; jump 0 2 0; load_imm 3 3 0; move 2 3 0; return 2 0 0; trap 6 0 0; ") << "Two jumps to the end, one for each arm that is not the last.";
+
+    EXPECT_TRUE(MAREA_jumpsStayInTheFunction(fixture, 0)) << "Every jump must land inside the function.";
+}
+
+TEST(MAREABytecodeGenerate, WhileLoopsBackToItsCondition)
+{
+    GTEST_COUT << "Validating a while: the test, the exit jump, the body and the jump back." << std::endl;
+
+    EXPECT_EQ(MAREA_join(MAREA_lowerFunction("(n: sinteger32): sinteger32", "local i: sinteger32 = 0; while i < n do i += 1; end return i;")), "load_imm 1 0 0; lt_s 2 1 0; jump_if_not 2 3 0; load_imm 2 1 0; add 1 2 2; jump 0 65531 0; return 1 0 0; trap 6 0 0; ") << "The jump back is a negative offset.";
+}
+
+TEST(MAREABytecodeGenerate, BreakAndContinue)
+{
+    GTEST_COUT << "Validating break leaves the loop and continue goes back to the start, also from an inner block." << std::endl;
+
+    EXPECT_EQ(MAREA_join(MAREA_lowerFunction("(n: sinteger32): sinteger32", "local i: sinteger32 = 0; while true do i += 1; if i > n then break; end continue; end return i;")), "load_imm 1 0 0; load_imm 2 1 0; add 1 2 2; lt_s 2 0 1; jump_if_not 2 1 0; jump 0 2 0; jump 0 65530 0; jump 0 65529 0; return 1 0 0; trap 6 0 0; ") << "A while true has no test, and a break jumps to the instruction after the jump back.";
+}
+
+TEST(MAREABytecodeGenerate, NestedLoopsKeepTheirOwnBreaks)
+{
+    GTEST_COUT << "Validating a break of an inner loop leaves the inner loop only." << std::endl;
+
+    MAREA_GenerateFixture fixture;
+
+    ASSERT_TRUE(fixture.MAREA_generate("namespace main; function f(n: sinteger32): sinteger32 local t: sinteger32 = 0; local i: sinteger32 = 0; while i < n do local j: sinteger32 = 0; while true do j += 1; if j > 3 then break; end t += j; end i += 1; if i > 100 then break; end end return t; end")) << "The unit must generate.";
+
+    EXPECT_TRUE(MAREA_jumpsStayInTheFunction(fixture, 0)) << "Every jump must land inside the function.";
+}
+
+TEST(MAREABytecodeGenerate, DoWhileSwitchAndForRangeUseOnlyTheBasicJumps)
+{
+    GTEST_COUT << "Validating a do while, a switch and a for-range loop lower to jumps that stay in the function." << std::endl;
+
+    MAREA_GenerateFixture fixture;
+
+    ASSERT_TRUE(fixture.MAREA_generate("namespace main; function f(n: sinteger32): sinteger32 local t: sinteger32 = 0; do t += 1; while t < n end for k in 1 .. n do if k == 3 then continue; end t += k; end switch n case 1, 2 then t += 10; case 3 then t += 20; default then t += 30; end return t; end")) << "The unit must generate.";
+
+    EXPECT_TRUE(MAREA_jumpsStayInTheFunction(fixture, 0)) << "Every jump must land inside the function.";
+}
+
+TEST(MAREABytecodeGenerate, EnumLocalIsRefusedUntilTheNextSlice)
+{
+    GTEST_COUT << "Validating a local of an enum type gives 5033 because enums are a type of the next slice." << std::endl;
+
+    MAREA_GenerateFixture fixture;
+
+    const std::string SOURCE{ "namespace main; enum Light : sinteger32 red; green; end function f(n: sinteger32): sinteger32 local light: Light = Light.red; switch light case Light.red then return 1; case Light.green then return 2; end end" };
+
+    EXPECT_FALSE(fixture.MAREA_generate(SOURCE)) << "A local of an enum type is not lowered yet.";
+
+    ASSERT_FALSE(fixture.MAREA_codes().empty()) << "A diagnostic must be raised.";
+
+    EXPECT_EQ(fixture.MAREA_codes()[0], MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE) << "An enum is a type of the next slice.";
+}
+
+TEST(MAREABytecodeGenerate, JumpOverTheLimitOfSixteenBitsIsADiagnostic)
+{
+    GTEST_COUT << "Validating a loop body that is longer than 32767 instructions gives 5032." << std::endl;
+
+    std::string body;
+
+    for (int index{ 0 }; index < 17000; ++index) {
+        body += "t += 1; ";
+    }
+
+    MAREA_GenerateFixture fixture;
+
+    EXPECT_FALSE(fixture.MAREA_generate("namespace main; function f(n: sinteger32): sinteger32 local t: sinteger32 = 0; while t < n do " + body + " end return t; end")) << "The exit jump of the loop is too far.";
+
+    EXPECT_EQ(fixture.module, nullptr) << "No module is given.";
+
+    ASSERT_EQ(fixture.MAREA_codes().size(), 1U) << "One diagnostic.";
+
+    EXPECT_EQ(fixture.MAREA_codes()[0], MAREA_BYTECODE_DIAGNOSTIC_CODE_OPERAND_OVERFLOW) << "The code must be 5032.";
+}

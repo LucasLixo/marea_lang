@@ -90,7 +90,9 @@ MAREA_BEGIN_EXTERN_C
     } MAREA_BytecodeGeneratorLoop;
 
     /**
-     * @brief The state of one MAREA_BytecodeGenerate call. Everything lives in the arena of the context.
+     * @brief The state of one MAREA_BytecodeGenerate call. patches holds the jumps of the break statements of the open
+     * loops, and endPatches the jumps that end the arms of the open if statements: two lists, because a break stands
+     * inside an if. Everything lives in the arena of the context.
      */
     typedef struct MAREA_BytecodeGenerator
     {
@@ -106,6 +108,7 @@ MAREA_BEGIN_EXTERN_C
         MAREA_BytecodeGeneratorSymbol *symbols;
         MAREA_BytecodeGeneratorLoop *loops;
         MAREA_Uinteger32 *patches;
+        MAREA_Uinteger32 *endPatches;
         const MAREA_BytecodeGeneratorFunction *current;
         MAREA_IntegerSize namespaceLength;
         MAREA_IntegerSize functionCount;
@@ -122,6 +125,8 @@ MAREA_BEGIN_EXTERN_C
         MAREA_IntegerSize loopCapacity;
         MAREA_IntegerSize patchCount;
         MAREA_IntegerSize patchCapacity;
+        MAREA_IntegerSize endPatchCount;
+        MAREA_IntegerSize endPatchCapacity;
         MAREA_Uinteger32 typeIndex[MAREA_BYTECODE_NUMBER_KIND_COUNT + 1];
         MAREA_Uinteger32 nextRegister;
         MAREA_Uinteger32 maxRegister;
