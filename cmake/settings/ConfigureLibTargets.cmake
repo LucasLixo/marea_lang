@@ -97,4 +97,8 @@ macro(ConfigureLibTargets)
     if(MAREA_OPTION_TARGET_IR)
         mareaaddstagelibrary(STAGE ir NAME Ir LINK sema)
     endif()
+
+    if(MAREA_OPTION_TARGET_BYTECODE)
+        mareaaddstagelibrary(STAGE bytecode NAME Bytecode LINK base)
+    endif()
 endmacro()

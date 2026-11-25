@@ -54,7 +54,7 @@ endif()
 foreach(
     TEMP_STAGE
     IN
-    ITEMS Base Lex Parse Sema Ir
+    ITEMS Base Lex Parse Sema Ir Bytecode
 )
     foreach(TEMP_KIND IN ITEMS STATIC SHARED)
         if(TEMP_KIND STREQUAL "STATIC")
