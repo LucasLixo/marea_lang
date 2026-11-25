@@ -383,6 +383,8 @@ static MAREA_SemaTypedAstExcept MAREA_CALL MAREA_G_TypedAstBuildNode(MAREA_SemaC
     built->layout = MAREA_NULLPTR;
     built->typeName = MAREA_NULLPTR;
     built->resolvedType = MAREA_NULLPTR;
+    built->backend = MAREA_NULLPTR;
+    built->backendLength = 0;
     built->exprType = (MAREA_SemaExprType){ .node = MAREA_NULLPTR, .declaration = MAREA_NULLPTR, .arguments = MAREA_NULLPTR, .frame = MAREA_NULLPTR, .fixed = MAREA_NULLPTR, .fixedLength = 0 };
     built->children = MAREA_NULLPTR;
     built->typeNameLength = 0;
@@ -410,6 +412,13 @@ static MAREA_SemaTypedAstExcept MAREA_CALL MAREA_G_TypedAstBuildNode(MAREA_SemaC
     MAREA_SemaTypedAstResolveLiteralDefault(built);
 
     const MAREA_AstKind NODE_KIND = MAREA_AstNodeGetKind(node);
+
+    // INFO: a function carries its resolved backend, so the ir never reads the attributes or the target.
+    if ((NODE_KIND == MAREA_AST_KIND_FUNCTION_DECLARATION) && (MAREA_SemaResolveBackend(context, node, &built->backend, &built->backendLength) != MAREA_SEMA_EXCEPT_SUCCESS)) {
+        MAREA_SemaScopeLeave(context, mark);
+
+        return MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NULL_POINTER;
+    }
 
     // INFO: a structure or an enum carries its layout, measured with the generic parameters of the declaration in scope.
     if (((NODE_KIND == MAREA_AST_KIND_STRUCTURE_DECLARATION) || (NODE_KIND == MAREA_AST_KIND_ENUM_DECLARATION)) && (MAREA_SemaMeasureDeclaration(context, node, &built->layout) != MAREA_SEMA_EXCEPT_SUCCESS)) {
@@ -622,4 +631,17 @@ MAREA_SemaOwnershipMode MAREA_CALL MAREA_SemaTypedNodeGetOwnershipMode(const MAR
     }
 
     return node->ownershipMode;
+}
+
+MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedNodeGetBackend(const MAREA_SemaTypedNode *node, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength)
+{
+    if ((node == MAREA_NULLPTR) || (outText == MAREA_NULLPTR) || (outLength == MAREA_NULLPTR)) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    *outText = node->backend;
+    *outLength = node->backendLength;
+
+    return (node->backend == MAREA_NULLPTR) ?
+MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NO_BACKEND : MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
 }

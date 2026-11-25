@@ -582,10 +582,22 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckPredicate(MAREA_SemaContext *con
     return MAREA_SEMA_EXCEPT_SUCCESS;
 }
 
-// INFO: the table of the plan (file 17, section 2). scalar is always there. vector_extension needs gcc or clang and x86_64 with sse2, or aarch64. intrinsics needs gcc or clang and x86_64 with sse2, or aarch64 with neon.
-static MAREA_Boolean MAREA_CALL MAREA_G_BackendAvailable(const MAREA_SemaTarget *target, const MAREA_AstNode *member)
+// INFO: the member of the backend key that a value names, as one of the four literal names, or null for any other text.
+static const MAREA_Character8 *MAREA_CALL MAREA_G_BackendMemberName(const MAREA_AstNode *member)
 {
-    if ((MAREA_G_TextIs(member, "auto") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextIs(member, "scalar") == MAREA_BOOLEAN_TRUE)) {
+    for (MAREA_IntegerSize index = 0; MAREA_G_BackendMembers[index] != MAREA_NULLPTR; ++index) {
+        if (MAREA_G_TextIs(member, MAREA_G_BackendMembers[index]) == MAREA_BOOLEAN_TRUE) {
+            return MAREA_G_BackendMembers[index];
+        }
+    }
+
+    return MAREA_NULLPTR;
+}
+
+// INFO: the table of the plan (file 17, section 2). scalar is always there. vector_extension needs gcc or clang and x86_64 with sse2, or aarch64. intrinsics needs gcc or clang and x86_64 with sse2, or aarch64 with neon.
+static MAREA_Boolean MAREA_CALL MAREA_G_BackendNameAvailable(const MAREA_SemaTarget *target, const MAREA_Character8 *name)
+{
+    if ((strcmp(name, "auto") == 0) || (strcmp(name, "scalar") == 0)) {
         return MAREA_BOOLEAN_TRUE;
     }
 
@@ -598,10 +610,17 @@ static MAREA_Boolean MAREA_CALL MAREA_G_BackendAvailable(const MAREA_SemaTarget 
     }
 
     if (MAREA_G_TargetTextIs(target->architecture, "aarch64", 7) == MAREA_BOOLEAN_TRUE) {
-        return (MAREA_G_TextIs(member, "vector_extension") == MAREA_BOOLEAN_TRUE) ? MAREA_BOOLEAN_TRUE : MAREA_G_TargetHasFeature(target, "neon", 4);
+        return (strcmp(name, "vector_extension") == 0) ? MAREA_BOOLEAN_TRUE : MAREA_G_TargetHasFeature(target, "neon", 4);
     }
 
     return MAREA_BOOLEAN_FALSE;
+}
+
+static MAREA_Boolean MAREA_CALL MAREA_G_BackendAvailable(const MAREA_SemaTarget *target, const MAREA_AstNode *member)
+{
+    const MAREA_Character8 *name = MAREA_G_BackendMemberName(member);
+
+    return (name == MAREA_NULLPTR) ? MAREA_BOOLEAN_FALSE : MAREA_G_BackendNameAvailable(target, name);
 }
 
 static MAREA_SemaExcept MAREA_CALL MAREA_G_ReportUnavailable(MAREA_SemaContext *context, const MAREA_AstNode *item, const MAREA_AstNode *member)
@@ -758,6 +777,108 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckBackend(MAREA_G_Group *group)
     }
 
     return MAREA_G_ReportUnavailable(group->context, item, member);
+}
+
+// INFO: the item of the key backend that decides in the lists of one owner: a holding when item wins over a plain item. Null when the owner has none. The check already judged every predicate, so none is reported here.
+static const MAREA_AstNode *MAREA_CALL MAREA_G_FindBackendItem(MAREA_SemaContext *context, const MAREA_AstNode *owner, MAREA_AstKind listKind)
+{
+    const MAREA_AstNode *plain = MAREA_NULLPTR;
+    const MAREA_AstNode *held = MAREA_NULLPTR;
+
+    for (MAREA_IntegerSize listIndex = 0; listIndex < MAREA_AstNodeGetChildCount(owner); ++listIndex) {
+        const MAREA_AstNode *list = MAREA_SemaChildAt(owner, listIndex);
+
+        if ((list == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(list) != listKind)) {
+            continue;
+        }
+
+        for (MAREA_IntegerSize itemIndex = 0; itemIndex < MAREA_AstNodeGetChildCount(list); ++itemIndex) {
+            const MAREA_AstNode *item = MAREA_SemaChildAt(list, itemIndex);
+
+            if (item == MAREA_NULLPTR) {
+                continue;
+            }
+
+            if (MAREA_AstNodeGetKind(item) == MAREA_AST_KIND_ATTRIBUTE_ITEM) {
+                const MAREA_AstNode *key = MAREA_SemaChildAt(item, 0);
+
+                plain = ((key != MAREA_NULLPTR) && (MAREA_G_TextIs(key, "backend") == MAREA_BOOLEAN_TRUE)) ? item : plain;
+
+                continue;
+            }
+
+            if (MAREA_AstNodeGetKind(item) != MAREA_AST_KIND_WHEN_ITEM) {
+                continue;
+            }
+
+            MAREA_Boolean holds = MAREA_BOOLEAN_FALSE;
+
+            if ((MAREA_G_CheckPredicate(context, MAREA_SemaChildAt(item, 0), &holds) != MAREA_SEMA_EXCEPT_SUCCESS) || (holds == MAREA_BOOLEAN_FALSE)) {
+                continue;
+            }
+
+            for (MAREA_IntegerSize partIndex = 1; partIndex < MAREA_AstNodeGetChildCount(item); ++partIndex) {
+                const MAREA_AstNode *part = MAREA_SemaChildAt(item, partIndex);
+
+                const MAREA_AstNode *key = ((part != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(part) == MAREA_AST_KIND_ATTRIBUTE_ITEM)) ? MAREA_SemaChildAt(part, 0) : MAREA_NULLPTR;
+
+                held = ((key != MAREA_NULLPTR) && (MAREA_G_TextIs(key, "backend") == MAREA_BOOLEAN_TRUE)) ? part : held;
+            }
+        }
+    }
+
+    return (held != MAREA_NULLPTR) ? held : plain;
+}
+
+// INFO: the member that an item of the key backend names, or null when its value is not a single name.
+static const MAREA_AstNode *MAREA_CALL MAREA_G_BackendItemMember(const MAREA_AstNode *item)
+{
+    const MAREA_AstNode *value = (item == MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_SemaChildAt(item, 1);
+
+    return ((value != MAREA_NULLPTR) && (MAREA_G_IsSingleName(value) == MAREA_BOOLEAN_TRUE)) ? MAREA_SemaChildAt(value, 0) : MAREA_NULLPTR;
+}
+
+MAREA_SemaExcept MAREA_CALL MAREA_SemaResolveBackend(MAREA_SemaContext *context, const MAREA_AstNode *function, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength)
+{
+    if ((context == MAREA_NULLPTR) || (function == MAREA_NULLPTR) || (outText == MAREA_NULLPTR) || (outLength == MAREA_NULLPTR)) {
+        return MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    *outText = MAREA_NULLPTR;
+    *outLength = 0;
+
+    MAREA_Boolean inMath = MAREA_BOOLEAN_FALSE;
+
+    const MAREA_SemaExcept MATH_RESULT = MAREA_G_FileIsMareaMath(context, &inMath);
+
+    if ((MATH_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) || (inMath == MAREA_BOOLEAN_FALSE)) {
+        return MATH_RESULT;
+    }
+
+    // INFO: the attribute of the function wins over the attribute of the file.
+    const MAREA_AstNode *item = MAREA_G_FindBackendItem(context, function, MAREA_AST_KIND_ATTRIBUTE);
+
+    if (item == MAREA_NULLPTR) {
+        item = MAREA_G_FindBackendItem(context, context->root, MAREA_AST_KIND_FILE_ATTRIBUTE);
+    }
+
+    const MAREA_AstNode *member = MAREA_G_BackendItemMember(item);
+
+    const MAREA_Character8 *name = (member == MAREA_NULLPTR) ? "auto" : MAREA_G_BackendMemberName(member);
+
+    if (name == MAREA_NULLPTR) {
+        name = "auto";
+    }
+
+    // INFO: auto takes the best backend that the target gives and never fails: intrinsics, then vector_extension, then scalar.
+    if (strcmp(name, "auto") == 0) {
+        name = (MAREA_G_BackendNameAvailable(context->target, "intrinsics") == MAREA_BOOLEAN_TRUE) ? "intrinsics" : ((MAREA_G_BackendNameAvailable(context->target, "vector_extension") == MAREA_BOOLEAN_TRUE) ? "vector_extension" : "scalar");
+    }
+
+    *outText = name;
+    *outLength = strlen(name);
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
 }
 
 static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckGroup(MAREA_SemaContext *context, const MAREA_AstNode *owner, MAREA_AstKind listKind)

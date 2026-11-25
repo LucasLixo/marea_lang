@@ -268,10 +268,12 @@ MAREA_BEGIN_EXTERN_C
         const MAREA_SemaTypeLayout *layout;
         const MAREA_Character8 *typeName;
         const MAREA_Character8 *resolvedType;
+        const MAREA_Character8 *backend;
         MAREA_SemaExprType exprType;
         MAREA_SemaTypedNode **children;
         MAREA_IntegerSize typeNameLength;
         MAREA_IntegerSize resolvedTypeLength;
+        MAREA_IntegerSize backendLength;
         MAREA_IntegerSize childCount;
         MAREA_SemaTypeClass typeClass;
         MAREA_SemaOwnershipMode ownershipMode;
@@ -810,6 +812,20 @@ MAREA_BEGIN_EXTERN_C
      * @return True when the closest attribute with that key is on.
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaAttributeIsOn(const MAREA_AstNode *root, const MAREA_AstNode *declaration, const MAREA_Character8 *key);
+
+    /**
+     * @brief Resolves the backend of a function: the member of the key backend that decides for it, with the
+     * attribute of the function over the attribute of the file and a when item that holds over a plain item,
+     * and the member auto replaced by the best backend the target gives (intrinsics, then vector_extension,
+     * then scalar). It reads the attributes only and reports nothing: the check judged them already.
+     * @param context Context of the run, with the root of the file set. Must not be null.
+     * @param function FUNCTION_DECLARATION node of the file. Must not be null.
+     * @param outText Receives the member name, a NUL terminated text that stays valid, or null when the file
+     * is not in marea.math (the key stands only there). Must not be null.
+     * @param outLength Receives the length of the text, 0 when there is none. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, or MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER when an argument is null.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaResolveBackend(MAREA_SemaContext * context, const MAREA_AstNode *function, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength);
 
     /**
      * @brief Finds the ATTRIBUTE_ITEM of a key for a declaration. The attributes of the symbol win over the
