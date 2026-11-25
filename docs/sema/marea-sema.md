@@ -4,8 +4,8 @@
 
 The `sema` stage checks the tree of the `parse` stage. It reads a public tree and writes diagnostics.
 It has no global state, never prints and never reads the disk: the caller gives it an arena, a
-diagnostic sink and an import resolver (and, when it has one, a second resolver for the names the host registered, and a
-type registry with the library types).
+diagnostic sink and an import resolver (and, when it has one, a second resolver for the names the host registered, a
+type registry with the library types, a target description, the build settings and an include resolver).
 `MAREA_SemaCheckCompilationUnit` itself returns no artifact
 beyond diagnostics; a separate, additive API builds the typed shadow tree the `ir` stage will consume
 - see [Typed AST hand-off](#typed-ast-hand-off). The typed node of a structure and of an enum also carries its size,
@@ -21,13 +21,16 @@ MAREA_SemaImportResolverCreate(arena, my_resolve_function, my_data, &resolver);
 MAREA_SemaContextCreate(arena, sink, resolver, &sema);
 MAREA_SemaContextSetRequireResolver(sema, registry);   /* optional, see "Two resolvers" */
 MAREA_SemaContextSetTypeRegistry(sema, types);         /* optional, see "Descriptors and roles" */
+MAREA_SemaContextSetTarget(sema, &target);             /* optional, see "Caller inputs" */
+MAREA_SemaContextSetSettings(sema, &settings);         /* optional, see "Caller inputs" */
+MAREA_SemaContextSetIncludeResolver(sema, &includes);  /* optional, see "Caller inputs" */
 MAREA_SemaCheckCompilationUnit(sema, root);   /* once per file, dependencies first */
 ```
 
 `MAREA_SemaCheckCompilationUnit` returns an error only for a null argument or an out of memory. A rule
 violation is a diagnostic in the sink. A size that does not fit in `MAREA_IntegerSize` (a diagnostic
 message, or the growth of a name table) is also an out of memory: nothing is allocated or copied.
-Every sema diagnostic is an error, in the range 3001-3082. Not every number of the range is a live code: the
+Every sema diagnostic is an error, in the range 3001-3086. Not every number of the range is a live code: the
 Diagnostics table lists the live ones.
 The lexer file name decides the path rule, so call `MAREA_LexContextSetFileName` with a project
 relative path with forward slashes and the `.marea` extension before the lex step.
@@ -178,6 +181,25 @@ is typed with the second argument by the structure alone (no signature is asked)
 signature function, a receiver that is not a registered type or a member the function does not know, nothing changes: the
 call stays untyped and no diagnostic is raised.
 
+### Caller inputs
+
+Everything the caller must tell sema is a plain struct in `marea/sema/MAREASema.h`: caller owned, not opaque, and only
+read during a check (sema never copies or frees it). They are plain because the caller fills every field (CMake, or a
+host with no CMake) and no accessor would add a rule; each setter takes a pointer, and a null pointer clears the input.
+A context with none of them behaves as the host-neutral one.
+
+| Struct | Setter | What reads it | With none given |
+|---|---|---|---|
+| `MAREA_SemaTarget` | `MAREA_SemaContextSetTarget` | a `when(...)` predicate and the availability of a `backend` | every comparison is false, `auto` is `scalar`, an explicit `vector_extension` or `intrinsics` is `BACKEND_UNAVAILABLE` |
+| `MAREA_SemaSettings` | `MAREA_SemaContextSetSettings` | `build_value!` | every `build_value!` call takes its default |
+| `MAREA_SemaIncludeResolver` | `MAREA_SemaContextSetIncludeResolver` | a macro that a library registers and that reads a file | every file is missing, so the call is `INVALID_MACRO_ARGUMENT` |
+
+`MAREA_SemaTarget` holds NUL terminated texts (`architecture`, `operatingSystem`, `compiler`, `endianness`), a list of
+feature names and a `pointerWidth`. A null text, an empty list and a zero width are "not answered". `MAREA_SemaSettings` is a
+list of `name`, `value` text pairs; a pair whose name no call asks for is ignored. `MAREA_SemaIncludeResolver` is one function
+that gives the size of a file (`MAREA_MacroIncludeSizeFunction`, declared in the registry header, because a library expander
+calls it) and the pointer that goes with it. Sema never reads the disk: this function is the only way it learns about a file.
+
 ### Descriptors and roles
 
 Sema knows no library. A library registers type descriptors, and sema reads the roles and the ownership class of the
@@ -210,8 +232,10 @@ aligned to 4).
 A library whose bit is off registers nothing, so every name of it is unknown to sema and a `require` of it is
 `UNRESOLVED_REQUIRE`. A library declares the libraries it depends on (`MAREA_TypeRegistryAddDependency`); a library that is on
 with a dependency that is off is a configuration error, `MAREA_TYPE_REGISTRY_EXCEPT_ERROR_MISSING_DEPENDENCY`, never a silent
-pass. A built-in macro that returns a library type depends on the library that owns the type: `include_bytes!` returns
-`marea.array.Array<uinteger8, N>`, so it needs `marea.array`.
+pass. A macro that returns a library type belongs to the library that owns the type (decision 53 of the 2026-11-24 plan):
+`include_bytes!` returns `marea.array.Array<uinteger8, N>`, so it is a macro of `marea.array`, called as
+`array.include_bytes!("file")` after `require marea.array as array;` or as `marea.array.include_bytes!("file")`. With
+`marea.array` off the name is unknown. The real macro is not written yet (see Gaps); a fixture library proves the mechanism.
 
 The registry has two entries. `MAREA_TypeRegistryRegisterInternal` (and the function form, the registration macro) is used only
 by the libraries the language ships and may register under `c.*` and `marea.*`. `MAREA_TypeRegistryRegisterPublic` is the entry of
@@ -220,6 +244,15 @@ the user and the host: it rejects any name whose first segment is `c` or `marea`
 function (`alloc`, `free`) through `MAREA_TypeRegistryReplaceRuntimeFunction`; a name outside the allow list is
 `ERROR_UNKNOWN_RUNTIME_FUNCTION`. The C registration macro (`MAREA_TypeRegistryRegisterInternalFunction` behind it) registers
 one function for the language runtime. `MAREA_TypeRegistryFindByRole` gives the registered type that holds a role.
+
+**Macros of a library.** `MAREA_TypeRegistryRegisterInternalMacro` registers one compile-time macro for a shipped library,
+under the same mask and dependency rules as a type. A `MAREA_MacroDescriptor` holds the namespace and the name, the kind of
+each argument (only `MAREA_MACRO_ARGUMENT_KIND_STRING_LITERAL` exists), the result type (a registered type descriptor, the
+name of its element type and the count that the expander gives) and the expander, a C11 function. The expander gets the text
+of the string argument and the include size function of the caller (`MAREA_MacroExpandRequest`) and answers with a count, or
+false when the call is not valid, for example for a file that does not exist. There is no public entry: a user or a host never
+registers a macro, so the reserved roots `c` and `marea` stay the only owners of one and the rule "macros are never written by a
+user" holds. `MAREA_TypeRegistryFindMacro` finds one by namespace and name.
 
 **Two rules of the border.** A registered type that holds its first type argument by value (an index protocol) needs a
 type with a measured layout there: a function type is `ELEMENT_WITHOUT_MEASURED_LAYOUT` (3082), at the element. A type sema
@@ -241,20 +274,66 @@ outer block is accepted, and so is a `for`, `for each`, `partition` or `with` na
 `auto`), `build` (`debug`, `release`), `layout` (`c`, `marea`), `align` (a power of two, not with
 `pack`), `pack` (an integer), `move_only` (a boolean), `operator` (a string of a fixed list),
 `export` (a string, the label at the C border), `semantics` (`value_read_only`,
-`reference_read_only`, `reference_mutable` - a parameter's passing mode, see "Ownership" below). A
+`reference_read_only`, `reference_mutable` - a parameter's passing mode, see "Ownership" below), `backend` (`auto`,
+`scalar`, `vector_extension`, `intrinsics`, see "Backend" below). A
 key of an enum needs one of its members, and `export`
 and `operator` need a string, so a bare key of those is `INVALID_ATTRIBUTE_VALUE`. The strings of `operator`
 are the operator tokens of the grammar (`+ - * / % **`, the wrapping and saturating forms, `~ & | ^ << >>`, the
 comparisons, the assignment forms), `"[]"`, `"()"`, `"convert"`, `"construct"` and `"destroy"`; any other
 string or a name is `INVALID_ATTRIBUTE_VALUE`. A key not in the table, such as the
 retired `public`, `private`, `simd`, `destroy` and `value`, is `UNKNOWN_ATTRIBUTE_KEY`. The deeper meaning of
-`operator` (the placement) and `export` is not checked here: the signature of an operator function is `OPERATOR_SIGNATURE_MISMATCH` (3050), see Rules. A flag key with no value is true. File attributes `#![...]` use
+`operator` is the signature of an operator function, `OPERATOR_SIGNATURE_MISMATCH` (3050), see Rules; its place is the placement matrix below. A flag key with no value is true. File attributes `#![...]` use
 the same table; the attribute of the symbol wins over the file attribute, so `#![visibility = public]`
 with `#[visibility = private]` on one symbol is not a conflict. `semantics` is meaningful only on a
 `PARAMETER`, but is validated by the same generic, node-shape-agnostic attribute check as everywhere
 else; it is adopted as a `PARAMETER` child last, after the name, type and optional default, so every
 other reader of those fixed positions keeps working unchanged - unlike every other declaration kind,
 whose attributes lead.
+
+**Placement of an attribute.** A key stands only where the placement matrix of the attribute map allows it, otherwise it is
+`MISPLACED_ATTRIBUTE` (3085), once per item, at the item. The grammar gives an attribute list to the places in the first
+column; `no` cells are the 3085 cases.
+
+| Place | visibility | inline | build | layout | align | pack | move_only | operator | export | semantics | backend |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| file `#![...]` | yes | yes | yes | yes | no | no | no | no | no | no | yes |
+| top-level function | yes | yes | yes | no | no | no | no | no | yes | no | yes |
+| top-level constant | yes | no | no | no | no | no | no | no | no | no | no |
+| `structure` | yes | no | no | yes | yes | yes | yes | no | no | no | no |
+| `opaque structure` | yes | no | no | no | no | no | no | no | no | no | no |
+| `enum` | yes | no | no | yes | yes | yes | yes | no | no | no | no |
+| `type` alias | yes | no | no | no | no | no | no | no | no | no | no |
+| `contract` | yes | no | no | no | no | no | no | no | no | no | no |
+| `implementation` block | yes | no | no | no | no | no | no | no | no | no | no |
+| field of a `structure` | yes | no | no | no | yes | no | no | no | no | no | no |
+| function in an `implementation` | yes | yes | yes | no | no | no | no | yes | yes | no | yes |
+| constant in an `implementation` | yes | no | no | no | no | no | no | no | no | no | no |
+| parameter | no | no | no | no | no | no | no | no | no | yes | no |
+| macro statement | no | no | no | no | no | no | no | no | no | no | no |
+
+`align` and `pack` have no file form. An `export` on a function with a generic parameter of its own, or in a generic
+`implementation`, is also 3085 (C has no generics), and its label must be a valid C identifier, otherwise
+`INVALID_ATTRIBUTE_VALUE`. One item gives one diagnostic: the first step that fails (key, value, namespace limit, place) ends it.
+
+**The `when` item.** `when(predicate, key = value, ...)` gives the listed attributes a condition. The predicates are
+`architecture`, `operating_system`, `feature`, `compiler` (a string), `pointer_width` (an integer) and `endianness` (a
+string), joined by `all`, `any` and `not`. A predicate name that is not one of the six, or a value of the wrong kind, is
+`INVALID_ATTRIBUTE_VALUE`, once per such predicate; the values themselves are an open set and are not checked. A comparison
+is true when the target description (`MAREA_SemaTarget`) answers it and the answer matches; with no target, or a field the
+caller left empty, it is false (so `not(...)` of it is true). The listed attributes are checked for key, value and place
+whether the predicate holds or not. A `when` that holds replaces the plain value of the same key, and two that hold and give
+one key are `CONFLICTING_ATTRIBUTES` (3007), so the order never decides. A `when` works in any attribute list, the file list
+included. The check is the only reader of a `when`: the other readers of an attribute (visibility, layout, ...) still see only
+the plain items (see Gaps).
+
+**Backend.** The `backend` key stands only in a file whose namespace is `marea.math` or starts with `marea.math.`, on the file
+or on a function; anywhere else it is `ATTRIBUTE_NOT_ALLOWED_HERE` (3084) (and a structure of `marea.math` is 3085). The
+backend that decides is the one a holding `when` gives, else the plain one. `scalar` and `auto` are always available. An
+explicit `vector_extension` needs a compiler `gcc` or `clang` and the architecture `x86_64` with the feature `sse2`, or
+`aarch64`; `intrinsics` needs the same with `neon` on `aarch64`. A backend the target cannot give is
+`BACKEND_UNAVAILABLE` (3083), with no silent fallback, naming the backend, the architecture and the compiler. `auto` has only
+its start rule (the best backend the target gives, `scalar` at least); the table of which backend is best per operation does
+not exist yet.
 
 **Types.** The built-in names are `boolean`, `sinteger8` to `sinteger64`, `uinteger8` to `uinteger64`,
 `float32`, `float64`, `character` and `string`. A type name is also
@@ -623,8 +702,9 @@ type and never also 3068. A local or a generic parameter that hides the namespac
 namespace that the resolver answers `EXTERNAL` or `NOT_FOUND` is never checked, and neither is a field of the same
 file. An import of one symbol or a member list is checked the same way: a private symbol is `UNRESOLVED_IMPORT`.
 
-**Built-in macro.** `MAREA_SemaCheckMacro` (`MAREASemaMacro.c`) checks every `MACRO_CALL` against one table of the 13
-built-in macros, the table of `examples/macros/builtin.marea`. A name that is not in the table is `UNKNOWN_MACRO` (3060),
+**Built-in macro.** `MAREA_SemaCheckMacro` (`MAREASemaMacro.c`) checks every `MACRO_CALL` against one table of the 14
+built-in macros (the table of `examples/macros/builtin.marea` and `build_value`), and a call with a qualified name against the
+macros that a shipped library registered. A name that is not in the table is `UNKNOWN_MACRO` (3060),
 raised at the call. A call with the wrong arguments is `INVALID_MACRO_ARGUMENT` (3061), raised at the offending argument,
 or at the argument list when the count is wrong; at most one diagnostic is raised for a call, and a call with an
 `ERROR_NODE` among its arguments raises nothing. The message names the macro.
@@ -640,6 +720,7 @@ or at the argument list when the count is wrong; at most one diagnostic is raise
 | `print` | 1 or more: a string literal, then the values | none |
 | `log` | 2 or more: a level name, a string literal, then the values | none |
 | `line`, `file`, `namespace` | exactly 0 | not typed (`line`), `string` |
+| `build_value` | exactly 3: a string literal (the name), a type name, a default | the type of the second argument |
 
 Four decisions bind the table. (1) The log levels are the five names `trace`, `debug`, `info`, `warning` and `error`
 (a bare name, not a string); the language docs did not list them, so the list is an assumption that the user must
@@ -656,10 +737,42 @@ a returned value, an argument of a call or an operand. A macro that gives a `str
 any other primitive (`return format!("x");` in a function that returns `sinteger32`). A macro statement is not a value
 use and raises nothing, and the typed tree is not changed.
 
-**Condition type.** The condition of an `if`, an `elseif` or a `while` must be a `boolean`: a condition with a known
+**`build_value!`.** `build_value!("NAME", Type, default)` reads a value that the build gave (see "Caller inputs"). `Type` is
+written bare: a primitive (`boolean`, an integer, `float32`, `float64`, `character`, `string`) or an enum declared in the file;
+a qualified name is accepted and not checked, and any other name is `INVALID_MACRO_ARGUMENT`. An enum is usable when every
+field of every variant has a default (decision 53), otherwise `INVALID_MACRO_ARGUMENT` at the type argument. A variant with
+data is built by its name, like one with none. The default must fit the type, otherwise `TYPE_MISMATCH` (an enum default
+is a member, so a literal is a mismatch) or `LITERAL_OUT_OF_RANGE`. When a pair of the settings holds the name, its text must
+convert: `true` or `false`; an integer is decimal or `0x`, with an optional `-`, and in the range of the type; a float is a
+decimal number with an optional fraction and exponent; a character is one character or one between single quotes; a string is
+any text; an enum is a variant name (never its tag number). A text that does not convert is `INVALID_BUILD_VALUE` (3086),
+never replaced by the default, and the message names the setting, the text and the type. The call has the type of its second
+argument, so `constant X: string = build_value!("X", sinteger32, 1);` is `TYPE_MISMATCH`. A `static_assert!` reads the value of
+a boolean or integer `build_value!` call (the given text, or the default when none is given); a value of another type is
+unknown to it. `build_value` is a reserved macro name.
+
+**Macros of a library.** A call whose name is a qualified name (`array.include_bytes!("file")`,
+`marea.array.include_bytes!("file")`) is read as a full path, like any other: an alias expands to its namespace, and a
+namespace that no import or require covers is `UNIMPORTED_NAMESPACE` (3078). The last name is looked up in the registry under
+that namespace; a name that no registered macro has, a namespace that no resolver knows and a library that is off are
+`UNKNOWN_MACRO` (3060). The arguments must be the kinds the descriptor gives, otherwise `INVALID_MACRO_ARGUMENT`, and the
+expander must accept the call, otherwise `INVALID_MACRO_ARGUMENT` too (for example a file that the include resolver does not
+know). The value has the result type of the descriptor, a library type, so it fits no primitive (`TYPE_MISMATCH`), and a declared
+type that is written `Library.Type<Element, Count>` must be that type with the element and the count the expander gave
+(`GENERIC_ARGUMENT_MISMATCH` otherwise). The name of a macro of a library is never reached by its bare name. The old bare
+`include_bytes!` is still in the table of the language macros as a placeholder with no type; it leaves with the real macro
+(see Gaps).
+
+**Condition type.** The condition of an `if`, an `elseif`, a `while` or a `do ... while` must be a `boolean`: a condition with a known
 primitive type other than `boolean`, or a number, string or character literal, is `NON_BOOLEAN_CONDITION` (3043), raised
 at the condition once. `true`, `false`, a comparison, `and`, `or`, `not` and a `boolean` name pass. A `switch` subject and
 an expression statement are not conditions and are not checked.
+
+**Do-while.** `do body while condition end` checks its condition like a `while` (`NON_BOOLEAN_CONDITION` and the names of the
+expression), and its body is a loop body: `break` and `continue` are valid in it (`JUMP_OUTSIDE_LOOP` ends with the statement),
+a name that the body declares ends at the `while`, so the condition cannot read it (`UNDECLARED_NAME`; decision 4), and a moved
+value is judged as in any loop. The loop does not end a path by itself, so a function with a result still needs its `return`
+after it.
 
 **Recursive type and cyclic alias.** `MAREA_SemaCheckDeclarations` runs two passes over the top-level declarations,
 the alias pass first. A `type` alias that leads back to itself through other aliases is `CYCLIC_TYPE_ALIAS` (3046),
@@ -1056,9 +1169,9 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 | 3002 | `NAMESPACE_PATH_MISMATCH` | `namespace a.b.c;` in the file `a/b.marea` |
 | 3003 | `NAME_ALREADY_DECLARED` | `structure Item end function Item() end`, or an import (or an import alias, or a member alias) and a declaration or another import of one local name; an import alias or a `type` named `c` (message `name is reserved:`); an import alias named like a primitive type, `import c.foo as sinteger32;` (message `name is a primitive type:`); a generic parameter that repeats an earlier one of its list or names a top-level declaration, `pick<Item, Item>`; two parameters of one name; a body local that repeats a parameter or a local of the same block |
 | 3004 | `UNDECLARED_NAME` | `where Item: Missing`, or a constraint on a name that is not a generic parameter; `local x: sinteger32 = missing;`, `missing(1);`, `missing.field`, `stdio.puts(x)` when no alias binds `stdio` and no resolver knows it, `math.sqrt(x)` after `require marea.math;`; a bare function name that stands in a function body before the function is declared in the file |
-| 3005 | `UNKNOWN_ATTRIBUTE_KEY` | `#[frobnicate = true]`, `#[simd]`, `#[public]` |
-| 3006 | `INVALID_ATTRIBUTE_VALUE` | `#[inline = maybe]`, `#[build = 1]`, `#[visibility]`, `#[export]` |
-| 3007 | `CONFLICTING_ATTRIBUTES` | `#[pack = 1, align = 16]`, a key given twice (`visibility` twice included) |
+| 3005 | `UNKNOWN_ATTRIBUTE_KEY` | `#[frobnicate = true]`, `#[simd]`, `#[public]`, also inside `when(...)` |
+| 3006 | `INVALID_ATTRIBUTE_VALUE` | `#[inline = maybe]`, `#[build = 1]`, `#[visibility]`, `#[export]`, `#[export = "run it"]`, `#[backend = fast]`, `when(colour = "red", ...)`, `when(pointer_width = "64", ...)` |
+| 3007 | `CONFLICTING_ATTRIBUTES` | `#[pack = 1, align = 16]`, a key given twice (`visibility` twice included), two `when` items that hold and give one key |
 | 3008 | `INVALID_ALIGNMENT` | `#[align = 15]` |
 | 3009 | `UNKNOWN_TYPE` | `a: Missing;` in a structure |
 | 3010 | `ARGUMENT_COUNT_MISMATCH` | `add(1)` when `add` takes two parameters with no default; `f()` or `f(1, 2, 3)` when `f` has one required and one defaulted parameter; `Point(1.0, 2.0, 3.0)` when `construct` takes two; `Line(1.0)` when `Line` declares no `construct`; `power(1.0)` when the host's signature of `c.math.pow` takes two parameters |
@@ -1093,7 +1206,7 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 | 3039 | `LOGICAL_OPERAND_NOT_BOOLEAN` | `a and b`, `a or b`, `not a` with an operand whose known type is not `boolean`, or a number, string or character literal |
 | 3040 | `ASSIGNMENT_TO_CONSTANT` | `LIMIT = 11;`, `LIMIT += 1;`, `ORIGIN.x = 1;`, `TABLE[0] = 1;` when the root name is a file constant and no local hides it |
 | 3041 | `RAW_POINTER_OUTSIDE_UNSAFE` | a written type with the raw pointer role (`local raw: c.memory.Pointer<sinteger32> = f();`, a parameter, a result, a field, an alias) with no `unsafe ... end` block around it, at any depth of nesting |
-| 3043 | `NON_BOOLEAN_CONDITION` | `if n then`, `elseif s then`, `while 1 do` when the condition has a known primitive type that is not `boolean`, or is a number, string or character literal |
+| 3043 | `NON_BOOLEAN_CONDITION` | `if n then`, `elseif s then`, `while 1 do`, `do ... while 1 end` when the condition has a known primitive type that is not `boolean`, or is a number, string or character literal |
 | 3044 | `UNKNOWN_FIELD` | `Point{ z = 1.0 }`, `point.z` or `point.z = 1.0;` when `Point` has no field `z` |
 | 3045 | `RECURSIVE_TYPE` | `structure Node next: Node; end` |
 | 3046 | `CYCLIC_TYPE_ALIAS` | `type First = Second; type Second = First;` |
@@ -1110,8 +1223,8 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 | 3057 | `OPAQUE_TYPE_MISUSE` | `Texture{ }`, `texture.width` or `texture + other` when `texture` is a local or a parameter of an `opaque structure` of the same file |
 | 3058 | `OPAQUE_FIELD_BY_VALUE` | `structure Holder texture: Texture; end` with `Texture` an `opaque structure` of the same file |
 | 3059 | `COMPILE_TIME_ASSERTION_FAILED` | `compile_error!("stop");` with any arguments, at the top level or in a function body; `static_assert!(1 == 2, "never");` or `static_assert!(N == 5, "n");` when the condition is a constant that is false |
-| 3060 | `UNKNOWN_MACRO` | `shout!("hello");` when `shout` is none of the 13 built-in macros, at the call |
-| 3061 | `INVALID_MACRO_ARGUMENT` | `print!();`, `print!(1, 2);`, `print!("{} {}", 1);`, `assert!(1, "x");`, `unreachable!(1);`, `log!(loud, "x");`, `include_text!(1);`: the wrong count of arguments, a literal of the wrong kind, a log level that is not one of the five, or a count of `{}` that differs from the count of values, at the offending argument |
+| 3060 | `UNKNOWN_MACRO` | `shout!("hello");` when `shout` is none of the 14 built-in macros, `marea.array.nothing!("x");` or `array.print!("x");` when the library registers no such macro, or a macro of a library that is off, at the call |
+| 3061 | `INVALID_MACRO_ARGUMENT` | `print!();`, `print!(1, 2);`, `print!("{} {}", 1);`, `assert!(1, "x");`, `unreachable!(1);`, `log!(loud, "x");`, `include_text!(1);`: the wrong count of arguments, a literal of the wrong kind, a log level that is not one of the five, or a count of `{}` that differs from the count of values, at the offending argument; `build_value!("X", sinteger32)`, a first argument that is not a string literal, a type argument that is no primitive and no enum of the file, an enum with a field that has no default; a call of a macro of a library with the wrong arguments or that the expander refuses (`marea.array.include_bytes!("missing.bin");`) |
 | 3062 | `PARALLEL_CONSTRUCT_OUTSIDE_FORK_JOIN` | `function f(a: sinteger32) spawn g(a); end` or `partition values into 2 as part do end` with no `fork_join` block around it, also a `spawn` after the `end` of a block: raised at the `spawn` or `partition` and nothing else for that construct |
 | 3063 | `SPAWN_NEEDS_CALL` | `fork_join spawn point; end` or `spawn print!("x");`: the operand of a `spawn` is not a call, at the operand |
 | 3064 | `PARTITION_SOURCE_NOT_ARRAY` | `partition count into 2 as part do end` when `count` is a primitive, a structure, an enum or a number literal, at the source |
@@ -1133,6 +1246,10 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 | 3080 | `AMBIGUOUS_NAMESPACE` | `import demo.io; require demo.*;`: one full path under both keywords |
 | 3081 | `RESERVED_NAMESPACE_ROOT` | `namespace marea.tools;` or `namespace c.tools;` in a project file, with no exception |
 | 3082 | `ELEMENT_WITHOUT_MEASURED_LAYOUT` | `marea.array.Array<function(): sinteger32, 2>`: an element type with no measured layout held by value, at the element |
+| 3083 | `BACKEND_UNAVAILABLE` | `#![backend = intrinsics]` in `marea.math` with no target, or on `riscv64`, or with `msvc`; `#[when(architecture = "riscv64", backend = intrinsics)]` on `riscv64` |
+| 3084 | `ATTRIBUTE_NOT_ALLOWED_HERE` | `#![backend = auto]` or `#[backend = scalar]` in a file whose namespace is not `marea.math` or below |
+| 3085 | `MISPLACED_ATTRIBUTE` | `#[align = 16]` on a function, `#[inline = force]` on a structure or a constant, `#[operator = "+"]` on a free function, `#[visibility = public]` on a parameter or a macro statement, `#[export = "label"]` on a generic function, `#[backend = auto]` on a structure of `marea.math`: any `no` cell of the placement matrix, also inside `when(...)`, at the item |
+| 3086 | `INVALID_BUILD_VALUE` | a setting `LOG_LEVEL` with the text `high` for `build_value!("LOG_LEVEL", sinteger32, 2)`, `256` for a `uinteger8`, `yes` for a `boolean`, `Slow` for an enum with no such variant, at the call |
 
 ## Gaps
 
@@ -1171,8 +1288,23 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
   by fixtures in the tests (under the neutral root `demo` and under the planned full paths), so the roles are proven but no shipped
   descriptor set is. A registered type is checked for too many type arguments only, never too few (the examples write a growable
   `marea.array.Array<T>`); a `vector` is still indexable in the type inference, though it is a move type.
-- The registry reads the type of `include_bytes!` as no type; its dependency on `marea.array` is a rule of the plan and no check
-  yet enforces it.
+- `include_bytes!` is not a macro of `marea.array` yet: the real macro is written with the library (apply `lib-array-vector-tuple`),
+  and the fixture libraries of the tests prove the mechanism. The bare `include_bytes!` stays in the table of the language macros
+  as a placeholder with no type, and `examples/macros/builtin.marea` still writes it; both leave with the real macro.
+- The `when` item is read only by the attribute check. Another reader (`visibility`, `layout`, `align`, `pack`, `operator`,
+  `export`, `inline`, `build`) sees the plain items, so a `when` that gives such a key has no effect on that reader yet. The
+  `backend` rule reads it, since it is the only check that is about the target.
+- A `when` predicate value is not checked against a list (`architecture = "riscv64"` is accepted for any text), because the
+  sets are open; only the name and the kind of the value are checked.
+- `build_value!` does not resolve a qualified type argument (`other.Mode`): it is accepted and nothing about it is checked,
+  because sema has no way to read the declaration of an enum of another namespace from an expression. A float, a string, a
+  character and an enum from the build are converted for the check but never folded for `static_assert!`.
+- The `auto` backend has the start rule only (decision 18): the table of the best backend per operation does not exist.
+  Backend rows that need a library that does not exist yet (`marea.math`) are proven by files written in the tests under that
+  namespace, and a project file under the root `marea` is always `RESERVED_NAMESPACE_ROOT`, so a shipped `marea.math` file
+  cannot pass the checks of sema clean until a shipped-file entry exists.
+- The IR does not lower a macro with a qualified name and gives no diagnostic for a macro statement of that shape, and it does
+  not lower `build_value!` or `do ... while` yet (apply `ir-language-update`).
 - A type that holds a table (two type parameters, no index protocol) is found by that shape, not by a role: a keyed collection
   has no role of its own in the roles table yet.
 - Renaming on use inside one file (without an import) is not offered: a local declaration has its own name.
