@@ -1499,6 +1499,13 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressions(MAREA_SemaContext *contex
 
         return (namesResult != MAREA_SEMA_EXCEPT_SUCCESS) ? namesResult : MAREA_SemaCheckCondition(context, MAREA_SemaChildAt(node, 0));
     }
+    case MAREA_AST_KIND_DO_WHILE_STATEMENT:
+    {
+        // INFO: the condition is the second child, after the body. This check runs before the body is visited, so a name that the body declares is not yet a local and the condition cannot read it.
+        const MAREA_SemaExcept namesResult = MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, 1), 0, MAREA_BOOLEAN_TRUE);
+
+        return (namesResult != MAREA_SEMA_EXCEPT_SUCCESS) ? namesResult : MAREA_SemaCheckCondition(context, MAREA_SemaChildAt(node, 1));
+    }
     case MAREA_AST_KIND_EXPRESSION_STATEMENT:
     case MAREA_AST_KIND_SWITCH_STATEMENT:
         return MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, 0), 0, MAREA_BOOLEAN_TRUE);
