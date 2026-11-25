@@ -961,6 +961,199 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerForEach(MAREA_IrContext *context, 
     return MAREA_IR_EXCEPT_SUCCESS;
 }
 
+// INFO: the text of the condition of the loop that a do-while becomes.
+static const MAREA_Character8 MAREA_G_TrueText[] = "true";
+
+// INFO: builds IF NOT condition THEN BREAK, the test at the end of a do-while body. The condition is lowered again from its typed node each time, so no node is ever used in two places. A gap in the condition makes no node and raises its own diagnostic.
+static MAREA_IrExcept MAREA_CALL MAREA_G_CreateLeaveTest(MAREA_IrContext *context, const MAREA_AstNode *loopAst, const MAREA_SemaTypedNode *conditionTyped, MAREA_IrNode **outTest)
+{
+    MAREA_IrNode *condition = MAREA_NULLPTR;
+
+    *outTest = MAREA_NULLPTR;
+
+    MAREA_IrExcept result = MAREA_IrLowerExpression(context, conditionTyped, &condition);
+
+    if ((result != MAREA_IR_EXCEPT_SUCCESS) || (condition == MAREA_NULLPTR)) {
+        return result;
+    }
+
+    MAREA_IrNode *test = MAREA_NULLPTR;
+    MAREA_IrNode *negation = MAREA_NULLPTR;
+    MAREA_IrNode *leave = MAREA_NULLPTR;
+    MAREA_IrNode *breakNode = MAREA_NULLPTR;
+
+    result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_IF_STATEMENT, loopAst, &test);
+
+    if (result == MAREA_IR_EXCEPT_SUCCESS) {
+        result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_UNARY_EXPRESSION, loopAst, &negation);
+    }
+
+    if (result == MAREA_IR_EXCEPT_SUCCESS) {
+        result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_BLOCK, loopAst, &leave);
+    }
+
+    if (result == MAREA_IR_EXCEPT_SUCCESS) {
+        result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_BREAK_STATEMENT, loopAst, &breakNode);
+    }
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    MAREA_G_KeepOnlyPosition(test);
+    MAREA_G_KeepOnlyPosition(negation);
+    MAREA_G_KeepOnlyPosition(leave);
+    MAREA_G_KeepOnlyPosition(breakNode);
+
+    negation->operatorKind = MAREA_TOKEN_KIND_KEYWORD_NOT;
+    MAREA_IrNodeSetResolvedTypeStatic(negation, MAREA_G_TestType);
+
+    MAREA_IrNode *parents[] = { negation, leave, test, test };
+    MAREA_IrNode *children[] = { condition, breakNode, negation, leave };
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < MAREA_ARRAY_SIZE(parents); index = (index + MAREA_INTEGER_SIZE(1))) {
+        result = MAREA_IrNodeAppendChild(context, parents[index], children[index]);
+
+        if (result != MAREA_IR_EXCEPT_SUCCESS) {
+            return result;
+        }
+    }
+
+    *outTest = test;
+
+    return MAREA_IR_EXCEPT_SUCCESS;
+}
+
+// INFO: a continue of a do-while goes to the test, so each continue that targets the loop becomes BLOCK(test, continue). A nested while or for each stops the walk, because a continue inside it targets that loop; a nested do-while is a while by now, so it stops it too. A gap in the condition ends the walk with its diagnostic, and complete is false.
+static MAREA_IrExcept MAREA_CALL MAREA_G_PrefixContinuesWithTest(MAREA_IrContext *context, const MAREA_AstNode *loopAst, const MAREA_SemaTypedNode *conditionTyped, MAREA_IrNode *node, MAREA_Boolean *outComplete)
+{
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < node->childCount; index = (index + MAREA_INTEGER_SIZE(1))) {
+        MAREA_IrNode *child = node->children[index];
+
+        if ((child->kind == MAREA_IR_KIND_WHILE_STATEMENT) || (child->kind == MAREA_IR_KIND_FOR_EACH_STATEMENT)) {
+            continue;
+        }
+
+        if (child->kind != MAREA_IR_KIND_CONTINUE_STATEMENT) {
+            const MAREA_IrExcept result = MAREA_G_PrefixContinuesWithTest(context, loopAst, conditionTyped, child, outComplete);
+
+            if ((result != MAREA_IR_EXCEPT_SUCCESS) || (*outComplete == MAREA_BOOLEAN_FALSE)) {
+                return result;
+            }
+
+            continue;
+        }
+
+        MAREA_IrNode *test = MAREA_NULLPTR;
+
+        MAREA_IrExcept result = MAREA_G_CreateLeaveTest(context, loopAst, conditionTyped, &test);
+
+        if ((result != MAREA_IR_EXCEPT_SUCCESS) || (test == MAREA_NULLPTR)) {
+            *outComplete = MAREA_BOOLEAN_FALSE;
+
+            return result;
+        }
+
+        MAREA_IrNode *wrapper = MAREA_NULLPTR;
+
+        result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_BLOCK, loopAst, &wrapper);
+
+        if (result == MAREA_IR_EXCEPT_SUCCESS) {
+            MAREA_G_KeepOnlyPosition(wrapper);
+            result = MAREA_IrNodeAppendChild(context, wrapper, test);
+        }
+
+        if (result == MAREA_IR_EXCEPT_SUCCESS) {
+            result = MAREA_IrNodeAppendChild(context, wrapper, child);
+        }
+
+        if (result != MAREA_IR_EXCEPT_SUCCESS) {
+            return result;
+        }
+
+        node->children[index] = wrapper;
+    }
+
+    return MAREA_IR_EXCEPT_SUCCESS;
+}
+
+// INFO: do body while cond end becomes WHILE true BLOCK(BLOCK(body), IF NOT cond THEN BREAK), so the body runs first and in its own scope, which the test cannot read. The IR has only the while loop, so both backends read this one shape.
+static MAREA_IrExcept MAREA_CALL MAREA_G_LowerDoWhile(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode)
+{
+    if (MAREA_SemaTypedNodeGetChildCount(typed) < MAREA_INTEGER_SIZE(2)) {
+        return MAREA_IR_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_AstNode *loopAst = MAREA_SemaTypedNodeGetAstNode(typed);
+
+    const MAREA_SemaTypedNode *conditionTyped = MAREA_IrTypedChildAt(typed, MAREA_INTEGER_SIZE(1));
+
+    MAREA_IrNode *body = MAREA_NULLPTR;
+
+    MAREA_IrExcept result = MAREA_IrLowerBlock(context, MAREA_IrTypedChildAt(typed, MAREA_INTEGER_SIZE(0)), &body);
+
+    if ((result != MAREA_IR_EXCEPT_SUCCESS) || (body == MAREA_NULLPTR)) {
+        return result;
+    }
+
+    MAREA_IrNode *test = MAREA_NULLPTR;
+
+    result = MAREA_G_CreateLeaveTest(context, loopAst, conditionTyped, &test);
+
+    if ((result != MAREA_IR_EXCEPT_SUCCESS) || (test == MAREA_NULLPTR)) {
+        return result;
+    }
+
+    MAREA_IrNode *loop = MAREA_NULLPTR;
+    MAREA_IrNode *always = MAREA_NULLPTR;
+    MAREA_IrNode *loopBody = MAREA_NULLPTR;
+
+    result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_WHILE_STATEMENT, loopAst, &loop);
+
+    if (result == MAREA_IR_EXCEPT_SUCCESS) {
+        result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_BOOLEAN_LITERAL, loopAst, &always);
+    }
+
+    if (result == MAREA_IR_EXCEPT_SUCCESS) {
+        result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_BLOCK, loopAst, &loopBody);
+    }
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    MAREA_G_KeepOnlyPosition(loop);
+    MAREA_G_KeepOnlyPosition(loopBody);
+
+    always->text = MAREA_G_TrueText;
+    always->textLength = (MAREA_Uinteger32)strlen(MAREA_G_TrueText);
+    always->flags = MAREA_UINTEGER_32(0);
+    MAREA_IrNodeSetResolvedTypeStatic(always, MAREA_G_TestType);
+
+    MAREA_Boolean complete = MAREA_BOOLEAN_TRUE;
+
+    result = MAREA_G_PrefixContinuesWithTest(context, loopAst, conditionTyped, body, &complete);
+
+    if ((result != MAREA_IR_EXCEPT_SUCCESS) || (complete == MAREA_BOOLEAN_FALSE)) {
+        return result;
+    }
+
+    MAREA_IrNode *parents[] = { loopBody, loopBody, loop, loop };
+    MAREA_IrNode *children[] = { body, test, always, loopBody };
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < MAREA_ARRAY_SIZE(parents); index = (index + MAREA_INTEGER_SIZE(1))) {
+        result = MAREA_IrNodeAppendChild(context, parents[index], children[index]);
+
+        if (result != MAREA_IR_EXCEPT_SUCCESS) {
+            return result;
+        }
+    }
+
+    *outNode = loop;
+
+    return MAREA_IR_EXCEPT_SUCCESS;
+}
+
 static MAREA_IrExcept MAREA_CALL MAREA_G_LowerStatement(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode)
 {
     if (typed == MAREA_NULLPTR) {
@@ -986,6 +1179,8 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerStatement(MAREA_IrContext *context
         return MAREA_G_LowerKept(context, MAREA_IR_KIND_ELSE_CLAUSE, typed, outNode);
     case MAREA_AST_KIND_WHILE_STATEMENT:
         return MAREA_G_LowerKept(context, MAREA_IR_KIND_WHILE_STATEMENT, typed, outNode);
+    case MAREA_AST_KIND_DO_WHILE_STATEMENT:
+        return MAREA_G_LowerDoWhile(context, typed, outNode);
     case MAREA_AST_KIND_RETURN_STATEMENT:
         return MAREA_G_LowerKept(context, MAREA_IR_KIND_RETURN_STATEMENT, typed, outNode);
     case MAREA_AST_KIND_BREAK_STATEMENT:
