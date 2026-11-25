@@ -37,6 +37,10 @@ if(NOT TARGET marea::bytecode)
     list(FILTER MAREA_TESTS_SOURCES EXCLUDE REGEX "/source/bytecode/")
 endif()
 
+if(NOT TARGET marea::vm)
+    list(FILTER MAREA_TESTS_SOURCES EXCLUDE REGEX "/source/vm/")
+endif()
+
 add_executable(marea_tests ${MAREA_TESTS_SOURCES})
 
 target_include_directories(marea_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include" "${CMAKE_CURRENT_SOURCE_DIR}")
@@ -74,6 +78,10 @@ endif()
 
 if(TARGET marea::bytecode)
     target_link_libraries(marea_tests PRIVATE marea::bytecode)
+endif()
+
+if(TARGET marea::vm)
+    target_link_libraries(marea_tests PRIVATE marea::vm)
 endif()
 
 gtest_discover_tests(marea_tests)

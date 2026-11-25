@@ -101,4 +101,8 @@ macro(ConfigureLibTargets)
     if(MAREA_OPTION_TARGET_BYTECODE)
         mareaaddstagelibrary(STAGE bytecode NAME Bytecode LINK ir)
     endif()
+
+    if(MAREA_OPTION_TARGET_VM)
+        mareaaddstagelibrary(STAGE vm NAME Vm LINK bytecode)
+    endif()
 endmacro()

@@ -29,6 +29,8 @@ macro(ConfigureLibPrecompiledHeaders)
                 Marea-Ir-Shared
                 Marea-Bytecode
                 Marea-Bytecode-Shared
+                Marea-Vm
+                Marea-Vm-Shared
         )
             if(TARGET ${TEMP_STAGE_TARGET})
                 target_precompile_headers(
