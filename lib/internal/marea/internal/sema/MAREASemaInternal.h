@@ -109,6 +109,36 @@ MAREA_BEGIN_EXTERN_C
     } MAREA_SemaCaptureTable;
 
     /**
+     * @brief Which keyword brought a namespace cover.
+     */
+    typedef enum MAREA_SemaCoverKind
+    {
+        MAREA_SEMA_COVER_KIND_IMPORT = MAREA_UINTEGER_8(0),
+        MAREA_SEMA_COVER_KIND_REQUIRE = MAREA_UINTEGER_8(1),
+    } MAREA_SemaCoverKind;
+
+    /**
+     * @brief One full path that an import or a require makes legal in the file: the path itself and every
+     * path below it. A cover binds no name. The text is in the arena of the context.
+     */
+    typedef struct MAREA_SemaCover
+    {
+        const MAREA_Character8 *text;
+        MAREA_IntegerSize length;
+        MAREA_SemaCoverKind kind;
+    } MAREA_SemaCover;
+
+    /**
+     * @brief Flat table of the covers of one file. The entries live in the arena of the context.
+     */
+    typedef struct MAREA_SemaCoverTable
+    {
+        MAREA_SemaCover *entries;
+        MAREA_IntegerSize count;
+        MAREA_IntegerSize capacity;
+    } MAREA_SemaCoverTable;
+
+    /**
      * @brief Body of the opaque sema context: the caller services, the name tables and the scope state of
      * the visit in progress.
      */
@@ -117,6 +147,8 @@ MAREA_BEGIN_EXTERN_C
         MAREA_Arena *arena;
         MAREA_DiagnosticSink *sink;
         MAREA_SemaImportResolver *resolver;
+        MAREA_SemaImportResolver *requireResolver;
+        MAREA_SemaCoverTable covers;
         MAREA_SemaNameTable names;
         MAREA_SemaNameTable generics;
         MAREA_SemaNameTable locals;

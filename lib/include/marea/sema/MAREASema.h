@@ -105,6 +105,9 @@ MAREA_BEGIN_EXTERN_C
         MAREA_SEMA_DIAGNOSTIC_CODE_PARTITION_BODY_WRITES_OUTER_NAME = MAREA_UINTEGER_32(3075),
         MAREA_SEMA_DIAGNOSTIC_CODE_PARTITION_SOURCE_USED_IN_BODY = MAREA_UINTEGER_32(3076),
         MAREA_SEMA_DIAGNOSTIC_CODE_MISSING_FIELD = MAREA_UINTEGER_32(3077),
+        MAREA_SEMA_DIAGNOSTIC_CODE_UNIMPORTED_NAMESPACE = MAREA_UINTEGER_32(3078),
+        MAREA_SEMA_DIAGNOSTIC_CODE_UNRESOLVED_REQUIRE = MAREA_UINTEGER_32(3079),
+        MAREA_SEMA_DIAGNOSTIC_CODE_AMBIGUOUS_NAMESPACE = MAREA_UINTEGER_32(3080),
     } MAREA_SemaDiagnosticCode;
 
     /**
@@ -144,6 +147,25 @@ MAREA_BEGIN_EXTERN_C
      * @return The resolver, or null when context is null.
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaImportResolver *MAREA_CALL MAREA_SemaContextGetImportResolver(const MAREA_SemaContext *context);
+
+    /**
+     * @brief Sets the resolver that answers every require: the registry of the names that the host registered
+     * on the C side. A context created without one answers a require through the import resolver, so a host
+     * with one resolver needs no call. With a registry set, an import never reaches a name that only the
+     * registry knows, and a require never reaches a project file that only the import resolver knows.
+     * @param context Context to change. Must not be null.
+     * @param registry Resolver for the registered names, or null to answer a require through the import
+     * resolver again. Its signature function gives the signatures of the registered members.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, or MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER when context is null.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaContextSetRequireResolver(MAREA_SemaContext * context, MAREA_SemaImportResolver * registry);
+
+    /**
+     * @brief Returns the registry that answers every require.
+     * @param context Context to query. Null returns null.
+     * @return The registry, or null when none was set or context is null.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaImportResolver *MAREA_CALL MAREA_SemaContextGetRequireResolver(const MAREA_SemaContext *context);
 
     /**
      * @brief Checks one compilation unit. Every violation is reported to the sink. An ERROR_NODE left by

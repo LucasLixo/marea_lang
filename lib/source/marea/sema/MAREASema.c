@@ -34,6 +34,8 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaContextCreate(MAREA_Arena *arena, MAREA_Di
     context->arena = arena;
     context->sink = sink;
     context->resolver = resolver;
+    context->requireResolver = MAREA_NULLPTR;
+    context->covers = (MAREA_SemaCoverTable){ 0 };
     context->names = (MAREA_SemaNameTable){ 0 };
     context->generics = (MAREA_SemaNameTable){ 0 };
     context->locals = (MAREA_SemaNameTable){ 0 };
@@ -86,6 +88,24 @@ MAREA_SemaImportResolver *MAREA_CALL MAREA_SemaContextGetImportResolver(const MA
     }
 
     return context->resolver;
+}
+
+MAREA_SemaExcept MAREA_CALL MAREA_SemaContextSetRequireResolver(MAREA_SemaContext *context, MAREA_SemaImportResolver *registry)
+{
+    if (context == MAREA_NULLPTR) {
+        return MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    MAREA_IGNORE(registry);
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
+MAREA_SemaImportResolver *MAREA_CALL MAREA_SemaContextGetRequireResolver(const MAREA_SemaContext *context)
+{
+    MAREA_IGNORE(context);
+
+    return MAREA_NULLPTR;
 }
 
 void MAREA_CALL MAREA_SemaReport(MAREA_SemaContext *context, MAREA_SemaDiagnosticCode code, MAREA_SourcePosition position, const MAREA_Character8 *message)
@@ -293,6 +313,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckCompilationUnit(MAREA_SemaContext *co
         return MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER;
     }
 
+    context->covers = (MAREA_SemaCoverTable){ 0 };
     context->names = (MAREA_SemaNameTable){ 0 };
     context->generics = (MAREA_SemaNameTable){ 0 };
     context->locals = (MAREA_SemaNameTable){ 0 };
