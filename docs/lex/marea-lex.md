@@ -36,7 +36,9 @@ for (MAREA_IntegerSize i = 0; i < MAREA_TokenListGetCount(tokens); i++) {
 
 `MAREA_LexTokenize` returns an error only for a null argument (`context`, `outList`, or `source`
 with a non-zero length), a `length` above `UINT32_MAX` (`MAREA_LEX_EXCEPT_ERROR_SOURCE_TOO_LARGE`),
-or an out of memory. A lexical error is a diagnostic in the sink, not a return value.
+or an out of memory (`MAREA_LEX_EXCEPT_ERROR_OUT_OF_MEMORY`). The out of memory result also covers a
+diagnostic that the sink cannot store: the run stops at once, so a lost diagnostic is never a clean
+run, and `outList` is not set. A lexical error is a diagnostic in the sink, not a return value.
 `MAREA_LexContextCreate` returns a null-pointer error when `arena`, `sink` or `outContext` is null.
 `MAREA_TokenListGetAt` returns `MAREA_LEX_EXCEPT_ERROR_OUT_OF_RANGE` for an index not below the
 count. Every accessor on a null token or list returns a default (kind `ERROR`, null text, length 0,
@@ -60,20 +62,21 @@ diagnostic. Later stages read it (the `sema` path rule uses it), so give a proje
 
 ## Token kinds
 
-`MAREA_TokenKind` lists, in order: 7 base kinds, 43 keywords, 36 operators, 14 separators, then
+`MAREA_TokenKind` lists, in order: 7 base kinds, 44 keywords, 36 operators, 14 separators, then
 `MAREA_TOKEN_KIND_COUNT`. `MAREA_TokenKindGetName` gives the stable name (`KEYWORD_AND`, `PLUS`),
 or `"UNKNOWN"` for a value at or above `COUNT`.
 
 - **Base kinds:** `END_OF_FILE`, `ERROR`, `IDENTIFIER`, `INTEGER_LITERAL`, `FLOAT_LITERAL`,
   `STRING_LITERAL`, `CHARACTER_LITERAL`.
 - **Identifier:** `(letter | "_") { letter | digit | "_" }`, ASCII letters.
-- **Keywords (43, never an identifier):** `and`, `as`, `break`, `case`, `constant`, `continue`,
+- **Keywords (44, never an identifier):** `and`, `as`, `break`, `case`, `constant`, `continue`,
   `contract`, `copy`, `default`, `do`, `each`, `else`, `elseif`, `end`, `enum`, `false`, `for`,
   `fork_join`, `function`, `if`, `implementation`, `import`, `in`, `into`, `local`, `move`,
-  `mutable`, `namespace`, `not`, `opaque`, `or`, `partition`, `return`, `spawn`, `structure`,
-  `switch`, `then`, `true`, `type`, `unsafe`, `where`, `while`, `with`. The kind is
+  `mutable`, `namespace`, `not`, `opaque`, `or`, `partition`, `require`, `return`, `spawn`,
+  `structure`, `switch`, `then`, `true`, `type`, `unsafe`, `where`, `while`, `with`. The kind is
   `KEYWORD_<NAME>`. Keywords are case sensitive; `true` and `false` are the kinds `KEYWORD_TRUE` and
-  `KEYWORD_FALSE`, not a boolean literal kind. `reference` is an identifier.
+  `KEYWORD_FALSE`, not a boolean literal kind. `reference` is an identifier. `when`, `all` and `any`
+  are identifiers too: the parser gives them a meaning inside an attribute item `when(...)`.
   `MAREA_TokenKindLookupKeyword(text, length)` returns the keyword kind or `IDENTIFIER`.
 - **Operators (36):** `+ - * / % ** +% -% *% +| -| *| ~ & | ^ << >> == != < <= > >= = += -= *= /= %=
   **= <<= >>= &= |= ^=`.
@@ -85,7 +88,8 @@ names: they lex as plain `IDENTIFIER` tokens and a later stage gives them meanin
 `private` are identifiers too.
 
 The lexer never splits `>>`: it is always one `SHIFT_RIGHT` token (or `SHIFT_RIGHT_EQUAL` for
-`>>=`), including in a type argument list. A consumer that needs two `>` has to handle it.
+`>>=`), including in a type argument list. A consumer that needs two `>` has to handle it: the
+parser splits the token when it reads a type argument list (a decision, see Gaps).
 
 ## Number literals
 
@@ -128,6 +132,8 @@ The lexer never stops on a lexical error.
   the literal goes on and ends as a normal literal. A bad escape followed by a line end does not
   consume it, so the literal is then unterminated too.
 - **Bad byte inside a literal:** `UNKNOWN_BYTE`, no `ERROR` token; the literal goes on.
+- **Out of memory of the sink:** a diagnostic that the sink cannot store ends the run with
+  `MAREA_LEX_EXCEPT_ERROR_OUT_OF_MEMORY`. No `ERROR` token is added for it.
 - **Malformed number** (`0x` or `0b` with no digit, or with `_` first): `MALFORMED_NUMBER` and an
   `ERROR` token for the prefix only; the bytes after it are lexed as normal tokens (`0x_1` is `ERROR`
   then identifier `_1`).
@@ -155,15 +161,16 @@ The C names are `MAREA_LEX_DIAGNOSTIC_CODE_<NAME>`.
 
 ## Gaps
 
-- The lexer does not split `>>` in a type argument list. The grammar's note about splitting is not
-  done here.
-- There is no block comment; only `--` to the end of the line.
-- Escapes are checked but not decoded, and a number is not checked for range: both are for a later
-  stage.
-- A diagnostic can be lost on an out of memory of the sink: the lexer ignores the result of
-  `MAREA_DiagnosticSinkAdd`.
-- An uppercase prefix (`0X`, `0B`) is not a prefix: `0X1` is `0` then the identifier `X1`.
+- The lexer never splits `>>`, by decision: the parser splits it in a type argument list. A consumer of
+  the token list that reads types itself has to do the same.
+- There is no block comment; only `--` to the end of the line. This is a decision, not a missing
+  feature.
+- Escapes are checked but not decoded, and a number is not checked for range, by decision: sema decodes
+  an escape when it types a literal and reports a literal out of range (code 3033).
+- An uppercase prefix (`0X`, `0B`) is not a prefix, by decision: `0X1` is `0` then the identifier
+  `X1`, and the lexer gives no diagnostic for it. A test pins the result. A clear error for it is not
+  done.
 - Only ASCII is accepted. There is no UTF-8 in identifiers, strings or comments (a byte of 0x80 or
-  above is `UNKNOWN_BYTE` outside a comment; inside a comment it is skipped without a diagnostic).
-- The string and character scanners repeat part of the escape handling (an open point of the
-  outcome log, not a behavior limit).
+  above is `UNKNOWN_BYTE` outside a comment; inside a comment it is skipped without a diagnostic). The
+  plan is UTF-8 in strings and comments with ASCII identifiers; it needs a rule for a byte sequence
+  that is not valid UTF-8 and a new diagnostic code, so it is not done.
