@@ -105,4 +105,9 @@ macro(ConfigureLibTargets)
     if(MAREA_OPTION_TARGET_VM)
         mareaaddstagelibrary(STAGE vm NAME Vm LINK bytecode)
     endif()
+
+    # INFO: cgen is the second backend of the one IR; it reads marea::ir only, never bytecode or vm.
+    if(MAREA_OPTION_TARGET_CGEN)
+        mareaaddstagelibrary(STAGE cgen NAME Cgen LINK ir)
+    endif()
 endmacro()

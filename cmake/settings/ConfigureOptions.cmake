@@ -73,4 +73,11 @@ macro(ConfigureOptions)
         "MAREA_OPTION_TARGET_BYTECODE"
         OFF
     )
+    cmake_dependent_option(
+        MAREA_OPTION_TARGET_CGEN
+        "Build the Marea-Cgen library"
+        ON
+        "MAREA_OPTION_TARGET_IR"
+        OFF
+    )
 endmacro()
