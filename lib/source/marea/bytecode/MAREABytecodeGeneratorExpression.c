@@ -412,6 +412,71 @@ static MAREA_BytecodeExcept MAREA_CALL MAREA_G_LowerConvert(MAREA_BytecodeGenera
     return MAREA_BYTECODE_EXCEPT_SUCCESS;
 }
 
+// INFO: a function of this unit is known before any body is lowered (MAREA_G_Collect), and a plain call always
+// reads its callee by the bare name sema left it, with the namespace of this unit skipped when it is written.
+static const MAREA_BytecodeGeneratorFunction *MAREA_CALL MAREA_G_FindFunction(const MAREA_BytecodeGenerator *generator, const MAREA_Character8 *text, MAREA_IntegerSize length, MAREA_Uinteger32 *outIndex)
+{
+    MAREA_IntegerSize skip = MAREA_INTEGER_SIZE(0);
+
+    if ((generator->namespaceLength > MAREA_INTEGER_SIZE(0)) && (length > (generator->namespaceLength + MAREA_INTEGER_SIZE(1))) && (memcmp(text, generator->namespaceText, generator->namespaceLength) == 0) && (text[generator->namespaceLength] == '.')) {
+        skip = (generator->namespaceLength + MAREA_INTEGER_SIZE(1));
+    }
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < generator->functionCount; index += MAREA_INTEGER_SIZE(1)) {
+        const MAREA_BytecodeGeneratorFunction *entry = &generator->functions[index];
+        const MAREA_IntegerSize declaredLength = MAREA_IrNodeGetTextLength(entry->node);
+
+        if ((declaredLength == (length - skip)) && (memcmp(MAREA_IrNodeGetText(entry->node), &text[skip], (length - skip)) == 0)) {
+            *outIndex = (MAREA_Uinteger32)index;
+
+            return entry;
+        }
+    }
+
+    return MAREA_NULLPTR;
+}
+
+// INFO: the call window is 1 + parameterCount registers: the result lands in the first, the arguments fill the
+// rest in order, and both ends free once the call and the move out of the window are emitted.
+static MAREA_BytecodeExcept MAREA_CALL MAREA_G_LowerPlainCall(MAREA_BytecodeGenerator *generator, const MAREA_IrNode *node, const MAREA_BytecodeGeneratorFunction *callee, MAREA_Uinteger32 functionIndex, MAREA_Uinteger32 destination, MAREA_Uinteger8 *outKind)
+{
+    const MAREA_IrNode *arguments = MAREA_BytecodeGeneratorChildAt(node, MAREA_INTEGER_SIZE(1));
+    const MAREA_IntegerSize COUNT = MAREA_IrNodeGetChildCount(arguments);
+
+    if ((MAREA_Uinteger32)COUNT != callee->parameterCount) {
+        return MAREA_BytecodeGeneratorFail(generator, node, MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_CONSTRUCT, "A call does not give one argument for every parameter.");
+    }
+
+    const MAREA_Uinteger32 MARK = generator->nextRegister;
+    MAREA_Uinteger32 window = MAREA_UINTEGER_32(0);
+
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorAllocate(generator, node, (callee->parameterCount + MAREA_UINTEGER_32(1)), &window));
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < COUNT; index += MAREA_INTEGER_SIZE(1)) {
+        const MAREA_Uinteger8 PARAMETER_KIND = callee->parameterKinds[index];
+
+        if (PARAMETER_KIND == MAREA_BYTECODE_GENERATOR_KIND_NONE) {
+            return MAREA_BytecodeGeneratorFail(generator, node, MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, "A call argument has a type that is not a scalar.");
+        }
+
+        MAREA_Uinteger8 kind = MAREA_BYTECODE_GENERATOR_KIND_NONE;
+
+        MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorLowerInto(generator, MAREA_BytecodeGeneratorChildAt(arguments, index), (window + MAREA_UINTEGER_32(1) + (MAREA_Uinteger32)index), PARAMETER_KIND, &kind));
+    }
+
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorEmit(generator, MAREA_BYTECODE_OPCODE_CALL, window, functionIndex, callee->parameterCount, MAREA_NULLPTR));
+
+    if ((callee->resultKind != MAREA_BYTECODE_GENERATOR_KIND_VOID) && (window != destination)) {
+        MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorEmit(generator, MAREA_BYTECODE_OPCODE_MOVE, destination, window, MAREA_UINTEGER_32(0), MAREA_NULLPTR));
+    }
+
+    *outKind = callee->resultKind;
+
+    generator->nextRegister = MARK;
+
+    return MAREA_BYTECODE_EXCEPT_SUCCESS;
+}
+
 static MAREA_BytecodeExcept MAREA_CALL MAREA_G_LowerCall(MAREA_BytecodeGenerator *generator, const MAREA_IrNode *node, MAREA_Uinteger32 destination, MAREA_Uinteger8 *outKind)
 {
     const MAREA_IrNode *callee = MAREA_BytecodeGeneratorChildAt(node, MAREA_INTEGER_SIZE(0));
@@ -420,6 +485,21 @@ static MAREA_BytecodeExcept MAREA_CALL MAREA_G_LowerCall(MAREA_BytecodeGenerator
 
     if ((callee != MAREA_NULLPTR) && (MAREA_IrNodeGetKind(callee) == MAREA_IR_KIND_BUILTIN_NAME) && MAREA_G_TextIs(callee, "convert")) {
         return MAREA_G_LowerConvert(generator, node, destination, outKind);
+    }
+
+    if ((callee != MAREA_NULLPTR) && (MAREA_IrNodeGetKind(callee) == MAREA_IR_KIND_IDENTIFIER)) {
+        MAREA_Uinteger32 functionIndex = MAREA_UINTEGER_32(0);
+        const MAREA_BytecodeGeneratorFunction *function = MAREA_G_FindFunction(generator, MAREA_IrNodeGetText(callee), MAREA_IrNodeGetTextLength(callee), &functionIndex);
+
+        if (function != MAREA_NULLPTR) {
+            if ((function->resultKind == MAREA_BYTECODE_GENERATOR_KIND_NONE)) {
+                return MAREA_BytecodeGeneratorFail(generator, node, MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, "A call result has a type that is not a scalar.");
+            }
+
+            return MAREA_G_LowerPlainCall(generator, node, function, functionIndex, destination, outKind);
+        }
+
+        return MAREA_BytecodeGeneratorFail(generator, node, MAREA_BYTECODE_DIAGNOSTIC_CODE_UNRESOLVED_NAME, "A call does not resolve to a function of this unit.");
     }
 
     return MAREA_BytecodeGeneratorFail(generator, node, MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_CONSTRUCT, "A call is not lowered.");

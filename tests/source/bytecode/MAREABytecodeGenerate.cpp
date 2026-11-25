@@ -586,6 +586,32 @@ TEST(MAREABytecodeGenerate, EnumLocalIsRefusedUntilTheNextSlice)
     EXPECT_EQ(fixture.MAREA_codes()[0], MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE) << "An enum is a type of the next slice.";
 }
 
+TEST(MAREABytecodeGenerate, CallsAFunctionWithArgumentsAndUsesTheResult)
+{
+    GTEST_COUT << "Validating a call fills the window after the result register, then reads the result back." << std::endl;
+
+    MAREA_GenerateFixture fixture;
+
+    ASSERT_TRUE(fixture.MAREA_generate("namespace main; function add(a: sinteger32, b: sinteger32): sinteger32 return a + b; end function f(): sinteger32 return add(2, 3) + 1; end")) << "The unit must generate.";
+
+    const std::int64_t ADD{ fixture.MAREA_findFunction("main.add") };
+    const std::int64_t F{ fixture.MAREA_findFunction("main.f") };
+
+    ASSERT_GE(ADD, 0) << "add must be in the function table.";
+    ASSERT_GE(F, 0) << "f must be in the function table.";
+
+    EXPECT_EQ(MAREA_join(fixture.MAREA_instructions(static_cast<std::uint32_t>(F))), "load_imm 2 2 0; load_imm 3 3 0; call 1 " + std::to_string(ADD) + " 2; move 0 1 0; load_imm 1 1 0; add 0 1 2; return 0 0 0; trap 6 0 0; ") << "The arguments fill the window, the call reads the function by its index, and the result is moved out.";
+
+    EXPECT_EQ(fixture.MAREA_registerCount(static_cast<std::uint32_t>(F)), 4U) << "The window of the call is the widest point reached.";
+}
+
+TEST(MAREABytecodeGenerate, CallOfAVoidFunctionAsAStatementAndRecursion)
+{
+    GTEST_COUT << "Validating a void call as a statement moves nothing back, and a function may call itself." << std::endl;
+
+    EXPECT_EQ(MAREA_join(MAREA_lowerFunction("(n: sinteger32)", "if n > 0 then f(n - 1); end")), "load_imm 2 0 0; lt_s 1 2 0; jump_if_not 1 4 0; move 3 0 0; load_imm 4 1 0; sub 3 4 2; call 2 0 1; return_void 0 0 0; ") << "A self call passes its own function index and no move follows a void result.";
+}
+
 TEST(MAREABytecodeGenerate, JumpOverTheLimitOfSixteenBitsIsADiagnostic)
 {
     GTEST_COUT << "Validating a loop body that is longer than 32767 instructions gives 5032." << std::endl;
