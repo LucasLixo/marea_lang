@@ -5,6 +5,7 @@
 -- A slice is a view and is assigned with no word.
 
 namespace main;
+require demo.slice;
 
 structure Point
     x: sinteger32;
@@ -16,7 +17,7 @@ structure Box
     count: sinteger32;
 end
 
-function check(view: slice<sinteger32>): sinteger32
-    local second: slice<sinteger32> = view;
+function check(view: demo.slice<sinteger32>): sinteger32
+    local second: demo.slice<sinteger32> = view;
     return 1;
 end

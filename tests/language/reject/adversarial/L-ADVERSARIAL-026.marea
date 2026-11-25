@@ -1,10 +1,11 @@
--- expect: 3070 @42
+-- expect: 3070 @43
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
 -- A value moved into a generic function is read afterwards.
 
 namespace main;
+require demo.owned;
 
 structure Point
     x: sinteger32;
@@ -28,17 +29,17 @@ function write_point(#[semantics = reference_mutable] point: Point)
     point.x = 1;
 end
 
-function take_point(point: owned<Point>): sinteger32
+function take_point(point: demo.owned<Point>): sinteger32
     return point.x;
 end
 
-function same<Item>(value: owned<Item>): owned<Item> where Item: Movable
+function same<Item>(value: demo.owned<Item>): demo.owned<Item> where Item: Movable
     return value;
 end
 
 function check(): sinteger32
     local point: Point = make_point();
-    local moved: owned<Point> = same(move point);
+    local moved: demo.owned<Point> = same(move point);
     local x: sinteger32 = point.x;
     return x;
 end

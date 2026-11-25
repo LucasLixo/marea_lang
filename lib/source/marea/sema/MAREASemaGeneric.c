@@ -600,20 +600,23 @@ static MAREA_SemaTypeClass MAREA_CALL MAREA_G_Classify(const MAREA_SemaContext *
         return MAREA_SEMA_TYPE_CLASS_COPY_BUILTIN;
     }
 
+    // INFO: a library registers roles and an ownership class, never a name: a registered type is sorted
+    // by its descriptor before a bare single name is even looked for.
+    const MAREA_TypeDescriptor *descriptor = MAREA_NULLPTR;
+
+    if (MAREA_SemaDescriptorOfType(context, type, &descriptor) == MAREA_BOOLEAN_TRUE) {
+        *outName = descriptor->name;
+        *outLength = descriptor->nameLength;
+
+        return (descriptor->ownershipClass == MAREA_TYPE_OWNERSHIP_CLASS_MOVE) ? MAREA_SEMA_TYPE_CLASS_MOVE_BUILTIN : MAREA_SEMA_TYPE_CLASS_COPY_BUILTIN;
+    }
+
     if (MAREA_G_SingleName(type, outName, outLength) == MAREA_BOOLEAN_FALSE) {
         return MAREA_SEMA_TYPE_CLASS_EXTERNAL;
     }
 
     if (MAREA_SemaIsGenericInScope(context, *outName, *outLength) == MAREA_BOOLEAN_TRUE) {
         return MAREA_SEMA_TYPE_CLASS_GENERIC;
-    }
-
-    if ((MAREA_G_TextIs(*outName, *outLength, "owned") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextIs(*outName, *outLength, "task") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextIs(*outName, *outLength, "vector") == MAREA_BOOLEAN_TRUE)) {
-        return MAREA_SEMA_TYPE_CLASS_MOVE_BUILTIN;
-    }
-
-    if ((MAREA_G_TextIs(*outName, *outLength, "array") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextIs(*outName, *outLength, "pointer") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextIs(*outName, *outLength, "slice") == MAREA_BOOLEAN_TRUE)) {
-        return MAREA_SEMA_TYPE_CLASS_COPY_BUILTIN;
     }
 
     if (MAREA_SemaIsPrimitiveTypeName(*outName, *outLength) == MAREA_BOOLEAN_TRUE) {

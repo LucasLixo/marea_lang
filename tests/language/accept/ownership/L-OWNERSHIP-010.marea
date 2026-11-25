@@ -5,6 +5,7 @@
 -- An element of a vector assigned with copy.
 
 namespace main;
+require demo.vector;
 
 structure Point
     x: sinteger32;
@@ -16,7 +17,7 @@ structure Box
     count: sinteger32;
 end
 
-function check(points: vector<Point>): sinteger32
+function check(points: demo.vector<Point>): sinteger32
     local point: Point = copy points[0];
     return 1;
 end

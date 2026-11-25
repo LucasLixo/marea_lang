@@ -693,7 +693,11 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckImport(MAREA_SemaContext *contex
     return MAREA_G_BindQualified(context, MAREA_AstNodeGetPosition(alias), MAREA_AstNodeGetText(alias), MAREA_AstNodeGetTextLength(alias), kind, enumeration, MAREA_AstNodeGetText(last), MAREA_AstNodeGetTextLength(last), qualifier, QUALIFIER_LENGTH);
 }
 
-// INFO: c and marea are the reserved first segments of a namespace. A file may declare a namespace under one only when the registry of the host (the require resolver, or the one resolver of the context) registered that name, so a shipped library written in Marea passes and a project file does not.
+// INFO: c and marea are the reserved first segments of a namespace. A file of the project can never
+// declare a namespace under either one, unconditionally: the registry has no say here (the 2026-11-25
+// decision update, sema-no-library-descriptors-roles). Only the internal entry of the base registry
+// lets a shipped library's own C code register under these roots; a project file compiled the ordinary
+// way never reaches that entry.
 static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckReservedRoot(MAREA_SemaContext *context, const MAREA_AstNode *qualifiedName)
 {
     if (MAREA_G_IsPlainName(qualifiedName) == MAREA_BOOLEAN_FALSE) {
@@ -714,12 +718,6 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckReservedRoot(MAREA_SemaContext *
 
     if (JOIN_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
         return JOIN_RESULT;
-    }
-
-    const MAREA_AstNode *registeredRoot = MAREA_NULLPTR;
-
-    if (MAREA_SemaResolveForKeyword(context, MAREA_SEMA_COVER_KIND_REQUIRE, joined, joinedLength, &registeredRoot) != MAREA_SEMA_IMPORT_RESULT_NOT_FOUND) {
-        return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
     return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_RESERVED_NAMESPACE_ROOT, MAREA_AstNodeGetPosition(qualifiedName), "a file of the project cannot use a reserved first segment:", joined, joinedLength);

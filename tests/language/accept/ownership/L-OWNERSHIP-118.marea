@@ -5,6 +5,7 @@
 -- A copy of a for each variable is returned.
 
 namespace main;
+require demo.vector;
 
 structure Point
     x: sinteger32;
@@ -16,7 +17,7 @@ structure Box
     count: sinteger32;
 end
 
-function check(#[semantics = reference_read_only] points: vector<Point>): Point
+function check(#[semantics = reference_read_only] points: demo.vector<Point>): Point
     for each item in points do
         return copy item;
     end

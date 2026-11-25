@@ -1,10 +1,11 @@
--- expect: 3016 @21
+-- expect: 3016 @22
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
 -- A for each element assigned to a local with no word.
 
 namespace main;
+require demo.vector;
 
 structure Point
     x: sinteger32;
@@ -16,7 +17,7 @@ structure Box
     count: sinteger32;
 end
 
-function check(points: vector<Point>): sinteger32
+function check(points: demo.vector<Point>): sinteger32
     for each item in points do
         local point: Point = item;
     end

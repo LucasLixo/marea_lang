@@ -5,6 +5,7 @@
 -- A local of an owned type takes a value with move.
 
 namespace main;
+require demo.owned;
 
 structure Point
     x: sinteger32;
@@ -22,6 +23,6 @@ end
 
 function check(): sinteger32
     local point: Point = make_point();
-    local owner: owned<Point> = move point;
+    local owner: demo.owned<Point> = move point;
     return 1;
 end

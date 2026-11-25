@@ -935,6 +935,19 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaTypeClass MAREA_CALL MAREA_SemaClassifyType(const MAREA_SemaContext *context, const MAREA_AstNode *type, const MAREA_AstNode **outDeclaration, const MAREA_Character8 **outName, MAREA_IntegerSize *outLength);
 
     /**
+     * @brief Finds the type descriptor a library registered for a NAMED_TYPE or a GENERIC_NAME, by its
+     * full written path (the namespace, then the last segment as the name): the one place a library's
+     * roles and ownership class reach sema, so a type is classified by them, never by its name. A type
+     * with one segment, or a context with no registry set, never matches: a registered type always
+     * has a namespace.
+     * @param context Context of the run. Must not be null.
+     * @param type NAMED_TYPE or GENERIC_NAME node to query. May be null, which gives false.
+     * @param outDescriptor Receives the descriptor. Must not be null.
+     * @return True when a descriptor was found, false otherwise (outDescriptor is null).
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaDescriptorOfType(const MAREA_SemaContext *context, const MAREA_AstNode *type, const MAREA_TypeDescriptor **outDescriptor);
+
+    /**
      * @brief Finds the declared type of an expression when it is cheap to know: a local or parameter, a
      * struct literal, a field of a known structure, or an element of an array, slice, vector or pointer.
      * @param context Context of the run. Must not be null.

@@ -1,10 +1,11 @@
--- expect: 3019 @26
+-- expect: 3019 @27
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
 -- A for each element is passed to two write-borrow parameters.
 
 namespace main;
+require demo.vector;
 
 structure Point
     x: sinteger32;
@@ -21,7 +22,7 @@ function two_write(#[semantics = reference_mutable] first: Point, #[semantics = 
     second.x = 2;
 end
 
-function check(#[semantics = reference_mutable] points: vector<Point>): sinteger32
+function check(#[semantics = reference_mutable] points: demo.vector<Point>): sinteger32
     for each item in mutable points do
         two_write(item, item);
     end

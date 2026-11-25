@@ -5,6 +5,7 @@
 -- A for each element assigned to a local with copy.
 
 namespace main;
+require demo.vector;
 
 structure Point
     x: sinteger32;
@@ -16,7 +17,7 @@ structure Box
     count: sinteger32;
 end
 
-function check(points: vector<Point>): sinteger32
+function check(points: demo.vector<Point>): sinteger32
     for each item in points do
         local point: Point = copy item;
     end

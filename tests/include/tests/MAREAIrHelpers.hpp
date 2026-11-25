@@ -7,6 +7,7 @@
     #include "marea/ir/MAREAIr.h"
     #include "marea/sema/MAREASemaTypedAst.h"
 
+    #include "tests/MAREALibraryRegistryHelpers.hpp"
     #include "tests/MAREASemaHelpers.hpp"
 
     #include <algorithm>
@@ -161,6 +162,8 @@ struct MAREA_IrFixture
     explicit MAREA_IrFixture(MAREA_ResolveCallback resolve = nullptr)
         : sema(std::move(resolve))
     {
+        MAREA_IGNORE(MAREA_SemaContextSetTypeRegistry(sema.context, MAREA_buildLibraryRegistry(sema.parser.lexer.arena)));
+
         MAREA_IGNORE(MAREA_IrContextCreate(sema.parser.lexer.arena, sema.parser.lexer.sink, &context));
     }
 

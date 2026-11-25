@@ -5,7 +5,8 @@
 -- A generic function that stores and returns its argument with no contract.
 
 namespace main;
+require demo.owned;
 
-function same<Item>(value: owned<Item>): owned<Item> where Item: Movable
+function same<Item>(value: demo.owned<Item>): demo.owned<Item> where Item: Movable
     return value;
 end

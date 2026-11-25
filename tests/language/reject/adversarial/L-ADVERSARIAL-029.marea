@@ -1,10 +1,11 @@
--- expect: 3020 @60, 3069 @60
+-- expect: 3020 @61, 3069 @61
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
 -- A write borrow of a call result is spawned through a generic function.
 
 namespace main;
+require demo.owned;
 
 require c.array;
 require c.slice;
@@ -34,7 +35,7 @@ function write_point(#[semantics = reference_mutable] point: Point)
     point.x = 1;
 end
 
-function take_point(point: owned<Point>): sinteger32
+function take_point(point: demo.owned<Point>): sinteger32
     return point.x;
 end
 

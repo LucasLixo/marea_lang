@@ -142,25 +142,25 @@ MAREA_LibraryMask MAREA_CALL MAREA_TypeRegistryGetEnabledMask(const MAREA_TypeRe
 
 // INFO: generic grow-by-doubling append, the same idiom MAREA_SemaTableAppend uses, specialized once
 // per table through a macro so every table keeps its own element type.
-#define MAREA_G_APPEND(registry, entries, count, capacity, elementType, value, outExcept)                                                                 \
-    do {                                                                                                                                                   \
-        if ((count) == (capacity)) {                                                                                                                       \
-            const MAREA_IntegerSize MAREA_G_NEW_CAPACITY = ((capacity) == 0) ? MAREA_INTEGER_SIZE(8) : ((capacity) * MAREA_INTEGER_SIZE(2));               \
-            MAREA_Null MAREA_G_MEMORY = MAREA_NULLPTR;                                                                                                      \
+#define MAREA_G_APPEND(registry, entries, count, capacity, elementType, value, outExcept)                                                                                          \
+    do {                                                                                                                                                                           \
+        if ((count) == (capacity)) {                                                                                                                                               \
+            const MAREA_IntegerSize MAREA_G_NEW_CAPACITY = ((capacity) == 0) ? MAREA_INTEGER_SIZE(8) : ((capacity) * MAREA_INTEGER_SIZE(2));                                       \
+            MAREA_Null MAREA_G_MEMORY = MAREA_NULLPTR;                                                                                                                             \
             if (MAREA_ArenaAllocate((registry)->arena, (MAREA_G_NEW_CAPACITY * sizeof(elementType)), MAREA_ALIGNOF(elementType), &MAREA_G_MEMORY) != MAREA_ARENA_EXCEPT_SUCCESS) { \
-                *(outExcept) = MAREA_TYPE_REGISTRY_EXCEPT_ERROR_OUT_OF_MEMORY;                                                                              \
-                break;                                                                                                                                      \
-            }                                                                                                                                                \
-            elementType *MAREA_G_NEW_ENTRIES = MAREA_G_MEMORY;                                                                                              \
-            if ((count) > 0) {                                                                                                                              \
-                memcpy(MAREA_G_NEW_ENTRIES, (entries), ((count) * sizeof(elementType)));                                                                   \
-            }                                                                                                                                                \
-            (entries) = MAREA_G_NEW_ENTRIES;                                                                                                                 \
-            (capacity) = MAREA_G_NEW_CAPACITY;                                                                                                               \
-        }                                                                                                                                                    \
-        (entries)[(count)] = (value);                                                                                                                       \
-        (count) += 1;                                                                                                                                        \
-        *(outExcept) = MAREA_TYPE_REGISTRY_EXCEPT_SUCCESS;                                                                                                   \
+                *(outExcept) = MAREA_TYPE_REGISTRY_EXCEPT_ERROR_OUT_OF_MEMORY;                                                                                                     \
+                break;                                                                                                                                                             \
+            }                                                                                                                                                                      \
+            elementType *MAREA_G_NEW_ENTRIES = MAREA_G_MEMORY;                                                                                                                     \
+            if ((count) > 0) {                                                                                                                                                     \
+                memcpy(MAREA_G_NEW_ENTRIES, (entries), ((count) * sizeof(elementType)));                                                                                           \
+            }                                                                                                                                                                      \
+            (entries) = MAREA_G_NEW_ENTRIES;                                                                                                                                       \
+            (capacity) = MAREA_G_NEW_CAPACITY;                                                                                                                                     \
+        }                                                                                                                                                                          \
+        (entries)[(count)] = (value);                                                                                                                                              \
+        (count) += 1;                                                                                                                                                              \
+        *(outExcept) = MAREA_TYPE_REGISTRY_EXCEPT_SUCCESS;                                                                                                                         \
     } while (MAREA_BOOLEAN_FALSE)
 
 MAREA_TypeRegistryExcept MAREA_CALL MAREA_TypeRegistryDeclareDependency(MAREA_TypeRegistry *registry, MAREA_LibraryFlag owner, MAREA_LibraryMask dependsOn)
@@ -173,9 +173,10 @@ MAREA_TypeRegistryExcept MAREA_CALL MAREA_TypeRegistryDeclareDependency(MAREA_Ty
 
     const MAREA_G_DependencyEntry ENTRY = { .owner = owner, .dependsOn = dependsOn };
 
-    MAREA_G_APPEND(registry, registry->dependencies, registry->dependencyCount, registry->dependencyCapacity, MAREA_G_DependencyEntry, ENTRY, &except);
+MAREA_G_APPEND
+(registry, registry->dependencies, registry->dependencyCount, registry->dependencyCapacity, MAREA_G_DependencyEntry, ENTRY, &except);
 
-    return except;
+return except;
 }
 
 // INFO: a library whose bit is off in the enabled mask registers nothing: a no-op success, so the
@@ -193,16 +194,19 @@ MAREA_TypeRegistryExcept MAREA_CALL MAREA_TypeRegistryRegisterInternal(MAREA_Typ
     const MAREA_LibraryMask REQUIRED = MAREA_G_DependenciesOf(registry, owner);
 
     if ((REQUIRED & ~registry->enabledMask) != MAREA_LIBRARY_FLAG_NONE) {
-        return MAREA_TYPE_REGISTRY_EXCEPT_ERROR_MISSING_DEPENDENCY;
-    }
+        return
+MAREA_TYPE_REGISTRY_EXCEPT_ERROR_MISSING_DEPENDENCY
+;
+}
 
-    MAREA_TypeRegistryExcept except = MAREA_TYPE_REGISTRY_EXCEPT_SUCCESS;
+MAREA_TypeRegistryExcept except = MAREA_TYPE_REGISTRY_EXCEPT_SUCCESS;
 
-    const MAREA_G_TypeEntry ENTRY = { .descriptor = descriptor };
+const MAREA_G_TypeEntry ENTRY = { .descriptor = descriptor };
 
-    MAREA_G_APPEND(registry, registry->types, registry->typeCount, registry->typeCapacity, MAREA_G_TypeEntry, ENTRY, &except);
+MAREA_G_APPEND
+(registry, registry->types, registry->typeCount, registry->typeCapacity, MAREA_G_TypeEntry, ENTRY, &except);
 
-    return except;
+return except;
 }
 
 // INFO: the public entry, used by a user or a host, never registers a name under the reserved roots
@@ -221,9 +225,10 @@ MAREA_TypeRegistryExcept MAREA_CALL MAREA_TypeRegistryRegisterPublic(MAREA_TypeR
 
     const MAREA_G_TypeEntry ENTRY = { .descriptor = descriptor };
 
-    MAREA_G_APPEND(registry, registry->types, registry->typeCount, registry->typeCapacity, MAREA_G_TypeEntry, ENTRY, &except);
+MAREA_G_APPEND
+(registry, registry->types, registry->typeCount, registry->typeCapacity, MAREA_G_TypeEntry, ENTRY, &except);
 
-    return except;
+return except;
 }
 
 const MAREA_TypeDescriptor *MAREA_CALL MAREA_TypeRegistryFind(const MAREA_TypeRegistry *registry, const MAREA_Character8 *namespaceText, MAREA_IntegerSize namespaceLength, const MAREA_Character8 *name, MAREA_IntegerSize nameLength)
@@ -256,16 +261,19 @@ MAREA_TypeRegistryExcept MAREA_CALL MAREA_TypeRegistryRegisterInternalFunction(M
     const MAREA_LibraryMask REQUIRED = MAREA_G_DependenciesOf(registry, owner);
 
     if ((REQUIRED & ~registry->enabledMask) != MAREA_LIBRARY_FLAG_NONE) {
-        return MAREA_TYPE_REGISTRY_EXCEPT_ERROR_MISSING_DEPENDENCY;
-    }
+        return
+MAREA_TYPE_REGISTRY_EXCEPT_ERROR_MISSING_DEPENDENCY
+;
+}
 
-    MAREA_TypeRegistryExcept except = MAREA_TYPE_REGISTRY_EXCEPT_SUCCESS;
+MAREA_TypeRegistryExcept except = MAREA_TYPE_REGISTRY_EXCEPT_SUCCESS;
 
-    const MAREA_G_FunctionEntry ENTRY = { .namespaceText = namespaceText, .name = name, .functionPointer = functionPointer, .namespaceLength = namespaceLength, .nameLength = nameLength };
+const MAREA_G_FunctionEntry ENTRY = { .namespaceText = namespaceText, .name = name, .functionPointer = functionPointer, .namespaceLength = namespaceLength, .nameLength = nameLength };
 
-    MAREA_G_APPEND(registry, registry->functions, registry->functionCount, registry->functionCapacity, MAREA_G_FunctionEntry, ENTRY, &except);
+MAREA_G_APPEND
+(registry, registry->functions, registry->functionCount, registry->functionCapacity, MAREA_G_FunctionEntry, ENTRY, &except);
 
-    return except;
+return except;
 }
 
 // INFO: the reserved-root rejection, the same as MAREA_TypeRegistryRegisterPublic above.
@@ -283,9 +291,10 @@ MAREA_TypeRegistryExcept MAREA_CALL MAREA_TypeRegistryRegisterPublicFunction(MAR
 
     const MAREA_G_FunctionEntry ENTRY = { .namespaceText = namespaceText, .name = name, .functionPointer = functionPointer, .namespaceLength = namespaceLength, .nameLength = nameLength };
 
-    MAREA_G_APPEND(registry, registry->functions, registry->functionCount, registry->functionCapacity, MAREA_G_FunctionEntry, ENTRY, &except);
+MAREA_G_APPEND
+(registry, registry->functions, registry->functionCount, registry->functionCapacity, MAREA_G_FunctionEntry, ENTRY, &except);
 
-    return except;
+return except;
 }
 
 MAREA_Null MAREA_CALL MAREA_TypeRegistryFindFunction(const MAREA_TypeRegistry *registry, const MAREA_Character8 *namespaceText, MAREA_IntegerSize namespaceLength, const MAREA_Character8 *name, MAREA_IntegerSize nameLength)
@@ -340,9 +349,10 @@ MAREA_TypeRegistryExcept MAREA_CALL MAREA_TypeRegistryReplaceRuntimeFunction(MAR
 
     const MAREA_G_RuntimeHookEntry ENTRY = { .name = name, .nameLength = nameLength, .functionPointer = functionPointer };
 
-    MAREA_G_APPEND(registry, registry->hooks, registry->hookCount, registry->hookCapacity, MAREA_G_RuntimeHookEntry, ENTRY, &except);
+MAREA_G_APPEND
+(registry, registry->hooks, registry->hookCount, registry->hookCapacity, MAREA_G_RuntimeHookEntry, ENTRY, &except);
 
-    return except;
+return except;
 }
 
 MAREA_Null MAREA_CALL MAREA_TypeRegistryFindRuntimeFunction(const MAREA_TypeRegistry *registry, const MAREA_Character8 *name, MAREA_IntegerSize nameLength)

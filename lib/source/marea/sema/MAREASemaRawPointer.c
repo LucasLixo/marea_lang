@@ -3,7 +3,22 @@
 
 #include "marea/internal/sema/MAREASemaInternal.h"
 
-// INFO: a local is [name, type, value?]. The type is a NAMED_TYPE whose first child is a QUALIFIED_NAME of one segment when it is written without a namespace.
+// INFO: whether type carries the raw pointer role: a registered type a library gave that role, read by
+// MAREA_SemaDescriptorOfType, never by a name. issue #190, decision 30 of the 2026-11-24 plan, extends
+// this rule to a parameter, a result, a field and an alias; only the local a declaration binds is
+// wired in today, so the extension is still open (see the apply's open points).
+static MAREA_Boolean MAREA_CALL MAREA_G_HasRawPointerRole(const MAREA_SemaContext *context, const MAREA_AstNode *type)
+{
+    const MAREA_TypeDescriptor *descriptor = MAREA_NULLPTR;
+
+    if ((type == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(type) != MAREA_AST_KIND_NAMED_TYPE) || (MAREA_SemaDescriptorOfType(context, type, &descriptor) == MAREA_BOOLEAN_FALSE)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    return ((descriptor->roles & MAREA_TYPE_ROLE_RAW_POINTER) != MAREA_TYPE_ROLE_NONE) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
+// INFO: a local is [name, type, value?].
 MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckRawPointerLocal(MAREA_SemaContext *context, const MAREA_AstNode *local)
 {
     if ((context == MAREA_NULLPTR) || (local == MAREA_NULLPTR)) {
@@ -16,19 +31,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckRawPointerLocal(MAREA_SemaContext *co
 
     const MAREA_AstNode *type = MAREA_SemaChildAt(local, 1);
 
-    if ((type == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(type) != MAREA_AST_KIND_NAMED_TYPE)) {
-        return MAREA_SEMA_EXCEPT_SUCCESS;
-    }
-
-    const MAREA_AstNode *qualifiedName = MAREA_SemaChildAt(type, 0);
-
-    if ((qualifiedName == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(qualifiedName) != MAREA_AST_KIND_QUALIFIED_NAME) || (MAREA_AstNodeGetChildCount(qualifiedName) != 1)) {
-        return MAREA_SEMA_EXCEPT_SUCCESS;
-    }
-
-    const MAREA_AstNode *segment = MAREA_SemaChildAt(qualifiedName, 0);
-
-    if ((segment == MAREA_NULLPTR) || (MAREA_SemaTextEquals(MAREA_AstNodeGetText(segment), MAREA_AstNodeGetTextLength(segment), "pointer", MAREA_INTEGER_SIZE(7)) == MAREA_BOOLEAN_FALSE)) {
+    if (MAREA_G_HasRawPointerRole(context, type) == MAREA_BOOLEAN_FALSE) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 

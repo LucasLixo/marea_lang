@@ -24,9 +24,11 @@
 --   11. Built-in contracts: Copyable (the type can use "copy") and Movable (the type can use
 --      "move"). A generic can not use "copy" or "move" without one of them. The checker gives
 --      them, and the user never writes an implementation for them: a primitive and an enum are
---      Copyable. A #[move_only] type and owned<T> are only Movable.
+--      Copyable. A #[move_only] type and demo.owned<T> are only Movable.
 
 namespace main;
+require demo.array;
+require demo.owned;
 
 require marea.array;
 
@@ -72,7 +74,7 @@ end
 
 #[visibility = public]
 implementation<First, Second> Pair<First, Second>
-    function swap(self: owned<Pair<First, Second>>): Pair<Second, First> where First: Movable and Second: Movable
+    function swap(self: demo.owned<Pair<First, Second>>): Pair<Second, First> where First: Movable and Second: Movable
         return Pair<Second, First>{ first = move self.second, second = move self.first };
     end
 end
@@ -80,7 +82,7 @@ end
 -- A value parameter: the size is part of the type, known at compile time.
 #[visibility = public]
 structure Buffer<Item, constant Count: sinteger32>
-    items: array<Item, Count>;
+    items: demo.array<Item, Count>;
 end
 
 #[visibility = public]
@@ -92,7 +94,7 @@ end
 
 -- A move-only type: the contract says that the type is moved, so a generic can not copy it.
 #[visibility = public]
-function take<Item>(value: owned<Item>): owned<Item> where Item: Movable
+function take<Item>(value: demo.owned<Item>): demo.owned<Item> where Item: Movable
     return value;
 end
 
@@ -121,7 +123,7 @@ function show_generics(): string
     local best: Score = Score{ value = 9 };
     local other: Score = Score{ value = 3 };
     local number: sinteger32 = maximum<sinteger32>(4, 8);                     -- Item written
-    local fixed: Buffer<float32, 16> = Buffer<float32, 16>{ items = array<float32, 16>.filled(0.0) };
+    local fixed: Buffer<float32, 16> = Buffer<float32, 16>{ items = demo.array<float32, 16>.filled(0.0) };
     local size: sinteger32 = fixed.capacity();
     -- An error, found at the definition of "bad": Item has no operation "+".
     --   function bad<Item>(left: Item, right: Item): Item

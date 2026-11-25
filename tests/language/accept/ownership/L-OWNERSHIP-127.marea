@@ -5,6 +5,7 @@
 -- A copy of a borrow is appended to a vector.
 
 namespace main;
+require demo.vector;
 
 structure Point
     x: sinteger32;
@@ -16,6 +17,6 @@ structure Box
     count: sinteger32;
 end
 
-function check(#[semantics = reference_mutable] points: vector<Point>, #[semantics = reference_read_only] point: Point)
+function check(#[semantics = reference_mutable] points: demo.vector<Point>, #[semantics = reference_read_only] point: Point)
     points.append(copy point);
 end

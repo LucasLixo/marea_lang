@@ -5,6 +5,7 @@
 -- A partition that reads and spawns a worker on each part.
 
 namespace main;
+require demo.task;
 
 require c.array;
 require c.slice;
@@ -49,7 +50,7 @@ function sum_slice(#[semantics = reference_read_only] part: c.slice<float32>): f
 end
 
 function check(#[semantics = reference_read_only] values: c.array<float32>): float32
-    local tasks: c.array<task<float32>> = c.array<task<float32>>{};
+    local tasks: c.array<demo.task<float32>> = c.array<demo.task<float32>>{};
     fork_join
         partition values into WORKER_COUNT as part do
             tasks.append(spawn sum_slice(part));

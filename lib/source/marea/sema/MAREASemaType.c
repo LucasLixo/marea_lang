@@ -50,6 +50,52 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsBuiltin(const MAREA_Character8 *text, 
     return MAREA_BOOLEAN_FALSE;
 }
 
+MAREA_Boolean MAREA_CALL MAREA_SemaDescriptorOfType(const MAREA_SemaContext *context, const MAREA_AstNode *type, const MAREA_TypeDescriptor **outDescriptor)
+{
+    *outDescriptor = MAREA_NULLPTR;
+
+    if ((context == MAREA_NULLPTR) || (type == MAREA_NULLPTR) || (context->typeRegistry == MAREA_NULLPTR)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    if ((MAREA_AstNodeGetKind(type) != MAREA_AST_KIND_NAMED_TYPE) && (MAREA_AstNodeGetKind(type) != MAREA_AST_KIND_GENERIC_NAME)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_AstNode *qualifiedName = MAREA_SemaChildAt(type, 0);
+
+    if ((qualifiedName == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(qualifiedName) != MAREA_AST_KIND_QUALIFIED_NAME)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_IntegerSize SEGMENT_COUNT = MAREA_AstNodeGetChildCount(qualifiedName);
+
+    // INFO: a registered type always has a namespace, so at least two segments: the namespace, then the name.
+    if (SEGMENT_COUNT < 2) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_Character8 *joined = MAREA_NULLPTR;
+
+    MAREA_IntegerSize joinedLength = 0;
+
+    // INFO: the join only reads the written segments and allocates from the context's own arena; it never
+    // changes the context's own state, so the cast is safe for a query function that takes it const.
+    if (MAREA_SemaQualifiedNameJoin((MAREA_SemaContext *)context, qualifiedName, &joined, &joinedLength) != MAREA_SEMA_EXCEPT_SUCCESS) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_AstNode *last = MAREA_SemaChildAt(qualifiedName, (SEGMENT_COUNT - MAREA_INTEGER_SIZE(1)));
+
+    const MAREA_IntegerSize NAME_LENGTH = MAREA_AstNodeGetTextLength(last);
+
+    const MAREA_IntegerSize NAMESPACE_LENGTH = (joinedLength - NAME_LENGTH - MAREA_INTEGER_SIZE(1));
+
+    *outDescriptor = MAREA_TypeRegistryFind(context->typeRegistry, joined, NAMESPACE_LENGTH, MAREA_AstNodeGetText(last), NAME_LENGTH);
+
+    return (*outDescriptor != MAREA_NULLPTR) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
 static MAREA_Boolean MAREA_CALL MAREA_G_IsTypeDeclaration(const MAREA_AstNode *declaration)
 {
     if (declaration == MAREA_NULLPTR) {
@@ -315,10 +361,78 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckArity(MAREA_SemaContext *context
     return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_GENERIC_ARGUMENT_MISMATCH, MAREA_AstNodeGetPosition(node), "type arguments do not match the generic parameters of", name, nameLength);
 }
 
+static const MAREA_AstNode *MAREA_CALL MAREA_G_FindTypeArguments(const MAREA_AstNode *node)
+{
+    const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(node);
+
+    for (MAREA_IntegerSize index = 0; index < COUNT; ++index) {
+        const MAREA_AstNode *child = MAREA_SemaChildAt(node, index);
+
+        if ((child != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(child) == MAREA_AST_KIND_TYPE_ARGUMENTS)) {
+            return child;
+        }
+    }
+
+    return MAREA_NULLPTR;
+}
+
+// INFO: whether sema knows the type has a measured layout at this shallow level: a primitive always
+// does, a user structure or enum always does (its own layout record decides the detail), and a generic
+// parameter is trusted until it is filled with a concrete argument (checked again then, at the call or
+// the instantiation that fills it, not here). A function type or another registered type with no
+// layout of its own is rejected.
+static MAREA_Boolean MAREA_CALL MAREA_G_HasKnownLayout(const MAREA_SemaContext *context, const MAREA_AstNode *type)
+{
+    const MAREA_AstNode *declaration = MAREA_NULLPTR;
+
+    const MAREA_Character8 *name = MAREA_NULLPTR;
+
+    MAREA_IntegerSize length = 0;
+
+    switch (MAREA_SemaClassifyType(context, type, &declaration, &name, &length)) {
+    case MAREA_SEMA_TYPE_CLASS_PRIMITIVE:
+    case MAREA_SEMA_TYPE_CLASS_USER:
+    case MAREA_SEMA_TYPE_CLASS_GENERIC:
+        return MAREA_BOOLEAN_TRUE;
+    default:
+        return MAREA_BOOLEAN_FALSE;
+    }
+}
+
+// INFO: an element type with no measured layout cannot be held by value (decision 28 of the
+// 2026-11-24 plan): a registered type whose descriptor holds its first type argument inline
+// (hasIndexProtocol) needs that argument to have a known layout.
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckElementLayout(MAREA_SemaContext *context, const MAREA_AstNode *node)
+{
+    const MAREA_TypeDescriptor *descriptor = MAREA_NULLPTR;
+
+    if ((MAREA_SemaDescriptorOfType(context, node, &descriptor) == MAREA_BOOLEAN_FALSE) || (descriptor->hasIndexProtocol == MAREA_BOOLEAN_FALSE)) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_AstNode *arguments = MAREA_G_FindTypeArguments(node);
+
+    const MAREA_AstNode *element = (arguments == MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_SemaChildAt(arguments, 0);
+
+    if ((element == MAREA_NULLPTR) || (MAREA_G_HasKnownLayout(context, element) == MAREA_BOOLEAN_TRUE)) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_ELEMENT_WITHOUT_MEASURED_LAYOUT, MAREA_AstNodeGetPosition(element), "an element type with no measured layout cannot be held by value");
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
 MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckNamedType(MAREA_SemaContext *context, const MAREA_AstNode *node)
 {
     if ((context == MAREA_NULLPTR) || (node == MAREA_NULLPTR)) {
         return MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    const MAREA_SemaExcept ELEMENT_LAYOUT_RESULT = MAREA_G_CheckElementLayout(context, node);
+
+    if (ELEMENT_LAYOUT_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+        return ELEMENT_LAYOUT_RESULT;
     }
 
     const MAREA_AstNode *qualifiedName = MAREA_SemaChildAt(node, 0);
