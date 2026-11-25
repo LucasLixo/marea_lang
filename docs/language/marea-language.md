@@ -1330,6 +1330,9 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
   second file.
 - The codes 3066, 3067 and 3068 (a private symbol, type or field of another namespace) have no item for the same
   reason: they need a second namespace (issue #250). `tests/source/sema/MAREASemaVisibility.cpp` proves them.
+- The code 3082 (`ELEMENT_WITHOUT_MEASURED_LAYOUT`, an element with no measured layout held by value) has no item
+  yet: no shipped library type exists for an item to write, since this apply (sema-no-library-descriptors-roles)
+  only adds the type registry and the roles a library registers with, never a real library. `tests/source/sema/MAREASemaTypeRegistry.cpp` proves the code with a fixture descriptor instead.
 - The runner compares the codes of a `reject` item in the order the compiler gives them, so an item over two stages
   depends on the order of the stages (lex, then parse, then sema).
 - A known_gap item must be accepted today, so a valid program that the compiler rejects by mistake has no item. Known:

@@ -56,6 +56,7 @@ namespace
         { 4004, "the catalogue runner runs lex, parse and sema only, so no item reaches the ir; remove this entry when a runner makes the ir run" },
         { 4005, "the catalogue runner runs lex, parse and sema only, so no item reaches the ir; remove this entry when a runner makes the ir run" },
         { 4006, "the catalogue runner runs lex, parse and sema only, so no item reaches the ir; remove this entry when a runner makes the ir run" },
+        { 3082, "no shipped library type exists yet for an item to write (sema-no-library-descriptors-roles adds only the registry and the roles); proven by tests/source/sema/MAREASemaTypeRegistry.cpp" },
     };
 
     // INFO: an example that has no accept item. Each reason is checked by hand and is named in the Gaps section.
