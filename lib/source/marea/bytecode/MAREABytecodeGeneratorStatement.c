@@ -3,18 +3,52 @@
 
 #include "marea/internal/bytecode/MAREABytecodeGeneratorInternal.h"
 
+// INFO: a structure local never shares its byte range with another local: MAREA_BytecodeGeneratorAllocateFrame
+// gives it a fresh one, and addr_of loads that offset into the local's own register, so the register always holds
+// an address, never the bytes.
+static MAREA_BytecodeExcept MAREA_CALL MAREA_G_LowerAggregateLocal(MAREA_BytecodeGenerator *generator, const MAREA_IrNode *node, const MAREA_IrNode *value, MAREA_Uinteger32 aggregateIndex)
+{
+    const MAREA_BytecodeGeneratorAggregate *aggregate = &generator->aggregates[aggregateIndex];
+
+    MAREA_Uinteger32 offset = MAREA_UINTEGER_32(0);
+
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorAllocateFrame(generator, node, aggregate->size, aggregate->alignment, &offset));
+
+    MAREA_Uinteger32 registerIndex = MAREA_UINTEGER_32(0);
+
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorAllocate(generator, node, MAREA_UINTEGER_32(1), &registerIndex));
+
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorEmit(generator, MAREA_BYTECODE_OPCODE_ADDRESS_OF, registerIndex, offset, MAREA_UINTEGER_32(0), MAREA_NULLPTR));
+
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorConstructAggregate(generator, value, registerIndex, aggregateIndex));
+
+    // INFO: the name is bound after its value, so the value cannot read the local that it makes.
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorPushSymbol(generator, MAREA_IrNodeGetText(node), MAREA_IrNodeGetTextLength(node), registerIndex, MAREA_BYTECODE_GENERATOR_KIND_AGGREGATE, aggregateIndex));
+
+    generator->nextRegister = (registerIndex + MAREA_UINTEGER_32(1));
+
+    return MAREA_BYTECODE_EXCEPT_SUCCESS;
+}
+
 static MAREA_BytecodeExcept MAREA_CALL MAREA_G_LowerLocal(MAREA_BytecodeGenerator *generator, const MAREA_IrNode *node)
 {
-    const MAREA_Uinteger8 KIND = MAREA_BytecodeGeneratorKindOfNode(node);
-
-    if (!((KIND < MAREA_BYTECODE_NUMBER_KIND_COUNT) || (KIND == MAREA_BYTECODE_GENERATOR_KIND_BOOLEAN))) {
-        return MAREA_BytecodeGeneratorFail(generator, node, MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, "A local has a type that is not a scalar.");
-    }
-
     const MAREA_IrNode *value = MAREA_BytecodeGeneratorChildAt(node, MAREA_INTEGER_SIZE(0));
 
     if (value == MAREA_NULLPTR) {
         return MAREA_BytecodeGeneratorFail(generator, node, MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_CONSTRUCT, "A local has no initial value.");
+    }
+
+    MAREA_Uinteger8 kind = MAREA_BYTECODE_GENERATOR_KIND_NONE;
+    MAREA_Uinteger32 aggregateIndex = MAREA_BYTECODE_NONE;
+
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorAggregateKind(generator, node, &kind, &aggregateIndex));
+
+    if (kind == MAREA_BYTECODE_GENERATOR_KIND_AGGREGATE) {
+        return MAREA_G_LowerAggregateLocal(generator, node, value, aggregateIndex);
+    }
+
+    if (!((kind < MAREA_BYTECODE_NUMBER_KIND_COUNT) || (kind == MAREA_BYTECODE_GENERATOR_KIND_BOOLEAN))) {
+        return MAREA_BytecodeGeneratorFail(generator, node, MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, "A local has a type that is not a scalar.");
     }
 
     MAREA_Uinteger32 registerIndex = MAREA_UINTEGER_32(0);
@@ -23,10 +57,10 @@ static MAREA_BytecodeExcept MAREA_CALL MAREA_G_LowerLocal(MAREA_BytecodeGenerato
 
     MAREA_Uinteger8 valueKind = MAREA_BYTECODE_GENERATOR_KIND_NONE;
 
-    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorLowerInto(generator, value, registerIndex, KIND, &valueKind));
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorLowerInto(generator, value, registerIndex, kind, &valueKind));
 
     // INFO: the name is bound after its value, so the value cannot read the local that it makes.
-    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorPushSymbol(generator, MAREA_IrNodeGetText(node), MAREA_IrNodeGetTextLength(node), registerIndex, KIND));
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorPushSymbol(generator, MAREA_IrNodeGetText(node), MAREA_IrNodeGetTextLength(node), registerIndex, kind, MAREA_BYTECODE_NONE));
 
     generator->nextRegister = (registerIndex + MAREA_UINTEGER_32(1));
 

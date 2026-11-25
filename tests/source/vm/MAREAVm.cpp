@@ -3,10 +3,38 @@
 
 #include "tests/dependencies.hpp"
 
+#include "tests/MAREABytecodeHelpers.hpp"
 #include "tests/MAREAVmHelpers.hpp"
 
 #include <cmath>
 #include <cstring>
+
+namespace
+{
+    // INFO: a fixture that hand-builds a module through the public MAREA_BytecodeModule API (the way
+    // MAREA_BytecodeFixture already does for the bytecode stage's own tests), then runs it on a real
+    // MAREA_VmContext. Used for the composite opcodes and shapes no accepted program can write yet: a tuple or
+    // an array has no shipped library to name one with (fixture descriptors stand in for them, as the apply's own
+    // context says), and a tagged-union enum variant with data has no construction syntax lowered yet either.
+    struct MAREA_RawVmFixture : MAREA_BytecodeFixture
+    {
+        MAREA_VmContext *context{ nullptr };
+
+        MAREA_RawVmFixture()
+        {
+            MAREA_IGNORE(MAREA_VmContextCreate(arena, sink, &context));
+        }
+
+        MAREA_VmResult MAREA_run(MAREA_BytecodeModule *module, std::uint32_t functionIndex, const std::vector<std::uint64_t> &arguments = {})
+        {
+            MAREA_VmResult result{};
+
+            MAREA_IGNORE(MAREA_VmCall(context, module, functionIndex, (arguments.empty() ? nullptr : arguments.data()), static_cast<std::uint32_t>(arguments.size()), &result));
+
+            return result;
+        }
+    };
+} // namespace
 
 namespace
 {
@@ -448,4 +476,285 @@ TEST(MAREAVm, OneFunctionPerLanguageConstructOfTheSlicesRunsWithTheExpectedResul
     }
 
     EXPECT_EQ(checked, MAREA_VM_CONSTRUCT_CASES.size()) << "Every construct of the table must have run.";
+}
+
+TEST(MAREAVm, ZeroOpcodeClearsFrameMemoryOrARegister)
+{
+    GTEST_COUT << "Validating zero clears a byte range of the frame's own memory area, or the register itself when the byte count is 0." << std::endl;
+
+    MAREA_RawVmFixture fixture;
+    MAREA_BytecodeModule *module{ fixture.MAREA_newModule() };
+
+    const std::uint32_t MEMORY_FORM{ fixture.MAREA_addFunction(module, MAREA_BYTECODE_NONE, MAREA_BYTECODE_NONE, 3, 8, 0) };
+
+    fixture.MAREA_addInstruction(module, MEMORY_FORM, MAREA_BYTECODE_OPCODE_ADDRESS_OF, 0, 0, 0);
+    fixture.MAREA_addInstruction(module, MEMORY_FORM, MAREA_BYTECODE_OPCODE_LOAD_IMMEDIATE, 1, 99, 0);
+    fixture.MAREA_addInstruction(module, MEMORY_FORM, MAREA_BYTECODE_OPCODE_STORE, 0, 1, MAREA_BYTECODE_NUMBER_KIND_UINTEGER_64);
+    fixture.MAREA_addInstruction(module, MEMORY_FORM, MAREA_BYTECODE_OPCODE_ZERO, 0, 8, 0);
+    fixture.MAREA_addInstruction(module, MEMORY_FORM, MAREA_BYTECODE_OPCODE_LOAD, 2, 0, MAREA_BYTECODE_NUMBER_KIND_UINTEGER_64);
+    fixture.MAREA_addInstruction(module, MEMORY_FORM, MAREA_BYTECODE_OPCODE_RETURN, 2, 0, 0);
+
+    const MAREA_VmResult MEMORY_RESULT{ fixture.MAREA_run(module, MEMORY_FORM) };
+
+    EXPECT_FALSE(MEMORY_RESULT.trapped) << "Clearing a byte range must not trap.";
+
+    EXPECT_EQ(MEMORY_RESULT.value, 0U) << "The 8 bytes that held 99 must read back as 0.";
+
+    const std::uint32_t REGISTER_FORM{ fixture.MAREA_addFunction(module, MAREA_BYTECODE_NONE, MAREA_BYTECODE_NONE, 1, 0, 0) };
+
+    fixture.MAREA_addInstruction(module, REGISTER_FORM, MAREA_BYTECODE_OPCODE_LOAD_IMMEDIATE, 0, 42, 0);
+    fixture.MAREA_addInstruction(module, REGISTER_FORM, MAREA_BYTECODE_OPCODE_ZERO, 0, 0, 0);
+    fixture.MAREA_addInstruction(module, REGISTER_FORM, MAREA_BYTECODE_OPCODE_RETURN, 0, 0, 0);
+
+    const MAREA_VmResult REGISTER_RESULT{ fixture.MAREA_run(module, REGISTER_FORM) };
+
+    EXPECT_FALSE(REGISTER_RESULT.trapped) << "Clearing a register must not trap.";
+
+    EXPECT_EQ(REGISTER_RESULT.value, 0U) << "A byte count of 0 must clear the register itself, not memory.";
+}
+
+TEST(MAREAVm, AddressOfFieldLoadStoreRoundTripAStructure)
+{
+    GTEST_COUT << "Validating addr_of, field, load and store build and read a two-field structure in the frame's own memory." << std::endl;
+
+    MAREA_RawVmFixture fixture;
+    MAREA_BytecodeModule *module{ fixture.MAREA_newModule() };
+    const std::uint32_t FUNCTION{ fixture.MAREA_addFunction(module, MAREA_BYTECODE_NONE, MAREA_BYTECODE_NONE, 6, 8, 0) };
+
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_ADDRESS_OF, 0, 0, 0);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_LOAD_IMMEDIATE, 1, 10, 0);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_STORE, 0, 1, MAREA_BYTECODE_NUMBER_KIND_SINTEGER_32);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_FIELD, 2, 0, 4);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_LOAD_IMMEDIATE, 3, 20, 0);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_STORE, 2, 3, MAREA_BYTECODE_NUMBER_KIND_SINTEGER_32);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_LOAD, 4, 0, MAREA_BYTECODE_NUMBER_KIND_SINTEGER_32);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_LOAD, 5, 2, MAREA_BYTECODE_NUMBER_KIND_SINTEGER_32);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_ADD, 4, 5, MAREA_BYTECODE_NUMBER_KIND_SINTEGER_32);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_RETURN, 4, 0, 0);
+
+    const MAREA_VmResult RESULT{ fixture.MAREA_run(module, FUNCTION) };
+
+    EXPECT_FALSE(RESULT.trapped) << "A plain field round trip must not trap.";
+
+    EXPECT_EQ(static_cast<std::int32_t>(RESULT.value), 30) << "x (10) plus y (20), each stored then loaded back through its own field address, must be 30.";
+}
+
+TEST(MAREAVm, CopyBytesDuplicatesAStructureIndependently)
+{
+    GTEST_COUT << "Validating copy_bytes makes an independent duplicate: a later store into the source never reaches the copy." << std::endl;
+
+    MAREA_RawVmFixture fixture;
+    MAREA_BytecodeModule *module{ fixture.MAREA_newModule() };
+    const std::uint32_t FUNCTION{ fixture.MAREA_addFunction(module, MAREA_BYTECODE_NONE, MAREA_BYTECODE_NONE, 4, 16, 0) };
+
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_ADDRESS_OF, 0, 0, 0);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_ADDRESS_OF, 1, 8, 0);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_LOAD_IMMEDIATE, 2, 5, 0);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_STORE, 0, 2, MAREA_BYTECODE_NUMBER_KIND_SINTEGER_32);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_COPY_BYTES, 1, 0, 8);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_LOAD_IMMEDIATE, 2, 99, 0);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_STORE, 0, 2, MAREA_BYTECODE_NUMBER_KIND_SINTEGER_32);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_LOAD, 3, 1, MAREA_BYTECODE_NUMBER_KIND_SINTEGER_32);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_RETURN, 3, 0, 0);
+
+    const MAREA_VmResult RESULT{ fixture.MAREA_run(module, FUNCTION) };
+
+    EXPECT_FALSE(RESULT.trapped) << "A copy of a structure must not trap.";
+
+    EXPECT_EQ(static_cast<std::int32_t>(RESULT.value), 5) << "The copy must keep the value of the field as it was at copy time (5), unaffected by the later store of 99 into the source.";
+}
+
+TEST(MAREAVm, MoveSemanticsZeroTheSourceAfterCopyBytes)
+{
+    GTEST_COUT << "Validating the copy_bytes then zero pair of move leaves the destination with the value and the source at all zero." << std::endl;
+
+    MAREA_RawVmFixture fixture;
+    MAREA_BytecodeModule *module{ fixture.MAREA_newModule() };
+    const std::uint32_t FUNCTION{ fixture.MAREA_addFunction(module, MAREA_BYTECODE_NONE, MAREA_BYTECODE_NONE, 6, 16, 0) };
+
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_ADDRESS_OF, 0, 0, 0);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_ADDRESS_OF, 1, 8, 0);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_LOAD_IMMEDIATE, 2, 7, 0);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_STORE, 0, 2, MAREA_BYTECODE_NUMBER_KIND_SINTEGER_32);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_COPY_BYTES, 1, 0, 8);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_ZERO, 0, 8, 0);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_LOAD, 3, 0, MAREA_BYTECODE_NUMBER_KIND_SINTEGER_32);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_LOAD, 4, 1, MAREA_BYTECODE_NUMBER_KIND_SINTEGER_32);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_LOAD_IMMEDIATE, 5, 100, 0);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_MUL, 3, 5, MAREA_BYTECODE_NUMBER_KIND_SINTEGER_32);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_ADD, 3, 4, MAREA_BYTECODE_NUMBER_KIND_SINTEGER_32);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_RETURN, 3, 0, 0);
+
+    const MAREA_VmResult RESULT{ fixture.MAREA_run(module, FUNCTION) };
+
+    EXPECT_FALSE(RESULT.trapped) << "A move must not trap.";
+
+    EXPECT_EQ(static_cast<std::int32_t>(RESULT.value), 7) << "source*100 + destination must be 7: the source reads as 0 after the move zeroes it, and the destination keeps the moved value (7).";
+}
+
+TEST(MAREAVm, IndexOutOfRangeTrapsOnABoundsCheckedArray)
+{
+    GTEST_COUT << "Validating a bounds check built from lt_u, jump_if_not and trap gives a defined index-out-of-range trap for an index at or past the length, and no trap for one inside it." << std::endl;
+
+    MAREA_RawVmFixture fixture;
+    MAREA_BytecodeModule *module{ fixture.MAREA_newModule() };
+    const std::uint32_t INTEGER{ fixture.MAREA_addType(module, MAREA_BYTECODE_TYPE_KIND_PRIMITIVE, fixture.MAREA_addString(module, "sinteger32"), 4, 4) };
+    const std::uint32_t FUNCTION{ fixture.MAREA_addFunction(module, MAREA_BYTECODE_NONE, MAREA_BYTECODE_NONE, 10, 16, 0) };
+
+    fixture.MAREA_addParameter(module, FUNCTION, INTEGER, 0);
+
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_ADDRESS_OF, 3, 0, 0);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_LOAD_IMMEDIATE, 1, 4, 0);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_LESS_UNSIGNED, 2, 0, 1);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_JUMP_IF_NOT, 2, 2, 0);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_LOAD, 9, 3, MAREA_BYTECODE_NUMBER_KIND_SINTEGER_32);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_RETURN, 9, 0, 0);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_TRAP, MAREA_BYTECODE_TRAP_CODE_INDEX_OUT_OF_BOUNDS, 0, 0);
+
+    const MAREA_VmResult INSIDE{ fixture.MAREA_run(module, FUNCTION, { 2 }) };
+
+    EXPECT_FALSE(INSIDE.trapped) << "An index inside the length (4) must not trap.";
+
+    const MAREA_VmResult OUTSIDE{ fixture.MAREA_run(module, FUNCTION, { 10 }) };
+
+    ASSERT_TRUE(OUTSIDE.trapped) << "An index at or past the length must trap.";
+
+    EXPECT_EQ(OUTSIDE.trap, MAREA_BYTECODE_TRAP_CODE_INDEX_OUT_OF_BOUNDS) << "The trap code must say index out of range.";
+}
+
+TEST(MAREAVm, LoadDataBlockCopiesABlobIntoFrameMemory)
+{
+    GTEST_COUT << "Validating load_data_block copies a blob of the read-only data section into the frame's own memory, byte for byte." << std::endl;
+
+    MAREA_RawVmFixture fixture;
+    MAREA_BytecodeModule *module{ fixture.MAREA_newModule() };
+    const std::uint32_t BLOB{ fixture.MAREA_addData(module, { 0x01, 0x02, 0x03, 0x04 }) };
+    const std::uint32_t FUNCTION{ fixture.MAREA_addFunction(module, MAREA_BYTECODE_NONE, MAREA_BYTECODE_NONE, 2, 4, 0) };
+
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_ADDRESS_OF, 0, 0, 0);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_LOAD_DATA_BLOCK, 0, static_cast<std::uint16_t>(BLOB), 0);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_LOAD, 1, 0, MAREA_BYTECODE_NUMBER_KIND_UINTEGER_32);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_RETURN, 1, 0, 0);
+
+    const MAREA_VmResult RESULT{ fixture.MAREA_run(module, FUNCTION) };
+
+    EXPECT_FALSE(RESULT.trapped) << "Reading a blob into memory must not trap.";
+
+    EXPECT_EQ(static_cast<std::uint32_t>(RESULT.value), 0x04030201U) << "The 4 bytes of the blob, little-endian, must read back as 0x04030201.";
+}
+
+TEST(MAREAVm, CallingTheSameFunctionTwiceRunsBothCallsToCompletion)
+{
+    GTEST_COUT << "Validating that calling the same function twice in one body (the shape of two destroy calls on the same kind of value) runs both to completion deterministically, never a crash or an undefined second run." << std::endl;
+
+    MAREA_RawVmFixture fixture;
+    MAREA_BytecodeModule *module{ fixture.MAREA_newModule() };
+    const std::uint32_t UNIT{ fixture.MAREA_addFunction(module, MAREA_BYTECODE_NONE, MAREA_BYTECODE_NONE, 1, 0, 0) };
+
+    fixture.MAREA_addInstruction(module, UNIT, MAREA_BYTECODE_OPCODE_LOAD_IMMEDIATE, 0, 1, 0);
+    fixture.MAREA_addInstruction(module, UNIT, MAREA_BYTECODE_OPCODE_RETURN, 0, 0, 0);
+
+    const std::uint32_t MAIN{ fixture.MAREA_addFunction(module, MAREA_BYTECODE_NONE, MAREA_BYTECODE_NONE, 3, 0, 0) };
+
+    fixture.MAREA_addInstruction(module, MAIN, MAREA_BYTECODE_OPCODE_CALL, 0, static_cast<std::uint16_t>(UNIT), 0);
+    fixture.MAREA_addInstruction(module, MAIN, MAREA_BYTECODE_OPCODE_MOVE, 1, 0, 0);
+    fixture.MAREA_addInstruction(module, MAIN, MAREA_BYTECODE_OPCODE_CALL, 0, static_cast<std::uint16_t>(UNIT), 0);
+    fixture.MAREA_addInstruction(module, MAIN, MAREA_BYTECODE_OPCODE_ADD, 1, 0, MAREA_BYTECODE_NUMBER_KIND_SINTEGER_32);
+    fixture.MAREA_addInstruction(module, MAIN, MAREA_BYTECODE_OPCODE_RETURN, 1, 0, 0);
+
+    const MAREA_VmResult RESULT{ fixture.MAREA_run(module, MAIN) };
+
+    EXPECT_FALSE(RESULT.trapped) << "Two calls of the same function must not trap.";
+
+    EXPECT_EQ(static_cast<std::int32_t>(RESULT.value), 2) << "Each of the two calls must run to completion once: 1 + 1 is 2, never a crash or a skipped second run.";
+}
+
+TEST(MAREAVm, EnumTaggedUnionConstructReadAndSwitchDispatch)
+{
+    GTEST_COUT << "Validating the tag-plus-union shape of an enum with data: the zero rule, a tag store, a payload store at the payload offset, a tag read and a dispatch on it, and a payload read of the active variant." << std::endl;
+
+    MAREA_RawVmFixture fixture;
+    MAREA_BytecodeModule *module{ fixture.MAREA_newModule() };
+    const std::uint32_t FUNCTION{ fixture.MAREA_addFunction(module, MAREA_BYTECODE_NONE, MAREA_BYTECODE_NONE, 7, 8, 0) };
+
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_ADDRESS_OF, 0, 0, 0);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_ZERO, 0, 8, 0);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_LOAD_IMMEDIATE, 1, 0, 0);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_STORE, 0, 1, MAREA_BYTECODE_NUMBER_KIND_SINTEGER_32);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_FIELD, 2, 0, 4);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_LOAD_IMMEDIATE, 3, 7, 0);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_STORE, 2, 3, MAREA_BYTECODE_NUMBER_KIND_SINTEGER_32);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_LOAD, 4, 0, MAREA_BYTECODE_NUMBER_KIND_SINTEGER_32);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_EQUAL, 5, 4, 1);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_JUMP_IF_NOT, 5, 2, 0);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_LOAD, 6, 2, MAREA_BYTECODE_NUMBER_KIND_SINTEGER_32);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_RETURN, 6, 0, 0);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_LOAD_IMMEDIATE, 6, 999, 0);
+    fixture.MAREA_addInstruction(module, FUNCTION, MAREA_BYTECODE_OPCODE_RETURN, 6, 0, 0);
+
+    const MAREA_VmResult RESULT{ fixture.MAREA_run(module, FUNCTION) };
+
+    EXPECT_FALSE(RESULT.trapped) << "Building and reading a tagged-union value must not trap.";
+
+    EXPECT_EQ(static_cast<std::int32_t>(RESULT.value), 7) << "The tag (0) must match the first arm, so the payload field (7) of the active variant, read at the payload offset, must come back.";
+}
+
+TEST(MAREAVm, BuildsAStructureLiteralAndReadsItsFields)
+{
+    GTEST_COUT << "Validating a structure literal with no construct operator zero-fills, stores each named field, and that a field read gives the stored value back, from real language source." << std::endl;
+
+    MAREA_VmFixture fixture;
+
+    ASSERT_TRUE(fixture.MAREA_build("structure Point x: sinteger32; y: sinteger32; end function f(): sinteger32 local p: Point = Point{ x = 3, y = 4 }; return p.x + p.y; end")) << "The unit must generate.";
+
+    const MAREA_VmResult RESULT{ fixture.MAREA_call("f") };
+
+    EXPECT_FALSE(RESULT.trapped) << "Building and reading a plain structure must not trap.";
+
+    EXPECT_EQ(static_cast<std::int32_t>(RESULT.value), 7) << "x (3) plus y (4) must be 7.";
+}
+
+TEST(MAREAVm, CopiesAStructureLocalByValue)
+{
+    GTEST_COUT << "Validating `local b: Point = copy a;` copies the bytes of a structure local into a new one, from real language source." << std::endl;
+
+    MAREA_VmFixture fixture;
+
+    ASSERT_TRUE(fixture.MAREA_build("structure Point x: sinteger32; y: sinteger32; end function f(): sinteger32 local a: Point = Point{ x = 1, y = 2 }; local b: Point = copy a; return (b.x * 10) + b.y; end")) << "The unit must generate.";
+
+    const MAREA_VmResult RESULT{ fixture.MAREA_call("f") };
+
+    EXPECT_FALSE(RESULT.trapped) << "Copying a structure must not trap.";
+
+    EXPECT_EQ(static_cast<std::int32_t>(RESULT.value), 12) << "The copy must read x (1) and y (2) back: 1 * 10 + 2 is 12.";
+}
+
+TEST(MAREAVm, MovesAStructureLocalIntoANewOne)
+{
+    GTEST_COUT << "Validating `local b: Point = move a;` builds the new local with the value of a, from real language source." << std::endl;
+
+    MAREA_VmFixture fixture;
+
+    ASSERT_TRUE(fixture.MAREA_build("structure Point x: sinteger32; y: sinteger32; end function f(): sinteger32 local a: Point = Point{ x = 7, y = 8 }; local b: Point = move a; return b.x + b.y; end")) << "The unit must generate.";
+
+    const MAREA_VmResult RESULT{ fixture.MAREA_call("f") };
+
+    EXPECT_FALSE(RESULT.trapped) << "Moving a structure must not trap.";
+
+    EXPECT_EQ(static_cast<std::int32_t>(RESULT.value), 15) << "The moved-to local must read x (7) and y (8) back: 7 + 8 is 15.";
+}
+
+TEST(MAREAVm, NestedStructureFieldsConstructAndReadThroughAChain)
+{
+    GTEST_COUT << "Validating a structure field that is itself a structure is zero-filled and field-stored in the same pass as the outer one, and that a chain of field reads (bx.inner.x) reaches it, from real language source." << std::endl;
+
+    MAREA_VmFixture fixture;
+
+    ASSERT_TRUE(fixture.MAREA_build("structure Point x: sinteger32; y: sinteger32; end structure Box inner: Point; count: sinteger32; end function f(): sinteger32 local bx: Box = Box{ inner = Point{ x = 5, y = 6 }, count = 9 }; return bx.inner.x + bx.inner.y + bx.count; end")) << "The unit must generate.";
+
+    const MAREA_VmResult RESULT{ fixture.MAREA_call("f") };
+
+    EXPECT_FALSE(RESULT.trapped) << "Building and reading a structure nested in another must not trap.";
+
+    EXPECT_EQ(static_cast<std::int32_t>(RESULT.value), 20) << "inner.x (5) plus inner.y (6) plus count (9) must be 20.";
 }

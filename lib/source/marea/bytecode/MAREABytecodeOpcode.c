@@ -52,6 +52,13 @@ static const MAREA_G_OpcodeRow MAREA_G_OPCODE_TABLE[] = {
     { .name = "call", .opcode = MAREA_BYTECODE_OPCODE_CALL },
     { .name = "return", .opcode = MAREA_BYTECODE_OPCODE_RETURN },
     { .name = "trap", .opcode = MAREA_BYTECODE_OPCODE_TRAP },
+    { .name = "zero", .opcode = MAREA_BYTECODE_OPCODE_ZERO },
+    { .name = "addr_of", .opcode = MAREA_BYTECODE_OPCODE_ADDRESS_OF },
+    { .name = "field", .opcode = MAREA_BYTECODE_OPCODE_FIELD },
+    { .name = "load", .opcode = MAREA_BYTECODE_OPCODE_LOAD },
+    { .name = "store", .opcode = MAREA_BYTECODE_OPCODE_STORE },
+    { .name = "copy_bytes", .opcode = MAREA_BYTECODE_OPCODE_COPY_BYTES },
+    { .name = "load_data_block", .opcode = MAREA_BYTECODE_OPCODE_LOAD_DATA_BLOCK },
 };
 
 const MAREA_Character8 *MAREA_CALL MAREA_BytecodeOpcodeGetName(MAREA_Uinteger16 opcode)
