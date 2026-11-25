@@ -16,7 +16,19 @@ macro(ConfigureLibPrecompiledHeaders)
         foreach(
             TEMP_STAGE_TARGET
             IN
-            ITEMS Marea-Base Marea-Lex Marea-Parse Marea-Sema Marea-Ir
+            ITEMS
+                Marea-Base
+                Marea-Base-Shared
+                Marea-Lex
+                Marea-Lex-Shared
+                Marea-Parse
+                Marea-Parse-Shared
+                Marea-Sema
+                Marea-Sema-Shared
+                Marea-Ir
+                Marea-Ir-Shared
+                Marea-Bytecode
+                Marea-Bytecode-Shared
         )
             if(TARGET ${TEMP_STAGE_TARGET})
                 target_precompile_headers(

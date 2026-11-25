@@ -26,4 +26,8 @@
     #include "marea/ir/MAREAIrNode.h"
     #include "marea/ir/MAREAIrLayout.h"
 
+    #include "marea/bytecode/MAREABytecode.h"
+    #include "marea/bytecode/MAREABytecodeFormat.h"
+    #include "marea/bytecode/MAREABytecodeOpcode.h"
+
 #endif
