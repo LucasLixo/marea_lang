@@ -68,7 +68,7 @@ inline MAREA_SemaImportResult MAREA_resolveLibrary(const std::string &text, cons
 
     const auto STARTS{ [&text](const std::string &prefix) { return text.compare(0, prefix.size(), prefix) == 0; } };
 
-    const bool EXTERNAL{ STARTS("collections.") || STARTS("concurrency.") || STARTS("arenas.") || (text == "text") || STARTS("c.") || (text == "demo") || (text == "marea.array") || (text == "marea.memory") || (text == "marea.tasks") || STARTS("demo.") };
+    const bool EXTERNAL{ STARTS("collections.") || STARTS("concurrency.") || STARTS("arenas.") || (text == "text") || STARTS("c.") || (text == "demo") || (text == "marea.array") || (text == "marea.vector") || (text == "marea.tuple") || (text == "marea.memory") || (text == "marea.tasks") || STARTS("demo.") };
 
     return EXTERNAL ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
 }

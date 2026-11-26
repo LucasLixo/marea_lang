@@ -446,11 +446,10 @@ inline std::vector<MAREA_ParityOutcome> MAREA_parityRunVm(MAREA_IrFixture &fixtu
 
     MAREA_IGNORE(MAREA_VmContextCreate(arena, fixture.sema.parser.lexer.sink, &context));
 
+    // INFO: the vm reads the same libraries as sema and cgen; a host adds its functions and its allocator hooks.
+    MAREA_TypeRegistry *registry{ MAREA_buildLibraryRegistry(arena) };
+
     if (host != nullptr) {
-        MAREA_TypeRegistry *registry{ nullptr };
-
-        MAREA_IGNORE(MAREA_TypeRegistryCreate(arena, MAREA_LIBRARY_MASK_DEFAULT, &registry));
-
         for (const auto &entry : host->vmFunctions) {
             const std::size_t DOT{ entry.first.rfind('.') };
 
@@ -465,9 +464,9 @@ inline std::vector<MAREA_ParityOutcome> MAREA_parityRunVm(MAREA_IrFixture &fixtu
             MAREA_IGNORE(MAREA_TypeRegistryReplaceRuntimeFunction(registry, "alloc", 5, reinterpret_cast<MAREA_Null>(host->vmAllocate)));
             MAREA_IGNORE(MAREA_TypeRegistryReplaceRuntimeFunction(registry, "free", 4, reinterpret_cast<MAREA_Null>(host->vmRelease)));
         }
-
-        MAREA_IGNORE(MAREA_VmContextSetTypeRegistry(context, registry));
     }
+
+    MAREA_IGNORE(MAREA_VmContextSetTypeRegistry(context, registry));
 
     std::vector<MAREA_ParityOutcome> outcomes;
 

@@ -4,7 +4,7 @@
 #if !defined(MAREA_TESTS_MAREALIBRARYREGISTRYHELPERS_HPP)
     #define MAREA_TESTS_MAREALIBRARYREGISTRYHELPERS_HPP
 
-    #include "tests/dependencies.hpp"
+    #include "tests/MAREAShippedLibraries.hpp"
 
 // INFO: the examples and the language catalogue write the old built-in names under the neutral fixture
 // root demo (never c or marea: those two already carry other, unrelated pre-existing meanings in this
@@ -81,6 +81,11 @@ inline MAREA_TypeRegistry *MAREA_buildLibraryRegistry(MAREA_Arena *arena, MAREA_
     MAREA_TypeRegistry *registry{ nullptr };
 
     MAREA_IGNORE(MAREA_TypeRegistryCreate(arena, mask, &registry));
+
+    // INFO: the shipped libraries register first, so a search by name finds their descriptor before a fixture one.
+    MAREA_IGNORE(MAREA_registerArrayLibrary(registry));
+    MAREA_IGNORE(MAREA_registerVectorLibrary(registry));
+    MAREA_IGNORE(MAREA_registerTupleLibrary(registry));
 
     MAREA_IntegerSize count{ 0 };
 
