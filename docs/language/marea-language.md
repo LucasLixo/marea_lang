@@ -1329,16 +1329,15 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | types | 62 | 135 | 3 |
 | total | 275 | 569 | 13 |
 
-## Parity plan
+## Parity
 
-The language has two backends from one IR: the bytecode interpreter and the C11 code. A parity test, not written yet
-(it needs the stages in `temp/_BYTECODE_DESIGN.md`), will run every item of `tests/language/accept/` through both
-backends and compare the observable behavior. Only an accept item is a valid program, so it is the input of the parity
-test: a `reject` item has no program to run, and a `known_gap` item is outside the contract until it moves. When a
-`known_gap` item with `-- rule: accept` moves to `accept/`, it joins the parity set. The 16 accept items of
-`examples/` are the first part of that set. An accept item has no `main` and no output in most cases, so the parity
-test also needs a way to call a function of the item and read its result; that way is a decision of the bytecode and
-cgen stages, not of the catalogue.
+The language has two backends from one IR: the bytecode interpreter and the C11 code. The parity test
+(`tests/source/language/MAREALanguageParity.cpp`) runs every item of `tests/language/accept/` that has a function with a
+result through both backends and compares the observable behavior. Only an accept item is a valid program, so it is
+the input of the parity test: a `reject` item has no program to run, and a `known_gap` item is outside the contract
+until it moves. When a `known_gap` item with `-- rule: accept` moves to `accept/`, it joins the parity set. An item that
+a backend cannot run yet is listed in the test with its reason. The way the test calls the functions of an item is in
+[marea-cgen.md](../cgen/marea-cgen.md), "Parity with the vm".
 
 ## Diagnostics
 
