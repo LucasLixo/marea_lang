@@ -875,11 +875,16 @@ constant of that block shadows a top-level constant of the same name: the inner 
 type that the block gives it. A parameter or a local still hides both. A constant of one block is not a name in
 another block or outside the blocks.
 
+**Loop and scope names.** The name of a `for`, `for each`, `partition` or `with` statement comes into scope after
+its header, for the body only. It is a name of the body block: it cannot repeat a local of the block that holds the
+statement, and a local of the body cannot repeat it (`NAME_ALREADY_DECLARED`, 3003). It can hide a name of an outer
+block, and a statement in the body can hide it with a name of its own.
+
 **Names in expressions.** A bare name in the initializer of a local, either side of an assignment, an
 expression statement, the condition of an `if`, `elseif` or `while`, a `return` value and a `switch` value (and
 below them: operands, arguments, indexes, entries of a literal value) must be declared, or sema raises
 `UNDECLARED_NAME` (3004) on it. A name is declared when it is a local or parameter in scope, the name of a
-`for`, `for each`, `partition` or `with` statement (hidden from the end of that statement), a declaration or
+`for`, `for each`, `partition` or `with` statement (in scope in its body only, not in its own header), a declaration or
 import of the file, a generic parameter in scope, a constant of an `implementation` block inside that block only, the
 first segment of the file namespace, or one of the built-ins `size_of`, `align_of`, `convert` and `Self`.
 A member name, a field key of a literal value, a type and a macro call are not checked. The bare name that
@@ -1327,8 +1332,6 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
   with an alias.
 - Two functions that call each other cannot be written, because a function must be declared before its use and the
   grammar has no forward declaration.
-- The name of a `for`, `for each`, `partition` or `with` statement is not checked against the names of its own
-  scope: it can repeat a local of the same block, and a local of its body can repeat it.
 - No check of the signature of `main` exists any more, and a driver-level replacement does not exist yet.
 - No real library exists yet: the types of `marea.array`, `marea.vector`, `marea.tuple`, `c.memory` and `c.threads` are registered
   by fixtures in the tests (under the neutral root `demo` and under the planned full paths), so the roles are proven but no shipped
@@ -1375,8 +1378,7 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
   unknown type, because sema cannot see their functions. Only a bare name or a local that is a bare name is a receiver:
   a call on a field chain or on a call result is not checked. A function of a contract on a generic receiver is not checked.
 - The `for`, `for each`, `partition`
-  and `with` header expressions and the initializer of a file constant are checked. The loop name is already in
-  scope when its own header is checked, so `for i in 0 .. i` with no outer `i` raises nothing. A constant that has
+  and `with` header expressions and the initializer of a file constant are checked. A constant that has
   an `ERROR_NODE` below it has no name check, because the parser may leave its tokens as an expression.
 - `OPAQUE_TYPE_MISUSE` (3057) sees only an operand or a base that is a bare name, or one in parentheses, whose
   written type is an opaque structure of the same file. A call result, an index, a field of another value and an

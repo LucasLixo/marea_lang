@@ -49,6 +49,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaContextCreate(MAREA_Arena *arena, MAREA_Di
     context->forkBody = MAREA_NULLPTR;
     context->captureLocalBase = 0;
     context->localStart = 0;
+    context->localStartBinders = 0;
     context->functionLocalStart = 0;
     context->root = MAREA_NULLPTR;
     context->function = MAREA_NULLPTR;
@@ -323,7 +324,20 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaVisit(MAREA_SemaContext *context, const MA
     }
 
     if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
-        result = MAREA_SemaCheckExpressions(context, node);
+        MAREA_IntegerSize binderFirst = 0;
+
+        MAREA_IntegerSize binderEnd = 0;
+
+        // INFO: the expressions of a statement that declares a name are its header, which does not see that name.
+        if (MAREA_SemaBinderRange(node, &binderFirst, &binderEnd) == MAREA_BOOLEAN_TRUE) {
+            const MAREA_SemaBinderWindow WINDOW = MAREA_SemaHideBinders(context, mark);
+
+            result = MAREA_SemaCheckExpressions(context, node);
+
+            MAREA_SemaShowBinders(context, WINDOW);
+        } else {
+            result = MAREA_SemaCheckExpressions(context, node);
+        }
     }
 
     if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
@@ -390,7 +404,15 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaVisit(MAREA_SemaContext *context, const MA
         context->parent = node;
         context->parentIndex = index;
 
-        result = MAREA_SemaVisit(context, child);
+        if (MAREA_SemaIsBinderHeader(node, index) == MAREA_BOOLEAN_TRUE) {
+            const MAREA_SemaBinderWindow WINDOW = MAREA_SemaHideBinders(context, mark);
+
+            result = MAREA_SemaVisit(context, child);
+
+            MAREA_SemaShowBinders(context, WINDOW);
+        } else {
+            result = MAREA_SemaVisit(context, child);
+        }
 
         if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
             result = MAREA_SemaMoveChildLeave(context, node, child, &moveFrame);

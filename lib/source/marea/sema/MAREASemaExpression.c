@@ -93,6 +93,60 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_AppendLocal(MAREA_SemaContext *contex
     return MAREA_SemaTableAppend(context, &context->locals, (MAREA_SemaName){ .text = MAREA_AstNodeGetText(name), .declaration = type, .length = MAREA_AstNodeGetTextLength(name), .kind = MAREA_SEMA_NAME_KIND_DECLARATION });
 }
 
+MAREA_Boolean MAREA_CALL MAREA_SemaBinderRange(const MAREA_AstNode *node, MAREA_IntegerSize *outFirst, MAREA_IntegerSize *outEnd)
+{
+    if ((node == MAREA_NULLPTR) || (outFirst == MAREA_NULLPTR) || (outEnd == MAREA_NULLPTR)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(node);
+
+    // INFO: the places of the names that a statement declares. A for each has its variables before the collection and the body.
+    switch (MAREA_AstNodeGetKind(node)) {
+    case MAREA_AST_KIND_FOR_RANGE_STATEMENT:
+        *outFirst = 0;
+        *outEnd = 1;
+        break;
+    case MAREA_AST_KIND_FOR_EACH_STATEMENT:
+        *outFirst = 0;
+        *outEnd = (COUNT > 2) ? (COUNT - 2) : 0;
+        break;
+    case MAREA_AST_KIND_PARTITION_STATEMENT:
+        *outFirst = 2;
+        *outEnd = 3;
+        break;
+    case MAREA_AST_KIND_WITH_STATEMENT:
+        *outFirst = 1;
+        *outEnd = 2;
+        break;
+    default:
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    return MAREA_BOOLEAN_TRUE;
+}
+
+MAREA_IntegerSize MAREA_CALL MAREA_SemaBinderCount(const MAREA_AstNode *node)
+{
+    MAREA_IntegerSize first = 0;
+
+    MAREA_IntegerSize end = 0;
+
+    if (MAREA_SemaBinderRange(node, &first, &end) == MAREA_BOOLEAN_FALSE) {
+        return 0;
+    }
+
+    MAREA_IntegerSize binders = 0;
+
+    for (MAREA_IntegerSize index = first; index < end; ++index) {
+        if (MAREA_G_IsKind(MAREA_SemaChildAt(node, index), MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_TRUE) {
+            ++binders;
+        }
+    }
+
+    return binders;
+}
+
 MAREA_SemaExcept MAREA_CALL MAREA_SemaDeclareBinders(MAREA_SemaContext *context, const MAREA_AstNode *node)
 {
     if ((context == MAREA_NULLPTR) || (node == MAREA_NULLPTR)) {

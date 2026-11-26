@@ -454,7 +454,15 @@ static MAREA_SemaTypedAstExcept MAREA_CALL MAREA_G_TypedAstBuildNode(MAREA_SemaC
 
             MAREA_SemaTypedNode *typedChild = MAREA_NULLPTR;
 
-            result = MAREA_G_TypedAstBuildNode(context, child, node, index, &typedChild);
+            if (MAREA_SemaIsBinderHeader(node, index) == MAREA_BOOLEAN_TRUE) {
+                const MAREA_SemaBinderWindow WINDOW = MAREA_SemaHideBinders(context, mark);
+
+                result = MAREA_G_TypedAstBuildNode(context, child, node, index, &typedChild);
+
+                MAREA_SemaShowBinders(context, WINDOW);
+            } else {
+                result = MAREA_G_TypedAstBuildNode(context, child, node, index, &typedChild);
+            }
 
             built->children[index] = typedChild;
 

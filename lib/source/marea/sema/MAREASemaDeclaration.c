@@ -661,6 +661,20 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckDeclarations(MAREA_SemaContext *conte
     return MAREA_G_CheckTypeCycles(context, root);
 }
 
+// INFO: the table holds the names of the current function, so only the entries of this block, from the place first to the place end, are compared.
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckRepeatedLocal(MAREA_SemaContext *context, const MAREA_AstNode *name, MAREA_IntegerSize first, MAREA_IntegerSize end)
+{
+    for (MAREA_IntegerSize index = first; index < end; ++index) {
+        const MAREA_SemaName *entry = &context->locals.entries[index];
+
+        if (MAREA_SemaTextEquals(entry->text, entry->length, MAREA_AstNodeGetText(name), MAREA_AstNodeGetTextLength(name)) == MAREA_BOOLEAN_TRUE) {
+            return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_NAME_ALREADY_DECLARED, MAREA_AstNodeGetPosition(name), "name is already declared:", MAREA_AstNodeGetText(name), MAREA_AstNodeGetTextLength(name));
+        }
+    }
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
 MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckDuplicateNames(MAREA_SemaContext *context, const MAREA_AstNode *node)
 {
     if ((context == MAREA_NULLPTR) || (node == MAREA_NULLPTR)) {
@@ -697,17 +711,40 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckDuplicateNames(MAREA_SemaContext *con
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
+    MAREA_IntegerSize first = 0;
+
+    MAREA_IntegerSize end = 0;
+
+    if (MAREA_SemaBinderRange(node, &first, &end) == MAREA_BOOLEAN_TRUE) {
+        // INFO: the scope of the node already holds its names at the end of the table, so each one is compared with the entries before it.
+        const MAREA_IntegerSize BINDERS = MAREA_SemaBinderCount(node);
+
+        MAREA_IntegerSize own = (context->locals.count >= BINDERS) ? (context->locals.count - BINDERS) : 0;
+
+        for (MAREA_IntegerSize place = first; place < end; ++place) {
+            const MAREA_AstNode *name = MAREA_SemaChildAt(node, place);
+
+            if ((name == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(name) != MAREA_AST_KIND_IDENTIFIER)) {
+                continue;
+            }
+
+            // INFO: a nested statement may hide the name of the statement around it, so the names of that statement are skipped.
+            const MAREA_SemaExcept RESULT = MAREA_G_CheckRepeatedLocal(context, name, (context->localStart + context->localStartBinders), own);
+
+            if (RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+                return RESULT;
+            }
+
+            ++own;
+        }
+
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
     if (KIND == MAREA_AST_KIND_LOCAL_DECLARATION) {
         const MAREA_AstNode *name = MAREA_G_NameOf(node);
 
-        // INFO: the table holds the names of the current function, so only the parameters and the entries of this block are compared.
-        for (MAREA_IntegerSize index = context->localStart; ((name != MAREA_NULLPTR) && (index < context->locals.count)); ++index) {
-            const MAREA_SemaName *entry = &context->locals.entries[index];
-
-            if (MAREA_SemaTextEquals(entry->text, entry->length, MAREA_AstNodeGetText(name), MAREA_AstNodeGetTextLength(name)) == MAREA_BOOLEAN_TRUE) {
-                return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_NAME_ALREADY_DECLARED, MAREA_AstNodeGetPosition(name), "name is already declared:", MAREA_AstNodeGetText(name), MAREA_AstNodeGetTextLength(name));
-            }
-        }
+        return (name == MAREA_NULLPTR) ? MAREA_SEMA_EXCEPT_SUCCESS : MAREA_G_CheckRepeatedLocal(context, name, context->localStart, context->locals.count);
     }
 
     return MAREA_SEMA_EXCEPT_SUCCESS;

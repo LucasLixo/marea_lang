@@ -68,29 +68,11 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckBinderNames(MAREA_SemaContext *contex
         return MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER;
     }
 
-    const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(node);
-
-    // INFO: the places of the names that a statement declares. A for each has its variables before the collection and the body.
     MAREA_IntegerSize first = 0;
 
     MAREA_IntegerSize end = 0;
 
-    switch (MAREA_AstNodeGetKind(node)) {
-    case MAREA_AST_KIND_FOR_RANGE_STATEMENT:
-        end = 1;
-        break;
-    case MAREA_AST_KIND_FOR_EACH_STATEMENT:
-        end = (COUNT > 2) ? (COUNT - 2) : 0;
-        break;
-    case MAREA_AST_KIND_PARTITION_STATEMENT:
-        first = 2;
-        end = 3;
-        break;
-    case MAREA_AST_KIND_WITH_STATEMENT:
-        first = 1;
-        end = 2;
-        break;
-    default:
+    if (MAREA_SemaBinderRange(node, &first, &end) == MAREA_BOOLEAN_FALSE) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 

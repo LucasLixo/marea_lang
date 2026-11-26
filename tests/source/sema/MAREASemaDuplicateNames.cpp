@@ -74,3 +74,47 @@ TEST(MAREASemaDuplicateNames, ParameterAndLocalMustBeUniqueInOneScope)
 
     EXPECT_EQ(MAREA_codesOf("function check(): sinteger32 do local value: sinteger32 = 1; end do local value: sinteger32 = 2; end return 0; end"), Codes{}) << "Two sibling blocks that each declare one name must raise nothing.";
 }
+
+TEST(MAREASemaDuplicateNames, LoopNameMustNotRepeatALocalOfItsBlock)
+{
+    GTEST_COUT << "Validating a for, for each, partition or with name that repeats a local of the same block raises NAME_ALREADY_DECLARED, in both directions." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("function f() local i: sinteger32 = 0; for i in 0 .. 10 do end end"), Codes{ ALREADY_DECLARED }) << "A for name that repeats a local must raise once.";
+
+    EXPECT_EQ(MAREA_codesOf("function f() for i in 0 .. 10 do local i: sinteger32 = 0; end end"), Codes{ ALREADY_DECLARED }) << "A body local that repeats the for name must raise once.";
+
+    EXPECT_EQ(MAREA_codesOf("require vulkan; function f(items: vulkan.List) local v: sinteger32 = 0; for each v in items do end end"), Codes{ ALREADY_DECLARED }) << "A for each name that repeats a local must raise once.";
+
+    EXPECT_EQ(MAREA_codesOf("require vulkan; function f(items: vulkan.List) for each v in items do local v: sinteger32 = 0; end end"), Codes{ ALREADY_DECLARED }) << "A body local that repeats the for each name must raise once.";
+
+    EXPECT_EQ(MAREA_codesOf("require vulkan; function f(items: vulkan.List) for each v, v in items do end end"), Codes{ ALREADY_DECLARED }) << "Two loop names of one for each must be different.";
+
+    EXPECT_EQ(MAREA_codesOf("require vulkan; function f(items: vulkan.List) local view: sinteger32 = 0; with items as view do end end"), Codes{ ALREADY_DECLARED }) << "A with name that repeats a local must raise once.";
+
+    EXPECT_EQ(MAREA_codesOf("require vulkan; function f(items: vulkan.List) with items as view do local view: sinteger32 = 0; end end"), Codes{ ALREADY_DECLARED }) << "A body local that repeats the with name must raise once.";
+
+    EXPECT_EQ(MAREA_codesOf("require vulkan; function f(items: vulkan.List) fork_join local part: sinteger32 = 0; partition items into 2 as part do end end end"), Codes{ ALREADY_DECLARED }) << "A partition name that repeats a local must raise once.";
+
+    EXPECT_EQ(MAREA_codesOf("require vulkan; function f(items: vulkan.List) fork_join partition items into 2 as part do local part: sinteger32 = 0; end end end"), Codes{ ALREADY_DECLARED }) << "A body local that repeats the partition name must raise once.";
+
+    EXPECT_EQ(MAREA_codesOf("function f() local i: sinteger32 = 4; do for i in 0 .. i do end end end"), Codes{}) << "A loop name may hide a local of an outer block, and the header reads the outer one.";
+
+    EXPECT_EQ(MAREA_codesOf("function f() for i in 0 .. 4 do for i in 0 .. i do end end end"), Codes{}) << "A nested statement may hide the name of the statement around it.";
+
+    EXPECT_EQ(MAREA_codesOf("function f() for i in 0 .. 4 do end for i in 0 .. 4 do end local i: sinteger32 = 0; end"), Codes{}) << "The name of a loop ends with the loop.";
+}
+
+TEST(MAREASemaDuplicateNames, LoopNameIsNotInScopeInItsOwnHeader)
+{
+    GTEST_COUT << "Validating the header of a for, for each, partition or with statement cannot read the name that the statement declares." << std::endl;
+
+    constexpr MAREA_Uinteger32 UNDECLARED{ MAREA_SEMA_DIAGNOSTIC_CODE_UNDECLARED_NAME };
+
+    EXPECT_EQ(MAREA_codesOf("function f() for i in 0 .. i do end end"), Codes{ UNDECLARED }) << "A for bound must not read its own name.";
+
+    EXPECT_EQ(MAREA_codesOf("function f() for each v in v do end end"), Codes{ UNDECLARED }) << "A for each collection must not read its own name.";
+
+    EXPECT_EQ(MAREA_codesOf("function f() with view as view do end end"), Codes{ UNDECLARED }) << "A with source must not read its own name.";
+
+    EXPECT_EQ(MAREA_codesOf("function f() fork_join partition part into 2 as part do end end end"), Codes{ UNDECLARED }) << "A partition source must not read its own name.";
+}
