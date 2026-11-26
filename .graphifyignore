@@ -1,9 +1,0 @@
-3rdparty/
-temp/
-build/
-.claude/
-.github/
-tools/marea-ascii-check/tests/fixtures/
-CMakeLists.txt
-LICENSE.txt
-AGENTS.md

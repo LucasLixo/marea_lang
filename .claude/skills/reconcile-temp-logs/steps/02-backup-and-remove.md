@@ -6,22 +6,21 @@ Part of the [reconcile-temp-logs](../SKILL.md) skill. This file is a complete pr
 
 - Never remove text that is not confirmed present in the backup.
 
-4. Back up, then remove. If nothing was collected here, skip the backup.
-   a. Take the timestamp once with `date +%Y-%m-%d_%H%M%S` and create
-      `temp/_LOG_APPLY_{DATE}_{TIME}.md` (one file per run; if the name exists, wait a second and
-      take a fresh timestamp).
+4. Back up, then remove. If nothing was collected here, skip this step.
+   a. Create `LOG_BLOCKS.md` in this run's backup folder (see the Requirements of
+      [SKILL.md](../SKILL.md)), one file per run.
    b. Write a `# Apply log backup` title, one line naming the run timestamp, then the collected
       blocks verbatim under `## From _LOG_HANDOFF.md`, `## From _LOG_APPLY_SUCCESS.md`,
-      `## From _LOG_HANDOFF_SUCCESS.md` (omit an empty group). Phase 1-3 backups of error entries
+      `## From _LOG_HANDOFF_SUCCESS.md` (omit an empty group). Phase 1-3 copies of error entries
       are appended to this same file under `## From _LOG_APPLY_ERROR.md` and
       `## From _LOG_HANDOFF_ERROR.md`, so create the file when the first block of the run is
-      backed up, whichever phase it comes from.
-   c. Read the backup back and confirm every block is present, then remove the collected blocks
+      copied, whichever phase it comes from.
+   c. Read the file back and confirm every block is present, then remove the collected blocks
       from their source logs.
 
 ## Done when
 
-- The backup file exists, was read back, and holds every collected block verbatim.
-- Only then were the collected blocks removed from their source logs. If nothing was collected, no backup was made.
+- `LOG_BLOCKS.md` exists in the backup folder, was read back, and holds every collected block verbatim.
+- Only then were the collected blocks removed from their source logs. If nothing was collected, no block was copied.
 
 Next: [steps/03-inventory.md](03-inventory.md)

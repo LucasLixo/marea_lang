@@ -20,7 +20,14 @@
             "Bash(git push *)",
             "Bash(git rebase --continue)",
             "Bash(git rebase --abort)",
-            "Bash(git rebase --skip)"
+            "Bash(git rebase --skip)",
+            "Bash(lua tools/*)",
+            "Bash(lua ./tools/*)",
+            "Bash(bash tools/*)",
+            "Bash(bash ./tools/*)",
+            "Bash(./tools/*)",
+            "Bash(mise run dev:*)",
+            "Bash(mise run setup:git-modules*)"
         ],
         "deny": [
             "Bash(git reset *)"

@@ -21,7 +21,7 @@ A file with no matching skill skips the style part of stage 1 and the report say
 1. Resolve the argument list (or the branch diff), drop `3rdparty/`, generated files and `docs/`, and map every file to its skill with the table above.
 2. Record the tests covering each file: C tests are GoogleTest files under `tests/source/<module>/`; the tests of a `tools/` script are the `test_*.lua` files under that tool's `tests/` folder, when it has one.
 3. Run the covering tests first and record the baseline:
-   - C and tests: `mise run build:marea`, then build the test target with `cmake --build cmake-build-debug --target marea_tests` (the mise task builds only the `marea` target), then `ctest --test-dir cmake-build-debug --output-on-failure`. Use the folder of the configuration you built (`cmake-build-<config>`).
+   - C and tests: `mise run dev:quiet-test` ([cpp-testing](../../cpp-testing/SKILL.md), "Running tests").
    - Tools: `lua tools/marea-ascii-check/tests/run.lua` for the ASCII checker. A tool with no tests has no baseline: say so.
 4. A red baseline stops the audit and is reported, never "fixed" blindly.
 

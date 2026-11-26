@@ -12,10 +12,9 @@ plus every one of this handoff's own bumps in order, build = base's build plus t
 non-merge commit count; obvious parallel additions keep both sides; anything else, stop and ask).
 Re-run the full verification recipe the handoff's own `_LOG_HANDOFF.md` section names (or, absent
 one, what its applies' own `## Verification` sections together imply) on the MERGED root before
-going further - a combined tree can break in ways no single PR did. Only then: open
-`gh pr create --base <base> --head <root-branch>` for the handoff itself, merge it, `git switch
-<base>` and `git fetch`, delete `<root-branch>` (local and remote) the same way a batch branch is
-deleted, and confirm the root issue closed (`gh issue close` if it did not close itself).
+going further - a combined tree can break in ways no single PR did. Only then, from `<root-branch>`:
+`lua tools/marea-ship/main.lua open-pr --base <base> --title "<handoff title>" --issue <root-n> --merge`,
+and confirm that the root issue is closed.
 
 ## Done when
 

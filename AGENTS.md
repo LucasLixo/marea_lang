@@ -87,6 +87,19 @@ programs are in [examples](examples).
   Skip this for third-party code that was not substantively rewritten - its original upstream notice stays as the
   only one, per [LICENSE.txt](LICENSE.txt).
 
+## Context economy
+
+Every turn reads the whole context again, so keep it small, in the main session and in every subagent.
+
+- Read code by symbol, not by file. Find the line with `grep -n`, then use the `marea-docs` MCP (`search_symbols` and
+  `get_symbol` for headers, `get_function_body` for a `.c` function; load them with ToolSearch) or a Read with `offset`
+  and `limit`. Do not `cat` a source file.
+- `marea-docs` reads the checkout that started the session. In another worktree, use `grep -n` and a ranged Read.
+- Build and test only with `mise run dev:quiet-build` and `mise run dev:quiet-test`
+  ([cpp-testing](.claude/skills/cpp-testing/SKILL.md), "Running tests"). For any other long command, send the output to
+  a file under `tmp/` and print only the lines that decide the result.
+- Do not read a whole outcome log: `grep -n '^### '` it, then Read the range you need.
+
 ## Reporting the outcome of any task
 
 Every task ends with a record in the two logs [generate-apply](.claude/skills/generate-apply/references/logs.md)
@@ -141,7 +154,7 @@ only when the user or a rule names them:
   this repository, carried to a merged PR in the same run.
 - `parallelize` - free text => tasks => dependency waves dispatched to subagents, in a git worktree only when
   write sets could collide.
-- `reconcile-temp-logs` - prunes finished applies and merged log entries, backing them up first; never removes
+- `reconcile-temp-logs` - moves finished applies and merged log entries to `temp/_BACKUP/`, deleting nothing; never removes
   open error-log entries.
 - `audit-code` - `<file>...`: the post-apply code audit; [the skill](.claude/skills/audit-code/SKILL.md) owns its
   stages and run conditions.

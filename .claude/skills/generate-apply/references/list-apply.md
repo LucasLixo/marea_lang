@@ -17,13 +17,13 @@ Legend: `[ ]` pending  `[x]` done  `[-]` cancelled
 `Description` is one short line, the same substance as the apply's `description:` field. `Mode`,
 `Effort`, and `Label` mirror the apply's own `mode:`/`effort:`/`label:` header fields, copied into
 the row the moment it is added - this is what lets the row survive as the only remaining record of
-them once a finished apply's own file is deleted ([reconcile-temp-logs](../../reconcile-temp-logs/SKILL.md) does exactly that once a
+them once a finished apply's own file is moved away ([reconcile-temp-logs](../../reconcile-temp-logs/SKILL.md) does exactly that once a
 row is `[x]`). `Issue` stays empty until the issue exists, then carries `#123`.
 
 A row written before these three columns existed has no `Mode`/`Effort`/`Label` entry - the file
 this section describes is edited, never rewritten, so older rows are never backfilled purely to
 match a later column; `reconcile-temp-logs` backfills one only at the moment it would otherwise
-lose that row's last copy of the information, deleting the apply file right after.
+lose sight of that information, moving the apply file right after.
 
 ## Mutability
 

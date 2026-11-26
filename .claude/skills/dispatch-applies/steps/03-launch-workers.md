@@ -29,8 +29,7 @@ order, exactly as the index says. You run in an ISOLATED WORKTREE.
 Pipeline overrides:
 (1) First `mise trust`, then `mise run setup:git-modules` to initialize the submodules (today
     only `3rdparty/GoogleTest`; never hand-roll `git submodule update`). Then build as the apply's
-    `## Verification` says (`mise run config:cmake`, then `cmake --build cmake-build-debug
-    --target marea marea_tests`). If the worktree will not build, STOP and report the exact
+    `## Verification` says (by default `mise run dev:quiet-test`). If the worktree will not build, STOP and report the exact
     error - do not improvise around it.
 (2) If this apply's `handoff:` field is empty: run its parts up through the one that opens the PR
     against `<base>` (the standalone variant's `open-pr` part) - but never the LAST part. If it is
@@ -44,11 +43,10 @@ Pipeline overrides:
 (3) Do not edit anything under `temp/` - it does not exist in your worktree, and several workers
     editing it at once would corrupt it. Everything you would have written there goes in your
     final report instead.
-(4) Commit only through the `generate-commit` skill, never a hand-written `git commit`. When
-    `metadata.yaml` exists, bump it on your own branch exactly as the apply's
-    `## Conventions`/pipeline text says, before your first build; today it does not exist, so skip
-    that. Its grouping rule already keeps out any path that was dirty in the main checkout before
-    you started (a submodule pointer, a build output); do not fight it.
+(4) Commit only through the `generate-commit` skill, never a hand-written `git commit`. The skill
+    bumps `metadata.yaml` on your own branch with each commit; do not edit it by hand. Its grouping
+    rule already keeps out any path that was dirty in the main checkout before you started (a
+    submodule pointer, a build output); do not fight it.
 (5) Follow the repository rules and the skills the apply cites (TDD, ASCII, the copyright header
     on a new file). Verify the apply's own claims against the real code; correct the minimum
     needed and report every deviation. Never declare success without having seen a command's

@@ -6,7 +6,7 @@ Part of the [audit-code](../SKILL.md) skill. This file is a complete prompt for 
 
 - Never push. The pipeline that called this skill owns the push. A clean pass creates no commit.
 
-1. Run the verification the files imply: `mise run build:marea`, the build of `marea_tests` and `ctest --test-dir cmake-build-debug --output-on-failure` (see step 01) for C and tests, `lua tools/marea-ascii-check/tests/run.lua` when the ASCII checker changed, and `mise run dev:ascii-check` for every file.
+1. Run the verification the files imply: `mise run dev:quiet-test` (see step 01) for C and tests, `lua tools/marea-ascii-check/tests/run.lua` when the ASCII checker changed, and `mise run dev:ascii-check` for every file.
 2. Commit each theme through `generate-commit`.
 3. Write the success entry in `temp/_LOG_APPLY_SUCCESS.md` and an error entry in `temp/_LOG_APPLY_ERROR.md` for every finding left open (reported public-API issues, unrunnable checks, skipped formatting), in the format of [the logs reference of generate-apply](../../generate-apply/references/logs.md). A worker with no `temp/` puts them in its final report instead.
 

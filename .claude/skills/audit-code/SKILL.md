@@ -31,7 +31,7 @@ Arguments: one or more code file paths. With none, audit the files the current b
 - **Public API is frozen**: the clean-function principles of stage 2 apply to non-exported code only (`static` functions and helpers under `lib/internal/`). Changing the signature or behaviour of a symbol declared under `lib/include/marea/` is an API change (a major or minor bump and a handoff question), so the command only REPORTS such cases.
 - **Bugs are fixed test-first**: every memory or logic bug gets a failing test, then the minimum fix. Simplification is behaviour-preserving: the covering tests are green before AND after.
 - **Deletion rule**: code proven dead (no caller in the repository, confirmed by `git grep` and the build) is deleted together with the tests whose only subject it was . A test that also covers live code is adapted, never dropped. No test, security check, bound check or performance-relevant structure is removed to save lines.
-- Never add or change a formatter, a config or a mise task here; this skill only calls the existing ones. No `test:*` mise task exists yet: the tests run through `ctest` (see step 01).
+- Never add or change a formatter, a config or a mise task here; this skill only calls the existing ones. The tests run through `mise run dev:quiet-test` (see step 01).
 - Report what ran and what could not run; never claim a check that did not run. There is no `.clang-tidy`, no sanitizer task and no coverage task, so none is run.
 
 Step map: Stage 0 is step 01, Stage 1 is step 02, Stage 2 is step 03, Stage 3 is step 04, Stage 4 is step 05, and Close is step 06. The stages for a permission map and for platform targets do not exist in this repository (no map, no platform target in the build); add them back only when that code exists.

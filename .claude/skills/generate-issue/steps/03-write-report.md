@@ -29,23 +29,14 @@ git worktree add "../<label>-<issue-number>" <label>/<issue-number>
 # Pushes the local branch to the remote repository (GitHub) for the first time and links it so future pushes require only git push.
 git push -u origin <label>/<issue-number>
 
-# Uses the GitHub CLI to create a Pull Request (PR) from your feature branch into the target base branch, adding a title and linking the issue.
-gh pr create --base <base> --head <label>/<issue-number> --title "<issue title>" --body "Resolves #<issue-number>"
+# Pushes the branch if needed and opens the Pull Request (PR) into the base branch with "Resolves #<issue-number>".
+lua tools/marea-ship/main.lua open-pr --base <base> --title "<issue title>"
 
-# Merges the Pull Request using the standard merge commit method and automatically deletes the remote branch on GitHub.
-gh pr merge <label>/<issue-number> --merge --delete-branch
+# Merges the PR, closes the issue, returns to the base branch and deletes the branch, local and remote.
+lua tools/marea-ship/main.lua merge --base <base>
 
 # Forces the removal of the isolated worktree directory from your machine after you are done with the task.
 git worktree remove ../<label>-<issue-number> --force
-
-# Forcefully deletes the local branch from your Git repository since its changes have already been merged or are no longer needed.
-git branch -D <label>/<issue-number>
-
-# Explicitly deletes the branch from the remote server (acts as a backup cleanup if the CLI merge command didn't remove it).
-git push origin --delete <label>/<issue-number>
-
-# Uses the GitHub CLI to manually close the specified issue (though linking it in the PR body usually does this automatically upon merge).
-gh issue close <issue-number>
 
 # Fetches the latest updates from the remote repository and reapplies your local commits on top of them, keeping a clean and linear project history.
 git pull --rebase

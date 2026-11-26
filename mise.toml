@@ -71,6 +71,27 @@ flag "--out <path>" help="JSON output path" default="tmp/catalog.json"
 run = 'lua ./tools/marea-api-catalog/main.lua catalog --out {{ usage.out }}'
 dir = "{{config_root}}"
 
+[tasks."dev:quiet-build"]
+description = "Configure and build marea_tests with the full output in tmp/quiet-build.log; prints only diagnostics - wraps tools/marea-quiet. Options: -- --config Release, --target <name>."
+run = "lua ./tools/marea-quiet/main.lua build"
+raw = true
+quiet = true
+dir = "{{config_root}}"
+
+[tasks."dev:quiet-test"]
+description = "Configure, build and run ctest with the full output in tmp/quiet-test.log; prints only diagnostics - wraps tools/marea-quiet. Options: -- --config Release, --filter <regex>."
+run = "lua ./tools/marea-quiet/main.lua test"
+raw = true
+quiet = true
+dir = "{{config_root}}"
+
+[tasks."dev:ship"]
+description = "Commit, open a pull request or merge in one call - wraps tools/marea-ship. Example: mise run dev:ship -- commit --bump patch <path>... with the message on stdin; open-pr --title <text>; merge."
+run = "lua ./tools/marea-ship/main.lua"
+# raw keeps stdin connected: commit reads its message from it.
+raw = true
+dir = "{{config_root}}"
+
 [tasks."dev:mcp-docs"]
 description = "Run the marea-mcp stdio server for a manual smoke test - wraps tools/marea-mcp. Pipe a JSON-RPC line in by hand; MCP clients (Claude Code, Codex) launch this directly via .mcp.json / .codex/config.toml, not through mise."
 run = 'lua ./tools/marea-mcp/main.lua'
