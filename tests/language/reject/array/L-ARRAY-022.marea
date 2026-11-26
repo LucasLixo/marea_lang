@@ -1,0 +1,15 @@
+-- expect: 3069 @12
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- for each in mutable writes through a read only parameter.
+
+namespace main;
+
+require marea.array;
+
+function check(values: marea.array.Array<sinteger32, 4>)
+    for each value in mutable values do
+        value = 1;
+    end
+end

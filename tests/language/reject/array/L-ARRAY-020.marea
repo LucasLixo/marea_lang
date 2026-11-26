@@ -1,0 +1,17 @@
+-- expect: 3013 @16
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- front needs an element type that can be copied.
+
+namespace main;
+
+require marea.array;
+
+structure Token
+    value: sinteger32;
+end
+
+function check(values: marea.array.Array<Token, 2>)
+    local first: sinteger32 = values.front().value;
+end

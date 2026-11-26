@@ -1,0 +1,13 @@
+-- expect: 3088 @12
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A constant index is past the count of the array.
+
+namespace main;
+
+require marea.array;
+
+function check(values: marea.array.Array<sinteger32, 4>): sinteger32
+    return values[4];
+end

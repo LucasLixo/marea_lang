@@ -1,0 +1,16 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- swap exchanges the storage of two vectors.
+
+namespace main;
+
+require marea.vector;
+
+function check(): sinteger32
+    local first: marea.vector.Vector<sinteger32> = marea.vector.Vector<sinteger32>{ 1 };
+    local second: marea.vector.Vector<sinteger32> = marea.vector.Vector<sinteger32>{ 2, 3 };
+    first.swap(second);
+    return (first[1] * 10) + second[0];
+end

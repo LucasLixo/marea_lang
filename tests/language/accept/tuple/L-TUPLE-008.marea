@@ -1,0 +1,16 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- size_of and align_of measure a tuple as a structure of its elements.
+
+namespace main;
+
+require marea.tuple;
+
+static_assert!(size_of<marea.tuple.Tuple<uinteger8, uinteger32>>() == 8, "one byte, padding and one word");
+static_assert!(align_of<marea.tuple.Tuple<uinteger8, uinteger32>>() == 4, "the widest element");
+
+function check(): uinteger64
+    return size_of<marea.tuple.Tuple<uinteger8, uinteger16, uinteger64>>();
+end

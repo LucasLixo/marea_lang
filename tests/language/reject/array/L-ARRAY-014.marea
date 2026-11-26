@@ -1,0 +1,13 @@
+-- expect: 3087 @12
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An array literal holds more values than the count.
+
+namespace main;
+
+require marea.array;
+
+function check()
+    local values: marea.array.Array<sinteger32, 2> = marea.array.Array<sinteger32, 2>{ 1, 2, 3 };
+end

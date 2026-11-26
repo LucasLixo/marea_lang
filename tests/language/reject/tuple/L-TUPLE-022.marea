@@ -1,0 +1,14 @@
+-- expect: 3011 @13
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- == needs every element of a tuple to support it.
+
+namespace main;
+
+require marea.tuple;
+require marea.vector;
+
+function check(left: marea.tuple.Tuple<marea.vector.Vector<sinteger32>, boolean>, right: marea.tuple.Tuple<marea.vector.Vector<sinteger32>, boolean>): boolean
+    return left == right;
+end

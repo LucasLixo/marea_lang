@@ -1,0 +1,14 @@
+-- expect: 3016 @13
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A tuple name is assigned with no copy and no move.
+
+namespace main;
+
+require marea.tuple;
+
+function check()
+    local first: marea.tuple.Tuple<sinteger32, sinteger32> = marea.tuple.Tuple<sinteger32, sinteger32>{ 1, 2 };
+    local second: marea.tuple.Tuple<sinteger32, sinteger32> = first;
+end

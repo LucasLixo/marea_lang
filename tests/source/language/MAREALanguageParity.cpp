@@ -59,6 +59,11 @@ namespace
         return nullptr;
     }
 
+    bool MAREA_isContainerItem(const std::string &relativePath)
+    {
+        return (relativePath.rfind("accept/array/", 0) == 0) || (relativePath.rfind("accept/vector/", 0) == 0) || (relativePath.rfind("accept/tuple/", 0) == 0);
+    }
+
     bool MAREA_hasResultFunction(const MAREA_IrNode *module)
     {
         for (MAREA_IntegerSize index{ 0 }; index < MAREA_IrNodeGetChildCount(module); ++index) {
@@ -144,6 +149,12 @@ TEST(MAREALanguageParity, EveryAcceptItemWithAResultRunsOnBothBackendsOrIsExclud
 
         if (fixture.MAREA_lower(file.source) != MAREA_IR_EXCEPT_SUCCESS) {
             failures += ITEM + ": the item does not lower to the ir\n";
+
+            continue;
+        }
+
+        if (MAREA_isContainerItem(file.relativePath) && !fixture.MAREA_irCodes().empty()) {
+            failures += ITEM + ": the item raises an ir diagnostic\n";
 
             continue;
         }

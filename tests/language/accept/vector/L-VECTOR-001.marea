@@ -1,0 +1,18 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An empty literal and a literal of values give the size and the capacity.
+
+namespace main;
+
+require marea.vector;
+
+function check(): uinteger64
+    local empty: marea.vector.Vector<sinteger32> = marea.vector.Vector<sinteger32>{};
+    local three: marea.vector.Vector<sinteger32> = marea.vector.Vector<sinteger32>{ 1, 2, 3 };
+    if not empty.empty() then
+        return 0;
+    end
+    return (three.size() * 100) + (three.capacity() * 10) + empty.capacity();
+end

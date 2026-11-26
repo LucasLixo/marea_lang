@@ -1,0 +1,37 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- for each reads an array with one name or with a key and returns the key.
+
+namespace main;
+
+require marea.array;
+
+function sum_positive(values: marea.array.Array<sinteger32, 4>): sinteger32
+    local total: sinteger32 = 0;
+    for each value in values do
+        if value < 0 then
+            continue;
+        end
+        if value > 1000 then
+            break;
+        end
+        total += value;
+    end
+    return total;
+end
+
+function index_of(values: marea.array.Array<sinteger32, 4>, target: sinteger32): uinteger64
+    for each index, value in values do
+        if value == target then
+            return index;
+        end
+    end
+    return values.size();
+end
+
+function check(target: sinteger32): sinteger32
+    local values: marea.array.Array<sinteger32, 4> = marea.array.Array<sinteger32, 4>{ 1, -2, 3, 4 };
+    return sum_positive(values) + convert<sinteger32>(index_of(values, target));
+end

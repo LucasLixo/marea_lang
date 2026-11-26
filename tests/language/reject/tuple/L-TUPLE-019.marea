@@ -1,0 +1,13 @@
+-- expect: 3011 @12
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A tuple has no order.
+
+namespace main;
+
+require marea.tuple;
+
+function check(left: marea.tuple.Tuple<sinteger32, sinteger32>, right: marea.tuple.Tuple<sinteger32, sinteger32>): boolean
+    return left < right;
+end

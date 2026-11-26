@@ -1,0 +1,24 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A walk by for each and a walk from the end read an array in both orders.
+
+namespace main;
+
+require marea.array;
+
+function check(): sinteger32
+    local values: marea.array.Array<sinteger32, 4> = marea.array.Array<sinteger32, 4>{ 1, 2, 3, 4 };
+    local forward: sinteger32 = 0;
+    for each value in values do
+        forward = (forward * 10) + value;
+    end
+    local backward: sinteger32 = 0;
+    local index: uinteger64 = values.size();
+    while index > 0 do
+        index -= 1;
+        backward = (backward * 10) + values[index];
+    end
+    return forward + backward;
+end

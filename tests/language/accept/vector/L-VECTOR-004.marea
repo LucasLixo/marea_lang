@@ -1,0 +1,20 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- reserve, shrink_to_fit and clear change the capacity as they say.
+
+namespace main;
+
+require marea.vector;
+
+function check(): uinteger64
+    local values: marea.vector.Vector<sinteger32> = marea.vector.Vector<sinteger32>{ 1, 2 };
+    values.reserve(10);
+    local reserved: uinteger64 = values.capacity();
+    values.shrink_to_fit();
+    local shrunk: uinteger64 = values.capacity();
+    values.clear();
+    values.append(5);
+    return (reserved * 100) + (shrunk * 10) + values.size();
+end

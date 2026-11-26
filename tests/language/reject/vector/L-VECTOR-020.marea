@@ -1,0 +1,15 @@
+-- expect: 3070 @14
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A vector is used after it moved.
+
+namespace main;
+
+require marea.vector;
+
+function check(): uinteger64
+    local values: marea.vector.Vector<sinteger32> = marea.vector.Vector<sinteger32>{ 1 };
+    local other: marea.vector.Vector<sinteger32> = move values;
+    return values.size();
+end
