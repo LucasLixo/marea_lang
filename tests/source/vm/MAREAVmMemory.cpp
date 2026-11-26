@@ -120,6 +120,53 @@ namespace
     }
 } // namespace
 
+TEST(MAREAVmMemory, TheFrameMemoryAreaStartsAtASixteenByteAddress)
+{
+    GTEST_COUT << "Validating offset 0 of the frame memory area is aligned to 16 in every frame, so a 16-byte aligned structure reaches C aligned." << std::endl;
+
+    MAREA_MemoryFixture fixture;
+    MAREA_BytecodeModule *module{ fixture.MAREA_newModule() };
+    const std::uint32_t CALLEE{ fixture.MAREA_addFunction(module, MAREA_BYTECODE_NONE, MAREA_BYTECODE_NONE, 1, 16, 0) };
+
+    fixture.MAREA_addInstruction(module, CALLEE, MAREA_BYTECODE_OPCODE_ADDRESS_OF, 0, 0, 0);
+    fixture.MAREA_addInstruction(module, CALLEE, MAREA_BYTECODE_OPCODE_RETURN, 0, 0, 0);
+
+    const std::uint32_t CALLER{ fixture.MAREA_addFunction(module, MAREA_BYTECODE_NONE, MAREA_BYTECODE_NONE, 1, 16, 0) };
+
+    fixture.MAREA_addInstruction(module, CALLER, MAREA_BYTECODE_OPCODE_CALL, 0, static_cast<std::uint16_t>(CALLEE), 0);
+    fixture.MAREA_addInstruction(module, CALLER, MAREA_BYTECODE_OPCODE_RETURN, 0, 0, 0);
+
+    for (const std::uint32_t FUNCTION : { CALLEE, CALLER }) {
+        MAREA_VmResult result{};
+
+        ASSERT_EQ(fixture.MAREA_run(module, FUNCTION, {}, result), MAREA_VM_EXCEPT_SUCCESS) << "The run must succeed.";
+
+        EXPECT_EQ(result.value % 16U, 0U) << "The address must be a multiple of 16.";
+    }
+}
+
+TEST(MAREAVmMemory, ACallWindowThatLeavesTheRegisterFileIsAMalformedModule)
+{
+    GTEST_COUT << "Validating a call window whose last argument is past the last register is rejected." << std::endl;
+
+    MAREA_MemoryFixture fixture;
+    MAREA_BytecodeModule *module{ fixture.MAREA_newModule() };
+    const std::uint32_t CALLEE{ fixture.MAREA_addFunction(module, MAREA_BYTECODE_NONE, MAREA_BYTECODE_NONE, 1, 0, 0) };
+    const std::uint32_t INTEGER{ fixture.MAREA_addType(module, MAREA_BYTECODE_TYPE_KIND_PRIMITIVE, fixture.MAREA_addString(module, "uinteger64"), 8, 8) };
+
+    fixture.MAREA_addParameter(module, CALLEE, INTEGER, 0);
+    fixture.MAREA_addInstruction(module, CALLEE, MAREA_BYTECODE_OPCODE_RETURN, 0, 0, 0);
+
+    const std::uint32_t CALLER{ fixture.MAREA_addFunction(module, MAREA_BYTECODE_NONE, MAREA_BYTECODE_NONE, 256, 0, 0) };
+
+    fixture.MAREA_addInstruction(module, CALLER, MAREA_BYTECODE_OPCODE_CALL, 255, static_cast<std::uint16_t>(CALLEE), 1);
+    fixture.MAREA_addInstruction(module, CALLER, MAREA_BYTECODE_OPCODE_RETURN, 0, 0, 0);
+
+    MAREA_VmResult result{};
+
+    EXPECT_EQ(fixture.MAREA_run(module, CALLER, {}, result), MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE) << "Register 256 does not exist.";
+}
+
 TEST(MAREAVmMemory, AllocatesZeroedMemory)
 {
     GTEST_COUT << "Validating a new block of 1024 bytes holds only zeros and can be written and freed." << std::endl;

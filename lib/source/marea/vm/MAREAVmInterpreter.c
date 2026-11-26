@@ -306,7 +306,7 @@ static MAREA_Uinteger64 MAREA_CALL MAREA_G_VmIntegerPower(MAREA_Boolean negative
 typedef struct MAREA_VmFrame
 {
     MAREA_Uinteger64 registers[MAREA_VM_FRAME_REGISTER_LIMIT];
-    MAREA_Byte memory[MAREA_VM_FRAME_MEMORY_LIMIT];
+    MAREA_ALIGNED(MAREA_VM_FRAME_MEMORY_ALIGNMENT) MAREA_Byte memory[MAREA_VM_FRAME_MEMORY_LIMIT];
 } MAREA_VmFrame;
 
 // INFO: an address a composite opcode reads is always the bit pattern of a pointer into the memory area of some
@@ -357,10 +357,6 @@ static MAREA_VmResult MAREA_CALL MAREA_G_VmValueResult(MAREA_Uinteger64 value)
 
 MAREA_VmExcept MAREA_CALL MAREA_VmRun(MAREA_VmContext *context, const MAREA_BytecodeModule *module, MAREA_Uinteger32 functionIndex, const MAREA_Uinteger64 *arguments, MAREA_Uinteger32 argumentCount, MAREA_Uinteger32 depth, MAREA_VmResult *outResult)
 {
-    // INFO: the context carries the arena and sink for a future gap (host calls, allocation); a run that stays
-    // inside the scalar opcodes of this slice needs neither.
-    MAREA_IGNORE(context);
-
     *outResult = MAREA_G_VmValueResult(MAREA_UINTEGER_64(0));
 
     if (depth > MAREA_VM_CALL_DEPTH_LIMIT) {
@@ -800,13 +796,20 @@ MAREA_VmExcept MAREA_CALL MAREA_VmRun(MAREA_VmContext *context, const MAREA_Byte
         }
         case MAREA_BYTECODE_OPCODE_CALL:
         {
-            if (C > (MAREA_VM_FRAME_REGISTER_LIMIT - A)) {
+            if (C >= (MAREA_VM_FRAME_REGISTER_LIMIT - A)) {
+                return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
+            }
+
+            MAREA_BytecodeFunctionInfo callee = { 0 };
+
+            if (MAREA_BytecodeModuleGetFunction(module, B, &callee) != MAREA_BYTECODE_EXCEPT_SUCCESS) {
                 return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
             }
 
             MAREA_VmResult called = { 0 };
 
-            const MAREA_VmExcept EXCEPT = MAREA_VmRun(context, module, B, &frame.registers[(A + MAREA_UINTEGER_32(1))], C, (depth + MAREA_UINTEGER_32(1)), &called);
+            const MAREA_VmExcept EXCEPT = (((callee.flags & MAREA_BYTECODE_FUNCTION_FLAG_HOST) != MAREA_UINTEGER_32(0)) ? MAREA_VmCallHost(context, module, B, &callee, &frame.registers[A], C, &called)
+                                                                                                                       : MAREA_VmRun(context, module, B, &frame.registers[(A + MAREA_UINTEGER_32(1))], C, (depth + MAREA_UINTEGER_32(1)), &called));
 
             if (EXCEPT != MAREA_VM_EXCEPT_SUCCESS) {
                 return EXCEPT;
@@ -975,6 +978,38 @@ MAREA_VmExcept MAREA_CALL MAREA_VmRun(MAREA_VmContext *context, const MAREA_Byte
 
             if (size > MAREA_INTEGER_SIZE(0)) {
                 memcpy(pointer, bytes, (size_t)size);
+            }
+
+            break;
+        }
+        case MAREA_BYTECODE_OPCODE_ALLOCATE:
+        {
+            if (B >= MAREA_VM_FRAME_REGISTER_LIMIT) {
+                return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
+            }
+
+            MAREA_VmResult allocated = { 0 };
+
+            const MAREA_VmExcept EXCEPT = MAREA_VmAllocate(context, frame.registers[B], C, &frame.registers[A], &allocated);
+
+            if (EXCEPT != MAREA_VM_EXCEPT_SUCCESS) {
+                return EXCEPT;
+            }
+
+            if (allocated.trapped) {
+                *outResult = allocated;
+
+                return MAREA_VM_EXCEPT_SUCCESS;
+            }
+
+            break;
+        }
+        case MAREA_BYTECODE_OPCODE_FREE:
+        {
+            const MAREA_VmExcept EXCEPT = MAREA_VmFree(context, frame.registers[A]);
+
+            if (EXCEPT != MAREA_VM_EXCEPT_SUCCESS) {
+                return EXCEPT;
             }
 
             break;

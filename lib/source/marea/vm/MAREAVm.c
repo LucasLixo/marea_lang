@@ -29,6 +29,7 @@ MAREA_VmExcept MAREA_CALL MAREA_VmContextCreate(MAREA_Arena *arena, MAREA_Diagno
 
     context->arena = arena;
     context->sink = sink;
+    context->registry = MAREA_NULLPTR;
 
     *outContext = context;
 
@@ -55,17 +56,22 @@ MAREA_DiagnosticSink *MAREA_CALL MAREA_VmContextGetDiagnostics(const MAREA_VmCon
 
 MAREA_VmExcept MAREA_CALL MAREA_VmContextSetTypeRegistry(MAREA_VmContext *context, const MAREA_TypeRegistry *registry)
 {
-    MAREA_IGNORE(context);
-    MAREA_IGNORE(registry);
+    if (context == MAREA_NULLPTR) {
+        return MAREA_VM_EXCEPT_ERROR_NULL_POINTER;
+    }
 
-    return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
+    context->registry = registry;
+
+    return MAREA_VM_EXCEPT_SUCCESS;
 }
 
 const MAREA_TypeRegistry *MAREA_CALL MAREA_VmContextGetTypeRegistry(const MAREA_VmContext *context)
 {
-    MAREA_IGNORE(context);
+    if (context == MAREA_NULLPTR) {
+        return MAREA_NULLPTR;
+    }
 
-    return MAREA_NULLPTR;
+    return context->registry;
 }
 
 MAREA_VmExcept MAREA_CALL MAREA_VmFindFunction(const MAREA_BytecodeModule *module, const MAREA_Character8 *name, MAREA_IntegerSize length, MAREA_Uinteger32 *outIndex)
@@ -86,6 +92,10 @@ MAREA_VmExcept MAREA_CALL MAREA_VmFindFunction(const MAREA_BytecodeModule *modul
         MAREA_BytecodeFunctionInfo info = { 0 };
 
         if (MAREA_BytecodeModuleGetFunction(module, index, &info) != MAREA_BYTECODE_EXCEPT_SUCCESS) {
+            continue;
+        }
+
+        if ((info.flags & MAREA_BYTECODE_FUNCTION_FLAG_HOST) != MAREA_UINTEGER_32(0)) {
             continue;
         }
 
@@ -132,6 +142,10 @@ MAREA_VmExcept MAREA_CALL MAREA_VmCall(MAREA_VmContext *context, const MAREA_Byt
 
     if (MAREA_BytecodeModuleGetFunction(module, functionIndex, &info) != MAREA_BYTECODE_EXCEPT_SUCCESS) {
         return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
+    }
+
+    if ((info.flags & MAREA_BYTECODE_FUNCTION_FLAG_HOST) != MAREA_UINTEGER_32(0)) {
+        return MAREA_VM_EXCEPT_ERROR_UNKNOWN_FUNCTION;
     }
 
     if (info.parameterCount != argumentCount) {
