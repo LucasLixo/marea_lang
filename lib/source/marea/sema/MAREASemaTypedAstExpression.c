@@ -1156,6 +1156,15 @@ MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedAstResolveExpressionType(MARE
         return MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NULL_POINTER;
     }
 
+    // INFO: the ir carries this to the backends, which send only such a call to a C function.
+    if (MAREA_AstNodeGetKind(built->astNode) == MAREA_AST_KIND_CALL_EXPRESSION) {
+        const MAREA_SemaTypedAstExcept EXTERNAL = MAREA_SemaTypedAstIsExternalCallee(context, MAREA_SemaChildAt(built->astNode, 0), &built->isExternalCall);
+
+        if (EXTERNAL != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) {
+            return EXTERNAL;
+        }
+    }
+
     MAREA_G_Resolver resolver = { .context = context, .outOfMemory = MAREA_BOOLEAN_FALSE };
 
     const MAREA_SemaExprType TYPE = MAREA_G_TypeOfExpression(&resolver, built, parent, index);

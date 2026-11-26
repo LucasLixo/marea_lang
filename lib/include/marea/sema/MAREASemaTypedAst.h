@@ -178,6 +178,16 @@ MAREA_BEGIN_EXTERN_C
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaTypedNodeIsQualifier(const MAREA_SemaTypedNode *node);
 
+    /**
+     * @brief Tells whether a typed node is a call of a name that the host or a library registered: a call whose
+     * callee names a member of a namespace that a resolver answers EXTERNAL, written with its full path or through
+     * the alias of an import or a require. A call into a tree of the project (a FOUND namespace), through Self, through
+     * a local type alias, of a name of the file or of its own namespace, or of a value is not one.
+     * @param node Typed node to query. Null returns false.
+     * @return True for such a CALL_EXPRESSION, false for any other node and for a null node.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaTypedNodeIsExternalCall(const MAREA_SemaTypedNode *node);
+
 MAREA_END_EXTERN_C
 
 #endif /* MAREA_INCLUDE_SEMA_MAREASEMATYPEDAST_H */

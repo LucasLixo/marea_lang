@@ -6,7 +6,9 @@
 #include "tests/MAREABytecodeHelpers.hpp"
 #include "tests/MAREAHostSignatureHelpers.hpp"
 
+#include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace
@@ -64,6 +66,29 @@ namespace
 
         return result;
     }
+
+    struct MAREA_ProjectGenerateFixture
+    {
+        MAREA_ParseFixture unit;
+        std::unique_ptr<MAREA_GenerateFixture> generate;
+
+        MAREA_ProjectGenerateFixture()
+        {
+            MAREA_IGNORE(unit.MAREA_parse("namespace other; function value(): sinteger32 return 7; end"));
+
+            const MAREA_AstNode *root{ unit.root };
+
+            generate = std::make_unique<MAREA_GenerateFixture>([root](const std::string &text, const MAREA_AstNode **outRoot) {
+                if (text == "other") {
+                    *outRoot = root;
+
+                    return MAREA_SEMA_IMPORT_RESULT_FOUND;
+                }
+
+                return MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
+            });
+        }
+    };
 } // namespace
 
 TEST(MAREABytecodeHostCalls, NewValuesAreFixed)
@@ -186,6 +211,56 @@ TEST(MAREABytecodeHostCalls, AnArgumentWithNoValueFormIsRefused)
     EXPECT_FALSE(fixture.MAREA_build("function f(): sinteger32 return host.text(\"a\"); end")) << "A string cannot cross.";
 
     EXPECT_EQ(fixture.MAREA_codes(), std::vector<MAREA_Uinteger32>{ 5033 }) << "The type is not supported.";
+}
+
+TEST(MAREABytecodeHostCalls, ACallIntoAnotherUnitOfTheProjectIsAnUnresolvedName)
+{
+    GTEST_COUT << "Validating a call into another unit of the project, in every way of writing it, is a compile error and no import." << std::endl;
+
+    for (const char *source : { "namespace main; import other; function f(): sinteger32 return other.value(); end", "namespace main; import other; function f() other.value(); end", "namespace main; import other as o; function f(): sinteger32 return o.value(); end", "namespace main; import other.value as v; function f(): sinteger32 return v(); end", "namespace main; import other { value as v }; function f() v(); end" }) {
+        MAREA_ProjectGenerateFixture fixture;
+
+        EXPECT_FALSE(fixture.generate->MAREA_generate(source)) << source;
+
+        EXPECT_EQ(fixture.generate->MAREA_codes(), std::vector<MAREA_Uinteger32>{ 5031 }) << source;
+    }
+}
+
+TEST(MAREABytecodeHostCalls, ACallThroughSelfOrALocalTypeAliasIsAnUnresolvedName)
+{
+    GTEST_COUT << "Validating a call through Self or a local type alias, as a value or a statement, is a compile error and no import." << std::endl;
+
+    for (const char *body : { "implementation Pair function one(): sinteger32 return 1; end function two(): sinteger32 return Self.one(); end end", "implementation Pair function one() end function two() Self.one(); end end", "implementation Pair function one(): sinteger32 return 1; end end type Q = Pair; function f(): sinteger32 return Q.one(); end", "implementation Pair function one() end end type Q = Pair; function f() Q.one(); end", "function f() main.missing(); end" }) {
+        MAREA_HostGenerateFixture fixture;
+
+        EXPECT_FALSE(fixture.MAREA_build(body)) << body;
+
+        EXPECT_EQ(fixture.MAREA_codes(), std::vector<MAREA_Uinteger32>{ 5031 }) << body;
+    }
+}
+
+TEST(MAREABytecodeHostCalls, ARegisteredHostOrLibraryNameIsStillAnImport)
+{
+    GTEST_COUT << "Validating a host or library name, in every way of writing it, becomes an import of its full path." << std::endl;
+
+    const std::vector<std::pair<const char *, const char *>> CASES{
+        { "namespace main; require demo.host; function f(): sinteger32 return demo.host.add(1, 2); end", "demo.host.add" },
+        { "namespace main; require demo.host as host; function f(): sinteger32 return host.add(1, 2); end", "demo.host.add" },
+        { "namespace main; require demo.host.add as plus; function f(): sinteger32 return plus(1, 2); end", "demo.host.add" },
+        { "namespace main; require demo.host { add as plus }; function f(): sinteger32 return plus(1, 2); end", "demo.host.add" },
+        { "namespace main; require c.math; function f() c.math.log(); end", "c.math.log" },
+        { "namespace main; require demo.other; function f() demo.other.thing(); end", "demo.other.thing" },
+    };
+
+    for (const auto &[source, import] : CASES) {
+        MAREA_HostGenerateFixture fixture;
+
+        ASSERT_TRUE(fixture.MAREA_generate(source)) << source;
+
+        ASSERT_EQ(MAREA_BytecodeModuleGetFunctionCount(fixture.module), 2U) << source;
+
+        EXPECT_EQ(fixture.MAREA_functionName(1), import) << source;
+    }
 }
 
 TEST(MAREABytecodeHostCalls, ASpawnLowersAsThePlainCall)

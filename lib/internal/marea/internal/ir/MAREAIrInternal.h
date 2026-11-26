@@ -117,6 +117,7 @@ MAREA_BEGIN_EXTERN_C
         MAREA_Uinteger32 flags;
         MAREA_TokenKind operatorKind;
         MAREA_IrKind kind;
+        MAREA_Boolean externalCall;
     };
 
     /**

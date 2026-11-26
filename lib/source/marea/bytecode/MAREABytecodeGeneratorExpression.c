@@ -5,6 +5,8 @@
 
 #include <string.h>
 
+static const MAREA_Character8 *const MAREA_G_UnresolvedCall = "A call names no function of this unit and no name that the host or a library registered.";
+
 static MAREA_Boolean MAREA_CALL MAREA_G_IsNumber(MAREA_Uinteger8 kind)
 {
     return (kind < MAREA_BYTECODE_NUMBER_KIND_COUNT);
@@ -511,12 +513,12 @@ MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorLowerCall(MAREA_BytecodeG
         const MAREA_Character8 *text = MAREA_IrNodeGetText(callee);
         const MAREA_IntegerSize LENGTH = MAREA_IrNodeGetTextLength(callee);
 
-        // INFO: an imported member reaches here as its full dotted path, which no local name can be.
-        if ((MAREA_BytecodeGeneratorFindSymbol(generator, text, LENGTH) == MAREA_NULLPTR) && (memchr(text, '.', LENGTH) != MAREA_NULLPTR)) {
+        // INFO: a member that an alias binds reaches here as its full dotted path, which no local name can be.
+        if (MAREA_IrNodeIsExternalCall(node) && (MAREA_BytecodeGeneratorFindSymbol(generator, text, LENGTH) == MAREA_NULLPTR) && (memchr(text, '.', LENGTH) != MAREA_NULLPTR)) {
             return MAREA_BytecodeGeneratorLowerHostCall(generator, node, text, LENGTH, destination, valueUsed, outKind);
         }
 
-        return MAREA_BytecodeGeneratorFail(generator, node, MAREA_BYTECODE_DIAGNOSTIC_CODE_UNRESOLVED_NAME, "A call does not resolve to a function of this unit.");
+        return MAREA_BytecodeGeneratorFail(generator, node, MAREA_BYTECODE_DIAGNOSTIC_CODE_UNRESOLVED_NAME, MAREA_G_UnresolvedCall);
     }
 
     if ((callee != MAREA_NULLPTR) && (MAREA_IrNodeGetKind(callee) == MAREA_IR_KIND_MEMBER_ACCESS)) {
@@ -533,7 +535,12 @@ MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorLowerCall(MAREA_BytecodeG
                 return MAREA_G_LowerUnitCall(generator, node, function, functionIndex, destination, outKind);
             }
 
-            return MAREA_BytecodeGeneratorLowerHostCall(generator, node, name, length, destination, valueUsed, outKind);
+            // INFO: only a name that the host or a library registered becomes an import; the vm cannot link another unit.
+            if (MAREA_IrNodeIsExternalCall(node)) {
+                return MAREA_BytecodeGeneratorLowerHostCall(generator, node, name, length, destination, valueUsed, outKind);
+            }
+
+            return MAREA_BytecodeGeneratorFail(generator, node, MAREA_BYTECODE_DIAGNOSTIC_CODE_UNRESOLVED_NAME, MAREA_G_UnresolvedCall);
         }
     }
 

@@ -7,6 +7,7 @@
     #include "marea/base/MAREAArena.h"
     #include "marea/base/MAREACTypes.h"
     #include "marea/base/MAREADiagnostic.h"
+    #include "marea/base/MAREAHostFunction.h"
     #include "marea/base/MAREATypeRegistry.h"
     #include "marea/bytecode/MAREABytecode.h"
     #include "marea/vm/MAREAVm.h"
@@ -48,10 +49,11 @@ MAREA_BEGIN_EXTERN_C
     #endif
 
     /**
-     * @brief Largest number of parameters of a host function. A call of an import with more is a vm limit.
+     * @brief Largest number of parameters of a host function, the limit of the binding macro. A call of an import
+     * with more is a vm limit.
      */
     #if !defined(MAREA_VM_HOST_PARAMETER_LIMIT)
-        #define MAREA_VM_HOST_PARAMETER_LIMIT MAREA_UINTEGER_32(32)
+        #define MAREA_VM_HOST_PARAMETER_LIMIT MAREA_UINTEGER_32(MAREA_HOST_FUNCTION_PARAMETER_LIMIT)
     #endif
 
     /**
@@ -66,7 +68,8 @@ MAREA_BEGIN_EXTERN_C
     } MAREA_VmContext;
 
     /**
-     * @brief Runs a call of an import: finds the C function in the registry of the context and calls it.
+     * @brief Runs a call of an import: finds the wrapper of the C function in the registry of the context and calls
+     * it with a new host context.
      * @param context State of the call. Must not be null.
      * @param module Module that holds the import. Must not be null.
      * @param functionIndex Index of the import.
@@ -74,8 +77,10 @@ MAREA_BEGIN_EXTERN_C
      * @param window The call window: window[0] takes a scalar result, or holds the address of a structure result,
      * and window[1] up are the arguments. Must not be null and must hold 1 + argumentCount registers.
      * @param argumentCount Number of arguments.
-     * @param outResult Receives a trap, or an untrapped result. Must not be null.
-     * @return MAREA_VM_EXCEPT_SUCCESS, or MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE for a vm limit or a malformed module.
+     * @param outResult Receives a trap (a missing function, or one that the function raised), or an untrapped result.
+     * Must not be null.
+     * @return MAREA_VM_EXCEPT_SUCCESS, MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE for a vm limit or a malformed module, or
+     * MAREA_VM_EXCEPT_ERROR_UNPAIRED_ALLOCATOR when the function allocates or frees with one replaced hook only.
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_VmExcept MAREA_CALL MAREA_VmCallHost(MAREA_VmContext * context, const MAREA_BytecodeModule *module, MAREA_Uinteger32 functionIndex, const MAREA_BytecodeFunctionInfo *info, MAREA_Uinteger64 *window, MAREA_Uinteger32 argumentCount, MAREA_VmResult *outResult);
 

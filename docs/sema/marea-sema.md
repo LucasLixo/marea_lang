@@ -82,13 +82,15 @@ libraries the language ships, which reach the registry through its internal entr
 ### Two resolvers
 
 `import` brings a file of the project and is answered by the import resolver the context was created with. `require`
-brings a name that the host registered on the C side (`c.*`, `marea.*` and any other root) and is answered by the
-registry that `MAREA_SemaContextSetRequireResolver` sets. A context with no registry answers a require through the
-import resolver, so a host with one resolver needs no change. With a registry, an `import` of a name that only the registry
-knows is `UNRESOLVED_IMPORT` with the hint "registered on the C side, use require", and a `require` of a name that only
+brings a name that is registered on the C side, by a shipped library (`c.*`, `marea.*`) or by the host (any other
+root), and is answered by the registry that `MAREA_SemaContextSetRequireResolver` sets. A context with no registry
+answers a require through the import resolver, so a host with one resolver needs no change. With a registry, an `import`
+of a name that only the registry knows is `UNRESOLVED_IMPORT` with the hint "registered on the C side, use require", and
+a `require` of a name that only
 the import resolver knows is `UNRESOLVED_REQUIRE` (3079) with the hint "a project file, use import". A use of a path asks
 the import resolver first, then the registry, and the signature function of the resolver that knows the namespace gives the
-signature of a member. A host may register a name under `c` or `marea`, and it then replaces what is shipped.
+signature of a member. A host may not register a name under `c` or `marea`: the two roots belong to the libraries the
+language ships, and the public entry of the registry rejects them (see Descriptors and roles).
 
 `import a.b { f as g, T as U, Color.red as Crimson, MAX };` asks the resolver for `a.b` once, then
 binds one local name per member that has an alias (a member with no alias only covers its full path). A member path has one
@@ -244,8 +246,10 @@ by the libraries the language ships and may register under `c.*` and `marea.*`. 
 the user and the host: it rejects any name whose first segment is `c` or `marea` with
 `MAREA_TYPE_REGISTRY_EXCEPT_ERROR_RESERVED_NAMESPACE_ROOT`. A host may register any other root and may replace a runtime
 function (`alloc`, `free`) through `MAREA_TypeRegistryReplaceRuntimeFunction`; a name outside the allow list is
-`ERROR_UNKNOWN_RUNTIME_FUNCTION`. The C registration macro (`MAREA_TypeRegistryRegisterInternalFunction` behind it) registers
-one function for the language runtime. `MAREA_TypeRegistryFindByRole` gives the registered type that holds a role.
+`ERROR_UNKNOWN_RUNTIME_FUNCTION`. The C registration macro `MAREA_REGISTER_FUNCTION` registers the wrapper that the binding
+declaration `MAREA_HOST_FUNCTION` made for one typed C function (see the vm doc, "Host calls"), through the internal entry
+for a shipped library and through the public entry for a user or a host. `MAREA_TypeRegistryFindByRole` gives the registered
+type that holds a role.
 
 **Macros of a library.** `MAREA_TypeRegistryRegisterInternalMacro` registers one compile-time macro for a shipped library,
 under the same mask and dependency rules as a type. A `MAREA_MacroDescriptor` holds the namespace and the name, the kind of
@@ -1026,6 +1030,14 @@ type that a `FOUND` namespace declares and the file imports by name; a name with
 namespace. A function or a constant imported by name is a value, not a qualifier. Only
 an `IDENTIFIER` is flagged: a dotted type name such as `c.array` is not an expression. The member after a qualifier is
 typed by the rules above (an enum variant, a constant or a static function of the file) or by the rule below.
+
+**External calls.** `MAREA_SemaTypedNodeIsExternalCall` is true for a `CALL_EXPRESSION` of a name that the host or a
+library registered: its callee names a member of a namespace that a resolver answers `EXTERNAL`. The callee is read in
+the scope of the call, through parentheses: a full path that a cover reaches (`c.math.pow`), a path through an alias of
+an import or a require (`io.puts`) and a bare name that an alias bound to one member (`power`). A call into a tree of
+the project (a `FOUND` namespace), through `Self`, through a local type alias, of a name of the file or of its own
+namespace, or of a local or a parameter (also one that hides an alias) is not one. The ir keeps the answer on the call,
+and a backend sends only such a call to a C function.
 
 **Members of a FOUND namespace.** When the name on the left of a member access stands for a namespace that the
 resolver answers `FOUND` (an alias, or a full path that a cover reaches), the member is typed from the tree that the resolver gave.

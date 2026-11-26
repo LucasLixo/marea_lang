@@ -22,11 +22,13 @@ MAREA_BEGIN_EXTERN_C
      * and build_value! (which gives its default, because this stage has no build settings). A structure is
      * lowered as a local.
      *
-     * A call of a member of a namespace that is not a function of the unit is a call of a registered C function:
-     * the module gets an import (MAREA_BYTECODE_FUNCTION_FLAG_HOST) after the functions of the unit. Its
-     * arguments are scalars and borrows of structures, and it gives a scalar, a structure or nothing; sema types
-     * the call from the signature of the host. fork_join is lowered as its block and a spawn statement as its
-     * call, so the parts run one after the other. A partition runs its body once for each part, from part 0 up,
+     * A call that the IR marks external (MAREA_IrNodeIsExternalCall: a name that the host or a library registered)
+     * and that is not a function of the unit is a call of a registered C function: the module gets an import
+     * (MAREA_BYTECODE_FUNCTION_FLAG_HOST) after the functions of the unit. Any other call of a name that is not a
+     * function of the unit (another unit, Self, a local type alias) is 5031. The arguments of a host call are scalars
+     * and borrows of structures, and it gives a scalar, a structure or nothing; sema types the call from the
+     * signature of the host. fork_join is lowered as its block and a spawn statement as its call, so the parts run
+     * one after the other. A partition runs its body once for each part, from part 0 up,
      * and traps INVALID_PARTITION_COUNT for a count of zero or less; the value it cuts is not read, and the part
      * and the handle of a spawn are not values yet.
      *

@@ -7,6 +7,7 @@
     #include "marea/cgen/MAREACgen.h"
 
     #include "tests/MAREAIrHelpers.hpp"
+    #include "tests/MAREAScratchDirectory.hpp"
 
     #include <array>
     #include <cstdio>
@@ -88,12 +89,10 @@ inline MAREA_CgenRunResult MAREA_cgenCompileAndRun(const std::string &compilerPa
 {
     MAREA_CgenRunResult result;
 
-    static int marea_g_cgenRunCounter{ 0 };
+    const MAREA_ScratchDirectory SCRATCH;
 
-    const std::string BASE{ std::string(::testing::TempDir()) + "marea_cgen_" + std::to_string(::testing::UnitTest::GetInstance()->random_seed()) + "_" + std::to_string(marea_g_cgenRunCounter++) };
-
-    const std::string SOURCE_PATH{ BASE + ".c" };
-    const std::string BINARY_PATH{ BASE + ".bin" };
+    const std::string SOURCE_PATH{ SCRATCH.MAREA_file("module.c") };
+    const std::string BINARY_PATH{ SCRATCH.MAREA_file("module.bin") };
 
     {
         std::ofstream stream(SOURCE_PATH, std::ios::binary | std::ios::trunc);
@@ -148,9 +147,6 @@ inline MAREA_CgenRunResult MAREA_cgenCompileAndRun(const std::string &compilerPa
 
     result.ran = true;
     result.exitCode = (WIFEXITED(STATUS) != 0) ? WEXITSTATUS(STATUS) : -1;
-
-    std::remove(SOURCE_PATH.c_str());
-    std::remove(BINARY_PATH.c_str());
 
     return result;
 }

@@ -560,6 +560,8 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerCall(MAREA_IrContext *context, con
         return result;
     }
 
+    node->externalCall = MAREA_SemaTypedNodeIsExternalCall(typed);
+
     MAREA_IrNode *loweredCallee = MAREA_NULLPTR;
 
     result = MAREA_G_LowerTyped(context, callee, MAREA_BOOLEAN_TRUE, &loweredCallee);

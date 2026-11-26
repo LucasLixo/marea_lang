@@ -199,9 +199,10 @@ No source construct lowers to `alloc` or `free` yet: the library that owns the p
   "Call-default filling" of `docs/ir/marea-ir.md`) is found in a function table the generator fills before any
   body is lowered, so a function may call one declared after it, or itself. The call opcode's window is one
   result register plus one register per argument, right above the registers already in use; the callee's own
-  parameters land in that window. A callee that is a member of a namespace, and is not a function of the unit, is a
-  host call. A method of a value or of a type of the unit, or a wrong argument count (a gap of the IR's own default
-  filling), is `UNSUPPORTED_CONSTRUCT`, and a bare name that nothing declares is `UNRESOLVED_NAME`.
+  parameters land in that window. A call of a name that the host or a library registered is a host call (see Host
+  calls). A method of a value or of a type of the unit, or a wrong argument count (a gap of the IR's own default
+  filling), is `UNSUPPORTED_CONSTRUCT`, and any other call of a name that is not a function of the unit is
+  `UNRESOLVED_NAME`.
   `convert<T>(x)` is the one built-in call this slice lowers, to the `convert` opcode.
 - **Composite values.** A local whose resolved type names a `structure` of the same unit, with every field
   measured by sema's layout (`MAREA_IrLayout`, read through `MAREA_IrModuleFindLayout`), lowers to the type table
@@ -228,10 +229,15 @@ No source construct lowers to `alloc` or `free` yet: the library that owns the p
 
 ## Host calls
 
-A call whose callee is a member of a namespace (`math.add(a, b)` through an alias, `marea.math.add(a, b)` written in
-full, or a member imported under a name of its own) and is not a function of the unit becomes a `call` of an import.
-The imports come after the functions of the unit in the function table. Two calls share one import when the name,
-the parameter types and flags and the result type are the same.
+A call that the IR marks external (`MAREA_IrNodeIsExternalCall`: a name that the host or a library registered, because a
+resolver of sema answers `EXTERNAL` for its namespace) and that is not a function of the unit becomes a `call` of an
+import. It is written through an alias (`math.add(a, b)`), in full (`marea.math.add(a, b)`) or as a member imported
+under a name of its own. The imports come after the functions of the unit in the function table. Two calls share one
+import when the name, the parameter types and flags and the result type are the same.
+
+No other call becomes an import: a call into another unit of the project, through `Self` or a local type alias, or of a
+name that nothing declares is `UNRESOLVED_NAME` (5031) at generate time, never a trap at run time. A name that is
+registered with sema but that the host registers nowhere at run time is still the trap `HOST_FUNCTION_MISSING`.
 
 - **Signature.** Sema types the call from the signature function of the import resolver (see
   `docs/sema/marea-sema.md`): the call node has the declared result type, and a number literal argument has the
@@ -280,7 +286,7 @@ line, column and offset of the IR node it was raised at.
 | 5023 | `TEXT_BAD_NUMBER` | a number with a non-digit, with no digit, or above the limit of its field |
 | 5024 | `TEXT_BAD_STRING` | a string with no opening or closing quote, an unknown escape, a character that is not printable ASCII |
 | 5030 | `UNSUPPORTED_CONSTRUCT` | an assignment to a field, a `with`, a `CONSTRUCT_CALL` or a `DESTROY_CALL` (a user `construct` or `destroy`), a structure literal that holds something that is not a named field, a call with the wrong argument count, a method call |
-| 5031 | `UNRESOLVED_NAME` | a name that is not a local, a parameter, a module constant or a function of the unit; a structure field name a `MEMBER_ACCESS` or a `FIELD_ENTRY` does not declare |
+| 5031 | `UNRESOLVED_NAME` | a name that is not a local, a parameter, a module constant or a function of the unit; a call that names no function of the unit and no registered name (another unit, `Self`, a local type alias); a structure field name a `MEMBER_ACCESS` or a `FIELD_ENTRY` does not declare |
 | 5032 | `OPERAND_OVERFLOW` | a function needs more than 65535 registers, a jump farther than 32767 instructions, a module needs more than 65535 constants, functions or imports, the frame area needs more bytes than this slice allows |
 | 5033 | `UNSUPPORTED_TYPE` | a parameter or a result of a `structure` in a function of the unit; a `string`, an `enum` with data, an `array` or a `tuple` anywhere; a structure field of such a type; a `MEMBER_ACCESS` of a nested structure (reads only a scalar field); the handle of a `spawn` or the part of a `partition` used as a value |
 | 5034 | `UNWALKABLE_COLLECTION` | a `for each`, because no collection type is a bytecode value in this slice |
@@ -302,9 +308,8 @@ The range 5000 to 5999 is reserved for this stage. The messages are fixed texts 
 - Sema does not check that a structure that crosses to C has `#[layout = c]` and measured members; the generator
   sends the layout sema measured. A signature cannot mark a parameter `mutable`, so a write of a C function through
   a read-only borrow is not seen by sema, and a scalar argument is always by value.
-- A call into another unit of the project is not told apart from a host call, because the IR does not say which
-  namespace is registered: it becomes an import, and traps `HOST_FUNCTION_MISSING` when nothing registers that
-  name. The same holds for a call through `Self` or a local type alias. Module linking is future work.
+- A call into another unit of the project is not lowered, because there is no module linking yet, and neither is a
+  function of an `implementation` block called through `Self`, a local type alias or its type name.
 - A `partition` runs its body the right number of times but gives no part: the value it cuts is not read and the
   rule that gives the first `length % n` parts one more element is not applied yet. The handle of a `spawn` has no
   form, so a result of a worker cannot be kept and read after the join.

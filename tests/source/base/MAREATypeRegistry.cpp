@@ -45,6 +45,8 @@ namespace
     {
     }
 
+    MAREA_HOST_FUNCTION(MAREA_hostFunction, MAREA_HOST_RETURNS_NOTHING);
+
 } // namespace
 
 TEST(MAREATypeRegistry, CreateAndGetEnabledMaskRoundTrip)
@@ -211,9 +213,28 @@ TEST(MAREATypeRegistry, RegisterFunctionMacroRegistersThroughTheInternalEntry)
 
     MAREA_RegistryFixture fixture;
 
-    ASSERT_EQ(MAREA_REGISTER_FUNCTION(fixture.registry, MAREA_LIBRARY_FLAG_C_THREADS, "c.threads", MAREA_INTEGER_SIZE(9), "yield", MAREA_INTEGER_SIZE(5), &MAREA_hostFunction), MAREA_TYPE_REGISTRY_EXCEPT_SUCCESS) << "The macro must register the function.";
+    ASSERT_EQ(MAREA_REGISTER_FUNCTION(fixture.registry, MAREA_LIBRARY_FLAG_C_THREADS, "c.threads", MAREA_INTEGER_SIZE(9), "yield", MAREA_INTEGER_SIZE(5), MAREA_hostFunction), MAREA_TYPE_REGISTRY_EXCEPT_SUCCESS) << "The macro must register the function.";
 
-    EXPECT_EQ(MAREA_TypeRegistryFindFunction(fixture.registry, "c.threads", MAREA_INTEGER_SIZE(9), "yield", MAREA_INTEGER_SIZE(5)), reinterpret_cast<MAREA_Null>(&MAREA_hostFunction)) << "The registered function must be found.";
+    EXPECT_EQ(MAREA_TypeRegistryFindFunction(fixture.registry, "c.threads", MAREA_INTEGER_SIZE(9), "yield", MAREA_INTEGER_SIZE(5)), &MAREA_HOST_WRAPPER(MAREA_hostFunction)) << "The registry holds the wrapper of the function.";
+}
+
+TEST(MAREATypeRegistry, RegisteringAFunctionRejectsNullArguments)
+{
+    GTEST_COUT << "Validating the two function entries refuse a null registry, text or wrapper, and a null registry finds nothing." << std::endl;
+
+    MAREA_RegistryFixture fixture;
+
+    const MAREA_HostFunction WRAPPER{ &MAREA_HOST_WRAPPER(MAREA_hostFunction) };
+
+    EXPECT_EQ(MAREA_TypeRegistryRegisterPublicFunction(fixture.registry, "demo", 4, "f", 1, nullptr), MAREA_TYPE_REGISTRY_EXCEPT_ERROR_NULL_POINTER) << "A null wrapper must be rejected.";
+
+    EXPECT_EQ(MAREA_TypeRegistryRegisterInternalFunction(fixture.registry, MAREA_LIBRARY_FLAG_C_THREADS, "c.threads", 9, "f", 1, nullptr), MAREA_TYPE_REGISTRY_EXCEPT_ERROR_NULL_POINTER) << "A null wrapper must be rejected.";
+
+    EXPECT_EQ(MAREA_TypeRegistryRegisterPublicFunction(nullptr, "demo", 4, "f", 1, WRAPPER), MAREA_TYPE_REGISTRY_EXCEPT_ERROR_NULL_POINTER) << "A null registry must be rejected.";
+
+    EXPECT_EQ(MAREA_TypeRegistryFindFunction(nullptr, "demo", 4, "f", 1), nullptr) << "A null registry finds nothing.";
+
+    EXPECT_EQ(MAREA_TypeRegistryFindFunction(fixture.registry, "demo", 4, "f", 1), nullptr) << "Nothing was registered.";
 }
 
 TEST(MAREATypeRegistry, RegisterFunctionMacroRejectsAReservedRootForAUserOrAHost)
@@ -222,7 +243,7 @@ TEST(MAREATypeRegistry, RegisterFunctionMacroRejectsAReservedRootForAUserOrAHost
 
     MAREA_RegistryFixture fixture;
 
-    EXPECT_EQ(MAREA_REGISTER_FUNCTION(fixture.registry, MAREA_LIBRARY_FLAG_NONE, "c.threads", MAREA_INTEGER_SIZE(9), "yield", MAREA_INTEGER_SIZE(5), &MAREA_hostFunction), MAREA_TYPE_REGISTRY_EXCEPT_ERROR_RESERVED_NAMESPACE_ROOT) << "owner NONE means a user or a host; it must not register under c.threads.";
+    EXPECT_EQ(MAREA_REGISTER_FUNCTION(fixture.registry, MAREA_LIBRARY_FLAG_NONE, "c.threads", MAREA_INTEGER_SIZE(9), "yield", MAREA_INTEGER_SIZE(5), MAREA_hostFunction), MAREA_TYPE_REGISTRY_EXCEPT_ERROR_RESERVED_NAMESPACE_ROOT) << "owner NONE means a user or a host; it must not register under c.threads.";
 }
 
 TEST(MAREATypeRegistry, AHostMayReplaceARuntimeFunction)
