@@ -19,6 +19,17 @@ static MAREA_Boolean MAREA_CALL MAREA_G_HostContextIsPaired(MAREA_HostContext *c
     return MAREA_BOOLEAN_FALSE;
 }
 
+MAREA_HostContextExcept MAREA_CALL MAREA_HostContextInitialize(MAREA_HostContext *context, MAREA_RuntimeAllocateFunction allocate, MAREA_RuntimeFreeFunction release)
+{
+    MAREA_IGNORE(context);
+
+    MAREA_IGNORE(allocate);
+
+    MAREA_IGNORE(release);
+
+    return MAREA_HOST_CONTEXT_EXCEPT_ERROR_NULL_POINTER;
+}
+
 MAREA_HostContextExcept MAREA_CALL MAREA_HostContextAllocate(MAREA_HostContext *context, MAREA_IntegerSize size, MAREA_IntegerSize alignment, MAREA_Null *outBlock)
 {
     if (outBlock == MAREA_NULLPTR) {

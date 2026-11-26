@@ -7,6 +7,7 @@
     #include "marea/base/MAREACTypes.h"
     #include "marea/base/MAREAMacros.h"
     #include "marea/base/MAREAArena.h"
+    #include "marea/base/MAREAHostContext.h"
     #include "marea/base/MAREAHostFunction.h"
 
 MAREA_BEGIN_EXTERN_C
@@ -139,19 +140,6 @@ MAREA_BEGIN_EXTERN_C
         MAREA_IntegerSize resultElementLength;
         MAREA_MacroExpandFunction expand;
     } MAREA_MacroDescriptor;
-
-    /**
-     * @brief The shape of a replacement of the runtime hook "alloc". It gives a block of at least size bytes
-     * whose address is a multiple of alignment (a power of two), or null when it cannot. The runtime fills the
-     * block with zeros itself. size is at least 1.
-     */
-    typedef MAREA_Null(MAREA_CALL * MAREA_RuntimeAllocateFunction)(MAREA_IntegerSize size, MAREA_IntegerSize alignment);
-
-    /**
-     * @brief The shape of a replacement of the runtime hook "free". address is a block that the replacement of
-     * "alloc" gave and that is not free yet, never null.
-     */
-    typedef void(MAREA_CALL * MAREA_RuntimeFreeFunction)(MAREA_Null address);
 
     /**
      * @brief Result of a registry operation.

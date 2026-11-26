@@ -97,6 +97,59 @@ MAREA_CgenExcept MAREA_CALL MAREA_CgenContextCreate(MAREA_Arena *arena, MAREA_Di
     return MAREA_CGEN_EXCEPT_SUCCESS;
 }
 
+MAREA_CgenExcept MAREA_CALL MAREA_CgenContextSetTypeRegistry(MAREA_CgenContext *context, const MAREA_TypeRegistry *registry)
+{
+    MAREA_IGNORE(context);
+
+    MAREA_IGNORE(registry);
+
+    return MAREA_CGEN_EXCEPT_ERROR_NULL_POINTER;
+}
+
+const MAREA_TypeRegistry *MAREA_CALL MAREA_CgenContextGetTypeRegistry(const MAREA_CgenContext *context)
+{
+    MAREA_IGNORE(context);
+
+    return MAREA_NULLPTR;
+}
+
+MAREA_CgenExcept MAREA_CALL MAREA_CgenContextSetHostResolver(MAREA_CgenContext *context, MAREA_CgenHostResolveFunction resolve, MAREA_Null userData)
+{
+    MAREA_IGNORE(context);
+
+    MAREA_IGNORE(resolve);
+
+    MAREA_IGNORE(userData);
+
+    return MAREA_CGEN_EXCEPT_ERROR_NULL_POINTER;
+}
+
+MAREA_CgenExcept MAREA_CALL MAREA_CgenContextAddInclude(MAREA_CgenContext *context, const MAREA_Character8 *header, MAREA_IntegerSize length)
+{
+    MAREA_IGNORE(context);
+
+    MAREA_IGNORE(header);
+
+    MAREA_IGNORE(length);
+
+    return MAREA_CGEN_EXCEPT_ERROR_NULL_POINTER;
+}
+
+MAREA_CgenExcept MAREA_CALL MAREA_CgenContextSetAllocator(MAREA_CgenContext *context, const MAREA_Character8 *allocate, MAREA_IntegerSize allocateLength, const MAREA_Character8 *release, MAREA_IntegerSize releaseLength)
+{
+    MAREA_IGNORE(context);
+
+    MAREA_IGNORE(allocate);
+
+    MAREA_IGNORE(allocateLength);
+
+    MAREA_IGNORE(release);
+
+    MAREA_IGNORE(releaseLength);
+
+    return MAREA_CGEN_EXCEPT_ERROR_NULL_POINTER;
+}
+
 MAREA_Arena *MAREA_CALL MAREA_CgenContextGetArena(const MAREA_CgenContext *context)
 {
     return (context == MAREA_NULLPTR) ? MAREA_NULLPTR : context->arena;

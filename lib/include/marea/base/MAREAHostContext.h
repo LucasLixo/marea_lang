@@ -10,11 +10,17 @@
 MAREA_BEGIN_EXTERN_C
 
     /**
-     * @brief What the runtime gives a C function that asks for it: the allocator hooks of the runtime and the
-     * trap of the call. A context lives for one call. The function must not keep it and the runtime makes a new
-     * one for the next call, so it holds no global state.
+     * @brief The shape of a replacement of the runtime hook "alloc". It gives a block of at least size bytes
+     * whose address is a multiple of alignment (a power of two), or null when it cannot. The runtime fills the
+     * block with zeros itself. size is at least 1.
      */
-    typedef struct MAREA_HostContext MAREA_HostContext;
+    typedef MAREA_Null(MAREA_CALL * MAREA_RuntimeAllocateFunction)(MAREA_IntegerSize size, MAREA_IntegerSize alignment);
+
+    /**
+     * @brief The shape of a replacement of the runtime hook "free". address is a block that the replacement of
+     * "alloc" gave and that is not free yet, never null.
+     */
+    typedef void(MAREA_CALL * MAREA_RuntimeFreeFunction)(MAREA_Null address);
 
     /**
      * @brief The traps that a C function can raise. Each value is the value of the trap of the same name in every
@@ -27,6 +33,22 @@ MAREA_BEGIN_EXTERN_C
     } MAREA_HostTrap;
 
     /**
+     * @brief What the runtime gives a C function that asks for it: the allocator hooks of the runtime and the
+     * trap of the call. A context lives for one call. The function must not keep it and the runtime makes a new
+     * one for the next call, so it holds no global state. The struct is open because a program that cgen writes
+     * makes one on its stack for each call of a function that asks for it; MAREA_HostContextInitialize fills it.
+     * A C function reads and changes it only through the functions below.
+     */
+    typedef struct MAREA_ALIGNED(8) MAREA_HostContext
+    {
+        MAREA_RuntimeAllocateFunction allocate;
+        MAREA_RuntimeFreeFunction release;
+        MAREA_HostTrap trap;
+        MAREA_Boolean unpaired;
+        MAREA_Uinteger8 padding[3];
+    } MAREA_HostContext;
+
+    /**
      * @brief Result of an operation of a host context.
      */
     typedef enum MAREA_HostContextExcept
@@ -37,6 +59,18 @@ MAREA_BEGIN_EXTERN_C
         MAREA_HOST_CONTEXT_EXCEPT_ERROR_OUT_OF_RANGE = MAREA_UINTEGER_8(3),
         MAREA_HOST_CONTEXT_EXCEPT_ERROR_UNPAIRED_ALLOCATOR = MAREA_UINTEGER_8(4),
     } MAREA_HostContextExcept;
+
+    /**
+     * @brief Makes the context of one call: no trap, no fault and the two hooks of the caller, or, when both are
+     * null, the allocator of this library (malloc and free of the C library with the requested alignment). The
+     * hooks come from one allocator, so a caller gives both or neither.
+     * @param context Context to fill. Must not be null.
+     * @param allocate Replacement of "alloc", or null together with release.
+     * @param release Replacement of "free", or null together with allocate.
+     * @return MAREA_HOST_CONTEXT_EXCEPT_SUCCESS, ERROR_NULL_POINTER when context is null, or
+     * ERROR_UNPAIRED_ALLOCATOR when exactly one hook is null (context is then not changed).
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_HostContextExcept MAREA_CALL MAREA_HostContextInitialize(MAREA_HostContext * context, MAREA_RuntimeAllocateFunction allocate, MAREA_RuntimeFreeFunction release);
 
     /**
      * @brief Asks the allocator of the runtime, the replacement of the hook "alloc" when a host gave one, for a
