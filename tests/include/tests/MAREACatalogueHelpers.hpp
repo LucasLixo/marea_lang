@@ -48,6 +48,7 @@ inline const MAREA_AstNode *MAREA_fixtureShapes()
         "function make(): Box",
         "    return Box{ open = 1, secret = 2 };",
         "end",
+        "opaque structure Texture;",
     })) };
 
     return (PARSED == MAREA_PARSE_EXCEPT_SUCCESS) ? parser.root : nullptr;

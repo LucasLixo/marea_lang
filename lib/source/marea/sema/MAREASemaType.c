@@ -656,13 +656,9 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckOpaqueField(MAREA_SemaContext *contex
             continue;
         }
 
-        const MAREA_AstNode *declaration = MAREA_NULLPTR;
+        MAREA_SemaTypeTarget target = { .type = MAREA_NULLPTR, .declaration = MAREA_NULLPTR, .root = MAREA_NULLPTR };
 
-        const MAREA_Character8 *name = MAREA_NULLPTR;
-
-        MAREA_IntegerSize length = 0;
-
-        if ((MAREA_SemaClassifyType(context, type, &declaration, &name, &length) == MAREA_SEMA_TYPE_CLASS_USER) && (declaration != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(declaration) == MAREA_AST_KIND_OPAQUE_DECLARATION)) {
+        if ((MAREA_SemaFindTypeTarget(context, type, MAREA_NULLPTR, &target) == MAREA_BOOLEAN_TRUE) && (MAREA_AstNodeGetKind(target.declaration) == MAREA_AST_KIND_OPAQUE_DECLARATION)) {
             MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_OPAQUE_FIELD_BY_VALUE, MAREA_AstNodeGetPosition(type), "an opaque type cannot be held by value in a field");
         }
 

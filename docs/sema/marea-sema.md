@@ -628,7 +628,8 @@ program the parser accepts.
 **Opaque structures.** An `opaque structure` has no known layout, so sema refuses to build it, to read a field of it,
 to apply an operator to it and to hold it by value in a structure. A struct literal of an opaque type, a field read
 and a binary operation whose operand is an opaque name raise `OPAQUE_TYPE_MISUSE` (3057), and a `FIELD_DECLARATION`
-whose type is the bare name of an opaque structure raises `OPAQUE_FIELD_BY_VALUE` (3058). a type
+whose type stands for an opaque structure raises `OPAQUE_FIELD_BY_VALUE` (3058). An opaque structure of a `FOUND`
+namespace, reached by an alias, a full path or an imported symbol, is one too. A type
 with the owner role, a raw pointer, a borrow and a C call stay legal.
 
 **Expressions.** Sema gives an expression a type only when it is cheap to know, and never guesses. A
@@ -1389,9 +1390,9 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
   and `with` header expressions and the initializer of a file constant are checked. A constant that has
   an `ERROR_NODE` below it has no name check, because the parser may leave its tokens as an expression.
 - `OPAQUE_TYPE_MISUSE` (3057) sees only an operand or a base that is a bare name, or one in parentheses, whose
-  written type is an opaque structure of the same file. A call result, an index, a field of another value and an
-  opaque type of another file are not classified, and `OPAQUE_FIELD_BY_VALUE` (3058) likewise sees only a bare
-  opaque name of the same file as a field type.
+  written type stands for an opaque structure, of this file or of a `FOUND` namespace. A call result, an index and a
+  field of another value are not classified, and `OPAQUE_FIELD_BY_VALUE` (3058) likewise reads only the written type of
+  a field, not a type argument. An opaque type that another namespace names through its own import alias is not seen.
 - `COMPILE_TIME_ASSERTION_FAILED` (3059) does not fold a call other than `size_of` and `align_of` (`convert` included),
   a character, a constant of another namespace or the size of an imported or library type: such a condition is accepted.
 - `CYCLIC_CONSTANT` (3055) does not follow, in another namespace, a constant of an `implementation` block, a name that

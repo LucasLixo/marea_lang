@@ -1004,6 +1004,8 @@ checked. The type `handle<T>` is rejected with 3009 by the type checker, so it h
 | L-INTEROP-069 | A qualified macro call of a library that no require covers | 3078 @10 |
 | L-INTEROP-070 | A qualified macro call of a file that the include resolver does not know | 3061 @12 |
 | L-INTEROP-071 | a print macro with a structure for a placeholder | 3061 @14 |
+| L-INTEROP-072 | A field of an opaque structure of another file is read | 3057 @12 |
+| L-INTEROP-073 | An opaque structure of another file is held by value in a field | 3058 @12 |
 
 ### Macros and the C border: known_gap
 
@@ -1351,14 +1353,14 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | coverage | 0 | 2 | 0 |
 | examples | 20 | 0 | 0 |
 | functions | 19 | 54 | 0 |
-| interop | 18 | 36 | 0 |
+| interop | 18 | 38 | 0 |
 | memory | 15 | 18 | 0 |
 | namespaces | 23 | 46 | 0 |
 | ownership | 67 | 78 | 2 |
 | parallel | 20 | 41 | 0 |
 | seed | 1 | 2 | 0 |
 | types | 62 | 152 | 0 |
-| total | 281 | 597 | 10 |
+| total | 281 | 599 | 10 |
 
 ## Parity
 

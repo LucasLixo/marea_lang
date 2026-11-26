@@ -960,20 +960,12 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckPair(MAREA_SemaContext *context,
     return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH, position, prefix, known->name, known->length);
 }
 
-// INFO: an opaque structure has no known layout. Only a bare name, or one in parentheses, whose written type is an opaque declaration is classified.
+// INFO: an opaque structure has no known layout. Only a bare name, or one in parentheses, whose written type stands for an opaque declaration, of this file or of a FOUND namespace, is classified.
 static MAREA_Boolean MAREA_CALL MAREA_G_IsOpaqueType(const MAREA_SemaContext *context, const MAREA_AstNode *type)
 {
-    if (MAREA_G_IsType(type) == MAREA_BOOLEAN_FALSE) {
-        return MAREA_BOOLEAN_FALSE;
-    }
+    MAREA_SemaTypeTarget target = { .type = MAREA_NULLPTR, .declaration = MAREA_NULLPTR, .root = MAREA_NULLPTR };
 
-    const MAREA_AstNode *declaration = MAREA_NULLPTR;
-
-    const MAREA_Character8 *name = MAREA_NULLPTR;
-
-    MAREA_IntegerSize length = 0;
-
-    return ((MAREA_SemaClassifyType(context, type, &declaration, &name, &length) == MAREA_SEMA_TYPE_CLASS_USER) && (MAREA_G_IsKind(declaration, MAREA_AST_KIND_OPAQUE_DECLARATION) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+    return ((MAREA_SemaFindTypeTarget(context, type, MAREA_NULLPTR, &target) == MAREA_BOOLEAN_TRUE) && (MAREA_G_IsKind(target.declaration, MAREA_AST_KIND_OPAQUE_DECLARATION) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
 static MAREA_Boolean MAREA_CALL MAREA_G_IsOpaqueName(const MAREA_SemaContext *context, const MAREA_AstNode *expression)

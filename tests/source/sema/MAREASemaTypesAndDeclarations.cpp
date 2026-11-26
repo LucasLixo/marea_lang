@@ -337,6 +337,35 @@ TEST(MAREASemaTypesAndDeclarations, OpaqueTypeHeldByValueInAFieldRaisesOpaqueFie
     EXPECT_TRUE(MAREA_codesOf("require c.math.Vector3; structure H t: c.math.Vector3; end").empty()) << "A type of another file is not checked.";
 }
 
+TEST(MAREASemaTypesAndDeclarations, OpaqueTypeOfAnotherFileIsClassified)
+{
+    GTEST_COUT << "Validating an opaque structure of a FOUND namespace raises 3057 and 3058 as one of this file does." << std::endl;
+
+    MAREA_SemaFixture library;
+
+    ASSERT_EQ(library.parser.MAREA_parse("namespace a.b; opaque structure Texture; structure Box x: sinteger32; end"), MAREA_PARSE_EXCEPT_SUCCESS) << "The library must parse.";
+
+    const MAREA_ResolveCallback FOUND{ [&library](const std::string &text, const MAREA_AstNode **outRoot) {
+        if (text != "a.b") {
+            return MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
+        }
+
+        *outRoot = library.parser.root;
+
+        return MAREA_SEMA_IMPORT_RESULT_FOUND;
+    } };
+
+    constexpr MAREA_Uinteger32 MISUSE{ MAREA_SEMA_DIAGNOSTIC_CODE_OPAQUE_TYPE_MISUSE };
+
+    EXPECT_EQ(MAREA_codesOf("import a.b as b; structure H t: b.Texture; end", FOUND), Codes{ OPAQUE_BY_VALUE }) << "A field of an opaque type reached by an alias must raise 3058.";
+    EXPECT_EQ(MAREA_codesOf("import a.b; structure H t: a.b.Texture; end", FOUND), Codes{ OPAQUE_BY_VALUE }) << "A field of an opaque type reached by a full path must raise 3058.";
+    EXPECT_EQ(MAREA_codesOf("import a.b.Texture as Image; structure H t: Image; end", FOUND), Codes{ OPAQUE_BY_VALUE }) << "A field of an imported opaque type must raise 3058.";
+    EXPECT_EQ(MAREA_codesOf("import a.b as b; function f(t: b.Texture) local x: sinteger32 = t.width; end", FOUND), Codes{ MISUSE }) << "A field read on an imported opaque value must raise 3057.";
+    EXPECT_EQ(MAREA_codesOf("import a.b as b; function f(t: b.Texture, u: b.Texture) local x: b.Texture = t + u; end", FOUND), Codes{ MISUSE }) << "An operator on imported opaque values must raise 3057.";
+    EXPECT_EQ(MAREA_codesOf("import a.b as b; function f() local t: b.Texture = b.Texture{ }; end", FOUND), Codes{ MISUSE }) << "A literal of an imported opaque type must raise 3057.";
+    EXPECT_TRUE(MAREA_codesOf("import a.b as b; structure H box: b.Box; end function f(v: b.Box) local x: sinteger32 = v.x; end", FOUND).empty()) << "A structure of another file must raise nothing.";
+}
+
 TEST(MAREASemaTypesAndDeclarations, StructureHoldingItselfByValueIsRecursiveType)
 {
     GTEST_COUT << "Validating a structure or enum that holds itself by value raises RECURSIVE_TYPE." << std::endl;
