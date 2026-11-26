@@ -44,6 +44,11 @@ void MAREA_CALL MAREA_CgenBufferReserve(MAREA_CgenBuffer *buffer, MAREA_IntegerS
 
 void MAREA_CALL MAREA_CgenWrite(MAREA_CgenBuffer *buffer, const MAREA_Character8 *text, MAREA_IntegerSize length)
 {
+    // INFO: an empty buffer has no data, and memcpy takes no null pointer, also for zero bytes.
+    if (length == MAREA_INTEGER_SIZE(0)) {
+        return;
+    }
+
     MAREA_CgenBufferReserve(buffer, length);
 
     if (buffer->failed == MAREA_BOOLEAN_TRUE) {
