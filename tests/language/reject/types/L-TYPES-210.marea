@@ -1,0 +1,16 @@
+-- expect: 3053 @15
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A field of a function type with another signature than the parameter.
+
+namespace main;
+structure Holder
+    run: function(value: sinteger32): sinteger32;
+end
+function apply(operation: function(value: string): sinteger32)
+end
+
+function run(holder: Holder)
+    apply(holder.run);
+end

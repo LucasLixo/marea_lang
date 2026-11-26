@@ -57,6 +57,8 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsType(const MAREA_AstNode *node)
 
 static const MAREA_SemaBinding *MAREA_CALL MAREA_G_FindBinding(const MAREA_SemaBindings *bindings, const MAREA_Character8 *name, MAREA_IntegerSize length);
 
+static MAREA_Boolean MAREA_CALL MAREA_G_MentionsBinding(const MAREA_SemaBindings *bindings, const MAREA_AstNode *node);
+
 static MAREA_Boolean MAREA_CALL MAREA_G_SingleName(const MAREA_AstNode *type, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength)
 {
     if ((type == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(type) != MAREA_AST_KIND_NAMED_TYPE)) {
@@ -539,6 +541,16 @@ MAREA_Boolean MAREA_CALL MAREA_SemaFunctionFitsFunctionType(const MAREA_SemaCont
     }
 
     return MAREA_G_SignatureMatches(context, functionType, function, MAREA_NULLPTR, 0);
+}
+
+MAREA_Boolean MAREA_CALL MAREA_SemaFunctionTypesFit(const MAREA_SemaContext *context, const MAREA_AstNode *functionType, const MAREA_AstNode *valueType, const MAREA_SemaBindings *bindings)
+{
+    // INFO: a function type that mentions a generic name, in scope or of the declaration of the value, is not compared.
+    if ((MAREA_G_MentionsGeneric(context, functionType) == MAREA_BOOLEAN_TRUE) || (MAREA_G_MentionsGeneric(context, valueType) == MAREA_BOOLEAN_TRUE) || (MAREA_G_MentionsBinding(bindings, valueType) == MAREA_BOOLEAN_TRUE)) {
+        return MAREA_BOOLEAN_TRUE;
+    }
+
+    return MAREA_G_SignatureMatches(context, functionType, valueType, MAREA_NULLPTR, 0);
 }
 
 static MAREA_Boolean MAREA_CALL MAREA_G_HasImplementation(const MAREA_SemaContext *context, const MAREA_AstNode *contractFunction, const MAREA_Character8 *typeName, MAREA_IntegerSize typeLength)

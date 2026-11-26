@@ -590,36 +590,60 @@ static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOf(const MAREA_SemaContext *context
     }
 }
 
-static MAREA_Boolean MAREA_CALL MAREA_G_IsLiteralKind(MAREA_AstKind kind)
+// INFO: a value of a shape that is surely no function.
+static MAREA_Boolean MAREA_CALL MAREA_G_IsNoFunction(const MAREA_G_Shape *shape)
 {
-    return ((kind == MAREA_AST_KIND_INTEGER_LITERAL) || (kind == MAREA_AST_KIND_FLOAT_LITERAL) || (kind == MAREA_AST_KIND_STRING_LITERAL) || (kind == MAREA_AST_KIND_CHARACTER_LITERAL) || (kind == MAREA_AST_KIND_BOOLEAN_LITERAL)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+    switch (shape->kind) {
+    case MAREA_G_SHAPE_KIND_INTEGER_LITERAL:
+    case MAREA_G_SHAPE_KIND_FLOAT_LITERAL:
+    case MAREA_G_SHAPE_KIND_PRIMITIVE:
+    case MAREA_G_SHAPE_KIND_STRUCTURE:
+    case MAREA_G_SHAPE_KIND_ENUM:
+    case MAREA_G_SHAPE_KIND_VIEW:
+    case MAREA_G_SHAPE_KIND_NONE:
+    case MAREA_G_SHAPE_KIND_REGISTERED:
+        return MAREA_BOOLEAN_TRUE;
+    default:
+        return MAREA_BOOLEAN_FALSE;
+    }
 }
 
-// INFO: a value for a function type target. A literal is a mismatch (TYPE_MISMATCH) and a bare name of a function of the
-// file, not hidden by a local, must have the signature of the function type (FUNCTION_TYPE_MISMATCH). Any other value is accepted.
+// INFO: a value for a function type target. A bare name of a function of the file, not hidden by a local, must have the
+// signature of the function type, and so must a value that has a written function type (FUNCTION_TYPE_MISMATCH). A value
+// that is surely no function is TYPE_MISMATCH. Any other value is accepted.
 static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckFunctionTypeFit(MAREA_SemaContext *context, const MAREA_AstNode *functionType, const MAREA_AstNode *expression)
 {
-    const MAREA_AstKind KIND = MAREA_AstNodeGetKind(expression);
+    if (MAREA_G_IsKind(expression, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_TRUE) {
+        const MAREA_Character8 *name = MAREA_AstNodeGetText(expression);
 
-    if (MAREA_G_IsLiteralKind(KIND) == MAREA_BOOLEAN_TRUE) {
-        return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH, MAREA_AstNodeGetPosition(expression), "value does not fit the type", "function", strlen("function"));
+        const MAREA_IntegerSize LENGTH = MAREA_AstNodeGetTextLength(expression);
+
+        const MAREA_AstNode *function = MAREA_G_FindDeclaration(context, expression, MAREA_AST_KIND_FUNCTION_DECLARATION);
+
+        if ((function != MAREA_NULLPTR) && (MAREA_SemaLocalFind(context, name, LENGTH) == MAREA_NULLPTR)) {
+            return (MAREA_SemaFunctionFitsFunctionType(context, function, functionType) == MAREA_BOOLEAN_TRUE) ? MAREA_SEMA_EXCEPT_SUCCESS : MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_FUNCTION_TYPE_MISMATCH, MAREA_AstNodeGetPosition(expression), "function signature does not fit the function type:", name, LENGTH);
+        }
     }
 
-    if (KIND != MAREA_AST_KIND_IDENTIFIER) {
+    MAREA_SemaWrittenType value;
+
+    if (MAREA_SemaWrittenTypeOf(context, expression, &value) == MAREA_BOOLEAN_TRUE) {
+        MAREA_SemaResolveWrittenType(context, &value);
+
+        const MAREA_AstNode *valueType = MAREA_SemaResolveFunctionType(context, value.type);
+
+        if (valueType != MAREA_NULLPTR) {
+            return (MAREA_SemaFunctionTypesFit(context, functionType, valueType, &value.bindings) == MAREA_BOOLEAN_TRUE) ? MAREA_SEMA_EXCEPT_SUCCESS : MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_FUNCTION_TYPE_MISMATCH, MAREA_AstNodeGetPosition(expression), "the signature of the value does not fit the", "function type", strlen("function type"));
+        }
+    }
+
+    const MAREA_G_Shape actual = MAREA_G_ShapeOf(context, expression, 0);
+
+    if (MAREA_G_IsNoFunction(&actual) == MAREA_BOOLEAN_FALSE) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
-    const MAREA_Character8 *name = MAREA_AstNodeGetText(expression);
-
-    const MAREA_IntegerSize LENGTH = MAREA_AstNodeGetTextLength(expression);
-
-    const MAREA_AstNode *function = MAREA_G_FindDeclaration(context, expression, MAREA_AST_KIND_FUNCTION_DECLARATION);
-
-    if ((function == MAREA_NULLPTR) || (MAREA_SemaLocalFind(context, name, LENGTH) != MAREA_NULLPTR) || (MAREA_SemaFunctionFitsFunctionType(context, function, functionType) == MAREA_BOOLEAN_TRUE)) {
-        return MAREA_SEMA_EXCEPT_SUCCESS;
-    }
-
-    return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_FUNCTION_TYPE_MISMATCH, MAREA_AstNodeGetPosition(expression), "function signature does not fit the function type:", name, LENGTH);
+    return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH, MAREA_AstNodeGetPosition(expression), "value does not fit the type", "function", strlen("function"));
 }
 
 MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressionFit(MAREA_SemaContext *context, const MAREA_AstNode *type, const MAREA_AstNode *expression)

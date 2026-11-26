@@ -1465,6 +1465,17 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaFunctionFitsFunctionType(const MAREA_SemaContext *context, const MAREA_AstNode *function, const MAREA_AstNode *functionType);
 
     /**
+     * @brief Tells whether a value of one written function type fits another function type: the same parameters, by
+     * semantics and type, and the same result. A type that mentions a generic name is not compared.
+     * @param context Context of the run. Must not be null.
+     * @param functionType FUNCTION_TYPE node of the target. Must not be null.
+     * @param valueType FUNCTION_TYPE node of the value. Must not be null.
+     * @param bindings Generic names of the declaration that wrote valueType. Must not be null.
+     * @return MAREA_BOOLEAN_TRUE when the value fits or is not compared.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaFunctionTypesFit(const MAREA_SemaContext *context, const MAREA_AstNode *functionType, const MAREA_AstNode *valueType, const MAREA_SemaBindings *bindings);
+
+    /**
      * @brief Reports TYPE_MISMATCH the same way MAREA_SemaCheckExpressionFit does, against a primitive type
      * named by fixed text instead of a written NAMED_TYPE node: the shape of the signature of a member of
      * an EXTERNAL namespace, which the host gives as canonical type spellings, not as AST nodes.

@@ -420,11 +420,11 @@ both. `Type{...}` (the aggregate literal) is unaffected and keeps working on its
 parameter is defaulted.
 
 **Function type value.** A declared type that is a function type, written or reached through an alias of the file,
-gets three checks. A literal (integer, float, string, character or boolean) for it is `TYPE_MISMATCH` (3011). A
-bare name of a function of the file, not hidden by a local, for it is `FUNCTION_TYPE_MISMATCH` (3053) when its
-parameter count, the passing mode or type of a parameter, or its result type differ from the function type; the
-check runs wherever a value meets a declared type (a local initializer, an argument, a return, an assignment, a
-constant). A call through a parameter or a local of a function type is checked against the parameters of that
+is compared wherever a value meets it (a local initializer, an argument, a return, an assignment, a constant). A bare
+name of a function of the file, not hidden by a local, and any expression whose written type is a function type (a
+local, a field, an element, a constant, a call result) must have the same parameter count, passing mode and type of
+each parameter, and result type, else `FUNCTION_TYPE_MISMATCH` (3053); an alias equals its original. A value that is
+surely not a function (a literal, a primitive, a structure, an enum, a view) is `TYPE_MISMATCH` (3011). A call through a parameter or a local of a function type is checked against the parameters of that
 function type: a wrong count is `ARGUMENT_COUNT_MISMATCH` (3010) and a wrong argument type is 3011, the rule of an
 ordinary call.
 
@@ -1237,7 +1237,7 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 | 3050 | `OPERATOR_SIGNATURE_MISMATCH` | `#[operator = "+"] function add(self: Point): sinteger32` |
 | 3051 | `BOUND_OPERATION_NOT_GIVEN` | `left + right` or `left.size()` on a generic `Item` that no `where` bound gives |
 | 3052 | `OVERLAPPING_IMPLEMENTATION` | `implementation<Item> Box<Item>` and `implementation Box<sinteger32>` that both declare `same` |
-| 3053 | `FUNCTION_TYPE_MISMATCH` | `apply(negate)` when `negate` takes one parameter and the function type takes two |
+| 3053 | `FUNCTION_TYPE_MISMATCH` | `apply(negate)` when `negate` takes one parameter and the function type takes two, `apply(holder.run)` or `apply(make())` when the field or the result has another function type |
 | 3054 | `INVALID_RESULT_USE` | `return 1;` in a function with no result, or `local v: sinteger32 = log_line("x");` when `log_line` has no result |
 | 3055 | `CYCLIC_CONSTANT` | `constant A: sinteger32 = B;` with `constant B: sinteger32 = A;`, or `constant A: sinteger32 = A;`, once for each cycle, at the first constant of it in the file |
 | 3056 | `RESERVED_MACRO_NAME` | `function print() end`, `constant format: sinteger32 = 1;`, `local log: sinteger32 = 1;` or `import c.stdio as print;`: a name that is a built-in macro |
@@ -1339,9 +1339,8 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 - The type arguments of a generic type are compared (3014) only for two types of one head name and one argument
   count. A pair that mentions a generic parameter in scope, an alias, an import or an unknown type, a different head
   (`c.memory.Owned<marea.vector.Vector<T>>` into `marea.vector.Vector<T>` is accepted), and a `for each` over a collection of unknown type, are skipped.
-- A function type is compared (3011, 3053) only for a literal and for a bare name of a function of the file. It is
-  still unknown for a field, a call result and any other expression of a function type. A generic function, and a
-  function type that mentions a generic parameter in scope, are never compared.
+- A function type that mentions a generic parameter in scope, and a generic function given as a value, are never
+  compared (3011, 3053). A bare name of an imported function, and a value that sema does not type, are accepted.
 - A binary operator is checked against what its operands may be only for a bitwise operator on a float, a boolean
   or a string (3038) and for `and`, `or` and `not` on a known type that is not `boolean` (3039). Every other operator
   (arithmetic on a `boolean` or a `string`, a comparison of two booleans) is not checked, a `character` operand of a

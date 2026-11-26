@@ -11,6 +11,7 @@ namespace
 
     constexpr MAREA_Uinteger32 MISMATCH{ MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH };
     constexpr MAREA_Uinteger32 ARGUMENT_MISMATCH{ MAREA_SEMA_DIAGNOSTIC_CODE_GENERIC_ARGUMENT_MISMATCH };
+    constexpr MAREA_Uinteger32 FUNCTION_MISMATCH{ MAREA_SEMA_DIAGNOSTIC_CODE_FUNCTION_TYPE_MISMATCH };
 
     Codes MAREA_codesOf(const std::string &body)
     {
@@ -100,4 +101,23 @@ TEST(MAREASemaKnownTypes, FileConstantHasItsDeclaredType)
     EXPECT_EQ(MAREA_codesOf("function make(): demo.vector<sinteger32> return demo.vector<sinteger32>{}; end function keep(t: demo.vector<string>) end function g() keep(make()); end"), Codes{ ARGUMENT_MISMATCH }) << "The type arguments of a call result are compared.";
 
     EXPECT_TRUE(MAREA_codesOf(TYPES + "function g() keep(ORIGIN); take(ORIGIN.x); keep(Point.UNIT); end").empty()) << "A fitting constant must raise nothing.";
+}
+
+TEST(MAREASemaKnownTypes, FunctionTypeIsComparedForAnyExpressionThatHasOne)
+{
+    GTEST_COUT << "Validating a function type is compared by parameters and result for a field, a call result and a local." << std::endl;
+
+    const std::string TYPES{ "structure Holder run: function(a: sinteger32): sinteger32; text: string; end function use(f: function(a: string): sinteger32) end " };
+
+    EXPECT_EQ(MAREA_codesOf(TYPES + "function g(h: Holder) use(h.run); end"), Codes{ FUNCTION_MISMATCH }) << "A field of another signature must raise FUNCTION_TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(TYPES + "function bad(a: string): string return a; end function make(): function(a: string): string return bad; end function g() use(make()); end"), Codes{ FUNCTION_MISMATCH }) << "A call result of another result type must raise FUNCTION_TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(TYPES + "function g(run: function(a: string, b: string): sinteger32) use(run); end"), Codes{ FUNCTION_MISMATCH }) << "A local of another parameter count must raise FUNCTION_TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(TYPES + "function g(h: Holder) use(h.text); end"), Codes{ MISMATCH }) << "A field that is not a function must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(TYPES + "function g(n: sinteger32) use(n + 1); end"), Codes{ MISMATCH }) << "A number that is not a function must raise TYPE_MISMATCH.";
+
+    EXPECT_TRUE(MAREA_codesOf(TYPES + "type Text = string; function same(a: Text): sinteger32 return 0; end function make(): function(a: Text): sinteger32 return same; end function g(run: function(a: string): sinteger32) use(run); use(make()); end").empty()) << "The same signature, through an alias too, must raise nothing.";
 }
