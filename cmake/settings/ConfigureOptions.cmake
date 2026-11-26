@@ -30,6 +30,10 @@ macro(ConfigureOptions)
         )
     endif()
     option(MAREA_OPTION_PRECOMPILE_HEADER "Precompile the most basic headers in every library target" ON)
+    # The MAREA_DEFAULT_INLINE setting of docs/sema/marea-sema.md and the design record, named per this
+    # skill's own MAREA_OPTION_<NAME> convention; ConfigureMareaFunctions feeds it to build_value! and
+    # the C11 side under its design-doc name, MAREA_DEFAULT_INLINE, unchanged
+    option(MAREA_OPTION_DEFAULT_INLINE "Default inline attribute a Marea function takes when it declares none" ON)
     option(MAREA_OPTION_TARGET_BASE "Build the Marea-Base library" ON)
     cmake_dependent_option(
         MAREA_OPTION_TARGET_LEX
