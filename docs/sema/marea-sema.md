@@ -481,7 +481,8 @@ rooted in one (`ORIGIN.inner`, `ORIGINS[0]`), passed as the argument of
 an explicit `reference_mutable` (write-borrow) parameter has no writable storage to
 back the borrow, so it is rejected with `CANNOT_BORROW_CONSTANT_AS_MUTABLE` (3032); a variable
 passed to the same parameter is unaffected. An assignment (`=` or a compound form) whose target is a file constant, or a field or element path
-rooted in one (`ORIGIN.x = 1;`, `TABLE[0] = 1;`), is `ASSIGNMENT_TO_CONSTANT` (3040), raised at the target; a local,
+rooted in one (`ORIGIN.x = 1;`, `TABLE[0] = 1;`), is `ASSIGNMENT_TO_CONSTANT` (3040), raised at the target. A constant of
+an `implementation` block counts too, by its bare name inside the block, by `Self.NAME` or by `Type.NAME`; a local,
 parameter or `for` variable of the same name hides the constant and may be assigned. Tracking of a live borrow across
 statements is a design decision recorded in the last bullet of `## Gaps`.
 
@@ -1384,8 +1385,6 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
   written type is an opaque structure of the same file. A call result, an index, a field of another value and an
   opaque type of another file are not classified, and `OPAQUE_FIELD_BY_VALUE` (3058) likewise sees only a bare
   opaque name of the same file as a field type.
-- `ASSIGNMENT_TO_CONSTANT` (3040) sees only a constant that a file declares. A constant that an `implementation`
-  declares is not rejected.
 - `COMPILE_TIME_ASSERTION_FAILED` (3059) does not fold a call other than `size_of` and `align_of` (`convert` included),
   a character, a constant of another namespace or the size of an imported or library type: such a condition is accepted.
 - `CYCLIC_CONSTANT` (3055) sees only the constants that a file declares at the top level. A constant that an

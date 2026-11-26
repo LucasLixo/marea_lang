@@ -84,3 +84,22 @@ TEST(MAREASemaConstantAssignment, ReadingConstantRaisesNothing)
 
     EXPECT_EQ(MAREA_codesOfFunction("", "local a: sinteger32 = LIMIT; local b: sinteger32 = ORIGIN.x; a = b;"), Codes{});
 }
+
+TEST(MAREASemaConstantAssignment, ImplementationConstantIsReported)
+{
+    GTEST_COUT << "Validating that a write to a constant of an implementation block raises ASSIGNMENT_TO_CONSTANT, by its bare name, its type and Self." << std::endl;
+
+    const std::string HEAD{ "namespace main; structure Point x: sinteger32; end implementation Point constant ORIGIN: Point = Point{ x = 0 }; constant LIMIT: sinteger32 = 4; " };
+
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "function f() LIMIT = 5; end end"), Codes{ TO_CONSTANT }) << "A bare name inside the block.";
+
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "function f() Self.LIMIT = 5; end end"), Codes{ TO_CONSTANT }) << "A name of Self inside the block.";
+
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "end function f() Point.LIMIT = 5; end"), Codes{ TO_CONSTANT }) << "A name of the type outside the block.";
+
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "end function f() Point.ORIGIN.x += 5; end"), Codes{ TO_CONSTANT }) << "A field path rooted in a constant of the type.";
+
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "function f() local LIMIT: sinteger32 = 0; LIMIT = 5; end end"), Codes{}) << "A local hides the constant of the block.";
+
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "end function f() local p: Point = Point{ x = 0 }; p.x = 5; end"), Codes{}) << "A field of a local is writable.";
+}

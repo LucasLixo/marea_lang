@@ -1696,6 +1696,15 @@ MAREA_BEGIN_EXTERN_C
     MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckConstantOperands(MAREA_SemaContext * context, MAREA_TokenKind operatorKind, const MAREA_AstNode *left, const MAREA_AstNode *right, MAREA_SourcePosition position);
 
     /**
+     * @brief Finds the constant that an implementation block of this file gives a type, for Type.NAME or Self.NAME.
+     * @param context Context of the run. May be null, which gives null.
+     * @param typeName Identifier before the dot. May be null. A local of that name hides the type.
+     * @param name Identifier after the dot. May be null.
+     * @return The CONSTANT_DECLARATION, or null.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_AstNode *MAREA_CALL MAREA_SemaFindTypeConstant(const MAREA_SemaContext *context, const MAREA_AstNode *typeName, const MAREA_AstNode *name);
+
+    /**
      * @brief Reports ASSIGNMENT_TO_CONSTANT for an assignment (= or a compound form) whose target is a file
      * constant, or a MEMBER_ACCESS or INDEX_ACCESS path whose root identifier is one. A local, parameter or for
      * variable of the same name hides the constant, so it raises nothing.
