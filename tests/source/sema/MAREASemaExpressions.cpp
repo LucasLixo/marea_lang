@@ -1021,3 +1021,33 @@ TEST(MAREASemaExpressions, FieldAccessNeedsAFieldOfTheStructure)
 
     EXPECT_TRUE(MAREA_codesOf("import other; function run(point: other.Point): float64 return point.z; end").empty()) << "A structure of another namespace must raise nothing.";
 }
+
+TEST(MAREASemaExpressions, CaseValueMustHaveTheTypeOfTheSwitchValue)
+{
+    GTEST_COUT << "Validating a case value of another type than the switch value raises TYPE_MISMATCH." << std::endl;
+
+    const std::string HEAD{ "enum Color Red; Green; end enum Shape Circle; end " };
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "function f(v: sinteger32) switch v case \"one\" then return; default then return; end end"), Codes{ MISMATCH }) << "A string case of an integer must raise 3011.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "function f(v: sinteger32) switch v case 1, Color.Red then return; default then return; end end"), Codes{ MISMATCH }) << "A variant case of an integer must raise 3011.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "function f(c: Color) switch c case Shape.Circle then return; default then return; end end"), Codes{ MISMATCH }) << "A variant of another enum must raise 3011.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "function f(c: Color) switch c case 1 then return; default then return; end end"), Codes{ MISMATCH }) << "A number case of an enum must raise 3011.";
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "function f(c: Color, v: uinteger8, s: character) switch c case Color.Red then return; case Color.Green then return; end switch v case 1, 2 then return; default then return; end switch s case 'a' then return; default then return; end end").empty()) << "Fitting case values must raise nothing.";
+}
+
+TEST(MAREASemaExpressions, ForRangeBoundsMustBeNumbersOfOneType)
+{
+    GTEST_COUT << "Validating a for range bound that is no number, or two bounds of two types, raises TYPE_MISMATCH." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("function f() for i in 0 .. true do end end"), Codes{ MISMATCH }) << "A boolean bound must raise 3011.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(a: sinteger32) for i in a .. 1.5 do end end"), Codes{ MISMATCH }) << "A float bound of an integer range must raise 3011.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(a: sinteger32, b: uinteger8) for i in a .. b do end end"), Codes{ MISMATCH }) << "Two integer types must raise 3011.";
+
+    EXPECT_TRUE(MAREA_codesOf("function f(a: uinteger64, b: float64) for i in 0 .. a do end for j in 0 .. 3 do end for k in b .. 10.0 do end end").empty()) << "Number bounds of one type must raise nothing.";
+}

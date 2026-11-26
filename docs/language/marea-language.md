@@ -807,14 +807,14 @@ Function declaration and call, parameters and defaults, the result and `return v
 | L-TYPES-218 | a declared operator with an operand of another type | 3011 @21 |
 | L-TYPES-219 | a condition that is a field of another type | 3043 @14 |
 | L-TYPES-220 | a false static assertion on the size of a structure | 3059 @14 |
+| L-TYPES-070 | a switch arm whose value has another type than the switch value | 3011 @11 |
+| L-TYPES-071 | a case value of a variant of another enum | 3011 @21 |
+| L-TYPES-147 | a for range with a bound of another type | 3011 @10 |
 
 ### Types and control flow: known_gap
 
 | Id | Shows | Expected |
 |---|---|---|
-| L-TYPES-070 | a switch arm whose value has another type than the switch value | gap: 3011, rule: reject, issue #222 |
-| L-TYPES-071 | a case value of a variant of another enum | gap: 3011, rule: reject, issue #222 |
-| L-TYPES-147 | a for range with a bound of another type | gap: 3011, rule: reject, issue #222 |
 
 ## Namespaces and imports
 
@@ -1341,8 +1341,8 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | ownership | 65 | 78 | 2 |
 | parallel | 19 | 40 | 0 |
 | seed | 1 | 2 | 0 |
-| types | 62 | 148 | 3 |
-| total | 275 | 584 | 13 |
+| types | 62 | 151 | 0 |
+| total | 275 | 587 | 10 |
 
 ## Parity
 

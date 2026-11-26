@@ -1655,6 +1655,99 @@ static MAREA_Boolean MAREA_CALL MAREA_G_HasErrorNode(const MAREA_AstNode *node, 
     return MAREA_BOOLEAN_FALSE;
 }
 
+// INFO: Enum.Name of a variant of an enum of this file is a value of that enum.
+static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOfCase(const MAREA_SemaContext *context, const MAREA_AstNode *value)
+{
+    const MAREA_AstNode *base = (MAREA_G_IsKind(value, MAREA_AST_KIND_MEMBER_ACCESS) == MAREA_BOOLEAN_TRUE) ? MAREA_SemaChildAt(value, 0) : MAREA_NULLPTR;
+
+    const MAREA_AstNode *member = (base == MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_SemaChildAt(value, 1);
+
+    if ((member != MAREA_NULLPTR) && (MAREA_G_IsKind(base, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_TRUE) && (MAREA_G_FindLocal(context, base) == MAREA_NULLPTR)) {
+        const MAREA_AstNode *enumeration = MAREA_G_FindDeclaration(context, base, MAREA_AST_KIND_ENUM_DECLARATION);
+
+        if ((enumeration != MAREA_NULLPTR) && (MAREA_SemaEnumHasVariant(enumeration, MAREA_AstNodeGetText(member), MAREA_AstNodeGetTextLength(member)) == MAREA_BOOLEAN_TRUE)) {
+            MAREA_G_Shape shape = MAREA_G_ShapeMake(MAREA_G_SHAPE_KIND_ENUM, MAREA_AstNodeGetText(base), MAREA_AstNodeGetTextLength(base));
+
+            shape.declaration = enumeration;
+
+            return shape;
+        }
+    }
+
+    return MAREA_G_ShapeOf(context, value, 0);
+}
+
+// INFO: each value of a case has the type of the switch value. Only a switch over a primitive or an enum is judged.
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckCases(MAREA_SemaContext *context, const MAREA_AstNode *statement)
+{
+    const MAREA_G_Shape target = MAREA_G_ShapeOf(context, MAREA_SemaChildAt(statement, 0), 0);
+
+    if ((target.kind != MAREA_G_SHAPE_KIND_PRIMITIVE) && (target.kind != MAREA_G_SHAPE_KIND_ENUM)) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    for (MAREA_IntegerSize index = 1; index < MAREA_AstNodeGetChildCount(statement); ++index) {
+        const MAREA_AstNode *arm = MAREA_SemaChildAt(statement, index);
+
+        if (MAREA_G_IsKind(arm, MAREA_AST_KIND_SWITCH_ARM) == MAREA_BOOLEAN_FALSE) {
+            continue;
+        }
+
+        // INFO: the last child of an arm is its block.
+        for (MAREA_IntegerSize valueIndex = 0; (valueIndex + 1) < MAREA_AstNodeGetChildCount(arm); ++valueIndex) {
+            const MAREA_AstNode *value = MAREA_SemaChildAt(arm, valueIndex);
+
+            const MAREA_G_Shape actual = MAREA_G_ShapeOfCase(context, value);
+
+            const MAREA_Boolean ENUM_FOR_PRIMITIVE = ((target.kind == MAREA_G_SHAPE_KIND_PRIMITIVE) && (actual.kind == MAREA_G_SHAPE_KIND_ENUM)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+
+            if ((ENUM_FOR_PRIMITIVE == MAREA_BOOLEAN_FALSE) && (MAREA_G_IsWrongOperand(&target, &actual) == MAREA_BOOLEAN_FALSE)) {
+                continue;
+            }
+
+            const MAREA_SemaExcept RESULT = MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH, MAREA_AstNodeGetPosition(value), "a case value does not fit the type of the switch value", target.name, target.length);
+
+            if (RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+                return RESULT;
+            }
+        }
+    }
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
+// INFO: a value that is known and is no number.
+static MAREA_Boolean MAREA_CALL MAREA_G_IsNoNumber(const MAREA_G_Shape *shape)
+{
+    if ((shape->kind == MAREA_G_SHAPE_KIND_UNKNOWN) || (shape->kind == MAREA_G_SHAPE_KIND_GENERIC) || (shape->kind == MAREA_G_SHAPE_KIND_LIBRARY)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    return (MAREA_G_IsNumber(shape) == MAREA_BOOLEAN_TRUE) ? MAREA_BOOLEAN_FALSE : MAREA_BOOLEAN_TRUE;
+}
+
+// INFO: the two bounds of a for range are numbers of one type, which is the type of the loop name.
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckRange(MAREA_SemaContext *context, const MAREA_AstNode *first, const MAREA_AstNode *last)
+{
+    const MAREA_G_Shape lower = MAREA_G_ShapeOf(context, first, 0);
+
+    const MAREA_G_Shape upper = MAREA_G_ShapeOf(context, last, 0);
+
+    const MAREA_AstNode *wrong = (MAREA_G_IsNoNumber(&lower) == MAREA_BOOLEAN_TRUE) ? first : ((MAREA_G_IsNoNumber(&upper) == MAREA_BOOLEAN_TRUE) ? last : MAREA_NULLPTR);
+
+    if ((wrong == MAREA_NULLPTR) && (MAREA_G_OperandsAgree(&lower, &upper) == MAREA_BOOLEAN_FALSE)) {
+        wrong = last;
+    }
+
+    if (wrong == MAREA_NULLPTR) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH, MAREA_AstNodeGetPosition(wrong), "the bounds of a for range need one number type");
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
 MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressions(MAREA_SemaContext *context, const MAREA_AstNode *node)
 {
     if ((context == MAREA_NULLPTR) || (node == MAREA_NULLPTR)) {
@@ -1742,7 +1835,13 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressions(MAREA_SemaContext *contex
     {
         const MAREA_SemaExcept firstResult = MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, 1), 0, MAREA_BOOLEAN_TRUE);
 
-        return (firstResult != MAREA_SEMA_EXCEPT_SUCCESS) ? firstResult : MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, 2), 0, MAREA_BOOLEAN_TRUE);
+        if (firstResult != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return firstResult;
+        }
+
+        const MAREA_SemaExcept lastResult = MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, 2), 0, MAREA_BOOLEAN_TRUE);
+
+        return (lastResult != MAREA_SEMA_EXCEPT_SUCCESS) ? lastResult : MAREA_G_CheckRange(context, MAREA_SemaChildAt(node, 1), MAREA_SemaChildAt(node, 2));
     }
     case MAREA_AST_KIND_FOR_EACH_STATEMENT:
     {
@@ -1775,8 +1874,13 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressions(MAREA_SemaContext *contex
         return (namesResult != MAREA_SEMA_EXCEPT_SUCCESS) ? namesResult : MAREA_SemaCheckCondition(context, MAREA_SemaChildAt(node, 1));
     }
     case MAREA_AST_KIND_EXPRESSION_STATEMENT:
-    case MAREA_AST_KIND_SWITCH_STATEMENT:
         return MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, 0), 0, MAREA_BOOLEAN_TRUE);
+    case MAREA_AST_KIND_SWITCH_STATEMENT:
+    {
+        const MAREA_SemaExcept namesResult = MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, 0), 0, MAREA_BOOLEAN_TRUE);
+
+        return (namesResult != MAREA_SEMA_EXCEPT_SUCCESS) ? namesResult : MAREA_G_CheckCases(context, node);
+    }
     case MAREA_AST_KIND_RETURN_STATEMENT:
     {
         const MAREA_SemaExcept namesResult = MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, 0), 0, MAREA_BOOLEAN_TRUE);
