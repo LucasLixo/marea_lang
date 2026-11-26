@@ -341,7 +341,8 @@ MAREA_BEGIN_EXTERN_C
      * @brief Registers one C function for the language runtime: the one macro that exposes a function,
      * with no external generator and no hand-written glue on either side. owner MAREA_LIBRARY_FLAG_NONE
      * registers through the public entry (a user or a host); any other owner registers through the
-     * internal entry (a shipped library), the only path allowed to name a function under c or marea.
+     * internal entry (a shipped library), the only path allowed to name a function under c or marea. A
+     * function that the vm must call has the shape of MAREA_HostFunction; the macro does not check it.
      */
     #define MAREA_REGISTER_FUNCTION(registry, owner, namespaceText, namespaceLength, name, nameLength, functionPointer)                                                                       \
         (((owner) == MAREA_LIBRARY_FLAG_NONE) ? MAREA_TypeRegistryRegisterPublicFunction((registry), (namespaceText), (namespaceLength), (name), (nameLength), (MAREA_Null)(functionPointer)) \
