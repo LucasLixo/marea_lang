@@ -20,6 +20,7 @@ Run in edit mode, never in plan mode. Read nothing beyond the `git` output named
 - If an argument was given, restrict everything below to the paths it names.
 - Never stage what was already dirty and unrelated to the request.
 - Messages: ASCII only, English, never the `type: description` format. A full sentence (or a few), first letter capitalized, describing what changed and why rather than what the file is.
+- Subject of at most 72 characters that says what changed, then a blank line and a body that says why. [marea-ship](../../../tools/marea-ship/main.lua) `open-pr` builds the pull request description from these messages.
 - When the issue number `N` is set, close every message with ` #N` (no trailing period before it); never invent a number.
 - Attribution follows the repository `AGENTS.md` and the session instructions; do not add or strip trailers on your own initiative.
 
