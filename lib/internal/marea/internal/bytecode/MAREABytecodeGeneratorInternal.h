@@ -434,7 +434,7 @@ MAREA_BEGIN_EXTERN_C
      * null.
      * @return MAREA_BYTECODE_EXCEPT_SUCCESS or MAREA_BYTECODE_EXCEPT_ERROR_OUT_OF_MEMORY.
      */
-    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorLowerCall(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node, MAREA_Uinteger32 destination, MAREA_Boolean valueUsed, MAREA_Uinteger8 * outKind);
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorLowerCall(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node, MAREA_Uinteger32 destination, MAREA_Boolean valueUsed, MAREA_Uinteger8 *outKind);
 
     /**
      * @brief Reads the full name that a member access callee gives when its base is a namespace.

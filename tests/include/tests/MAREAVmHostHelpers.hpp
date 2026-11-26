@@ -42,8 +42,7 @@ inline void MAREA_hostWrite(MAREA_Null result, const T &value)
     std::memcpy(result, &value, sizeof(value));
 }
 
-extern "C"
-{
+extern "C" {
     inline void MAREA_CALL MAREA_testHostAdd(const MAREA_Null *arguments, MAREA_Null result)
     {
         MAREA_hostWrite(result, MAREA_hostRead<std::int64_t>(arguments, 0) + MAREA_hostRead<std::int64_t>(arguments, 1));

@@ -306,7 +306,8 @@ static MAREA_Uinteger64 MAREA_CALL MAREA_G_VmIntegerPower(MAREA_Boolean negative
 typedef struct MAREA_VmFrame
 {
     MAREA_Uinteger64 registers[MAREA_VM_FRAME_REGISTER_LIMIT];
-    MAREA_ALIGNED(MAREA_VM_FRAME_MEMORY_ALIGNMENT) MAREA_Byte memory[MAREA_VM_FRAME_MEMORY_LIMIT];
+    MAREA_ALIGNED(MAREA_VM_FRAME_MEMORY_ALIGNMENT)
+    MAREA_Byte memory[MAREA_VM_FRAME_MEMORY_LIMIT];
 } MAREA_VmFrame;
 
 // INFO: an address a composite opcode reads is always the bit pattern of a pointer into the memory area of some
@@ -809,7 +810,7 @@ MAREA_VmExcept MAREA_CALL MAREA_VmRun(MAREA_VmContext *context, const MAREA_Byte
             MAREA_VmResult called = { 0 };
 
             const MAREA_VmExcept EXCEPT = (((callee.flags & MAREA_BYTECODE_FUNCTION_FLAG_HOST) != MAREA_UINTEGER_32(0)) ? MAREA_VmCallHost(context, module, B, &callee, &frame.registers[A], C, &called)
-                                                                                                                       : MAREA_VmRun(context, module, B, &frame.registers[(A + MAREA_UINTEGER_32(1))], C, (depth + MAREA_UINTEGER_32(1)), &called));
+                                                                                                                        : MAREA_VmRun(context, module, B, &frame.registers[(A + MAREA_UINTEGER_32(1))], C, (depth + MAREA_UINTEGER_32(1)), &called));
 
             if (EXCEPT != MAREA_VM_EXCEPT_SUCCESS) {
                 return EXCEPT;
