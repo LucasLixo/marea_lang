@@ -632,8 +632,12 @@ built-in `convert<T>(x)` has the type `T`. A `-`, `~`, `copy` or `move` keeps th
 `or` and a comparison give `boolean`. A shift gives the type of its left side. Any other binary operator, `**` too,
 gives the type of both sides when they are the same primitive, or when one side is a number literal and the other a
 primitive of its family; it gives no type when they differ. A call has the declared result of its callee: a plain
-function of the file (not generic, and not hidden by a local of the same name), a method or a static function of an
-`implementation` of a structure or an enum of the file, or a value of a function type. A call whose callee is a
+function of the file (not hidden by a local of the same name), a method or a static function of an
+`implementation` of a structure or an enum of the file, or a value of a function type. A generic callee
+is read after its arguments are bound: the written type arguments first, then the type of each argument that sema knows,
+the first binding of a name wins. A bound name stands for its type in the result and in each parameter, so an argument
+is compared with the bound parameter type (3011, 3014, 3053); a name that nothing binds is not compared. A call whose
+callee is a
 structure or an enum name of the file has that type, as construction ("Type construction call" above). Everything else
 has an unknown type and is accepted. The type of an expression is compared with the declared type when that type
 is a primitive, at a call argument of a function of the file, a local initializer, a plain `=` assignment, a
@@ -1197,7 +1201,7 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 | 3008 | `INVALID_ALIGNMENT` | `#[align = 15]` |
 | 3009 | `UNKNOWN_TYPE` | `a: Missing;` in a structure |
 | 3010 | `ARGUMENT_COUNT_MISMATCH` | `add(1)` when `add` takes two parameters with no default; `f()` or `f(1, 2, 3)` when `f` has one required and one defaulted parameter; `Point(1.0, 2.0, 3.0)` when `construct` takes two; `Line(1.0)` when `Line` declares no `construct`; `power(1.0)` when the host's signature of `c.math.pow` takes two parameters |
-| 3011 | `TYPE_MISMATCH` | `convert<sinteger32>(text)` with a `string` name, `convert<Point>(other)` for two structures with another layout, `f("text")` when the parameter is `sinteger32`, `local x: boolean = 1;`, `local n: sinteger32 = a < b;`, `f(s)` with a `string` name `s`, `return a + 1;` in a function that returns `boolean`, `a + b` with an `sinteger32` and a `float64`, `count(2)` when `count` is an `sinteger32` local, `Point("x", 2.0)` when `construct`'s first parameter is `float32`; `power("two", 10.0)` when the host's signature of `c.math.pow` takes `float64, float64`; `local x: sinteger8 = item.x;` over a `for each` whose element field is `sinteger32`, `local first: float32 = values;` when `values` is a `demo.slice<float32>`, `f("text")` when the parameter is a slice or a raw pointer |
+| 3011 | `TYPE_MISMATCH` | `convert<sinteger32>(text)` with a `string` name, `convert<Point>(other)` for two structures with another layout, `f("text")` when the parameter is `sinteger32`, `local x: boolean = 1;`, `local n: sinteger32 = a < b;`, `f(s)` with a `string` name `s`, `return a + 1;` in a function that returns `boolean`, `return same(text);` in a function that returns `sinteger32` when `same<Item>` returns `Item`, `a + b` with an `sinteger32` and a `float64`, `count(2)` when `count` is an `sinteger32` local, `Point("x", 2.0)` when `construct`'s first parameter is `float32`; `power("two", 10.0)` when the host's signature of `c.math.pow` takes `float64, float64`; `local x: sinteger8 = item.x;` over a `for each` whose element field is `sinteger32`, `local first: float32 = values;` when `values` is a `demo.slice<float32>`, `f("text")` when the parameter is a slice or a raw pointer |
 | 3012 | `DUPLICATE_MEMBER` | two `implementation` blocks of one type that both declare `area`; a structure field, an enum variant or a contract function that is declared twice in its declaration |
 | 3013 | `CONTRACT_NOT_SATISFIED` | `maximum(a, b)` when the type of `a` has no `less` for `where Item: Comparable` |
 | 3014 | `GENERIC_ARGUMENT_MISMATCH` | `Pair<sinteger32>` when `Pair` has two parameters, `Box<4>`, a registered type written with more type arguments than its descriptor declares, `local x: marea.array.Array<sinteger8, 4> = values;` when `values` is `marea.array.Array<sinteger32, 4>`, an `owned<vector<T>>` given where a `vector<T>` is declared |
@@ -1331,12 +1335,14 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
   has no role of its own in the roles table yet.
 - Renaming on use inside one file (without an import) is not offered: a local declaration has its own name.
 - `TYPE_MISMATCH` (3011) sorts the type of an expression into a fixed set of shapes: a literal, a primitive, a
-  structure, a view, a raw pointer, and, known but never compared, an enum, a library type, a generic parameter and a registered type of the move class or an inline run. Still fully unknown: any other registered type, the result of a
-  generic call, and the result of a call of an imported function or of an `EXTERNAL` member (its host signature is read
+  structure, a view, a raw pointer, and, known but never compared, an enum, a library type, a generic parameter and a registered type of the move class or an inline run. Still fully unknown: any other registered type and the result of a call of an imported function or of an `EXTERNAL` member (its host signature is read
   for the arguments only).
 - A struct literal with a missing field is rejected (3077, one report per literal, so a second missing field shows only after the first is written). The ir has no `ZERO_VALUE` any more (removed in PR #355): no accepted program has an omitted field, so the ir has nothing to fill.
 - A call of a method or of an imported function that has no result, used as a value, is not seen: sema cannot see its
   result (`INVALID_RESULT_USE`, 3054).
+- Inside the body of a generic declaration a generic parameter in scope is never compared with a concrete type, and the
+  field values of a literal of a generic structure are not compared with the type arguments of the literal. The
+  arguments of a construction call of a generic structure are not compared after binding either.
 - A pair of types is not compared (3014) when a head is a generic parameter in scope, an alias, an import or an
   unknown type, when only one side has type arguments, or for a `for each` over a collection of unknown type.
 - A function type that mentions a generic parameter in scope, and a generic function given as a value, are never
@@ -1465,8 +1471,8 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
   read: a generic parameter type (`g(5)` with `a: Item`, also with explicit type arguments), an enum or a library
   type (an integer literal that `TYPE_MISMATCH` accepts for an enum is `sinteger32`, not the tag type), an entry of a
   library literal such as a table, the index of `a[i]`, the key of `[key] = value`, the count of a shift, a literal
-  inside a macro call, and an operand whose type sema does not know (a call of a generic function, a member of a
-  generic structure). The default itself is an assumption of the plan, not a rule of the grammar. The range of a
+  inside a macro call, and an operand whose type sema does not know (a call of a generic function that nothing
+  binds). The default itself is an assumption of the plan, not a rule of the grammar. The range of a
   value is not checked against the type that the context gave: `local x: uinteger8 = 256;` stays accepted, as before.
   The literal of `convert<T>(x)` takes `T`, so `convert<uinteger8>(300)` types `300` as `uinteger8`.
 - The typed-AST hand-off substitutes a generic result for a bare parameter with explicit type arguments, and now also

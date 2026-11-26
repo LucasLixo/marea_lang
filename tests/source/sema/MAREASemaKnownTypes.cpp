@@ -140,3 +140,43 @@ TEST(MAREASemaKnownTypes, DifferentGenericHeadIsRejected)
 
     EXPECT_TRUE(MAREA_codesOf("function keep<Item>(v: demo.vector<demo.vector<float32>>) end function g<Item>(w: demo.vector<Item>) keep<Item>(w); end").empty()) << "A generic parameter in scope is not compared.";
 }
+
+TEST(MAREASemaKnownTypes, ResultOfAGenericCallIsComparedAfterBinding)
+{
+    GTEST_COUT << "Validating the result of a generic call has the bound type arguments." << std::endl;
+
+    const std::string TYPES{ "function same<Item>(a: Item): Item return copy a; end function wrap<Item>(a: Item): demo.vector<Item> return demo.vector<Item>{}; end function take(n: sinteger32) end function keep(v: demo.vector<string>) end " };
+
+    EXPECT_EQ(MAREA_codesOf(TYPES + "function g(s: string) take(same(s)); end"), Codes{ MISMATCH }) << "A result bound from an argument must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(TYPES + "function g() take(same<string>(\"x\")); end"), Codes{ MISMATCH }) << "A result bound from a written type argument must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(TYPES + "function g(n: sinteger32) keep(wrap(n)); end"), Codes{ ARGUMENT_MISMATCH }) << "A compound result with a bound argument must raise GENERIC_ARGUMENT_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf("structure Box<Item> value: Item; end implementation<Item> Box<Item> function get(self: Self): Item return self.value; end end function take(n: sinteger32) end function g(b: Box<string>) take(b.get()); end"), Codes{ MISMATCH }) << "A method of a generic structure has the type argument of the value.";
+
+    EXPECT_TRUE(MAREA_codesOf(TYPES + "function g(n: sinteger32, s: string) take(same(n)); take(same<sinteger32>(1)); keep(wrap(s)); take(same(1)); end").empty()) << "A fitting or unbound result must raise nothing.";
+}
+
+TEST(MAREASemaKnownTypes, ParameterThatMentionsAGenericIsComparedAfterBinding)
+{
+    GTEST_COUT << "Validating the arguments of a generic call are compared with the bound parameter types." << std::endl;
+
+    const std::string TYPES{ "function pair<Item>(a: Item, b: Item) end function add<Item>(v: demo.vector<Item>, x: Item) end function apply<Item>(f: function(a: Item): Item, x: Item) end function label(a: string): string return a; end function twice(a: sinteger32): sinteger32 return a; end " };
+
+    EXPECT_EQ(MAREA_codesOf(TYPES + "function g(n: sinteger32, s: string) pair(n, s); end"), Codes{ MISMATCH }) << "A second argument of another type must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(TYPES + "function g() pair<sinteger32>(\"x\", 1); end"), Codes{ MISMATCH }) << "A literal against a written type argument must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(TYPES + "function g(v: demo.vector<sinteger32>) add<string>(v, \"x\"); end"), Codes{ ARGUMENT_MISMATCH }) << "A compound parameter must raise GENERIC_ARGUMENT_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(TYPES + "function g() apply<sinteger32>(label, 1); end"), Codes{ FUNCTION_MISMATCH }) << "A function parameter is compared with its bound types.";
+
+    EXPECT_EQ(MAREA_codesOf(TYPES + "function g(n: sinteger32) pair(n, 2); end"), Codes{}) << "A literal that fits the bound type must raise nothing.";
+
+    EXPECT_EQ(MAREA_codesOf(TYPES + "function g(v: demo.vector<sinteger32>, n: sinteger32) add(v, n); end"), Codes{}) << "A fitting compound parameter must raise nothing.";
+
+    EXPECT_EQ(MAREA_codesOf(TYPES + "function g(n: sinteger32) apply<sinteger32>(twice, n); end"), Codes{}) << "A fitting function with a written type argument must raise nothing.";
+
+    EXPECT_EQ(MAREA_codesOf(TYPES + "function g(n: sinteger32) apply(twice, n); end"), Codes{}) << "A fitting function with an inferred type argument must raise nothing.";
+}

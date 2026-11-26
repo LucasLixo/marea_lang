@@ -1075,15 +1075,16 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_AstNode *MAREA_CALL MAREA_SemaInferType(const MAREA_SemaContext *context, const MAREA_AstNode *expression);
 
     /**
-     * @brief Tells whether the type arguments of a value differ from the declared generic type. Only two generic
-     * types of one head and one argument count are compared: two primitives by name, two value arguments by text and
-     * two nested generic types by the same rule. A generic parameter, an alias, an import and an unknown type agree.
+     * @brief Tells whether the type arguments of a value differ from the declared generic type. Both types must have
+     * type arguments. Two different heads (a registered type, a primitive, a structure or an enum of the file) differ;
+     * with one head, two value arguments compare by text and two types by this rule again. A generic parameter in
+     * scope, an alias, an import and an unknown type agree.
      * @param context Context of the run. Must not be null.
-     * @param type Declared type node. May be null.
+     * @param target Declared type with the generic names it may mention. May be null.
      * @param expression Value expression. A copy or move is looked through. May be null.
      * @return MAREA_BOOLEAN_TRUE when a pair of type arguments differs, else MAREA_BOOLEAN_FALSE.
      */
-    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaTypeArgumentsDiffer(const MAREA_SemaContext *context, const MAREA_AstNode *type, const MAREA_AstNode *expression);
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaTypeArgumentsDiffer(const MAREA_SemaContext *context, const MAREA_SemaWrittenType *target, const MAREA_AstNode *expression);
 
     /**
      * @brief Finds the element type of a collection expression: one owned wrapper is peeled, then the first type
@@ -1455,25 +1456,36 @@ MAREA_BEGIN_EXTERN_C
     /**
      * @brief Tells whether a function declaration has the signature of a function type: the same parameter count,
      * the same passing mode and type of each parameter, and the same result type, compared as written (an alias
-     * renders as its original). A generic function, and a function type that mentions a generic parameter in
-     * scope, are never compared and give true, because sema never guesses.
+     * renders as its original). A generic function, a function type that names an unbound generic and, with no
+     * bindings, one that mentions a generic parameter in scope are never compared and give true.
      * @param context Context of the run. Must not be null.
      * @param function FUNCTION_DECLARATION node. Must not be null.
      * @param functionType FUNCTION_TYPE node. Must not be null.
+     * @param bindings Generic names that functionType may mention. Must not be null.
      * @return MAREA_BOOLEAN_TRUE when the function fits or when sema cannot compare, MAREA_BOOLEAN_FALSE otherwise.
      */
-    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaFunctionFitsFunctionType(const MAREA_SemaContext *context, const MAREA_AstNode *function, const MAREA_AstNode *functionType);
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaFunctionFitsFunctionType(const MAREA_SemaContext *context, const MAREA_AstNode *function, const MAREA_AstNode *functionType, const MAREA_SemaBindings *bindings);
 
     /**
-     * @brief Tells whether a value of one written function type fits another function type: the same parameters, by
-     * semantics and type, and the same result. A type that mentions a generic name is not compared.
+     * @brief Tells whether a value of one written function type fits a target function type: the same parameters, by
+     * semantics and type, and the same result. A target that mentions an unbound generic name and a value that
+     * mentions a generic name are not compared.
      * @param context Context of the run. Must not be null.
-     * @param functionType FUNCTION_TYPE node of the target. Must not be null.
-     * @param valueType FUNCTION_TYPE node of the value. Must not be null.
-     * @param bindings Generic names of the declaration that wrote valueType. Must not be null.
+     * @param target Target, whose type is a FUNCTION_TYPE node. Must not be null.
+     * @param value Value, whose type is a FUNCTION_TYPE node. Must not be null.
      * @return MAREA_BOOLEAN_TRUE when the value fits or is not compared.
      */
-    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaFunctionTypesFit(const MAREA_SemaContext *context, const MAREA_AstNode *functionType, const MAREA_AstNode *valueType, const MAREA_SemaBindings *bindings);
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaFunctionTypesFit(const MAREA_SemaContext *context, const MAREA_SemaWrittenType *target, const MAREA_SemaWrittenType *value);
+
+    /**
+     * @brief The check of MAREA_SemaCheckExpressionFit against a written type that may mention generic names, each
+     * read as its bound type.
+     * @param context Context of the run. Must not be null.
+     * @param target Written type of the target. Must not be null; its type may be null.
+     * @param expression Expression node. May be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckWrittenFit(MAREA_SemaContext * context, const MAREA_SemaWrittenType *target, const MAREA_AstNode *expression);
 
     /**
      * @brief Reports TYPE_MISMATCH the same way MAREA_SemaCheckExpressionFit does, against a primitive type

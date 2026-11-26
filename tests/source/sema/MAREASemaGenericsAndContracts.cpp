@@ -140,7 +140,7 @@ TEST(MAREASemaGenericsAndContracts, MovableNeedsAnOwnedOrMoveOnlyType)
 
     const std::string TAKE{ "function take<Item>(a: demo.owned<Item>): demo.owned<Item> where Item: Movable return a; end " };
 
-    EXPECT_TRUE(MAREA_codesOf(TAKE + "function run(a: demo.owned<sinteger32>): demo.owned<sinteger32> return take<demo.owned<sinteger32>>(move a); end").empty()) << "demo.owned<T> must be Movable.";
+    EXPECT_TRUE(MAREA_codesOf(TAKE + "function run(a: demo.owned<demo.owned<sinteger32>>): demo.owned<demo.owned<sinteger32>> return take<demo.owned<sinteger32>>(move a); end").empty()) << "demo.owned<T> must be Movable.";
 
     EXPECT_TRUE(MAREA_codesOf(TAKE + "#[move_only] structure Token x: sinteger32; end function run(a: demo.owned<Token>): demo.owned<Token> return take<Token>(move a); end").empty()) << "A move_only type must be Movable.";
 
