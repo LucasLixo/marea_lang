@@ -356,9 +356,9 @@ TEST(MAREACgenScalar, SameModuleWithCompositesGivesTheSameText)
 {
     GTEST_COUT << "Validating two generations of one module with every composite give the same bytes." << std::endl;
 
-    MAREA_IrFixture fixture;
+    MAREA_IrFixture fixture(MAREA_parityLibraries());
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; require marea.array as array; require marea.array.Array; enum Shape Circle(radius: float64 = 1.0); Empty; end structure Point x: sinteger32; end structure Box points: marea.array.Array<Point, 2>; shape: Shape; end function f(): float64 local b: Box = Box{ points = array.Array<Point, 2>{}, shape = Shape.Circle(2.0) }; return b.shape.radius; end"), MAREA_IR_EXCEPT_SUCCESS) << "The module must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; require marea.array as array; require marea.array.Array; enum Shape Circle(radius: float64 = 1.0); Empty; end structure Point x: sinteger32; end structure Box points: marea.array.Array<sinteger32, 2>; shape: Shape; end function f(): float64 local p: marea.array.Array<Point, 2> = array.Array<Point, 2>{}; local b: Box = Box{ points = array.Array<sinteger32, 2>{}, shape = Shape.Circle(2.0) }; return b.shape.radius + convert<float64>(p[1].x); end"), MAREA_IR_EXCEPT_SUCCESS) << "The module must lower.";
 
     const MAREA_ParityModules FIRST{ MAREA_parityGenerate(fixture, nullptr) };
 

@@ -93,3 +93,21 @@ TEST(MAREACgenEnum, AnEnumWithDataIsAFieldOfAStructure)
 
     EXPECT_EQ(MAREA_parityDouble(RESULT.MAREA_outcome("f()")), 150.0) << "The copy keeps the rectangle.";
 }
+
+TEST(MAREACgenEnum, AFieldOfTheLiveVariantIsAssignedAndAnotherOneTraps)
+{
+    GTEST_COUT << "Validating a data field is assigned and combined under its variant, and another variant is the unreachable trap." << std::endl;
+
+    const std::vector<MAREA_ParityCall> CALLS{
+        MAREA_parityCall("f", "float64", { MAREA_parityInt(1) }),
+        MAREA_parityCall("f", "float64", { MAREA_parityInt(0) }),
+    };
+
+    const MAREA_ParityResult RESULT{ MAREA_parityGenerated(MAREA_SHAPES + "function f(kind: sinteger32): float64 local s: Shape = Shape.Circle(1.0); if kind == 0 then s = Shape.Empty; end s.radius = 4.0; s.radius += 1.0; return s.radius; end", CALLS) };
+
+    ASSERT_TRUE(RESULT.failures.empty()) << RESULT.MAREA_failures();
+
+    EXPECT_EQ(MAREA_parityDouble(RESULT.generated[0]), 5.0) << "4 + 1 on the circle.";
+
+    EXPECT_EQ(RESULT.generated[1].trap, 5) << "The empty variant has no radius to write.";
+}

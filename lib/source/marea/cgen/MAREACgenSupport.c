@@ -5,6 +5,71 @@
 
 #include <string.h>
 
+const MAREA_IrNode *MAREA_CALL MAREA_CgenChildAt(const MAREA_IrNode *node, MAREA_IntegerSize index)
+{
+    const MAREA_IrNode *child = MAREA_NULLPTR;
+
+    if ((node == MAREA_NULLPTR) || (MAREA_IrNodeGetChildAt(node, index, &child) != MAREA_IR_NODE_EXCEPT_SUCCESS)) {
+        return MAREA_NULLPTR;
+    }
+
+    return child;
+}
+
+MAREA_Boolean MAREA_CALL MAREA_CgenSameText(const MAREA_Character8 *left, MAREA_IntegerSize leftLength, const MAREA_Character8 *right, MAREA_IntegerSize rightLength)
+{
+    return ((leftLength == rightLength) && ((leftLength == MAREA_INTEGER_SIZE(0)) || (memcmp(left, right, leftLength) == 0)));
+}
+
+MAREA_Boolean MAREA_CALL MAREA_CgenTextIs(const MAREA_IrNode *node, const MAREA_Character8 *expected)
+{
+    return MAREA_CgenSameText(MAREA_IrNodeGetText(node), MAREA_IrNodeGetTextLength(node), expected, (MAREA_IntegerSize)strlen(expected));
+}
+
+MAREA_IntegerSize MAREA_CALL MAREA_CgenNamespaceSkip(const MAREA_CgenGenerator *generator, const MAREA_Character8 *text, MAREA_IntegerSize length)
+{
+    if ((generator->namespaceLength > MAREA_INTEGER_SIZE(0)) && (length > (generator->namespaceLength + MAREA_INTEGER_SIZE(1))) && (memcmp(text, generator->namespaceText, generator->namespaceLength) == 0) && (text[generator->namespaceLength] == '.')) {
+        return (generator->namespaceLength + MAREA_INTEGER_SIZE(1));
+    }
+
+    return MAREA_INTEGER_SIZE(0);
+}
+
+MAREA_CgenExcept MAREA_CALL MAREA_CgenAllocate(MAREA_CgenGenerator *generator, MAREA_IntegerSize size, MAREA_IntegerSize alignment, MAREA_Null *outMemory)
+{
+    const MAREA_IntegerSize ASKED = ((size == MAREA_INTEGER_SIZE(0)) ? MAREA_INTEGER_SIZE(1) : size);
+
+    if (MAREA_ArenaAllocate(generator->arena, ASKED, alignment, outMemory) != MAREA_ARENA_EXCEPT_SUCCESS) {
+        return MAREA_CGEN_EXCEPT_ERROR_OUT_OF_MEMORY;
+    }
+
+    memset(*outMemory, 0, ASKED);
+
+    return MAREA_CGEN_EXCEPT_SUCCESS;
+}
+
+MAREA_CgenExcept MAREA_CALL MAREA_CgenGrow(MAREA_CgenGenerator *generator, MAREA_Null *ioItems, MAREA_IntegerSize *ioCapacity, MAREA_IntegerSize count, MAREA_IntegerSize itemSize, MAREA_IntegerSize alignment)
+{
+    if (count < *ioCapacity) {
+        return MAREA_CGEN_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_IntegerSize CAPACITY = ((*ioCapacity < MAREA_INTEGER_SIZE(8)) ? MAREA_INTEGER_SIZE(8) : (*ioCapacity * MAREA_INTEGER_SIZE(2)));
+
+    MAREA_Null memory = MAREA_NULLPTR;
+
+    MAREA_CGEN_TRY(MAREA_CgenAllocate(generator, (CAPACITY * itemSize), alignment, &memory));
+
+    if (count > MAREA_INTEGER_SIZE(0)) {
+        memcpy(memory, *ioItems, (count * itemSize));
+    }
+
+    *ioItems = memory;
+    *ioCapacity = CAPACITY;
+
+    return MAREA_CGEN_EXCEPT_SUCCESS;
+}
+
 MAREA_CgenExcept MAREA_CALL MAREA_CgenGeneratorFail(MAREA_CgenGenerator *generator, const MAREA_IrNode *node, MAREA_CgenDiagnosticCode code, const MAREA_Character8 *message)
 {
     if (generator->functionFailed == MAREA_BOOLEAN_TRUE) {
@@ -22,12 +87,58 @@ MAREA_CgenExcept MAREA_CALL MAREA_CgenGeneratorFail(MAREA_CgenGenerator *generat
     return MAREA_CGEN_EXCEPT_SUCCESS;
 }
 
+MAREA_Boolean MAREA_CALL MAREA_CgenParseInteger(const MAREA_Character8 *text, MAREA_IntegerSize length, MAREA_Uinteger64 *outValue)
+{
+    MAREA_Uinteger64 base = MAREA_UINTEGER_64(10);
+    MAREA_IntegerSize position = MAREA_INTEGER_SIZE(0);
+
+    if ((length > MAREA_INTEGER_SIZE(2)) && (text[0] == '0') && (text[1] == 'x')) {
+        base = MAREA_UINTEGER_64(16);
+        position = MAREA_INTEGER_SIZE(2);
+    } else if ((length > MAREA_INTEGER_SIZE(2)) && (text[0] == '0') && (text[1] == 'b')) {
+        base = MAREA_UINTEGER_64(2);
+        position = MAREA_INTEGER_SIZE(2);
+    }
+
+    MAREA_Uinteger64 value = MAREA_UINTEGER_64(0);
+    MAREA_Boolean seen = MAREA_BOOLEAN_FALSE;
+
+    for (; position < length; position = (position + MAREA_INTEGER_SIZE(1))) {
+        const MAREA_Character8 SYMBOL = text[position];
+
+        if (SYMBOL == '_') {
+            continue;
+        }
+
+        MAREA_Uinteger64 digit = MAREA_UINTEGER_64(16);
+
+        if ((SYMBOL >= '0') && (SYMBOL <= '9')) {
+            digit = (MAREA_Uinteger64)(SYMBOL - '0');
+        } else if ((SYMBOL >= 'a') && (SYMBOL <= 'f')) {
+            digit = (MAREA_Uinteger64)((SYMBOL - 'a') + 10);
+        } else if ((SYMBOL >= 'A') && (SYMBOL <= 'F')) {
+            digit = (MAREA_Uinteger64)((SYMBOL - 'A') + 10);
+        }
+
+        if ((digit >= base) || (value > ((MAREA_UINTEGER_64_MAXIMUM - digit) / base))) {
+            return MAREA_BOOLEAN_FALSE;
+        }
+
+        value = ((value * base) + digit);
+        seen = MAREA_BOOLEAN_TRUE;
+    }
+
+    *outValue = value;
+
+    return seen;
+}
+
 const MAREA_CgenSymbol *MAREA_CALL MAREA_CgenFindSymbol(const MAREA_CgenGenerator *generator, const MAREA_Character8 *text, MAREA_IntegerSize length)
 {
     for (MAREA_IntegerSize index = generator->symbolCount; index > MAREA_INTEGER_SIZE(0); index = (index - MAREA_INTEGER_SIZE(1))) {
         const MAREA_CgenSymbol *symbol = &generator->symbols[(index - MAREA_INTEGER_SIZE(1))];
 
-        if ((symbol->length == length) && (memcmp(symbol->name, text, length) == 0)) {
+        if (MAREA_CgenSameText(symbol->name, symbol->length, text, length) == MAREA_BOOLEAN_TRUE) {
             return symbol;
         }
     }
@@ -35,48 +146,80 @@ const MAREA_CgenSymbol *MAREA_CALL MAREA_CgenFindSymbol(const MAREA_CgenGenerato
     return MAREA_NULLPTR;
 }
 
-MAREA_CgenExcept MAREA_CALL MAREA_CgenPushSymbol(MAREA_CgenGenerator *generator, const MAREA_Character8 *text, MAREA_IntegerSize length, MAREA_Uinteger8 kind)
+MAREA_CgenExcept MAREA_CALL MAREA_CgenPushSymbol(MAREA_CgenGenerator *generator, const MAREA_Character8 *text, MAREA_IntegerSize length, const MAREA_Character8 *cText, MAREA_Uinteger32 type, MAREA_Boolean stable, MAREA_Boolean unaligned)
 {
-    if (generator->symbolCount == generator->symbolCapacity) {
-        const MAREA_IntegerSize NEW_CAPACITY = (generator->symbolCapacity == MAREA_INTEGER_SIZE(0)) ? MAREA_INTEGER_SIZE(16) : (generator->symbolCapacity * MAREA_INTEGER_SIZE(2));
+    MAREA_Null items = generator->symbols;
 
-        MAREA_Null memory = MAREA_NULLPTR;
+    MAREA_CGEN_TRY(MAREA_CgenGrow(generator, &items, &generator->symbolCapacity, generator->symbolCount, sizeof(MAREA_CgenSymbol), MAREA_ALIGNOF(MAREA_CgenSymbol)));
 
-        if (MAREA_ArenaAllocate(generator->arena, (NEW_CAPACITY * sizeof(MAREA_CgenSymbol)), MAREA_ALIGNOF(MAREA_CgenSymbol), &memory) != MAREA_ARENA_EXCEPT_SUCCESS) {
-            return MAREA_CGEN_EXCEPT_ERROR_OUT_OF_MEMORY;
-        }
+    generator->symbols = items;
 
-        if (generator->symbolCount > MAREA_INTEGER_SIZE(0)) {
-            memcpy(memory, generator->symbols, (generator->symbolCount * sizeof(MAREA_CgenSymbol)));
-        }
+    MAREA_CgenSymbol *symbol = &generator->symbols[generator->symbolCount];
 
-        generator->symbols = memory;
-        generator->symbolCapacity = NEW_CAPACITY;
-    }
+    symbol->name = text;
+    symbol->length = length;
+    symbol->cText = cText;
+    symbol->type = type;
+    symbol->stable = stable;
+    symbol->unaligned = unaligned;
 
-    generator->symbols[generator->symbolCount].name = text;
-    generator->symbols[generator->symbolCount].length = length;
-    generator->symbols[generator->symbolCount].kind = kind;
     generator->symbolCount = (generator->symbolCount + MAREA_INTEGER_SIZE(1));
 
     return MAREA_CGEN_EXCEPT_SUCCESS;
 }
 
-// INFO: a plain call reads its callee by the bare name sema left it, with the namespace of this unit skipped
-// when the call wrote it in full, as the bytecode stage already reads the same shape.
-const MAREA_CgenFunction *MAREA_CALL MAREA_CgenFindFunction(const MAREA_CgenGenerator *generator, const MAREA_Character8 *text, MAREA_IntegerSize length)
+MAREA_CgenFunction *MAREA_CALL MAREA_CgenFindFunction(const MAREA_CgenGenerator *generator, const MAREA_Character8 *text, MAREA_IntegerSize length)
 {
-    MAREA_IntegerSize skip = MAREA_INTEGER_SIZE(0);
-
-    if ((generator->namespaceLength > MAREA_INTEGER_SIZE(0)) && (length > (generator->namespaceLength + MAREA_INTEGER_SIZE(1))) && (memcmp(text, generator->namespaceText, generator->namespaceLength) == 0) && (text[generator->namespaceLength] == '.')) {
-        skip = (generator->namespaceLength + MAREA_INTEGER_SIZE(1));
-    }
+    const MAREA_IntegerSize SKIP = MAREA_CgenNamespaceSkip(generator, text, length);
 
     for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < generator->functionCount; index = (index + MAREA_INTEGER_SIZE(1))) {
-        const MAREA_CgenFunction *entry = &generator->functions[index];
+        MAREA_CgenFunction *entry = &generator->functions[index];
 
-        if ((entry->nameLength == (length - skip)) && (memcmp(entry->name, &text[skip], (length - skip)) == 0)) {
+        if (MAREA_CgenSameText(entry->name, entry->nameLength, (text + SKIP), (length - SKIP)) == MAREA_BOOLEAN_TRUE) {
             return entry;
+        }
+    }
+
+    return MAREA_NULLPTR;
+}
+
+MAREA_CgenFunction *MAREA_CALL MAREA_CgenFindMember(const MAREA_CgenGenerator *generator, const MAREA_Character8 *owner, MAREA_IntegerSize ownerLength, const MAREA_Character8 *member, MAREA_IntegerSize memberLength)
+{
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < generator->functionCount; index = (index + MAREA_INTEGER_SIZE(1))) {
+        MAREA_CgenFunction *entry = &generator->functions[index];
+
+        if ((entry->ownerLength == ownerLength) && (entry->nameLength == (ownerLength + MAREA_INTEGER_SIZE(1) + memberLength)) && (memcmp(entry->name, owner, ownerLength) == 0) && (memcmp((entry->name + ownerLength + MAREA_INTEGER_SIZE(1)), member, memberLength) == 0)) {
+            return entry;
+        }
+    }
+
+    return MAREA_NULLPTR;
+}
+
+const MAREA_IrNode *MAREA_CALL MAREA_CgenFindConstant(const MAREA_CgenGenerator *generator, const MAREA_Character8 *text, MAREA_IntegerSize length)
+{
+    const MAREA_IntegerSize SKIP = MAREA_CgenNamespaceSkip(generator, text, length);
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < generator->constantCount; index = (index + MAREA_INTEGER_SIZE(1))) {
+        const MAREA_IrNode *constant = generator->constants[index];
+
+        if (MAREA_CgenSameText(MAREA_IrNodeGetText(constant), MAREA_IrNodeGetTextLength(constant), (text + SKIP), (length - SKIP)) == MAREA_BOOLEAN_TRUE) {
+            return constant;
+        }
+    }
+
+    return MAREA_NULLPTR;
+}
+
+const MAREA_IrNode *MAREA_CALL MAREA_CgenFindDeclaration(const MAREA_CgenGenerator *generator, MAREA_IrKind kind, const MAREA_Character8 *text, MAREA_IntegerSize length)
+{
+    const MAREA_IntegerSize COUNT = MAREA_IrNodeGetChildCount(generator->module);
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < COUNT; index = (index + MAREA_INTEGER_SIZE(1))) {
+        const MAREA_IrNode *child = MAREA_CgenChildAt(generator->module, index);
+
+        if ((MAREA_IrNodeGetKind(child) == kind) && (MAREA_CgenSameText(MAREA_IrNodeGetText(child), MAREA_IrNodeGetTextLength(child), text, length) == MAREA_BOOLEAN_TRUE)) {
+            return child;
         }
     }
 

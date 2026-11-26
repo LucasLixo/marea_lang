@@ -249,3 +249,16 @@ TEST(MAREACgenHostCalls, TheGeneratedTextIncludesTheHeadersOfTheContext)
 
     EXPECT_LT(SECOND, TEXT.find("f_f(")) << "The headers come before the code.";
 }
+
+TEST(MAREACgenHostCalls, AHostWriteThroughAMemberOfAPackedStructureReachesIt)
+{
+    GTEST_COUT << "Validating a host function gets an aligned copy of a misaligned member, and its writes come back." << std::endl;
+
+    const MAREA_ParityHost HOST{ MAREA_parityHost() };
+
+    const MAREA_ParityResult RESULT{ MAREA_parityGenerated(MAREA_PARITY_HOST_PRELUDE + "#[layout = c, pack = 1] structure Packed a: uinteger8; inner: Pair; end function f(): sinteger32 local s: Packed = Packed{ a = 1, inner = Pair{ x = 1, y = 2 } }; host.shift(s.inner, 5); return (s.inner.x * 100) + s.inner.y; end", {}, &HOST) };
+
+    ASSERT_TRUE(RESULT.failures.empty()) << RESULT.MAREA_failures();
+
+    EXPECT_EQ(MAREA_parityValue(RESULT.MAREA_outcome("f()")), 597) << "x is 6 and y is -3.";
+}

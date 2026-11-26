@@ -102,7 +102,7 @@ TEST(MAREACgenParallel, APartOrATaskHandleUsedAsAValueIsReported)
 
     const MAREA_ParityHost HOST{ MAREA_parityHost() };
 
-    EXPECT_EQ(MAREA_parityRejected(MAREA_PARITY_HOST_PRELUDE + MAREA_DATA + "function f() fork_join partition DATA into 2 as part do host.record(part[0]); end end end", &HOST).count(MAREA_CGEN_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE), 1U) << "The part is not a value.";
+    EXPECT_EQ(MAREA_parityRejected(MAREA_PARITY_HOST_PRELUDE + MAREA_DATA + "function f() fork_join partition DATA into 2 as part do host.unknown(part); end end end", &HOST).count(MAREA_CGEN_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE), 1U) << "The part is not a value.";
 
     EXPECT_EQ(MAREA_parityRejected("namespace main; function one(): sinteger32 return 1; end function f() fork_join local task: demo.task<sinteger32> = spawn one(); end end").empty(), false) << "A handle has no form.";
 }

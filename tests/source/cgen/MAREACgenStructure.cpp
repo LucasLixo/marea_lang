@@ -102,3 +102,14 @@ TEST(MAREACgenStructure, AStructureWithAnUndecidedLayoutIsReported)
 
     EXPECT_EQ(MAREA_parityRejected("namespace main; structure S text: string; end function f(): sinteger32 local a: S = S{ text = \"x\" }; return 1; end").count(MAREA_CGEN_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE), 1U) << "A string field has no layout.";
 }
+
+TEST(MAREACgenStructure, AWriteBorrowOfAMemberOfAPackedStructureReachesIt)
+{
+    GTEST_COUT << "Validating a write borrow of a misaligned member passes an aligned copy and writes it back." << std::endl;
+
+    const MAREA_ParityResult RESULT{ MAREA_parityGenerated(MAREA_POINTS + "#[layout = c, pack = 1] structure Packed a: uinteger8; inner: Point; end function bump(#[semantics = reference_mutable] p: Point) p.x += 10; p.y += 1; end function f(): sinteger32 local s: Packed = Packed{ a = 1, inner = Point{ x = 3, y = 4 } }; bump(s.inner); bump(s.inner); return (s.inner.x * 100) + s.inner.y + convert<sinteger32>(s.a); end", {}) };
+
+    ASSERT_TRUE(RESULT.failures.empty()) << RESULT.MAREA_failures();
+
+    EXPECT_EQ(MAREA_parityValue(RESULT.MAREA_outcome("f()")), 2307) << "x is 23, y is 6 and a is 1.";
+}

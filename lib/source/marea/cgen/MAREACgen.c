@@ -3,69 +3,9 @@
 
 #include "marea/internal/cgen/MAREACgenInternal.h"
 
+#include "marea/parse/MAREAAst.h"
+
 #include <string.h>
-
-// INFO: the runtime preamble every generated module opens with: the trap code and one wraparound, trapping
-// division/remainder and range-checked shift helper per integer kind, matching the vm's defined outcomes
-// (docs/vm/marea-vm.md) without ever relying on C undefined behavior for overflow, a zero divisor, the signed
-// minimum divided by -1 or a shift past the width of the kind.
-static const MAREA_Character8 MAREA_G_PREAMBLE[] =
-    "#include <stdint.h>\n"
-    "#include <stdbool.h>\n"
-    "typedef enum marea_rt_trap { MAREA_RT_TRAP_NONE = 0, MAREA_RT_TRAP_DIVISION_BY_ZERO = 1, MAREA_RT_TRAP_SHIFT_OUT_OF_RANGE = 2 } marea_rt_trap;\n"
-    "#define MAREA_RT_ARITH(NAME, T, U) \\\n"
-    "static inline __attribute__((unused)) T marea_rt_add_##NAME(T a, T b) { return (T)(U)((U)a + (U)b); } \\\n"
-    "static inline __attribute__((unused)) T marea_rt_sub_##NAME(T a, T b) { return (T)(U)((U)a - (U)b); } \\\n"
-    "static inline __attribute__((unused)) T marea_rt_mul_##NAME(T a, T b) { return (T)(U)((U)a * (U)b); } \\\n"
-    "static inline __attribute__((unused)) T marea_rt_neg_##NAME(T a) { return (T)(U)((U)0 - (U)a); } \\\n"
-    "static inline __attribute__((unused)) T marea_rt_not_##NAME(T a) { return (T)(U)(~(U)a); }\n"
-    "MAREA_RT_ARITH(s8,int8_t,uint8_t)\n"
-    "MAREA_RT_ARITH(s16,int16_t,uint16_t)\n"
-    "MAREA_RT_ARITH(s32,int32_t,uint32_t)\n"
-    "MAREA_RT_ARITH(s64,int64_t,uint64_t)\n"
-    "MAREA_RT_ARITH(u8,uint8_t,uint8_t)\n"
-    "MAREA_RT_ARITH(u16,uint16_t,uint16_t)\n"
-    "MAREA_RT_ARITH(u32,uint32_t,uint32_t)\n"
-    "MAREA_RT_ARITH(u64,uint64_t,uint64_t)\n"
-    "#undef MAREA_RT_ARITH\n"
-    "#define MAREA_RT_SDIV(NAME, T, U) \\\n"
-    "static inline __attribute__((unused)) T marea_rt_div_##NAME(T a, T b, marea_rt_trap *trap) { if (b == (T)0) { *trap = MAREA_RT_TRAP_DIVISION_BY_ZERO; return (T)0; } if (b == (T)-1) { return (T)(U)((U)0 - (U)a); } return (T)(a / b); } \\\n"
-    "static inline __attribute__((unused)) T marea_rt_rem_##NAME(T a, T b, marea_rt_trap *trap) { if (b == (T)0) { *trap = MAREA_RT_TRAP_DIVISION_BY_ZERO; return (T)0; } if (b == (T)-1) { return (T)0; } return (T)(a % b); }\n"
-    "MAREA_RT_SDIV(s8,int8_t,uint8_t)\n"
-    "MAREA_RT_SDIV(s16,int16_t,uint16_t)\n"
-    "MAREA_RT_SDIV(s32,int32_t,uint32_t)\n"
-    "MAREA_RT_SDIV(s64,int64_t,uint64_t)\n"
-    "#undef MAREA_RT_SDIV\n"
-    "#define MAREA_RT_UDIV(NAME, T) \\\n"
-    "static inline __attribute__((unused)) T marea_rt_div_##NAME(T a, T b, marea_rt_trap *trap) { if (b == (T)0) { *trap = MAREA_RT_TRAP_DIVISION_BY_ZERO; return (T)0; } return (T)(a / b); } \\\n"
-    "static inline __attribute__((unused)) T marea_rt_rem_##NAME(T a, T b, marea_rt_trap *trap) { if (b == (T)0) { *trap = MAREA_RT_TRAP_DIVISION_BY_ZERO; return (T)0; } return (T)(a % b); }\n"
-    "MAREA_RT_UDIV(u8,uint8_t)\n"
-    "MAREA_RT_UDIV(u16,uint16_t)\n"
-    "MAREA_RT_UDIV(u32,uint32_t)\n"
-    "MAREA_RT_UDIV(u64,uint64_t)\n"
-    "#undef MAREA_RT_UDIV\n"
-    "#define MAREA_RT_SSHIFT(NAME, T, U, WIDTH) \\\n"
-    "static inline __attribute__((unused)) T marea_rt_shl_##NAME(T a, T b, marea_rt_trap *trap) { if ((b < (T)0) || (b >= (T)WIDTH)) { *trap = MAREA_RT_TRAP_SHIFT_OUT_OF_RANGE; return (T)0; } return (T)(U)((U)a << (U)b); } \\\n"
-    "static inline __attribute__((unused)) T marea_rt_shr_##NAME(T a, T b, marea_rt_trap *trap) { if ((b < (T)0) || (b >= (T)WIDTH)) { *trap = MAREA_RT_TRAP_SHIFT_OUT_OF_RANGE; return (T)0; } return (T)(a >> b); }\n"
-    "MAREA_RT_SSHIFT(s8,int8_t,uint8_t,8)\n"
-    "MAREA_RT_SSHIFT(s16,int16_t,uint16_t,16)\n"
-    "MAREA_RT_SSHIFT(s32,int32_t,uint32_t,32)\n"
-    "MAREA_RT_SSHIFT(s64,int64_t,uint64_t,64)\n"
-    "#undef MAREA_RT_SSHIFT\n"
-    "#define MAREA_RT_USHIFT(NAME, T, WIDTH) \\\n"
-    "static inline __attribute__((unused)) T marea_rt_shl_##NAME(T a, T b, marea_rt_trap *trap) { if (b >= (T)WIDTH) { *trap = MAREA_RT_TRAP_SHIFT_OUT_OF_RANGE; return (T)0; } return (T)(a << b); } \\\n"
-    "static inline __attribute__((unused)) T marea_rt_shr_##NAME(T a, T b, marea_rt_trap *trap) { if (b >= (T)WIDTH) { *trap = MAREA_RT_TRAP_SHIFT_OUT_OF_RANGE; return (T)0; } return (T)(a >> b); }\n"
-    "MAREA_RT_USHIFT(u8,uint8_t,8)\n"
-    "MAREA_RT_USHIFT(u16,uint16_t,16)\n"
-    "MAREA_RT_USHIFT(u32,uint32_t,32)\n"
-    "MAREA_RT_USHIFT(u64,uint64_t,64)\n"
-    "#undef MAREA_RT_USHIFT\n";
-
-typedef struct MAREA_CgenContext
-{
-    MAREA_Arena *arena;
-    MAREA_DiagnosticSink *sink;
-} MAREA_CgenContext;
 
 MAREA_CgenExcept MAREA_CALL MAREA_CgenContextCreate(MAREA_Arena *arena, MAREA_DiagnosticSink *sink, MAREA_CgenContext **outContext)
 {
@@ -89,65 +29,14 @@ MAREA_CgenExcept MAREA_CALL MAREA_CgenContextCreate(MAREA_Arena *arena, MAREA_Di
 
     MAREA_CgenContext *context = memory;
 
+    memset(context, 0, sizeof(*context));
+
     context->arena = arena;
     context->sink = sink;
 
     *outContext = context;
 
     return MAREA_CGEN_EXCEPT_SUCCESS;
-}
-
-MAREA_CgenExcept MAREA_CALL MAREA_CgenContextSetTypeRegistry(MAREA_CgenContext *context, const MAREA_TypeRegistry *registry)
-{
-    MAREA_IGNORE(context);
-
-    MAREA_IGNORE(registry);
-
-    return MAREA_CGEN_EXCEPT_ERROR_NULL_POINTER;
-}
-
-const MAREA_TypeRegistry *MAREA_CALL MAREA_CgenContextGetTypeRegistry(const MAREA_CgenContext *context)
-{
-    MAREA_IGNORE(context);
-
-    return MAREA_NULLPTR;
-}
-
-MAREA_CgenExcept MAREA_CALL MAREA_CgenContextSetHostResolver(MAREA_CgenContext *context, MAREA_CgenHostResolveFunction resolve, MAREA_Null userData)
-{
-    MAREA_IGNORE(context);
-
-    MAREA_IGNORE(resolve);
-
-    MAREA_IGNORE(userData);
-
-    return MAREA_CGEN_EXCEPT_ERROR_NULL_POINTER;
-}
-
-MAREA_CgenExcept MAREA_CALL MAREA_CgenContextAddInclude(MAREA_CgenContext *context, const MAREA_Character8 *header, MAREA_IntegerSize length)
-{
-    MAREA_IGNORE(context);
-
-    MAREA_IGNORE(header);
-
-    MAREA_IGNORE(length);
-
-    return MAREA_CGEN_EXCEPT_ERROR_NULL_POINTER;
-}
-
-MAREA_CgenExcept MAREA_CALL MAREA_CgenContextSetAllocator(MAREA_CgenContext *context, const MAREA_Character8 *allocate, MAREA_IntegerSize allocateLength, const MAREA_Character8 *release, MAREA_IntegerSize releaseLength)
-{
-    MAREA_IGNORE(context);
-
-    MAREA_IGNORE(allocate);
-
-    MAREA_IGNORE(allocateLength);
-
-    MAREA_IGNORE(release);
-
-    MAREA_IGNORE(releaseLength);
-
-    return MAREA_CGEN_EXCEPT_ERROR_NULL_POINTER;
 }
 
 MAREA_Arena *MAREA_CALL MAREA_CgenContextGetArena(const MAREA_CgenContext *context)
@@ -160,181 +49,403 @@ MAREA_DiagnosticSink *MAREA_CALL MAREA_CgenContextGetDiagnostics(const MAREA_Cge
     return (context == MAREA_NULLPTR) ? MAREA_NULLPTR : context->sink;
 }
 
-static MAREA_CgenExcept MAREA_CALL MAREA_G_Collect(MAREA_CgenGenerator *generator, const MAREA_IrNode *module)
+MAREA_CgenExcept MAREA_CALL MAREA_CgenContextSetTypeRegistry(MAREA_CgenContext *context, const MAREA_TypeRegistry *registry)
 {
-    const MAREA_IntegerSize COUNT = MAREA_IrNodeGetChildCount(module);
-
-    MAREA_IntegerSize functionCount = MAREA_INTEGER_SIZE(0);
-
-    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < COUNT; index = (index + MAREA_INTEGER_SIZE(1))) {
-        const MAREA_IrNode *child = MAREA_NULLPTR;
-
-        MAREA_IGNORE(MAREA_IrNodeGetChildAt(module, index, &child));
-
-        if (MAREA_IrNodeGetKind(child) == MAREA_IR_KIND_FUNCTION_DECLARATION) {
-            functionCount = (functionCount + MAREA_INTEGER_SIZE(1));
-        }
+    if (context == MAREA_NULLPTR) {
+        return MAREA_CGEN_EXCEPT_ERROR_NULL_POINTER;
     }
 
-    if (functionCount == MAREA_INTEGER_SIZE(0)) {
-        return MAREA_CGEN_EXCEPT_SUCCESS;
+    context->registry = registry;
+
+    return MAREA_CGEN_EXCEPT_SUCCESS;
+}
+
+const MAREA_TypeRegistry *MAREA_CALL MAREA_CgenContextGetTypeRegistry(const MAREA_CgenContext *context)
+{
+    return (context == MAREA_NULLPTR) ? MAREA_NULLPTR : context->registry;
+}
+
+MAREA_CgenExcept MAREA_CALL MAREA_CgenContextSetHostResolver(MAREA_CgenContext *context, MAREA_CgenHostResolveFunction resolve, MAREA_Null userData)
+{
+    if (context == MAREA_NULLPTR) {
+        return MAREA_CGEN_EXCEPT_ERROR_NULL_POINTER;
     }
 
+    context->resolve = resolve;
+    context->userData = userData;
+
+    return MAREA_CGEN_EXCEPT_SUCCESS;
+}
+
+// INFO: a copy of a name of the caller, NUL terminated, in the arena of the context.
+static MAREA_CgenExcept MAREA_CALL MAREA_G_CopyName(const MAREA_CgenContext *context, const MAREA_Character8 *text, MAREA_IntegerSize length, const MAREA_Character8 **outName)
+{
     MAREA_Null memory = MAREA_NULLPTR;
 
-    if (MAREA_ArenaAllocate(generator->arena, (functionCount * sizeof(MAREA_CgenFunction)), MAREA_ALIGNOF(MAREA_CgenFunction), &memory) != MAREA_ARENA_EXCEPT_SUCCESS) {
+    if (MAREA_ArenaAllocate(context->arena, (length + MAREA_INTEGER_SIZE(1)), MAREA_INTEGER_SIZE(1), &memory) != MAREA_ARENA_EXCEPT_SUCCESS) {
         return MAREA_CGEN_EXCEPT_ERROR_OUT_OF_MEMORY;
     }
 
-    generator->functions = memory;
+    MAREA_Character8 *name = memory;
 
-    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < COUNT; index = (index + MAREA_INTEGER_SIZE(1))) {
-        const MAREA_IrNode *child = MAREA_NULLPTR;
+    memcpy(name, text, length);
 
-        MAREA_IGNORE(MAREA_IrNodeGetChildAt(module, index, &child));
+    name[length] = '\0';
 
-        if (MAREA_IrNodeGetKind(child) != MAREA_IR_KIND_FUNCTION_DECLARATION) {
-            continue;
+    *outName = name;
+
+    return MAREA_CGEN_EXCEPT_SUCCESS;
+}
+
+MAREA_CgenExcept MAREA_CALL MAREA_CgenContextAddInclude(MAREA_CgenContext *context, const MAREA_Character8 *header, MAREA_IntegerSize length)
+{
+    if (context == MAREA_NULLPTR) {
+        return MAREA_CGEN_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    if (header == MAREA_NULLPTR) {
+        return MAREA_CGEN_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    if (context->includeCount == context->includeCapacity) {
+        const MAREA_IntegerSize CAPACITY = (context->includeCapacity == MAREA_INTEGER_SIZE(0)) ? MAREA_INTEGER_SIZE(4) : (context->includeCapacity * MAREA_INTEGER_SIZE(2));
+
+        MAREA_Null memory = MAREA_NULLPTR;
+
+        if (MAREA_ArenaAllocate(context->arena, (CAPACITY * sizeof(const MAREA_Character8 *)), MAREA_ALIGNOF(const MAREA_Character8 *), &memory) != MAREA_ARENA_EXCEPT_SUCCESS) {
+            return MAREA_CGEN_EXCEPT_ERROR_OUT_OF_MEMORY;
         }
 
-        const MAREA_IrNode *parameterList = MAREA_NULLPTR;
-
-        MAREA_IGNORE(MAREA_IrNodeGetChildAt(child, MAREA_INTEGER_SIZE(0), &parameterList));
-
-        const MAREA_IntegerSize PARAMETER_COUNT = (parameterList == MAREA_NULLPTR) ? MAREA_INTEGER_SIZE(0) : MAREA_IrNodeGetChildCount(parameterList);
-
-        MAREA_Uinteger8 *parameterKinds = MAREA_NULLPTR;
-
-        if (PARAMETER_COUNT > MAREA_INTEGER_SIZE(0)) {
-            MAREA_Null kindMemory = MAREA_NULLPTR;
-
-            if (MAREA_ArenaAllocate(generator->arena, (PARAMETER_COUNT * sizeof(MAREA_Uinteger8)), MAREA_ALIGNOF(MAREA_Uinteger8), &kindMemory) != MAREA_ARENA_EXCEPT_SUCCESS) {
-                return MAREA_CGEN_EXCEPT_ERROR_OUT_OF_MEMORY;
-            }
-
-            parameterKinds = kindMemory;
-
-            for (MAREA_IntegerSize parameterIndex = MAREA_INTEGER_SIZE(0); parameterIndex < PARAMETER_COUNT; parameterIndex = (parameterIndex + MAREA_INTEGER_SIZE(1))) {
-                const MAREA_IrNode *parameter = MAREA_NULLPTR;
-
-                MAREA_IGNORE(MAREA_IrNodeGetChildAt(parameterList, parameterIndex, &parameter));
-
-                parameterKinds[parameterIndex] = MAREA_CgenKindOfNode(parameter);
-            }
+        if (context->includeCount > MAREA_INTEGER_SIZE(0)) {
+            memcpy(memory, context->includes, (context->includeCount * sizeof(const MAREA_Character8 *)));
         }
 
-        generator->functions[generator->functionCount].node = child;
-        generator->functions[generator->functionCount].name = MAREA_IrNodeGetText(child);
-        generator->functions[generator->functionCount].nameLength = MAREA_IrNodeGetTextLength(child);
-        generator->functions[generator->functionCount].parameterKinds = parameterKinds;
-        generator->functions[generator->functionCount].parameterCount = (MAREA_Uinteger32)PARAMETER_COUNT;
+        context->includes = memory;
+        context->includeCapacity = CAPACITY;
+    }
 
-        const MAREA_Character8 *resolved = MAREA_IrNodeGetResolvedType(child);
+    MAREA_CGEN_TRY(MAREA_G_CopyName(context, header, length, &context->includes[context->includeCount]));
 
-        generator->functions[generator->functionCount].resultKind = (resolved == MAREA_NULLPTR) ? MAREA_CGEN_KIND_VOID : MAREA_CgenKindOfNode(child);
+    context->includeCount = (context->includeCount + MAREA_INTEGER_SIZE(1));
 
-        generator->functionCount = (generator->functionCount + MAREA_INTEGER_SIZE(1));
+    return MAREA_CGEN_EXCEPT_SUCCESS;
+}
+
+MAREA_CgenExcept MAREA_CALL MAREA_CgenContextSetAllocator(MAREA_CgenContext *context, const MAREA_Character8 *allocate, MAREA_IntegerSize allocateLength, const MAREA_Character8 *release, MAREA_IntegerSize releaseLength)
+{
+    if (context == MAREA_NULLPTR) {
+        return MAREA_CGEN_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    if ((allocate == MAREA_NULLPTR) != (release == MAREA_NULLPTR)) {
+        return MAREA_CGEN_EXCEPT_ERROR_UNPAIRED_ALLOCATOR;
+    }
+
+    const MAREA_Character8 *allocateName = MAREA_NULLPTR;
+    const MAREA_Character8 *releaseName = MAREA_NULLPTR;
+
+    if (allocate != MAREA_NULLPTR) {
+        MAREA_CGEN_TRY(MAREA_G_CopyName(context, allocate, allocateLength, &allocateName));
+        MAREA_CGEN_TRY(MAREA_G_CopyName(context, release, releaseLength, &releaseName));
+    }
+
+    context->allocate = allocateName;
+    context->release = releaseName;
+
+    return MAREA_CGEN_EXCEPT_SUCCESS;
+}
+
+// INFO: the names of the destroy operators, which the ir gives only at their calls.
+static MAREA_CgenExcept MAREA_CALL MAREA_G_CollectDestroys(MAREA_CgenGenerator *generator, const MAREA_IrNode *node)
+{
+    if (MAREA_IrNodeGetKind(node) == MAREA_IR_KIND_DESTROY_CALL) {
+        MAREA_Null items = generator->destroys;
+
+        MAREA_CGEN_TRY(MAREA_CgenGrow(generator, &items, &generator->destroyCapacity, generator->destroyCount, sizeof(const MAREA_IrNode *), MAREA_ALIGNOF(const MAREA_IrNode *)));
+
+        generator->destroys = items;
+        generator->destroys[generator->destroyCount] = node;
+        generator->destroyCount = (generator->destroyCount + MAREA_INTEGER_SIZE(1));
+    }
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < MAREA_IrNodeGetChildCount(node); index = (index + MAREA_INTEGER_SIZE(1))) {
+        MAREA_CGEN_TRY(MAREA_G_CollectDestroys(generator, MAREA_CgenChildAt(node, index)));
     }
 
     return MAREA_CGEN_EXCEPT_SUCCESS;
 }
 
-static MAREA_CgenExcept MAREA_CALL MAREA_G_WriteSignature(MAREA_CgenGenerator *generator, const MAREA_CgenFunction *entry)
+static MAREA_CgenExcept MAREA_CALL MAREA_G_AddFunction(MAREA_CgenGenerator *generator, const MAREA_IrNode *node)
 {
-    const MAREA_IrNode *parameterList = MAREA_NULLPTR;
+    MAREA_Null items = generator->functions;
 
-    MAREA_IGNORE(MAREA_IrNodeGetChildAt(entry->node, MAREA_INTEGER_SIZE(0), &parameterList));
+    MAREA_CGEN_TRY(MAREA_CgenGrow(generator, &items, &generator->functionCapacity, generator->functionCount, sizeof(MAREA_CgenFunction), MAREA_ALIGNOF(MAREA_CgenFunction)));
 
-    MAREA_CgenWriteCType(generator->buffer, entry->resultKind);
-    MAREA_CgenWriteText(generator->buffer, " ");
-    MAREA_CgenWriteMangled(generator->buffer, "f_", entry->name, entry->nameLength);
-    MAREA_CgenWriteText(generator->buffer, "(");
+    generator->functions = items;
 
-    for (MAREA_Uinteger32 index = MAREA_UINTEGER_32(0); index < entry->parameterCount; index = (index + MAREA_UINTEGER_32(1))) {
-        const MAREA_IrNode *parameter = MAREA_NULLPTR;
+    MAREA_CgenFunction *function = &generator->functions[generator->functionCount];
 
-        MAREA_IGNORE(MAREA_IrNodeGetChildAt(parameterList, index, &parameter));
+    memset(function, 0, sizeof(*function));
 
-        MAREA_CgenWriteCType(generator->buffer, entry->parameterKinds[index]);
-        MAREA_CgenWriteText(generator->buffer, " ");
-        MAREA_CgenWriteMangled(generator->buffer, "v_", MAREA_IrNodeGetText(parameter), MAREA_IrNodeGetTextLength(parameter));
-        MAREA_CgenWriteText(generator->buffer, ",");
+    function->node = node;
+    function->name = MAREA_IrNodeGetText(node);
+    function->nameLength = MAREA_IrNodeGetTextLength(node);
+
+    MAREA_IntegerSize dot = MAREA_INTEGER_SIZE(0);
+
+    while ((dot < function->nameLength) && (function->name[dot] != '.')) {
+        dot = (dot + MAREA_INTEGER_SIZE(1));
     }
 
-    MAREA_CgenWriteText(generator->buffer, "marea_rt_trap *marea_trap)");
+    function->ownerLength = (dot < function->nameLength) ? dot : MAREA_INTEGER_SIZE(0);
+
+    // INFO: the length of the type name keeps "Point.sum" apart from a plain function named "Point_sum".
+    if (function->ownerLength > MAREA_INTEGER_SIZE(0)) {
+        function->cName = MAREA_CGEN_JOIN(generator, "f_", MAREA_CgenNumber(generator, function->ownerLength), MAREA_CgenMangled(generator, "_", function->name, function->ownerLength), MAREA_CgenMangled(generator, "_", (function->name + dot + MAREA_INTEGER_SIZE(1)), (function->nameLength - dot - MAREA_INTEGER_SIZE(1))));
+    } else {
+        function->cName = MAREA_CgenMangled(generator, "f_", function->name, function->nameLength);
+    }
+
+    generator->functionCount = (generator->functionCount + MAREA_INTEGER_SIZE(1));
 
     return MAREA_CGEN_EXCEPT_SUCCESS;
 }
 
-static MAREA_CgenExcept MAREA_CALL MAREA_G_WriteFunction(MAREA_CgenGenerator *generator, const MAREA_CgenFunction *entry)
+static MAREA_CgenExcept MAREA_CALL MAREA_G_Collect(MAREA_CgenGenerator *generator)
 {
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < MAREA_IrNodeGetChildCount(generator->module); index = (index + MAREA_INTEGER_SIZE(1))) {
+        const MAREA_IrNode *child = MAREA_CgenChildAt(generator->module, index);
+
+        if (MAREA_IrNodeGetKind(child) == MAREA_IR_KIND_FUNCTION_DECLARATION) {
+            MAREA_CGEN_TRY(MAREA_G_AddFunction(generator, child));
+        } else if (MAREA_IrNodeGetKind(child) == MAREA_IR_KIND_CONSTANT_DECLARATION) {
+            MAREA_Null items = generator->constants;
+
+            MAREA_CGEN_TRY(MAREA_CgenGrow(generator, &items, &generator->constantCapacity, generator->constantCount, sizeof(const MAREA_IrNode *), MAREA_ALIGNOF(const MAREA_IrNode *)));
+
+            generator->constants = items;
+            generator->constants[generator->constantCount] = child;
+            generator->constantCount = (generator->constantCount + MAREA_INTEGER_SIZE(1));
+        }
+    }
+
+    MAREA_CGEN_TRY(MAREA_G_CollectDestroys(generator, generator->module));
+
+    return MAREA_CgenCollectAliases(generator, generator->module);
+}
+
+static void MAREA_CALL MAREA_G_Enter(MAREA_CgenGenerator *generator, MAREA_CgenFunction *function)
+{
+    generator->current = function;
+    generator->selfName = (function->ownerLength > MAREA_INTEGER_SIZE(0)) ? function->name : MAREA_NULLPTR;
+    generator->selfLength = function->ownerLength;
     generator->functionFailed = MAREA_BOOLEAN_FALSE;
     generator->symbolCount = MAREA_INTEGER_SIZE(0);
-    generator->currentResultKind = entry->resultKind;
+    generator->temporaryCount = MAREA_UINTEGER_32(0);
+    generator->constantDepth = MAREA_UINTEGER_32(0);
+}
 
-    if ((entry->resultKind >= MAREA_CGEN_KIND_NUMBER_COUNT) && (entry->resultKind != MAREA_CGEN_KIND_BOOLEAN) && (entry->resultKind != MAREA_CGEN_KIND_VOID)) {
-        return MAREA_CgenGeneratorFail(generator, entry->node, MAREA_CGEN_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, "A function has a result type that is not a scalar.");
+// INFO: a structure is a borrow, written with mutable or read only. An array is always passed by its address, since the ir sets no flag for a write borrow of one and a read-only borrow is never written.
+static MAREA_Uinteger8 MAREA_CALL MAREA_G_PassingOf(const MAREA_CgenGenerator *generator, const MAREA_IrNode *parameter, MAREA_Uinteger32 type)
+{
+    const MAREA_Uinteger8 CATEGORY = MAREA_CgenCategoryOf(generator, type);
+
+    if (CATEGORY == MAREA_CGEN_CATEGORY_ARRAY) {
+        return MAREA_CGEN_PASSING_MUTABLE_BORROW;
     }
 
-    MAREA_CGEN_TRY(MAREA_G_WriteSignature(generator, entry));
+    if (CATEGORY != MAREA_CGEN_CATEGORY_STRUCTURE) {
+        return MAREA_CGEN_PASSING_VALUE;
+    }
 
-    const MAREA_IrNode *parameterList = MAREA_NULLPTR;
-    const MAREA_IrNode *body = MAREA_NULLPTR;
+    return ((MAREA_IrNodeGetFlags(parameter) & (MAREA_Uinteger32)MAREA_AST_FLAG_MUTABLE) != MAREA_UINTEGER_32(0)) ? MAREA_CGEN_PASSING_MUTABLE_BORROW : MAREA_CGEN_PASSING_BORROW;
+}
 
-    MAREA_IGNORE(MAREA_IrNodeGetChildAt(entry->node, MAREA_INTEGER_SIZE(0), &parameterList));
-    MAREA_IGNORE(MAREA_IrNodeGetChildAt(entry->node, MAREA_INTEGER_SIZE(1), &body));
+static MAREA_CgenExcept MAREA_CALL MAREA_G_ReadSignature(MAREA_CgenGenerator *generator, MAREA_CgenFunction *function)
+{
+    MAREA_G_Enter(generator, function);
 
-    MAREA_CgenWriteText(generator->buffer, "{\n");
+    MAREA_Boolean supported = MAREA_BOOLEAN_TRUE;
 
-    for (MAREA_Uinteger32 index = MAREA_UINTEGER_32(0); index < entry->parameterCount; index = (index + MAREA_UINTEGER_32(1))) {
-        if ((entry->parameterKinds[index] >= MAREA_CGEN_KIND_NUMBER_COUNT) && (entry->parameterKinds[index] != MAREA_CGEN_KIND_BOOLEAN)) {
-            MAREA_CGEN_TRY(MAREA_CgenGeneratorFail(generator, entry->node, MAREA_CGEN_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, "A parameter has a type that is not a scalar."));
+    function->result = MAREA_CGEN_KIND_VOID;
 
-            continue;
+    if ((MAREA_IrNodeGetResolvedType(function->node) != MAREA_NULLPTR) || (MAREA_IrNodeGetTypeName(function->node) != MAREA_NULLPTR)) {
+        MAREA_CGEN_TRY(MAREA_CgenTypeOfNode(generator, function->node, &function->result));
+
+        supported = ((function->result == MAREA_CGEN_KIND_VOID) || (MAREA_CgenIsValueType(generator, function->result) == MAREA_BOOLEAN_TRUE));
+    }
+
+    const MAREA_IrNode *list = MAREA_CgenChildAt(function->node, MAREA_INTEGER_SIZE(0));
+
+    const MAREA_IntegerSize COUNT = (list == MAREA_NULLPTR) ? MAREA_INTEGER_SIZE(0) : MAREA_IrNodeGetChildCount(list);
+
+    MAREA_Null memory = MAREA_NULLPTR;
+
+    MAREA_CGEN_TRY(MAREA_CgenAllocate(generator, (COUNT * sizeof(MAREA_CgenParameter)), MAREA_ALIGNOF(MAREA_CgenParameter), &memory));
+
+    function->parameters = memory;
+    function->parameterCount = COUNT;
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < COUNT; index = (index + MAREA_INTEGER_SIZE(1))) {
+        const MAREA_IrNode *node = MAREA_CgenChildAt(list, index);
+
+        MAREA_CgenParameter *parameter = &function->parameters[index];
+
+        parameter->node = node;
+        parameter->cName = MAREA_CgenLocalName(generator, MAREA_IrNodeGetText(node), MAREA_IrNodeGetTextLength(node));
+
+        MAREA_CGEN_TRY(MAREA_CgenTypeOfNode(generator, node, &parameter->type));
+
+        if (MAREA_CgenIsValueType(generator, parameter->type) == MAREA_BOOLEAN_FALSE) {
+            supported = MAREA_BOOLEAN_FALSE;
         }
 
-        const MAREA_IrNode *parameter = MAREA_NULLPTR;
-
-        MAREA_IGNORE(MAREA_IrNodeGetChildAt(parameterList, index, &parameter));
-
-        MAREA_CGEN_TRY(MAREA_CgenPushSymbol(generator, MAREA_IrNodeGetText(parameter), MAREA_IrNodeGetTextLength(parameter), entry->parameterKinds[index]));
+        parameter->passing = MAREA_G_PassingOf(generator, node, parameter->type);
     }
 
-    if ((body == MAREA_NULLPTR) || (MAREA_IrNodeGetKind(body) != MAREA_IR_KIND_BLOCK)) {
-        MAREA_CGEN_TRY(MAREA_CgenGeneratorFail(generator, entry->node, MAREA_CGEN_DIAGNOSTIC_CODE_UNSUPPORTED_CONSTRUCT, "A function has no body."));
-    } else {
-        const MAREA_IntegerSize COUNT = MAREA_IrNodeGetChildCount(body);
+    function->supported = supported;
 
-        for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < COUNT; index = (index + MAREA_INTEGER_SIZE(1))) {
-            const MAREA_IrNode *statement = MAREA_NULLPTR;
-
-            MAREA_IGNORE(MAREA_IrNodeGetChildAt(body, index, &statement));
-
-            MAREA_CGEN_TRY(MAREA_CgenWriteStatement(generator, statement));
-
-            if (generator->functionFailed == MAREA_BOOLEAN_TRUE) {
-                break;
-            }
-
-            const MAREA_IrKind KIND = MAREA_IrNodeGetKind(statement);
-
-            if ((KIND == MAREA_IR_KIND_LOCAL_DECLARATION) || (KIND == MAREA_IR_KIND_ASSIGNMENT) || (KIND == MAREA_IR_KIND_EXPRESSION_STATEMENT) || ((KIND == MAREA_IR_KIND_RETURN_STATEMENT) && (MAREA_IrNodeGetChildCount(statement) > MAREA_INTEGER_SIZE(0)))) {
-                MAREA_CgenWriteTrapGuard(generator);
-            }
-        }
+    if (supported == MAREA_BOOLEAN_FALSE) {
+        return MAREA_CgenGeneratorFail(generator, function->node, MAREA_CGEN_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, "A function has a type that cgen does not write.");
     }
-
-    // INFO: a trailing fallback return keeps -Wreturn-type quiet; sema already requires every path of a
-    // function with a result type to return, so this line is unreachable in a well-typed unit.
-    if (entry->resultKind != MAREA_CGEN_KIND_VOID) {
-        MAREA_CgenWriteText(generator->buffer, "return ");
-        MAREA_CgenWriteDefaultValue(generator->buffer, entry->resultKind);
-        MAREA_CgenWriteText(generator->buffer, ";\n");
-    }
-
-    MAREA_CgenWriteText(generator->buffer, "}\n");
 
     return MAREA_CGEN_EXCEPT_SUCCESS;
+}
+
+static void MAREA_CALL MAREA_G_WriteSignature(const MAREA_CgenGenerator *generator, MAREA_CgenBuffer *buffer, const MAREA_CgenFunction *function)
+{
+    MAREA_CGEN_WRITE(buffer, MAREA_CgenTypeName(generator, function->result), " ", function->cName, "(");
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < function->parameterCount; index = (index + MAREA_INTEGER_SIZE(1))) {
+        const MAREA_CgenParameter *parameter = &function->parameters[index];
+
+        const MAREA_Character8 *form = (parameter->passing == MAREA_CGEN_PASSING_VALUE) ? " " : " *";
+
+        MAREA_CGEN_WRITE(buffer, ((parameter->passing == MAREA_CGEN_PASSING_BORROW) ? "const " : ""), MAREA_CgenTypeName(generator, parameter->type), form, parameter->cName, ", ");
+    }
+
+    MAREA_CgenWriteText(buffer, "marea_rt_trap *marea_trap)");
+}
+
+static MAREA_CgenExcept MAREA_CALL MAREA_G_PushParameters(MAREA_CgenGenerator *generator, const MAREA_CgenFunction *function)
+{
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < function->parameterCount; index = (index + MAREA_INTEGER_SIZE(1))) {
+        const MAREA_CgenParameter *parameter = &function->parameters[index];
+
+        MAREA_CGEN_WRITE(generator->buffer, "(void)", parameter->cName, ";\n");
+
+        const MAREA_Boolean BORROWED = (parameter->passing != MAREA_CGEN_PASSING_VALUE);
+
+        const MAREA_Character8 *text = (BORROWED == MAREA_BOOLEAN_TRUE) ? MAREA_CGEN_JOIN(generator, "(*", parameter->cName, ")") : parameter->cName;
+
+        const MAREA_Boolean STABLE = ((BORROWED == MAREA_BOOLEAN_FALSE) && (MAREA_CgenIsAggregate(generator, parameter->type) == MAREA_BOOLEAN_FALSE));
+
+        MAREA_CGEN_TRY(MAREA_CgenPushSymbol(generator, MAREA_IrNodeGetText(parameter->node), MAREA_IrNodeGetTextLength(parameter->node), text, parameter->type, STABLE, MAREA_BOOLEAN_FALSE));
+    }
+
+    return MAREA_CGEN_EXCEPT_SUCCESS;
+}
+
+// INFO: a function is written into a buffer of its own, so one that cgen cannot write is left out whole.
+static MAREA_CgenExcept MAREA_CALL MAREA_G_WriteFunction(MAREA_CgenGenerator *generator, MAREA_CgenFunction *function)
+{
+    MAREA_G_Enter(generator, function);
+
+    MAREA_CgenBuffer body = { .arena = generator->arena, .data = MAREA_NULLPTR, .length = MAREA_INTEGER_SIZE(0), .capacity = MAREA_INTEGER_SIZE(0), .failed = MAREA_BOOLEAN_FALSE };
+
+    generator->buffer = &body;
+
+    MAREA_G_WriteSignature(generator, &body, function);
+
+    MAREA_CgenWriteText(&body, " {\n(void)marea_trap;\n");
+
+    MAREA_CGEN_TRY(MAREA_G_PushParameters(generator, function));
+
+    const MAREA_IrNode *block = MAREA_CgenChildAt(function->node, MAREA_INTEGER_SIZE(1));
+
+    if ((block == MAREA_NULLPTR) || (MAREA_IrNodeGetKind(block) != MAREA_IR_KIND_BLOCK)) {
+        MAREA_CGEN_TRY(MAREA_CgenGeneratorFail(generator, function->node, MAREA_CGEN_DIAGNOSTIC_CODE_UNSUPPORTED_CONSTRUCT, "A function has no body."));
+    } else {
+        MAREA_CGEN_TRY(MAREA_CgenWriteBlock(generator, block));
+    }
+
+    // INFO: sema asks every path of a function with a result to return, so the vm traps here too.
+    if (function->result != MAREA_CGEN_KIND_VOID) {
+        MAREA_CgenWriteTrap(generator, "MAREA_RT_TRAP_MISSING_RETURN");
+    }
+
+    MAREA_CgenWriteText(&body, "}\n");
+
+    if (body.failed == MAREA_BOOLEAN_TRUE) {
+        return MAREA_CGEN_EXCEPT_ERROR_OUT_OF_MEMORY;
+    }
+
+    function->failed = generator->functionFailed;
+    function->body = MAREA_CgenFinish(&body);
+
+    generator->buffer = MAREA_NULLPTR;
+
+    return MAREA_CGEN_EXCEPT_SUCCESS;
+}
+
+static MAREA_Boolean MAREA_CALL MAREA_G_IsWritten(const MAREA_CgenFunction *function)
+{
+    return ((function->supported == MAREA_BOOLEAN_TRUE) && (function->failed == MAREA_BOOLEAN_FALSE));
+}
+
+// INFO: a caller of a function that is left out is left out too, until no caller of one is left.
+static MAREA_CgenExcept MAREA_CALL MAREA_G_LeaveOutCallers(MAREA_CgenGenerator *generator)
+{
+    MAREA_Boolean changed = MAREA_BOOLEAN_TRUE;
+
+    while (changed == MAREA_BOOLEAN_TRUE) {
+        changed = MAREA_BOOLEAN_FALSE;
+
+        for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < generator->functionCount; index = (index + MAREA_INTEGER_SIZE(1))) {
+            MAREA_CgenFunction *function = &generator->functions[index];
+
+            for (MAREA_IntegerSize callee = MAREA_INTEGER_SIZE(0); (MAREA_G_IsWritten(function) == MAREA_BOOLEAN_TRUE) && (callee < function->calleeCount); callee = (callee + MAREA_INTEGER_SIZE(1))) {
+                if (MAREA_G_IsWritten(&generator->functions[function->callees[callee]]) == MAREA_BOOLEAN_FALSE) {
+                    MAREA_G_Enter(generator, function);
+
+                    MAREA_CGEN_TRY(MAREA_CgenGeneratorFail(generator, function->node, MAREA_CGEN_DIAGNOSTIC_CODE_UNSUPPORTED_CONSTRUCT, "A function calls a function that is not written."));
+
+                    function->failed = MAREA_BOOLEAN_TRUE;
+                    changed = MAREA_BOOLEAN_TRUE;
+                }
+            }
+        }
+    }
+
+    return MAREA_CGEN_EXCEPT_SUCCESS;
+}
+
+static void MAREA_CALL MAREA_G_Assemble(const MAREA_CgenGenerator *generator, MAREA_CgenBuffer *buffer)
+{
+    MAREA_CgenWritePreamble(buffer, generator->usesMath, generator->usesPacked);
+
+    if (generator->usesContext == MAREA_BOOLEAN_TRUE) {
+        MAREA_CgenWriteText(buffer, "#include \"marea/base/MAREAHostContext.h\"\n");
+    }
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < generator->context->includeCount; index = (index + MAREA_INTEGER_SIZE(1))) {
+        MAREA_CGEN_WRITE(buffer, "#include \"", generator->context->includes[index], "\"\n");
+    }
+
+    MAREA_CgenWrite(buffer, generator->types->data, generator->types->length);
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < generator->functionCount; index = (index + MAREA_INTEGER_SIZE(1))) {
+        if (MAREA_G_IsWritten(&generator->functions[index]) == MAREA_BOOLEAN_TRUE) {
+            MAREA_G_WriteSignature(generator, buffer, &generator->functions[index]);
+            MAREA_CgenWriteText(buffer, ";\n");
+        }
+    }
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < generator->functionCount; index = (index + MAREA_INTEGER_SIZE(1))) {
+        if (MAREA_G_IsWritten(&generator->functions[index]) == MAREA_BOOLEAN_TRUE) {
+            MAREA_CgenWriteText(buffer, generator->functions[index].body);
+        }
+    }
 }
 
 MAREA_CgenExcept MAREA_CALL MAREA_CgenGenerateModule(MAREA_CgenContext *context, const MAREA_IrNode *module, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength)
@@ -360,44 +471,51 @@ MAREA_CgenExcept MAREA_CALL MAREA_CgenGenerateModule(MAREA_CgenContext *context,
     }
 
     MAREA_CgenBuffer buffer = { .arena = context->arena, .data = MAREA_NULLPTR, .length = MAREA_INTEGER_SIZE(0), .capacity = MAREA_INTEGER_SIZE(0), .failed = MAREA_BOOLEAN_FALSE };
+    MAREA_CgenBuffer types = { .arena = context->arena, .data = MAREA_NULLPTR, .length = MAREA_INTEGER_SIZE(0), .capacity = MAREA_INTEGER_SIZE(0), .failed = MAREA_BOOLEAN_FALSE };
 
-    MAREA_CgenGenerator generator = {
-        .context = context,
-        .arena = context->arena,
-        .sink = context->sink,
-        .buffer = &buffer,
-        .namespaceText = MAREA_IrNodeGetText(module),
-        .namespaceLength = MAREA_IrNodeGetTextLength(module),
-        .functions = MAREA_NULLPTR,
-        .functionCount = MAREA_INTEGER_SIZE(0),
-        .symbols = MAREA_NULLPTR,
-        .symbolCount = MAREA_INTEGER_SIZE(0),
-        .symbolCapacity = MAREA_INTEGER_SIZE(0),
-        .currentResultKind = MAREA_CGEN_KIND_VOID,
-        .functionFailed = MAREA_BOOLEAN_FALSE,
-    };
+    // INFO: the generator is too large for a call stack, so it lives in the arena of the context.
+    MAREA_Null memory = MAREA_NULLPTR;
 
-    MAREA_CGEN_TRY(MAREA_G_Collect(&generator, module));
-
-    MAREA_CgenWrite(&buffer, MAREA_G_PREAMBLE, (MAREA_IntegerSize)(sizeof(MAREA_G_PREAMBLE) - MAREA_INTEGER_SIZE(1)));
-
-    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < generator.functionCount; index = (index + MAREA_INTEGER_SIZE(1))) {
-        MAREA_CGEN_TRY(MAREA_G_WriteSignature(&generator, &generator.functions[index]));
-
-        MAREA_CgenWriteText(&buffer, ";\n");
-    }
-
-    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < generator.functionCount; index = (index + MAREA_INTEGER_SIZE(1))) {
-        MAREA_CGEN_TRY(MAREA_G_WriteFunction(&generator, &generator.functions[index]));
-    }
-
-    if (buffer.failed == MAREA_BOOLEAN_TRUE) {
+    if (MAREA_ArenaAllocate(context->arena, sizeof(MAREA_CgenGenerator), MAREA_ALIGNOF(MAREA_CgenGenerator), &memory) != MAREA_ARENA_EXCEPT_SUCCESS) {
         return MAREA_CGEN_EXCEPT_ERROR_OUT_OF_MEMORY;
     }
 
-    buffer.data[buffer.length] = '\0';
+    MAREA_CgenGenerator *generator = memory;
 
-    *outText = buffer.data;
+    memset(generator, 0, sizeof(*generator));
+
+    generator->context = context;
+    generator->arena = context->arena;
+    generator->sink = context->sink;
+    generator->module = module;
+    generator->namespaceText = MAREA_IrNodeGetText(module);
+    generator->namespaceLength = MAREA_IrNodeGetTextLength(module);
+    generator->types = &types;
+
+    MAREA_CGEN_TRY(MAREA_G_Collect(generator));
+    MAREA_CGEN_TRY(MAREA_CgenDeclareTypes(generator));
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < generator->functionCount; index = (index + MAREA_INTEGER_SIZE(1))) {
+        MAREA_CGEN_TRY(MAREA_G_ReadSignature(generator, &generator->functions[index]));
+    }
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < generator->functionCount; index = (index + MAREA_INTEGER_SIZE(1))) {
+        if (generator->functions[index].supported == MAREA_BOOLEAN_TRUE) {
+            MAREA_CGEN_TRY(MAREA_G_WriteFunction(generator, &generator->functions[index]));
+        }
+    }
+
+    MAREA_CGEN_TRY(MAREA_G_LeaveOutCallers(generator));
+
+    MAREA_G_Assemble(generator, &buffer);
+
+    const MAREA_Character8 *text = MAREA_CgenFinish(&buffer);
+
+    if ((buffer.failed == MAREA_BOOLEAN_TRUE) || (types.failed == MAREA_BOOLEAN_TRUE) || (generator->outOfMemory == MAREA_BOOLEAN_TRUE)) {
+        return MAREA_CGEN_EXCEPT_ERROR_OUT_OF_MEMORY;
+    }
+
+    *outText = text;
     *outLength = buffer.length;
 
     return MAREA_CGEN_EXCEPT_SUCCESS;

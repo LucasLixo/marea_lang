@@ -77,15 +77,22 @@ TEST(MAREACgenArray, AWriteThroughAnArrayWriteBorrowReachesTheCaller)
 
 TEST(MAREACgenArray, ArraysOfStructuresAndOfArraysAreStored)
 {
-    GTEST_COUT << "Validating an array of structures, an array of arrays and an array in a structure keep the layout of sema." << std::endl;
+    GTEST_COUT << "Validating an array of structures, an array of arrays and arrays in a structure keep the layout of sema." << std::endl;
 
-    const MAREA_ParityResult RESULT{ MAREA_parityGenerated(MAREA_ARRAYS + "structure Holder points: marea.array.Array<Point, 2>; count: sinteger32; end function f(): sinteger32 local holder: Holder = Holder{ points = array.Array<Point, 2>{ Point{ x = 1, y = 2 }, Point{ x = 3, y = 4 } }, count = 2 }; holder.points[1].x = 30; local grid: marea.array.Array<marea.array.Array<sinteger32, 2>, 3> = array.Array<marea.array.Array<sinteger32, 2>, 3>{}; grid[2][1] = 5; return (holder.points[1].x * 100) + (holder.points[0].y * 10) + grid[2][1] + grid[0][0] + holder.count; end", {}) };
+    const MAREA_ParityResult RESULT{ MAREA_parityGenerated(MAREA_ARRAYS + "structure Holder values: marea.array.Array<sinteger32, 2>; grid: marea.array.Array<marea.array.Array<sinteger32, 2>, 2>; count: sinteger32; end function f(): sinteger32 local points: marea.array.Array<Point, 2> = array.Array<Point, 2>{ Point{ x = 1, y = 2 }, Point{ x = 3, y = 4 } }; points[1].x = 30; local holder: Holder = Holder{ values = array.Array<sinteger32, 2>{ 7, 8 }, grid = array.Array<marea.array.Array<sinteger32, 2>, 2>{}, count = 2 }; holder.grid[1][0] = 4; local grid: marea.array.Array<marea.array.Array<sinteger32, 2>, 3> = array.Array<marea.array.Array<sinteger32, 2>, 3>{}; grid[2][1] = 5; return (points[1].x * 100) + (points[0].y * 10) + grid[2][1] + grid[0][0] + holder.count + (holder.values[1] * 10000) + (holder.grid[1][0] * 100000); end", {}) };
 
     ASSERT_TRUE(RESULT.failures.empty()) << RESULT.MAREA_failures();
 
-    EXPECT_EQ(MAREA_parityValue(RESULT.MAREA_outcome("f()")), 3027) << "3000 + 20 + 5 + 0 + 2.";
+    EXPECT_EQ(MAREA_parityValue(RESULT.MAREA_outcome("f()")), 483027) << "400000 + 80000 + 3000 + 20 + 5 + 0 + 2.";
 
-    EXPECT_NE(RESULT.cText.find("_Static_assert(sizeof(marea_s_Holder) == 20"), std::string::npos) << "The size of sema must be asserted.";
+    EXPECT_NE(RESULT.cText.find("_Static_assert(sizeof(marea_s_Holder) == 28"), std::string::npos) << "The size of sema must be asserted.";
+}
+
+TEST(MAREACgenArray, AStructureThatHoldsAnArrayOfStructuresIsReported)
+{
+    GTEST_COUT << "Validating a structure whose layout sema cannot measure, an array of structures inside it, is reported." << std::endl;
+
+    EXPECT_EQ(MAREA_parityRejected("namespace main; require demo.array; structure Point x: sinteger32; end structure Holder points: demo.array<Point, 2>; end function f(): sinteger32 local h: Holder = Holder{ points = demo.array<Point, 2>{} }; return 1; end").count(MAREA_CGEN_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE), 1U) << "Sema measures no layout for it.";
 }
 
 TEST(MAREACgenArray, ForEachWalksEveryElementWithItsKey)
@@ -103,7 +110,7 @@ TEST(MAREACgenArray, WithoutARegistryAnArrayIsReported)
 {
     GTEST_COUT << "Validating cgen reads the shape of a library type from the registry only, and reports a type it cannot read." << std::endl;
 
-    MAREA_IrFixture fixture;
+    MAREA_IrFixture fixture(MAREA_parityLibraries());
 
     ASSERT_EQ(fixture.MAREA_lower(MAREA_ARRAYS + "function f(): sinteger32 local a: marea.array.Array<sinteger32, 4> = array.Array<sinteger32, 4>{}; return a[0]; end"), MAREA_IR_EXCEPT_SUCCESS) << "The module must lower.";
 
@@ -143,4 +150,15 @@ TEST(MAREACgenArray, TheContextKeepsTheRegistry)
     EXPECT_EQ(MAREA_CgenContextSetTypeRegistry(nullptr, registry), MAREA_CGEN_EXCEPT_ERROR_NULL_POINTER) << "A null context must be refused.";
 
     EXPECT_EQ(MAREA_CgenContextGetTypeRegistry(nullptr), nullptr) << "A null context has no registry.";
+}
+
+TEST(MAREACgenArray, WritesThroughElementsOfStructuresReachTheArray)
+{
+    GTEST_COUT << "Validating a mutable for each and a method with a write borrow of self change the element in the array." << std::endl;
+
+    const MAREA_ParityResult RESULT{ MAREA_parityGenerated(MAREA_ARRAYS + "implementation Point function bump(#[semantics = reference_mutable] self: Point, by: sinteger32) self.x += by; end end function f(): sinteger32 local points: marea.array.Array<Point, 2> = array.Array<Point, 2>{ Point{ x = 1, y = 2 }, Point{ x = 3, y = 4 } }; for each point in mutable points do point.y *= 10; end points[1].bump(100); return (points[0].x * 1000000) + (points[0].y * 10000) + (points[1].x * 100) + points[1].y; end", {}) };
+
+    ASSERT_TRUE(RESULT.failures.empty()) << RESULT.MAREA_failures();
+
+    EXPECT_EQ(MAREA_parityValue(RESULT.MAREA_outcome("f()")), 1210340) << "points are (1, 20) and (103, 40).";
 }
