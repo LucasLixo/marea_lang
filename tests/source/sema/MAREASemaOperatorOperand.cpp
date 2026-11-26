@@ -104,3 +104,48 @@ TEST(MAREASemaOperatorOperand, TypeMismatchSuppressesTheOperandCode)
 
     EXPECT_EQ(MAREA_codesOf(MAREA_function("local x: boolean = i and p;")), Codes{ MISMATCH }) << "An integer and a boolean raise only 3011.";
 }
+
+TEST(MAREASemaOperatorOperand, BitwiseOperatorRejectsACharacter)
+{
+    GTEST_COUT << "Validating a bitwise operator on a character raises BITWISE_OPERAND_NOT_INTEGER." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("function f(c: character, d: character) local x: character = c & d; end"), Codes{ BITWISE }) << "A character and must raise 3038.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(c: character) local x: character = ~c; end"), Codes{ BITWISE }) << "A character complement must raise 3038.";
+}
+
+TEST(MAREASemaOperatorOperand, ArithmeticOnABooleanOrAStringIsAMismatch)
+{
+    GTEST_COUT << "Validating arithmetic on a boolean or a string raises TYPE_MISMATCH." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf(MAREA_function("local x: boolean = p + q;")), Codes{ MISMATCH }) << "A boolean sum must raise 3011.";
+
+    EXPECT_EQ(MAREA_codesOf(MAREA_function("local x: string = s + s;")), Codes{ MISMATCH }) << "A string sum must raise 3011.";
+
+    EXPECT_EQ(MAREA_codesOf(MAREA_function("local x: boolean = p - q;")), Codes{ MISMATCH }) << "A boolean difference must raise 3011.";
+
+    EXPECT_EQ(MAREA_codesOf(MAREA_function("local x: string = s * s;")), Codes{ MISMATCH }) << "A string product must raise 3011.";
+
+    EXPECT_EQ(MAREA_codesOf(MAREA_function("local x: boolean = p / q;")), Codes{ MISMATCH }) << "A boolean quotient must raise 3011.";
+
+    EXPECT_EQ(MAREA_codesOf(MAREA_function("local x: string = s % s;")), Codes{ MISMATCH }) << "A string remainder must raise 3011.";
+
+    EXPECT_EQ(MAREA_codesOf(MAREA_function("local x: boolean = p ** q;")), Codes{ MISMATCH }) << "A boolean power must raise 3011.";
+
+    EXPECT_EQ(MAREA_codesOf(MAREA_function("local x: boolean = p +% q;")), Codes{ MISMATCH }) << "A boolean wrapping sum must raise 3011.";
+
+    EXPECT_EQ(MAREA_codesOf(MAREA_function("local x: boolean = -p;")), Codes{ MISMATCH }) << "A negated boolean must raise 3011.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(s: string) s += \"a\"; end"), Codes{ MISMATCH }) << "A compound sum of strings must raise 3011.";
+}
+
+TEST(MAREASemaOperatorOperand, ComparisonOfTwoBooleansIsAMismatch)
+{
+    GTEST_COUT << "Validating a comparison between two booleans raises TYPE_MISMATCH." << std::endl;
+
+    for (const char *operatorText : { "==", "!=", "<", "<=", ">", ">=" }) {
+        EXPECT_EQ(MAREA_codesOf(MAREA_function(std::string("local x: boolean = p ") + operatorText + " q;")), Codes{ MISMATCH }) << "A boolean comparison must raise 3011: " << operatorText;
+    }
+
+    EXPECT_TRUE(MAREA_codesOf(MAREA_function("local x: boolean = s == s; local y: boolean = i < j;")).empty()) << "A comparison of strings or numbers must raise nothing.";
+}

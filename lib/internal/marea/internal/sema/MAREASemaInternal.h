@@ -1704,9 +1704,10 @@ MAREA_BEGIN_EXTERN_C
 
     /**
      * @brief Checks what the operands of an operator may be. A bitwise operator (&, |, ^, ~ and the compound forms)
-     * rejects a float, a boolean or a string operand with BITWISE_OPERAND_NOT_INTEGER; and, or and not reject an
-     * operand that is not a boolean with LOGICAL_OPERAND_NOT_BOOLEAN. An operand of an unknown type is accepted, and
-     * any other operator is ignored. The caller calls it only when the operands already agree in type, so one node
+     * rejects a float, a boolean, a string or a character operand with BITWISE_OPERAND_NOT_INTEGER; and, or and not
+     * reject an operand that is not a boolean with LOGICAL_OPERAND_NOT_BOOLEAN; an arithmetic operator rejects a
+     * boolean or a string operand, and a comparison rejects two booleans, with TYPE_MISMATCH. An operand of an
+     * unknown type is accepted, and any other operator is ignored. The caller calls it only when the operands already agree in type, so one node
      * never carries this code together with TYPE_MISMATCH.
      * @param context Context of the run. Must not be null.
      * @param operatorKind Token kind of the operator.

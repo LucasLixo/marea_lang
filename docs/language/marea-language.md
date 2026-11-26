@@ -801,6 +801,9 @@ Function declaration and call, parameters and defaults, the result and `return v
 | L-TYPES-212 | the result of a generic call compared after its type argument is bound | 3011 @13 |
 | L-TYPES-213 | the line of a call stored in a string | 3011 @8 |
 | L-TYPES-214 | the bytes of a file stored in a string | 3011 @8 |
+| L-TYPES-215 | arithmetic on two strings | 3011 @10 |
+| L-TYPES-216 | a comparison of two booleans | 3011 @10 |
+| L-TYPES-217 | a bitwise operator on two characters | 3038 @10 |
 
 ### Types and control flow: known_gap
 
@@ -1333,8 +1336,8 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | ownership | 65 | 78 | 2 |
 | parallel | 19 | 40 | 0 |
 | seed | 1 | 2 | 0 |
-| types | 62 | 142 | 3 |
-| total | 275 | 576 | 13 |
+| types | 62 | 145 | 3 |
+| total | 275 | 579 | 13 |
 
 ## Parity
 

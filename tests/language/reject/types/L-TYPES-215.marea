@@ -1,0 +1,11 @@
+-- expect: 3011 @10
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Arithmetic on two strings.
+
+namespace main;
+
+function join(left: string, right: string): string
+    return left + right;
+end

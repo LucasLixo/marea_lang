@@ -672,11 +672,13 @@ operand that is a structure, an enum, a library type, a generic result or any ot
 A shift is not compared here, as its right side may have another type; it has its own rule below.
 
 **What an operand may be.** A bitwise operator (`&`, `|`, `^`, `~` and `&=`, `|=`, `^=`) with an operand that is a
-float (a `float32` or `float64` name or a float literal), a `boolean` or a `string` is `BITWISE_OPERAND_NOT_INTEGER`
-(3038); `and`, `or` and `not` with an operand of a known type that is not `boolean`, or a number, string or character
-literal, is `LOGICAL_OPERAND_NOT_BOOLEAN` (3039). Each is raised once on the expression, and only when the two operands
-already agree in type: a pair that raises `TYPE_MISMATCH` (3011) raises no second code. An operand of an unknown type is
-accepted, and a `character` operand of a bitwise operator is accepted.
+float (a `float32` or `float64` name or a float literal), a `boolean`, a `string` or a `character` is
+`BITWISE_OPERAND_NOT_INTEGER` (3038); `and`, `or` and `not` with an operand of a known type that is not `boolean`, or a
+number, string or character literal, is `LOGICAL_OPERAND_NOT_BOOLEAN` (3039). An arithmetic operator (`+`, `-`, `*`,
+`/`, `%`, `**`, their wrapping, saturating and compound forms and unary `-`) with a `boolean` or `string` operand, and a
+comparison between two `boolean` operands (`==` and `!=` too), is `TYPE_MISMATCH` (3011). Each is raised once on the
+expression, and only when the two operands already agree in type: a pair that raises 3011 raises no second code. An
+operand of an unknown type is accepted, and so is an expression that holds a node the parser could not build.
 
 **Raw pointer.** A written type whose descriptor has the raw pointer role (a local, a parameter, a result, a field, an alias or a type
 argument) is `RAW_POINTER_OUTSIDE_UNSAFE` (3041) unless an `unsafe ... end` block encloses it. A block nested in the `unsafe` block is enclosed too; the block ends the cover at its `end`. The context
@@ -1204,7 +1206,7 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 | 3008 | `INVALID_ALIGNMENT` | `#[align = 15]` |
 | 3009 | `UNKNOWN_TYPE` | `a: Missing;` in a structure |
 | 3010 | `ARGUMENT_COUNT_MISMATCH` | `add(1)` when `add` takes two parameters with no default; `f()` or `f(1, 2, 3)` when `f` has one required and one defaulted parameter; `Point(1.0, 2.0, 3.0)` when `construct` takes two; `Line(1.0)` when `Line` declares no `construct`; `power(1.0)` when the host's signature of `c.math.pow` takes two parameters |
-| 3011 | `TYPE_MISMATCH` | `convert<sinteger32>(text)` with a `string` name, `convert<Point>(other)` for two structures with another layout, `f("text")` when the parameter is `sinteger32`, `local x: boolean = 1;`, `local n: sinteger32 = a < b;`, `f(s)` with a `string` name `s`, `return a + 1;` in a function that returns `boolean`, `return same(text);` in a function that returns `sinteger32` when `same<Item>` returns `Item`, `a + b` with an `sinteger32` and a `float64`, `count(2)` when `count` is an `sinteger32` local, `Point("x", 2.0)` when `construct`'s first parameter is `float32`; `power("two", 10.0)` when the host's signature of `c.math.pow` takes `float64, float64`; `local x: sinteger8 = item.x;` over a `for each` whose element field is `sinteger32`, `local first: float32 = values;` when `values` is a `demo.slice<float32>`, `f("text")` when the parameter is a slice or a raw pointer |
+| 3011 | `TYPE_MISMATCH` | `convert<sinteger32>(text)` with a `string` name, `convert<Point>(other)` for two structures with another layout, `f("text")` when the parameter is `sinteger32`, `local x: boolean = 1;`, `local n: sinteger32 = a < b;`, `f(s)` with a `string` name `s`, `return a + 1;` in a function that returns `boolean`, `return same(text);` in a function that returns `sinteger32` when `same<Item>` returns `Item`, `a + b` with an `sinteger32` and a `float64`, `count(2)` when `count` is an `sinteger32` local, `Point("x", 2.0)` when `construct`'s first parameter is `float32`; `power("two", 10.0)` when the host's signature of `c.math.pow` takes `float64, float64`; `local x: sinteger8 = item.x;` over a `for each` whose element field is `sinteger32`, `local first: float32 = values;` when `values` is a `demo.slice<float32>`, `f("text")` when the parameter is a slice or a raw pointer; `s + s` with two strings, `-p` with a `boolean`, `p == q` with two booleans |
 | 3012 | `DUPLICATE_MEMBER` | two `implementation` blocks of one type that both declare `area`; a structure field, an enum variant or a contract function that is declared twice in its declaration |
 | 3013 | `CONTRACT_NOT_SATISFIED` | `maximum(a, b)` when the type of `a` has no `less` for `where Item: Comparable` |
 | 3014 | `GENERIC_ARGUMENT_MISMATCH` | `Pair<sinteger32>` when `Pair` has two parameters, `Box<4>`, a registered type written with more type arguments than its descriptor declares, `local x: marea.array.Array<sinteger8, 4> = values;` when `values` is `marea.array.Array<sinteger32, 4>`, an `owned<vector<T>>` given where a `vector<T>` is declared |
@@ -1231,7 +1233,7 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 | 3035 | `SHIFT_COUNT_TOO_LARGE` | `x << 32` for `uinteger32`, `x >>= 64` for `sinteger64`, `x << -1`: a constant shift count that is negative or not below the width of the left integer type |
 | 3036 | `NEGATE_UNSIGNED` | `-value`, `-(a + b)` or `-point.count` when the operand has a known unsigned primitive type |
 | 3037 | `SIGNED_DIVISION_OVERFLOW` | `-2147483648 / -1` or `-128 % -1` when the left side folds to the lowest value of the signed type and the right side folds to -1 |
-| 3038 | `BITWISE_OPERAND_NOT_INTEGER` | `a & b`, `a \| b`, `a ^ b`, `~a`, `a &= b` with a `float32` or `float64`, a `boolean` or a `string` operand, or a float literal |
+| 3038 | `BITWISE_OPERAND_NOT_INTEGER` | `a & b`, `a \| b`, `a ^ b`, `~a`, `a &= b` with a `float32` or `float64`, a `boolean`, a `string` or a `character` operand, or a float literal |
 | 3039 | `LOGICAL_OPERAND_NOT_BOOLEAN` | `a and b`, `a or b`, `not a` with an operand whose known type is not `boolean`, or a number, string or character literal |
 | 3040 | `ASSIGNMENT_TO_CONSTANT` | `LIMIT = 11;`, `LIMIT += 1;`, `ORIGIN.x = 1;`, `TABLE[0] = 1;` when the root name is a file constant and no local hides it |
 | 3041 | `RAW_POINTER_OUTSIDE_UNSAFE` | a written type with the raw pointer role (`local raw: c.memory.Pointer<sinteger32> = f();`, a parameter, a result, a field, an alias) with no `unsafe ... end` block around it, at any depth of nesting |
@@ -1352,11 +1354,7 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
   unknown type, when only one side has type arguments, or for a `for each` over a collection of unknown type.
 - A function type that mentions a generic parameter in scope, and a generic function given as a value, are never
   compared (3011, 3053). A bare name of an imported function, and a value that sema does not type, are accepted.
-- A binary operator is checked against what its operands may be only for a bitwise operator on a float, a boolean
-  or a string (3038) and for `and`, `or` and `not` on a known type that is not `boolean` (3039). Every other operator
-  (arithmetic on a `boolean` or a `string`, a comparison of two booleans) is not checked, a `character` operand of a
-  bitwise operator is accepted, and an operator that is declared for a structure is not compared (its signature is
-  checked by 3050, the use of the operator is still not read).
+- An operator that is declared for a structure is not compared at its use (its signature is checked by 3050).
 - `UNKNOWN_TYPE_FUNCTION` (3049) skips a receiver of another namespace, a library type, a generic parameter and an
   unknown type, because sema cannot see their functions. Only a bare name or a local that is a bare name is a receiver:
   a call on a field chain or on a call result is not checked. A function of a contract on a generic receiver is not checked.
