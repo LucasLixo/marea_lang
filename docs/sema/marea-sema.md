@@ -820,7 +820,8 @@ after it.
 **Recursive type and cyclic alias.** `MAREA_SemaCheckDeclarations` runs two passes over the top-level declarations,
 the alias pass first. A `type` alias that leads back to itself through other aliases is `CYCLIC_TYPE_ALIAS` (3046),
 reported once for each alias on the cycle, at the alias. A structure or enum that holds itself by value, directly or
-through other structures, enums, aliases and the element of an inline run, is `RECURSIVE_TYPE` (3045), reported once for
+through other structures, enums, aliases, the element of an inline run and a generic structure of the file
+that holds the type argument by value (`Box<Node>`), is `RECURSIVE_TYPE` (3045), reported once for
 each such declaration, at the field or variant field that holds the path back. `owned`, `vector`, `pointer`, `slice`,
 `task` and a function type are indirect and raise nothing. Both walks read the name table only, so a type of another
 file is skipped, and both are bounded by the number of declarations of the file.
@@ -1397,8 +1398,8 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
   are an assumption (see Built-in macro).
 - `RAW_POINTER_OUTSIDE_UNSAFE` (3041) reads the role of the written type in every place, but a type alias of a raw pointer is
   not followed through its use: the alias declaration itself is the place that is rejected.
-- `RECURSIVE_TYPE` (3045) does not follow a user generic structure given as `Box<Node>`: its field types are written in
-  its own scope, so a recursion through it is not seen.
+- `RECURSIVE_TYPE` (3045) ends a walk through generic structures after a depth of 64 more than the count of
+  declarations, or 4096 steps for one declaration: a recursion that needs a longer walk is not seen.
 - `LITERAL_OUT_OF_RANGE` (3033) reads only a written integer literal. A float literal, a literal in an operand
   (`1 + 300` bound to a `uinteger8`), a value folded from a named constant, and a literal whose target type is not a
   primitive sema knows (it is then checked against `uinteger64` only) are not range checked.

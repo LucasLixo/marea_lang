@@ -301,6 +301,18 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckAlias(MAREA_SemaContext *context
     return MAREA_SEMA_EXCEPT_SUCCESS;
 }
 
+// INFO: the bounds of a walk through generic structures, which can grow without end.
+#define MAREA_G_VALUE_DEPTH_EXTRA MAREA_INTEGER_SIZE(64)
+#define MAREA_G_VALUE_STEP_LIMIT  MAREA_INTEGER_SIZE(4096)
+
+// INFO: the generic parameters in scope of a written type, the type arguments that they stand for (null when none) and the scope that wrote those arguments.
+typedef struct MAREA_G_ValueScope
+{
+    const MAREA_AstNode *generics;
+    const MAREA_AstNode *arguments;
+    const struct MAREA_G_ValueScope *outer;
+} MAREA_G_ValueScope;
+
 typedef struct MAREA_G_ValueWalk
 {
     const MAREA_SemaContext *context;
@@ -308,15 +320,16 @@ typedef struct MAREA_G_ValueWalk
     const MAREA_AstNode **visited;
     MAREA_IntegerSize visitedCount;
     MAREA_IntegerSize limit;
+    MAREA_IntegerSize steps;
 } MAREA_G_ValueWalk;
 
-static MAREA_Boolean MAREA_CALL MAREA_G_HoldsTarget(MAREA_G_ValueWalk *walk, const MAREA_AstNode *type, const MAREA_AstNode *generics, MAREA_IntegerSize depth);
+static MAREA_Boolean MAREA_CALL MAREA_G_HoldsTarget(MAREA_G_ValueWalk *walk, const MAREA_AstNode *type, const MAREA_G_ValueScope *scope, MAREA_IntegerSize depth);
 
 // INFO: true when a field type of the declaration holds the target by value.
-static MAREA_Boolean MAREA_CALL MAREA_G_MemberHoldsTarget(MAREA_G_ValueWalk *walk, const MAREA_AstNode *member, const MAREA_AstNode *generics)
+static MAREA_Boolean MAREA_CALL MAREA_G_MemberHoldsTarget(MAREA_G_ValueWalk *walk, const MAREA_AstNode *member, const MAREA_G_ValueScope *scope, MAREA_IntegerSize depth)
 {
     if (MAREA_AstNodeGetKind(member) == MAREA_AST_KIND_FIELD_DECLARATION) {
-        return MAREA_G_HoldsTarget(walk, MAREA_SemaChildAt(member, (MAREA_AstNodeGetChildCount(member) - MAREA_INTEGER_SIZE(1))), generics, 0);
+        return MAREA_G_HoldsTarget(walk, MAREA_SemaChildAt(member, (MAREA_AstNodeGetChildCount(member) - MAREA_INTEGER_SIZE(1))), scope, depth);
     }
 
     if (MAREA_AstNodeGetKind(member) != MAREA_AST_KIND_VARIANT_DECLARATION) {
@@ -326,7 +339,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_MemberHoldsTarget(MAREA_G_ValueWalk *wal
     for (MAREA_IntegerSize index = 0; index < MAREA_AstNodeGetChildCount(member); ++index) {
         const MAREA_AstNode *field = MAREA_SemaChildAt(member, index);
 
-        if ((field != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(field) == MAREA_AST_KIND_VARIANT_FIELD) && (MAREA_G_HoldsTarget(walk, MAREA_SemaChildAt(field, 1), generics, 0) == MAREA_BOOLEAN_TRUE)) {
+        if ((field != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(field) == MAREA_AST_KIND_VARIANT_FIELD) && (MAREA_G_HoldsTarget(walk, MAREA_SemaChildAt(field, 1), scope, depth) == MAREA_BOOLEAN_TRUE)) {
             return MAREA_BOOLEAN_TRUE;
         }
     }
@@ -335,8 +348,14 @@ static MAREA_Boolean MAREA_CALL MAREA_G_MemberHoldsTarget(MAREA_G_ValueWalk *wal
 }
 
 // INFO: an owner, a vector, a raw pointer, a view, a spawn handle and a function type are indirect, so only a structure, an enum, an alias to one and the element of an inline run (an index-protocol type with no role and a copy class) are followed.
-static MAREA_Boolean MAREA_CALL MAREA_G_HoldsTarget(MAREA_G_ValueWalk *walk, const MAREA_AstNode *type, const MAREA_AstNode *generics, MAREA_IntegerSize depth)
+static MAREA_Boolean MAREA_CALL MAREA_G_HoldsTarget(MAREA_G_ValueWalk *walk, const MAREA_AstNode *type, const MAREA_G_ValueScope *scope, MAREA_IntegerSize depth)
 {
+    if ((depth >= (walk->limit + MAREA_G_VALUE_DEPTH_EXTRA)) || (walk->steps >= MAREA_G_VALUE_STEP_LIMIT)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    ++walk->steps;
+
     const MAREA_Character8 *name = MAREA_NULLPTR;
 
     MAREA_IntegerSize nameLength = 0;
@@ -346,11 +365,24 @@ static MAREA_Boolean MAREA_CALL MAREA_G_HoldsTarget(MAREA_G_ValueWalk *walk, con
     if (MAREA_SemaDescriptorOfType(walk->context, type, &descriptor) == MAREA_BOOLEAN_TRUE) {
         const MAREA_AstNode *arguments = ((descriptor->hasIndexProtocol == MAREA_BOOLEAN_TRUE) && (descriptor->roles == MAREA_TYPE_ROLE_NONE) && (descriptor->ownershipClass == MAREA_TYPE_OWNERSHIP_CLASS_COPY)) ? MAREA_G_FindKind(type, MAREA_AST_KIND_TYPE_ARGUMENTS) : MAREA_NULLPTR;
 
-        return (arguments == MAREA_NULLPTR) ? MAREA_BOOLEAN_FALSE : MAREA_G_HoldsTarget(walk, MAREA_SemaChildAt(arguments, 0), generics, depth);
+        return (arguments == MAREA_NULLPTR) ? MAREA_BOOLEAN_FALSE : MAREA_G_HoldsTarget(walk, MAREA_SemaChildAt(arguments, 0), scope, (depth + 1));
     }
 
-    if ((MAREA_G_PlainTypeName(type, &name, &nameLength) == MAREA_BOOLEAN_FALSE) || (MAREA_SemaGenericParameterIndex(generics, name, nameLength) < ((generics == MAREA_NULLPTR) ? MAREA_INTEGER_SIZE(0) : MAREA_AstNodeGetChildCount(generics)))) {
+    if (MAREA_G_PlainTypeName(type, &name, &nameLength) == MAREA_BOOLEAN_FALSE) {
         return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_AstNode *generics = (scope == MAREA_NULLPTR) ? MAREA_NULLPTR : scope->generics;
+
+    const MAREA_IntegerSize PARAMETER = (generics == MAREA_NULLPTR) ? MAREA_INTEGER_SIZE(0) : MAREA_SemaGenericParameterIndex(generics, name, nameLength);
+
+    // INFO: a generic parameter holds the type argument that fills it, read in the scope that wrote the argument.
+    if ((generics != MAREA_NULLPTR) && (PARAMETER < MAREA_AstNodeGetChildCount(generics))) {
+        if ((scope->arguments == MAREA_NULLPTR) || (PARAMETER >= MAREA_AstNodeGetChildCount(scope->arguments))) {
+            return MAREA_BOOLEAN_FALSE;
+        }
+
+        return MAREA_G_HoldsTarget(walk, MAREA_SemaChildAt(scope->arguments, PARAMETER), scope->outer, (depth + 1));
     }
 
     const MAREA_AstNode *declaration = MAREA_G_LocalDeclaration(walk->context, name, nameLength);
@@ -377,25 +409,28 @@ static MAREA_Boolean MAREA_CALL MAREA_G_HoldsTarget(MAREA_G_ValueWalk *walk, con
         return MAREA_BOOLEAN_TRUE;
     }
 
-    for (MAREA_IntegerSize index = 0; index < walk->visitedCount; ++index) {
-        if (walk->visited[index] == declaration) {
+    const MAREA_G_ValueScope INNER = { .generics = MAREA_G_FindKind(declaration, MAREA_AST_KIND_GENERIC_PARAMETERS), .arguments = MAREA_G_FindKind(type, MAREA_AST_KIND_TYPE_ARGUMENTS), .outer = scope };
+
+    // INFO: a plain declaration holds the same types on every visit, so it is walked once. A generic one depends on its arguments, so the depth and the step limits bound it.
+    if (INNER.generics == MAREA_NULLPTR) {
+        for (MAREA_IntegerSize index = 0; index < walk->visitedCount; ++index) {
+            if (walk->visited[index] == declaration) {
+                return MAREA_BOOLEAN_FALSE;
+            }
+        }
+
+        if (walk->visitedCount >= walk->limit) {
             return MAREA_BOOLEAN_FALSE;
         }
+
+        walk->visited[walk->visitedCount] = declaration;
+        ++walk->visitedCount;
     }
-
-    if (walk->visitedCount >= walk->limit) {
-        return MAREA_BOOLEAN_FALSE;
-    }
-
-    walk->visited[walk->visitedCount] = declaration;
-    ++walk->visitedCount;
-
-    const MAREA_AstNode *inner = MAREA_G_FindKind(declaration, MAREA_AST_KIND_GENERIC_PARAMETERS);
 
     for (MAREA_IntegerSize index = 0; index < MAREA_AstNodeGetChildCount(declaration); ++index) {
         const MAREA_AstNode *member = MAREA_SemaChildAt(declaration, index);
 
-        if ((member != MAREA_NULLPTR) && (MAREA_G_MemberHoldsTarget(walk, member, inner) == MAREA_BOOLEAN_TRUE)) {
+        if ((member != MAREA_NULLPTR) && (MAREA_G_MemberHoldsTarget(walk, member, &INNER, (depth + 1)) == MAREA_BOOLEAN_TRUE)) {
             return MAREA_BOOLEAN_TRUE;
         }
     }
@@ -405,14 +440,14 @@ static MAREA_Boolean MAREA_CALL MAREA_G_HoldsTarget(MAREA_G_ValueWalk *walk, con
 
 static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckRecursion(MAREA_SemaContext *context, const MAREA_AstNode *declaration, const MAREA_AstNode **visited, MAREA_IntegerSize limit)
 {
-    MAREA_G_ValueWalk walk = { context, declaration, visited, 0, limit };
+    MAREA_G_ValueWalk walk = { context, declaration, visited, 0, limit, 0 };
 
-    const MAREA_AstNode *generics = MAREA_G_FindKind(declaration, MAREA_AST_KIND_GENERIC_PARAMETERS);
+    const MAREA_G_ValueScope SCOPE = { .generics = MAREA_G_FindKind(declaration, MAREA_AST_KIND_GENERIC_PARAMETERS) };
 
     for (MAREA_IntegerSize index = 0; index < MAREA_AstNodeGetChildCount(declaration); ++index) {
         const MAREA_AstNode *member = MAREA_SemaChildAt(declaration, index);
 
-        if ((member == MAREA_NULLPTR) || (MAREA_G_MemberHoldsTarget(&walk, member, generics) == MAREA_BOOLEAN_FALSE)) {
+        if ((member == MAREA_NULLPTR) || (MAREA_G_MemberHoldsTarget(&walk, member, &SCOPE, 0) == MAREA_BOOLEAN_FALSE)) {
             continue;
         }
 

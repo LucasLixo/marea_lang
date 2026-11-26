@@ -350,6 +350,25 @@ TEST(MAREASemaTypesAndDeclarations, StructureHoldingItselfByValueIsRecursiveType
     EXPECT_EQ(MAREA_codesOf("enum Tree Leaf; Branch(inner: Tree); end"), Codes{ RECURSIVE }) << "A variant field that holds the enum by value must raise.";
 }
 
+TEST(MAREASemaTypesAndDeclarations, RecursionThroughAGenericStructureIsReported)
+{
+    GTEST_COUT << "Validating a field of an instantiated generic structure or enum is followed with its type arguments." << std::endl;
+
+    constexpr MAREA_Uinteger32 RECURSIVE{ MAREA_SEMA_DIAGNOSTIC_CODE_RECURSIVE_TYPE };
+
+    const std::string BOX{ "structure Box<T> value: T; end " };
+
+    EXPECT_EQ(MAREA_codesOf(BOX + "structure Node next: Box<Node>; end"), Codes{ RECURSIVE }) << "A wrapper holds its argument by value.";
+    EXPECT_EQ(MAREA_codesOf(BOX + "structure Node next: Box<Box<Node>>; end"), Codes{ RECURSIVE }) << "A wrapper of a wrapper too.";
+    EXPECT_EQ(MAREA_codesOf("structure Pair<A, B> first: A; end structure Node next: Pair<Node, sinteger32>; end"), Codes{ RECURSIVE }) << "A held parameter.";
+    EXPECT_EQ(MAREA_codesOf("structure Pair<A, B> first: A; end structure Node next: Pair<sinteger32, Node>; end"), Codes{}) << "A parameter that no field holds.";
+    EXPECT_EQ(MAREA_codesOf(BOX + "enum Tree Leaf; Branch(inner: Box<Tree>); end"), Codes{ RECURSIVE }) << "A variant field that holds the enum through a wrapper.";
+    EXPECT_EQ(MAREA_codesOf("structure Holder<T> items: demo.vector<T>; end structure Node next: Holder<Node>; end"), Codes{}) << "A vector is indirect.";
+    EXPECT_EQ(MAREA_codesOf("structure Node next: Wrap<sinteger32>; end structure Wrap<T> back: Node; end"), (Codes{ RECURSIVE, RECURSIVE })) << "A generic structure that holds the target.";
+    EXPECT_EQ(MAREA_codesOf("structure Grow<T> left: Grow<Grow<T>>; right: Grow<Grow<T>>; end"), Codes{ RECURSIVE }) << "An expanding recursion ends.";
+    EXPECT_EQ(MAREA_codesOf(BOX + "structure Node next: sinteger32; end structure Other next: Box<Node>; end"), Codes{}) << "No cycle.";
+}
+
 TEST(MAREASemaTypesAndDeclarations, IndirectSelfReferenceIsAccepted)
 {
     GTEST_COUT << "Validating an indirect self reference and a plain nesting raise nothing." << std::endl;
