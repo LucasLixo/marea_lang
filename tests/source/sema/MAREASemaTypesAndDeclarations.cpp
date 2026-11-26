@@ -366,6 +366,34 @@ TEST(MAREASemaTypesAndDeclarations, OpaqueTypeOfAnotherFileIsClassified)
     EXPECT_TRUE(MAREA_codesOf("import a.b as b; structure H box: b.Box; end function f(v: b.Box) local x: sinteger32 = v.x; end", FOUND).empty()) << "A structure of another file must raise nothing.";
 }
 
+TEST(MAREASemaTypesAndDeclarations, UnknownVariantOfAnEnumOfAnotherFileIsRejected)
+{
+    GTEST_COUT << "Validating UNKNOWN_ENUM_VARIANT for an enum of a FOUND namespace and an imported enum." << std::endl;
+
+    MAREA_SemaFixture library;
+
+    ASSERT_EQ(library.parser.MAREA_parse("namespace a.b; enum Color Red; Green; end implementation Color function paint(self: Color) end end"), MAREA_PARSE_EXCEPT_SUCCESS) << "The library must parse.";
+
+    const MAREA_ResolveCallback FOUND{ [&library](const std::string &text, const MAREA_AstNode **outRoot) {
+        if (text != "a.b") {
+            return MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
+        }
+
+        *outRoot = library.parser.root;
+
+        return MAREA_SEMA_IMPORT_RESULT_FOUND;
+    } };
+
+    constexpr MAREA_Uinteger32 VARIANT{ MAREA_SEMA_DIAGNOSTIC_CODE_UNKNOWN_ENUM_VARIANT };
+
+    EXPECT_EQ(MAREA_codesOf("import a.b as b; function f() local c: b.Color = b.Color.Purple; end", FOUND), Codes{ VARIANT }) << "An enum reached by an alias must be checked.";
+    EXPECT_EQ(MAREA_codesOf("import a.b; function f() local c: a.b.Color = a.b.Color.Purple; end", FOUND), Codes{ VARIANT }) << "An enum reached by a full path must be checked.";
+    EXPECT_EQ(MAREA_codesOf("import a.b.Color as Paint; function f() local c: Paint = Paint.Purple; end", FOUND), Codes{ VARIANT }) << "An imported enum must be checked.";
+    EXPECT_TRUE(MAREA_codesOf("import a.b as b; function f() local c: b.Color = b.Color.Red; b.Color.paint(c); end", FOUND).empty()) << "A variant and an implemented function must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("import a.b; function f() local c: a.b.Color = a.b.Color.Green; end", FOUND).empty()) << "A variant written with a full path must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("import a.b.Color as Paint; function f() local c: Paint = Paint.Red; end", FOUND).empty()) << "A variant of an imported enum must raise nothing.";
+}
+
 TEST(MAREASemaTypesAndDeclarations, StructureHoldingItselfByValueIsRecursiveType)
 {
     GTEST_COUT << "Validating a structure or enum that holds itself by value raises RECURSIVE_TYPE." << std::endl;

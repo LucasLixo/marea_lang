@@ -49,6 +49,10 @@ inline const MAREA_AstNode *MAREA_fixtureShapes()
         "    return Box{ open = 1, secret = 2 };",
         "end",
         "opaque structure Texture;",
+        "enum Color",
+        "    Red;",
+        "    Green;",
+        "end",
     })) };
 
     return (PARSED == MAREA_PARSE_EXCEPT_SUCCESS) ? parser.root : nullptr;

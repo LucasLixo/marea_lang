@@ -1498,13 +1498,13 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckFieldName(MAREA_SemaContext *con
     return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_UNKNOWN_FIELD, MAREA_AstNodeGetPosition(access), "structure has no field", MAREA_AstNodeGetText(member), MAREA_AstNodeGetTextLength(member));
 }
 
-// INFO: true when an implementation block of this file for the enum declares a function or a constant with the name.
-static MAREA_Boolean MAREA_CALL MAREA_G_EnumHasImplementedMember(const MAREA_SemaContext *context, const MAREA_AstNode *enumeration, const MAREA_Character8 *name, MAREA_IntegerSize length)
+// INFO: true when an implementation block of the tree of the enum declares a function or a constant with the name.
+static MAREA_Boolean MAREA_CALL MAREA_G_EnumHasImplementedMember(const MAREA_AstNode *root, const MAREA_AstNode *enumeration, const MAREA_Character8 *name, MAREA_IntegerSize length)
 {
     const MAREA_AstNode *enumerationName = MAREA_G_FindChild(enumeration, MAREA_AST_KIND_IDENTIFIER);
 
-    for (MAREA_IntegerSize block = 0; ((enumerationName != MAREA_NULLPTR) && (block < MAREA_AstNodeGetChildCount(context->root))); ++block) {
-        const MAREA_AstNode *implementation = MAREA_SemaChildAt(context->root, block);
+    for (MAREA_IntegerSize block = 0; ((enumerationName != MAREA_NULLPTR) && (block < MAREA_AstNodeGetChildCount(root))); ++block) {
+        const MAREA_AstNode *implementation = MAREA_SemaChildAt(root, block);
 
         const MAREA_AstNode *implemented = (MAREA_G_IsKind(implementation, MAREA_AST_KIND_IMPLEMENTATION_DECLARATION) == MAREA_BOOLEAN_TRUE) ? MAREA_G_FindChild(implementation, MAREA_AST_KIND_NAMED_TYPE) : MAREA_NULLPTR;
 
@@ -1530,20 +1530,28 @@ static MAREA_Boolean MAREA_CALL MAREA_G_EnumHasImplementedMember(const MAREA_Sem
     return MAREA_BOOLEAN_FALSE;
 }
 
-// INFO: Enum.Name of an enum of this file must name a variant, or a function or a constant that an implementation block of this file gives the enum. A local that hides the enum name, and an enum of another file, are not checked. A method callee is a MEMBER_ACCESS too, so the call case does not give its callee to this check.
+// INFO: Enum.Name must name a variant, or a function or a constant that an implementation block gives the enum. The enum may be of this file, of a FOUND namespace or imported, and its blocks are in its own tree. A local that hides the enum name is not checked. A method callee is a MEMBER_ACCESS too, so the call case does not give its callee to this check.
 static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckEnumVariant(MAREA_SemaContext *context, const MAREA_AstNode *access)
 {
     const MAREA_AstNode *base = MAREA_SemaChildAt(access, 0);
 
     const MAREA_AstNode *member = MAREA_SemaChildAt(access, 1);
 
-    if ((MAREA_G_IsKind(base, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_FALSE) || (member == MAREA_NULLPTR) || (MAREA_G_FindLocal(context, base) != MAREA_NULLPTR)) {
+    if (member == MAREA_NULLPTR) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
-    const MAREA_AstNode *enumeration = MAREA_G_FindDeclaration(context, base, MAREA_AST_KIND_ENUM_DECLARATION);
+    MAREA_SemaTypeTarget target = { .type = MAREA_NULLPTR, .declaration = MAREA_NULLPTR, .root = MAREA_NULLPTR };
 
-    if ((enumeration == MAREA_NULLPTR) || (MAREA_SemaEnumHasVariant(enumeration, MAREA_AstNodeGetText(member), MAREA_AstNodeGetTextLength(member)) == MAREA_BOOLEAN_TRUE) || (MAREA_G_EnumHasImplementedMember(context, enumeration, MAREA_AstNodeGetText(member), MAREA_AstNodeGetTextLength(member)) == MAREA_BOOLEAN_TRUE)) {
+    const MAREA_SemaExcept TARGET_RESULT = MAREA_SemaFindNamedTarget(context, base, &target);
+
+    if ((TARGET_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) || (MAREA_G_IsKind(target.declaration, MAREA_AST_KIND_ENUM_DECLARATION) == MAREA_BOOLEAN_FALSE)) {
+        return TARGET_RESULT;
+    }
+
+    const MAREA_AstNode *root = (target.root != MAREA_NULLPTR) ? target.root : context->root;
+
+    if ((MAREA_SemaEnumHasVariant(target.declaration, MAREA_AstNodeGetText(member), MAREA_AstNodeGetTextLength(member)) == MAREA_BOOLEAN_TRUE) || (MAREA_G_EnumHasImplementedMember(root, target.declaration, MAREA_AstNodeGetText(member), MAREA_AstNodeGetTextLength(member)) == MAREA_BOOLEAN_TRUE)) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
@@ -1663,7 +1671,8 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckValue(MAREA_SemaContext *context
             const MAREA_SemaExcept PATH_RESULT = MAREA_G_CheckFullPath(context, expression, &fullPath);
 
             if ((PATH_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) || (fullPath == MAREA_BOOLEAN_TRUE)) {
-                return PATH_RESULT;
+                // INFO: a full path names the enum with every segment, so its variant is read here.
+                return (PATH_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) ? PATH_RESULT : MAREA_G_CheckEnumVariant(context, expression);
             }
         }
 

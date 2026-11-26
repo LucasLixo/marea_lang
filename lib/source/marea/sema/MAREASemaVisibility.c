@@ -350,6 +350,47 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_BaseRoot(MAREA_SemaContext *context, 
     return MAREA_SEMA_EXCEPT_SUCCESS;
 }
 
+MAREA_SemaExcept MAREA_CALL MAREA_SemaFindNamedTarget(MAREA_SemaContext *context, const MAREA_AstNode *expression, MAREA_SemaTypeTarget *outTarget)
+{
+    if ((context == MAREA_NULLPTR) || (outTarget == MAREA_NULLPTR)) {
+        return MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    outTarget->type = MAREA_NULLPTR;
+    outTarget->declaration = MAREA_NULLPTR;
+    outTarget->root = MAREA_NULLPTR;
+
+    if (MAREA_G_IsKind(expression, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_TRUE) {
+        const MAREA_Character8 *text = MAREA_AstNodeGetText(expression);
+
+        const MAREA_IntegerSize LENGTH = MAREA_AstNodeGetTextLength(expression);
+
+        const MAREA_SemaName *entry = (MAREA_SemaLocalFind(context, text, LENGTH) != MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_SemaNameTableFind(context, text, LENGTH);
+
+        if ((entry != MAREA_NULLPTR) && (entry->kind == MAREA_SEMA_NAME_KIND_DECLARATION)) {
+            outTarget->declaration = entry->declaration;
+        } else if ((entry != MAREA_NULLPTR) && (entry->kind == MAREA_SEMA_NAME_KIND_IMPORTED_SYMBOL)) {
+            outTarget->declaration = MAREA_G_ImportedDeclaration(context, entry, &outTarget->root);
+        }
+
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    if (MAREA_G_IsKind(expression, MAREA_AST_KIND_MEMBER_ACCESS) == MAREA_BOOLEAN_FALSE) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_AstNode *member = MAREA_SemaChildAt(expression, 1);
+
+    const MAREA_SemaExcept RESULT = MAREA_G_BaseRoot(context, MAREA_SemaChildAt(expression, 0), member, &outTarget->root);
+
+    if ((RESULT == MAREA_SEMA_EXCEPT_SUCCESS) && (outTarget->root != MAREA_NULLPTR)) {
+        outTarget->declaration = MAREA_G_FindDeclaration(outTarget->root, MAREA_AstNodeGetText(member), MAREA_AstNodeGetTextLength(member));
+    }
+
+    return RESULT;
+}
+
 // INFO: the function of an implementation block of a structure or an enum, and that block.
 static const MAREA_AstNode *MAREA_CALL MAREA_G_FindMethod(const MAREA_AstNode *root, const MAREA_AstNode *declaration, const MAREA_Character8 *name, MAREA_IntegerSize nameLength, const MAREA_AstNode **outBlock)
 {
@@ -398,44 +439,6 @@ static const MAREA_AstNode *MAREA_CALL MAREA_G_FindMethod(const MAREA_AstNode *r
     return MAREA_NULLPTR;
 }
 
-// INFO: the structure or enum that an expression names as a type: Box, ns.Box or the full path of one.
-static MAREA_SemaExcept MAREA_CALL MAREA_G_NamedTarget(MAREA_SemaContext *context, const MAREA_AstNode *expression, MAREA_SemaTypeTarget *outTarget)
-{
-    outTarget->type = MAREA_NULLPTR;
-    outTarget->declaration = MAREA_NULLPTR;
-    outTarget->root = MAREA_NULLPTR;
-
-    if (MAREA_G_IsKind(expression, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_TRUE) {
-        const MAREA_Character8 *text = MAREA_AstNodeGetText(expression);
-
-        const MAREA_IntegerSize LENGTH = MAREA_AstNodeGetTextLength(expression);
-
-        const MAREA_SemaName *entry = (MAREA_SemaLocalFind(context, text, LENGTH) != MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_SemaNameTableFind(context, text, LENGTH);
-
-        if ((entry != MAREA_NULLPTR) && (entry->kind == MAREA_SEMA_NAME_KIND_DECLARATION)) {
-            outTarget->declaration = entry->declaration;
-        } else if ((entry != MAREA_NULLPTR) && (entry->kind == MAREA_SEMA_NAME_KIND_IMPORTED_SYMBOL)) {
-            outTarget->declaration = MAREA_G_ImportedDeclaration(context, entry, &outTarget->root);
-        }
-
-        return MAREA_SEMA_EXCEPT_SUCCESS;
-    }
-
-    if (MAREA_G_IsKind(expression, MAREA_AST_KIND_MEMBER_ACCESS) == MAREA_BOOLEAN_FALSE) {
-        return MAREA_SEMA_EXCEPT_SUCCESS;
-    }
-
-    const MAREA_AstNode *member = MAREA_SemaChildAt(expression, 1);
-
-    const MAREA_SemaExcept RESULT = MAREA_G_BaseRoot(context, MAREA_SemaChildAt(expression, 0), member, &outTarget->root);
-
-    if ((RESULT == MAREA_SEMA_EXCEPT_SUCCESS) && (outTarget->root != MAREA_NULLPTR)) {
-        outTarget->declaration = MAREA_G_FindDeclaration(outTarget->root, MAREA_AstNodeGetText(member), MAREA_AstNodeGetTextLength(member));
-    }
-
-    return RESULT;
-}
-
 static MAREA_SemaExcept MAREA_CALL MAREA_G_ValueType(MAREA_SemaContext *context, const MAREA_AstNode *expression, MAREA_Uinteger32 depth, MAREA_SemaTypeTarget *outTarget);
 
 // INFO: the structure or enum behind the base of a member: the type of a value, or the type that the base names.
@@ -450,7 +453,7 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_BaseTarget(MAREA_SemaContext *context
     }
 
     if (value.type == MAREA_NULLPTR) {
-        return MAREA_G_NamedTarget(context, base, outTarget);
+        return MAREA_SemaFindNamedTarget(context, base, outTarget);
     }
 
     MAREA_IGNORE(MAREA_SemaFindTypeTarget(context, value.type, value.root, outTarget));
@@ -488,7 +491,7 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CallType(MAREA_SemaContext *context, 
     if (MAREA_G_IsKind(callee, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_TRUE) {
         MAREA_SemaTypeTarget named = { .type = MAREA_NULLPTR, .declaration = MAREA_NULLPTR, .root = MAREA_NULLPTR };
 
-        const MAREA_SemaExcept RESULT = MAREA_G_NamedTarget(context, callee, &named);
+        const MAREA_SemaExcept RESULT = MAREA_SemaFindNamedTarget(context, callee, &named);
 
         if ((RESULT == MAREA_SEMA_EXCEPT_SUCCESS) && (MAREA_G_IsKind(named.declaration, MAREA_AST_KIND_FUNCTION_DECLARATION) == MAREA_BOOLEAN_TRUE)) {
             MAREA_G_ResultType(named.declaration, named.root, MAREA_NULLPTR, outTarget);
@@ -720,7 +723,7 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckMemberAccess(MAREA_SemaContext *
         MAREA_SemaTypeTarget target = value;
 
         if (value.type == MAREA_NULLPTR) {
-            const MAREA_SemaExcept NAMED_RESULT = MAREA_G_NamedTarget(context, base, &target);
+            const MAREA_SemaExcept NAMED_RESULT = MAREA_SemaFindNamedTarget(context, base, &target);
 
             if (NAMED_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
                 return NAMED_RESULT;

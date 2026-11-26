@@ -1074,6 +1074,17 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaFindTypeTarget(const MAREA_SemaContext *context, const MAREA_AstNode *type, const MAREA_AstNode *root, MAREA_SemaTypeTarget *outTarget);
 
     /**
+     * @brief Gives the declaration that an expression names, as Box, ns.Box, the full path of one or an
+     * imported symbol. A name that a local hides names nothing, and no type alias is followed.
+     * @param context Context of the run. Must not be null.
+     * @param expression Expression node. May be null.
+     * @param outTarget Receives the declaration, or null, and its tree (null for the file of the run). Must
+     * not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaFindNamedTarget(MAREA_SemaContext * context, const MAREA_AstNode *expression, MAREA_SemaTypeTarget *outTarget);
+
+    /**
      * @brief Writes the type that a role names around one argument, as text in the arena of the context:
      * "namespace.Name<argument>", with the full path of the registered type that holds the role. Sema
      * uses it for the handle of a spawn and the part of a partition, so it never writes a type name itself.

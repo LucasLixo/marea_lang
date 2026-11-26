@@ -405,9 +405,10 @@ plain name is not judged. `construct` and `destroy` keep their own shape rule (3
 operator attribute is not checked.
 
 **Type function call.** A call `value.name(...)` or `Type.name(...)` is `UNKNOWN_TYPE_FUNCTION` (3049), reported at the
-call, when the receiver is a structure or an enum declared in the file (a bare type name that no local hides, or a
-local or parameter of that type, an alias followed) and the type has no function `name` in any of its
-`implementation` blocks, no field `name` (a callback) and, for an enum, no variant `name` (`Shape.Circle(1.0)`).
+call, when the receiver is a structure or an enum (a bare type name that no local hides, or a local or parameter of that
+type, an alias followed) and the type has no function `name` in any of its `implementation` blocks, no field `name` (a
+callback) and, for an enum, no variant `name` (`Shape.Circle(1.0)`). The type may be declared in the file, or in a
+`FOUND` namespace and written `b.Point`, `a.b.Point` or by an imported name; its blocks are then read in its own tree.
 
 **Type construction call.** A call whose callee is a structure or an enum name of the file, not hidden by a local,
 resolves to that type's construct operator instead of an ordinary call: `Point(1.0, 2.0)` is checked against
@@ -436,9 +437,10 @@ ordinary call.
 width is the size of the tag (see [Layout of a structure and an enum](#layout-of-a-structure-and-an-enum)).
 
 **Enum variants.** An enum that declares no variant is `EMPTY_ENUM` (3047), once at the enum. `Enum.Name` is
-`UNKNOWN_ENUM_VARIANT` (3048) when `Enum` is an enum of this file, no local hides its name, and `Name` is no variant
-and no function or constant of an `implementation` block of this file for that enum. The callee of a call
-(`Color.make()`) is not checked here (see `UNKNOWN_TYPE_FUNCTION`, 3049).
+`UNKNOWN_ENUM_VARIANT` (3048) when `Enum` names an enum, no local hides its name, and `Name` is no variant and no
+function or constant of an `implementation` block for that enum. The enum may be of this file, or of a `FOUND`
+namespace, written `b.Color`, `a.b.Color` or by an imported name; its blocks are then read in its own tree. The callee
+of a call (`Color.make()`) is not checked here (see `UNKNOWN_TYPE_FUNCTION`, 3049).
 
 **Ownership.** A parameter's passing mode is its `semantics` attribute - `value_read_only` (a
 copy), `reference_read_only` (a read-only borrow) or `reference_mutable` (a write borrow, the
@@ -1316,10 +1318,8 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 
 ## Gaps
 
-- `UNKNOWN_ENUM_VARIANT` (3048) checks a member access of an enum of this file only. A `case Color.Purple then` label
-  is not a checked slot, so a label that is not a variant is not seen. An enum of another namespace or an imported
-  enum is not checked, because its `implementation` blocks are in another file. The call form `Color.make()` is the
-  rule of 3049.
+- `UNKNOWN_ENUM_VARIANT` (3048): a `case Color.Purple then` label is not a checked slot, so a label that is not a
+  variant is not seen.
 - The array rule of `partition` (3064) does not judge a source that sema cannot trace to a type: a type that no
   descriptor describes, a call result that sema does not type, and an owner (the value that it holds is not read).
 - A write through a method call on a read-only receiver, and a library call that mutates (`values.append(x)`), are
@@ -1333,8 +1333,7 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 - The full-path rules read the member chain of a value or a call and the qualified name of a type. A full path to a type of a
   `FOUND` namespace (`a.b.Item`, with no alias) is read for its cover, for its existence as a namespace prefix and for
   the visibility of the type and of its members (3066 to 3068): the layout of such a field and the typed spelling of the
-  type read the alias form (`import a.b as b;` then `b.Item`). A full path to an enum of a `FOUND` namespace with a variant
-  (`a.b.Color.Red`) is covered but not read for its variants.
+  type read the alias form (`import a.b as b;` then `b.Item`).
 - A private member reached by the full path of a namespace is `PRIVATE_SYMBOL_ACCESS` (3066) as before; a cover that is
   an unresolved declaration still covers its path, so the use raises nothing beyond the unresolved report.
 - The IR does not lower a full path yet: a chain before a member is only flagged as a qualifier, so the unit lowers like one
@@ -1383,9 +1382,10 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
   compared (3011, 3053). A bare name of an imported function, and a value that sema does not type, are accepted.
 - A declared operator is read at its use only on a binary expression: a compound assignment and a unary operator do not
   read it, its result type is not read, and a type with two functions for one operator is not judged.
-- `UNKNOWN_TYPE_FUNCTION` (3049) skips a receiver of another namespace, a library type, a generic parameter and an
-  unknown type, because sema cannot see their functions. Only a bare name or a local that is a bare name is a receiver:
-  a call on a field chain or on a call result is not checked. A function of a contract on a generic receiver is not checked.
+- `UNKNOWN_TYPE_FUNCTION` (3049) skips a library type, a generic parameter, an `EXTERNAL` namespace and an unknown
+  type, because sema cannot see their functions. Only a bare name, a local that is a bare name and a name of a type of
+  another namespace are a receiver: a call on a field chain or on a call result is not checked. A function of a contract
+  on a generic receiver is not checked.
 - The `for`, `for each`, `partition`
   and `with` header expressions and the initializer of a file constant are checked. A constant that has
   an `ERROR_NODE` below it has no name check, because the parser may leave its tokens as an expression.

@@ -814,6 +814,8 @@ Function declaration and call, parameters and defaults, the result and `return v
 | L-TYPES-219 | a condition that is a field of another type | 3043 @14 |
 | L-TYPES-220 | a false static assertion on the size of a structure | 3059 @14 |
 | L-TYPES-221 | A structure that holds itself through a generic structure | 3045 @14 |
+| L-TYPES-222 | A variant that an enum of another namespace does not have | 3048 @12 |
+| L-TYPES-223 | A method call of a function that a type of another namespace does not have | 3049 @12 |
 | L-TYPES-070 | a switch arm whose value has another type than the switch value | 3011 @11 |
 | L-TYPES-071 | a case value of a variant of another enum | 3011 @21 |
 | L-TYPES-147 | a for range with a bound of another type | 3011 @10 |
@@ -1359,8 +1361,8 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | ownership | 67 | 78 | 2 |
 | parallel | 20 | 41 | 0 |
 | seed | 1 | 2 | 0 |
-| types | 62 | 152 | 0 |
-| total | 281 | 599 | 10 |
+| types | 62 | 154 | 0 |
+| total | 281 | 601 | 10 |
 
 ## Parity
 
