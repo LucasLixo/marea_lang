@@ -95,6 +95,32 @@ TEST(MAREACgenScalar, ConvertTrapsExactlyWhereTheVmTraps)
     EXPECT_EQ(MAREA_parityDouble(RESULT.generated[12]), 16777216.0) << "A float32 rounds the integer.";
 }
 
+TEST(MAREACgenScalar, ConvertToTheWidestIntegersTrapsAtTheLimit)
+{
+    GTEST_COUT << "Validating a float of exactly 2^63 or 2^64 does not fit a 64-bit integer, and the largest value below fits." << std::endl;
+
+    const std::string SOURCE{ "namespace main; function s(x: float64): sinteger64 return convert<sinteger64>(x); end function u(x: float64): uinteger64 return convert<uinteger64>(x); end" };
+
+    const std::vector<MAREA_ParityCall> CALLS{
+        MAREA_parityCall("s", "sinteger64", { MAREA_parityFloat("float64", 9223372036854775808.0) }),
+        MAREA_parityCall("u", "uinteger64", { MAREA_parityFloat("float64", 18446744073709551616.0) }),
+        MAREA_parityCall("s", "sinteger64", { MAREA_parityFloat("float64", 9223372036854774784.0) }),
+        MAREA_parityCall("u", "uinteger64", { MAREA_parityFloat("float64", 18446744073709549568.0) }),
+    };
+
+    const MAREA_ParityResult RESULT{ MAREA_parityGenerated(SOURCE, CALLS) };
+
+    ASSERT_TRUE(RESULT.failures.empty()) << RESULT.MAREA_failures();
+
+    EXPECT_EQ(RESULT.generated[0].trap, MAREA_TRAP_CONVERT_OUT_OF_RANGE) << "2^63 does not fit a sinteger64.";
+
+    EXPECT_EQ(RESULT.generated[1].trap, MAREA_TRAP_CONVERT_OUT_OF_RANGE) << "2^64 does not fit a uinteger64.";
+
+    EXPECT_EQ(MAREA_parityValue(RESULT.generated[2]), 9223372036854774784) << "The largest double below 2^63.";
+
+    EXPECT_EQ(RESULT.generated[3].bits, 18446744073709549568ULL) << "The largest double below 2^64.";
+}
+
 TEST(MAREACgenScalar, PowerTrapsOnANegativeExponentAsInTheVm)
 {
     GTEST_COUT << "Validating a power wraps, traps on a negative exponent and works on floats as the vm does." << std::endl;
