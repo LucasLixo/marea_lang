@@ -646,6 +646,11 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressionFitsPrimitive(MAREA_SemaCon
 
     const MAREA_G_Shape actual = MAREA_G_ShapeOf(context, expression, 0);
 
+    // INFO: a host signature may name a structure of the unit, and a value of that structure fits its own name.
+    if ((actual.kind == MAREA_G_SHAPE_KIND_STRUCTURE) && (MAREA_G_SameName(&target, &actual) == MAREA_BOOLEAN_TRUE)) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
     if (MAREA_G_Fits(&target, &actual) == MAREA_BOOLEAN_TRUE) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }

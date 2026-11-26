@@ -161,7 +161,8 @@ asked again; sema only reads them during one call, never copies or frees them.
 A call to a member with a signature is checked like a call of a file function: the argument count must
 equal `parameterCount` exactly (the host describes no default) or `ARGUMENT_COUNT_MISMATCH` (3010), and
 each argument must fit its parameter's primitive spelling or `TYPE_MISMATCH` (3011), by the same literal
-and primitive fit rule as `MAREA_SemaCheckExpressionFit`. The call is then typed with the signature's
+and primitive fit rule as `MAREA_SemaCheckExpressionFit`. A parameter may also name a `structure`: a value of the
+structure of that name fits it, and a value of any other structure is `TYPE_MISMATCH`. The call is then typed with the signature's
 result spelling. The member or name itself (`puts` before the call, `power` used with no call) stays
 untyped: only the call gets the signature's result.
 
