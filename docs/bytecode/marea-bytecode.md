@@ -63,14 +63,22 @@ null argument or an index past the count the same way. Every count accessor on a
   type index is its position in the table. Index 0 has no special meaning yet.
 - **Functions.** A name, a result type (an index or `MAREA_BYTECODE_NONE`), the register count, the size of the frame
   area, a flag word, a parameter list (a type and a flag word each) and the code of the function.
-- **Code.** One instruction is 64 bits: `opcode`, `a`, `b`, `c`, each 16 bits. The table of opcodes (46 values,
+- **Imports.** A function with the flag `MAREA_BYTECODE_FUNCTION_FLAG_HOST` (bit 0) is an import: a C function that a
+  host or a library registers. Its name is the full path of the registration (`marea.math.add`), and it has no
+  register and no instruction. A parameter with `MAREA_BYTECODE_PARAMETER_FLAG_BORROW` (bit 0) is a borrow: its
+  register holds the address of the value. The binary and text forms carry both flags in the flag words they already
+  have, so the format version does not change.
+- **Code.** One instruction is 64 bits: `opcode`, `a`, `b`, `c`, each 16 bits. The table of opcodes (48 values,
   `MAREA_BytecodeOpcode`) covers the scalar slices (move and constant loading, integer and float arithmetic with a
   `MAREA_BytecodeNumberKind` operand, the saturating family, bitwise and shift, convert, every comparison, jump and
   the two conditional jumps, call and return) and the composite family this slice adds (`zero`, `addr_of`, `field`,
-  `load`, `store`, `copy_bytes`, `load_data_block`, see "Composite values" below), plus one `trap` opcode whose
+  `load`, `store`, `copy_bytes`, `load_data_block`, see "Composite values" below), the two allocator opcodes
+  (`alloc a b c`: a new zeroed block of as many bytes as register `b` holds, aligned to `c`, its address in `a`;
+  `free a`: gives back the block at the address in `a`, nothing for the null address) and one `trap` opcode whose
   operand is a `MAREA_BytecodeTrapCode` (division by zero, a shift out of range, a negative exponent, a convert
-  out of range, `unreachable!()`, a missing return, a stack overflow, an index out of bounds). A later slice (host
-  calls, `fork_join`) adds an opcode as one more value and one more row of the name table of
+  out of range, `unreachable!()`, a missing return, a stack overflow, an index out of bounds, out of memory, a
+  missing host function, a bad part count). A host call has no opcode of its own: it is `call` with the index of an
+  import. A later slice adds an opcode as one more value and one more row of the name table of
   `MAREABytecodeOpcode.c`. `MAREABytecodeOpcode.h` documents the operand meaning of every opcode in full.
 - **Data.** A list of read-only blobs, such as the bytes of an embedded file. A blob may be empty, and two equal blobs
   keep two indexes.
@@ -166,11 +174,12 @@ d1 -
 `MAREA_BytecodeGenerate(context, irModule, &outModule)` reads one `MAREA_IR_KIND_MODULE` node and writes one
 `MAREA_BytecodeModule`, or leaves `outModule` null with a diagnostic for the first construct it cannot lower.
 Covers the scalar slices (integer and float expressions, locals, `return`, `if`, `while`, `switch`, `for` range,
-calls with scalar parameters, a borrow of a primitive, which the language already passes by value) and, this
-slice, a `structure` local with no `construct` or `destroy` operator (see "Composite values" below): `array`,
-`enum` with data, `string`, a lifecycle call to a user `construct` or `destroy`, a `structure` as a parameter, a
-call argument or a result, host call or `fork_join` is still `UNSUPPORTED_TYPE` or `UNSUPPORTED_CONSTRUCT`, left
-to a later slice.
+calls with scalar parameters, a borrow of a primitive, which the language already passes by value), a `structure`
+local with no `construct` or `destroy` operator (see "Composite values" below), calls of registered C functions (see
+"Host calls") and `fork_join` with `spawn` and `partition` (see "fork_join, spawn and partition"). `array`, `enum`
+with data, `string`, a lifecycle call to a user `construct` or `destroy`, and a `structure` as a parameter or a
+result of a function of the unit are still `UNSUPPORTED_TYPE` or `UNSUPPORTED_CONSTRUCT`, left to a later slice.
+No source construct lowers to `alloc` or `free` yet: the library that owns the pointer and owner types adds it.
 
 - **Registers.** A function keeps a flat list of virtual registers, numbered from 0, freed back to the mark of
   their own block when it ends (so two sibling blocks reuse the same numbers) and never reused while still read.
@@ -190,8 +199,9 @@ to a later slice.
   "Call-default filling" of `docs/ir/marea-ir.md`) is found in a function table the generator fills before any
   body is lowered, so a function may call one declared after it, or itself. The call opcode's window is one
   result register plus one register per argument, right above the registers already in use; the callee's own
-  parameters land in that window. A callee outside the unit, through a member access, or with the wrong
-  argument count (a gap of the IR's own default filling) is `UNRESOLVED_NAME` or `UNSUPPORTED_CONSTRUCT`.
+  parameters land in that window. A callee that is a member of a namespace, and is not a function of the unit, is a
+  host call. A method of a value or of a type of the unit, or a wrong argument count (a gap of the IR's own default
+  filling), is `UNSUPPORTED_CONSTRUCT`, and a bare name that nothing declares is `UNRESOLVED_NAME`.
   `convert<T>(x)` is the one built-in call this slice lowers, to the `convert` opcode.
 - **Composite values.** A local whose resolved type names a `structure` of the same unit, with every field
   measured by sema's layout (`MAREA_IrLayout`, read through `MAREA_IrModuleFindLayout`), lowers to the type table
@@ -204,15 +214,48 @@ to a later slice.
   lowers to `zero` over the whole size, the language's zero-default rule, then one `field` and `load`/`store` or
   recursive `MAREA_BytecodeGeneratorConstructAggregate` call per `FIELD_ENTRY` (a nested structure field is built
   in the same pass). `copy name` and `move name` both lower to `copy_bytes` from the named local's address;
-  `move` also `zero`s the source's bytes afterward, the same instruction the zero rule uses. A `MEMBER_ACCESS`
+  `move` also `zero`s the source's bytes afterward, the same instruction the zero rule uses. An assignment to a
+  structure local (`=`) builds the new value in frame bytes of its own and then `copy_bytes` it over the target,
+  so the value may read the target and the two never alias. A `MEMBER_ACCESS`
   chain (`a.b.c`) reads a field, following a nested structure's address through as many `field` steps as the
   chain needs. `load_data_block` copies a read-only blob into a reserved range of the frame area, for a future
-  `include_bytes!`. None of this crosses a call: a `structure` parameter, call argument or result, a
-  `CONSTRUCT_CALL` or `DESTROY_CALL` to a user `construct` or `destroy` (which would need the address of the
+  `include_bytes!`. A structure crosses a host call only: a `structure` parameter or result of a function of the
+  unit, a `CONSTRUCT_CALL` or `DESTROY_CALL` to a user `construct` or `destroy` (which would need the address of the
   value as a hidden argument), an `enum` with data, an `array` or a `tuple` are a later slice (see Gaps); the vm's
   own mechanics for all of them (the frame memory area, the bounds check an index needs, a tagged union's tag and
   payload) are already proven directly against hand-built modules in `tests/source/vm/MAREAVm.cpp`, ahead of the
   generator wiring.
+
+## Host calls
+
+A call whose callee is a member of a namespace (`math.add(a, b)` through an alias, `marea.math.add(a, b)` written in
+full, or a member imported under a name of its own) and is not a function of the unit becomes a `call` of an import.
+The imports come after the functions of the unit in the function table. Two calls share one import when the name,
+the parameter types and flags and the result type are the same.
+
+- **Signature.** Sema types the call from the signature function of the import resolver (see
+  `docs/sema/marea-sema.md`): the call node has the declared result type, and a number literal argument has the
+  declared parameter type. The module takes the parameter and result types of an import from these nodes. The
+  registry holds no signature, so the host must give sema the signature of the function that it registers.
+- **Arguments.** A scalar (an integer, a float or a `boolean`) is a value in the call window. A structure of the
+  unit is a borrow: the register holds the address of the local or of the field itself, and a structure literal, a
+  `copy`, a `move` or the result of another host call is first built in frame bytes of its own.
+- **Result.** A scalar comes back in the first register of the window. For a structure result the generator reserves
+  frame bytes, puts their address in that register (`addr_of`) and clears them (`zero`) before the call. A local
+  built from a host call, or an assignment of one, then copies those bytes, so `a = f(a, a)` reads the old `a`.
+- **No type.** A call that sema could not type (no signature) is accepted as a statement only, as an import with no
+  result. As a value, or as an argument of another host call, it is `UNTYPED_OPERAND` (5035), so a miss is never
+  silent.
+
+## fork_join, spawn and partition
+
+`fork_join` lowers as its block, and a `spawn` that is a statement lowers as its call, so each worker runs to its end
+where it stands, in source order, and the join is the end of the block. No opcode is added.
+
+`partition v into n as part` evaluates `n` once, traps `INVALID_PARTITION_COUNT` when it is zero or less, and runs
+the body `n` times, from part 0 to part `n - 1`, also when `n` is more than the number of elements. The value that is
+cut is not read and `part` is not a value yet (`UNSUPPORTED_TYPE`), because no view type has a bytecode form; the
+length and the start of each part come with that type. The handle that a `spawn` gives is not a value yet either.
 
 ## Diagnostics
 
@@ -236,11 +279,12 @@ line, column and offset of the IR node it was raised at.
 | 5022 | `TEXT_BAD_INDEX` | an item that does not carry the next number, or a reference with the wrong letter |
 | 5023 | `TEXT_BAD_NUMBER` | a number with a non-digit, with no digit, or above the limit of its field |
 | 5024 | `TEXT_BAD_STRING` | a string with no opening or closing quote, an unknown escape, a character that is not printable ASCII |
-| 5030 | `UNSUPPORTED_CONSTRUCT` | `fork_join`, a `CONSTRUCT_CALL` or a `DESTROY_CALL` (a user `construct` or `destroy`), a structure literal that holds something that is not a named field, a call with the wrong argument count, a call this slice cannot resolve to a function of the unit |
+| 5030 | `UNSUPPORTED_CONSTRUCT` | an assignment to a field, a `with`, a `CONSTRUCT_CALL` or a `DESTROY_CALL` (a user `construct` or `destroy`), a structure literal that holds something that is not a named field, a call with the wrong argument count, a method call |
 | 5031 | `UNRESOLVED_NAME` | a name that is not a local, a parameter, a module constant or a function of the unit; a structure field name a `MEMBER_ACCESS` or a `FIELD_ENTRY` does not declare |
-| 5032 | `OPERAND_OVERFLOW` | a function needs more than 65535 registers, a jump farther than 32767 instructions, a module needs more than 65535 constants, the frame area needs more bytes than this slice allows |
-| 5033 | `UNSUPPORTED_TYPE` | a parameter, a call argument or a result of a `structure`; a `string`, an `enum` with data, an `array` or a `tuple` anywhere; a structure field of such a type; a `MEMBER_ACCESS` of a nested structure (reads only a scalar field) |
+| 5032 | `OPERAND_OVERFLOW` | a function needs more than 65535 registers, a jump farther than 32767 instructions, a module needs more than 65535 constants, functions or imports, the frame area needs more bytes than this slice allows |
+| 5033 | `UNSUPPORTED_TYPE` | a parameter or a result of a `structure` in a function of the unit; a `string`, an `enum` with data, an `array` or a `tuple` anywhere; a structure field of such a type; a `MEMBER_ACCESS` of a nested structure (reads only a scalar field); the handle of a `spawn` or the part of a `partition` used as a value |
 | 5034 | `UNWALKABLE_COLLECTION` | a `for each`, because no collection type is a bytecode value in this slice |
+| 5035 | `UNTYPED_OPERAND` | a host call that sema gave no type, used as a value or as an argument of a host call |
 
 The range 5000 to 5999 is reserved for this stage. The messages are fixed texts and do not name the value.
 
@@ -251,9 +295,19 @@ The range 5000 to 5999 is reserved for this stage. The messages are fixed texts 
   structure. `tests/language/accept/memory/L-MEMORY-010.marea` through `-015.marea` already exercise the sema and
   ir side of this (each with an `-- output:` comment that names the expected construct and destroy order) and
   still only reach `UNSUPPORTED_CONSTRUCT` here; wiring them is the next composites apply's first item.
-- A `structure` as a parameter, a call argument or a function result is `UNSUPPORTED_TYPE`: passing or returning
-  one needs the same hidden-address convention as a lifecycle call. A local-only structure (built, read, copied
-  and moved inside one function) is this slice's whole scope.
+- A `structure` as a parameter or a result of a function of the unit is `UNSUPPORTED_TYPE`: passing or returning
+  one needs the same hidden-address convention as a lifecycle call. A structure is a local, or an argument or the
+  result of a host call. A field of a host call result (`f().x`) is not read directly; keep the result in a local.
+- An `enum` value cannot be an argument or a result of a host call, and neither can a `string` or a library type.
+- Sema does not check that a structure that crosses to C has `#[layout = c]` and measured members; the generator
+  sends the layout sema measured. A signature cannot mark a parameter `mutable`, so a write of a C function through
+  a read-only borrow is not seen by sema, and a scalar argument is always by value.
+- A call into another unit of the project is not told apart from a host call, because the IR does not say which
+  namespace is registered: it becomes an import, and traps `HOST_FUNCTION_MISSING` when nothing registers that
+  name. The same holds for a call through `Self` or a local type alias. Module linking is future work.
+- A `partition` runs its body the right number of times but gives no part: the value it cuts is not read and the
+  rule that gives the first `length % n` parts one more element is not applied yet. The handle of a `spawn` has no
+  form, so a result of a worker cannot be kept and read after the join.
 - An `enum` with data (a tagged union payload), `array`, `vector`, `tuple` and `string` are not lowered from the
   IR: no accepted program can write `array<T, N>` or `tuple<T, U>` yet (no shipped library registers them, wave
   5), and no accepted program constructs a data-carrying enum variant (`Shape.Circle(2.0)`) either, so the
@@ -273,10 +327,6 @@ The range 5000 to 5999 is reserved for this stage. The messages are fixed texts 
   a slice limit, not a language rule. A structure's own byte layout (field order, offset, size, alignment) comes
   straight from sema's layout table with no re-derivation here, so a future `cgen` backend must compute the same
   layout for the two backends to agree (the parity goal of the design).
-- A call outside the unit (through an import, an alias, or a member access) is not resolved: the generator's
-  function table holds only the functions the IR module itself declares. `UNRESOLVED_NAME` covers it, the same
-  code a plain undeclared name gives; the two are not told apart, because no accepted program reaches the first
-  one yet (sema already rejects an undeclared callee before the IR is built).
 - The binary has no constants section, no exports, no interface hash and no debug section, so the module cannot
   state a C module API yet (load, unload, interface hash, find by name). The design numbers sections 3, 7, 8 and 9
   for these; they are unused in version 0.1.

@@ -56,7 +56,27 @@ MAREA_BEGIN_EXTERN_C
         MAREA_BYTECODE_DIAGNOSTIC_CODE_OPERAND_OVERFLOW = MAREA_UINTEGER_32(5032),
         MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE = MAREA_UINTEGER_32(5033),
         MAREA_BYTECODE_DIAGNOSTIC_CODE_UNWALKABLE_COLLECTION = MAREA_UINTEGER_32(5034),
+        MAREA_BYTECODE_DIAGNOSTIC_CODE_UNTYPED_OPERAND = MAREA_UINTEGER_32(5035),
     } MAREA_BytecodeDiagnosticCode;
+
+    /**
+     * @brief Bits of MAREA_BytecodeFunctionInfo.flags. HOST marks an import: a function that a host or a
+     * library registered in C. Its name is the full path of the registration, it has no register and no
+     * instruction, and a call of it goes to the registry of the vm. The other bits have no meaning yet.
+     */
+    typedef enum MAREA_BytecodeFunctionFlag
+    {
+        MAREA_BYTECODE_FUNCTION_FLAG_HOST = MAREA_UINTEGER_32(1),
+    } MAREA_BytecodeFunctionFlag;
+
+    /**
+     * @brief Bits of MAREA_BytecodeParameterInfo.flags. BORROW marks a parameter whose register holds the
+     * address of the value, not the value. The other bits have no meaning yet.
+     */
+    typedef enum MAREA_BytecodeParameterFlag
+    {
+        MAREA_BYTECODE_PARAMETER_FLAG_BORROW = MAREA_UINTEGER_32(1),
+    } MAREA_BytecodeParameterFlag;
 
     /**
      * @brief Kind of a type of the type table.

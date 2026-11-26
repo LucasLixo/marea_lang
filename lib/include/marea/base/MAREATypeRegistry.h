@@ -140,6 +140,32 @@ MAREA_BEGIN_EXTERN_C
     } MAREA_MacroDescriptor;
 
     /**
+     * @brief The one shape of a C function that the language runtime calls: what a function registered with
+     * MAREA_REGISTER_FUNCTION must have so that the vm can call it. arguments holds one pointer for each
+     * parameter, in order. For a borrowed value (a structure) it points at the bytes of the value itself, with
+     * the layout of the structure. For a scalar it points at 8 bytes in the register form: an integer sign
+     * extended or zero extended to 64 bits, a float32 or a float64 as a float64, a boolean as the 64-bit integer 0
+     * or 1. result points at the storage of the result: 8 zeroed bytes in the register form for a scalar result,
+     * or the zeroed bytes of the structure for a structure result. result is null when the function has no
+     * result. result does not alias an argument. Every pointer is valid only for the time of the call, and the
+     * function must not keep it.
+     */
+    typedef void(MAREA_CALL * MAREA_HostFunction)(const MAREA_Null *arguments, MAREA_Null result);
+
+    /**
+     * @brief The shape of a replacement of the runtime hook "alloc". It gives a block of at least size bytes
+     * whose address is a multiple of alignment (a power of two), or null when it cannot. The runtime fills the
+     * block with zeros itself. size is at least 1.
+     */
+    typedef MAREA_Null(MAREA_CALL * MAREA_RuntimeAllocateFunction)(MAREA_IntegerSize size, MAREA_IntegerSize alignment);
+
+    /**
+     * @brief The shape of a replacement of the runtime hook "free". address is a block that the replacement of
+     * "alloc" gave and that is not free yet, never null.
+     */
+    typedef void(MAREA_CALL * MAREA_RuntimeFreeFunction)(MAREA_Null address);
+
+    /**
      * @brief Result of a registry operation.
      */
     typedef enum MAREA_TypeRegistryExcept
@@ -303,10 +329,11 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_TypeRegistryExcept MAREA_CALL MAREA_TypeRegistryReplaceRuntimeFunction(MAREA_TypeRegistry * registry, const MAREA_Character8 *name, MAREA_IntegerSize nameLength, MAREA_Null functionPointer);
 
     /**
-     * @brief Reads back the current implementation of a runtime hook: the replacement when one was
-     * given, else the registry's own default.
+     * @brief Reads back the replacement of a runtime hook. The registry holds no default of its own: the
+     * runtime that calls the hook uses its own when the answer is null.
      * @param registry Registry to query. Null returns null.
-     * @return The function pointer, or null when name is not a runtime hook the registry declares.
+     * @return The replacement, or null when none was given or name is not a runtime hook the registry
+     * declares.
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Null MAREA_CALL MAREA_TypeRegistryFindRuntimeFunction(const MAREA_TypeRegistry *registry, const MAREA_Character8 *name, MAREA_IntegerSize nameLength);
 
@@ -314,7 +341,8 @@ MAREA_BEGIN_EXTERN_C
      * @brief Registers one C function for the language runtime: the one macro that exposes a function,
      * with no external generator and no hand-written glue on either side. owner MAREA_LIBRARY_FLAG_NONE
      * registers through the public entry (a user or a host); any other owner registers through the
-     * internal entry (a shipped library), the only path allowed to name a function under c or marea.
+     * internal entry (a shipped library), the only path allowed to name a function under c or marea. A
+     * function that the vm must call has the shape of MAREA_HostFunction; the macro does not check it.
      */
     #define MAREA_REGISTER_FUNCTION(registry, owner, namespaceText, namespaceLength, name, nameLength, functionPointer)                                                                       \
         (((owner) == MAREA_LIBRARY_FLAG_NONE) ? MAREA_TypeRegistryRegisterPublicFunction((registry), (namespaceText), (namespaceLength), (name), (nameLength), (MAREA_Null)(functionPointer)) \

@@ -59,6 +59,8 @@ static const MAREA_G_OpcodeRow MAREA_G_OPCODE_TABLE[] = {
     { .name = "store", .opcode = MAREA_BYTECODE_OPCODE_STORE },
     { .name = "copy_bytes", .opcode = MAREA_BYTECODE_OPCODE_COPY_BYTES },
     { .name = "load_data_block", .opcode = MAREA_BYTECODE_OPCODE_LOAD_DATA_BLOCK },
+    { .name = "alloc", .opcode = MAREA_BYTECODE_OPCODE_ALLOCATE },
+    { .name = "free", .opcode = MAREA_BYTECODE_OPCODE_FREE },
 };
 
 const MAREA_Character8 *MAREA_CALL MAREA_BytecodeOpcodeGetName(MAREA_Uinteger16 opcode)

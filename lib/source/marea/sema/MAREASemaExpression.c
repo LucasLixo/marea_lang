@@ -646,7 +646,16 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressionFitsPrimitive(MAREA_SemaCon
 
     const MAREA_G_Shape actual = MAREA_G_ShapeOf(context, expression, 0);
 
-    if (MAREA_G_Fits(&target, &actual) == MAREA_BOOLEAN_TRUE) {
+    // INFO: a host signature may name a structure of the unit, and a value of that structure fits its own name.
+    if ((actual.kind == MAREA_G_SHAPE_KIND_STRUCTURE) && (MAREA_G_SameName(&target, &actual) == MAREA_BOOLEAN_TRUE)) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    // INFO: a number literal is a value of a primitive only, never of a type that a signature names.
+    const MAREA_Boolean NUMBER_LITERAL = ((actual.kind == MAREA_G_SHAPE_KIND_INTEGER_LITERAL) || (actual.kind == MAREA_G_SHAPE_KIND_FLOAT_LITERAL));
+    const MAREA_Boolean OTHER_NAME = (NUMBER_LITERAL && (MAREA_SemaIsPrimitiveTypeName(primitiveName, primitiveLength) == MAREA_BOOLEAN_FALSE));
+
+    if ((OTHER_NAME == MAREA_BOOLEAN_FALSE) && (MAREA_G_Fits(&target, &actual) == MAREA_BOOLEAN_TRUE)) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 

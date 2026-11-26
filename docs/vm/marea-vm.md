@@ -4,8 +4,10 @@
 
 The `vm` stage is the reference interpreter: it reads a `MAREA_BytecodeModule` (`vm` never reads the IR, never
 reads the disk and has no global state) and runs one function of it to completion, giving either a value or a
-trap. A `MAREA_VmContext` (an arena and a diagnostic sink, created once and reused across calls) is the only
-state a caller keeps; the interpreter itself keeps nothing between calls. A register is an untagged 64-bit value,
+trap. A `MAREA_VmContext` (an arena, a diagnostic sink and an optional type registry, created once and reused across
+calls) is the only state a caller keeps; the interpreter itself keeps nothing between calls. The registry
+(`marea::base`) gives it the C functions of the host and the replacements of the runtime hooks. The memory that a
+program allocates comes from the allocator hooks, never from the arena of the context. A register is an untagged 64-bit value,
 read the way the bytecode stage already normalizes it (sign extended for a signed integer, zero extended for an
 unsigned one, a float32 as the float64 bit pattern that holds it). A fault the language itself defines (division
 by zero, a shift out of range, a negative exponent, a convert that does not fit, `unreachable!()`, a missing
@@ -34,6 +36,22 @@ if (result.trapped) {
 } else {
     /* result.value is the raw register bits of the result, read per the function's own result type */
 }
+```
+
+A program that calls C needs a registry, and a function in the one shape the vm calls:
+
+```c
+static void MAREA_CALL host_add(const MAREA_Null *arguments, MAREA_Null result)
+{
+    const MAREA_Sinteger64 SUM = (*(const MAREA_Sinteger64 *)arguments[0] + *(const MAREA_Sinteger64 *)arguments[1]);
+
+    *(MAREA_Sinteger64 *)result = SUM;
+}
+
+MAREA_TypeRegistry *registry;
+MAREA_TypeRegistryCreate(arena, MAREA_LIBRARY_MASK_DEFAULT, &registry);
+MAREA_REGISTER_FUNCTION(registry, MAREA_LIBRARY_FLAG_NONE, "demo.host", 9, "add", 3, &host_add);
+MAREA_VmContextSetTypeRegistry(context, registry);
 ```
 
 `MAREA_VmFindFunction` finds a function by its full name alone (the namespace and the name,
@@ -90,7 +108,8 @@ order, read the same way `MAREA_BytecodeModuleGetParameter` and `MAREA_BytecodeM
   one scalar there, normalized the same way a typed arithmetic opcode is; `zero` clears a byte range at an
   address, or the register itself when the byte count is 0; `copy_bytes` duplicates a byte range between two
   addresses (`memmove`, so the ranges may overlap); `load_data_block` copies one blob of the read-only data
-  section to an address, as many bytes as the blob holds. None of these opcodes reads the module's type table:
+  section to an address, as many bytes as the blob holds. The area starts at a 16-byte address
+  (`MAREA_VM_FRAME_MEMORY_ALIGNMENT`). None of these opcodes reads the module's type table:
   the byte offsets and the counts are baked into the instructions by `MAREA_BytecodeGenerate`, so the vm only
   ever moves bytes it is told to, never a type it looks up itself. A composite address stays valid for as long
   as its frame is on the call chain (including every call that frame makes), because the memory is the C stack
@@ -102,18 +121,65 @@ order, read the same way `MAREA_BytecodeModuleGetParameter` and `MAREA_BytecodeM
   (`MAREA_BYTECODE_TRAP_CODE_INDEX_OUT_OF_BOUNDS`), the same pattern a generated `if` already uses, proven directly
   in `tests/source/vm/MAREAVm.cpp` against a hand-built module (`IndexOutOfRangeTrapsOnABoundsCheckedArray`).
 
+## Host calls
+
+A `call` whose function index is an import (`MAREA_BYTECODE_FUNCTION_FLAG_HOST`) goes to C. The vm splits the name of
+the import at its last dot and asks the registry of the context for that namespace and name
+(`MAREA_TypeRegistryFindFunction`), at each call. Nothing registered, or a context with no registry, is the trap
+`HOST_FUNCTION_MISSING`. The registry rejects a registration of a user or a host under `c` or `marea`, so only a
+shipped library, through the internal entry, answers there.
+
+Every registered function that the vm calls has the one shape `MAREA_HostFunction` (`marea/base/MAREATypeRegistry.h`):
+`void f(const MAREA_Null *arguments, MAREA_Null result)`.
+
+| Value | Pointer that the function gets |
+|---|---|
+| A borrowed structure | the bytes of the value itself, with its layout; a write through it changes the value of the program |
+| A scalar argument | 8 bytes in the register form: an integer sign or zero extended to 64 bits, a float32 or float64 as a float64, a boolean as the integer 0 or 1 |
+| A structure result | the bytes of the result, cleared by the bytecode before the call |
+| A scalar result | 8 zeroed bytes; the vm then normalizes them to the declared type (`sinteger8` 200 is -56, a `float32` is rounded, a `boolean` is 0 or 1) |
+| No result | a null pointer |
+
+The macro does not check the shape of the function, and the vm cannot check that the types of an import match what
+the function reads and writes: the registered function, the signature given to sema and the registration must agree.
+A host function has no way to raise a trap and gets no context. It adds no frame to the call depth. A host function
+takes at most `MAREA_VM_HOST_PARAMETER_LIMIT` (32) parameters; more is `MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE`.
+`MAREA_VmFindFunction` does not find an import, and `MAREA_VmCall` of one is `MAREA_VM_EXCEPT_ERROR_UNKNOWN_FUNCTION`.
+
+## Allocation
+
+`alloc` and `free` use the runtime hooks of the registry (`MAREA_TypeRegistryReplaceRuntimeFunction` with `"alloc"`
+of the shape `MAREA_RuntimeAllocateFunction` and `"free"` of the shape `MAREA_RuntimeFreeFunction`), else the
+allocator of the vm, which is `malloc` and `free` of the C library with the requested alignment. A host replaces both
+or neither: with one only, the first `alloc` or `free` is `MAREA_VM_EXCEPT_ERROR_UNPAIRED_ALLOCATOR`.
+
+- The vm clears every new block, also a block of a host allocator.
+- A request of 0 bytes asks for 1 byte, so it still gives an address that `free` takes.
+- A null block, or a size that the machine cannot hold, is the trap `OUT_OF_MEMORY`.
+- An alignment that is not a power of two is a malformed module (`MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE`).
+- `free` of the null address does nothing. A second `free` of a block, or an address that `alloc` did not give, is
+  undefined. A block that is still held when a run ends or traps is never freed by the vm.
+
+## fork_join
+
+The vm has nothing for `fork_join`: the bytecode stage lowers it to the plain calls and loops of one thread, so a trap
+in one worker ends the run and no later worker starts.
+
 ## Diagnostics
 
 The vm raises no diagnostic: a fault the opcode defines is a `MAREA_VmResult` trap (the `MAREA_BytecodeTrapCode`
 of `docs/bytecode/marea-bytecode.md`), and every other fault is a `MAREA_VmExcept` the caller reads directly
 (`MAREA_VM_EXCEPT_ERROR_NULL_POINTER`, `MAREA_VM_EXCEPT_ERROR_OUT_OF_MEMORY`, `MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE`,
-`MAREA_VM_EXCEPT_ERROR_UNKNOWN_FUNCTION`, `MAREA_VM_EXCEPT_ERROR_ARGUMENT_COUNT`).
+`MAREA_VM_EXCEPT_ERROR_UNKNOWN_FUNCTION`, `MAREA_VM_EXCEPT_ERROR_ARGUMENT_COUNT`,
+`MAREA_VM_EXCEPT_ERROR_UNPAIRED_ALLOCATOR`).
 
 ## Gaps
 
-- Every opcode the format header defines today is interpreted, including the composite family this slice adds
-  (`zero`, `addr_of`, `field`, `load`, `store`, `copy_bytes`, `load_data_block`); a later apply's host call or
-  `fork_join` opcode still needs a matching case added here.
+- Every opcode the format header defines today is interpreted; a later opcode needs a matching case added here.
+- `fork_join` is sequential: there is no thread and no atomic in the vm.
+- Nothing traps on a double `free` and nothing tracks the blocks of a run, so a run that traps leaks them.
+- A structure with an alignment above 16 may reach a C function misaligned: the frame memory area is aligned to 16 only.
+- An address of a host allocator that does not meet the requested alignment is not detected.
 - The composite opcodes move bytes at the address they are given with no bounds check of their own (the generator
   is trusted to have reserved enough frame memory and to have computed every offset correctly); only a
   dynamically indexed element, built from `lt_u` and a trap, is checked at run time. A malformed module that
@@ -121,8 +187,8 @@ of `docs/bytecode/marea-bytecode.md`), and every other fault is a `MAREA_VmExcep
   a byte count that runs past the end of the area it was given, is undefined, the one place this interpreter
   still trusts the module rather than checking it; `MAREA_BytecodeGenerate` itself never emits such an offset.
   A tighter check (the address plus the count against the owning frame's own range) is future work.
-- `MAREA_BytecodeGenerate` does not yet lower a structure as a parameter, a call argument or a result, a user
-  `construct` or `destroy`, an `enum` with data, an `array`, a `vector`, a `tuple` or a `string` (see the Gaps of
+- `MAREA_BytecodeGenerate` does not yet lower a structure as a parameter or a result of a function of the unit, a
+  user `construct` or `destroy`, an `enum` with data, an `array`, a `vector`, a `tuple` or a `string` (see the Gaps of
   `docs/bytecode/marea-bytecode.md`), so this interpreter has not run any of them through a generated program
   yet; its own mechanics for a tagged union and for a bounds-checked array are proven directly against hand-built
   modules instead (`tests/source/vm/MAREAVm.cpp`).
