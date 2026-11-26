@@ -10,6 +10,7 @@ namespace
     using Codes = std::vector<MAREA_Uinteger32>;
 
     constexpr MAREA_Uinteger32 MISMATCH{ MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH };
+    constexpr MAREA_Uinteger32 ARGUMENT_MISMATCH{ MAREA_SEMA_DIAGNOSTIC_CODE_GENERIC_ARGUMENT_MISMATCH };
 
     Codes MAREA_codesOf(const std::string &body)
     {
@@ -42,4 +43,61 @@ TEST(MAREASemaKnownTypes, ViewAndRawPointerAreKnownShapes)
     EXPECT_TRUE(MAREA_codesOf("function f(a: demo.slice<sinteger32>) end function g(s: demo.slice<sinteger32>) f(s); local v: demo.slice<sinteger32> = s; end").empty()) << "A slice of the same element must raise nothing.";
 
     EXPECT_TRUE(MAREA_codesOf("require vulkan; function g() unsafe local p: demo.pointer<uinteger8> = vulkan.take(); local q: demo.pointer<uinteger8> = p; local w: uinteger64 = convert<uinteger64>(p); end end").empty()) << "A raw pointer of the same element and a conversion of it must raise nothing.";
+}
+
+TEST(MAREASemaKnownTypes, FieldOfAnyTypeIsTypedFromItsDeclaration)
+{
+    GTEST_COUT << "Validating a field that is not a primitive has the type of its declaration." << std::endl;
+
+    const std::string TYPES{ "structure Point x: sinteger32; end structure Holder inner: Point; run: function(): sinteger32; end function take(n: sinteger32) end function keep(p: Point) end " };
+
+    EXPECT_EQ(MAREA_codesOf(TYPES + "function g(h: Holder) take(h.inner); end"), Codes{ MISMATCH }) << "A structure field for a primitive must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(TYPES + "function g(h: Holder) take(h.run); end"), Codes{ MISMATCH }) << "A function field for a primitive must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(TYPES + "function g(hs: demo.vector<Point>) take(hs[0]); end"), Codes{ MISMATCH }) << "A structure element for a primitive must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf("structure Box<Item> value: Item; end function g(b: Box<float32>) local s: string = b.value; end"), Codes{ MISMATCH }) << "The field of a generic structure has the type argument of the value.";
+
+    EXPECT_TRUE(MAREA_codesOf("structure Box<Item> value: Item; end function g(b: Box<float32>) local s: float32 = b.value; end").empty()) << "A field that fits its type argument must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(TYPES + "function g(h: Holder) keep(h.inner); take(h.inner.x); take(h.run()); end").empty()) << "Fitting fields must raise nothing.";
+
+    EXPECT_EQ(MAREA_codesOf("structure Point x: sinteger32; end implementation Point function name(self: Self) local s: string = self.x; end end"), Codes{ MISMATCH }) << "A field of Self is typed from the implemented structure.";
+}
+
+TEST(MAREASemaKnownTypes, CallHasTheResultTypeOfItsCallee)
+{
+    GTEST_COUT << "Validating a method call, a static call, a construction and a call of a function value are typed." << std::endl;
+
+    const std::string TYPES{ "structure Point x: sinteger32; end implementation Point function label(self: Self): string return \"p\"; end function origin(): Self return Point{ x = 0 }; end function twin(self: Self): Point return Point{ x = self.x }; end end function take(n: sinteger32) end function keep(p: Point) end " };
+
+    EXPECT_EQ(MAREA_codesOf(TYPES + "function g(p: Point) take(p.label()); end"), Codes{ MISMATCH }) << "A method result of another type must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(TYPES + "function g() take(Point.origin()); end"), Codes{ MISMATCH }) << "A static result of Self must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(TYPES + "function g(p: Point) local s: string = p.twin().x; end"), Codes{ MISMATCH }) << "A field of a call result is typed.";
+
+    EXPECT_EQ(MAREA_codesOf(TYPES + "function g() take(Point{ x = 1 }); take(Point()); end"), (Codes{ MISMATCH, MISMATCH })) << "A struct literal and a construction call have the structure type.";
+
+    EXPECT_EQ(MAREA_codesOf("function g(run: function(): string) local n: sinteger32 = run(); end"), Codes{ MISMATCH }) << "A call of a function value has the result of its type.";
+
+    EXPECT_TRUE(MAREA_codesOf(TYPES + "function g(p: Point) local s: string = p.label(); keep(Point.origin()); take(p.twin().x); keep(Point()); end").empty()) << "Fitting results must raise nothing.";
+}
+
+TEST(MAREASemaKnownTypes, FileConstantHasItsDeclaredType)
+{
+    GTEST_COUT << "Validating a constant that is not a primitive has its declared type." << std::endl;
+
+    const std::string TYPES{ "structure Point x: sinteger32; end constant ORIGIN: Point = Point{ x = 0 }; implementation Point constant UNIT: Point = Point{ x = 1 }; end function take(n: sinteger32) end function keep(p: Point) end " };
+
+    EXPECT_EQ(MAREA_codesOf(TYPES + "function g() take(ORIGIN); end"), Codes{ MISMATCH }) << "A structure constant for a primitive must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf(TYPES + "function g() take(Point.UNIT); end"), Codes{ MISMATCH }) << "An implementation constant for a primitive must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf("constant TABLE: demo.array<sinteger32, 2> = demo.array<sinteger32, 2>{ 1, 2 }; function keep(t: demo.array<sinteger8, 2>) end function g() keep(TABLE); end"), Codes{ ARGUMENT_MISMATCH }) << "The type arguments of a constant are compared.";
+
+    EXPECT_EQ(MAREA_codesOf("function make(): demo.vector<sinteger32> return demo.vector<sinteger32>{}; end function keep(t: demo.vector<string>) end function g() keep(make()); end"), Codes{ ARGUMENT_MISMATCH }) << "The type arguments of a call result are compared.";
+
+    EXPECT_TRUE(MAREA_codesOf(TYPES + "function g() keep(ORIGIN); take(ORIGIN.x); keep(Point.UNIT); end").empty()) << "A fitting constant must raise nothing.";
 }

@@ -1007,6 +1007,64 @@ MAREA_BEGIN_EXTERN_C
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaWrapInRoleType(MAREA_SemaContext * context, MAREA_TypeRole role, const MAREA_Character8 *argumentText, MAREA_IntegerSize argumentLength, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength);
 
+    #define MAREA_SEMA_BINDING_LIMIT MAREA_INTEGER_SIZE(16)
+
+    /**
+     * @brief One generic name and the written type that it stands for, null while nothing bound it.
+     */
+    typedef struct MAREA_SemaBinding
+    {
+        const MAREA_Character8 *name;
+        const MAREA_AstNode *type;
+        MAREA_IntegerSize length;
+    } MAREA_SemaBinding;
+
+    /**
+     * @brief The generic names that a written type may mention, each with its bound type.
+     */
+    typedef struct MAREA_SemaBindings
+    {
+        MAREA_SemaBinding items[MAREA_SEMA_BINDING_LIMIT];
+        MAREA_IntegerSize count;
+    } MAREA_SemaBindings;
+
+    /**
+     * @brief The written type of a value or of a target, with the generic names of the declaration that wrote it. A
+     * bound type is a type of the reader, so it mentions none of these names.
+     */
+    typedef struct MAREA_SemaWrittenType
+    {
+        const MAREA_AstNode *type;
+        MAREA_SemaBindings bindings;
+    } MAREA_SemaWrittenType;
+
+    /**
+     * @brief Gives the written type of an expression: a local, a constant, a field, an element, the result of a call
+     * of a function of the file, of a method or of a function value, and a struct literal.
+     * @param context Context of the run. Must not be null.
+     * @param expression Expression node. May be null.
+     * @param outType Receives the type. Its node is null when sema does not know the type. Must not be null.
+     * @return MAREA_BOOLEAN_TRUE when the node of outType is not null.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaWrittenTypeOf(const MAREA_SemaContext *context, const MAREA_AstNode *expression, MAREA_SemaWrittenType *outType);
+
+    /**
+     * @brief Replaces a bare generic name by its bound type (null when nothing bound it) and Self by the type of the
+     * implementation block being visited.
+     * @param context Context of the run. Must not be null.
+     * @param type Type to resolve in place. Must not be null.
+     */
+    MAREA_EXTERN_DECL void MAREA_CALL MAREA_SemaResolveWrittenType(const MAREA_SemaContext *context, MAREA_SemaWrittenType *type);
+
+    /**
+     * @brief Finds a constant that a bare name reads: one of the implementation block being visited, else one of the
+     * file.
+     * @param context Context of the run. Must not be null.
+     * @param name IDENTIFIER node. Must not be null.
+     * @return The CONSTANT_DECLARATION, or null.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_AstNode *MAREA_CALL MAREA_SemaFindConstant(const MAREA_SemaContext *context, const MAREA_AstNode *name);
+
     /**
      * @brief Finds the declared type of an expression when it is cheap to know: a local or parameter, a
      * struct literal, a field of a known structure, or an element of an array, slice, vector or pointer.

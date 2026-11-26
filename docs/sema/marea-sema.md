@@ -624,15 +624,18 @@ whose type is the bare name of an opaque structure raises `OPAQUE_FIELD_BY_VALUE
 with the owner role, a raw pointer, a borrow and a C call stay legal.
 
 **Expressions.** Sema gives an expression a type only when it is cheap to know, and never guesses. A
-literal has its own type. A name has the declared type of its local, parameter or file constant. A field, or an
-element of an `array`, `slice`, `vector` or `pointer`, has the type sema already reads for the ownership check
-(a primitive only). A built-in `convert<T>(x)` has the type `T`. A `-`, `~`, `copy` or `move` keeps the type of its operand. `not`, `and`, `or` and a
-comparison give `boolean`. A shift gives the type of its left side. Any other binary operator, `**` too, gives the
-type of both sides when they are the same primitive, or when one side is a number literal and the other a
-primitive of its family; it gives no type when they differ. A call of a plain function of the file (not
-generic, and not hidden by a local of the same name) has the declared result type. A call whose callee is a
-structure or an enum name of the file has that type, as construction ("Type construction call" above). Everything else has an
-unknown type and is accepted. The type of an expression is compared with the declared type when that type
+literal has its own type. A name has the declared type of its local, parameter or constant (a constant of the file, of
+the implementation block being visited, or `Type.NAME`). A field has the type its structure declares for it, and a
+field of a generic structure takes the type arguments of the value (`b.value` is `float32` when `b` is `Box<float32>`);
+`Self` is the implemented type. An element of an `array`, `slice`, `vector` or `pointer` has the first type argument. A
+built-in `convert<T>(x)` has the type `T`. A `-`, `~`, `copy` or `move` keeps the type of its operand. `not`, `and`,
+`or` and a comparison give `boolean`. A shift gives the type of its left side. Any other binary operator, `**` too,
+gives the type of both sides when they are the same primitive, or when one side is a number literal and the other a
+primitive of its family; it gives no type when they differ. A call has the declared result of its callee: a plain
+function of the file (not generic, and not hidden by a local of the same name), a method or a static function of an
+`implementation` of a structure or an enum of the file, or a value of a function type. A call whose callee is a
+structure or an enum name of the file has that type, as construction ("Type construction call" above). Everything else
+has an unknown type and is accepted. The type of an expression is compared with the declared type when that type
 is a primitive, at a call argument of a function of the file, a local initializer, a plain `=` assignment, a
 `return` value and a constant initializer: a conversion is always written, so two primitives are the same
 only by name (`sinteger32` does not fit `sinteger64`), a number literal fits any number type, a fraction literal
@@ -1276,8 +1279,8 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
   enum is not checked, because its `implementation` blocks are in another file. The call form `Color.make()` is the
   rule of 3049.
 - The array rule of `partition` (3064) rejects only a source that sema knows is a number, a primitive, a structure or an
-  enum. A `slice`, a `pointer`, a library type that is not an array and a call result have no known shape, so a
-  partition of them is accepted.
+  enum (a call result of one of these included). A `slice`, a `pointer`, a function value, a library type that is not an
+  array and a result that sema does not type are not rejected, so a partition of them is accepted.
 - A write through a method call on a read-only receiver, and a library call that mutates (`values.append(x)`), are
   not seen: sema does not know which calls mutate. The rule 3069 reads only a written assignment, a mutable loop or
   partition and a write-borrow argument.
@@ -1327,8 +1330,9 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
   has no role of its own in the roles table yet.
 - Renaming on use inside one file (without an import) is not offered: a local declaration has its own name.
 - `TYPE_MISMATCH` (3011) sorts the type of an expression into a fixed set of shapes: a literal, a primitive, a
-  structure, a view, a raw pointer, and, known but never compared, an enum, a library type, a generic parameter and a registered type of the move class or an inline run. Still fully unknown: any other registered type, the type of a field or a file
-  constant that is not a primitive, and the result of a generic call (see below).
+  structure, a view, a raw pointer, and, known but never compared, an enum, a library type, a generic parameter and a registered type of the move class or an inline run. Still fully unknown: any other registered type, the result of a
+  generic call, and the result of a call of an imported function or of an `EXTERNAL` member (its host signature is read
+  for the arguments only).
 - A struct literal with a missing field is rejected (3077, one report per literal, so a second missing field shows only after the first is written). The ir has no `ZERO_VALUE` any more (removed in PR #355): no accepted program has an omitted field, so the ir has nothing to fill.
 - A call of a method or of an imported function that has no result, used as a value, is not seen: sema cannot see its
   result (`INVALID_RESULT_USE`, 3054).
