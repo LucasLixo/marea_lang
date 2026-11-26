@@ -59,10 +59,6 @@ EOF
 
 The command refuses a message that is empty, not ASCII or in the `type: description` format, and a `metadata.yaml` whose version somebody already edited. A refused commit changes nothing in `metadata.yaml`. If the call itself is denied or the tool is missing, stop and report it.
 
-## Delegation
-
-A main session with a large context may hand a whole run to the [shipper](../../agents/shipper.md) agent, which runs on a small model, when the run takes two or more `marea-ship` calls. A single `commit`, `open-pr` or `merge` is never delegated: starting the agent and reading its report costs more turns than the call. The prompt names the paths, says in one or two sentences what changed and why, and gives the bump level. A session that is already a subagent runs the skill itself.
-
 ## Validation
 
 - Every commit has one theme, ends with ` #N` when the branch has a number, and is ASCII.
