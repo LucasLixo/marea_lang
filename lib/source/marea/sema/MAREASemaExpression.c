@@ -771,6 +771,26 @@ MAREA_Boolean MAREA_CALL MAREA_SemaPrimitiveOfExpression(const MAREA_SemaContext
     return MAREA_G_PrimitiveOfShape(&shape, outName, outLength);
 }
 
+MAREA_Boolean MAREA_CALL MAREA_SemaIsSurelyNotBoolean(const MAREA_SemaContext *context, const MAREA_AstNode *expression, const MAREA_Character8 **outName, MAREA_IntegerSize *outLength)
+{
+    const MAREA_G_Shape shape = MAREA_G_ShapeOf(context, expression, 0);
+
+    *outName = (shape.name == MAREA_NULLPTR) ? "another type" : shape.name;
+    *outLength = (shape.name == MAREA_NULLPTR) ? strlen("another type") : shape.length;
+
+    switch (shape.kind) {
+    case MAREA_G_SHAPE_KIND_PRIMITIVE:
+        return (MAREA_G_TextIs(shape.name, shape.length, "boolean") == MAREA_BOOLEAN_TRUE) ? MAREA_BOOLEAN_FALSE : MAREA_BOOLEAN_TRUE;
+    // INFO: an unknown shape, a generic parameter and a library type may still be a boolean.
+    case MAREA_G_SHAPE_KIND_UNKNOWN:
+    case MAREA_G_SHAPE_KIND_GENERIC:
+    case MAREA_G_SHAPE_KIND_LIBRARY:
+        return MAREA_BOOLEAN_FALSE;
+    default:
+        return MAREA_BOOLEAN_TRUE;
+    }
+}
+
 MAREA_Boolean MAREA_CALL MAREA_SemaExpressionIsKnownNotArray(const MAREA_SemaContext *context, const MAREA_AstNode *expression)
 {
     const MAREA_G_Shape shape = MAREA_G_ShapeOf(context, expression, 0);

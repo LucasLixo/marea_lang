@@ -1583,6 +1583,17 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaPrimitiveOfExpression(const MAREA_SemaContext *context, const MAREA_AstNode *expression, const MAREA_Character8 **outName, MAREA_IntegerSize *outLength);
 
     /**
+     * @brief Tells whether the type of an expression is known and is not boolean. An unknown type, a generic
+     * parameter and a library type give false.
+     * @param context Context of the run. Must not be null.
+     * @param expression Expression node. May be null.
+     * @param outName Receives the name of the type, or "another type". Must not be null.
+     * @param outLength Receives the length of the name. Must not be null.
+     * @return MAREA_BOOLEAN_TRUE when the value cannot be a boolean.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaIsSurelyNotBoolean(const MAREA_SemaContext *context, const MAREA_AstNode *expression, const MAREA_Character8 **outName, MAREA_IntegerSize *outLength);
+
+    /**
      * @brief Tells whether sema knows an expression is not an array. A number literal, a primitive (a string
      * included), a structure and an enum are known not to be an array; every other shape, an unclassified one
      * included, answers false, so a slice, a pointer, a library type and a call result are accepted.

@@ -790,9 +790,11 @@ stands for the macro of that name that `marea.array` registers: it has the same 
 resolver. With `marea.array` off there is no such macro and the bare call has no type. The bare name stays in the table of
 the language macros; it leaves with the real macro (see Gaps).
 
-**Condition type.** The condition of an `if`, an `elseif`, a `while` or a `do ... while` must be a `boolean`: a condition with a known
-primitive type other than `boolean`, or a number, string or character literal, is `NON_BOOLEAN_CONDITION` (3043), raised
-at the condition once. `true`, `false`, a comparison, `and`, `or`, `not` and a `boolean` name pass. A `switch` subject and
+**Condition type.** The condition of an `if`, an `elseif`, a `while` or a `do ... while` must be a `boolean`: a condition
+with a known type other than `boolean` (a primitive, a structure, an enum, a view, a raw pointer, a function type or an
+array), or a number, string or character literal, is `NON_BOOLEAN_CONDITION` (3043), raised at the condition once. `true`,
+`false`, a comparison, `and`, `or`, `not` and a `boolean` name pass. A value of an unknown type, of a generic parameter or
+of a library type passes too. A `switch` subject and
 an expression statement are not conditions and are not checked.
 
 **Do-while.** `do body while condition end` checks its condition like a `while` (`NON_BOOLEAN_CONDITION` and the names of the
@@ -1242,7 +1244,7 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 | 3039 | `LOGICAL_OPERAND_NOT_BOOLEAN` | `a and b`, `a or b`, `not a` with an operand whose known type is not `boolean`, or a number, string or character literal |
 | 3040 | `ASSIGNMENT_TO_CONSTANT` | `LIMIT = 11;`, `LIMIT += 1;`, `ORIGIN.x = 1;`, `TABLE[0] = 1;` when the root name is a file constant and no local hides it |
 | 3041 | `RAW_POINTER_OUTSIDE_UNSAFE` | a written type with the raw pointer role (`local raw: c.memory.Pointer<sinteger32> = f();`, a parameter, a result, a field, an alias) with no `unsafe ... end` block around it, at any depth of nesting |
-| 3043 | `NON_BOOLEAN_CONDITION` | `if n then`, `elseif s then`, `while 1 do`, `do ... while 1 end` when the condition has a known primitive type that is not `boolean`, or is a number, string or character literal |
+| 3043 | `NON_BOOLEAN_CONDITION` | `if n then`, `elseif s then`, `while 1 do`, `do ... while 1 end` when the condition has a known type that is not `boolean` (a primitive, a structure, an enum, a view, an array), or is a number, string or character literal |
 | 3044 | `UNKNOWN_FIELD` | `Point{ z = 1.0 }`, `point.z` or `point.z = 1.0;` when `Point` has no field `z` |
 | 3045 | `RECURSIVE_TYPE` | `structure Node next: Node; end` |
 | 3046 | `CYCLIC_TYPE_ALIAS` | `type First = Second; type Second = First;` |
@@ -1391,8 +1393,6 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
   not followed through its use: the alias declaration itself is the place that is rejected.
 - `RECURSIVE_TYPE` (3045) does not follow a user generic structure given as `Box<Node>`: its field types are written in
   its own scope, so a recursion through it is not seen.
-- `NON_BOOLEAN_CONDITION` (3043) judges only a literal and a primitive that sema knows. A condition of an unknown type
-  (a call, a generic value, a field of an imported type) raises nothing.
 - `LITERAL_OUT_OF_RANGE` (3033) reads only a written integer literal. A float literal, a literal in an operand
   (`1 + 300` bound to a `uinteger8`), a value folded from a named constant, and a literal whose target type is not a
   primitive sema knows (it is then checked against `uinteger64` only) are not range checked.
