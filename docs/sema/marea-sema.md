@@ -82,13 +82,15 @@ libraries the language ships, which reach the registry through its internal entr
 ### Two resolvers
 
 `import` brings a file of the project and is answered by the import resolver the context was created with. `require`
-brings a name that the host registered on the C side (`c.*`, `marea.*` and any other root) and is answered by the
-registry that `MAREA_SemaContextSetRequireResolver` sets. A context with no registry answers a require through the
-import resolver, so a host with one resolver needs no change. With a registry, an `import` of a name that only the registry
-knows is `UNRESOLVED_IMPORT` with the hint "registered on the C side, use require", and a `require` of a name that only
+brings a name that is registered on the C side, by a shipped library (`c.*`, `marea.*`) or by the host (any other
+root), and is answered by the registry that `MAREA_SemaContextSetRequireResolver` sets. A context with no registry
+answers a require through the import resolver, so a host with one resolver needs no change. With a registry, an `import`
+of a name that only the registry knows is `UNRESOLVED_IMPORT` with the hint "registered on the C side, use require", and
+a `require` of a name that only
 the import resolver knows is `UNRESOLVED_REQUIRE` (3079) with the hint "a project file, use import". A use of a path asks
 the import resolver first, then the registry, and the signature function of the resolver that knows the namespace gives the
-signature of a member. A host may register a name under `c` or `marea`, and it then replaces what is shipped.
+signature of a member. A host may not register a name under `c` or `marea`: the two roots belong to the libraries the
+language ships, and the public entry of the registry rejects them (see Descriptors and roles).
 
 `import a.b { f as g, T as U, Color.red as Crimson, MAX };` asks the resolver for `a.b` once, then
 binds one local name per member that has an alias (a member with no alias only covers its full path). A member path has one
@@ -244,8 +246,10 @@ by the libraries the language ships and may register under `c.*` and `marea.*`. 
 the user and the host: it rejects any name whose first segment is `c` or `marea` with
 `MAREA_TYPE_REGISTRY_EXCEPT_ERROR_RESERVED_NAMESPACE_ROOT`. A host may register any other root and may replace a runtime
 function (`alloc`, `free`) through `MAREA_TypeRegistryReplaceRuntimeFunction`; a name outside the allow list is
-`ERROR_UNKNOWN_RUNTIME_FUNCTION`. The C registration macro (`MAREA_TypeRegistryRegisterInternalFunction` behind it) registers
-one function for the language runtime. `MAREA_TypeRegistryFindByRole` gives the registered type that holds a role.
+`ERROR_UNKNOWN_RUNTIME_FUNCTION`. The C registration macro `MAREA_REGISTER_FUNCTION` registers the wrapper that the binding
+declaration `MAREA_HOST_FUNCTION` made for one typed C function (see the vm doc, "Host calls"), through the internal entry
+for a shipped library and through the public entry for a user or a host. `MAREA_TypeRegistryFindByRole` gives the registered
+type that holds a role.
 
 **Macros of a library.** `MAREA_TypeRegistryRegisterInternalMacro` registers one compile-time macro for a shipped library,
 under the same mask and dependency rules as a type. A `MAREA_MacroDescriptor` holds the namespace and the name, the kind of
