@@ -4,11 +4,12 @@ Part of the [dispatch-applies](../SKILL.md) skill. This file is a complete promp
 
 ## Rules for this step
 
-- Never merge before every worker of the round has reported.
+- Never merge before every apply of the round has finished its last worker.
+- A branch is checked out in its apply's worktree: do items 1 and 2 below there.
 - Never push to `main`. Never trigger a release workflow if one is ever added.
 - Anything that is not an obvious parallel addition: stop and ask the user.
 
-Never merge a PR before every worker of this round has reported - a later report might change how
+Never merge a PR before every apply of this round has finished - a later report might change how
 an earlier one should be reconciled. Order: handoffs that already had a root before this round,
 then the rest; within one handoff, by dependency order. One PR at a time:
 
@@ -23,7 +24,8 @@ then the rest; within one handoff, by dependency order. One PR at a time:
    for (its apply's `## Verification` section is the source of truth - do not invent a heavier
    or lighter check). If it breaks, do not merge anything else in this round: report which PR
    broke it and why.
-4. Push the branch if step 1 or 2 changed it, then `lua tools/marea-ship/main.lua merge --branch
+4. Push the branch if items 1 or 2 changed it. With the worktree clean, remove it with `git worktree remove --force
+   .claude/worktrees/<slug>`, so that git can delete the branch. Then `lua tools/marea-ship/main.lua merge --branch
    <branch> --base <base of that PR>`. It merges, closes the issue, switches to the base, fast-forwards
    it and deletes the branch. Do by hand what a `WARNING:` line says was not done.
 5. If this PR's apply belongs to a handoff, check `temp/_LIST_HANDOFF.md`'s matching section: once

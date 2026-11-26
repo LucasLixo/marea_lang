@@ -149,7 +149,7 @@ only when the user or a rule names them:
 - `generate-issue` - issue => report.
 - `generate-apply` - one self-contained APPLY under `temp/_APPLY/` that a cold session executes end to end.
 - `generate-handoff` - a set of APPLYs plus the dependency graph that lets them run in parallel.
-- `dispatch-applies` - several existing applies at once, one agent worktree each, this session orchestrating.
+- `dispatch-applies` - several existing applies at once, one worktree each and one fresh agent per part, this session orchestrating.
 - `request-make-apply` - `<request text>`: sizes the request, then delivers it at once in an isolated git worktree of
   this repository, carried to a merged PR in the same run.
 - `parallelize` - free text => tasks => dependency waves dispatched to subagents, in a git worktree only when

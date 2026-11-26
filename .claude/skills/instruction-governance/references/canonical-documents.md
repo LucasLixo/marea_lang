@@ -19,7 +19,7 @@ Link map of every canonical agent-instruction document and the one subject each 
 | [c-style](../../c-style/SKILL.md) | C11 conventions, the MAREA_ type and macro system, opaque structs with accessors, the C and Rust boundary |
 | [cmake-style](../../cmake-style/SKILL.md) | CMake layout, variables, options, targets, 3rdparty wiring and formatting |
 | [cpp-testing](../../cpp-testing/SKILL.md) | GoogleTest conventions under `tests/`, the quiet build and test commands, and TDD for C symbols |
-| [dispatch-applies](../../dispatch-applies/SKILL.md) | Running several existing applies in parallel worktrees and merging their PRs |
+| [dispatch-applies](../../dispatch-applies/SKILL.md) | Running several existing applies in parallel worktrees, one fresh agent per part, and merging their PRs |
 | [generate-apply](../../generate-apply/SKILL.md) | Apply files and parts, how a part is delegated and delivered (push, PR, merge), the apply list, the outcome logs (`temp/_LOG_APPLY_SUCCESS.md`, `temp/_LOG_APPLY_ERROR.md`), headings and retention |
 | [generate-commit](../../generate-commit/SKILL.md) | Commit mechanics, atomic grouping, the `metadata.yaml` bump |
 | [generate-handoff](../../generate-handoff/SKILL.md) | Handoff dependency graph and handoff logs |
