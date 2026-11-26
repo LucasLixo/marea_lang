@@ -3,6 +3,7 @@
 
 #include "tests/dependencies.hpp"
 
+#include "tests/MAREALibraryRegistryHelpers.hpp"
 #include "tests/MAREASemaHelpers.hpp"
 
 #include <algorithm>
@@ -38,6 +39,19 @@ namespace
         MAREA_SemaFixture fixture([](const std::string &, const MAREA_AstNode **) { return MAREA_SEMA_IMPORT_RESULT_EXTERNAL; });
 
         if (fixture.MAREA_sema("namespace main; require c.array; require c.slice; require c.task; require c.pointer; require c.vector; require c.table; require c.owned; require vulkan; " + HEAD + body) != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return { 0 };
+        }
+
+        return fixture.MAREA_semaCodes();
+    }
+
+    Codes MAREA_registeredCodesOf(const std::string &body)
+    {
+        MAREA_SemaFixture fixture([](const std::string &, const MAREA_AstNode **) { return MAREA_SEMA_IMPORT_RESULT_EXTERNAL; });
+
+        MAREA_IGNORE(MAREA_SemaContextSetTypeRegistry(fixture.context, MAREA_buildLibraryRegistry(fixture.parser.lexer.arena)));
+
+        if (fixture.MAREA_sema("namespace main; require demo.array; require demo.slice; require demo.vector; require demo.table; require demo.owned; require demo.task; require demo.pointer; require vulkan; " + body) != MAREA_SEMA_EXCEPT_SUCCESS) {
             return { 0 };
         }
 
@@ -360,6 +374,36 @@ TEST(MAREASemaParallel, SpawnOfAValueThatIsNotACallIsRejected)
     EXPECT_TRUE(MAREA_codesOf("function f(values: c.array<float32>, k: float32) fork_join partition values into 4 as part do spawn work(part, k); end end end").empty()) << "A spawn of a call must raise nothing.";
 
     EXPECT_EQ(MAREA_codesOf("function f(a: sinteger32) spawn a; end"), Codes{ OUTSIDE_BLOCK }) << "A spawn outside a block must raise only 3062.";
+}
+
+TEST(MAREASemaParallel, PartitionOfARegisteredTypeWithNoArrayShapeIsRejected)
+{
+    GTEST_COUT << "Validating a partition of a registered type with no index and no partition part role, and of a function value, raises PARTITION_SOURCE_NOT_ARRAY." << std::endl;
+
+    EXPECT_EQ(MAREA_registeredCodesOf("function f() unsafe local raw: demo.pointer<float32> = vulkan.raw(); fork_join partition raw into 2 as part do end end end end"), Codes{ PARTITION_NOT_ARRAY }) << "A partition of a raw pointer must raise 3064.";
+
+    EXPECT_EQ(MAREA_registeredCodesOf("function f(values: demo.task<float32>) fork_join partition values into 2 as part do end end end"), Codes{ PARTITION_NOT_ARRAY }) << "A partition of a spawn handle must raise 3064.";
+
+    EXPECT_EQ(MAREA_registeredCodesOf("function f(values: demo.table<sinteger32, float32>) fork_join partition values into 2 as part do end end end"), Codes{ PARTITION_NOT_ARRAY }) << "A partition of a keyed table must raise 3064.";
+
+    EXPECT_EQ(MAREA_registeredCodesOf("function f(run: function(sinteger32)) fork_join partition run into 2 as part do end end end"), Codes{ PARTITION_NOT_ARRAY }) << "A partition of a function value must raise 3064.";
+
+    EXPECT_EQ(MAREA_registeredCodesOf("function make(): demo.task<float32> return vulkan.make(); end function f() fork_join partition make() into 2 as part do end end end"), Codes{ PARTITION_NOT_ARRAY }) << "A partition of a call result with no array shape must raise 3064.";
+}
+
+TEST(MAREASemaParallel, PartitionOfARegisteredArrayShapeIsAccepted)
+{
+    GTEST_COUT << "Validating a partition of a type with an index or the partition part role, of an owner and of an unregistered type raises nothing." << std::endl;
+
+    EXPECT_TRUE(MAREA_registeredCodesOf("function f(values: demo.array<float32, 4>) fork_join partition values into 2 as part do end end end").empty()) << "A partition of a registered array must raise nothing.";
+
+    EXPECT_TRUE(MAREA_registeredCodesOf("function f(values: demo.vector<float32>) fork_join partition values into 2 as part do end end end").empty()) << "A partition of a registered vector must raise nothing.";
+
+    EXPECT_TRUE(MAREA_registeredCodesOf("function f(values: demo.slice<float32>) fork_join partition values into 2 as part do end end end").empty()) << "A partition of a type with the partition part role must raise nothing.";
+
+    EXPECT_TRUE(MAREA_registeredCodesOf("function f(values: demo.owned<demo.vector<float32>>) fork_join partition values into 2 as part do end end end").empty()) << "A partition of an owner must raise nothing.";
+
+    EXPECT_TRUE(MAREA_registeredCodesOf("function f(values: vulkan.Buffer) fork_join partition values into 2 as part do end end end").empty()) << "A partition of an unregistered type must raise nothing.";
 }
 
 TEST(MAREASemaParallel, PartitionOfAValueThatIsNotAnArrayIsRejected)

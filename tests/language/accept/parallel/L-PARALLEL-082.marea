@@ -1,0 +1,19 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A partition of a type with the partition part role.
+
+namespace main;
+
+require demo.slice;
+
+function check(#[semantics = reference_read_only] values: demo.slice<float32>)
+    fork_join
+        partition values into 2 as part do
+            for each value in part do
+                local copy_of: float32 = value;
+            end
+        end
+    end
+end

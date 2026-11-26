@@ -810,20 +810,41 @@ MAREA_Boolean MAREA_CALL MAREA_SemaIsSurelyNotPrintable(const MAREA_SemaContext 
     }
 }
 
+// INFO: a registered type has an array shape when it has an index or gives a partition part; an owner holds a value that sema does not unwrap, so it is accepted.
+static MAREA_Boolean MAREA_CALL MAREA_G_IsRegisteredNotArray(const MAREA_SemaContext *context, const MAREA_AstNode *expression)
+{
+    MAREA_SemaWrittenType written;
+
+    if (MAREA_SemaWrittenTypeOf(context, expression, &written) == MAREA_BOOLEAN_FALSE) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    MAREA_SemaResolveWrittenType(context, &written);
+
+    const MAREA_TypeDescriptor *descriptor = MAREA_NULLPTR;
+
+    if (MAREA_SemaDescriptorOfType(context, written.type, &descriptor) == MAREA_BOOLEAN_FALSE) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    return ((descriptor->hasIndexProtocol == MAREA_BOOLEAN_FALSE) && ((descriptor->roles & (MAREA_TYPE_ROLE_PARTITION_PART | MAREA_TYPE_ROLE_OWNER)) == MAREA_TYPE_ROLE_NONE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
 MAREA_Boolean MAREA_CALL MAREA_SemaExpressionIsKnownNotArray(const MAREA_SemaContext *context, const MAREA_AstNode *expression)
 {
     const MAREA_G_Shape shape = MAREA_G_ShapeOf(context, expression, 0);
 
-    // INFO: any other shape, UNKNOWN included, is accepted: a slice, a pointer, a library type and a call result are a Gap.
+    // INFO: a type that sema cannot trace to a registered descriptor is accepted, so a shape is never guessed.
     switch (shape.kind) {
     case MAREA_G_SHAPE_KIND_INTEGER_LITERAL:
     case MAREA_G_SHAPE_KIND_FLOAT_LITERAL:
     case MAREA_G_SHAPE_KIND_PRIMITIVE:
     case MAREA_G_SHAPE_KIND_STRUCTURE:
     case MAREA_G_SHAPE_KIND_ENUM:
+    case MAREA_G_SHAPE_KIND_FUNCTION:
         return MAREA_BOOLEAN_TRUE;
     default:
-        return MAREA_BOOLEAN_FALSE;
+        return MAREA_G_IsRegisteredNotArray(context, expression);
     }
 }
 

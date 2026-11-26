@@ -1053,8 +1053,8 @@ the source of a `partition mutable`, or a field of such a name; any other expres
 value, `copy x`, `move x`) is rejected. 3024: a `return`, `break` or `continue` that leaves a `partition` body or stands
 directly in a `fork_join` block. 3062: a `spawn` or a `partition` with no enclosing `fork_join` block in the same
 function (L-MEMORY-030, L-PARALLEL-064, L-PARALLEL-070). 3063: the operand of a `spawn` is not a call, a macro call included
-(L-PARALLEL-071). 3064: the source of a `partition` is known not to be an array, a number, a primitive, a structure or an
-enum (L-PARALLEL-072). 3074: a table of what the workers of one `fork_join` block took (`MAREASemaCapture.c`) is kept
+(L-PARALLEL-071). 3064: the source of a `partition` is known not to be an array, a number, a primitive, a structure, an
+enum, a function value or a registered type with no array shape (L-PARALLEL-072, L-PARALLEL-081). 3074: a table of what the workers of one `fork_join` block took (`MAREASemaCapture.c`) is kept
 from the block start to its end, and a use that overlaps an earlier one, where one of the two writes, is rejected: two
 workers on one value, a worker and a later worker or `partition`, a spawn in a loop or a `partition` body that writes a
 value declared before the block, and a statement of the block that follows a worker and uses what it writes (or writes
@@ -1102,6 +1102,7 @@ Facts the items fix, checked by running the compiler:
 | L-PARALLEL-019 | A part is read in the partition body with a for each | ok |
 | L-PARALLEL-020 | A break in a loop that stands in an if inside a partition body | ok |
 | L-PARALLEL-079 | A local is written after the join | ok |
+| L-PARALLEL-082 | A partition of a type with the partition part role | ok |
 
 ### Parallel code: reject
 
@@ -1147,6 +1148,7 @@ Facts the items fix, checked by running the compiler:
 | L-PARALLEL-076 | A local is written by a worker and by the body of the block | 3074 @55 |
 | L-PARALLEL-077 | A part is passed to a function that writes it, with partition and no mutable | 3069 @54 |
 | L-PARALLEL-080 | A part is used after the partition body | 3004 @56 |
+| L-PARALLEL-081 | A partition of a raw pointer | 3064 @16 |
 
 ### Parallel code: known_gap
 
@@ -1341,10 +1343,10 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | memory | 15 | 18 | 0 |
 | namespaces | 20 | 43 | 0 |
 | ownership | 67 | 78 | 2 |
-| parallel | 19 | 40 | 0 |
+| parallel | 20 | 41 | 0 |
 | seed | 1 | 2 | 0 |
 | types | 62 | 151 | 0 |
-| total | 277 | 587 | 10 |
+| total | 278 | 588 | 10 |
 
 ## Parity
 

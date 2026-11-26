@@ -1615,8 +1615,9 @@ MAREA_BEGIN_EXTERN_C
 
     /**
      * @brief Tells whether sema knows an expression is not an array. A number literal, a primitive (a string
-     * included), a structure and an enum are known not to be an array; every other shape, an unclassified one
-     * included, answers false, so a slice, a pointer, a library type and a call result are accepted.
+     * included), a structure, an enum, a function value and a registered type with no index, no partition part
+     * role and no owner role are known not to be an array; every other shape, an unclassified one included,
+     * answers false.
      * @param context Context of the run. Must not be null.
      * @param expression Expression node. May be null.
      * @return MAREA_BOOLEAN_TRUE when the expression is known not to be an array, else MAREA_BOOLEAN_FALSE.
