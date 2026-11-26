@@ -128,6 +128,12 @@ inline MAREA_ResolveCallback MAREA_parityHostResolverCallback()
 
 inline const std::string MAREA_PARITY_HOST_PRELUDE{ "namespace main; require demo.host as host; structure Pair x: sinteger32; y: sinteger32; end " };
 
+// INFO: the libraries of the language that a parity program may require, besides the fixture root demo.
+inline MAREA_ResolveCallback MAREA_parityLibraries()
+{
+    return [](const std::string &text, const MAREA_AstNode **) { return (text.rfind("marea.", 0) == 0) ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND; };
+}
+
 struct MAREA_ParityArgument
 {
     std::uint64_t bits{ 0 };
@@ -497,6 +503,7 @@ inline std::vector<MAREA_ParityOutcome> MAREA_parityRunVm(MAREA_IrFixture &fixtu
 }
 
 // INFO: the C program that makes the same calls and prints, for each one, the trap, the bits of the result and the log.
+// A NaN result is printed as one NaN, since the language cannot observe its sign or its payload.
 inline std::string MAREA_parityMain(const std::vector<MAREA_ParityCall> &calls)
 {
     std::string text{ "\n#include <stdint.h>\n#include <stdio.h>\n#include <string.h>\n#include \"tests/MAREAParityHost.h\"\n" };
@@ -528,7 +535,7 @@ inline std::string MAREA_parityMain(const std::vector<MAREA_ParityCall> &calls)
             } else if (call.result == "boolean") {
                 text += "bits = r ? 1u : 0u; ";
             } else {
-                text += "{ double d = (double)r; memcpy(&bits, &d, sizeof(bits)); } ";
+                text += "{ double d = (double)r; if (__builtin_isnan(d)) { d = __builtin_nan(\"\"); } memcpy(&bits, &d, sizeof(bits)); } ";
             }
         }
 
@@ -798,7 +805,7 @@ inline MAREA_ParityResult MAREA_parityCheck(const std::string &source, const std
 {
     MAREA_ParityResult result;
 
-    MAREA_IrFixture fixture((host != nullptr) ? MAREA_parityHostResolverCallback() : MAREA_ResolveCallback());
+    MAREA_IrFixture fixture((host != nullptr) ? MAREA_parityHostResolverCallback() : MAREA_parityLibraries());
 
     if (host != nullptr) {
         MAREA_IGNORE(MAREA_SemaImportResolverSetSignatureFunction(fixture.sema.resolver, &MAREA_hostSignatureThunk));
@@ -849,7 +856,7 @@ inline MAREA_ParityResult MAREA_parityGenerated(const std::string &source, const
 {
     MAREA_ParityResult result;
 
-    MAREA_IrFixture fixture((host != nullptr) ? MAREA_parityHostResolverCallback() : MAREA_ResolveCallback());
+    MAREA_IrFixture fixture((host != nullptr) ? MAREA_parityHostResolverCallback() : MAREA_parityLibraries());
 
     if (host != nullptr) {
         MAREA_IGNORE(MAREA_SemaImportResolverSetSignatureFunction(fixture.sema.resolver, &MAREA_hostSignatureThunk));
@@ -889,7 +896,7 @@ inline MAREA_ParityResult MAREA_parityGenerated(const std::string &source, const
 // INFO: the codes that cgen raises for a program it cannot lower.
 inline std::set<MAREA_Uinteger32> MAREA_parityRejected(const std::string &source, const MAREA_ParityHost *host = nullptr)
 {
-    MAREA_IrFixture fixture((host != nullptr) ? MAREA_parityHostResolverCallback() : MAREA_ResolveCallback());
+    MAREA_IrFixture fixture((host != nullptr) ? MAREA_parityHostResolverCallback() : MAREA_parityLibraries());
 
     if (host != nullptr) {
         MAREA_IGNORE(MAREA_SemaImportResolverSetSignatureFunction(fixture.sema.resolver, &MAREA_hostSignatureThunk));
