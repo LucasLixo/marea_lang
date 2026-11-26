@@ -78,7 +78,7 @@ These rules bind every item (user decision 2026-11-23).
 3. A local `x: T;` with no initial value is an error.
 4. A literal outside the range of its type is a compile-time error and is never truncated; plain `+`, `-` and `*`
    wrap in two's complement; checked and saturating forms are explicit operators.
-5. `private` visibility is enforced across namespaces (3066, 3067, 3068, proven by `tests/source/sema/MAREASemaVisibility.cpp`). The default visibility is public.
+5. `private` visibility is enforced across namespaces (3066, 3067, 3068, L-NAMESPACES-079 to 081). The default visibility is public.
 
 Where the compiler does not enforce a rule yet, the item is a `known_gap` with `-- rule:`.
 
@@ -835,13 +835,13 @@ An import binds no name: the use writes the full path, and a short name exists o
 (L-NAMESPACES-007 to 014, 065 to 067, 070 to 076). An import or a require that no resolver finds gives 3001 or 3079. `main` is an ordinary function: it has no
 fixed signature and none is required (L-NAMESPACES-002 to 006).
 
-Settled rule 5 (a `private` name used from another namespace is a reject) is enforced by sema (3066, 3067 and 3068) and
-proven by `tests/source/sema/MAREASemaVisibility.cpp`, but it has no item. The runner checks one file per
-item and an item cannot import a second file, so a private name cannot be reached from another namespace until issue
-#250 lands. A private
+Settled rule 5 (a `private` name used from another namespace is a reject) is enforced by sema (3066, 3067 and 3068),
+proven by `tests/source/sema/MAREASemaVisibility.cpp` and shown by L-NAMESPACES-079 to 084. An item is one file, and
+the resolver of the runner answers `FOUND` for one fixed second namespace, `fixture.shapes`
+(`tests/include/tests/MAREACatalogueHelpers.hpp`); an item cannot bring a second file of its own (issue #250). A private
 name used inside its own namespace is accepted (L-NAMESPACES-011, 012, 063, 064). An import cycle and a private enum
-import need the same second file, so they have no item either; a namespace that imports itself gives 3001
-(L-NAMESPACES-039).
+import need a file that the fixed namespace does not give, so they have no item; a namespace that imports itself gives
+3001 (L-NAMESPACES-039).
 
 ### Namespaces and imports: accept
 
@@ -867,6 +867,9 @@ import need the same second file, so they have no item either; a namespace that 
 | L-NAMESPACES-065 | A call written with the full path of a required namespace | ok |
 | L-NAMESPACES-066 | A wildcard require covers the full path of every namespace below it | ok |
 | L-NAMESPACES-067 | A type of a required library written with its full path | ok |
+| L-NAMESPACES-082 | A public method of another namespace is called on a call result | ok |
+| L-NAMESPACES-083 | A public type of another namespace is written with its full path | ok |
+| L-NAMESPACES-084 | A public field of another namespace is read on an element | ok |
 
 ### Namespaces and imports: reject
 
@@ -915,6 +918,9 @@ import need the same second file, so they have no item either; a namespace that 
 | L-NAMESPACES-076 | A wildcard require binds no short name | 3004 @12 |
 | L-NAMESPACES-077 | A file cannot declare a namespace under marea when the host did not register it | 3002 @7, 3081 @7 |
 | L-NAMESPACES-078 | a loop name that is a built-in macro | 3056 @10 |
+| L-NAMESPACES-079 | A private method of another namespace is called on a call result | 3066 @14 |
+| L-NAMESPACES-080 | A private type of another namespace is written with its full path | 3067 @13 |
+| L-NAMESPACES-081 | A private field of another namespace is read on an element | 3068 @14 |
 
 ### Namespaces and imports: known_gap
 
@@ -1203,9 +1209,9 @@ Facts the items fix, checked by running the compiler:
 - A file constant passed to a generic function that takes a write borrow gives 3032, as for any function (item 010); a
   spawn of a write borrow of a call result through a generic function gives 3020 (item 029).
 
-Settled rule 5 (a `private` name is a reject across namespaces) is enforced (3066 to 3068) but has no item here: a
-private symbol needs a second namespace, and the runner gives an item one file only (see Gaps). A private symbol that a
-generic or an alias leads to is not checked by sema either (see the sema doc, Gaps).
+Settled rule 5 (a `private` name is a reject across namespaces) is enforced (3066 to 3068) and has its items in the
+namespaces area (L-NAMESPACES-079 to 081). A private type that a public alias or a generic of another namespace leads
+to is not checked by sema (see the sema doc, Gaps).
 
 ### Adversarial: reject
 
@@ -1346,12 +1352,12 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | functions | 19 | 54 | 0 |
 | interop | 18 | 36 | 0 |
 | memory | 15 | 18 | 0 |
-| namespaces | 20 | 43 | 0 |
+| namespaces | 23 | 46 | 0 |
 | ownership | 67 | 78 | 2 |
 | parallel | 20 | 41 | 0 |
 | seed | 1 | 2 | 0 |
 | types | 62 | 152 | 0 |
-| total | 278 | 593 | 10 |
+| total | 281 | 596 | 10 |
 
 ## Parity
 
@@ -1393,7 +1399,7 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 | 3062 | `sema` | [marea-sema.md](../sema/marea-sema.md), `PARALLEL_CONSTRUCT_OUTSIDE_FORK_JOIN` |
 | 3063-3064 | `sema` | [marea-sema.md](../sema/marea-sema.md), `SPAWN_NEEDS_CALL` and `PARTITION_SOURCE_NOT_ARRAY` |
 | 3065 | `sema` | [marea-sema.md](../sema/marea-sema.md), `LOCAL_WITHOUT_INITIAL_VALUE` |
-| 3066-3068 | `sema` | [marea-sema.md](../sema/marea-sema.md), `PRIVATE_SYMBOL_ACCESS`, `PRIVATE_TYPE_ACCESS`, `PRIVATE_FIELD_ACCESS`, no item reaches them (see Gaps) |
+| 3066-3068 | `sema` | [marea-sema.md](../sema/marea-sema.md), `PRIVATE_SYMBOL_ACCESS`, `PRIVATE_TYPE_ACCESS`, `PRIVATE_FIELD_ACCESS` |
 | 3069 | `sema` | [marea-sema.md](../sema/marea-sema.md), `WRITE_THROUGH_READ_ONLY_BORROW` |
 | 3075-3076 | `sema` | [marea-sema.md](../sema/marea-sema.md), `PARTITION_BODY_WRITES_OUTER_NAME` and `PARTITION_SOURCE_USED_IN_BODY` |
 | 3077 | `sema` | [marea-sema.md](../sema/marea-sema.md), `MISSING_FIELD` |
@@ -1403,12 +1409,9 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 
 ## Gaps
 
-- The runner checks one file per item, so an item cannot import a second file of the catalogue. A rule that needs
-  two namespaces (settled rule 5) can use only an `EXTERNAL` import, which the runner gives to the `c.`,
-  `collections.`, `concurrency.`, `arenas.` prefixes and to `text`, until a later change adds a way to give an item a
-  second file.
-- The codes 3066, 3067 and 3068 (a private symbol, type or field of another namespace) have no item for the same
-  reason: they need a second namespace (issue #250). `tests/source/sema/MAREASemaVisibility.cpp` proves them.
+- The runner checks one file per item, so an item cannot import a second file of its own (issue #250). A rule that
+  needs two namespaces can use an `EXTERNAL` import, which the runner gives to the `c.`, `collections.`,
+  `concurrency.`, `arenas.` prefixes and to `text`, or the one fixed `FOUND` namespace `fixture.shapes`.
 - The code 3082 (`ELEMENT_WITHOUT_MEASURED_LAYOUT`, an element with no measured layout held by value) has no item
   yet: no shipped library type exists for an item to write, since sema now knows no library and only reads the
   descriptors a registry holds (a library type in an item is the fixture root `demo`, registered by the runner). `tests/source/sema/MAREASemaTypeRegistry.cpp` proves the code with a fixture descriptor instead.
@@ -1434,8 +1437,8 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 - Issue #226 (a `switch` over a `boolean` with `case true` and `case false` and no `default` is rejected with 3022)
   cannot be an item. A known_gap item must be accepted today and a reject item states the wanted outcome, so the
   program fits neither class. The runner has no class for a valid program that the compiler rejects.
-- Settled rule 5 (a `private` name is a reject across namespaces, enforced by 3066 to 3068) and an import cycle cannot be shown with one file per
-  item. Issue #250 asks for a runner that gives an item a second file. Until then these two rules have no item.
+- An import cycle cannot be shown: the fixed second namespace of the runner imports nothing. Issue #250 asks for a
+  runner that gives an item a second file. Until then this rule has no item.
 - Settled rule 2 (a non-primitive parameter with no attribute is a read-only borrow) holds in the grammar, the sema
   doc, `MAREA_SemaGetParameterSemantics` and the four examples that write a parameter
   (`examples/basics/ownership.marea`, `examples/types/methods.marea`, `examples/interop/gpu_handles.marea` and
@@ -1455,9 +1458,8 @@ The coverage test holds this list; an example that gains an item must leave it.
 
 ### Diagnostic codes with no reject item
 
-Every live lex, parse and sema code (1001-1006, 2001-2010, 3001-3086 without 3023 and the numbers no code uses) has a `reject` item, except 3066,
-3067 and 3068 (3082, 3083 and 3086 are exempt as the Gaps list above says): no item can reach a second namespace (issue #250), and `tests/source/sema/MAREASemaVisibility.cpp`
-proves them. The ir codes
+Every live lex, parse and sema code (1001-1006, 2001-2010, 3001-3086 without 3023 and the numbers no code uses) has a
+`reject` item, except 3082, 3083 and 3086 (exempt as the Gaps list above says). The ir codes
 4004, 4005 and 4006 are exempt: the runner runs lex, parse and sema only, so no item can reach the ir. The exemption ends
 when a runner or an apply makes the ir run in it. The retired codes 3023 and 4001-4003 are excluded and must not
 return in a header.
@@ -1477,4 +1479,4 @@ Each rule is kept as a `known_gap` item with its issue, as reject codes, or as a
 | cyclic constant | reject items of 3055 (L-COVERAGE-001) |
 | unreachable switch arm | reject items of 3025 (a repeated case) and 2010 (a default that is not last) |
 | import cycle | no item, issue #250 |
-| private access across namespaces | enforced by 3066, 3067 and 3068; no item, issue #250 |
+| private access across namespaces | reject items of 3066, 3067 and 3068 (L-NAMESPACES-079 to 081) |

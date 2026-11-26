@@ -140,7 +140,7 @@ TEST(MAREALanguageParity, EveryAcceptItemWithAResultRunsOnBothBackendsOrIsExclud
 
         const std::string ITEM{ std::filesystem::path(file.relativePath).stem().string() };
 
-        MAREA_IrFixture fixture([](const std::string &text, const MAREA_AstNode **) { return MAREA_resolveLibrary(text); });
+        MAREA_IrFixture fixture([](const std::string &text, const MAREA_AstNode **outRoot) { return MAREA_resolveLibrary(text, outRoot); });
 
         if (fixture.MAREA_lower(file.source) != MAREA_IR_EXCEPT_SUCCESS) {
             failures += ITEM + ": the item does not lower to the ir\n";

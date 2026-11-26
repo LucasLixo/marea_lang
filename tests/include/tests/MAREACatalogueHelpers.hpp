@@ -21,8 +21,46 @@ struct MAREA_ItemFile
     std::string source;
 };
 
-inline MAREA_SemaImportResult MAREA_resolveLibrary(const std::string &text)
+// INFO: the one second file of the catalogue: a namespace that the resolver finds, so an item can use a name of
+// another namespace. It is parsed once and every check only reads its tree.
+inline const MAREA_AstNode *MAREA_fixtureShapes()
 {
+    static MAREA_ParseFixture parser;
+
+    static const MAREA_ParseExcept PARSED{ parser.MAREA_parse(MAREA_lines({
+        "namespace fixture.shapes;",
+        "#[visibility = public]",
+        "structure Box",
+        "    open: sinteger32;",
+        "    #[visibility = private]",
+        "    secret: sinteger32;",
+        "end",
+        "#[visibility = private]",
+        "structure Hidden",
+        "end",
+        "implementation Box",
+        "    #[visibility = private]",
+        "    function conceal(self: Box)",
+        "    end",
+        "    function reveal(self: Box)",
+        "    end",
+        "end",
+        "function make(): Box",
+        "    return Box{ open = 1, secret = 2 };",
+        "end",
+    })) };
+
+    return (PARSED == MAREA_PARSE_EXCEPT_SUCCESS) ? parser.root : nullptr;
+}
+
+inline MAREA_SemaImportResult MAREA_resolveLibrary(const std::string &text, const MAREA_AstNode **outRoot)
+{
+    if (text == "fixture.shapes") {
+        *outRoot = MAREA_fixtureShapes();
+
+        return MAREA_SEMA_IMPORT_RESULT_FOUND;
+    }
+
     const auto STARTS{ [&text](const std::string &prefix) { return text.compare(0, prefix.size(), prefix) == 0; } };
 
     const bool EXTERNAL{ STARTS("collections.") || STARTS("concurrency.") || STARTS("arenas.") || (text == "text") || STARTS("c.") || (text == "demo") || (text == "marea.array") || (text == "marea.memory") || (text == "marea.tasks") || STARTS("demo.") };

@@ -21,6 +21,10 @@ namespace
         "#[visibility = public] structure Box open: sinteger32; #[visibility = private] value: sinteger32; other: sinteger32; end "
         "#[visibility = private] structure Secret end "
         "#[visibility = public] constant LIMIT: sinteger32 = 1;"
+        "#[visibility = public] structure Outer inner: Box; end "
+        "implementation Box #[visibility = private] function conceal(self: Box) end function reveal(self: Box) end function create(): Self return Box{ open = 1, value = 2, other = 3 }; end end "
+        "function make(): Box return Box{ open = 1, value = 2, other = 3 }; end "
+        "type Renamed = Box;"
     };
 
     struct MAREA_VisibilityLibrary
@@ -252,16 +256,50 @@ TEST(MAREASemaVisibility, PrivateFieldOfTheSameFileRaisesNothing)
     EXPECT_TRUE(fixture.MAREA_semaCodes().empty()) << "A field of the own file must raise nothing.";
 }
 
-TEST(MAREASemaVisibility, FieldOfAValueThatIsNotAPlainNamedTypeIsNotChecked)
-{
-    GTEST_COUT << "Validating a field read from a call result is not checked (a Gap)." << std::endl;
-
-    EXPECT_EQ(MAREA_codesOf("namespace main; import a.b as b; function make(): b.Box return b.Box{ open = 1 }; end function f(): sinteger32 return make().value; end"), NONE) << "A call result must not be checked.";
-}
-
 TEST(MAREASemaVisibility, PrivateStructureRaisesTheTypeCodeOnly)
 {
     GTEST_COUT << "Validating a private structure raises PRIVATE_TYPE_ACCESS and no PRIVATE_FIELD_ACCESS." << std::endl;
 
     EXPECT_EQ(MAREA_codesOf("namespace main; import a.b as b; function f(s: b.Secret) end"), std::vector<MAREA_Uinteger32>{ PRIVATE_TYPE }) << "A private structure must raise only PRIVATE_TYPE_ACCESS.";
+}
+
+TEST(MAREASemaVisibility, PrivateFieldOfACallResultIsRejected)
+{
+    GTEST_COUT << "Validating a private field read on the result of a call of another namespace raises PRIVATE_FIELD_ACCESS." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("namespace main; import a.b as b; function f() local x: sinteger32 = b.make().value; end"), std::vector<MAREA_Uinteger32>{ PRIVATE_FIELD }) << "A call result must be checked.";
+    EXPECT_EQ(MAREA_codesOf("namespace main; import a.b as b; function g(): b.Box return b.make(); end function f() local x: sinteger32 = g().value; end"), std::vector<MAREA_Uinteger32>{ PRIVATE_FIELD }) << "A result of a function of this file must be checked.";
+    EXPECT_EQ(MAREA_codesOf("namespace main; import a.b as b; function f() local x: sinteger32 = b.Box.create().value; end"), std::vector<MAREA_Uinteger32>{ PRIVATE_FIELD }) << "A Self result of a static function must be checked.";
+    EXPECT_EQ(MAREA_codesOf("namespace main; import a.b.make as build; function f() local x: sinteger32 = build().value; end"), std::vector<MAREA_Uinteger32>{ PRIVATE_FIELD }) << "A result of an imported function must be checked.";
+    EXPECT_EQ(MAREA_codesOf("namespace main; import a.b as b; function f() local x: sinteger32 = b.make().open; end"), NONE) << "A public field of a call result must raise nothing.";
+}
+
+TEST(MAREASemaVisibility, PrivateFieldOfAChainAndOfAnElementIsRejected)
+{
+    GTEST_COUT << "Validating a private field at the end of a chain or on an element raises PRIVATE_FIELD_ACCESS." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("namespace main; import a.b as b; function f(o: b.Outer) local x: sinteger32 = o.inner.value; end"), std::vector<MAREA_Uinteger32>{ PRIVATE_FIELD }) << "A chain through a structure of another namespace must be checked.";
+    EXPECT_EQ(MAREA_codesOf("namespace main; import a.b as b; structure Holder box: b.Box; end function f(h: Holder) local x: sinteger32 = h.box.value; end"), std::vector<MAREA_Uinteger32>{ PRIVATE_FIELD }) << "A chain through a structure of this file must be checked.";
+    EXPECT_EQ(MAREA_codesOf("namespace main; import a.b as b; require demo.array; function f(v: demo.array<b.Box, 2>) local x: sinteger32 = v[0].value; end"), std::vector<MAREA_Uinteger32>{ PRIVATE_FIELD }) << "An element must be checked.";
+    EXPECT_EQ(MAREA_codesOf("namespace main; import a.b as b; require demo.array; function f(o: b.Outer, v: demo.array<b.Box, 2>) local x: sinteger32 = o.inner.open + v[0].other; end"), NONE) << "A public field must raise nothing.";
+}
+
+TEST(MAREASemaVisibility, PrivateMethodIsRejected)
+{
+    GTEST_COUT << "Validating a private function of an implementation block of another namespace raises PRIVATE_SYMBOL_ACCESS." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("namespace main; import a.b as b; function f() b.make().conceal(); end"), std::vector<MAREA_Uinteger32>{ PRIVATE_SYMBOL }) << "A private method of a call result must be rejected.";
+    EXPECT_EQ(MAREA_codesOf("namespace main; import a.b as b; function f(x: b.Box) x.conceal(); end"), std::vector<MAREA_Uinteger32>{ PRIVATE_SYMBOL }) << "A private method of a local must be rejected.";
+    EXPECT_EQ(MAREA_codesOf("namespace main; import a.b as b; function f(x: b.Box) x.reveal(); b.make().reveal(); end"), NONE) << "A public method must raise nothing.";
+}
+
+TEST(MAREASemaVisibility, TypeReachedByAFullPathOrAnImportedSymbolIsChecked)
+{
+    GTEST_COUT << "Validating a type or a field reached by a full path or by an imported symbol is checked." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("namespace main; import a.b; function f(s: a.b.Secret) end"), std::vector<MAREA_Uinteger32>{ PRIVATE_TYPE }) << "A full path to a private type must be rejected.";
+    EXPECT_EQ(MAREA_codesOf("namespace main; import a.b; function f(x: a.b.Box) local y: sinteger32 = x.value; end"), std::vector<MAREA_Uinteger32>{ PRIVATE_FIELD }) << "A field of a full path type must be checked.";
+    EXPECT_EQ(MAREA_codesOf("namespace main; import a.b.Box as Crate; function f(x: Crate) local y: sinteger32 = x.value; end"), std::vector<MAREA_Uinteger32>{ PRIVATE_FIELD }) << "A field of an imported type must be checked.";
+    EXPECT_EQ(MAREA_codesOf("namespace main; import a.b as b; function f(x: b.Renamed) local y: sinteger32 = x.value; end"), std::vector<MAREA_Uinteger32>{ PRIVATE_FIELD }) << "A field of an aliased type of another namespace must be checked.";
+    EXPECT_EQ(MAREA_codesOf("namespace main; import a.b; function f(x: a.b.Box) local y: sinteger32 = x.open; end"), NONE) << "A public field of a full path type must raise nothing.";
 }

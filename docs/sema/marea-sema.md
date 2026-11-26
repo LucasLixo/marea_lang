@@ -730,15 +730,18 @@ is skipped. The message holds the text of the string literal argument without it
 **Visibility across namespaces.** The default visibility is public: only an explicit `#[visibility = private]` hides a
 symbol, a type or a field from another file (a file attribute `#![visibility = private]` hides every symbol of the file,
 but never a field, which reads only its own attribute). A whole-namespace import (`import a.b;`, or `import a.b as x;`)
-brings no names, so three uses reach into the tree that the resolver answers `FOUND` for. `b.hidden()` or `b.LIMIT`,
-where the member is a top-level declaration that is private, is `PRIVATE_SYMBOL_ACCESS` (3066) at the member. A type
-written `b.Secret`, in a parameter, local, field, return, generic argument or struct literal, where the structure,
-enum, opaque or alias is private, is `PRIVATE_TYPE_ACCESS` (3067) at the type. A private field of a structure that is
-not private, read or written as `box.value` where `box` is a local or parameter written `b.Box`, or set in a literal
-`b.Box{ value = 1 }`, is `PRIVATE_FIELD_ACCESS` (3068) at the field name; a private structure is 3067 at its written
-type and never also 3068. A local or a generic parameter that hides the namespace name is no namespace access. A
-namespace that the resolver answers `EXTERNAL` or `NOT_FOUND` is never checked, and neither is a field of the same
-file. An import of one symbol or a member list is checked the same way: a private symbol is `UNRESOLVED_IMPORT`.
+brings no names, so the uses below reach into the tree that the resolver answers `FOUND` for. `b.hidden()` or `b.LIMIT`,
+where the member is a top-level declaration that is private, is `PRIVATE_SYMBOL_ACCESS` (3066) at the member, and so is
+a function of an implementation block that is private by its own attribute or by the attribute of its block. A type
+written `b.Secret` or `a.b.Secret`, in a parameter, local, field, return, generic argument or struct literal, where the
+structure, enum, opaque or alias is private, is `PRIVATE_TYPE_ACCESS` (3067) at the type. A private field of a structure
+of another namespace, read, written or set in a literal, is `PRIVATE_FIELD_ACCESS` (3068) at the field name. Each segment
+of a member chain is looked up in the declaration of the segment before it, so the value may be a local, a constant, a
+field, an element, or the result of a function or a method, and its type may be reached through a namespace alias, a full
+path, an imported symbol or a type alias. A private structure that this file writes is 3067 at its written type and never
+also 3068. A local or a generic parameter that hides the namespace name is no namespace access. A namespace that the
+resolver answers `EXTERNAL` or `NOT_FOUND` is never checked, and neither is a member of a type of the same file. An
+import of one symbol or a member list is checked the same way: a private symbol is `UNRESOLVED_IMPORT`.
 
 **Built-in macro.** `MAREA_SemaCheckMacro` (`MAREASemaMacro.c`) checks every `MACRO_CALL` against one table of the 14
 built-in macros (the table of `examples/macros/builtin.marea` and `build_value`), and a call with a qualified name against the
@@ -1320,15 +1323,15 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 - A write through a method call on a read-only receiver, and a library call that mutates (`values.append(x)`), are
   not seen: sema does not know which calls mutate. The rule 3069 reads only a written assignment, a mutable loop or
   partition and a write-borrow argument.
-- The visibility check (3066 to 3068) reads only a bare namespace name and a bare name with a written type `ns.T`. It does
-  not check a member that the tree does not declare, a field of a value that is not a plain `ns.T` name (a call result,
-  an index, a chain such as `a.b.c`), a field of a type that an imported symbol gives (`import a.b.Box;`), or a private
-  symbol that a generic or an alias leads to.
+- The visibility check (3066 to 3068) does not check a member that the tree does not declare, a value whose type sema
+  cannot follow (a call of a function value, a `for each` name, a field or a result typed by a generic parameter, a type
+  that another namespace names through its own import alias), or a private type that a public alias or a generic of
+  another namespace leads to.
 
 - The full-path rules read the member chain of a value or a call and the qualified name of a type. A full path to a type of a
-  `FOUND` namespace (`a.b.Item`, with no alias) is checked for its cover and its existence as a namespace prefix only: the
-  visibility checks of a type and of a field (3067, 3068), the layout of such a field and the typed spelling of the type
-  read the alias form (`import a.b as b;` then `b.Item`). A full path to an enum of a `FOUND` namespace with a variant
+  `FOUND` namespace (`a.b.Item`, with no alias) is read for its cover, for its existence as a namespace prefix and for
+  the visibility of the type and of its members (3066 to 3068): the layout of such a field and the typed spelling of the
+  type read the alias form (`import a.b as b;` then `b.Item`). A full path to an enum of a `FOUND` namespace with a variant
   (`a.b.Color.Red`) is covered but not read for its variants.
 - A private member reached by the full path of a namespace is `PRIVATE_SYMBOL_ACCESS` (3066) as before; a cover that is
   an unresolved declaration still covers its path, so the use raises nothing beyond the unresolved report.

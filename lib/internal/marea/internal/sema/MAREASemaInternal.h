@@ -1051,6 +1051,29 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaDescriptorOfType(const MAREA_SemaContext *context, const MAREA_AstNode *type, const MAREA_TypeDescriptor **outDescriptor);
 
     /**
+     * @brief What a written type stands for: the type after its aliases, the declaration of that type, and the
+     * tree of the namespace that wrote it (null for the file of the run).
+     */
+    typedef struct MAREA_SemaTypeTarget
+    {
+        const MAREA_AstNode *type;
+        const MAREA_AstNode *declaration;
+        const MAREA_AstNode *root;
+    } MAREA_SemaTypeTarget;
+
+    /**
+     * @brief Follows a written type to its declaration, in the file of the run or in a FOUND namespace: through
+     * a namespace alias, a full path, an imported symbol and every type alias.
+     * @param context Context of the run. Must not be null.
+     * @param type NAMED_TYPE node. May be null, which gives false.
+     * @param root Tree that wrote the type, or null for the file of the run.
+     * @param outTarget Receives the last type of the walk, its tree and the declaration, which is null when
+     * sema does not see it. Must not be null.
+     * @return True when the declaration is not null.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaFindTypeTarget(const MAREA_SemaContext *context, const MAREA_AstNode *type, const MAREA_AstNode *root, MAREA_SemaTypeTarget *outTarget);
+
+    /**
      * @brief Writes the type that a role names around one argument, as text in the arena of the context:
      * "namespace.Name<argument>", with the full path of the registered type that holds the role. Sema
      * uses it for the handle of a spawn and the part of a partition, so it never writes a type name itself.
