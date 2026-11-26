@@ -794,14 +794,27 @@ Function declaration and call, parameters and defaults, the result and `return v
 | L-TYPES-201 | a keyword used as an enum variant name | 2001 @10, 2001 @10 |
 | L-TYPES-206 | A do-while loop whose condition is an integer | 3043 @11 |
 | L-TYPES-207 | A do-while loop whose condition reads a name of its body | 3004 @12 |
+| L-TYPES-208 | a slice value for a primitive local | 3011 @10 |
+| L-TYPES-209 | a field of a structure type given to a primitive parameter | 3011 @18 |
+| L-TYPES-210 | a field of a function type with another signature than the parameter | 3053 @15 |
+| L-TYPES-211 | an owned vector given to a vector parameter | 3014 @13 |
+| L-TYPES-212 | the result of a generic call compared after its type argument is bound | 3011 @13 |
+| L-TYPES-213 | the line of a call stored in a string | 3011 @8 |
+| L-TYPES-214 | the bytes of a file stored in a string | 3011 @8 |
+| L-TYPES-215 | arithmetic on two strings | 3011 @10 |
+| L-TYPES-216 | a comparison of two booleans | 3011 @10 |
+| L-TYPES-217 | a bitwise operator on two characters | 3038 @10 |
+| L-TYPES-218 | a declared operator with an operand of another type | 3011 @21 |
+| L-TYPES-219 | a condition that is a field of another type | 3043 @14 |
+| L-TYPES-220 | a false static assertion on the size of a structure | 3059 @14 |
+| L-TYPES-070 | a switch arm whose value has another type than the switch value | 3011 @11 |
+| L-TYPES-071 | a case value of a variant of another enum | 3011 @21 |
+| L-TYPES-147 | a for range with a bound of another type | 3011 @10 |
 
 ### Types and control flow: known_gap
 
 | Id | Shows | Expected |
 |---|---|---|
-| L-TYPES-070 | a switch arm whose value has another type than the switch value | gap: 3011, rule: reject, issue #222 |
-| L-TYPES-071 | a case value of a variant of another enum | gap: 3011, rule: reject, issue #222 |
-| L-TYPES-147 | a for range with a bound of another type | gap: 3011, rule: reject, issue #222 |
 
 ## Namespaces and imports
 
@@ -895,6 +908,7 @@ import need the same second file, so they have no item either; a namespace that 
 | L-NAMESPACES-075 | One full path covered by an import and by a require | 3080 @10 |
 | L-NAMESPACES-076 | A wildcard require binds no short name | 3004 @12 |
 | L-NAMESPACES-077 | A file cannot declare a namespace under marea when the host did not register it | 3002 @7, 3081 @7 |
+| L-NAMESPACES-078 | a loop name that is a built-in macro | 3056 @10 |
 
 ### Namespaces and imports: known_gap
 
@@ -976,6 +990,7 @@ checked. The type `handle<T>` is rejected with 3009 by the type checker, so it h
 | L-INTEROP-068 | A qualified macro call of a name that its library does not register | 3060 @12 |
 | L-INTEROP-069 | A qualified macro call of a library that no require covers | 3078 @10 |
 | L-INTEROP-070 | A qualified macro call of a file that the include resolver does not know | 3061 @12 |
+| L-INTEROP-071 | a print macro with a structure for a placeholder | 3061 @14 |
 
 ### Macros and the C border: known_gap
 
@@ -1320,14 +1335,14 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | coverage | 0 | 1 | 0 |
 | examples | 20 | 0 | 0 |
 | functions | 19 | 54 | 0 |
-| interop | 18 | 35 | 0 |
+| interop | 18 | 36 | 0 |
 | memory | 15 | 18 | 0 |
-| namespaces | 20 | 42 | 0 |
+| namespaces | 20 | 43 | 0 |
 | ownership | 65 | 78 | 2 |
 | parallel | 19 | 40 | 0 |
 | seed | 1 | 2 | 0 |
-| types | 62 | 135 | 3 |
-| total | 275 | 569 | 13 |
+| types | 62 | 151 | 0 |
+| total | 275 | 587 | 10 |
 
 ## Parity
 

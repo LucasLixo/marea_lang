@@ -141,12 +141,11 @@ TEST(MAREASemaStaticAssert, ConditionThatCannotBeDecidedRaisesNothing)
 {
     GTEST_COUT << "Validating that an undecided condition is accepted." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOfProgram("namespace main; structure Point x: sinteger32; y: sinteger32; end static_assert!(size_of<Point>() == 9, \"s\");"), Codes{});
     EXPECT_EQ(MAREA_codesOfProgram(MAREA_assertOf("1 / 0 == 1")), Codes{});
     EXPECT_EQ(MAREA_codesOfProgram(MAREA_assertOf("1 % 0 == 1")), Codes{});
     EXPECT_EQ(MAREA_codesOfProgram(MAREA_assertOf("9223372036854775807 + 1 == 0")), Codes{});
     EXPECT_EQ(MAREA_codesOfProgram(MAREA_assertOf("unknown_name == 1")), Codes{});
-    EXPECT_EQ(MAREA_codesOfProgram(MAREA_assertOf("size_of<sinteger32>() == 9")), Codes{});
+    EXPECT_EQ(MAREA_codesOfProgram(MAREA_assertOf("size_of<string>() == 9")), Codes{});
 }
 
 TEST(MAREASemaStaticAssert, ParameterShadowingAConstantIsUnknown)
@@ -187,4 +186,39 @@ TEST(MAREASemaStaticAssert, MessageCarriesTheTextOfTheFirstStringArgument)
     EXPECT_EQ(MAREA_lastMessage("namespace main; compile_error!(\"stop now\");"), "compile_error: stop now");
     EXPECT_EQ(MAREA_lastMessage("namespace main; static_assert!(1 == 2, \"never\");"), "static assertion failed: never");
     EXPECT_EQ(MAREA_lastMessage("namespace main; compile_error!();"), "compile_error");
+}
+
+TEST(MAREASemaStaticAssert, SizeOfAndAlignOfAreReadFromTheLayout)
+{
+    GTEST_COUT << "Validating that size_of and align_of fold from the layout record of a type of the file and of a primitive." << std::endl;
+
+    const std::string HEAD{ "namespace main; structure Pair first: sinteger32; second: sinteger32; end " };
+
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "static_assert!(size_of<Pair>() == 9, \"x\");"), Codes{ FAILED });
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "static_assert!(align_of<Pair>() == 8, \"x\");"), Codes{ FAILED });
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "static_assert!(size_of<sinteger64>() == 4, \"x\");"), Codes{ FAILED });
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "static_assert!(size_of<Pair>() == 8, \"x\"); static_assert!(align_of<Pair>() == 4, \"x\");"), Codes{});
+    EXPECT_EQ(MAREA_codesOfProgram("namespace main; import other; static_assert!(size_of<other.Light>() == 9, \"x\");"), Codes{}) << "A type with no known layout stays unknown.";
+}
+
+TEST(MAREASemaStaticAssert, FloatsAndStringsFold)
+{
+    GTEST_COUT << "Validating that a float comparison and a string equality fold." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOfProgram(MAREA_assertOf("1.5 > 2.0")), Codes{ FAILED });
+    EXPECT_EQ(MAREA_codesOfProgram(MAREA_assertOf("1.5 + 1.0 == 3.0")), Codes{ FAILED });
+    EXPECT_EQ(MAREA_codesOfProgram("namespace main; constant NAME: string = \"a\"; static_assert!(NAME == \"b\", \"x\");"), Codes{ FAILED });
+    EXPECT_EQ(MAREA_codesOfProgram(MAREA_assertOf("\"a\" != \"a\"")), Codes{ FAILED });
+    EXPECT_EQ(MAREA_codesOfProgram(MAREA_assertOf("1.5 + 1.0 == 2.5")), Codes{});
+    EXPECT_EQ(MAREA_codesOfProgram(MAREA_assertOf("\"a\" == \"a\"")), Codes{});
+}
+
+TEST(MAREASemaStaticAssert, ANarrowConstantWrapsInItsOwnWidth)
+{
+    GTEST_COUT << "Validating that arithmetic on a constant of a narrow type wraps in that type." << std::endl;
+
+    const std::string HEAD{ "namespace main; constant BIG: uinteger8 = 250; constant LOW: sinteger8 = 127; " };
+
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "static_assert!(BIG + 10 == 260, \"x\");"), Codes{ FAILED });
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "static_assert!(BIG + 10 == 4, \"x\"); static_assert!(LOW + 1 == -128, \"x\"); static_assert!(BIG * BIG == 36, \"x\");"), Codes{});
 }

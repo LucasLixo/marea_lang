@@ -315,8 +315,6 @@ TEST(MAREABytecodeGenerate, ComparisonsPickTheOpcodeOfTheKind)
 
         EXPECT_EQ(MAREA_join(MAREA_lowerFunction(SIGNATURE, "return a != b;")), c.notEqual + " 2 0 1; return 2 0 0; trap 6 0 0; ") << c.type << " !=";
     }
-
-    EXPECT_EQ(MAREA_join(MAREA_lowerFunction("(a: boolean, b: boolean): boolean", "return a == b;")), "eq 2 0 1; return 2 0 0; trap 6 0 0; ") << "Two booleans compare as bits.";
 }
 
 TEST(MAREABytecodeGenerate, UnaryOperators)

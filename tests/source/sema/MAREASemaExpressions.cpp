@@ -65,7 +65,7 @@ TEST(MAREASemaExpressions, NameMustHaveTheDeclaredType)
 
     EXPECT_TRUE(MAREA_codesOf("function f(a: sinteger32) end function g(n: sinteger32) f(n); local m: sinteger32 = n; end").empty()) << "A name of the same type must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("function f(a: demo.slice<sinteger32>) end function g(s: string) f(s); end").empty()) << "A non-primitive target must not be guessed.";
+    EXPECT_TRUE(MAREA_codesOf("function f(a: demo.vector<sinteger32>) end function g(s: string) f(s); end").empty()) << "A target with no conversion rule must not be guessed.";
 }
 
 TEST(MAREASemaExpressions, FieldAndStructureAreTyped)
@@ -147,7 +147,7 @@ TEST(MAREASemaExpressions, BinaryOperandWithALiteralFitsLikeADeclaredType)
 
     EXPECT_EQ(MAREA_codesOf(HEAD + "a == true; \"x\" == b; end"), (Codes{ MISMATCH, MISMATCH })) << "A boolean or a string literal does not fit a number operand.";
 
-    EXPECT_TRUE(MAREA_codesOf(HEAD + "a + 1; 1 + a; b * 2.5; b + 2; a < 0x10; p == true; s == \"x\"; 1 + 2.5; end").empty()) << "A literal that fits the other operand must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "a + 1; 1 + a; b * 2.5; b + 2; a < 0x10; s == \"x\"; 1 + 2.5; end").empty()) << "A literal that fits the other operand must raise nothing.";
 }
 
 TEST(MAREASemaExpressions, BinaryOperandMismatchIsReportedOnceAndWhereverItStands)
@@ -183,7 +183,7 @@ TEST(MAREASemaExpressions, BinaryOperandOfAnUnknownTypeIsAccepted)
 
     EXPECT_TRUE(MAREA_codesOf(POINT + "function g(p: Point, c: Color, a: sinteger32, q: demo.slice<sinteger32>) p == a; c == a; c + 1; q + a; a + q; end").empty()) << "A structure, an enum and a pointer must not be compared with a primitive.";
 
-    EXPECT_TRUE(MAREA_codesOf("function same<Item>(a: Item): Item return copy a; end function g(a: sinteger32, b: float64) same(a) + b; same(b) + a; end").empty()) << "The result of a generic call must not be guessed.";
+    EXPECT_EQ(MAREA_codesOf("function same<Item>(a: Item): Item return copy a; end function g(a: sinteger32, b: float64) same(a) + b; same(b) + a; end"), (Codes{ MISMATCH, MISMATCH })) << "The result of a generic call has its bound type.";
 
     EXPECT_TRUE(MAREA_codesOf("function g(a: float64) for i in 0 .. 3 do i + a; end end").empty()) << "A binder with no known type must not be guessed.";
 
@@ -242,7 +242,7 @@ TEST(MAREASemaExpressions, CompoundAssignmentNeedsTheSameTypeOnBothSides)
 
     EXPECT_EQ(MAREA_codesOf(HEAD + "p.x += a; end"), Codes{ MISMATCH }) << "A field target must be typed.";
 
-    EXPECT_TRUE(MAREA_codesOf(HEAD + "a += a; a -= 1; f *= 2; f += 0.5; a **= 2; f **= 0.5; a &= 0xFF; s += s; p.x += 1.0; end").empty()) << "Both sides of the same type, or a fitting literal, must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "a += a; a -= 1; f *= 2; f += 0.5; a **= 2; f **= 0.5; a &= 0xFF; p.x += 1.0; end").empty()) << "Both sides of the same type, or a fitting literal, must raise nothing.";
 
     EXPECT_TRUE(MAREA_codesOf(HEAD + "p += a; a += p; end").empty()) << "A structure side must not be compared.";
 
@@ -407,7 +407,7 @@ TEST(MAREASemaExpressions, KnownNamesAreNotReported)
 
     EXPECT_TRUE(MAREA_codesOf("function work(a: c.array<float32>, k: float32) end function g(values: c.array<float32>, k: float32) fork_join partition values into 4 as part do spawn work(part, k); end end end").empty()) << "A partition part must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("function open(): string return \"a\"; end function g() with open() as file do local n: string = file; end end").empty()) << "A with name must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function open(): string return \"a\"; end function g() with open() as handle do local n: string = handle; end end").empty()) << "A with name must raise nothing.";
 
     EXPECT_TRUE(MAREA_codesOf("function same<Item>(a: Item): Item return copy a; end function g<Item>(a: Item) local b: sinteger32 = Item.zero(); end").empty()) << "A generic parameter must raise nothing.";
 
@@ -1020,4 +1020,34 @@ TEST(MAREASemaExpressions, FieldAccessNeedsAFieldOfTheStructure)
     EXPECT_TRUE(MAREA_codesOf(POINT + "function run(point: Alias): float64 return point.x; end").empty()) << "A read through an alias must raise nothing.";
 
     EXPECT_TRUE(MAREA_codesOf("import other; function run(point: other.Point): float64 return point.z; end").empty()) << "A structure of another namespace must raise nothing.";
+}
+
+TEST(MAREASemaExpressions, CaseValueMustHaveTheTypeOfTheSwitchValue)
+{
+    GTEST_COUT << "Validating a case value of another type than the switch value raises TYPE_MISMATCH." << std::endl;
+
+    const std::string HEAD{ "enum Color Red; Green; end enum Shape Circle; end " };
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "function f(v: sinteger32) switch v case \"one\" then return; default then return; end end"), Codes{ MISMATCH }) << "A string case of an integer must raise 3011.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "function f(v: sinteger32) switch v case 1, Color.Red then return; default then return; end end"), Codes{ MISMATCH }) << "A variant case of an integer must raise 3011.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "function f(c: Color) switch c case Shape.Circle then return; default then return; end end"), Codes{ MISMATCH }) << "A variant of another enum must raise 3011.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "function f(c: Color) switch c case 1 then return; default then return; end end"), Codes{ MISMATCH }) << "A number case of an enum must raise 3011.";
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "function f(c: Color, v: uinteger8, s: character) switch c case Color.Red then return; case Color.Green then return; end switch v case 1, 2 then return; default then return; end switch s case 'a' then return; default then return; end end").empty()) << "Fitting case values must raise nothing.";
+}
+
+TEST(MAREASemaExpressions, ForRangeBoundsMustBeNumbersOfOneType)
+{
+    GTEST_COUT << "Validating a for range bound that is no number, or two bounds of two types, raises TYPE_MISMATCH." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("function f() for i in 0 .. true do end end"), Codes{ MISMATCH }) << "A boolean bound must raise 3011.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(a: sinteger32) for i in a .. 1.5 do end end"), Codes{ MISMATCH }) << "A float bound of an integer range must raise 3011.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(a: sinteger32, b: uinteger8) for i in a .. b do end end"), Codes{ MISMATCH }) << "Two integer types must raise 3011.";
+
+    EXPECT_TRUE(MAREA_codesOf("function f(a: uinteger64, b: float64) for i in 0 .. a do end for j in 0 .. 3 do end for k in b .. 10.0 do end end").empty()) << "Number bounds of one type must raise nothing.";
 }

@@ -538,7 +538,7 @@ TEST(MAREASemaOwnership, UseAfterElementMoved)
 
     EXPECT_EQ(MAREA_codesOf(SHAPE + "function f(v: demo.vector<Shape>) for each item in v do local s: Shape = move item; end end"), Codes{ PARTLY_MOVED }) << "A move of a for each element must raise USE_OF_PARTIALLY_MOVED_VALUE.";
 
-    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(v: demo.owned<demo.vector<Shape>>, w: demo.owned<demo.vector<Shape>>) for each item in v do local o: demo.vector<Shape> = move w; break; end end").empty()) << "A move of the collection itself is not a move of a loop element, so it must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf(SHAPE + "function f(v: demo.owned<demo.vector<Shape>>, w: demo.owned<demo.vector<Shape>>) for each item in v do local o: demo.owned<demo.vector<Shape>> = move w; break; end end").empty()) << "A move of the collection itself is not a move of a loop element, so it must raise nothing.";
 
     EXPECT_TRUE(MAREA_codesOf("function f(v: demo.vector<sinteger32>) for each item in v do local s: sinteger32 = move item; end end").empty()) << "A by value for each element is copied, so a move of it must raise nothing.";
 }

@@ -461,10 +461,10 @@ TEST(MAREAIrControlFlow, SwitchWithAGapInACaseValueOrTheDefaultDropsTheFunction)
 {
     GTEST_COUT << "Validating a gap in a case value, and a gap in the default arm, each drop the function and raise one diagnostic." << std::endl;
 
-    for (const char *body : { "switch a case print!(\"hi\") then return; end", "switch a case 1 then return; default then print!(\"hi\"); end" }) {
+    for (const char *body : { "switch s case format!(\"hi\") then return; end", "switch a case 1 then return; default then print!(\"hi\"); end" }) {
         MAREA_IrFixture fixture;
 
-        ASSERT_EQ(fixture.MAREA_lower(std::string("namespace main; function keep() end function lose(a: sinteger32) ") + body + " end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+        ASSERT_EQ(fixture.MAREA_lower(std::string("namespace main; function keep() end function lose(a: sinteger32, s: string) ") + body + " end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
         EXPECT_EQ(MAREA_IrNodeGetChildCount(fixture.module), 1U) << "Only the lowerable function must remain: " << body;
 

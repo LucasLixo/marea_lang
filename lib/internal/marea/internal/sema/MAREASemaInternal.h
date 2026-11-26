@@ -559,6 +559,17 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExprType MAREA_CALL MAREA_SemaTypedAstBuiltinCallType(const MAREA_SemaContext *context, const MAREA_AstNode *call);
 
     /**
+     * @brief Gives the type of a bare built-in macro call that has a value of a known type: uinteger32 for line!(),
+     * and namespace.Name<element,count> for include_bytes! (the result of the macro of marea.array, spelled as the
+     * typed tree spells a type). A call of a qualified name keeps no type here.
+     * @param context Context the node is being built with. Must not be null.
+     * @param call MACRO_CALL node. Must not be null.
+     * @param outOfMemory Set to MAREA_BOOLEAN_TRUE when the arena has no room. Must not be null.
+     * @return The type, or an empty value (no known type).
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExprType MAREA_CALL MAREA_SemaTypedAstMacroCallType(const MAREA_SemaContext *context, const MAREA_AstNode *call, MAREA_Boolean *outOfMemory);
+
+    /**
      * @brief Re-types the operations below a typed node after the number literals below it changed type. A binary,
      * a unary and a parenthesized expression take their type from their children, so they are made again, deepest
      * first, from the types the children have now. Any other node is left as it is.
@@ -917,6 +928,17 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaMeasureDeclaration(MAREA_SemaContext * context, const MAREA_AstNode *declaration, const MAREA_SemaTypeLayout **outLayout);
 
     /**
+     * @brief Gives the size and the alignment of a written type: a primitive with a width, a structure or an enum of
+     * the file, or an inline run of a measured primitive. The measure is the one of MAREA_SemaMeasureDeclaration.
+     * @param context Context of the run. Must not be null.
+     * @param type Written type node. May be null.
+     * @param outSize Receives the size in bytes. Must not be null.
+     * @param outAlignment Receives the alignment in bytes. Must not be null.
+     * @return MAREA_BOOLEAN_FALSE when sema does not measure the type.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaMeasureWrittenType(const MAREA_SemaContext *context, const MAREA_AstNode *type, MAREA_Uinteger64 *outSize, MAREA_Uinteger64 *outAlignment);
+
+    /**
      * @brief Checks a WHERE_CLAUSE: every constraint names a generic parameter in scope and known contracts.
      * @param context Context of the run. Must not be null.
      * @param node WHERE_CLAUSE node. Must not be null.
@@ -1007,6 +1029,64 @@ MAREA_BEGIN_EXTERN_C
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaWrapInRoleType(MAREA_SemaContext * context, MAREA_TypeRole role, const MAREA_Character8 *argumentText, MAREA_IntegerSize argumentLength, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength);
 
+    #define MAREA_SEMA_BINDING_LIMIT MAREA_INTEGER_SIZE(16)
+
+    /**
+     * @brief One generic name and the written type that it stands for, null while nothing bound it.
+     */
+    typedef struct MAREA_SemaBinding
+    {
+        const MAREA_Character8 *name;
+        const MAREA_AstNode *type;
+        MAREA_IntegerSize length;
+    } MAREA_SemaBinding;
+
+    /**
+     * @brief The generic names that a written type may mention, each with its bound type.
+     */
+    typedef struct MAREA_SemaBindings
+    {
+        MAREA_SemaBinding items[MAREA_SEMA_BINDING_LIMIT];
+        MAREA_IntegerSize count;
+    } MAREA_SemaBindings;
+
+    /**
+     * @brief The written type of a value or of a target, with the generic names of the declaration that wrote it. A
+     * bound type is a type of the reader, so it mentions none of these names.
+     */
+    typedef struct MAREA_SemaWrittenType
+    {
+        const MAREA_AstNode *type;
+        MAREA_SemaBindings bindings;
+    } MAREA_SemaWrittenType;
+
+    /**
+     * @brief Gives the written type of an expression: a local, a constant, a field, an element, the result of a call
+     * of a function of the file, of a method or of a function value, and a struct literal.
+     * @param context Context of the run. Must not be null.
+     * @param expression Expression node. May be null.
+     * @param outType Receives the type. Its node is null when sema does not know the type. Must not be null.
+     * @return MAREA_BOOLEAN_TRUE when the node of outType is not null.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaWrittenTypeOf(const MAREA_SemaContext *context, const MAREA_AstNode *expression, MAREA_SemaWrittenType *outType);
+
+    /**
+     * @brief Replaces a bare generic name by its bound type (null when nothing bound it) and Self by the type of the
+     * implementation block being visited.
+     * @param context Context of the run. Must not be null.
+     * @param type Type to resolve in place. Must not be null.
+     */
+    MAREA_EXTERN_DECL void MAREA_CALL MAREA_SemaResolveWrittenType(const MAREA_SemaContext *context, MAREA_SemaWrittenType *type);
+
+    /**
+     * @brief Finds a constant that a bare name reads: one of the implementation block being visited, else one of the
+     * file.
+     * @param context Context of the run. Must not be null.
+     * @param name IDENTIFIER node. Must not be null.
+     * @return The CONSTANT_DECLARATION, or null.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_AstNode *MAREA_CALL MAREA_SemaFindConstant(const MAREA_SemaContext *context, const MAREA_AstNode *name);
+
     /**
      * @brief Finds the declared type of an expression when it is cheap to know: a local or parameter, a
      * struct literal, a field of a known structure, or an element of an array, slice, vector or pointer.
@@ -1017,15 +1097,16 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_AstNode *MAREA_CALL MAREA_SemaInferType(const MAREA_SemaContext *context, const MAREA_AstNode *expression);
 
     /**
-     * @brief Tells whether the type arguments of a value differ from the declared generic type. Only two generic
-     * types of one head and one argument count are compared: two primitives by name, two value arguments by text and
-     * two nested generic types by the same rule. A generic parameter, an alias, an import and an unknown type agree.
+     * @brief Tells whether the type arguments of a value differ from the declared generic type. Both types must have
+     * type arguments. Two different heads (a registered type, a primitive, a structure or an enum of the file) differ;
+     * with one head, two value arguments compare by text and two types by this rule again. A generic parameter in
+     * scope, an alias, an import and an unknown type agree.
      * @param context Context of the run. Must not be null.
-     * @param type Declared type node. May be null.
+     * @param target Declared type with the generic names it may mention. May be null.
      * @param expression Value expression. A copy or move is looked through. May be null.
      * @return MAREA_BOOLEAN_TRUE when a pair of type arguments differs, else MAREA_BOOLEAN_FALSE.
      */
-    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaTypeArgumentsDiffer(const MAREA_SemaContext *context, const MAREA_AstNode *type, const MAREA_AstNode *expression);
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaTypeArgumentsDiffer(const MAREA_SemaContext *context, const MAREA_SemaWrittenType *target, const MAREA_AstNode *expression);
 
     /**
      * @brief Finds the element type of a collection expression: one owned wrapper is peeled, then the first type
@@ -1240,6 +1321,18 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_AstNode *MAREA_CALL MAREA_SemaFindConstructOperator(const MAREA_SemaContext *context, const MAREA_AstNode *typeDeclaration);
 
     /**
+     * @brief Finds the functions that the implementations of a structure or an enum of the file mark with
+     * #[operator = "token"].
+     * @param context Context of the run. Must not be null.
+     * @param typeDeclaration STRUCTURE_DECLARATION or ENUM_DECLARATION node. Must not be null.
+     * @param token Operator text without quotes. Must not be null.
+     * @param tokenLength Length of token.
+     * @param outCount Receives the count of such functions. May be null.
+     * @return The first FUNCTION_DECLARATION, or null when the type declares none.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_AstNode *MAREA_CALL MAREA_SemaFindOperatorFunction(const MAREA_SemaContext *context, const MAREA_AstNode *typeDeclaration, const MAREA_Character8 *token, MAREA_IntegerSize tokenLength, MAREA_IntegerSize *outCount);
+
+    /**
      * @brief Checks that a call does not pass one name twice when one of the parameters is a write borrow.
      * @param context Context of the run. Must not be null.
      * @param call CALL_EXPRESSION node. Must not be null.
@@ -1397,14 +1490,36 @@ MAREA_BEGIN_EXTERN_C
     /**
      * @brief Tells whether a function declaration has the signature of a function type: the same parameter count,
      * the same passing mode and type of each parameter, and the same result type, compared as written (an alias
-     * renders as its original). A generic function, and a function type that mentions a generic parameter in
-     * scope, are never compared and give true, because sema never guesses.
+     * renders as its original). A generic function, a function type that names an unbound generic and, with no
+     * bindings, one that mentions a generic parameter in scope are never compared and give true.
      * @param context Context of the run. Must not be null.
      * @param function FUNCTION_DECLARATION node. Must not be null.
      * @param functionType FUNCTION_TYPE node. Must not be null.
+     * @param bindings Generic names that functionType may mention. Must not be null.
      * @return MAREA_BOOLEAN_TRUE when the function fits or when sema cannot compare, MAREA_BOOLEAN_FALSE otherwise.
      */
-    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaFunctionFitsFunctionType(const MAREA_SemaContext *context, const MAREA_AstNode *function, const MAREA_AstNode *functionType);
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaFunctionFitsFunctionType(const MAREA_SemaContext *context, const MAREA_AstNode *function, const MAREA_AstNode *functionType, const MAREA_SemaBindings *bindings);
+
+    /**
+     * @brief Tells whether a value of one written function type fits a target function type: the same parameters, by
+     * semantics and type, and the same result. A target that mentions an unbound generic name and a value that
+     * mentions a generic name are not compared.
+     * @param context Context of the run. Must not be null.
+     * @param target Target, whose type is a FUNCTION_TYPE node. Must not be null.
+     * @param value Value, whose type is a FUNCTION_TYPE node. Must not be null.
+     * @return MAREA_BOOLEAN_TRUE when the value fits or is not compared.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaFunctionTypesFit(const MAREA_SemaContext *context, const MAREA_SemaWrittenType *target, const MAREA_SemaWrittenType *value);
+
+    /**
+     * @brief The check of MAREA_SemaCheckExpressionFit against a written type that may mention generic names, each
+     * read as its bound type.
+     * @param context Context of the run. Must not be null.
+     * @param target Written type of the target. Must not be null; its type may be null.
+     * @param expression Expression node. May be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckWrittenFit(MAREA_SemaContext * context, const MAREA_SemaWrittenType *target, const MAREA_AstNode *expression);
 
     /**
      * @brief Reports TYPE_MISMATCH the same way MAREA_SemaCheckExpressionFit does, against a primitive type
@@ -1479,6 +1594,26 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaPrimitiveOfExpression(const MAREA_SemaContext *context, const MAREA_AstNode *expression, const MAREA_Character8 **outName, MAREA_IntegerSize *outLength);
 
     /**
+     * @brief Tells whether the type of an expression is known and is not boolean. An unknown type, a generic
+     * parameter and a library type give false.
+     * @param context Context of the run. Must not be null.
+     * @param expression Expression node. May be null.
+     * @param outName Receives the name of the type, or "another type". Must not be null.
+     * @param outLength Receives the length of the name. Must not be null.
+     * @return MAREA_BOOLEAN_TRUE when the value cannot be a boolean.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaIsSurelyNotBoolean(const MAREA_SemaContext *context, const MAREA_AstNode *expression, const MAREA_Character8 **outName, MAREA_IntegerSize *outLength);
+
+    /**
+     * @brief Tells whether the type of an expression is known and is no primitive, so a {} of a format text cannot
+     * take it. An unknown type, a generic parameter and a library type give false.
+     * @param context Context of the run. Must not be null.
+     * @param expression Expression node. May be null.
+     * @return MAREA_BOOLEAN_TRUE when the value cannot be printed.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaIsSurelyNotPrintable(const MAREA_SemaContext *context, const MAREA_AstNode *expression);
+
+    /**
      * @brief Tells whether sema knows an expression is not an array. A number literal, a primitive (a string
      * included), a structure and an enum are known not to be an array; every other shape, an unclassified one
      * included, answers false, so a slice, a pointer, a library type and a call result are accepted.
@@ -1548,9 +1683,10 @@ MAREA_BEGIN_EXTERN_C
     /**
      * @brief Reports COMPILE_TIME_ASSERTION_FAILED for a compile_error macro call, whatever its arguments are, and for
      * a static_assert macro call with two arguments whose condition is a constant that is false. The condition is
-     * read by a small evaluator: boolean and integer literals, a file constant (depth limit 32, so a cycle ends as
-     * unknown), parentheses, not, unary minus, and, or, the comparisons and + - * / % over 64-bit integers. Overflow,
-     * a division by zero, a call, size_of, align_of, a name that is not a file constant (a local or a parameter of
+     * read by a small evaluator: boolean, integer, float and string literals, a file constant in its declared type
+     * (depth limit 32, so a cycle ends as unknown), size_of and align_of of a measured type, parentheses, not, unary
+     * minus, and, or, the comparisons and + - * / %. Integer arithmetic wraps in the width of a narrow type. Overflow of
+     * a 64-bit value, a division by zero, any other call, a name that is not a file constant (a local or a parameter of
      * the same name hides the constant) and every other node are unknown, and an unknown condition is accepted. Any
      * other macro, and a static_assert with another argument count, is skipped. The message holds the text of the
      * string literal argument when there is one.
@@ -1612,9 +1748,10 @@ MAREA_BEGIN_EXTERN_C
 
     /**
      * @brief Checks what the operands of an operator may be. A bitwise operator (&, |, ^, ~ and the compound forms)
-     * rejects a float, a boolean or a string operand with BITWISE_OPERAND_NOT_INTEGER; and, or and not reject an
-     * operand that is not a boolean with LOGICAL_OPERAND_NOT_BOOLEAN. An operand of an unknown type is accepted, and
-     * any other operator is ignored. The caller calls it only when the operands already agree in type, so one node
+     * rejects a float, a boolean, a string or a character operand with BITWISE_OPERAND_NOT_INTEGER; and, or and not
+     * reject an operand that is not a boolean with LOGICAL_OPERAND_NOT_BOOLEAN; an arithmetic operator rejects a
+     * boolean or a string operand, and a comparison rejects two booleans, with TYPE_MISMATCH. An operand of an
+     * unknown type is accepted, and any other operator is ignored. The caller calls it only when the operands already agree in type, so one node
      * never carries this code together with TYPE_MISMATCH.
      * @param context Context of the run. Must not be null.
      * @param operatorKind Token kind of the operator.
@@ -1654,6 +1791,15 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaIsBuiltInMacroName(const MAREA_Character8 *text, MAREA_IntegerSize length);
 
     /**
+     * @brief Reports RESERVED_MACRO_NAME for a name that a for, for each, partition or with statement declares and
+     * that is a built-in macro. A parameter and a local are reported by MAREA_SemaDeclareLocal.
+     * @param context Context of the run. Must not be null.
+     * @param node Any node; another kind is skipped. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckBinderNames(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
      * @brief Tells whether a name is one of the 13 primitive type names: boolean, sinteger8 to sinteger64, uinteger8 to
      * uinteger64, float32, float64, character and string.
      * @param text Text of the name, not NUL terminated.
@@ -1670,12 +1816,13 @@ MAREA_BEGIN_EXTERN_C
         MAREA_SEMA_MACRO_VALUE_UNKNOWN = MAREA_UINTEGER_8(0),
         MAREA_SEMA_MACRO_VALUE_NONE = MAREA_UINTEGER_8(1),
         MAREA_SEMA_MACRO_VALUE_STRING = MAREA_UINTEGER_8(2),
+        MAREA_SEMA_MACRO_VALUE_UINTEGER_32 = MAREA_UINTEGER_8(3),
     } MAREA_SemaMacroValue;
 
     /**
      * @brief Gives the value of a built-in macro: NONE for assert, debug_assert, unreachable, compile_error,
-     * static_assert, print and log, STRING for format, include_text, file and namespace, and UNKNOWN for include_bytes
-     * and line (sema does not type them) and for a name that is no built-in macro.
+     * static_assert, print and log, STRING for format, include_text, file and namespace, UINTEGER_32 for line, and
+     * UNKNOWN for include_bytes (MAREA_SemaMacroTypeOf types it) and for a name that is no built-in macro.
      * @param text Text of the name, not NUL terminated. May be null when length is 0.
      * @param length Length of text in bytes.
      * @return The value.
@@ -1696,7 +1843,8 @@ MAREA_BEGIN_EXTERN_C
     /**
      * @brief The type of the value of one macro call: a build_value! call has the type of its second argument
      * (a primitive, or an enum with its declaration), and a call of a macro that a shipped library registers has
-     * the result type of the descriptor (the name is the name of that type). Every other call is UNKNOWN here.
+     * the result type of the descriptor (the name is the name of that type). The bare include_bytes! has the type of
+     * the macro of that name that marea.array registers. Every other call is UNKNOWN here.
      */
     typedef struct MAREA_SemaMacroType
     {
@@ -1716,6 +1864,17 @@ MAREA_BEGIN_EXTERN_C
      * @return The type.
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaMacroType MAREA_CALL MAREA_SemaMacroTypeOf(const MAREA_SemaContext *context, const MAREA_AstNode *call);
+
+    /**
+     * @brief Gives the macro that the registry holds for a call (a qualified name, or the bare include_bytes!) and
+     * the count that its expander gives.
+     * @param context Context of the run. Must not be null.
+     * @param call MACRO_CALL node. Must not be null.
+     * @param outDescriptor Receives the macro. Must not be null.
+     * @param outCount Receives the count. Must not be null.
+     * @return MAREA_BOOLEAN_TRUE when the macro is known, its arguments match and its expander gives a count.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaMacroResultOf(const MAREA_SemaContext *context, const MAREA_AstNode *call, const MAREA_MacroDescriptor **outDescriptor, MAREA_IntegerSize *outCount);
 
     /**
      * @brief Checks the fit of the value of a registered macro call with the declared type it initializes. The

@@ -541,6 +541,43 @@ static MAREA_Boolean MAREA_CALL MAREA_G_MeasureComparable(const MAREA_SemaContex
     return ((outMeasure->reason == MAREA_SEMA_MEASURE_REASON_NONE) && (outMeasure->comparable == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
+MAREA_Boolean MAREA_CALL MAREA_SemaMeasureWrittenType(const MAREA_SemaContext *context, const MAREA_AstNode *type, MAREA_Uinteger64 *outSize, MAREA_Uinteger64 *outAlignment)
+{
+    if ((context == MAREA_NULLPTR) || (type == MAREA_NULLPTR) || (outSize == MAREA_NULLPTR) || (outAlignment == MAREA_NULLPTR)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    MAREA_G_FieldShape shape = { 0 };
+
+    MAREA_G_ClassifyType(context, type, &shape);
+
+    if (shape.kind == MAREA_G_SHAPE_KIND_PRIMITIVE) {
+        *outSize = shape.size;
+        *outAlignment = (shape.alignment > 0) ? shape.alignment : shape.size;
+
+        return MAREA_BOOLEAN_TRUE;
+    }
+
+    if ((shape.kind != MAREA_G_SHAPE_KIND_STRUCTURE) && (shape.kind != MAREA_G_SHAPE_KIND_ENUM)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    MAREA_G_State state = { .context = context, .remaining = MAREA_G_MEASURE_BUDGET };
+
+    MAREA_G_Measure measure = { 0 };
+
+    MAREA_G_MeasureDeclaration(&state, shape.declaration, 0, MAREA_NULLPTR, &measure);
+
+    if (measure.reason != MAREA_SEMA_MEASURE_REASON_NONE) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    *outSize = measure.size;
+    *outAlignment = measure.alignment;
+
+    return MAREA_BOOLEAN_TRUE;
+}
+
 MAREA_SemaExcept MAREA_CALL MAREA_SemaMeasureDeclaration(MAREA_SemaContext *context, const MAREA_AstNode *declaration, const MAREA_SemaTypeLayout **outLayout)
 {
     if ((context == MAREA_NULLPTR) || (declaration == MAREA_NULLPTR) || (outLayout == MAREA_NULLPTR)) {

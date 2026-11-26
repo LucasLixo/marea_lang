@@ -19,6 +19,6 @@ structure Box
 end
 
 function check(values: demo.owned<demo.vector<sinteger32>>): sinteger32
-    local second: demo.vector<sinteger32> = move values;
+    local second: demo.owned<demo.vector<sinteger32>> = move values;
     return 1;
 end

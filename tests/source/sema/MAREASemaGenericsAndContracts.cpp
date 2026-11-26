@@ -140,7 +140,7 @@ TEST(MAREASemaGenericsAndContracts, MovableNeedsAnOwnedOrMoveOnlyType)
 
     const std::string TAKE{ "function take<Item>(a: demo.owned<Item>): demo.owned<Item> where Item: Movable return a; end " };
 
-    EXPECT_TRUE(MAREA_codesOf(TAKE + "function run(a: demo.owned<sinteger32>): demo.owned<sinteger32> return take<demo.owned<sinteger32>>(move a); end").empty()) << "demo.owned<T> must be Movable.";
+    EXPECT_TRUE(MAREA_codesOf(TAKE + "function run(a: demo.owned<demo.owned<sinteger32>>): demo.owned<demo.owned<sinteger32>> return take<demo.owned<sinteger32>>(move a); end").empty()) << "demo.owned<T> must be Movable.";
 
     EXPECT_TRUE(MAREA_codesOf(TAKE + "#[move_only] structure Token x: sinteger32; end function run(a: demo.owned<Token>): demo.owned<Token> return take<Token>(move a); end").empty()) << "A move_only type must be Movable.";
 
@@ -297,7 +297,7 @@ TEST(MAREASemaGenericsAndContracts, LiteralMustFitThePrimitiveType)
 
     EXPECT_EQ(MAREA_codesOf("function f(a: string) end function g() f('a'); end"), Codes{ MISMATCH }) << "A character for a string must raise TYPE_MISMATCH.";
 
-    EXPECT_TRUE(MAREA_codesOf("function f(a: demo.slice<sinteger32>) end function g() f(\"text\"); end").empty()) << "A non-primitive type must not be guessed.";
+    EXPECT_TRUE(MAREA_codesOf("function f(a: demo.vector<sinteger32>) end function g() f(\"text\"); end").empty()) << "A type with no conversion rule must not be guessed.";
 }
 
 TEST(MAREASemaGenericsAndContracts, MissingTypeFunctionIsRejected)
@@ -370,7 +370,7 @@ TEST(MAREASemaGenericsAndContracts, MatchingTypeArgumentRaisesNothing)
 
     EXPECT_TRUE(MAREA_codesOf("function check(values: demo.array<sinteger32, 4>): sinteger32 local second: demo.array<sinteger32, 4> = values; return 1; end").empty()) << "Equal type arguments must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("structure Point x: sinteger32; end function check(points: demo.owned<demo.vector<Point>>): sinteger32 local other: demo.vector<Point> = move points; return 1; end").empty()) << "A move of an owned vector into a vector must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("structure Point x: sinteger32; end function check(points: demo.owned<demo.vector<Point>>): sinteger32 local other: demo.owned<demo.vector<Point>> = move points; return 1; end").empty()) << "A move of an owned vector into an owned vector must raise nothing.";
 
     EXPECT_TRUE(MAREA_codesOf("function check<Item>(values: demo.array<Item, 4>): sinteger32 local second: demo.array<sinteger32, 4> = values; return 1; end").empty()) << "A generic parameter argument must raise nothing.";
 

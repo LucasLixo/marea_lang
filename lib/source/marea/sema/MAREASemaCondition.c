@@ -34,11 +34,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckCondition(MAREA_SemaContext *context,
 
     MAREA_IntegerSize length = 0;
 
-    if (MAREA_SemaPrimitiveOfExpression(context, condition, &name, &length) == MAREA_BOOLEAN_FALSE) {
-        return MAREA_SEMA_EXCEPT_SUCCESS;
-    }
-
-    if (MAREA_SemaTextEquals(name, length, "boolean", 7) == MAREA_BOOLEAN_TRUE) {
+    if (MAREA_SemaIsSurelyNotBoolean(context, condition, &name, &length) == MAREA_BOOLEAN_FALSE) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 

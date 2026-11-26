@@ -1,14 +1,12 @@
--- gap: #222 3011
--- rule: reject
+-- expect: 3056 @10
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- A for range with a bound of another type.
+-- A loop name that is a built-in macro.
 
 namespace main;
 
 function run()
-    for index in 0 .. true do
-        return;
+    for line in 0 .. 3 do
     end
 end
