@@ -52,6 +52,8 @@ inline const MAREA_SemaSignature *MAREA_hostSignature(const std::string &member)
         add("missing", {}, "sinteger32");
         add("text", { "string" }, "sinteger32");
         add("twice", { "sinteger32" }, "sinteger32");
+        add("swap", { "Wide" }, "Wide");
+        add("reverse", { "Block" }, "Block");
 
         return rows;
     }() };

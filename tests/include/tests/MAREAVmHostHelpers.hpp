@@ -84,6 +84,24 @@ extern "C" {
         MAREA_hostWrite(result, static_cast<std::int64_t>((VALUE.x * VALUE.x) + (VALUE.y * VALUE.y)));
     }
 
+    inline void MAREA_CALL MAREA_testHostSwap(const MAREA_Null *arguments, MAREA_Null result)
+    {
+        const auto *value{ static_cast<const double *>(arguments[0]) };
+
+        const double SWAPPED[2]{ value[1], value[0] };
+
+        MAREA_hostWrite(result, SWAPPED);
+    }
+
+    inline void MAREA_CALL MAREA_testHostReverse(const MAREA_Null *arguments, MAREA_Null result)
+    {
+        const auto *value{ static_cast<const std::int64_t *>(arguments[0]) };
+
+        const std::int64_t REVERSED[5]{ value[4], value[3], value[2], value[1], value[0] };
+
+        MAREA_hostWrite(result, REVERSED);
+    }
+
     inline void MAREA_CALL MAREA_testHostBump(const MAREA_Null *arguments, MAREA_Null result)
     {
         static_cast<MAREA_HostPair *>(arguments[0])->x += 1;
@@ -134,6 +152,8 @@ struct MAREA_VmHostFixture
         MAREA_register("bump", &MAREA_testHostBump);
         MAREA_register("address", &MAREA_testHostAddress);
         MAREA_register("record", &MAREA_testHostRecord);
+        MAREA_register("swap", &MAREA_testHostSwap);
+        MAREA_register("reverse", &MAREA_testHostReverse);
     }
 
     MAREA_VmHostFixture(const MAREA_VmHostFixture &) = delete;

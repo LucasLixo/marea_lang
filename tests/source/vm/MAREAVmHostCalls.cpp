@@ -245,6 +245,45 @@ TEST(MAREAVmHostCalls, AnImportIsNotAFunctionOfTheModule)
     EXPECT_EQ(MAREA_VmCall(fixture.context, fixture.generate.module, 1, ARGUMENTS, 2, &result), MAREA_VM_EXCEPT_ERROR_UNKNOWN_FUNCTION) << "An import is not run from outside.";
 }
 
+TEST(MAREAVmHostCalls, PassesAndReturnsAStructureOfSixteenBytes)
+{
+    GTEST_COUT << "Validating a structure of 16 bytes goes in as a borrow and comes out through the result pointer." << std::endl;
+
+    MAREA_VmHostFixture fixture;
+
+    ASSERT_TRUE(fixture.MAREA_build("structure Wide first: float64; second: float64; end function f(): boolean local a: Wide = Wide{ first = 1.5, second = 2.5 }; local r: Wide = host.swap(a); return r.first == 2.5 and r.second == 1.5; end")) << "The unit must generate.";
+
+    const MAREA_VmResult RESULT{ fixture.MAREA_call("f") };
+
+    EXPECT_FALSE(RESULT.trapped) << "No trap.";
+
+    EXPECT_EQ(RESULT.value, 1U) << "Both halves are swapped.";
+}
+
+TEST(MAREAVmHostCalls, PassesAndReturnsAStructureLargerThanSixteenBytes)
+{
+    GTEST_COUT << "Validating a structure of 40 bytes goes in and comes out the same way." << std::endl;
+
+    MAREA_VmHostFixture fixture;
+
+    ASSERT_TRUE(fixture.MAREA_build("structure Block a: sinteger64; b: sinteger64; c: sinteger64; d: sinteger64; e: sinteger64; end function f(): sinteger64 local v: Block = Block{ a = 1, b = 2, c = 3, d = 4, e = 5 }; local r: Block = host.reverse(v); return (r.a * 10000) + (r.b * 1000) + (r.c * 100) + (r.d * 10) + r.e; end")) << "The unit must generate.";
+
+    EXPECT_EQ(static_cast<std::int64_t>(fixture.MAREA_call("f").value), 54321) << "The five fields are reversed.";
+}
+
+TEST(MAREAVmHostCalls, PassesANestedFieldAndACopyAsStructureArguments)
+{
+    GTEST_COUT << "Validating a nested structure field is borrowed in place and a copy is built apart from its source." << std::endl;
+
+    MAREA_VmHostFixture fixture;
+
+    ASSERT_TRUE(fixture.MAREA_build("structure Box count: sinteger32; inner: Pair; end function f(): sinteger32 local box: Box = Box{ count = 1, inner = Pair{ x = 3, y = 4 } }; host.bump(box.inner); return host.square(box.inner); end function g(): sinteger32 local a: Pair = Pair{ x = 3, y = 4 }; host.bump(copy a); return host.square(a); end")) << "The unit must generate.";
+
+    EXPECT_EQ(static_cast<std::int32_t>(fixture.MAREA_call("f").value), 32) << "The field itself was bumped to (4, 4).";
+
+    EXPECT_EQ(static_cast<std::int32_t>(fixture.MAREA_call("g").value), 25) << "The bump of the copy does not reach a.";
+}
+
 TEST(MAREAVmHostCalls, RunsAHostCallFromAModuleReadBackFromItsBinaryForm)
 {
     GTEST_COUT << "Validating the imports survive the binary form and still run." << std::endl;
