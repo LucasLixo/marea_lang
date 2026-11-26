@@ -565,7 +565,8 @@ MAREA_BEGIN_EXTERN_C
     /**
      * @brief Replaces the default type of the number literals below a typed node by the type that the node gives them
      * as their context. The contexts are the declared type of a local, a constant or a variant field, the type of a
-     * parameter for an argument or a default value, the result type of a return, the target of an assignment, the
+     * parameter for an argument (also of a member with a host signature) or a default value, the result type of a
+     * return, the target of an assignment, the
      * other operand of an arithmetic, bitwise or compare expression, of a range and of a switch case, the field or
      * element type of a literal value, and the target of a convert. A context fixes a literal only when it is a
      * primitive that the literal fits, and a literal that a nearer context already fixed keeps its type. It is called
@@ -573,7 +574,7 @@ MAREA_BEGIN_EXTERN_C
      * @param context Context the node is being built with. May be null.
      * @param built Typed node with its children built. May be null.
      */
-    MAREA_EXTERN_DECL void MAREA_CALL MAREA_SemaTypedAstResolveLiteralContext(const MAREA_SemaContext *context, const MAREA_SemaTypedNode *built);
+    MAREA_EXTERN_DECL void MAREA_CALL MAREA_SemaTypedAstResolveLiteralContext(MAREA_SemaContext * context, const MAREA_SemaTypedNode *built);
 
     /**
      * @brief Adds a diagnostic with the severity ERROR to the sink of the context.

@@ -291,6 +291,56 @@ TEST(MAREASemaTypedAstExternal, StructureArgumentFitsTheStructureTheSignatureNam
     EXPECT_EQ(bad.MAREA_codes(), std::vector<MAREA_Uinteger32>{ MAREA_UINTEGER_32(3011) }) << "A value of another structure must raise TYPE_MISMATCH and nothing else.";
 }
 
+TEST(MAREASemaTypedAstExternal, ALiteralArgumentTakesTheTypeOfTheExternalParameter)
+{
+    GTEST_COUT << "Validating a number literal argument of a call with an external signature is typed with the parameter, through a member access and through an imported name." << std::endl;
+
+    static const MAREA_SemaSignatureParameter PARAMETERS[3] = { { "uinteger64", 10 }, { "sinteger8", 9 }, { "float32", 7 } };
+
+    static const MAREA_SemaSignature SIGNATURE{ PARAMETERS, 3, "float64", 7 };
+
+    const MAREA_SignatureCallback CALLBACK{ [](const std::string &, const std::string &, const MAREA_SemaSignature **outSignature) {
+        *outSignature = &SIGNATURE;
+
+        return MAREA_SEMA_IMPORT_RESULT_FOUND;
+    } };
+
+    for (const char *source : { "namespace main;\nrequire c.host as host;\nfunction f(): float64 return host.wide(5000000000, -(1), 2); end\n", "namespace main;\nimport c.host.wide as wide;\nfunction f(): float64 return wide(5000000000, -(1), 2); end\n" }) {
+        MAREA_ExternalFixture fixture(MAREA_externalCNamespace(), CALLBACK);
+
+        ASSERT_TRUE(fixture.MAREA_build(source)) << source;
+
+        EXPECT_EQ(MAREA_typeOf(MAREA_nth(fixture, MAREA_AST_KIND_INTEGER_LITERAL, 0)), "uinteger64") << "The first literal takes the first parameter.";
+
+        EXPECT_EQ(MAREA_typeOf(MAREA_nth(fixture, MAREA_AST_KIND_INTEGER_LITERAL, 1)), "sinteger8") << "The literal inside the minus takes the second parameter.";
+
+        EXPECT_EQ(MAREA_typeOf(MAREA_nth(fixture, MAREA_AST_KIND_INTEGER_LITERAL, 2)), "float32") << "An integer literal for a float parameter is a float32.";
+    }
+}
+
+TEST(MAREASemaTypedAstExternal, ANumberLiteralDoesNotFitAStructureParameter)
+{
+    GTEST_COUT << "Validating a number literal for an external parameter that names a structure raises TYPE_MISMATCH." << std::endl;
+
+    static const MAREA_SemaSignatureParameter PARAMETERS[1] = { { "Pair", 4 } };
+
+    static const MAREA_SemaSignature SIGNATURE{ PARAMETERS, 1, "sinteger32", 10 };
+
+    const MAREA_SignatureCallback CALLBACK{ [](const std::string &, const std::string &, const MAREA_SemaSignature **outSignature) {
+        *outSignature = &SIGNATURE;
+
+        return MAREA_SEMA_IMPORT_RESULT_FOUND;
+    } };
+
+    for (const char *source : { "namespace main;\nrequire c.host as host;\nstructure Pair x: sinteger32; end\nfunction f() host.use(5); end\n", "namespace main;\nrequire c.host as host;\nstructure Pair x: sinteger32; end\nfunction f() host.use(1.5); end\n" }) {
+        MAREA_ExternalFixture fixture(MAREA_externalCNamespace(), CALLBACK);
+
+        EXPECT_EQ(fixture.MAREA_check(source), MAREA_SEMA_EXCEPT_SUCCESS) << "The check itself must not fail.";
+
+        EXPECT_EQ(fixture.MAREA_codes(), std::vector<MAREA_Uinteger32>{ MAREA_UINTEGER_32(3011) }) << source;
+    }
+}
+
 TEST(MAREASemaTypedAstExternal, MemberTheHostDoesNotKnowStaysOpaque)
 {
     GTEST_COUT << "Validating a member the signature function answers NOT_FOUND for stays exactly as opaque as with no signature function at all." << std::endl;

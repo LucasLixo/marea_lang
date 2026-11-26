@@ -162,7 +162,8 @@ A call to a member with a signature is checked like a call of a file function: t
 equal `parameterCount` exactly (the host describes no default) or `ARGUMENT_COUNT_MISMATCH` (3010), and
 each argument must fit its parameter's primitive spelling or `TYPE_MISMATCH` (3011), by the same literal
 and primitive fit rule as `MAREA_SemaCheckExpressionFit`. A parameter may also name a `structure`: a value of the
-structure of that name fits it, and a value of any other structure is `TYPE_MISMATCH`. The call is then typed with the signature's
+structure of that name fits it, and a value of any other structure is `TYPE_MISMATCH`. A number literal fits a primitive
+parameter only, and in the typed tree it takes the type of that parameter, as for a function of the file. The call is then typed with the signature's
 result spelling. The member or name itself (`puts` before the call, `power` used with no call) stays
 untyped: only the call gets the signature's result.
 

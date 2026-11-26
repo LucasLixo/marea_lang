@@ -191,7 +191,36 @@ static void MAREA_CALL MAREA_G_ApplyArguments(const MAREA_SemaContext *context, 
     }
 }
 
-static void MAREA_CALL MAREA_G_ApplyCall(const MAREA_SemaContext *context, const MAREA_SemaTypedNode *built)
+// INFO: an argument of a member with a host signature takes the type of its parameter, as one of a function of the file does.
+static MAREA_Boolean MAREA_CALL MAREA_G_ApplyExternalArguments(MAREA_SemaContext *context, MAREA_SemaTypedNode *arguments, const MAREA_AstNode *callee)
+{
+    const MAREA_SemaSignature *signature = MAREA_NULLPTR;
+
+    MAREA_SemaTypedAstExcept result = MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+
+    if (MAREA_G_IsKind(callee, MAREA_AST_KIND_MEMBER_ACCESS) == MAREA_BOOLEAN_TRUE) {
+        result = MAREA_SemaTypedAstExternalMemberSignature(context, MAREA_SemaChildAt(callee, 0), MAREA_SemaChildAt(callee, 1), &signature);
+    } else if (MAREA_G_IsKind(callee, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_TRUE) {
+        result = MAREA_SemaTypedAstExternalNameSignature(context, callee, &signature);
+    }
+
+    // INFO: a failure here leaves the literals with their defaults; the type of the call asks again and reports it.
+    if ((result != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) || (signature == MAREA_NULLPTR)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    for (MAREA_IntegerSize index = 0; ((index < arguments->childCount) && (index < signature->parameterCount)); ++index) {
+        const MAREA_SemaSignatureParameter *parameter = &signature->parameters[index];
+
+        if (MAREA_SemaIsPrimitiveTypeName(parameter->typeText, parameter->typeTextLength) == MAREA_BOOLEAN_TRUE) {
+            MAREA_G_Apply(arguments->children[index], parameter->typeText, parameter->typeTextLength);
+        }
+    }
+
+    return MAREA_BOOLEAN_TRUE;
+}
+
+static void MAREA_CALL MAREA_G_ApplyCall(MAREA_SemaContext *context, const MAREA_SemaTypedNode *built)
 {
     MAREA_SemaTypedNode *arguments = MAREA_G_FindTypedChild(built, MAREA_AST_KIND_ARGUMENT_LIST);
 
@@ -208,6 +237,10 @@ static void MAREA_CALL MAREA_G_ApplyCall(const MAREA_SemaContext *context, const
     }
 
     const MAREA_AstNode *callee = MAREA_SemaChildAt(built->astNode, 0);
+
+    if (MAREA_G_ApplyExternalArguments(context, arguments, callee) == MAREA_BOOLEAN_TRUE) {
+        return;
+    }
 
     if ((MAREA_G_IsKind(callee, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_FALSE) || (MAREA_SemaLocalFind(context, MAREA_AstNodeGetText(callee), MAREA_AstNodeGetTextLength(callee)) != MAREA_NULLPTR)) {
         return;
@@ -377,7 +410,7 @@ void MAREA_CALL MAREA_SemaTypedAstResolveLiteralDefault(MAREA_SemaTypedNode *bui
     }
 }
 
-void MAREA_CALL MAREA_SemaTypedAstResolveLiteralContext(const MAREA_SemaContext *context, const MAREA_SemaTypedNode *built)
+void MAREA_CALL MAREA_SemaTypedAstResolveLiteralContext(MAREA_SemaContext *context, const MAREA_SemaTypedNode *built)
 {
     if ((context == MAREA_NULLPTR) || (built == MAREA_NULLPTR) || (built->childCount == 0)) {
         return;
