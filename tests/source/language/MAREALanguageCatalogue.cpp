@@ -3,6 +3,7 @@
 
 #include "tests/dependencies.hpp"
 
+#include "tests/MAREACatalogueHelpers.hpp"
 #include "tests/MAREALibraryRegistryHelpers.hpp"
 #include "tests/MAREASemaHelpers.hpp"
 
@@ -37,12 +38,6 @@ namespace
         std::string gapCode;
         std::string rule;
         std::string error;
-    };
-
-    struct MAREA_ItemFile
-    {
-        std::string relativePath;
-        std::string source;
     };
 
     struct MAREA_RunResult
@@ -230,15 +225,6 @@ namespace
         return result.empty() ? "none" : result;
     }
 
-    MAREA_SemaImportResult MAREA_resolveLibrary(const std::string &text)
-    {
-        const auto STARTS{ [&text](const std::string &prefix) { return text.compare(0, prefix.size(), prefix) == 0; } };
-
-        const bool EXTERNAL{ STARTS("collections.") || STARTS("concurrency.") || STARTS("arenas.") || (text == "text") || STARTS("c.") || (text == "demo") || (text == "marea.array") || (text == "marea.memory") || (text == "marea.tasks") || STARTS("demo.") };
-
-        return EXTERNAL ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
-    }
-
     MAREA_RunResult MAREA_run(const std::string &source)
     {
         MAREA_RunResult result;
@@ -415,34 +401,6 @@ namespace
         }
 
         return failures;
-    }
-
-    std::string MAREA_readFile(const std::filesystem::path &path)
-    {
-        std::ifstream stream(path, std::ios::binary);
-
-        std::ostringstream buffer;
-
-        buffer << stream.rdbuf();
-
-        return buffer.str();
-    }
-
-    std::vector<MAREA_ItemFile> MAREA_collectItems()
-    {
-        std::vector<MAREA_ItemFile> result;
-
-        const std::filesystem::path ROOT{ MAREA_TESTS_LANGUAGE_DIRECTORY };
-
-        for (const std::filesystem::directory_entry &entry : std::filesystem::recursive_directory_iterator(ROOT)) {
-            if (entry.is_regular_file() && (entry.path().extension() == ".marea")) {
-                result.push_back({ std::filesystem::relative(entry.path(), ROOT).generic_string(), MAREA_readFile(entry.path()) });
-            }
-        }
-
-        std::sort(result.begin(), result.end(), [](const MAREA_ItemFile &left, const MAREA_ItemFile &right) { return left.relativePath < right.relativePath; });
-
-        return result;
     }
 
     std::string MAREA_readDocument()
