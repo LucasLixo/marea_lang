@@ -149,3 +149,25 @@ TEST(MAREASemaOperatorOperand, ComparisonOfTwoBooleansIsAMismatch)
 
     EXPECT_TRUE(MAREA_codesOf(MAREA_function("local x: boolean = s == s; local y: boolean = i < j;")).empty()) << "A comparison of strings or numbers must raise nothing.";
 }
+
+namespace
+{
+    const std::string POINT{ "structure Point x: float32; end structure Size x: float32; end implementation Point #[operator = \"+\"] function add(self: Self, other: Point): Point return Point { x = self.x }; end #[operator = \"*\"] function scale(self: Self, factor: float32): Point return Point { x = self.x }; end end " };
+} // namespace
+
+TEST(MAREASemaOperatorOperand, DeclaredOperatorChecksItsOtherOperand)
+{
+    GTEST_COUT << "Validating the right operand of a declared operator against the parameter of the function." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function f(a: Point) local c: Point = a + 1; end"), Codes{ MISMATCH }) << "A literal for a structure operand must raise 3011.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function f(a: Point, s: Size) local c: Point = a + s; end"), Codes{ MISMATCH }) << "Another structure for a structure operand must raise 3011.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function f(a: Point, s: string) local c: Point = a * s; end"), Codes{ MISMATCH }) << "A string for a float32 operand must raise 3011.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function f(a: Point, b: Point) local c: Point = a * b; end"), Codes{ MISMATCH }) << "A structure for a float32 operand must raise 3011.";
+
+    EXPECT_TRUE(MAREA_codesOf(POINT + "function f(a: Point, b: Point, k: float32) local c: Point = a + b; local d: Point = a * k; local e: Point = a * 2.0; end").empty()) << "A fitting operand must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf(POINT + "function f(a: Point) local c: Point = a - 1; end").empty()) << "An operator that no function declares must raise nothing.";
+}

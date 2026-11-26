@@ -1310,6 +1310,18 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_AstNode *MAREA_CALL MAREA_SemaFindConstructOperator(const MAREA_SemaContext *context, const MAREA_AstNode *typeDeclaration);
 
     /**
+     * @brief Finds the functions that the implementations of a structure or an enum of the file mark with
+     * #[operator = "token"].
+     * @param context Context of the run. Must not be null.
+     * @param typeDeclaration STRUCTURE_DECLARATION or ENUM_DECLARATION node. Must not be null.
+     * @param token Operator text without quotes. Must not be null.
+     * @param tokenLength Length of token.
+     * @param outCount Receives the count of such functions. May be null.
+     * @return The first FUNCTION_DECLARATION, or null when the type declares none.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_AstNode *MAREA_CALL MAREA_SemaFindOperatorFunction(const MAREA_SemaContext *context, const MAREA_AstNode *typeDeclaration, const MAREA_Character8 *token, MAREA_IntegerSize tokenLength, MAREA_IntegerSize *outCount);
+
+    /**
      * @brief Checks that a call does not pass one name twice when one of the parameters is a write borrow.
      * @param context Context of the run. Must not be null.
      * @param call CALL_EXPRESSION node. Must not be null.

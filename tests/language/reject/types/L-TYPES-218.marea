@@ -1,0 +1,22 @@
+-- expect: 3011 @21
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A declared operator with an operand of another type.
+
+namespace main;
+
+structure Point
+    x: float32;
+end
+
+implementation Point
+    #[operator = "+"]
+    function add(self: Self, other: Point): Point
+        return Point { x = self.x + other.x };
+    end
+end
+
+function shift(point: Point): Point
+    return point + 1;
+end

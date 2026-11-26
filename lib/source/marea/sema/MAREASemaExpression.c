@@ -885,6 +885,117 @@ static MAREA_Boolean MAREA_CALL MAREA_G_HasGenericSide(const MAREA_G_Shape *left
     return ((left->kind == MAREA_G_SHAPE_KIND_GENERIC) || (right->kind == MAREA_G_SHAPE_KIND_GENERIC)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
+static const MAREA_Character8 *MAREA_CALL MAREA_G_OperatorText(MAREA_TokenKind operatorKind)
+{
+    switch (operatorKind) {
+    case MAREA_TOKEN_KIND_PLUS:
+        return "+";
+    case MAREA_TOKEN_KIND_MINUS:
+        return "-";
+    case MAREA_TOKEN_KIND_STAR:
+        return "*";
+    case MAREA_TOKEN_KIND_SLASH:
+        return "/";
+    case MAREA_TOKEN_KIND_PERCENT:
+        return "%";
+    case MAREA_TOKEN_KIND_STAR_STAR:
+        return "**";
+    case MAREA_TOKEN_KIND_PLUS_PERCENT:
+        return "+%";
+    case MAREA_TOKEN_KIND_MINUS_PERCENT:
+        return "-%";
+    case MAREA_TOKEN_KIND_STAR_PERCENT:
+        return "*%";
+    case MAREA_TOKEN_KIND_PLUS_PIPE:
+        return "+|";
+    case MAREA_TOKEN_KIND_MINUS_PIPE:
+        return "-|";
+    case MAREA_TOKEN_KIND_STAR_PIPE:
+        return "*|";
+    case MAREA_TOKEN_KIND_AMPERSAND:
+        return "&";
+    case MAREA_TOKEN_KIND_PIPE:
+        return "|";
+    case MAREA_TOKEN_KIND_CARET:
+        return "^";
+    case MAREA_TOKEN_KIND_SHIFT_LEFT:
+        return "<<";
+    case MAREA_TOKEN_KIND_SHIFT_RIGHT:
+        return ">>";
+    case MAREA_TOKEN_KIND_EQUAL_EQUAL:
+        return "==";
+    case MAREA_TOKEN_KIND_BANG_EQUAL:
+        return "!=";
+    case MAREA_TOKEN_KIND_LESS:
+        return "<";
+    case MAREA_TOKEN_KIND_LESS_EQUAL:
+        return "<=";
+    case MAREA_TOKEN_KIND_GREATER:
+        return ">";
+    case MAREA_TOKEN_KIND_GREATER_EQUAL:
+        return ">=";
+    default:
+        return MAREA_NULLPTR;
+    }
+}
+
+// INFO: tells whether a value surely does not fit the type of an operator parameter. A shape that sema does not know fits.
+static MAREA_Boolean MAREA_CALL MAREA_G_IsWrongOperand(const MAREA_G_Shape *target, const MAREA_G_Shape *actual)
+{
+    if ((target->kind == MAREA_G_SHAPE_KIND_PRIMITIVE) || (target->kind == MAREA_G_SHAPE_KIND_VIEW)) {
+        return (MAREA_G_Fits(target, actual) == MAREA_BOOLEAN_TRUE) ? MAREA_BOOLEAN_FALSE : MAREA_BOOLEAN_TRUE;
+    }
+
+    if ((target->kind != MAREA_G_SHAPE_KIND_STRUCTURE) && (target->kind != MAREA_G_SHAPE_KIND_ENUM)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    if (MAREA_G_IsComparable(actual) == MAREA_BOOLEAN_TRUE) {
+        return MAREA_BOOLEAN_TRUE;
+    }
+
+    return (((actual->kind == MAREA_G_SHAPE_KIND_STRUCTURE) || (actual->kind == MAREA_G_SHAPE_KIND_ENUM)) && (actual->declaration != target->declaration)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
+// INFO: an operator of a structure or an enum is the function that an implementation marks with it, so the right side must fit its second parameter. With more than one, sema does not choose and accepts. outDeclared says that such a function governs the operator, so no built-in operand rule applies.
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckDeclaredOperator(MAREA_SemaContext *context, const MAREA_AstNode *expression, const MAREA_G_Shape *left, const MAREA_G_Shape *right, MAREA_Boolean *outDeclared)
+{
+    *outDeclared = MAREA_BOOLEAN_FALSE;
+
+    const MAREA_Character8 *token = MAREA_G_OperatorText(MAREA_AstNodeGetOperator(expression));
+
+    if (((left->kind != MAREA_G_SHAPE_KIND_STRUCTURE) && (left->kind != MAREA_G_SHAPE_KIND_ENUM)) || (left->declaration == MAREA_NULLPTR) || (token == MAREA_NULLPTR)) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    MAREA_IntegerSize count = 0;
+
+    const MAREA_AstNode *function = MAREA_SemaFindOperatorFunction(context, left->declaration, token, strlen(token), &count);
+
+    *outDeclared = (count > 0) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+
+    const MAREA_AstNode *parameters = (count == 1) ? MAREA_G_FindChild(function, MAREA_AST_KIND_PARAMETER_LIST) : MAREA_NULLPTR;
+
+    if ((parameters == MAREA_NULLPTR) || (MAREA_AstNodeGetChildCount(parameters) != 2)) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_AstNode *type = MAREA_SemaChildAt(MAREA_SemaChildAt(parameters, 1), 1);
+
+    const MAREA_AstNode *segment = MAREA_SemaChildAt(MAREA_SemaChildAt(type, 0), 0);
+
+    // INFO: Self is the type of the left side, as the function is a member of that type.
+    const MAREA_Boolean IS_SELF = ((segment != MAREA_NULLPTR) && (MAREA_G_TextIs(MAREA_AstNodeGetText(segment), MAREA_AstNodeGetTextLength(segment), "Self") == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+
+    const MAREA_G_Shape target = (IS_SELF == MAREA_BOOLEAN_TRUE) ? *left : MAREA_G_ShapeOfType(context, type);
+
+    if (MAREA_G_IsWrongOperand(&target, right) == MAREA_BOOLEAN_FALSE) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH, MAREA_AstNodeGetPosition(expression), "the right operand does not fit the declared operator", token, strlen(token));
+}
+
 // INFO: the operand rule runs only when the two sides agree in type, so one node never carries TYPE_MISMATCH and an operand code together.
 static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckOperands(MAREA_SemaContext *context, const MAREA_AstNode *expression)
 {
@@ -914,6 +1025,14 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckOperands(MAREA_SemaContext *cont
 
     if ((result != MAREA_SEMA_EXCEPT_SUCCESS) || (MAREA_G_OperandsAgree(&left, &right) == MAREA_BOOLEAN_FALSE)) {
         return result;
+    }
+
+    MAREA_Boolean declared = MAREA_BOOLEAN_FALSE;
+
+    const MAREA_SemaExcept DECLARED = MAREA_G_CheckDeclaredOperator(context, expression, &left, &right, &declared);
+
+    if ((DECLARED != MAREA_SEMA_EXCEPT_SUCCESS) || (declared == MAREA_BOOLEAN_TRUE)) {
+        return DECLARED;
     }
 
     const MAREA_SemaExcept OPERAND = MAREA_SemaCheckOperatorOperands(context, operatorKind, leftNode, rightNode, MAREA_AstNodeGetPosition(expression));
