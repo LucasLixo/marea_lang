@@ -62,6 +62,55 @@ MAREA_Boolean MAREA_CALL MAREA_SemaIsBuiltInMacroName(const MAREA_Character8 *te
     return ((length > 0) && (text != MAREA_NULLPTR) && (MAREA_G_FindRule(text, length) != MAREA_NULLPTR)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
+MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckBinderNames(MAREA_SemaContext *context, const MAREA_AstNode *node)
+{
+    if ((context == MAREA_NULLPTR) || (node == MAREA_NULLPTR)) {
+        return MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(node);
+
+    // INFO: the places of the names that a statement declares. A for each has its variables before the collection and the body.
+    MAREA_IntegerSize first = 0;
+
+    MAREA_IntegerSize end = 0;
+
+    switch (MAREA_AstNodeGetKind(node)) {
+    case MAREA_AST_KIND_FOR_RANGE_STATEMENT:
+        end = 1;
+        break;
+    case MAREA_AST_KIND_FOR_EACH_STATEMENT:
+        end = (COUNT > 2) ? (COUNT - 2) : 0;
+        break;
+    case MAREA_AST_KIND_PARTITION_STATEMENT:
+        first = 2;
+        end = 3;
+        break;
+    case MAREA_AST_KIND_WITH_STATEMENT:
+        first = 1;
+        end = 2;
+        break;
+    default:
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    for (MAREA_IntegerSize index = first; index < end; ++index) {
+        const MAREA_AstNode *name = MAREA_SemaChildAt(node, index);
+
+        if ((name == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(name) != MAREA_AST_KIND_IDENTIFIER) || (MAREA_SemaIsBuiltInMacroName(MAREA_AstNodeGetText(name), MAREA_AstNodeGetTextLength(name)) == MAREA_BOOLEAN_FALSE)) {
+            continue;
+        }
+
+        const MAREA_SemaExcept RESULT = MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_RESERVED_MACRO_NAME, MAREA_AstNodeGetPosition(name), "name is a built-in macro:", MAREA_AstNodeGetText(name), MAREA_AstNodeGetTextLength(name));
+
+        if (RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return RESULT;
+        }
+    }
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
 MAREA_SemaMacroValue MAREA_CALL MAREA_SemaMacroValueOf(const MAREA_Character8 *text, MAREA_IntegerSize length)
 {
     const MAREA_G_MacroRule *rule = ((length > 0) && (text != MAREA_NULLPTR)) ? MAREA_G_FindRule(text, length) : MAREA_NULLPTR;

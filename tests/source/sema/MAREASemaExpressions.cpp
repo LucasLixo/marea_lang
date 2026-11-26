@@ -407,7 +407,7 @@ TEST(MAREASemaExpressions, KnownNamesAreNotReported)
 
     EXPECT_TRUE(MAREA_codesOf("function work(a: c.array<float32>, k: float32) end function g(values: c.array<float32>, k: float32) fork_join partition values into 4 as part do spawn work(part, k); end end end").empty()) << "A partition part must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("function open(): string return \"a\"; end function g() with open() as file do local n: string = file; end end").empty()) << "A with name must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("function open(): string return \"a\"; end function g() with open() as handle do local n: string = handle; end end").empty()) << "A with name must raise nothing.";
 
     EXPECT_TRUE(MAREA_codesOf("function same<Item>(a: Item): Item return copy a; end function g<Item>(a: Item) local b: sinteger32 = Item.zero(); end").empty()) << "A generic parameter must raise nothing.";
 

@@ -908,6 +908,7 @@ import need the same second file, so they have no item either; a namespace that 
 | L-NAMESPACES-075 | One full path covered by an import and by a require | 3080 @10 |
 | L-NAMESPACES-076 | A wildcard require binds no short name | 3004 @12 |
 | L-NAMESPACES-077 | A file cannot declare a namespace under marea when the host did not register it | 3002 @7, 3081 @7 |
+| L-NAMESPACES-078 | a loop name that is a built-in macro | 3056 @10 |
 
 ### Namespaces and imports: known_gap
 
@@ -1336,12 +1337,12 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | functions | 19 | 54 | 0 |
 | interop | 18 | 36 | 0 |
 | memory | 15 | 18 | 0 |
-| namespaces | 20 | 42 | 0 |
+| namespaces | 20 | 43 | 0 |
 | ownership | 65 | 78 | 2 |
 | parallel | 19 | 40 | 0 |
 | seed | 1 | 2 | 0 |
 | types | 62 | 148 | 3 |
-| total | 275 | 583 | 13 |
+| total | 275 | 584 | 13 |
 
 ## Parity
 

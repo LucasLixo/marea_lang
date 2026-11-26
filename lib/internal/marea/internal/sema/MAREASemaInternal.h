@@ -1791,6 +1791,15 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaIsBuiltInMacroName(const MAREA_Character8 *text, MAREA_IntegerSize length);
 
     /**
+     * @brief Reports RESERVED_MACRO_NAME for a name that a for, for each, partition or with statement declares and
+     * that is a built-in macro. A parameter and a local are reported by MAREA_SemaDeclareLocal.
+     * @param context Context of the run. Must not be null.
+     * @param node Any node; another kind is skipped. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckBinderNames(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
      * @brief Tells whether a name is one of the 13 primitive type names: boolean, sinteger8 to sinteger64, uinteger8 to
      * uinteger64, float32, float64, character and string.
      * @param text Text of the name, not NUL terminated.

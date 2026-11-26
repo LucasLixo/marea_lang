@@ -254,3 +254,21 @@ TEST(MAREASemaMacros, ATextMustBeAStringLiteralAndAConditionABoolean)
     EXPECT_EQ(MAREA_codesOfProgram(HEAD + "function f(n: sinteger32) assert!(n, \"x\"); end"), Codes{ INVALID_ARGUMENT });
     EXPECT_EQ(MAREA_codesOfProgram(HEAD + "function f(n: sinteger32, ok: boolean) assert!(ok, \"x\"); debug_assert!(n > 0, \"x\"); end"), Codes{});
 }
+
+TEST(MAREASemaMacros, ADeclaredNameSlotCannotBeABuiltInMacroName)
+{
+    GTEST_COUT << "Validating RESERVED_MACRO_NAME for a parameter and for each loop name." << std::endl;
+
+    constexpr MAREA_Uinteger32 RESERVED{ MAREA_SEMA_DIAGNOSTIC_CODE_RESERVED_MACRO_NAME };
+
+    const std::string HEAD{ "namespace main; require c.array; " };
+
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "function f(print: sinteger32) end"), Codes{ RESERVED });
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "function f() for line in 0 .. 3 do end end"), Codes{ RESERVED });
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "function f(v: c.array<sinteger32, 4>) for each log in v do end end"), Codes{ RESERVED });
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "function f(v: c.array<sinteger32, 4>) for each file, item in v do end end"), Codes{ RESERVED });
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "function f(v: c.array<float32>) fork_join partition v into 2 as assert do end end end"), Codes{ RESERVED });
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "function f(v: sinteger32) with v as format do end end"), Codes{ RESERVED });
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "function f(printer: sinteger32) for lines in 0 .. 3 do end end"), Codes{}) << "A name that only holds a macro name must be accepted.";
+    EXPECT_EQ(MAREA_codesOfProgram("namespace main; import other { print };"), Codes{}) << "A member with no as binds no name.";
+}

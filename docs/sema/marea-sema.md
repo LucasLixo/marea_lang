@@ -128,8 +128,8 @@ of the built-in macros (`assert`, `debug_assert`, `unreachable`, `compile_error`
 `include_text`, `format`, `print`, `log`, `line`, `file`; `namespace` is a keyword) is `RESERVED_MACRO_NAME` (3056)
 with the message `name is a built-in macro: 'print'`. A declaration or a local that is refused is still bound, so its
 uses raise nothing more; an alias that is refused is not bound, so its uses raise `UNDECLARED_NAME`. A name that only
-contains a macro name (`printer`) is accepted. A parameter, a `for`, `for each`, `partition` or `with` name and an
-alias without `as` are not checked for a macro name.
+contains a macro name (`printer`) is accepted. A parameter and a `for`, `for each`, `partition` or `with` name are
+refused like a local and are still bound. An import or a member with no `as` binds no name, so there is no name to refuse.
 
 ### Signature of an EXTERNAL member
 
@@ -1261,7 +1261,7 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 | 3053 | `FUNCTION_TYPE_MISMATCH` | `apply(negate)` when `negate` takes one parameter and the function type takes two, `apply(holder.run)` or `apply(make())` when the field or the result has another function type |
 | 3054 | `INVALID_RESULT_USE` | `return 1;` in a function with no result, or `local v: sinteger32 = log_line("x");` when `log_line` has no result |
 | 3055 | `CYCLIC_CONSTANT` | `constant A: sinteger32 = B;` with `constant B: sinteger32 = A;`, or `constant A: sinteger32 = A;`, once for each cycle, at the first constant of it in the file |
-| 3056 | `RESERVED_MACRO_NAME` | `function print() end`, `constant format: sinteger32 = 1;`, `local log: sinteger32 = 1;` or `import c.stdio as print;`: a name that is a built-in macro |
+| 3056 | `RESERVED_MACRO_NAME` | `function print() end`, `constant format: sinteger32 = 1;`, `local log: sinteger32 = 1;` or `import c.stdio as print;`, `for line in 0 .. 3 do end` or `with v as format do end`: a name that is a built-in macro |
 | 3057 | `OPAQUE_TYPE_MISUSE` | `Texture{ }`, `texture.width` or `texture + other` when `texture` is a local or a parameter of an `opaque structure` of the same file |
 | 3058 | `OPAQUE_FIELD_BY_VALUE` | `structure Holder texture: Texture; end` with `Texture` an `opaque structure` of the same file |
 | 3059 | `COMPILE_TIME_ASSERTION_FAILED` | `compile_error!("stop");` with any arguments, at the top level or in a function body; `static_assert!(1 == 2, "never");` or `static_assert!(N == 5, "n");` when the condition is a constant that is false |
@@ -1370,8 +1370,6 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 - `UNKNOWN_TYPE_FUNCTION` (3049) skips a receiver of another namespace, a library type, a generic parameter and an
   unknown type, because sema cannot see their functions. Only a bare name or a local that is a bare name is a receiver:
   a call on a field chain or on a call result is not checked. A function of a contract on a generic receiver is not checked.
-- `RESERVED_MACRO_NAME` (3056) is not raised for a parameter, a `for`, `for each`, `partition` or `with` name, or an
-  import alias with no `as`, even when it is named like a built-in macro.
 - The `for`, `for each`, `partition`
   and `with` header expressions and the initializer of a file constant are checked. The loop name is already in
   scope when its own header is checked, so `for i in 0 .. i` with no outer `i` raises nothing. A constant that has

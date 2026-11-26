@@ -307,6 +307,10 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaVisit(MAREA_SemaContext *context, const MA
     }
 
     if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
+        result = MAREA_SemaCheckBinderNames(context, node);
+    }
+
+    if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
         result = MAREA_SemaCheckOwnership(context, node);
     }
 
