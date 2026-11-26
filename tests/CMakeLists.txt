@@ -155,3 +155,24 @@ unset(TEMP_CASE_NAME)
 unset(TEMP_CASE_STATIC)
 unset(TEMP_CASE_SHARED)
 unset(TEMP_CASE_EXPECT)
+
+# marea_add_library/marea_add_executable tool detection, with and without a marea-cc/marea-bc stand-in on PATH
+foreach(TEMP_CASE IN ITEMS "NoTool;;FAIL" "StandIn;${CMAKE_CURRENT_SOURCE_DIR}/cmake/fixtures/MareaStandIns;PASS")
+    list(GET TEMP_CASE 0 TEMP_CASE_NAME)
+    list(GET TEMP_CASE 1 TEMP_CASE_STUB_DIR)
+    list(GET TEMP_CASE 2 TEMP_CASE_EXPECT)
+    add_test(
+        NAME MareaFunctions.${TEMP_CASE_NAME}
+        COMMAND
+            "${CMAKE_COMMAND}" "-DCHECK_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/cmake/fixtures/MareaFunctions"
+            "-DCHECK_BINARY=${CMAKE_CURRENT_BINARY_DIR}/MareaFunctionsCheck/${TEMP_CASE_NAME}"
+            "-DCHECK_GENERATOR=${CMAKE_GENERATOR}" "-DCHECK_C_COMPILER=${CMAKE_C_COMPILER}"
+            "-DCHECK_CXX_COMPILER=${CMAKE_CXX_COMPILER}" "-DCHECK_MAREA_ROOT=${MAREA_FOLDER}"
+            "-DCHECK_STUB_DIR=${TEMP_CASE_STUB_DIR}" "-DCHECK_EXPECT=${TEMP_CASE_EXPECT}" -P
+            "${CMAKE_CURRENT_SOURCE_DIR}/cmake/CheckMareaFunctions.cmake"
+    )
+endforeach()
+unset(TEMP_CASE)
+unset(TEMP_CASE_NAME)
+unset(TEMP_CASE_STUB_DIR)
+unset(TEMP_CASE_EXPECT)
