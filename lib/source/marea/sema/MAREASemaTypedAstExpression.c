@@ -1139,6 +1139,8 @@ static MAREA_SemaExprType MAREA_CALL MAREA_G_TypeOfExpression(MAREA_G_Resolver *
         return MAREA_G_TypeOfIndexAccess(resolver, built);
     case MAREA_AST_KIND_CALL_EXPRESSION:
         return MAREA_G_TypeOfCall(resolver, built);
+    case MAREA_AST_KIND_MACRO_CALL:
+        return MAREA_SemaTypedAstMacroCallType(resolver->context, built->astNode, &resolver->outOfMemory);
     case MAREA_AST_KIND_LITERAL_VALUE:
     {
         const MAREA_AstNode *type = MAREA_SemaChildAt(built->astNode, 0);

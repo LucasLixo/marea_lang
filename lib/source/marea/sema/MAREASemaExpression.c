@@ -512,7 +512,7 @@ static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOfUnary(const MAREA_SemaContext *co
     return MAREA_G_ShapeUnknown();
 }
 
-// INFO: a build_value call has the type of its second argument and a registered macro has the result type of its descriptor. A built-in macro gives no value, a string, or a type that sema does not know. A name that no macro has is unknown, and MAREA_SemaCheckMacro reports it.
+// INFO: a build_value call has the type of its second argument and a registered macro has the result type of its descriptor. A built-in macro gives no value, a string, a uinteger32, or a type that sema does not know. A name that no macro has is unknown, and MAREA_SemaCheckMacro reports it.
 static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOfMacro(const MAREA_SemaContext *context, const MAREA_AstNode *call)
 {
     const MAREA_SemaMacroType TYPE = MAREA_SemaMacroTypeOf(context, call);
@@ -544,6 +544,8 @@ static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOfMacro(const MAREA_SemaContext *co
         return MAREA_G_ShapeMake(MAREA_G_SHAPE_KIND_NONE, MAREA_NULLPTR, 0);
     case MAREA_SEMA_MACRO_VALUE_STRING:
         return MAREA_G_ShapePrimitive("string");
+    case MAREA_SEMA_MACRO_VALUE_UINTEGER_32:
+        return MAREA_G_ShapePrimitive("uinteger32");
     default:
         return MAREA_G_ShapeUnknown();
     }

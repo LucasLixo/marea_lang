@@ -799,6 +799,8 @@ Function declaration and call, parameters and defaults, the result and `return v
 | L-TYPES-210 | a field of a function type with another signature than the parameter | 3053 @15 |
 | L-TYPES-211 | an owned vector given to a vector parameter | 3014 @13 |
 | L-TYPES-212 | the result of a generic call compared after its type argument is bound | 3011 @13 |
+| L-TYPES-213 | the line of a call stored in a string | 3011 @8 |
+| L-TYPES-214 | the bytes of a file stored in a string | 3011 @8 |
 
 ### Types and control flow: known_gap
 
@@ -1331,8 +1333,8 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | ownership | 65 | 78 | 2 |
 | parallel | 19 | 40 | 0 |
 | seed | 1 | 2 | 0 |
-| types | 62 | 140 | 3 |
-| total | 275 | 574 | 13 |
+| types | 62 | 142 | 3 |
+| total | 275 | 576 | 13 |
 
 ## Parity
 

@@ -73,3 +73,76 @@ MAREA_SemaExprType MAREA_CALL MAREA_SemaTypedAstBuiltinCallType(const MAREA_Sema
 
     return MAREA_G_FixedType(MAREA_G_LAYOUT_TEXT, MAREA_INTEGER_SIZE(10));
 }
+
+static void MAREA_CALL MAREA_G_Append(MAREA_Character8 *buffer, MAREA_IntegerSize *position, const MAREA_Character8 *text, MAREA_IntegerSize length)
+{
+    memcpy((buffer + *position), text, length);
+
+    *position += length;
+}
+
+// INFO: namespace.Name<element,count>.
+static MAREA_SemaExprType MAREA_CALL MAREA_G_MacroResultType(const MAREA_SemaContext *context, const MAREA_MacroDescriptor *macro, MAREA_IntegerSize count, MAREA_Boolean *outOfMemory)
+{
+    const MAREA_TypeDescriptor *result = macro->resultType;
+
+    // INFO: 20 digits hold any 64-bit count, and the four marks are the dot, "<", "," and ">".
+    MAREA_Character8 digits[20];
+
+    MAREA_IntegerSize digitCount = 0;
+
+    MAREA_IntegerSize rest = count;
+
+    do {
+        digits[(sizeof(digits) - 1 - digitCount)] = (MAREA_Character8)('0' + (rest % MAREA_INTEGER_SIZE(10)));
+        rest /= MAREA_INTEGER_SIZE(10);
+        digitCount += 1;
+    } while (rest > 0);
+
+    MAREA_Null memory = MAREA_NULLPTR;
+
+    if (MAREA_ArenaAllocate(context->arena, (result->namespaceLength + result->nameLength + macro->resultElementLength + digitCount + MAREA_INTEGER_SIZE(4)), MAREA_INTEGER_SIZE(1), &memory) != MAREA_ARENA_EXCEPT_SUCCESS) {
+        *outOfMemory = MAREA_BOOLEAN_TRUE;
+
+        return MAREA_G_FixedType(MAREA_NULLPTR, 0);
+    }
+
+    MAREA_Character8 *text = memory;
+
+    MAREA_IntegerSize length = 0;
+
+    MAREA_G_Append(text, &length, result->namespaceText, result->namespaceLength);
+    MAREA_G_Append(text, &length, ".", MAREA_INTEGER_SIZE(1));
+    MAREA_G_Append(text, &length, result->name, result->nameLength);
+    MAREA_G_Append(text, &length, "<", MAREA_INTEGER_SIZE(1));
+    MAREA_G_Append(text, &length, macro->resultElementText, macro->resultElementLength);
+    MAREA_G_Append(text, &length, ",", MAREA_INTEGER_SIZE(1));
+    MAREA_G_Append(text, &length, (digits + (sizeof(digits) - digitCount)), digitCount);
+    MAREA_G_Append(text, &length, ">", MAREA_INTEGER_SIZE(1));
+
+    return MAREA_G_FixedType(text, length);
+}
+
+MAREA_SemaExprType MAREA_CALL MAREA_SemaTypedAstMacroCallType(const MAREA_SemaContext *context, const MAREA_AstNode *call, MAREA_Boolean *outOfMemory)
+{
+    const MAREA_AstNode *name = MAREA_SemaChildAt(call, 0);
+
+    // INFO: a macro that a library is called by its path for keeps no type: the ir reads it from the declaration around it.
+    if (MAREA_G_IsKind(name, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_FALSE) {
+        return MAREA_G_FixedType(MAREA_NULLPTR, 0);
+    }
+
+    if (MAREA_SemaMacroValueOf(MAREA_AstNodeGetText(name), MAREA_AstNodeGetTextLength(name)) == MAREA_SEMA_MACRO_VALUE_UINTEGER_32) {
+        return MAREA_G_FixedType("uinteger32", MAREA_INTEGER_SIZE(10));
+    }
+
+    const MAREA_MacroDescriptor *macro = MAREA_NULLPTR;
+
+    MAREA_IntegerSize count = 0;
+
+    if ((MAREA_G_TextIs(MAREA_AstNodeGetText(name), MAREA_AstNodeGetTextLength(name), "include_bytes") == MAREA_BOOLEAN_FALSE) || (MAREA_SemaMacroResultOf(context, call, &macro, &count) == MAREA_BOOLEAN_FALSE)) {
+        return MAREA_G_FixedType(MAREA_NULLPTR, 0);
+    }
+
+    return MAREA_G_MacroResultType(context, macro, count, outOfMemory);
+}

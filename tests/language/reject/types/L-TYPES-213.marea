@@ -1,0 +1,8 @@
+-- expect: 3011 @8
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- The line of a call stored in a string.
+
+namespace main;
+constant PLACE: string = line!();

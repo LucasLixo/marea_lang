@@ -559,6 +559,17 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExprType MAREA_CALL MAREA_SemaTypedAstBuiltinCallType(const MAREA_SemaContext *context, const MAREA_AstNode *call);
 
     /**
+     * @brief Gives the type of a bare built-in macro call that has a value of a known type: uinteger32 for line!(),
+     * and namespace.Name<element,count> for include_bytes! (the result of the macro of marea.array, spelled as the
+     * typed tree spells a type). A call of a qualified name keeps no type here.
+     * @param context Context the node is being built with. Must not be null.
+     * @param call MACRO_CALL node. Must not be null.
+     * @param outOfMemory Set to MAREA_BOOLEAN_TRUE when the arena has no room. Must not be null.
+     * @return The type, or an empty value (no known type).
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExprType MAREA_CALL MAREA_SemaTypedAstMacroCallType(const MAREA_SemaContext *context, const MAREA_AstNode *call, MAREA_Boolean *outOfMemory);
+
+    /**
      * @brief Re-types the operations below a typed node after the number literals below it changed type. A binary,
      * a unary and a parenthesized expression take their type from their children, so they are made again, deepest
      * first, from the types the children have now. Any other node is left as it is.
@@ -1751,12 +1762,13 @@ MAREA_BEGIN_EXTERN_C
         MAREA_SEMA_MACRO_VALUE_UNKNOWN = MAREA_UINTEGER_8(0),
         MAREA_SEMA_MACRO_VALUE_NONE = MAREA_UINTEGER_8(1),
         MAREA_SEMA_MACRO_VALUE_STRING = MAREA_UINTEGER_8(2),
+        MAREA_SEMA_MACRO_VALUE_UINTEGER_32 = MAREA_UINTEGER_8(3),
     } MAREA_SemaMacroValue;
 
     /**
      * @brief Gives the value of a built-in macro: NONE for assert, debug_assert, unreachable, compile_error,
-     * static_assert, print and log, STRING for format, include_text, file and namespace, and UNKNOWN for include_bytes
-     * and line (sema does not type them) and for a name that is no built-in macro.
+     * static_assert, print and log, STRING for format, include_text, file and namespace, UINTEGER_32 for line, and
+     * UNKNOWN for include_bytes (MAREA_SemaMacroTypeOf types it) and for a name that is no built-in macro.
      * @param text Text of the name, not NUL terminated. May be null when length is 0.
      * @param length Length of text in bytes.
      * @return The value.
@@ -1777,7 +1789,8 @@ MAREA_BEGIN_EXTERN_C
     /**
      * @brief The type of the value of one macro call: a build_value! call has the type of its second argument
      * (a primitive, or an enum with its declaration), and a call of a macro that a shipped library registers has
-     * the result type of the descriptor (the name is the name of that type). Every other call is UNKNOWN here.
+     * the result type of the descriptor (the name is the name of that type). The bare include_bytes! has the type of
+     * the macro of that name that marea.array registers. Every other call is UNKNOWN here.
      */
     typedef struct MAREA_SemaMacroType
     {
@@ -1797,6 +1810,17 @@ MAREA_BEGIN_EXTERN_C
      * @return The type.
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaMacroType MAREA_CALL MAREA_SemaMacroTypeOf(const MAREA_SemaContext *context, const MAREA_AstNode *call);
+
+    /**
+     * @brief Gives the macro that the registry holds for a call (a qualified name, or the bare include_bytes!) and
+     * the count that its expander gives.
+     * @param context Context of the run. Must not be null.
+     * @param call MACRO_CALL node. Must not be null.
+     * @param outDescriptor Receives the macro. Must not be null.
+     * @param outCount Receives the count. Must not be null.
+     * @return MAREA_BOOLEAN_TRUE when the macro is known, its arguments match and its expander gives a count.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaMacroResultOf(const MAREA_SemaContext *context, const MAREA_AstNode *call, const MAREA_MacroDescriptor **outDescriptor, MAREA_IntegerSize *outCount);
 
     /**
      * @brief Checks the fit of the value of a registered macro call with the declared type it initializes. The

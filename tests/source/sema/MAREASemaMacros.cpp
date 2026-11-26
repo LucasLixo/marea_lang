@@ -177,9 +177,9 @@ TEST(MAREASemaMacros, PlaceMacrosTakeNoArgument)
 
     EXPECT_EQ(MAREA_codesOfStatement("local text: string = namespace!();"), Codes{});
     EXPECT_EQ(MAREA_codesOfStatement("local text: string = file!();"), Codes{});
-    EXPECT_EQ(MAREA_codesOfStatement("local number: sinteger32 = line!();"), Codes{});
+    EXPECT_EQ(MAREA_codesOfStatement("local number: uinteger32 = line!();"), Codes{});
     EXPECT_EQ(MAREA_codesOfStatement("local text: string = namespace!(1);"), Codes{ INVALID_ARGUMENT });
-    EXPECT_EQ(MAREA_codesOfStatement("local number: sinteger32 = line!(1);"), Codes{ INVALID_ARGUMENT });
+    EXPECT_EQ(MAREA_codesOfStatement("local number: uinteger32 = line!(1);"), Codes{ INVALID_ARGUMENT });
     EXPECT_EQ(MAREA_codesOfStatement("local text: string = file!(\"x\");"), Codes{ INVALID_ARGUMENT });
 }
 
@@ -201,7 +201,7 @@ TEST(MAREASemaMacros, MacroValueMustFitItsTarget)
     EXPECT_EQ(MAREA_codesOfStatement("local text: string = include_text!(\"a.txt\");"), Codes{});
     EXPECT_EQ(MAREA_codesOfStatement("local text: string = namespace!();"), Codes{});
     EXPECT_EQ(MAREA_codesOfStatement("local text: string = file!();"), Codes{});
-    EXPECT_EQ(MAREA_codesOfStatement("local number: sinteger32 = line!();"), Codes{});
+    EXPECT_EQ(MAREA_codesOfStatement("local number: uinteger32 = line!();"), Codes{});
 }
 
 TEST(MAREASemaMacros, MacroResultReturnedMustFitTheReturnType)

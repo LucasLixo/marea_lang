@@ -3,7 +3,9 @@
 
 #include "tests/dependencies.hpp"
 
-#include "tests/MAREASemaHelpers.hpp"
+#include "marea/sema/MAREASemaTypedAst.h"
+
+#include "tests/MAREASemaCallerHelpers.hpp"
 
 namespace
 {
@@ -26,6 +28,61 @@ namespace
         }
 
         return fixture.MAREA_semaCodes();
+    }
+
+    // INFO: one run with an include resolver that knows logo.bin with 12 bytes.
+    Codes MAREA_codesWithFiles(const std::string &body)
+    {
+        MAREA_CallerInputs inputs;
+
+        inputs.hasIncludes = true;
+        inputs.files = { { "logo.bin", 12 } };
+
+        return MAREA_codesWith("namespace main;\nrequire marea.array;\n" + body, inputs);
+    }
+
+    // INFO: the resolved type of the first macro call of the typed tree, empty when it has none.
+    std::string MAREA_macroType(const MAREA_SemaTypedNode *node)
+    {
+        if (MAREA_AstNodeGetKind(MAREA_SemaTypedNodeGetAstNode(node)) == MAREA_AST_KIND_MACRO_CALL) {
+            const MAREA_Character8 *text{ nullptr };
+
+            MAREA_IntegerSize length{ 0 };
+
+            return (MAREA_SemaTypedNodeGetResolvedType(node, &text, &length) == MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) ? std::string(text, length) : std::string{};
+        }
+
+        for (MAREA_IntegerSize index{ 0 }; index < MAREA_SemaTypedNodeGetChildCount(node); ++index) {
+            const MAREA_SemaTypedNode *child{ nullptr };
+
+            if (MAREA_SemaTypedNodeGetChildAt(node, index, &child) == MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) {
+                const std::string FOUND{ MAREA_macroType(child) };
+
+                if (!FOUND.empty()) {
+                    return FOUND;
+                }
+            }
+        }
+
+        return std::string{};
+    }
+
+    std::string MAREA_typedMacro(const std::string &body)
+    {
+        MAREA_CallerInputs inputs;
+
+        inputs.hasIncludes = true;
+        inputs.files = { { "logo.bin", 12 } };
+
+        MAREA_CallerRun run("namespace main;\nrequire marea.array;\n" + body, inputs);
+
+        const MAREA_SemaTypedNode *root{ nullptr };
+
+        if (!run.MAREA_codes().empty() || (MAREA_SemaBuildTypedAst(run.fixture.context, run.fixture.parser.root, &root) != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS)) {
+            return "failed";
+        }
+
+        return MAREA_macroType(root);
     }
 } // namespace
 
@@ -179,4 +236,32 @@ TEST(MAREASemaKnownTypes, ParameterThatMentionsAGenericIsComparedAfterBinding)
     EXPECT_EQ(MAREA_codesOf(TYPES + "function g(n: sinteger32) apply<sinteger32>(twice, n); end"), Codes{}) << "A fitting function with a written type argument must raise nothing.";
 
     EXPECT_EQ(MAREA_codesOf(TYPES + "function g(n: sinteger32) apply(twice, n); end"), Codes{}) << "A fitting function with an inferred type argument must raise nothing.";
+}
+
+TEST(MAREASemaKnownTypes, LineMacroIsAnUnsignedInteger)
+{
+    GTEST_COUT << "Validating line!() has the type uinteger32 in the checks and in the typed tree." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("function g() local s: string = line!(); end"), Codes{ MISMATCH }) << "line!() for a string must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf("function g() local n: sinteger32 = line!(); end"), Codes{ MISMATCH }) << "line!() for a signed integer must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf("function g() local n: uinteger32 = line!() + 1; end"), Codes{}) << "line!() is a uinteger32.";
+
+    EXPECT_EQ(MAREA_typedMacro("function g()\n    local n: uinteger32 = line!();\nend\n"), "uinteger32") << "The typed node of line!() must have its type.";
+}
+
+TEST(MAREASemaKnownTypes, IncludeBytesIsAnArrayOfTheFileSize)
+{
+    GTEST_COUT << "Validating include_bytes! has the array type of the registered macro with the size of the file." << std::endl;
+
+    EXPECT_EQ(MAREA_codesWithFiles("function g() local s: string = include_bytes!(\"logo.bin\"); end"), Codes{ MISMATCH }) << "A file for a string must raise TYPE_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesWithFiles("constant LOGO: marea.array.Array<uinteger8, 3> = include_bytes!(\"logo.bin\");"), Codes{ ARGUMENT_MISMATCH }) << "Another count must raise GENERIC_ARGUMENT_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesWithFiles("constant LOGO: marea.array.Array<sinteger8, 12> = include_bytes!(\"logo.bin\");"), Codes{ ARGUMENT_MISMATCH }) << "Another element must raise GENERIC_ARGUMENT_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesWithFiles("constant LOGO: marea.array.Array<uinteger8, 12> = include_bytes!(\"logo.bin\");"), Codes{}) << "The size of the file must be accepted.";
+
+    EXPECT_EQ(MAREA_typedMacro("constant LOGO: marea.array.Array<uinteger8, 12> = include_bytes!(\"logo.bin\");\n"), "marea.array.Array<uinteger8,12>") << "The typed node of include_bytes! must have its type.";
 }

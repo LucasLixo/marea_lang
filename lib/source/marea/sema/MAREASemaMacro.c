@@ -24,7 +24,7 @@ typedef struct MAREA_G_MacroRule
     MAREA_SemaMacroValue value;
 } MAREA_G_MacroRule;
 
-// INFO: include_bytes gives c.array<uinteger8> and line gives a number, but sema does not type them yet, so their value is unknown.
+// INFO: line gives a uinteger32. include_bytes takes its type from the macro that the registry holds for marea.array, so its value is unknown here.
 static const MAREA_G_MacroRule MAREA_G_MACROS[] = {
     { "assert", MAREA_G_MACRO_SHAPE_CONDITION_AND_TEXT, MAREA_SEMA_MACRO_VALUE_NONE },
     { "debug_assert", MAREA_G_MACRO_SHAPE_CONDITION_AND_TEXT, MAREA_SEMA_MACRO_VALUE_NONE },
@@ -36,7 +36,7 @@ static const MAREA_G_MacroRule MAREA_G_MACROS[] = {
     { "format", MAREA_G_MACRO_SHAPE_FORMAT, MAREA_SEMA_MACRO_VALUE_STRING },
     { "print", MAREA_G_MACRO_SHAPE_FORMAT, MAREA_SEMA_MACRO_VALUE_NONE },
     { "log", MAREA_G_MACRO_SHAPE_LEVEL_AND_FORMAT, MAREA_SEMA_MACRO_VALUE_NONE },
-    { "line", MAREA_G_MACRO_SHAPE_NONE, MAREA_SEMA_MACRO_VALUE_UNKNOWN },
+    { "line", MAREA_G_MACRO_SHAPE_NONE, MAREA_SEMA_MACRO_VALUE_UINTEGER_32 },
     { "file", MAREA_G_MACRO_SHAPE_NONE, MAREA_SEMA_MACRO_VALUE_STRING },
     { "namespace", MAREA_G_MACRO_SHAPE_NONE, MAREA_SEMA_MACRO_VALUE_STRING },
     // INFO: build_value takes its type from its second argument, so MAREA_SemaMacroTypeOf types it and the value here is unknown.
@@ -858,6 +858,23 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_ResolveQualified(const MAREA_SemaCont
     return MAREA_SEMA_EXCEPT_SUCCESS;
 }
 
+// INFO: a qualified name, or the bare include_bytes, which stands for the macro of that name that marea.array registers. Sema knows no library type: with marea.array off there is no such macro and the bare call has no type.
+static MAREA_SemaExcept MAREA_CALL MAREA_G_ResolveMacro(const MAREA_SemaContext *context, const MAREA_AstNode *name, MAREA_G_Resolution *outResolution)
+{
+    if (MAREA_AstNodeGetKind(name) == MAREA_AST_KIND_QUALIFIED_NAME) {
+        return MAREA_G_ResolveQualified(context, name, outResolution);
+    }
+
+    *outResolution = (MAREA_G_Resolution){ .descriptor = MAREA_NULLPTR, .path = MAREA_NULLPTR, .pathLength = 0, .status = MAREA_G_RESOLVE_STATUS_UNKNOWN };
+
+    if ((MAREA_AstNodeGetKind(name) == MAREA_AST_KIND_IDENTIFIER) && (MAREA_SemaTextEquals(MAREA_AstNodeGetText(name), MAREA_AstNodeGetTextLength(name), "include_bytes", strlen("include_bytes")) == MAREA_BOOLEAN_TRUE)) {
+        outResolution->descriptor = MAREA_TypeRegistryFindMacro(context->typeRegistry, "marea.array", strlen("marea.array"), "include_bytes", strlen("include_bytes"));
+        outResolution->status = (outResolution->descriptor != MAREA_NULLPTR) ? MAREA_G_RESOLVE_STATUS_FOUND : MAREA_G_RESOLVE_STATUS_UNKNOWN;
+    }
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
 static MAREA_Boolean MAREA_CALL MAREA_G_ExpandRegistered(const MAREA_SemaContext *context, const MAREA_MacroDescriptor *descriptor, const MAREA_AstNode *list, MAREA_IntegerSize *outCount)
 {
     const MAREA_AstNode *argument = MAREA_SemaChildAt(list, 0);
@@ -937,10 +954,14 @@ MAREA_SemaMacroType MAREA_CALL MAREA_SemaMacroTypeOf(const MAREA_SemaContext *co
         return type;
     }
 
-    if (MAREA_AstNodeGetKind(name) == MAREA_AST_KIND_QUALIFIED_NAME) {
-        MAREA_G_Resolution resolution = { 0 };
+    MAREA_G_Resolution resolution = { 0 };
 
-        if ((MAREA_G_ResolveQualified(context, name, &resolution) != MAREA_SEMA_EXCEPT_SUCCESS) || (resolution.status != MAREA_G_RESOLVE_STATUS_FOUND) || (resolution.descriptor->resultType == MAREA_NULLPTR)) {
+    if ((MAREA_G_ResolveMacro(context, name, &resolution) != MAREA_SEMA_EXCEPT_SUCCESS) || ((MAREA_AstNodeGetKind(name) == MAREA_AST_KIND_QUALIFIED_NAME) && (resolution.status != MAREA_G_RESOLVE_STATUS_FOUND))) {
+        return type;
+    }
+
+    if (resolution.status == MAREA_G_RESOLVE_STATUS_FOUND) {
+        if (resolution.descriptor->resultType == MAREA_NULLPTR) {
             return type;
         }
 
@@ -985,6 +1006,27 @@ static MAREA_Boolean MAREA_CALL MAREA_G_ReadCount(const MAREA_AstNode *literal, 
     return MAREA_BOOLEAN_TRUE;
 }
 
+MAREA_Boolean MAREA_CALL MAREA_SemaMacroResultOf(const MAREA_SemaContext *context, const MAREA_AstNode *call, const MAREA_MacroDescriptor **outDescriptor, MAREA_IntegerSize *outCount)
+{
+    if ((context == MAREA_NULLPTR) || (call == MAREA_NULLPTR) || (outDescriptor == MAREA_NULLPTR) || (outCount == MAREA_NULLPTR)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_AstNode *name = MAREA_SemaChildAt(call, 0);
+
+    const MAREA_AstNode *list = MAREA_SemaChildAt(call, 1);
+
+    MAREA_G_Resolution resolution = { 0 };
+
+    if ((name == MAREA_NULLPTR) || (list == MAREA_NULLPTR) || (MAREA_G_ResolveMacro(context, name, &resolution) != MAREA_SEMA_EXCEPT_SUCCESS) || (resolution.status != MAREA_G_RESOLVE_STATUS_FOUND) || (resolution.descriptor->resultType == MAREA_NULLPTR) || (MAREA_G_ArgumentsMatch(resolution.descriptor, list) == MAREA_BOOLEAN_FALSE) || (MAREA_G_ExpandRegistered(context, resolution.descriptor, list, outCount) == MAREA_BOOLEAN_FALSE)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    *outDescriptor = resolution.descriptor;
+
+    return MAREA_BOOLEAN_TRUE;
+}
+
 MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckMacroResultFit(MAREA_SemaContext *context, const MAREA_AstNode *type, const MAREA_AstNode *expression)
 {
     if (context == MAREA_NULLPTR) {
@@ -1001,13 +1043,13 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckMacroResultFit(MAREA_SemaContext *con
 
     const MAREA_AstNode *arguments = MAREA_SemaChildAt(type, 1);
 
-    if ((name == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(name) != MAREA_AST_KIND_QUALIFIED_NAME) || (list == MAREA_NULLPTR) || (arguments == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(arguments) != MAREA_AST_KIND_TYPE_ARGUMENTS) || (MAREA_AstNodeGetChildCount(arguments) != 2)) {
+    if ((name == MAREA_NULLPTR) || (list == MAREA_NULLPTR) || (arguments == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(arguments) != MAREA_AST_KIND_TYPE_ARGUMENTS) || (MAREA_AstNodeGetChildCount(arguments) != 2)) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
     MAREA_G_Resolution resolution = { 0 };
 
-    const MAREA_SemaExcept RESOLVE_RESULT = MAREA_G_ResolveQualified(context, name, &resolution);
+    const MAREA_SemaExcept RESOLVE_RESULT = MAREA_G_ResolveMacro(context, name, &resolution);
 
     const MAREA_TypeDescriptor *declared = MAREA_NULLPTR;
 
@@ -1033,7 +1075,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckMacroResultFit(MAREA_SemaContext *con
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
-    const MAREA_AstNode *last = MAREA_SemaChildAt(name, (MAREA_AstNodeGetChildCount(name) - 1));
+    const MAREA_AstNode *last = (MAREA_AstNodeGetKind(name) == MAREA_AST_KIND_QUALIFIED_NAME) ? MAREA_SemaChildAt(name, (MAREA_AstNodeGetChildCount(name) - 1)) : name;
 
     return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_GENERIC_ARGUMENT_MISMATCH, MAREA_AstNodeGetPosition(expression), "type arguments differ from the result of the macro", MAREA_AstNodeGetText(last), MAREA_AstNodeGetTextLength(last));
 }

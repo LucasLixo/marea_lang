@@ -732,11 +732,11 @@ or at the argument list when the count is wrong; at most one diagnostic is raise
 | `unreachable` | exactly 0 | none |
 | `compile_error` | exactly 1: a string literal | none |
 | `static_assert` | exactly 2: a condition, a string literal | none |
-| `include_bytes`, `include_text` | exactly 1: a string literal | `marea.array.Array<uinteger8, N>` (not typed here), `string` |
+| `include_bytes`, `include_text` | exactly 1: a string literal | `marea.array.Array<uinteger8, N>` (see "Macros of a library"), `string` |
 | `format` | 1 or more: a string literal, then the values | `string` |
 | `print` | 1 or more: a string literal, then the values | none |
 | `log` | 2 or more: a level name, a string literal, then the values | none |
-| `line`, `file`, `namespace` | exactly 0 | not typed (`line`), `string` |
+| `line`, `file`, `namespace` | exactly 0 | `uinteger32` (`line`), `string` |
 | `build_value` | exactly 3: a string literal (the name), a type name, a default | the type of the second argument |
 
 Four decisions bind the table. (1) The log levels are the five names `trace`, `debug`, `info`, `warning` and `error`
@@ -745,14 +745,15 @@ confirm. A level that is not a bare name of the list is rejected, a literal incl
 is rejected only when it is a literal of the wrong kind: an integer, float, boolean or character literal for a text; an
 integer, float, string or character literal for a condition. Any other expression has an unknown type and is accepted.
 (3) The `{}` check runs when the format text is a string literal: it counts the occurrences of the two characters `{}`
-and compares the count with the number of value arguments. A lone `{` or `}` is skipped. (4) `line!()` is not typed;
+and compares the count with the number of value arguments. A lone `{` or `}` is skipped. (4) `line!()` is `uinteger32`;
 `file!()` and `namespace!()` are `string`.
 
 The value of a macro is part of the type check. A macro with no value has a shape that fits no type, so it is
 `TYPE_MISMATCH` (3011) where a primitive is expected: the initial value of a `local` (`local n: sinteger32 = print!("x");`),
 a returned value, an argument of a call or an operand. A macro that gives a `string` fits a `string` and is a 3011 for
 any other primitive (`return format!("x");` in a function that returns `sinteger32`). A macro statement is not a value
-use and raises nothing, and the typed tree is not changed.
+use and raises nothing. In the typed tree only a bare `line!()` and `include_bytes!` have a resolved type
+(`uinteger32`, `marea.array.Array<uinteger8,N>`).
 
 **`build_value!`.** `build_value!("NAME", Type, default)` reads a value that the build gave (see "Caller inputs"). `Type` is
 written bare: a primitive (`boolean`, an integer, `float32`, `float64`, `character`, `string`) or an enum declared in the file;
@@ -776,9 +777,11 @@ that namespace; a name that no registered macro has, a namespace that no resolve
 expander must accept the call, otherwise `INVALID_MACRO_ARGUMENT` too (for example a file that the include resolver does not
 know). The value has the result type of the descriptor, a library type, so it fits no primitive (`TYPE_MISMATCH`), and a declared
 type that is written `Library.Type<Element, Count>` must be that type with the element and the count the expander gave
-(`GENERIC_ARGUMENT_MISMATCH` otherwise). The name of a macro of a library is never reached by its bare name. The old bare
-`include_bytes!` is still in the table of the language macros as a placeholder with no type; it leaves with the real macro
-(see Gaps).
+(`GENERIC_ARGUMENT_MISMATCH` otherwise). The one macro of a library that its bare name reaches is `include_bytes!`, which
+stands for the macro of that name that `marea.array` registers: it has the same result type, so
+`constant LOGO: marea.array.Array<uinteger8, 12> = include_bytes!("logo.bin");` needs a file of 12 bytes in the include
+resolver. With `marea.array` off there is no such macro and the bare call has no type. The bare name stays in the table of
+the language macros; it leaves with the real macro (see Gaps).
 
 **Condition type.** The condition of an `if`, an `elseif`, a `while` or a `do ... while` must be a `boolean`: a condition with a known
 primitive type other than `boolean`, or a number, string or character literal, is `NON_BOOLEAN_CONDITION` (3043), raised
@@ -1316,7 +1319,8 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
   `marea.array.Array<T>`); a `vector` is still indexable in the type inference, though it is a move type.
 - `include_bytes!` is not a macro of `marea.array` yet: the real macro is written with the library (apply `lib-array-vector-tuple`),
   and the fixture libraries of the tests prove the mechanism. The bare `include_bytes!` stays in the table of the language macros
-  as a placeholder with no type, and `examples/macros/builtin.marea` still writes it; both leave with the real macro.
+  as a placeholder, and `examples/macros/builtin.marea` still writes it; both leave with the real macro. A bare call
+  whose file the include resolver does not know is not reported (only the call by a qualified name is).
 - The `when` item is read only by the attribute check. Another reader (`visibility`, `layout`, `align`, `pack`, `operator`,
   `export`, `inline`, `build`) sees the plain items, so a `when` that gives such a key has no effect on that reader yet. The
   `backend` rule reads it, since it is the only check that is about the target.
@@ -1330,7 +1334,8 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
   namespace, and a project file under the root `marea` is always `RESERVED_NAMESPACE_ROOT`, so a shipped `marea.math` file
   cannot pass the checks of sema clean until a shipped-file entry exists.
 - The IR lowers `build_value!`, a macro with a qualified name and `do ... while` now (see the ir doc, "Macros" and "Do-while
-  lowering"). A macro call has no resolved type in the typed tree, so the IR reads the type from the declaration around it.
+  lowering"). A macro call that the IR lowers (`build_value!`, a qualified name) has no resolved type in the typed tree, so the IR
+  reads the type from the declaration around it.
 - A type that holds a table (two type parameters, no index protocol) is found by that shape, not by a role: a keyed collection
   has no role of its own in the roles table yet.
 - Renaming on use inside one file (without an import) is not offered: a local declaration has its own name.
@@ -1378,8 +1383,6 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 - `INVALID_MACRO_ARGUMENT` (3061) does not check the type of each value that a `{}` takes: `print!("{}", x)` is
   accepted for any `x`. A condition or a text that is not a literal is accepted whatever its type, and a format text
   that is not a string literal has no `{}` count. The five log levels are an assumption (see Built-in macro).
-- `line!()` has no type in sema, and `include_bytes!` gives no type either (it should give `marea.array.Array<uinteger8, N>`), so
-  both fit any target.
 - `RAW_POINTER_OUTSIDE_UNSAFE` (3041) reads the role of the written type in every place, but a type alias of a raw pointer is
   not followed through its use: the alias declaration itself is the place that is rejected.
 - `RECURSIVE_TYPE` (3045) does not follow a user generic structure given as `Box<Node>`: its field types are written in
@@ -1418,16 +1421,17 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 - The declared name of a `partition` (the part) and of a `with` carries no resolved type on its own typed node, though a read of the
   name does: only the declared names of a `for` and a `for each` carry one (see "Loop names and collection"). Neither has a
   consumer that needs it yet.
-- An expression with no resolved type. The sweep of the 23 examples (866 expression nodes, 36 of them qualifier names
-  that are not values and are counted on their own) finds 79 expression nodes with no type, with a fixture signature
+- An expression with no resolved type. The sweep of the 23 examples (838 expression nodes, 54 of them qualifier names
+  that are not values and are counted on their own) finds 75 expression nodes with no type, with a fixture signature
   function that answers `filled`, `append`, `sum` and `result` (see "Members of a library type"), and every one of the
-  79 is in one of the nine classes below. The list is closed: the sweep test
+  75 is in one of the nine classes below. The list is closed: the sweep test
   (`tests/source/sema/MAREASemaTypedAstExamples.cpp`) fails with the file, the position and the name for any other
   untyped expression node, and it fails for a class that no example reaches any more, so a class that a fix empties
   leaves this list in the same change. A literal never has a place in the list: every literal has a type. The `ir`
   stage can treat every untyped expression outside these classes as `UNTYPED_EXPRESSION` (4006).
-  - `MACRO_SUBTREE` (20): a `MACRO_CALL` (15) and every node below one (5: `info` of `log!`, the call `power(...)` of
-    `print!`, `size_of` and `align_of` of `static_assert!`). The `ir` raises 4005 for a macro.
+  - `MACRO_SUBTREE` (19): a `MACRO_CALL` and every node below one (`info` of `log!`, the call `power(...)` of
+    `print!`, `size_of` and `align_of` of `static_assert!`), `line!()` and `include_bytes!` excepted, which have a type.
+    The `ir` raises 4005 for a macro.
   - `QUALIFYING_TYPE_NAME` (2): a `GENERIC_NAME` on the left of a member access, a written type that qualifies a static
     member (`marea.array.Array<sinteger32, 4>.filled(8, 0)`). It is not a value, and sema does not flag it as a qualifier name,
     which is only an `IDENTIFIER`.
@@ -1436,12 +1440,12 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
   - `UNTYPED_FUNCTION_NAME` (3): an `IDENTIFIER` that is the callee of a call and has no function type: `power` and
     `square_root`, imported by name from an `EXTERNAL` namespace that gives no signature, and `maximum`, a generic
     function of the file (a generic function name has no function type; the call of `maximum` has its inferred type).
-  - `UNTYPED_FUNCTION_MEMBER` (23): a `MEMBER_ACCESS` that is the callee of a call, with no function type: a function
+  - `UNTYPED_FUNCTION_MEMBER` (19): a `MEMBER_ACCESS` that is the callee of a call, with no function type: a function
     or method of an `EXTERNAL` namespace or of a library type (`stdio.puts`, `vulkan.present`, `tasks.append`,
     `item.result`, `Arena.create`, `product.sum`), a static member of a written generic type, or a method on a
     receiver of a generic parameter type (`left.less(right)`, `winner.describe()`). The call may have a type of its
     own (`tasks.append(...)`, `left.less(right)`); the member never does.
-  - `UNTYPED_CALL` (18): a `CALL_EXPRESSION` whose callee has no type and that no rule types: a call of an `EXTERNAL`
+  - `UNTYPED_CALL` (19): a `CALL_EXPRESSION` whose callee has no type and that no rule types: a call of an `EXTERNAL`
     function with no signature, or of a library member that the signature function does not know
     (`stdio.puts(text)`, `vulkan.present(swapchain, texture)`, `text.length(full)`, `slice.length(pixels)`,
     `table.length(scores)`, `square_root(x)`).
@@ -1463,7 +1467,7 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
   size result; a method call on a generic-parameter receiver whose own where clause lists no contract that declares
   the member; a call of a generic function whose inferred type arguments find nothing to bind, disagree, or give a
   result that is not itself one bound bare parameter (see "Inferred type arguments"); the built-in `convert`, `size_of`
-  and `align_of` as names; every `MACRO_CALL` and `GENERIC_NAME`.
+  and `align_of` as names; every `GENERIC_NAME` and every `MACRO_CALL` but a bare `line!()` and `include_bytes!`.
 - A binary operation has the type of its operands even when an operator function of the structure declares another
   result type: the result of `#[operator = "+"]` is not read. A field of a variant is read from the first variant that
   declares the name.
