@@ -121,3 +121,22 @@ TEST(MAREASemaKnownTypes, FunctionTypeIsComparedForAnyExpressionThatHasOne)
 
     EXPECT_TRUE(MAREA_codesOf(TYPES + "type Text = string; function same(a: Text): sinteger32 return 0; end function make(): function(a: Text): sinteger32 return same; end function g(run: function(a: string): sinteger32) use(run); use(make()); end").empty()) << "The same signature, through an alias too, must raise nothing.";
 }
+
+TEST(MAREASemaKnownTypes, DifferentGenericHeadIsRejected)
+{
+    GTEST_COUT << "Validating two generic types of two heads are never taken for one type." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("function keep(v: demo.vector<float32>) end function g(o: demo.owned<demo.vector<float32>>) keep(o); end"), Codes{ ARGUMENT_MISMATCH }) << "An owned vector for a vector must raise GENERIC_ARGUMENT_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf("function keep(v: demo.slice<float32>) end function g() unsafe local p: demo.pointer<float32> = demo.slice<float32>{}; end end"), Codes{ ARGUMENT_MISMATCH }) << "A slice for a raw pointer must raise GENERIC_ARGUMENT_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf("function keep(v: demo.vector<demo.owned<float32>>) end function g(w: demo.vector<demo.slice<float32>>) keep(w); end"), Codes{ ARGUMENT_MISMATCH }) << "A nested head that differs must raise GENERIC_ARGUMENT_MISMATCH.";
+
+    EXPECT_EQ(MAREA_codesOf("structure A<Item> x: Item; end structure B<Item> x: Item; end function keep(v: A<float32>) end function g(b: B<float32>) keep(b); end"), Codes{ ARGUMENT_MISMATCH }) << "Two generic structures of the file are two types.";
+
+    EXPECT_EQ(MAREA_codesOf("structure A x: float32; end function keep(v: demo.vector<float32>) end function g(w: demo.vector<A>) keep(w); end"), Codes{ ARGUMENT_MISMATCH }) << "A structure element for a primitive element must raise GENERIC_ARGUMENT_MISMATCH.";
+
+    EXPECT_TRUE(MAREA_codesOf("type Floats = demo.vector<float32>; function keep(v: demo.vector<Floats>) end function g(w: demo.vector<demo.vector<float32>>) keep(w); end").empty()) << "An alias is not compared by its head.";
+
+    EXPECT_TRUE(MAREA_codesOf("function keep<Item>(v: demo.vector<demo.vector<float32>>) end function g<Item>(w: demo.vector<Item>) keep<Item>(w); end").empty()) << "A generic parameter in scope is not compared.";
+}

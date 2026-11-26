@@ -370,7 +370,7 @@ TEST(MAREASemaGenericsAndContracts, MatchingTypeArgumentRaisesNothing)
 
     EXPECT_TRUE(MAREA_codesOf("function check(values: demo.array<sinteger32, 4>): sinteger32 local second: demo.array<sinteger32, 4> = values; return 1; end").empty()) << "Equal type arguments must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("structure Point x: sinteger32; end function check(points: demo.owned<demo.vector<Point>>): sinteger32 local other: demo.vector<Point> = move points; return 1; end").empty()) << "A move of an owned vector into a vector must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("structure Point x: sinteger32; end function check(points: demo.owned<demo.vector<Point>>): sinteger32 local other: demo.owned<demo.vector<Point>> = move points; return 1; end").empty()) << "A move of an owned vector into an owned vector must raise nothing.";
 
     EXPECT_TRUE(MAREA_codesOf("function check<Item>(values: demo.array<Item, 4>): sinteger32 local second: demo.array<sinteger32, 4> = values; return 1; end").empty()) << "A generic parameter argument must raise nothing.";
 

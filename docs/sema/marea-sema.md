@@ -648,10 +648,11 @@ or an inline run, are classified as their own shapes but are never compared as a
 whole; only their type arguments are (next paragraph).
 
 The type arguments of a generic type are compared with the declared type before the primitive check, at the same
-places. When the declared type and the type of the value (a name, a field, an index, a struct literal, with one
-`copy` or `move` and any parentheses looked through) have the same head name and the same number of type arguments,
-each pair must agree: two primitives by name, two value arguments by text, two nested generic types by this rule. A
-difference is `GENERIC_ARGUMENT_MISMATCH` (3014) on the value. The variable of a `for each` has the element type of
+places. The declared type and the type of the value (any expression that has a written type, with `copy`, `move` and
+parentheses looked through) must both have type arguments. Their heads are compared first: a head is a registered
+type, a primitive, or a structure or an enum of the file, and two different heads (`c.memory.Owned<marea.vector.Vector<T>>`
+for `marea.vector.Vector<T>`) are `GENERIC_ARGUMENT_MISMATCH` (3014) on the value. With one head, each pair of
+arguments must agree: two value arguments by text and two types by this rule again. The variable of a `for each` has the element type of
 the collection: one type with the owner role is peeled, then the first type argument of a registered type with the index protocol; with two
 variables the second is the element and the first, the index, stays untyped. A field read through it is compared
 like a field read through a parameter (3011).
@@ -1199,7 +1200,7 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 | 3011 | `TYPE_MISMATCH` | `convert<sinteger32>(text)` with a `string` name, `convert<Point>(other)` for two structures with another layout, `f("text")` when the parameter is `sinteger32`, `local x: boolean = 1;`, `local n: sinteger32 = a < b;`, `f(s)` with a `string` name `s`, `return a + 1;` in a function that returns `boolean`, `a + b` with an `sinteger32` and a `float64`, `count(2)` when `count` is an `sinteger32` local, `Point("x", 2.0)` when `construct`'s first parameter is `float32`; `power("two", 10.0)` when the host's signature of `c.math.pow` takes `float64, float64`; `local x: sinteger8 = item.x;` over a `for each` whose element field is `sinteger32`, `local first: float32 = values;` when `values` is a `demo.slice<float32>`, `f("text")` when the parameter is a slice or a raw pointer |
 | 3012 | `DUPLICATE_MEMBER` | two `implementation` blocks of one type that both declare `area`; a structure field, an enum variant or a contract function that is declared twice in its declaration |
 | 3013 | `CONTRACT_NOT_SATISFIED` | `maximum(a, b)` when the type of `a` has no `less` for `where Item: Comparable` |
-| 3014 | `GENERIC_ARGUMENT_MISMATCH` | `Pair<sinteger32>` when `Pair` has two parameters, `Box<4>`, a registered type written with more type arguments than its descriptor declares, `local x: marea.array.Array<sinteger8, 4> = values;` when `values` is `marea.array.Array<sinteger32, 4>` |
+| 3014 | `GENERIC_ARGUMENT_MISMATCH` | `Pair<sinteger32>` when `Pair` has two parameters, `Box<4>`, a registered type written with more type arguments than its descriptor declares, `local x: marea.array.Array<sinteger8, 4> = values;` when `values` is `marea.array.Array<sinteger32, 4>`, an `owned<vector<T>>` given where a `vector<T>` is declared |
 | 3015 | `INSTANTIATION_TOO_DEEP` | a type argument nested 65 levels |
 | 3016 | `ASSIGNMENT_NEEDS_COPY_OR_MOVE` | `a = b;` when the type is not a primitive, a copyable `array` or an enum; a registered type of the move class needs the word too; so does a name, a field or an element given to a parameter with the owner role, reported at the argument (`MAREA_SemaCheckOwnedArguments`; a `vector` or `task` parameter is not checked, and an argument of unknown type is accepted) |
 | 3017 | `INVALID_BORROW` | `#[semantics = value_read_only] s: Shape` when `Shape` is not a primitive |
@@ -1336,9 +1337,8 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 - A struct literal with a missing field is rejected (3077, one report per literal, so a second missing field shows only after the first is written). The ir has no `ZERO_VALUE` any more (removed in PR #355): no accepted program has an omitted field, so the ir has nothing to fill.
 - A call of a method or of an imported function that has no result, used as a value, is not seen: sema cannot see its
   result (`INVALID_RESULT_USE`, 3054).
-- The type arguments of a generic type are compared (3014) only for two types of one head name and one argument
-  count. A pair that mentions a generic parameter in scope, an alias, an import or an unknown type, a different head
-  (`c.memory.Owned<marea.vector.Vector<T>>` into `marea.vector.Vector<T>` is accepted), and a `for each` over a collection of unknown type, are skipped.
+- A pair of types is not compared (3014) when a head is a generic parameter in scope, an alias, an import or an
+  unknown type, when only one side has type arguments, or for a `for each` over a collection of unknown type.
 - A function type that mentions a generic parameter in scope, and a generic function given as a value, are never
   compared (3011, 3053). A bare name of an imported function, and a value that sema does not type, are accepted.
 - A binary operator is checked against what its operands may be only for a bitwise operator on a float, a boolean

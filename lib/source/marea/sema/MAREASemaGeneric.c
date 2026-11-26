@@ -840,7 +840,55 @@ static MAREA_Boolean MAREA_CALL MAREA_G_ArgumentListDiffers(const MAREA_SemaCont
     return MAREA_BOOLEAN_FALSE;
 }
 
-// INFO: two value arguments differ by text, two primitives by name and two generic types of one head by their own arguments. A generic parameter in scope, an alias, an import, a different head and an unknown type are skipped.
+// INFO: the head of a written type that sema knows: a registered descriptor, a primitive name, or a structure or an enum of the file.
+typedef struct MAREA_G_Head
+{
+    const void *identity;
+    const MAREA_Character8 *primitive;
+    MAREA_IntegerSize primitiveLength;
+    MAREA_Boolean known;
+} MAREA_G_Head;
+
+static MAREA_G_Head MAREA_CALL MAREA_G_HeadOf(const MAREA_SemaContext *context, const MAREA_AstNode *type)
+{
+    MAREA_G_Head head = { .identity = MAREA_NULLPTR, .primitive = MAREA_NULLPTR, .primitiveLength = 0, .known = MAREA_BOOLEAN_FALSE };
+
+    const MAREA_TypeDescriptor *descriptor = MAREA_NULLPTR;
+
+    if (MAREA_SemaDescriptorOfType(context, type, &descriptor) == MAREA_BOOLEAN_TRUE) {
+        head.identity = descriptor;
+        head.known = MAREA_BOOLEAN_TRUE;
+
+        return head;
+    }
+
+    const MAREA_Character8 *name = MAREA_NULLPTR;
+
+    MAREA_IntegerSize length = 0;
+
+    if ((MAREA_G_SingleName(type, &name, &length) == MAREA_BOOLEAN_FALSE) || (MAREA_SemaIsGenericInScope(context, name, length) == MAREA_BOOLEAN_TRUE)) {
+        return head;
+    }
+
+    if (MAREA_SemaIsPrimitiveTypeName(name, length) == MAREA_BOOLEAN_TRUE) {
+        head.primitive = name;
+        head.primitiveLength = length;
+        head.known = MAREA_BOOLEAN_TRUE;
+
+        return head;
+    }
+
+    const MAREA_SemaName *entry = MAREA_SemaNameTableFind(context, name, length);
+
+    if ((entry != MAREA_NULLPTR) && (entry->kind == MAREA_SEMA_NAME_KIND_DECLARATION) && (entry->declaration != MAREA_NULLPTR) && ((MAREA_AstNodeGetKind(entry->declaration) == MAREA_AST_KIND_STRUCTURE_DECLARATION) || (MAREA_AstNodeGetKind(entry->declaration) == MAREA_AST_KIND_ENUM_DECLARATION))) {
+        head.identity = entry->declaration;
+        head.known = MAREA_BOOLEAN_TRUE;
+    }
+
+    return head;
+}
+
+// INFO: two value arguments differ by text, two primitives by name, two known heads by identity and two generic types of one head by their own arguments. A generic parameter in scope, an alias, an import and an unknown type are skipped.
 static MAREA_Boolean MAREA_CALL MAREA_G_ArgumentsDiffer(const MAREA_SemaContext *context, const MAREA_AstNode *left, const MAREA_AstNode *right, const MAREA_SemaBindings *bindings, MAREA_Uinteger32 depth)
 {
     if ((left == MAREA_NULLPTR) || (right == MAREA_NULLPTR) || (depth >= MAREA_G_ARGUMENT_DEPTH_LIMIT)) {
@@ -864,54 +912,19 @@ static MAREA_Boolean MAREA_CALL MAREA_G_ArgumentsDiffer(const MAREA_SemaContext 
         return (MAREA_SemaTextEquals(MAREA_AstNodeGetText(left), MAREA_AstNodeGetTextLength(left), MAREA_AstNodeGetText(right), MAREA_AstNodeGetTextLength(right)) == MAREA_BOOLEAN_TRUE) ? MAREA_BOOLEAN_FALSE : MAREA_BOOLEAN_TRUE;
     }
 
-    // INFO: two registered types compare by their descriptor identity, never by a bare name: the same
-    // descriptor's own type arguments differ the same way a user structure's do; a different descriptor,
-    // or only one side registered, is never proven to differ.
-    const MAREA_TypeDescriptor *leftDescriptor = MAREA_NULLPTR;
+    const MAREA_G_Head LEFT = MAREA_G_HeadOf(context, left);
 
-    const MAREA_TypeDescriptor *rightDescriptor = MAREA_NULLPTR;
+    const MAREA_G_Head RIGHT = MAREA_G_HeadOf(context, right);
 
-    const MAREA_Boolean LEFT_REGISTERED = MAREA_SemaDescriptorOfType(context, left, &leftDescriptor);
-
-    const MAREA_Boolean RIGHT_REGISTERED = MAREA_SemaDescriptorOfType(context, right, &rightDescriptor);
-
-    if ((LEFT_REGISTERED == MAREA_BOOLEAN_TRUE) || (RIGHT_REGISTERED == MAREA_BOOLEAN_TRUE)) {
-        if ((LEFT_REGISTERED == MAREA_BOOLEAN_FALSE) || (RIGHT_REGISTERED == MAREA_BOOLEAN_FALSE) || (leftDescriptor != rightDescriptor)) {
-            return MAREA_BOOLEAN_FALSE;
+    if ((LEFT.known == MAREA_BOOLEAN_TRUE) && (RIGHT.known == MAREA_BOOLEAN_TRUE)) {
+        if ((LEFT.identity != RIGHT.identity) || (MAREA_SemaTextEquals(LEFT.primitive, LEFT.primitiveLength, RIGHT.primitive, RIGHT.primitiveLength) == MAREA_BOOLEAN_FALSE)) {
+            return MAREA_BOOLEAN_TRUE;
         }
 
         return MAREA_G_ArgumentListDiffers(context, MAREA_G_FindChild(left, MAREA_AST_KIND_TYPE_ARGUMENTS), MAREA_G_FindChild(right, MAREA_AST_KIND_TYPE_ARGUMENTS), bindings, (depth + 1));
     }
 
-    const MAREA_Character8 *leftName = MAREA_NULLPTR;
-    const MAREA_Character8 *rightName = MAREA_NULLPTR;
-
-    MAREA_IntegerSize leftLength = 0;
-    MAREA_IntegerSize rightLength = 0;
-
-    if ((MAREA_G_SingleName(left, &leftName, &leftLength) == MAREA_BOOLEAN_FALSE) || (MAREA_G_SingleName(right, &rightName, &rightLength) == MAREA_BOOLEAN_FALSE) || (MAREA_SemaIsGenericInScope(context, leftName, leftLength) == MAREA_BOOLEAN_TRUE) || (MAREA_SemaIsGenericInScope(context, rightName, rightLength) == MAREA_BOOLEAN_TRUE)) {
-        return MAREA_BOOLEAN_FALSE;
-    }
-
-    if ((MAREA_SemaIsPrimitiveTypeName(leftName, leftLength) == MAREA_BOOLEAN_TRUE) && (MAREA_SemaIsPrimitiveTypeName(rightName, rightLength) == MAREA_BOOLEAN_TRUE)) {
-        return (MAREA_SemaTextEquals(leftName, leftLength, rightName, rightLength) == MAREA_BOOLEAN_TRUE) ? MAREA_BOOLEAN_FALSE : MAREA_BOOLEAN_TRUE;
-    }
-
-    const MAREA_AstNode *leftArguments = MAREA_G_FindChild(left, MAREA_AST_KIND_TYPE_ARGUMENTS);
-    const MAREA_AstNode *rightArguments = MAREA_G_FindChild(right, MAREA_AST_KIND_TYPE_ARGUMENTS);
-
-    if ((leftArguments == MAREA_NULLPTR) || (rightArguments == MAREA_NULLPTR) || (MAREA_SemaTextEquals(leftName, leftLength, rightName, rightLength) == MAREA_BOOLEAN_FALSE)) {
-        return MAREA_BOOLEAN_FALSE;
-    }
-
-    // INFO: an import or an alias of the same name may stand for another type, so only a name that is a declaration or a built-in head is compared.
-    const MAREA_SemaName *entry = MAREA_SemaNameTableFind(context, leftName, leftLength);
-
-    if ((entry != MAREA_NULLPTR) && ((entry->kind != MAREA_SEMA_NAME_KIND_DECLARATION) || (entry->declaration == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(entry->declaration) != MAREA_AST_KIND_STRUCTURE_DECLARATION))) {
-        return MAREA_BOOLEAN_FALSE;
-    }
-
-    return MAREA_G_ArgumentListDiffers(context, leftArguments, rightArguments, bindings, (depth + 1));
+    return MAREA_BOOLEAN_FALSE;
 }
 
 MAREA_Boolean MAREA_CALL MAREA_SemaTypeArgumentsDiffer(const MAREA_SemaContext *context, const MAREA_AstNode *type, const MAREA_AstNode *expression)
@@ -927,6 +940,11 @@ MAREA_Boolean MAREA_CALL MAREA_SemaTypeArgumentsDiffer(const MAREA_SemaContext *
     }
 
     MAREA_SemaResolveWrittenType(context, &value);
+
+    // INFO: a value with no type argument is a question of TYPE_MISMATCH, not of the type arguments.
+    if ((value.type == MAREA_NULLPTR) || (MAREA_G_FindChild(value.type, MAREA_AST_KIND_TYPE_ARGUMENTS) == MAREA_NULLPTR)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
 
     return MAREA_G_ArgumentsDiffer(context, type, value.type, &value.bindings, 0);
 }

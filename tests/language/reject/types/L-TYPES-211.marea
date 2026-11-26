@@ -1,0 +1,14 @@
+-- expect: 3014 @13
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An owned vector given to a vector parameter.
+
+namespace main;
+require demo.owned;
+require demo.vector;
+function take(values: demo.vector<float32>)
+end
+function run(values: demo.owned<demo.vector<float32>>)
+    take(values);
+end
