@@ -20,6 +20,7 @@ typedef enum MAREA_G_ShapeKind
     MAREA_G_SHAPE_KIND_BUILTIN = MAREA_UINTEGER_8(8),
     MAREA_G_SHAPE_KIND_NONE = MAREA_UINTEGER_8(9),
     MAREA_G_SHAPE_KIND_REGISTERED = MAREA_UINTEGER_8(10),
+    MAREA_G_SHAPE_KIND_VIEW = MAREA_UINTEGER_8(11),
 } MAREA_G_ShapeKind;
 
 // INFO: what sema knows of the type of an expression. A literal number fits any type of its family, a primitive carries its name.
@@ -184,8 +185,8 @@ static MAREA_Boolean MAREA_CALL MAREA_G_SameName(const MAREA_G_Shape *left, cons
     return MAREA_SemaTextEquals(left->name, left->length, right->name, right->length);
 }
 
-// INFO: the target is always a primitive. An enum, a library type, a generic parameter and an owned, task or vector value are known but never compared: their conversion rule is not decided, so each fits and a type is never guessed. A shape that sema does not know fits too.
-// INFO: an unknown shape and the four known but undecided shapes (enum, library type, generic parameter, owned, task and vector value) have no conversion rule in sema.
+// INFO: the target is a primitive, a view or a raw pointer. An enum, a library type, a generic parameter and an owned, task or vector value have no conversion rule, so each fits and a type is never guessed.
+// INFO: the shapes that have no conversion rule for convert<T>(x): an unknown shape, the known but undecided shapes, and a view or a raw pointer.
 static MAREA_Boolean MAREA_CALL MAREA_G_IsUndecided(const MAREA_G_Shape *shape)
 {
     switch (shape->kind) {
@@ -194,14 +195,35 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsUndecided(const MAREA_G_Shape *shape)
     case MAREA_G_SHAPE_KIND_LIBRARY:
     case MAREA_G_SHAPE_KIND_GENERIC:
     case MAREA_G_SHAPE_KIND_BUILTIN:
+    case MAREA_G_SHAPE_KIND_VIEW:
         return MAREA_BOOLEAN_TRUE;
     default:
         return MAREA_BOOLEAN_FALSE;
     }
 }
 
+// INFO: a view and a raw pointer take only a value of their own kind. The type arguments and the head are compared before this.
+static MAREA_Boolean MAREA_CALL MAREA_G_FitsView(const MAREA_G_Shape *actual)
+{
+    switch (actual->kind) {
+    case MAREA_G_SHAPE_KIND_INTEGER_LITERAL:
+    case MAREA_G_SHAPE_KIND_FLOAT_LITERAL:
+    case MAREA_G_SHAPE_KIND_PRIMITIVE:
+    case MAREA_G_SHAPE_KIND_STRUCTURE:
+    case MAREA_G_SHAPE_KIND_ENUM:
+    case MAREA_G_SHAPE_KIND_NONE:
+        return MAREA_BOOLEAN_FALSE;
+    default:
+        return MAREA_BOOLEAN_TRUE;
+    }
+}
+
 static MAREA_Boolean MAREA_CALL MAREA_G_Fits(const MAREA_G_Shape *target, const MAREA_G_Shape *actual)
 {
+    if (target->kind == MAREA_G_SHAPE_KIND_VIEW) {
+        return MAREA_G_FitsView(actual);
+    }
+
     switch (actual->kind) {
     case MAREA_G_SHAPE_KIND_INTEGER_LITERAL:
         return MAREA_G_IsNumberName(target);
@@ -213,6 +235,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_Fits(const MAREA_G_Shape *target, const 
     // INFO: a macro with no value gives nothing, so it fits no type. The value of a macro that a library registers is a library type, so it fits no primitive.
     case MAREA_G_SHAPE_KIND_NONE:
     case MAREA_G_SHAPE_KIND_REGISTERED:
+    case MAREA_G_SHAPE_KIND_VIEW:
         return MAREA_BOOLEAN_FALSE;
     case MAREA_G_SHAPE_KIND_ENUM:
     case MAREA_G_SHAPE_KIND_LIBRARY:
@@ -223,7 +246,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_Fits(const MAREA_G_Shape *target, const 
     }
 }
 
-// INFO: pointer, slice and a function type are not classified yet and stay unknown. An enum is a plain integer and its conversion rule is not decided.
+// INFO: a registered type with the view role or the raw pointer role is a VIEW shape; its element type is the first type argument, which MAREA_SemaInferType reads. A function type is not classified. An enum is a plain integer and its conversion rule is not decided.
 static MAREA_G_ShapeKind MAREA_CALL MAREA_G_ShapeKindOfClass(const MAREA_SemaContext *context, const MAREA_AstNode *type, MAREA_SemaTypeClass typeClass, const MAREA_AstNode *declaration)
 {
     switch (typeClass) {
@@ -241,10 +264,18 @@ static MAREA_G_ShapeKind MAREA_CALL MAREA_G_ShapeKindOfClass(const MAREA_SemaCon
         return MAREA_G_SHAPE_KIND_BUILTIN;
     case MAREA_SEMA_TYPE_CLASS_COPY_BUILTIN:
     {
-        // INFO: a copied inline run (an index-protocol type with no handle role) is a built-in shape; a view or a raw pointer is not.
+        // INFO: a copied inline run (an index-protocol type with no handle role) is a built-in shape.
         const MAREA_TypeDescriptor *descriptor = MAREA_NULLPTR;
 
-        return ((MAREA_SemaDescriptorOfType(context, type, &descriptor) == MAREA_BOOLEAN_TRUE) && (descriptor->hasIndexProtocol == MAREA_BOOLEAN_TRUE) && (descriptor->roles == MAREA_TYPE_ROLE_NONE)) ? MAREA_G_SHAPE_KIND_BUILTIN : MAREA_G_SHAPE_KIND_UNKNOWN;
+        if (MAREA_SemaDescriptorOfType(context, type, &descriptor) == MAREA_BOOLEAN_FALSE) {
+            return MAREA_G_SHAPE_KIND_UNKNOWN;
+        }
+
+        if ((descriptor->roles & (MAREA_TYPE_ROLE_VIEW | MAREA_TYPE_ROLE_RAW_POINTER)) != MAREA_TYPE_ROLE_NONE) {
+            return MAREA_G_SHAPE_KIND_VIEW;
+        }
+
+        return ((descriptor->hasIndexProtocol == MAREA_BOOLEAN_TRUE) && (descriptor->roles == MAREA_TYPE_ROLE_NONE)) ? MAREA_G_SHAPE_KIND_BUILTIN : MAREA_G_SHAPE_KIND_UNKNOWN;
     }
     default:
         return MAREA_G_SHAPE_KIND_UNKNOWN;
@@ -615,9 +646,9 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressionFit(MAREA_SemaContext *cont
         return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_GENERIC_ARGUMENT_MISMATCH, MAREA_AstNodeGetPosition(expression), "type arguments differ from the declared type of", MAREA_AstNodeGetText(head), MAREA_AstNodeGetTextLength(head));
     }
 
-    const MAREA_G_Shape target = MAREA_G_ShapeOfType(context, type, MAREA_BOOLEAN_FALSE);
+    const MAREA_G_Shape target = MAREA_G_ShapeOfType(context, type, MAREA_BOOLEAN_TRUE);
 
-    if (target.kind != MAREA_G_SHAPE_KIND_PRIMITIVE) {
+    if ((target.kind != MAREA_G_SHAPE_KIND_PRIMITIVE) && (target.kind != MAREA_G_SHAPE_KIND_VIEW)) {
         // INFO: a library type that a macro of a library gives is compared by its type arguments, the element type and the count.
         return MAREA_SemaCheckMacroResultFit(context, type, expression);
     }
@@ -648,6 +679,11 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressionFitsPrimitive(MAREA_SemaCon
 
     // INFO: a host signature may name a structure of the unit, and a value of that structure fits its own name.
     if ((actual.kind == MAREA_G_SHAPE_KIND_STRUCTURE) && (MAREA_G_SameName(&target, &actual) == MAREA_BOOLEAN_TRUE)) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    // INFO: a host signature may name a view or a raw pointer, and sema does not compare the text of that name.
+    if ((actual.kind == MAREA_G_SHAPE_KIND_VIEW) && (MAREA_SemaIsPrimitiveTypeName(primitiveName, primitiveLength) == MAREA_BOOLEAN_FALSE)) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 

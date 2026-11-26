@@ -636,7 +636,10 @@ unknown type and is accepted. The type of an expression is compared with the dec
 is a primitive, at a call argument of a function of the file, a local initializer, a plain `=` assignment, a
 `return` value and a constant initializer: a conversion is always written, so two primitives are the same
 only by name (`sinteger32` does not fit `sinteger64`), a number literal fits any number type, a fraction literal
-any float type, a character literal fits only `character` (a number is not a character, and a character is not a number: it has no arithmetic), and a structure fits no primitive. An alias of a primitive is the primitive. The mismatch is
+any float type, a character literal fits only `character` (a number is not a character, and a character is not a number: it has no arithmetic), and a structure fits no primitive. An alias of a primitive is the primitive. A value of a registered type with
+the view role or the raw pointer role fits no primitive either, and a declared type of one of these two roles is compared too: a literal, a
+primitive, a structure or an enum does not fit it (its element type is the first type argument, compared as below). A `convert` of a view or
+of a raw pointer is not judged, and a view or raw pointer value fits a name that a host signature gives. The mismatch is
 `TYPE_MISMATCH` (3011) on the expression. A name of an enum, of a library type or of a generic parameter, and a value of a registered type of the move class
 or an inline run, are classified as their own shapes but are never compared as a
 whole; only their type arguments are (next paragraph).
@@ -1190,7 +1193,7 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 | 3008 | `INVALID_ALIGNMENT` | `#[align = 15]` |
 | 3009 | `UNKNOWN_TYPE` | `a: Missing;` in a structure |
 | 3010 | `ARGUMENT_COUNT_MISMATCH` | `add(1)` when `add` takes two parameters with no default; `f()` or `f(1, 2, 3)` when `f` has one required and one defaulted parameter; `Point(1.0, 2.0, 3.0)` when `construct` takes two; `Line(1.0)` when `Line` declares no `construct`; `power(1.0)` when the host's signature of `c.math.pow` takes two parameters |
-| 3011 | `TYPE_MISMATCH` | `convert<sinteger32>(text)` with a `string` name, `convert<Point>(other)` for two structures with another layout, `f("text")` when the parameter is `sinteger32`, `local x: boolean = 1;`, `local n: sinteger32 = a < b;`, `f(s)` with a `string` name `s`, `return a + 1;` in a function that returns `boolean`, `a + b` with an `sinteger32` and a `float64`, `count(2)` when `count` is an `sinteger32` local, `Point("x", 2.0)` when `construct`'s first parameter is `float32`; `power("two", 10.0)` when the host's signature of `c.math.pow` takes `float64, float64`; `local x: sinteger8 = item.x;` over a `for each` whose element field is `sinteger32` |
+| 3011 | `TYPE_MISMATCH` | `convert<sinteger32>(text)` with a `string` name, `convert<Point>(other)` for two structures with another layout, `f("text")` when the parameter is `sinteger32`, `local x: boolean = 1;`, `local n: sinteger32 = a < b;`, `f(s)` with a `string` name `s`, `return a + 1;` in a function that returns `boolean`, `a + b` with an `sinteger32` and a `float64`, `count(2)` when `count` is an `sinteger32` local, `Point("x", 2.0)` when `construct`'s first parameter is `float32`; `power("two", 10.0)` when the host's signature of `c.math.pow` takes `float64, float64`; `local x: sinteger8 = item.x;` over a `for each` whose element field is `sinteger32`, `local first: float32 = values;` when `values` is a `demo.slice<float32>`, `f("text")` when the parameter is a slice or a raw pointer |
 | 3012 | `DUPLICATE_MEMBER` | two `implementation` blocks of one type that both declare `area`; a structure field, an enum variant or a contract function that is declared twice in its declaration |
 | 3013 | `CONTRACT_NOT_SATISFIED` | `maximum(a, b)` when the type of `a` has no `less` for `where Item: Comparable` |
 | 3014 | `GENERIC_ARGUMENT_MISMATCH` | `Pair<sinteger32>` when `Pair` has two parameters, `Box<4>`, a registered type written with more type arguments than its descriptor declares, `local x: marea.array.Array<sinteger8, 4> = values;` when `values` is `marea.array.Array<sinteger32, 4>` |
@@ -1324,7 +1327,7 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
   has no role of its own in the roles table yet.
 - Renaming on use inside one file (without an import) is not offered: a local declaration has its own name.
 - `TYPE_MISMATCH` (3011) sorts the type of an expression into a fixed set of shapes: a literal, a primitive, a
-  structure, and, known but never compared, an enum, a library type, a generic parameter and a registered type of the move class or an inline run. Still fully unknown: any other registered type (a raw pointer, a view), the type of a field or a file
+  structure, a view, a raw pointer, and, known but never compared, an enum, a library type, a generic parameter and a registered type of the move class or an inline run. Still fully unknown: any other registered type, the type of a field or a file
   constant that is not a primitive, and the result of a generic call (see below).
 - A struct literal with a missing field is rejected (3077, one report per literal, so a second missing field shows only after the first is written). The ir has no `ZERO_VALUE` any more (removed in PR #355): no accepted program has an omitted field, so the ir has nothing to fill.
 - A call of a method or of an imported function that has no result, used as a value, is not seen: sema cannot see its

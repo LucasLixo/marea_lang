@@ -297,7 +297,7 @@ TEST(MAREASemaGenericsAndContracts, LiteralMustFitThePrimitiveType)
 
     EXPECT_EQ(MAREA_codesOf("function f(a: string) end function g() f('a'); end"), Codes{ MISMATCH }) << "A character for a string must raise TYPE_MISMATCH.";
 
-    EXPECT_TRUE(MAREA_codesOf("function f(a: demo.slice<sinteger32>) end function g() f(\"text\"); end").empty()) << "A non-primitive type must not be guessed.";
+    EXPECT_TRUE(MAREA_codesOf("function f(a: demo.vector<sinteger32>) end function g() f(\"text\"); end").empty()) << "A type with no conversion rule must not be guessed.";
 }
 
 TEST(MAREASemaGenericsAndContracts, MissingTypeFunctionIsRejected)

@@ -65,7 +65,7 @@ TEST(MAREASemaExpressions, NameMustHaveTheDeclaredType)
 
     EXPECT_TRUE(MAREA_codesOf("function f(a: sinteger32) end function g(n: sinteger32) f(n); local m: sinteger32 = n; end").empty()) << "A name of the same type must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("function f(a: demo.slice<sinteger32>) end function g(s: string) f(s); end").empty()) << "A non-primitive target must not be guessed.";
+    EXPECT_TRUE(MAREA_codesOf("function f(a: demo.vector<sinteger32>) end function g(s: string) f(s); end").empty()) << "A target with no conversion rule must not be guessed.";
 }
 
 TEST(MAREASemaExpressions, FieldAndStructureAreTyped)

@@ -794,6 +794,7 @@ Function declaration and call, parameters and defaults, the result and `return v
 | L-TYPES-201 | a keyword used as an enum variant name | 2001 @10, 2001 @10 |
 | L-TYPES-206 | A do-while loop whose condition is an integer | 3043 @11 |
 | L-TYPES-207 | A do-while loop whose condition reads a name of its body | 3004 @12 |
+| L-TYPES-208 | a slice value for a primitive local | 3011 @10 |
 
 ### Types and control flow: known_gap
 
@@ -1326,8 +1327,8 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | ownership | 65 | 78 | 2 |
 | parallel | 19 | 40 | 0 |
 | seed | 1 | 2 | 0 |
-| types | 62 | 135 | 3 |
-| total | 275 | 569 | 13 |
+| types | 62 | 136 | 3 |
+| total | 275 | 570 | 13 |
 
 ## Parity
 
