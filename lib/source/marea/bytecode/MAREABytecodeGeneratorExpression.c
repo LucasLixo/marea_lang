@@ -105,6 +105,10 @@ static MAREA_BytecodeExcept MAREA_CALL MAREA_G_LowerIdentifier(MAREA_BytecodeGen
     const MAREA_BytecodeGeneratorSymbol *symbol = MAREA_BytecodeGeneratorFindSymbol(generator, text, length);
 
     if (symbol != MAREA_NULLPTR) {
+        if (symbol->kind == MAREA_BYTECODE_GENERATOR_KIND_NONE) {
+            return MAREA_BytecodeGeneratorFail(generator, node, MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, "The part of a partition is not a value yet.");
+        }
+
         *outKind = symbol->kind;
 
         if (symbol->registerIndex == destination) {
@@ -477,7 +481,16 @@ static MAREA_BytecodeExcept MAREA_CALL MAREA_G_LowerPlainCall(MAREA_BytecodeGene
     return MAREA_BYTECODE_EXCEPT_SUCCESS;
 }
 
-static MAREA_BytecodeExcept MAREA_CALL MAREA_G_LowerCall(MAREA_BytecodeGenerator *generator, const MAREA_IrNode *node, MAREA_Uinteger32 destination, MAREA_Uinteger8 *outKind)
+static MAREA_BytecodeExcept MAREA_CALL MAREA_G_LowerUnitCall(MAREA_BytecodeGenerator *generator, const MAREA_IrNode *node, const MAREA_BytecodeGeneratorFunction *function, MAREA_Uinteger32 functionIndex, MAREA_Uinteger32 destination, MAREA_Uinteger8 *outKind)
+{
+    if (function->resultKind == MAREA_BYTECODE_GENERATOR_KIND_NONE) {
+        return MAREA_BytecodeGeneratorFail(generator, node, MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, "A call result has a type that is not a scalar.");
+    }
+
+    return MAREA_G_LowerPlainCall(generator, node, function, functionIndex, destination, outKind);
+}
+
+MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorLowerCall(MAREA_BytecodeGenerator *generator, const MAREA_IrNode *node, MAREA_Uinteger32 destination, MAREA_Boolean valueUsed, MAREA_Uinteger8 *outKind)
 {
     const MAREA_IrNode *callee = MAREA_BytecodeGeneratorChildAt(node, MAREA_INTEGER_SIZE(0));
 
@@ -492,14 +505,36 @@ static MAREA_BytecodeExcept MAREA_CALL MAREA_G_LowerCall(MAREA_BytecodeGenerator
         const MAREA_BytecodeGeneratorFunction *function = MAREA_G_FindFunction(generator, MAREA_IrNodeGetText(callee), MAREA_IrNodeGetTextLength(callee), &functionIndex);
 
         if (function != MAREA_NULLPTR) {
-            if ((function->resultKind == MAREA_BYTECODE_GENERATOR_KIND_NONE)) {
-                return MAREA_BytecodeGeneratorFail(generator, node, MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, "A call result has a type that is not a scalar.");
-            }
+            return MAREA_G_LowerUnitCall(generator, node, function, functionIndex, destination, outKind);
+        }
 
-            return MAREA_G_LowerPlainCall(generator, node, function, functionIndex, destination, outKind);
+        const MAREA_Character8 *text = MAREA_IrNodeGetText(callee);
+        const MAREA_IntegerSize LENGTH = MAREA_IrNodeGetTextLength(callee);
+
+        // INFO: an imported member reaches here as its full dotted path, which no local name can be.
+        if ((MAREA_BytecodeGeneratorFindSymbol(generator, text, LENGTH) == MAREA_NULLPTR) && (memchr(text, '.', LENGTH) != MAREA_NULLPTR)) {
+            return MAREA_BytecodeGeneratorLowerHostCall(generator, node, text, LENGTH, destination, valueUsed, outKind);
         }
 
         return MAREA_BytecodeGeneratorFail(generator, node, MAREA_BYTECODE_DIAGNOSTIC_CODE_UNRESOLVED_NAME, "A call does not resolve to a function of this unit.");
+    }
+
+    if ((callee != MAREA_NULLPTR) && (MAREA_IrNodeGetKind(callee) == MAREA_IR_KIND_MEMBER_ACCESS)) {
+        const MAREA_Character8 *name = MAREA_NULLPTR;
+        MAREA_IntegerSize length = MAREA_INTEGER_SIZE(0);
+
+        MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorHostName(generator, callee, &name, &length));
+
+        if (name != MAREA_NULLPTR) {
+            MAREA_Uinteger32 functionIndex = MAREA_UINTEGER_32(0);
+            const MAREA_BytecodeGeneratorFunction *function = MAREA_G_FindFunction(generator, name, length, &functionIndex);
+
+            if (function != MAREA_NULLPTR) {
+                return MAREA_G_LowerUnitCall(generator, node, function, functionIndex, destination, outKind);
+            }
+
+            return MAREA_BytecodeGeneratorLowerHostCall(generator, node, name, length, destination, valueUsed, outKind);
+        }
     }
 
     return MAREA_BytecodeGeneratorFail(generator, node, MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_CONSTRUCT, "A call is not lowered.");
@@ -666,6 +701,28 @@ MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorConstructAggregate(MAREA_
         return MAREA_BytecodeGeneratorEmit(generator, MAREA_BYTECODE_OPCODE_COPY_BYTES, destinationAddress, sourceRegister, (MAREA_Uinteger32)aggregate->size, MAREA_NULLPTR);
     }
 
+    if (MAREA_IrNodeGetKind(node) == MAREA_IR_KIND_CALL_EXPRESSION) {
+        const MAREA_Uinteger64 SIZE = aggregate->size;
+
+        MAREA_Uinteger8 kind = MAREA_BYTECODE_GENERATOR_KIND_NONE;
+        MAREA_Uinteger32 resultAggregate = MAREA_BYTECODE_NONE;
+
+        MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorAggregateKind(generator, node, &kind, &resultAggregate));
+
+        // INFO: a call with no type is left to the lowering of the call, which names that fault.
+        if ((MAREA_IrNodeGetResolvedType(node) != MAREA_NULLPTR) && ((kind != MAREA_BYTECODE_GENERATOR_KIND_AGGREGATE) || (resultAggregate != aggregateIndex))) {
+            return MAREA_BytecodeGeneratorFail(generator, node, MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, "A call gives another type than the structure that is built.");
+        }
+
+        MAREA_Uinteger32 sourceRegister = MAREA_UINTEGER_32(0);
+
+        MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorAllocate(generator, node, MAREA_UINTEGER_32(1), &sourceRegister));
+
+        MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorLowerInto(generator, node, sourceRegister, MAREA_BYTECODE_GENERATOR_KIND_NONE, &kind));
+
+        return MAREA_BytecodeGeneratorEmit(generator, MAREA_BYTECODE_OPCODE_COPY_BYTES, destinationAddress, sourceRegister, (MAREA_Uinteger32)SIZE, MAREA_NULLPTR);
+    }
+
     return MAREA_BytecodeGeneratorFail(generator, node, MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_CONSTRUCT, "A structure value is not lowered from this expression yet.");
 }
 
@@ -754,7 +811,7 @@ MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorLowerInto(MAREA_BytecodeG
     case MAREA_IR_KIND_BINARY_EXPRESSION:
         return MAREA_G_LowerBinary(generator, node, destination, hint, outKind);
     case MAREA_IR_KIND_CALL_EXPRESSION:
-        return MAREA_G_LowerCall(generator, node, destination, outKind);
+        return MAREA_BytecodeGeneratorLowerCall(generator, node, destination, MAREA_BOOLEAN_TRUE, outKind);
     case MAREA_IR_KIND_MEMBER_ACCESS:
         return MAREA_G_LowerMemberAccess(generator, node, destination, outKind);
     case MAREA_IR_KIND_MACRO_CALL:
@@ -779,7 +836,7 @@ MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorLowerOperand(MAREA_Byteco
     if (MAREA_IrNodeGetKind(node) == MAREA_IR_KIND_IDENTIFIER) {
         const MAREA_BytecodeGeneratorSymbol *symbol = MAREA_BytecodeGeneratorFindSymbol(generator, MAREA_IrNodeGetText(node), MAREA_IrNodeGetTextLength(node));
 
-        if (symbol != MAREA_NULLPTR) {
+        if ((symbol != MAREA_NULLPTR) && (symbol->kind != MAREA_BYTECODE_GENERATOR_KIND_NONE)) {
             *outRegister = symbol->registerIndex;
             *outKind = symbol->kind;
 

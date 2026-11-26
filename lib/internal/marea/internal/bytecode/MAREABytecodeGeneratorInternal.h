@@ -124,6 +124,20 @@ MAREA_BEGIN_EXTERN_C
     } MAREA_BytecodeGeneratorLoop;
 
     /**
+     * @brief One import: a call of a registered C function, known by its full name and its shape. parameters holds
+     * the type and the flags of every argument, result is a type index or MAREA_BYTECODE_NONE. Two calls share an
+     * import when the name, the parameters and the result are the same.
+     */
+    typedef struct MAREA_BytecodeGeneratorImport
+    {
+        const MAREA_Character8 *name;
+        const MAREA_BytecodeParameterInfo *parameters;
+        MAREA_IntegerSize nameLength;
+        MAREA_Uinteger32 parameterCount;
+        MAREA_Uinteger32 result;
+    } MAREA_BytecodeGeneratorImport;
+
+    /**
      * @brief The state of one MAREA_BytecodeGenerate call. patches holds the jumps of the break statements of the open
      * loops, and endPatches the jumps that end the arms of the open if statements: two lists, because a break stands
      * inside an if. Everything lives in the arena of the context.
@@ -144,6 +158,7 @@ MAREA_BEGIN_EXTERN_C
         MAREA_Uinteger32 *patches;
         MAREA_Uinteger32 *endPatches;
         MAREA_BytecodeGeneratorAggregate *aggregates;
+        MAREA_BytecodeGeneratorImport *imports;
         const MAREA_BytecodeGeneratorFunction *current;
         MAREA_IntegerSize namespaceLength;
         MAREA_IntegerSize functionCount;
@@ -164,6 +179,8 @@ MAREA_BEGIN_EXTERN_C
         MAREA_IntegerSize endPatchCapacity;
         MAREA_IntegerSize aggregateCount;
         MAREA_IntegerSize aggregateCapacity;
+        MAREA_IntegerSize importCount;
+        MAREA_IntegerSize importCapacity;
         MAREA_Uinteger32 typeIndex[MAREA_BYTECODE_NUMBER_KIND_COUNT + 1];
         MAREA_Uinteger32 nextRegister;
         MAREA_Uinteger32 maxRegister;
@@ -405,6 +422,51 @@ MAREA_BEGIN_EXTERN_C
      * @return MAREA_BYTECODE_EXCEPT_SUCCESS or MAREA_BYTECODE_EXCEPT_ERROR_OUT_OF_MEMORY.
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorLowerOperand(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node, MAREA_Uinteger8 hint, MAREA_Uinteger32 *outRegister, MAREA_Uinteger8 *outKind);
+
+    /**
+     * @brief Lowers a CALL_EXPRESSION: a convert, a call of a function of this unit, or a call of a registered C
+     * function.
+     * @param generator State of the call. Must not be null.
+     * @param node Call to lower. Must not be null.
+     * @param destination Register that receives the result, the address of the result for a structure.
+     * @param valueUsed MAREA_BOOLEAN_FALSE for a call statement, which may have no result and no type.
+     * @param outKind Receives the kind of the result, MAREA_BYTECODE_GENERATOR_KIND_VOID for no result. Must not be
+     * null.
+     * @return MAREA_BYTECODE_EXCEPT_SUCCESS or MAREA_BYTECODE_EXCEPT_ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorLowerCall(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node, MAREA_Uinteger32 destination, MAREA_Boolean valueUsed, MAREA_Uinteger8 * outKind);
+
+    /**
+     * @brief Reads the full name that a member access callee gives when its base is a namespace.
+     * @param generator State of the call. Must not be null.
+     * @param callee A MEMBER_ACCESS callee. Must not be null.
+     * @param outName Receives the joined name, or null when the base is a value or a type of this unit. Must not be
+     * null.
+     * @param outLength Receives the length of the name. Must not be null.
+     * @return MAREA_BYTECODE_EXCEPT_SUCCESS or MAREA_BYTECODE_EXCEPT_ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorHostName(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *callee, const MAREA_Character8 **outName, MAREA_IntegerSize *outLength);
+
+    /**
+     * @brief Lowers a call of a registered C function: the call window, the storage of a structure result, the
+     * arguments, and the import that the call names.
+     * @param generator State of the call. Must not be null.
+     * @param node The CALL_EXPRESSION. Must not be null.
+     * @param name Full name of the registration. Must not be null and must live in the arena or the IR.
+     * @param length Number of bytes of the name.
+     * @param destination As for MAREA_BytecodeGeneratorLowerCall.
+     * @param valueUsed As for MAREA_BytecodeGeneratorLowerCall.
+     * @param outKind As for MAREA_BytecodeGeneratorLowerCall. Must not be null.
+     * @return MAREA_BYTECODE_EXCEPT_SUCCESS or MAREA_BYTECODE_EXCEPT_ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorLowerHostCall(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node, const MAREA_Character8 *name, MAREA_IntegerSize length, MAREA_Uinteger32 destination, MAREA_Boolean valueUsed, MAREA_Uinteger8 *outKind);
+
+    /**
+     * @brief Adds every import to the function table of the module, after the functions of the unit.
+     * @param generator State of the call. Must not be null.
+     * @return MAREA_BYTECODE_EXCEPT_SUCCESS or MAREA_BYTECODE_EXCEPT_ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorPublishImports(MAREA_BytecodeGenerator * generator);
 
     /**
      * @brief Finds the opcode of a binary operator or of a compound assignment operator, and how it is emitted.

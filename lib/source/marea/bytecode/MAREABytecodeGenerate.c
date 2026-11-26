@@ -250,6 +250,8 @@ MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGenerate(MAREA_BytecodeContext *co
         MAREA_BYTECODE_TRY(MAREA_G_LowerFunction(generator, &generator->functions[index]));
     }
 
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorPublishImports(generator));
+
     if (!generator->anyFailed) {
         *outModule = generator->module;
     }

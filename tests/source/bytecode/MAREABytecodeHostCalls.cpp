@@ -206,7 +206,7 @@ TEST(MAREABytecodeHostCalls, ATaskHandleAndAPartAreNotValuesYet)
 {
     GTEST_COUT << "Validating the handle of a spawn and the part of a partition are refused where a value is needed." << std::endl;
 
-    for (const char *body : { "require demo.task; function w(): sinteger32 return 1; end function f() fork_join local t: demo.task<sinteger32> = spawn w(); end end", "function w(): sinteger32 return 1; end function f() fork_join host.record(spawn w()); end end", "require demo.array; constant DATA: demo.array<sinteger32, 4> = demo.array<sinteger32, 4>{ 1, 2, 3, 4 }; function f() fork_join partition DATA into 2 as part do host.unknown(part); end end end" }) {
+    for (const char *body : { "function w(): sinteger32 return 1; end function f() fork_join local t: demo.task<sinteger32> = spawn w(); end end", "function w(): sinteger32 return 1; end function f() fork_join host.record(spawn w()); end end", "constant DATA: demo.array<sinteger32, 4> = demo.array<sinteger32, 4>{ 1, 2, 3, 4 }; function f() fork_join partition DATA into 2 as part do host.unknown(part); end end end" }) {
         MAREA_HostGenerateFixture fixture;
 
         EXPECT_FALSE(fixture.MAREA_build(body)) << body;

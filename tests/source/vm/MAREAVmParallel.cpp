@@ -10,7 +10,7 @@
 
 namespace
 {
-    const std::string MAREA_DATA{ "require demo.array; constant DATA: demo.array<sinteger32, 4> = demo.array<sinteger32, 4>{ 1, 2, 3, 4 }; " };
+    const std::string MAREA_DATA{ "constant DATA: demo.array<sinteger32, 4> = demo.array<sinteger32, 4>{ 1, 2, 3, 4 }; " };
 } // namespace
 
 TEST(MAREAVmParallel, RunsSpawnsInSourceOrderAndJoinsAtTheEnd)

@@ -19,11 +19,22 @@ MAREA_BEGIN_EXTERN_C
      * The scalar slices are lowered: the sinteger8 to uinteger64, float32, float64 and boolean values, the
      * constants of the unit (each one is lowered again where it is read), locals, assignments, return, if, while,
      * break, continue, a scope, unreachable!(), the operators, convert, a call of a function of the same module
-     * and build_value! (which gives its default, because this stage has no build settings). Each other
-     * construct raises a diagnostic: 5033 for a type that is not a scalar, 5034 for a for each, 5030 for any other
-     * construct, 5031 for a name that is not found and 5032 for an operand that does not fit 16 bits (the
-     * registers, the distance of a jump, the data blobs). One bad function raises one diagnostic, at the first
-     * fault, and the other functions are still lowered.
+     * and build_value! (which gives its default, because this stage has no build settings). A structure is
+     * lowered as a local.
+     *
+     * A call of a member of a namespace that is not a function of the unit is a call of a registered C function:
+     * the module gets an import (MAREA_BYTECODE_FUNCTION_FLAG_HOST) after the functions of the unit. Its
+     * arguments are scalars and borrows of structures, and it gives a scalar, a structure or nothing; sema types
+     * the call from the signature of the host. fork_join is lowered as its block and a spawn statement as its
+     * call, so the parts run one after the other. A partition runs its body once for each part, from part 0 up,
+     * and traps INVALID_PARTITION_COUNT for a count of zero or less; the value it cuts is not read, and the part
+     * and the handle of a spawn are not values yet.
+     *
+     * Each other construct raises a diagnostic: 5033 for a type that is not a value here, 5034 for a for each,
+     * 5035 for a host call with no type that is used as a value, 5030 for any other construct, 5031 for a name
+     * that is not found and 5032 for an operand that does not fit 16 bits (the registers, the distance of a jump,
+     * the data blobs, the imports). One bad function raises one diagnostic, at the first fault, and the other
+     * functions are still lowered.
      * @param context Context that owns the module and the sink. Must not be null.
      * @param irModule Root of the IR, a MODULE node. Must not be null.
      * @param outModule Receives the module, or null when a diagnostic was raised. Must not be null.

@@ -168,7 +168,18 @@ static MAREA_BytecodeExcept MAREA_CALL MAREA_G_LowerExpressionStatement(MAREA_By
 
     MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorAllocate(generator, node, MAREA_UINTEGER_32(1), &temporary));
 
-    return MAREA_BytecodeGeneratorLowerInto(generator, MAREA_BytecodeGeneratorChildAt(node, MAREA_INTEGER_SIZE(0)), temporary, MAREA_BYTECODE_GENERATOR_KIND_NONE, &kind);
+    const MAREA_IrNode *expression = MAREA_BytecodeGeneratorChildAt(node, MAREA_INTEGER_SIZE(0));
+
+    // INFO: the parts of a fork_join run one after the other, so a spawn that no one keeps is its call.
+    if ((MAREA_IrNodeGetKind(expression) == MAREA_IR_KIND_UNARY_EXPRESSION) && (MAREA_IrNodeGetOperator(expression) == MAREA_TOKEN_KIND_KEYWORD_SPAWN)) {
+        expression = MAREA_BytecodeGeneratorChildAt(expression, MAREA_INTEGER_SIZE(0));
+    }
+
+    if (MAREA_IrNodeGetKind(expression) == MAREA_IR_KIND_CALL_EXPRESSION) {
+        return MAREA_BytecodeGeneratorLowerCall(generator, expression, temporary, MAREA_BOOLEAN_FALSE, &kind);
+    }
+
+    return MAREA_BytecodeGeneratorLowerInto(generator, expression, temporary, MAREA_BYTECODE_GENERATOR_KIND_NONE, &kind);
 }
 
 static MAREA_BytecodeExcept MAREA_CALL MAREA_G_PushPatch(MAREA_BytecodeGenerator *generator, MAREA_Boolean forBreak, MAREA_Uinteger32 index)
@@ -314,6 +325,75 @@ generator->loopCount -= MAREA_INTEGER_SIZE(1);
 return MAREA_BYTECODE_EXCEPT_SUCCESS;
 }
 
+// INFO: the body runs once for each part, from part 0 up. The part itself is not a value yet, so its name has no
+// kind and the value that is cut is not read.
+static MAREA_BytecodeExcept MAREA_CALL MAREA_G_LowerPartition(MAREA_BytecodeGenerator *generator, const MAREA_IrNode *node)
+{
+    const MAREA_IrNode *countNode = MAREA_BytecodeGeneratorChildAt(node, MAREA_INTEGER_SIZE(1));
+
+    MAREA_Uinteger32 first = MAREA_UINTEGER_32(0);
+
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorAllocate(generator, node, MAREA_UINTEGER_32(5), &first));
+
+    const MAREA_Uinteger32 COUNT = first;
+    const MAREA_Uinteger32 ZERO = (first + MAREA_UINTEGER_32(1));
+    const MAREA_Uinteger32 ONE = (first + MAREA_UINTEGER_32(2));
+    const MAREA_Uinteger32 INDEX = (first + MAREA_UINTEGER_32(3));
+    const MAREA_Uinteger32 TEST = (first + MAREA_UINTEGER_32(4));
+
+    MAREA_Uinteger8 kind = MAREA_BYTECODE_GENERATOR_KIND_NONE;
+
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorLowerInto(generator, countNode, COUNT, MAREA_BYTECODE_NUMBER_KIND_SINTEGER_32, &kind));
+
+    if (kind >= MAREA_BYTECODE_NUMBER_KIND_FLOAT_32) {
+        return MAREA_BytecodeGeneratorFail(generator, countNode, MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, "A part count is not an integer.");
+    }
+
+    const MAREA_Boolean SIGNED = (kind < MAREA_BYTECODE_NUMBER_KIND_UINTEGER_8);
+
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorEmitConstant(generator, node, ZERO, MAREA_UINTEGER_64(0)));
+
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorEmitConstant(generator, node, ONE, MAREA_UINTEGER_64(1)));
+
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorEmit(generator, (SIGNED ? MAREA_BYTECODE_OPCODE_LESS_EQUAL_SIGNED : MAREA_BYTECODE_OPCODE_EQUAL), TEST, COUNT, ZERO, MAREA_NULLPTR));
+
+    MAREA_Uinteger32 validJump = MAREA_UINTEGER_32(0);
+
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorEmit(generator, MAREA_BYTECODE_OPCODE_JUMP_IF_NOT, TEST, MAREA_UINTEGER_32(0), MAREA_UINTEGER_32(0), &validJump));
+
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorEmit(generator, MAREA_BYTECODE_OPCODE_TRAP, MAREA_BYTECODE_TRAP_CODE_INVALID_PARTITION_COUNT, MAREA_UINTEGER_32(0), MAREA_UINTEGER_32(0), MAREA_NULLPTR));
+
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorPatchJump(generator, node, validJump, (MAREA_Uinteger32)generator->codeCount));
+
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorEmitConstant(generator, node, INDEX, MAREA_UINTEGER_64(0)));
+
+    const MAREA_Uinteger32 START = (MAREA_Uinteger32)generator->codeCount;
+
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorEmit(generator, (SIGNED ? MAREA_BYTECODE_OPCODE_LESS_SIGNED : MAREA_BYTECODE_OPCODE_LESS_UNSIGNED), TEST, INDEX, COUNT, MAREA_NULLPTR));
+
+    MAREA_Uinteger32 exitJump = MAREA_UINTEGER_32(0);
+
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorEmit(generator, MAREA_BYTECODE_OPCODE_JUMP_IF_NOT, TEST, MAREA_UINTEGER_32(0), MAREA_UINTEGER_32(0), &exitJump));
+
+    const MAREA_IntegerSize SYMBOL_MARK = generator->symbolCount;
+
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorPushSymbol(generator, MAREA_IrNodeGetText(node), MAREA_IrNodeGetTextLength(node), MAREA_UINTEGER_32(0), MAREA_BYTECODE_GENERATOR_KIND_NONE, MAREA_BYTECODE_NONE));
+
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorLowerBlock(generator, MAREA_BytecodeGeneratorChildAt(node, MAREA_INTEGER_SIZE(2))));
+
+    generator->symbolCount = SYMBOL_MARK;
+
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorEmit(generator, MAREA_BYTECODE_OPCODE_ADD, INDEX, ONE, kind, MAREA_NULLPTR));
+
+    MAREA_Uinteger32 backJump = MAREA_UINTEGER_32(0);
+
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorEmit(generator, MAREA_BYTECODE_OPCODE_JUMP, MAREA_UINTEGER_32(0), MAREA_UINTEGER_32(0), MAREA_UINTEGER_32(0), &backJump));
+
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorPatchJump(generator, node, backJump, START));
+
+    return MAREA_BytecodeGeneratorPatchJump(generator, node, exitJump, (MAREA_Uinteger32)generator->codeCount);
+}
+
 static MAREA_BytecodeExcept MAREA_CALL MAREA_G_LowerJumpOut(MAREA_BytecodeGenerator *generator, const MAREA_IrNode *node, MAREA_Boolean isBreak)
 {
     if (generator->loopCount == MAREA_INTEGER_SIZE(0)) {
@@ -361,6 +441,8 @@ MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorLowerStatement(MAREA_Byte
     case MAREA_IR_KIND_BLOCK:
         return MAREA_BytecodeGeneratorLowerBlock(generator, node);
     case MAREA_IR_KIND_SCOPE_BLOCK:
+    case MAREA_IR_KIND_FORK_JOIN_BLOCK:
+        // INFO: the join of a fork_join is its end, because every spawn runs to its end where it stands.
         return MAREA_BytecodeGeneratorLowerBlock(generator, MAREA_BytecodeGeneratorChildAt(node, MAREA_INTEGER_SIZE(0)));
     case MAREA_IR_KIND_FOR_EACH_STATEMENT:
         return MAREA_BytecodeGeneratorFail(generator, node, MAREA_BYTECODE_DIAGNOSTIC_CODE_UNWALKABLE_COLLECTION, "No collection type can be walked by a for each yet.");
@@ -387,6 +469,9 @@ MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorLowerStatement(MAREA_Byte
         break;
     case MAREA_IR_KIND_WHILE_STATEMENT:
         except = MAREA_G_LowerWhile(generator, node);
+        break;
+    case MAREA_IR_KIND_PARTITION_STATEMENT:
+        except = MAREA_G_LowerPartition(generator, node);
         break;
     case MAREA_IR_KIND_BREAK_STATEMENT:
         except = MAREA_G_LowerJumpOut(generator, node, MAREA_BOOLEAN_TRUE);
