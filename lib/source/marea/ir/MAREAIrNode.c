@@ -113,6 +113,15 @@ MAREA_Uinteger32 MAREA_CALL MAREA_IrNodeGetTextLength(const MAREA_IrNode *node)
     return node->textLength;
 }
 
+MAREA_Boolean MAREA_CALL MAREA_IrNodeIsExternalCall(const MAREA_IrNode *node)
+{
+    if (node == MAREA_NULLPTR) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    return node->externalCall;
+}
+
 MAREA_TokenKind MAREA_CALL MAREA_IrNodeGetOperator(const MAREA_IrNode *node)
 {
     if (node == MAREA_NULLPTR) {
@@ -231,6 +240,7 @@ MAREA_IrExcept MAREA_CALL MAREA_IrNodeCreate(MAREA_IrContext *context, MAREA_IrK
     node->flags = MAREA_AstNodeGetFlags(astNode);
     node->operatorKind = MAREA_AstNodeGetOperator(astNode);
     node->kind = kind;
+    node->externalCall = MAREA_BOOLEAN_FALSE;
 
     *outNode = node;
 

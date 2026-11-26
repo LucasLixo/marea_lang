@@ -188,6 +188,10 @@ static void MAREA_CALL MAREA_G_DumpNodeLine(MAREA_G_DumpBuffer *buffer, const MA
         MAREA_G_DumpWriteNumber(buffer, node->flags);
     }
 
+    if (node->externalCall == MAREA_BOOLEAN_TRUE) {
+        MAREA_G_DumpWriteText(buffer, " external");
+    }
+
     MAREA_G_DumpWriteText(buffer, "\n");
 }
 

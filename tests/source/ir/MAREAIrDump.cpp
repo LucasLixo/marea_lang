@@ -106,6 +106,39 @@ TEST(MAREAIrDump, FlagsAndOperatorsAreWritten)
         << "The desugared loop must show its flag and operators.";
 }
 
+TEST(MAREAIrDump, ACallOfAHostOrLibraryNameIsMarkedAndWritten)
+{
+    GTEST_COUT << "Validating the call of an EXTERNAL name carries the mark that sema gave it, in the node and in the dump, and no other call does." << std::endl;
+
+    MAREA_IrFixture fixture(RESOLVE_EXTERNAL);
+
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; require collections.list; function helper() end function run() collections.list.push(1); helper(); end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+
+    const MAREA_IrNode *body{ MAREA_irChild(MAREA_irChild(fixture.module, 1), 1) };
+
+    const MAREA_IrNode *pushed{ MAREA_irChild(MAREA_irChild(body, 0), 0) };
+
+    const MAREA_IrNode *helped{ MAREA_irChild(MAREA_irChild(body, 1), 0) };
+
+    ASSERT_EQ(MAREA_IrNodeGetKind(pushed), MAREA_IR_KIND_CALL_EXPRESSION) << "The first statement is a call.";
+
+    ASSERT_EQ(MAREA_IrNodeGetKind(helped), MAREA_IR_KIND_CALL_EXPRESSION) << "The second statement is a call.";
+
+    EXPECT_TRUE(MAREA_IrNodeIsExternalCall(pushed)) << "A name that a resolver answers EXTERNAL is an external call.";
+
+    EXPECT_FALSE(MAREA_IrNodeIsExternalCall(helped)) << "A function of the unit is not.";
+
+    EXPECT_FALSE(MAREA_IrNodeIsExternalCall(fixture.module)) << "A node that is no call is not.";
+
+    EXPECT_FALSE(MAREA_IrNodeIsExternalCall(nullptr)) << "A null node is not.";
+
+    const std::string DUMP{ MAREA_dumpOf(fixture) };
+
+    EXPECT_NE(DUMP.find("        CALL_EXPRESSION external\n"), std::string::npos) << "The mark is written on the call: " << DUMP;
+
+    EXPECT_EQ(DUMP.find("external"), DUMP.rfind("external")) << "Only one call is marked: " << DUMP;
+}
+
 TEST(MAREAIrDump, StringTextIsEscaped)
 {
     GTEST_COUT << "Validating a string literal with a quote and a backslash is escaped in the dump." << std::endl;

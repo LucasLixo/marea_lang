@@ -57,8 +57,15 @@ resolved type and an ordered list of children. The accessors mirror `MAREAAst.h`
 | `MAREA_IrNodeGetChildCount`, `MAREA_IrNodeGetChildAt` | The children. An index out of range returns `MAREA_IR_NODE_EXCEPT_ERROR_OUT_OF_RANGE`. |
 | `MAREA_IrNodeGetTypeName`, `MAREA_IrNodeGetTypeNameLength` | The type name, not NUL terminated. Null or none gives null and 0. |
 | `MAREA_IrNodeGetResolvedType`, `MAREA_IrNodeGetResolvedTypeLength` | The full resolved type, not NUL terminated. Null or none gives null and 0. |
+| `MAREA_IrNodeIsExternalCall` | True for a `CALL_EXPRESSION` of a name that the host or a library registered. Null returns false. |
 
 `MAREA_IrKindGetName` returns the stable upper-case kind name, or `UNKNOWN` for a value out of range.
+
+**External calls.** A `CALL_EXPRESSION` keeps the answer of `MAREA_SemaTypedNodeIsExternalCall` (see the sema doc,
+"External calls"): its callee names a member of a namespace that a resolver answers `EXTERNAL`, so the host or a
+library registered the name. The IR has no import or require node, so a backend cannot tell such a call from a call
+into another unit, through `Self` or through a local type alias in any other way. The other calls (a built-in or a
+static call on a written type, see Type operands) are never external.
 
 The type name is the head of the written type and stays as it was: `array` for `array<sinteger32,4>`. The resolved
 type is the full canonical text that `MAREA_SemaTypedNodeGetResolvedType` gives (see the sema doc, "Resolved type"),
@@ -659,7 +666,7 @@ those of `sema`.
 `MAREA_IrModuleDump` writes the tree as stable text into the arena, one node per line, in the same
 shape as `MAREA_AstDump`. A line is the kind name indented two spaces per depth, then the text in
 double quotes when present (for the `MODULE` line, the namespace of the unit), then `type=NAME` when the node has a type name, then `resolved=TEXT` when it has a resolved type (the text has no
-space in its canonical spelling, so it needs no quoting), then `op=OPERATOR` when it has an operator, then `flags=NUMBER` when the flags are not zero. In the text, `"` and `\` get a
+space in its canonical spelling, so it needs no quoting), then `op=OPERATOR` when it has an operator, then `flags=NUMBER` when the flags are not zero, then `external` for an external call. In the text, `"` and `\` get a
 backslash and a byte below 0x20 or above 0x7E is written as `\xHH`. The result is NUL terminated;
 `outLength` does not count the NUL. It returns `ERROR_NULL_POINTER` for a null argument and
 `ERROR_OUT_OF_MEMORY` when the arena cannot grow. The walk uses an explicit stack held in the arena, so

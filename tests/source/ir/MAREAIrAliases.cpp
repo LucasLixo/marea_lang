@@ -221,7 +221,7 @@ TEST(MAREAIrAliases, TextDumpOfALoweredUnitIsExact)
                                                                                                                                               "      PARAMETER \"e\" type=collections.list.Item resolved=Item",
                                                                                                                                               "    BLOCK",
                                                                                                                                               "      EXPRESSION_STATEMENT",
-                                                                                                                                              "        CALL_EXPRESSION",
+                                                                                                                                              "        CALL_EXPRESSION external",
                                                                                                                                               "          IDENTIFIER \"collections.list.push\"",
                                                                                                                                               "          ARGUMENT_LIST",
                                                                                                                                               "            INTEGER_LITERAL \"1\" resolved=sinteger32",
