@@ -393,6 +393,7 @@ static MAREA_SemaTypedAstExcept MAREA_CALL MAREA_G_TypedAstBuildNode(MAREA_SemaC
     built->typeClass = MAREA_SEMA_TYPE_CLASS_PRIMITIVE;
     built->ownershipMode = MAREA_SEMA_OWNERSHIP_MODE_VALUE;
     built->isQualifier = MAREA_BOOLEAN_FALSE;
+    built->isExternalCall = MAREA_BOOLEAN_FALSE;
 
     // INFO: the checker's scope stack is replayed read-only, matching the first sema visit.
     MAREA_SemaScopeMark mark = { 0 };

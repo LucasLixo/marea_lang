@@ -278,6 +278,7 @@ MAREA_BEGIN_EXTERN_C
         MAREA_SemaTypeClass typeClass;
         MAREA_SemaOwnershipMode ownershipMode;
         MAREA_Boolean isQualifier;
+        MAREA_Boolean isExternalCall;
     };
 
     /**
@@ -454,6 +455,19 @@ MAREA_BEGIN_EXTERN_C
      * @return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null context or outType, or ERROR_OUT_OF_MEMORY.
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedAstFoundNameType(MAREA_SemaContext * context, const MAREA_AstNode *identifier, const MAREA_AstNode *callTypeArguments, MAREA_SemaExprType *outType);
+
+    /**
+     * @brief Tells whether the callee of a call names a member of a namespace that a resolver answers EXTERNAL, in
+     * the scope of the call: a full path that a cover reaches, or a path or a name that an import or a require alias
+     * stands for. A parenthesized callee is read through. A local, a generic parameter, Self, a name that the file
+     * declares and a path of no known namespace are not external.
+     * @param context Context the node is being built with. Must not be null.
+     * @param callee Callee of the call. May be null, which gives false.
+     * @param outExternal Receives the answer. Must not be null.
+     * @return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null context or outExternal, or
+     * ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedAstIsExternalCallee(MAREA_SemaContext * context, const MAREA_AstNode *callee, MAREA_Boolean *outExternal);
 
     /**
      * @brief Gives the signature of a call whose callee is a member access on a namespace the resolver

@@ -1027,6 +1027,14 @@ namespace. A function or a constant imported by name is a value, not a qualifier
 an `IDENTIFIER` is flagged: a dotted type name such as `c.array` is not an expression. The member after a qualifier is
 typed by the rules above (an enum variant, a constant or a static function of the file) or by the rule below.
 
+**External calls.** `MAREA_SemaTypedNodeIsExternalCall` is true for a `CALL_EXPRESSION` of a name that the host or a
+library registered: its callee names a member of a namespace that a resolver answers `EXTERNAL`. The callee is read in
+the scope of the call, through parentheses: a full path that a cover reaches (`c.math.pow`), a path through an alias of
+an import or a require (`io.puts`) and a bare name that an alias bound to one member (`power`). A call into a tree of
+the project (a `FOUND` namespace), through `Self`, through a local type alias, of a name of the file or of its own
+namespace, or of a local or a parameter (also one that hides an alias) is not one. The ir keeps the answer on the call,
+and a backend sends only such a call to a C function.
+
 **Members of a FOUND namespace.** When the name on the left of a member access stands for a namespace that the
 resolver answers `FOUND` (an alias, or a full path that a cover reaches), the member is typed from the tree that the resolver gave.
 Only a function that is not `#[visibility = private]` (its function type, so a call gives the declared result) and a

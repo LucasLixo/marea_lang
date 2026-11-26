@@ -14,6 +14,15 @@ MAREA_Boolean MAREA_CALL MAREA_SemaTypedNodeIsQualifier(const MAREA_SemaTypedNod
     return node->isQualifier;
 }
 
+MAREA_Boolean MAREA_CALL MAREA_SemaTypedNodeIsExternalCall(const MAREA_SemaTypedNode *node)
+{
+    if (node == MAREA_NULLPTR) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    return node->isExternalCall;
+}
+
 const MAREA_SemaTypeFrame *MAREA_CALL MAREA_SemaTypeFrameFindForeign(const MAREA_SemaTypeFrame *frame)
 {
     for (const MAREA_SemaTypeFrame *current = frame; current != MAREA_NULLPTR; current = current->next) {
@@ -250,6 +259,88 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsExternalNamespace(const MAREA_SemaCont
     const MAREA_AstNode *root = MAREA_NULLPTR;
 
     return (MAREA_SemaResolveNamespace(context, text, length, &root) == MAREA_SEMA_IMPORT_RESULT_EXTERNAL) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
+// INFO: a name that an import or a require bound into a namespace the resolver answers EXTERNAL for.
+static MAREA_Boolean MAREA_CALL MAREA_G_IsExternalImport(const MAREA_SemaContext *context, const MAREA_SemaName *entry)
+{
+    return ((entry != MAREA_NULLPTR) && (entry->kind != MAREA_SEMA_NAME_KIND_DECLARATION) && (entry->qualifierLength > 0) && (MAREA_G_IsExternalNamespace(context, entry->qualifier, entry->qualifierLength) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
+// INFO: a member chain callee: its head is never a local, a generic parameter, Self or a declaration of the file; a namespace alias head is read as the path it stands for, and the longest namespace of the path decides.
+static MAREA_SemaTypedAstExcept MAREA_CALL MAREA_G_IsExternalChain(MAREA_SemaContext *context, const MAREA_AstNode *callee, MAREA_Boolean *outExternal)
+{
+    const MAREA_Character8 *text = MAREA_NULLPTR;
+
+    MAREA_IntegerSize length = 0;
+
+    const MAREA_AstNode *head = MAREA_NULLPTR;
+
+    if (MAREA_SemaChainJoin(context, callee, &text, &length, &head) != MAREA_SEMA_EXCEPT_SUCCESS) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_OUT_OF_MEMORY;
+    }
+
+    if (text == MAREA_NULLPTR) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_Character8 *headText = MAREA_AstNodeGetText(head);
+
+    const MAREA_IntegerSize HEAD_LENGTH = MAREA_AstNodeGetTextLength(head);
+
+    if ((MAREA_SemaTextEquals(headText, HEAD_LENGTH, "Self", MAREA_INTEGER_SIZE(4)) == MAREA_BOOLEAN_TRUE) || (MAREA_SemaLocalFind(context, headText, HEAD_LENGTH) != MAREA_NULLPTR) || (MAREA_SemaIsGenericInScope(context, headText, HEAD_LENGTH) == MAREA_BOOLEAN_TRUE)) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_SemaName *entry = MAREA_SemaNameTableFind(context, headText, HEAD_LENGTH);
+
+    if ((entry != MAREA_NULLPTR) && (entry->kind != MAREA_SEMA_NAME_KIND_NAMESPACE)) {
+        *outExternal = MAREA_G_IsExternalImport(context, entry);
+
+        return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+    }
+
+    MAREA_SemaPathStatus status = MAREA_SEMA_PATH_STATUS_NOT_A_PATH;
+
+    const MAREA_Character8 *namespaceText = MAREA_NULLPTR;
+
+    MAREA_IntegerSize namespaceLength = 0;
+
+    if (MAREA_SemaClassifyPath(context, text, length, MAREA_BOOLEAN_TRUE, &status, &namespaceText, &namespaceLength) != MAREA_SEMA_EXCEPT_SUCCESS) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_OUT_OF_MEMORY;
+    }
+
+    *outExternal = ((status == MAREA_SEMA_PATH_STATUS_COVERED) && (MAREA_G_IsExternalNamespace(context, namespaceText, namespaceLength) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+
+    return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+}
+
+MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedAstIsExternalCallee(MAREA_SemaContext *context, const MAREA_AstNode *callee, MAREA_Boolean *outExternal)
+{
+    if ((context == MAREA_NULLPTR) || (outExternal == MAREA_NULLPTR)) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    *outExternal = MAREA_BOOLEAN_FALSE;
+
+    const MAREA_AstNode *inner = callee;
+
+    // INFO: the ir erases the parentheses of a callee, so they are read through here too.
+    while (MAREA_G_IsKind(inner, MAREA_AST_KIND_PARENTHESIZED_EXPRESSION) == MAREA_BOOLEAN_TRUE) {
+        inner = MAREA_SemaChildAt(inner, 0);
+    }
+
+    if (MAREA_G_IsKind(inner, MAREA_AST_KIND_MEMBER_ACCESS) == MAREA_BOOLEAN_TRUE) {
+        return MAREA_G_IsExternalChain(context, inner, outExternal);
+    }
+
+    if ((MAREA_G_IsKind(inner, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_FALSE) || (MAREA_SemaLocalFind(context, MAREA_AstNodeGetText(inner), MAREA_AstNodeGetTextLength(inner)) != MAREA_NULLPTR)) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+    }
+
+    *outExternal = MAREA_G_IsExternalImport(context, MAREA_SemaNameTableFind(context, MAREA_AstNodeGetText(inner), MAREA_AstNodeGetTextLength(inner)));
+
+    return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
 }
 
 // INFO: asks the optional signature function of the resolver that knows the namespace for one member of a namespace already known to be EXTERNAL; a resolver with none, or an answer other than FOUND, leaves outSignature null.

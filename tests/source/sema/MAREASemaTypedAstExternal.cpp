@@ -162,6 +162,54 @@ namespace
     }
 } // namespace
 
+TEST(MAREASemaTypedAstExternal, OnlyACallOfAHostOrLibraryNameIsAnExternalCall)
+{
+    GTEST_COUT << "Validating a call is external only when a resolver answers EXTERNAL for the namespace of its callee, in every way of writing it." << std::endl;
+
+    MAREA_ParseFixture library;
+
+    ASSERT_EQ(library.MAREA_parse("namespace util.tools; #[visibility = public] function value(): sinteger32 return 1; end"), MAREA_PARSE_EXCEPT_SUCCESS) << "The unit must parse.";
+
+    const MAREA_AstNode *libraryRoot{ library.root };
+
+    MAREA_ExternalFixture fixture(
+        [libraryRoot](const std::string &text, const MAREA_AstNode **outRoot) {
+            if (text == "util.tools") {
+                *outRoot = libraryRoot;
+
+                return MAREA_SEMA_IMPORT_RESULT_FOUND;
+            }
+
+            const bool HOST{ (text == "demo") || (text == "demo.host") || (text == "demo.lib") || (text == "demo.one") || (text == "demo.one.add") || (text == "demo.list") || (text == "demo.real") };
+
+            return HOST ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
+        },
+        MAREA_powOnly());
+
+    ASSERT_TRUE(fixture.MAREA_build("namespace main; import util.tools; import util.tools as tools; require demo.host; require demo.lib as lib; require demo.one.add as plus; require demo.list { sub as minus }; require demo.real.add as sum; require demo.real.Handle as handle; "
+                                    "structure P x: sinteger32; end type Q = P; function helper() end "
+                                    "implementation P function make() end function again() Self.make(); end end "
+                                    "function f() demo.host.run(); lib.run(); plus(1); minus(); sum(); handle.make(); util.tools.value(); tools.value(); helper(); main.helper(); Q.make(); P.make(); (demo.host.run)(); end "
+                                    "function g(plus: function()) plus(); end"))
+        << "The source must check with zero errors and build: " << ::testing::PrintToString(fixture.MAREA_codes());
+
+    std::vector<const MAREA_SemaTypedNode *> calls;
+
+    MAREA_collect(fixture.root, MAREA_AST_KIND_CALL_EXPRESSION, calls);
+
+    std::vector<bool> external;
+
+    for (const MAREA_SemaTypedNode *call : calls) {
+        external.push_back(MAREA_SemaTypedNodeIsExternalCall(call));
+    }
+
+    EXPECT_EQ(external, (std::vector<bool>{ false, true, true, true, true, true, true, false, false, false, false, false, false, true, false })) << "Self.make; the six host forms; two project calls; helper, main.helper, Q.make, P.make; a parenthesized host callee; the parameter named like an alias.";
+
+    EXPECT_FALSE(MAREA_SemaTypedNodeIsExternalCall(fixture.root)) << "A node that is no call is not an external call.";
+
+    EXPECT_FALSE(MAREA_SemaTypedNodeIsExternalCall(nullptr)) << "A null node is not an external call.";
+}
+
 TEST(MAREASemaTypedAstExternal, ImportedNameOfAKnownExternalSignatureIsTypedWithItsResult)
 {
     GTEST_COUT << "Validating a call of an imported name whose EXTERNAL signature the host knows is typed with its declared result." << std::endl;
