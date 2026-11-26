@@ -3,8 +3,15 @@
 
 #include "marea/internal/vm/MAREAVmInternal.h"
 
+#include "marea/base/MAREAHostContext.h"
+#include "marea/base/MAREAHostFunction.h"
+#include "marea/internal/base/MAREAHostContextInternal.h"
+
 #include <stdlib.h>
 #include <string.h>
+
+// INFO: a trap that a host function raises is the vm trap of the same name.
+MAREA_STATIC_ASSERT((MAREA_Uinteger8)MAREA_HOST_TRAP_OUT_OF_MEMORY == (MAREA_Uinteger8)MAREA_BYTECODE_TRAP_CODE_OUT_OF_MEMORY, "A host trap must be the vm trap of the same name:");
 
 // INFO: a register holds an address as the bit pattern of a pointer, the same rule the composite opcodes follow.
 static MAREA_Null MAREA_CALL MAREA_G_VmPointerOf(MAREA_Uinteger64 bits)
@@ -80,7 +87,7 @@ static MAREA_Uinteger64 MAREA_CALL MAREA_G_VmNormalizeScalar(const MAREA_Charact
 }
 
 // INFO: the name of an import is the namespace and the name of the registration, joined by the last dot.
-static MAREA_Null MAREA_CALL MAREA_G_VmFindHostFunction(const MAREA_VmContext *context, const MAREA_Character8 *name, MAREA_IntegerSize length)
+static MAREA_HostFunction MAREA_CALL MAREA_G_VmFindHostFunction(const MAREA_VmContext *context, const MAREA_Character8 *name, MAREA_IntegerSize length)
 {
     MAREA_IntegerSize dot = length;
 
@@ -93,99 +100,6 @@ static MAREA_Null MAREA_CALL MAREA_G_VmFindHostFunction(const MAREA_VmContext *c
     }
 
     return MAREA_TypeRegistryFindFunction(context->registry, name, (dot - MAREA_INTEGER_SIZE(1)), &name[dot], (length - dot));
-}
-
-MAREA_VmExcept MAREA_CALL MAREA_VmCallHost(MAREA_VmContext *context, const MAREA_BytecodeModule *module, MAREA_Uinteger32 functionIndex, const MAREA_BytecodeFunctionInfo *info, MAREA_Uinteger64 *window, MAREA_Uinteger32 argumentCount, MAREA_VmResult *outResult)
-{
-    outResult->value = MAREA_UINTEGER_64(0);
-    outResult->trap = MAREA_BYTECODE_TRAP_CODE_NONE;
-    outResult->trapped = MAREA_BOOLEAN_FALSE;
-
-    if ((argumentCount != info->parameterCount) || (argumentCount > MAREA_VM_HOST_PARAMETER_LIMIT)) {
-        return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
-    }
-
-    const MAREA_Character8 *name = MAREA_NULLPTR;
-    MAREA_IntegerSize length = MAREA_INTEGER_SIZE(0);
-
-    if (MAREA_BytecodeModuleGetString(module, info->name, &name, &length) != MAREA_BYTECODE_EXCEPT_SUCCESS) {
-        return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
-    }
-
-    const MAREA_Null FOUND = MAREA_G_VmFindHostFunction(context, name, length);
-
-    if (FOUND == MAREA_NULLPTR) {
-        outResult->trap = MAREA_BYTECODE_TRAP_CODE_HOST_FUNCTION_MISSING;
-        outResult->trapped = MAREA_BOOLEAN_TRUE;
-
-        return MAREA_VM_EXCEPT_SUCCESS;
-    }
-
-    MAREA_Null arguments[MAREA_VM_HOST_PARAMETER_LIMIT];
-
-    for (MAREA_Uinteger32 index = MAREA_UINTEGER_32(0); index < argumentCount; index += MAREA_UINTEGER_32(1)) {
-        MAREA_BytecodeParameterInfo parameter = { 0 };
-
-        if (MAREA_BytecodeModuleGetParameter(module, functionIndex, index, &parameter) != MAREA_BYTECODE_EXCEPT_SUCCESS) {
-            return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
-        }
-
-        MAREA_Uinteger64 *slot = &window[(index + MAREA_UINTEGER_32(1))];
-
-        if ((parameter.flags & MAREA_BYTECODE_PARAMETER_FLAG_BORROW) == MAREA_UINTEGER_32(0)) {
-            arguments[index] = slot;
-
-            continue;
-        }
-
-        arguments[index] = MAREA_G_VmPointerOf(*slot);
-
-        if (arguments[index] == MAREA_NULLPTR) {
-            return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
-        }
-    }
-
-    MAREA_Uinteger64 scalar = MAREA_UINTEGER_64(0);
-    MAREA_Null result = MAREA_NULLPTR;
-    const MAREA_Character8 *scalarName = MAREA_NULLPTR;
-    MAREA_IntegerSize scalarLength = MAREA_INTEGER_SIZE(0);
-
-    if (info->result != MAREA_BYTECODE_NONE) {
-        MAREA_BytecodeTypeInfo type = { 0 };
-
-        if (MAREA_BytecodeModuleGetType(module, info->result, &type) != MAREA_BYTECODE_EXCEPT_SUCCESS) {
-            return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
-        }
-
-        if (type.kind == MAREA_BYTECODE_TYPE_KIND_STRUCTURE) {
-            result = MAREA_G_VmPointerOf(window[0]);
-
-            if (result == MAREA_NULLPTR) {
-                return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
-            }
-        } else {
-            if (MAREA_BytecodeModuleGetString(module, type.name, &scalarName, &scalarLength) != MAREA_BYTECODE_EXCEPT_SUCCESS) {
-                return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
-            }
-
-            result = &scalar;
-        }
-    }
-
-    // WARNING: a conversion of an object pointer to a function pointer is not C11, so the bits are copied.
-    MAREA_HostFunction function = MAREA_NULLPTR;
-
-    memcpy(&function, &FOUND, sizeof(function));
-
-    function(arguments, result);
-
-    if (scalarName != MAREA_NULLPTR) {
-        window[0] = MAREA_G_VmNormalizeScalar(scalarName, scalarLength, scalar);
-    }
-
-    outResult->value = window[0];
-
-    return MAREA_VM_EXCEPT_SUCCESS;
 }
 
 // INFO: the allocator of the vm keeps the address that malloc gave in the word before the aligned block, so any
@@ -247,6 +161,123 @@ static MAREA_VmExcept MAREA_CALL MAREA_G_VmAllocator(const MAREA_VmContext *cont
 
     memcpy(outAllocate, &ALLOCATE, sizeof(*outAllocate));
     memcpy(outFree, &RELEASE, sizeof(*outFree));
+
+    return MAREA_VM_EXCEPT_SUCCESS;
+}
+
+// INFO: with one replaced hook both stay null, so the context reports the fault only when the function allocates.
+static MAREA_HostContext MAREA_CALL MAREA_G_VmHostContext(const MAREA_VmContext *context)
+{
+    MAREA_HostContext host = { .allocate = MAREA_NULLPTR, .release = MAREA_NULLPTR, .trap = MAREA_HOST_TRAP_NONE, .unpaired = MAREA_BOOLEAN_FALSE };
+
+    MAREA_RuntimeAllocateFunction allocate = MAREA_NULLPTR;
+    MAREA_RuntimeFreeFunction release = MAREA_NULLPTR;
+
+    if (MAREA_G_VmAllocator(context, &allocate, &release) == MAREA_VM_EXCEPT_SUCCESS) {
+        host.allocate = allocate;
+        host.release = release;
+    }
+
+    return host;
+}
+
+MAREA_VmExcept MAREA_CALL MAREA_VmCallHost(MAREA_VmContext *context, const MAREA_BytecodeModule *module, MAREA_Uinteger32 functionIndex, const MAREA_BytecodeFunctionInfo *info, MAREA_Uinteger64 *window, MAREA_Uinteger32 argumentCount, MAREA_VmResult *outResult)
+{
+    outResult->value = MAREA_UINTEGER_64(0);
+    outResult->trap = MAREA_BYTECODE_TRAP_CODE_NONE;
+    outResult->trapped = MAREA_BOOLEAN_FALSE;
+
+    if ((argumentCount != info->parameterCount) || (argumentCount > MAREA_VM_HOST_PARAMETER_LIMIT)) {
+        return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
+    }
+
+    const MAREA_Character8 *name = MAREA_NULLPTR;
+    MAREA_IntegerSize length = MAREA_INTEGER_SIZE(0);
+
+    if (MAREA_BytecodeModuleGetString(module, info->name, &name, &length) != MAREA_BYTECODE_EXCEPT_SUCCESS) {
+        return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
+    }
+
+    const MAREA_HostFunction FOUND = MAREA_G_VmFindHostFunction(context, name, length);
+
+    if (FOUND == MAREA_NULLPTR) {
+        outResult->trap = MAREA_BYTECODE_TRAP_CODE_HOST_FUNCTION_MISSING;
+        outResult->trapped = MAREA_BOOLEAN_TRUE;
+
+        return MAREA_VM_EXCEPT_SUCCESS;
+    }
+
+    MAREA_Null arguments[MAREA_VM_HOST_PARAMETER_LIMIT];
+
+    for (MAREA_Uinteger32 index = MAREA_UINTEGER_32(0); index < argumentCount; index += MAREA_UINTEGER_32(1)) {
+        MAREA_BytecodeParameterInfo parameter = { 0 };
+
+        if (MAREA_BytecodeModuleGetParameter(module, functionIndex, index, &parameter) != MAREA_BYTECODE_EXCEPT_SUCCESS) {
+            return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
+        }
+
+        MAREA_Uinteger64 *slot = &window[(index + MAREA_UINTEGER_32(1))];
+
+        if ((parameter.flags & MAREA_BYTECODE_PARAMETER_FLAG_BORROW) == MAREA_UINTEGER_32(0)) {
+            arguments[index] = slot;
+
+            continue;
+        }
+
+        arguments[index] = MAREA_G_VmPointerOf(*slot);
+
+        if (arguments[index] == MAREA_NULLPTR) {
+            return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
+        }
+    }
+
+    MAREA_Uinteger64 scalar = MAREA_UINTEGER_64(0);
+    MAREA_Null result = MAREA_NULLPTR;
+    const MAREA_Character8 *scalarName = MAREA_NULLPTR;
+    MAREA_IntegerSize scalarLength = MAREA_INTEGER_SIZE(0);
+
+    if (info->result != MAREA_BYTECODE_NONE) {
+        MAREA_BytecodeTypeInfo type = { 0 };
+
+        if (MAREA_BytecodeModuleGetType(module, info->result, &type) != MAREA_BYTECODE_EXCEPT_SUCCESS) {
+            return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
+        }
+
+        if (type.kind == MAREA_BYTECODE_TYPE_KIND_STRUCTURE) {
+            result = MAREA_G_VmPointerOf(window[0]);
+
+            if (result == MAREA_NULLPTR) {
+                return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
+            }
+        } else {
+            if (MAREA_BytecodeModuleGetString(module, type.name, &scalarName, &scalarLength) != MAREA_BYTECODE_EXCEPT_SUCCESS) {
+                return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
+            }
+
+            result = &scalar;
+        }
+    }
+
+    MAREA_HostContext host = MAREA_G_VmHostContext(context);
+
+    FOUND(&host, arguments, result);
+
+    if (host.unpaired) {
+        return MAREA_VM_EXCEPT_ERROR_UNPAIRED_ALLOCATOR;
+    }
+
+    if (host.trap != MAREA_HOST_TRAP_NONE) {
+        outResult->trap = (MAREA_BytecodeTrapCode)host.trap;
+        outResult->trapped = MAREA_BOOLEAN_TRUE;
+
+        return MAREA_VM_EXCEPT_SUCCESS;
+    }
+
+    if (scalarName != MAREA_NULLPTR) {
+        window[0] = MAREA_G_VmNormalizeScalar(scalarName, scalarLength, scalar);
+    }
+
+    outResult->value = window[0];
 
     return MAREA_VM_EXCEPT_SUCCESS;
 }

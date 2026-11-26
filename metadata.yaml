@@ -7,7 +7,7 @@ title: MAREA
 label: Marea Lang
 package: dev.marea
 version:
-  major: 3 # Breaks the public API
-  minor: 13 # Adds to the public API
+  major: 4 # Breaks the public API
+  minor: 0 # Adds to the public API
   patch: 0 # No public API impact
-  build: 354 # Bumped once per commit, regardless of major/minor/patch
+  build: 355 # Bumped once per commit, regardless of major/minor/patch

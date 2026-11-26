@@ -61,6 +61,8 @@ target_compile_definitions(marea_tests PRIVATE "MAREA_TESTS_SEMA_SOURCE_DIRECTOR
 
 target_compile_definitions(marea_tests PRIVATE "MAREA_TESTS_LANGUAGE_DIRECTORY=\"${MAREA_FOLDER_TESTS}/language\"")
 
+target_compile_definitions(marea_tests PRIVATE "MAREA_TESTS_LIB_INCLUDE_DIRECTORY=\"${MAREA_FOLDER_LIB_INCLUDE}\"")
+
 if(TARGET marea::base)
     target_link_libraries(marea_tests PRIVATE marea::base)
 endif()

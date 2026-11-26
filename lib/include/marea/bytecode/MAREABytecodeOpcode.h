@@ -64,7 +64,8 @@ MAREA_BEGIN_EXTERN_C
      * A call of a function that has MAREA_BYTECODE_FUNCTION_FLAG_HOST goes to a C function (see
      * MAREA_HostFunction). The window is the same. A structure result is written at the address that register a
      * holds before the call, and register a keeps that address. A name that nothing registered is the trap
-     * HOST_FUNCTION_MISSING.
+     * HOST_FUNCTION_MISSING, and a trap that the function raises through its context (MAREA_HostTrap) is a trap of
+     * the run.
      */
     typedef enum MAREA_BytecodeOpcode
     {

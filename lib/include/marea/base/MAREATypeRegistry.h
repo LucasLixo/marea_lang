@@ -7,6 +7,7 @@
     #include "marea/base/MAREACTypes.h"
     #include "marea/base/MAREAMacros.h"
     #include "marea/base/MAREAArena.h"
+    #include "marea/base/MAREAHostFunction.h"
 
 MAREA_BEGIN_EXTERN_C
 
@@ -138,19 +139,6 @@ MAREA_BEGIN_EXTERN_C
         MAREA_IntegerSize resultElementLength;
         MAREA_MacroExpandFunction expand;
     } MAREA_MacroDescriptor;
-
-    /**
-     * @brief The one shape of a C function that the language runtime calls: what a function registered with
-     * MAREA_REGISTER_FUNCTION must have so that the vm can call it. arguments holds one pointer for each
-     * parameter, in order. For a borrowed value (a structure) it points at the bytes of the value itself, with
-     * the layout of the structure. For a scalar it points at 8 bytes in the register form: an integer sign
-     * extended or zero extended to 64 bits, a float32 or a float64 as a float64, a boolean as the 64-bit integer 0
-     * or 1. result points at the storage of the result: 8 zeroed bytes in the register form for a scalar result,
-     * or the zeroed bytes of the structure for a structure result. result is null when the function has no
-     * result. result does not alias an argument. Every pointer is valid only for the time of the call, and the
-     * function must not keep it.
-     */
-    typedef void(MAREA_CALL * MAREA_HostFunction)(const MAREA_Null *arguments, MAREA_Null result);
 
     /**
      * @brief The shape of a replacement of the runtime hook "alloc". It gives a block of at least size bytes
@@ -286,34 +274,34 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_TypeDescriptor *MAREA_CALL MAREA_TypeRegistryFindByRole(const MAREA_TypeRegistry *registry, MAREA_TypeRole role);
 
     /**
-     * @brief Registers one C function for a shipped library, through the internal entry. Called only
-     * through MAREA_REGISTER_FUNCTION, never directly.
+     * @brief Registers one wrapper of a C function for a shipped library, through the internal entry. Called
+     * through MAREA_REGISTER_FUNCTION.
      * @param registry Registry to change. Must not be null.
      * @param owner Library that owns the function; exactly one bit.
      * @param namespaceText Dotted namespace text, not NUL terminated.
      * @param namespaceLength Length of namespaceText in bytes.
      * @param name Function name, not NUL terminated.
      * @param nameLength Length of name in bytes.
-     * @param functionPointer The C function, opaque to the registry. Must not be null.
+     * @param function The wrapper that the runtime calls. Must not be null.
      * @return MAREA_TYPE_REGISTRY_EXCEPT_SUCCESS, ERROR_NULL_POINTER, ERROR_OUT_OF_MEMORY, or
      * ERROR_MISSING_DEPENDENCY, the same as MAREA_TypeRegistryRegisterInternal.
      */
-    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_TypeRegistryExcept MAREA_CALL MAREA_TypeRegistryRegisterInternalFunction(MAREA_TypeRegistry * registry, MAREA_LibraryFlag owner, const MAREA_Character8 *namespaceText, MAREA_IntegerSize namespaceLength, const MAREA_Character8 *name, MAREA_IntegerSize nameLength, MAREA_Null functionPointer);
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_TypeRegistryExcept MAREA_CALL MAREA_TypeRegistryRegisterInternalFunction(MAREA_TypeRegistry * registry, MAREA_LibraryFlag owner, const MAREA_Character8 *namespaceText, MAREA_IntegerSize namespaceLength, const MAREA_Character8 *name, MAREA_IntegerSize nameLength, MAREA_HostFunction function);
 
     /**
-     * @brief Registers one C function for a user or a host, through the public entry. Called only
-     * through MAREA_REGISTER_FUNCTION, never directly.
+     * @brief Registers one wrapper of a C function for a user or a host, through the public entry. Called
+     * through MAREA_REGISTER_FUNCTION.
      * @return MAREA_TYPE_REGISTRY_EXCEPT_SUCCESS, ERROR_NULL_POINTER, ERROR_OUT_OF_MEMORY, or
      * ERROR_RESERVED_NAMESPACE_ROOT, the same as MAREA_TypeRegistryRegisterPublic.
      */
-    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_TypeRegistryExcept MAREA_CALL MAREA_TypeRegistryRegisterPublicFunction(MAREA_TypeRegistry * registry, const MAREA_Character8 *namespaceText, MAREA_IntegerSize namespaceLength, const MAREA_Character8 *name, MAREA_IntegerSize nameLength, MAREA_Null functionPointer);
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_TypeRegistryExcept MAREA_CALL MAREA_TypeRegistryRegisterPublicFunction(MAREA_TypeRegistry * registry, const MAREA_Character8 *namespaceText, MAREA_IntegerSize namespaceLength, const MAREA_Character8 *name, MAREA_IntegerSize nameLength, MAREA_HostFunction function);
 
     /**
-     * @brief Finds a registered C function by its namespace and its name.
+     * @brief Finds the wrapper of a registered C function by its namespace and its name.
      * @param registry Registry to query. Null returns null.
-     * @return The function pointer, or null when none is registered under that namespace and name.
+     * @return The wrapper, or null when none is registered under that namespace and name.
      */
-    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Null MAREA_CALL MAREA_TypeRegistryFindFunction(const MAREA_TypeRegistry *registry, const MAREA_Character8 *namespaceText, MAREA_IntegerSize namespaceLength, const MAREA_Character8 *name, MAREA_IntegerSize nameLength);
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_HostFunction MAREA_CALL MAREA_TypeRegistryFindFunction(const MAREA_TypeRegistry *registry, const MAREA_Character8 *namespaceText, MAREA_IntegerSize namespaceLength, const MAREA_Character8 *name, MAREA_IntegerSize nameLength);
 
     /**
      * @brief Replaces one runtime function of the language itself, such as alloc or free: the one door
@@ -339,14 +327,15 @@ MAREA_BEGIN_EXTERN_C
 
     /**
      * @brief Registers one C function for the language runtime: the one macro that exposes a function,
-     * with no external generator and no hand-written glue on either side. owner MAREA_LIBRARY_FLAG_NONE
-     * registers through the public entry (a user or a host); any other owner registers through the
-     * internal entry (a shipped library), the only path allowed to name a function under c or marea. A
-     * function that the vm must call has the shape of MAREA_HostFunction; the macro does not check it.
+     * with no external generator and no hand-written glue on either side. function is the name of a typed C
+     * function that has its binding declaration (MAREA_HOST_FUNCTION) in this file: the macro registers the
+     * wrapper that the binding made, so a function with no binding does not compile. owner
+     * MAREA_LIBRARY_FLAG_NONE registers through the public entry (a user or a host); any other owner registers
+     * through the internal entry (a shipped library), the only path allowed to name a function under c or marea.
      */
-    #define MAREA_REGISTER_FUNCTION(registry, owner, namespaceText, namespaceLength, name, nameLength, functionPointer)                                                                       \
-        (((owner) == MAREA_LIBRARY_FLAG_NONE) ? MAREA_TypeRegistryRegisterPublicFunction((registry), (namespaceText), (namespaceLength), (name), (nameLength), (MAREA_Null)(functionPointer)) \
-                                              : MAREA_TypeRegistryRegisterInternalFunction((registry), (owner), (namespaceText), (namespaceLength), (name), (nameLength), (MAREA_Null)(functionPointer)))
+    #define MAREA_REGISTER_FUNCTION(registry, owner, namespaceText, namespaceLength, name, nameLength, function)                                                                              \
+        (((owner) == MAREA_LIBRARY_FLAG_NONE) ? MAREA_TypeRegistryRegisterPublicFunction((registry), (namespaceText), (namespaceLength), (name), (nameLength), &MAREA_HOST_WRAPPER(function)) \
+                                              : MAREA_TypeRegistryRegisterInternalFunction((registry), (owner), (namespaceText), (namespaceLength), (name), (nameLength), &MAREA_HOST_WRAPPER(function)))
 
 MAREA_END_EXTERN_C
 

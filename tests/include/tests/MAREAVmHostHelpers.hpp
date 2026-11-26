@@ -8,6 +8,7 @@
 
     #include "tests/MAREAHostSignatureHelpers.hpp"
 
+    #include <algorithm>
     #include <cstdint>
     #include <cstring>
     #include <string>
@@ -19,6 +20,17 @@ struct MAREA_HostPair
     std::int32_t y;
 };
 
+struct MAREA_HostWidePair
+{
+    double first;
+    double second;
+};
+
+struct MAREA_HostFive
+{
+    std::int64_t values[5];
+};
+
 inline std::vector<std::int64_t> &MAREA_hostLog()
 {
     static std::vector<std::int64_t> log;
@@ -26,104 +38,153 @@ inline std::vector<std::int64_t> &MAREA_hostLog()
     return log;
 }
 
-template <typename T>
-inline T MAREA_hostRead(const MAREA_Null *arguments, int index)
-{
-    T value{};
-
-    std::memcpy(&value, arguments[index], sizeof(value));
-
-    return value;
-}
-
-template <typename T>
-inline void MAREA_hostWrite(MAREA_Null result, const T &value)
-{
-    std::memcpy(result, &value, sizeof(value));
-}
-
 extern "C" {
-    inline void MAREA_CALL MAREA_testHostAdd(const MAREA_Null *arguments, MAREA_Null result)
+    inline MAREA_Sinteger32 MAREA_testHostAdd(MAREA_Sinteger32 left, MAREA_Sinteger32 right)
     {
-        MAREA_hostWrite(result, MAREA_hostRead<std::int64_t>(arguments, 0) + MAREA_hostRead<std::int64_t>(arguments, 1));
+        return left + right;
     }
 
-    inline void MAREA_CALL MAREA_testHostWide(const MAREA_Null *arguments, MAREA_Null result)
+    inline MAREA_Float64 MAREA_testHostWide(MAREA_Uinteger64 first, MAREA_Sinteger8 second, MAREA_Float32 third)
     {
-        MAREA_hostWrite(result, static_cast<double>(MAREA_hostRead<std::uint64_t>(arguments, 0)) + static_cast<double>(MAREA_hostRead<std::int64_t>(arguments, 1)) + MAREA_hostRead<double>(arguments, 2));
+        return static_cast<MAREA_Float64>(first) + static_cast<MAREA_Float64>(second) + static_cast<MAREA_Float64>(third);
     }
 
-    inline void MAREA_CALL MAREA_testHostIdentity(const MAREA_Null *arguments, MAREA_Null result)
+    inline MAREA_Sinteger32 MAREA_testHostIdentity(MAREA_Sinteger32 value)
     {
-        MAREA_hostWrite(result, MAREA_hostRead<std::int64_t>(arguments, 0));
+        return value;
     }
 
-    inline void MAREA_CALL MAREA_testHostThird(const MAREA_Null *, MAREA_Null result)
+    inline MAREA_Float64 MAREA_testHostThird()
     {
-        MAREA_hostWrite(result, 1.0 / 3.0);
+        return 1.0 / 3.0;
     }
 
-    inline void MAREA_CALL MAREA_testHostNegate(const MAREA_Null *arguments, MAREA_Null result)
+    inline MAREA_Boolean MAREA_testHostNegate(MAREA_Boolean value)
     {
-        MAREA_hostWrite(result, static_cast<std::uint64_t>((MAREA_hostRead<std::uint64_t>(arguments, 0) == 0) ? 1 : 0));
+        return !value;
     }
 
-    inline void MAREA_CALL MAREA_testHostSum(const MAREA_Null *arguments, MAREA_Null result)
+    inline void MAREA_testHostSum(const MAREA_HostPair *left, const MAREA_HostPair *right, MAREA_HostPair *outSum)
     {
-        const MAREA_HostPair LEFT{ MAREA_hostRead<MAREA_HostPair>(arguments, 0) };
-
-        const MAREA_HostPair RIGHT{ MAREA_hostRead<MAREA_HostPair>(arguments, 1) };
-
-        MAREA_hostWrite(result, MAREA_HostPair{ LEFT.x + RIGHT.x, LEFT.y + RIGHT.y });
+        *outSum = MAREA_HostPair{ left->x + right->x, left->y + right->y };
     }
 
-    inline void MAREA_CALL MAREA_testHostSquare(const MAREA_Null *arguments, MAREA_Null result)
+    inline MAREA_Sinteger32 MAREA_testHostSquare(const MAREA_HostPair *value)
     {
-        const MAREA_HostPair VALUE{ MAREA_hostRead<MAREA_HostPair>(arguments, 0) };
-
-        MAREA_hostWrite(result, static_cast<std::int64_t>((VALUE.x * VALUE.x) + (VALUE.y * VALUE.y)));
+        return (value->x * value->x) + (value->y * value->y);
     }
 
-    inline void MAREA_CALL MAREA_testHostSwap(const MAREA_Null *arguments, MAREA_Null result)
+    inline void MAREA_testHostSwap(const MAREA_HostWidePair *value, MAREA_HostWidePair *outSwapped)
     {
-        const auto *value{ static_cast<const double *>(arguments[0]) };
-
-        const double SWAPPED[2]{ value[1], value[0] };
-
-        MAREA_hostWrite(result, SWAPPED);
+        *outSwapped = MAREA_HostWidePair{ value->second, value->first };
     }
 
-    inline void MAREA_CALL MAREA_testHostReverse(const MAREA_Null *arguments, MAREA_Null result)
+    inline void MAREA_testHostReverse(const MAREA_HostFive *value, MAREA_HostFive *outReversed)
     {
-        const auto *value{ static_cast<const std::int64_t *>(arguments[0]) };
-
-        const std::int64_t REVERSED[5]{ value[4], value[3], value[2], value[1], value[0] };
-
-        MAREA_hostWrite(result, REVERSED);
+        std::reverse_copy(value->values, value->values + 5, outReversed->values);
     }
 
-    inline void MAREA_CALL MAREA_testHostBump(const MAREA_Null *arguments, MAREA_Null result)
+    inline void MAREA_testHostBump(MAREA_HostPair *value)
     {
-        static_cast<MAREA_HostPair *>(arguments[0])->x += 1;
+        value->x += 1;
 
+        MAREA_hostLog().push_back(0);
+    }
+
+    inline void MAREA_testHostShift(MAREA_HostPair *value, MAREA_Sinteger32 by)
+    {
+        value->x += by;
+        value->y -= by;
+    }
+
+    inline MAREA_Uinteger64 MAREA_testHostAddress(const MAREA_HostPair *value)
+    {
+        return static_cast<MAREA_Uinteger64>(reinterpret_cast<std::uintptr_t>(value));
+    }
+
+    inline void MAREA_testHostRecord(MAREA_Sinteger32 value)
+    {
+        MAREA_hostLog().push_back(value);
+    }
+
+    inline MAREA_Sinteger32 MAREA_testHostTwice(MAREA_Sinteger32 value)
+    {
+        return value * 2;
+    }
+
+    inline MAREA_Boolean MAREA_testHostBlock(MAREA_HostContext *context, MAREA_Uinteger64 size)
+    {
+        MAREA_Null block{ nullptr };
+
+        if (MAREA_HostContextAllocate(context, static_cast<MAREA_IntegerSize>(size), 16, &block) != MAREA_HOST_CONTEXT_EXCEPT_SUCCESS) {
+            MAREA_HostContextRaiseTrap(context, MAREA_HOST_TRAP_OUT_OF_MEMORY);
+
+            return MAREA_BOOLEAN_FALSE;
+        }
+
+        auto *bytes{ static_cast<MAREA_Byte *>(block) };
+
+        const bool ZEROED{ std::all_of(bytes, bytes + size, [](MAREA_Byte byte) { return byte == 0; }) };
+
+        std::fill(bytes, bytes + size, static_cast<MAREA_Byte>(0xFF));
+
+        MAREA_HostContextFree(context, block);
+
+        return ZEROED;
+    }
+
+    #define MAREA_TEST_PARAMETER(index) MAREA_Sinteger32 p##index
+
+    inline MAREA_Sinteger64 MAREA_testHostThirtyTwo(MAREA_TEST_PARAMETER(1), MAREA_TEST_PARAMETER(2), MAREA_TEST_PARAMETER(3), MAREA_TEST_PARAMETER(4), MAREA_TEST_PARAMETER(5), MAREA_TEST_PARAMETER(6), MAREA_TEST_PARAMETER(7), MAREA_TEST_PARAMETER(8), MAREA_TEST_PARAMETER(9), MAREA_TEST_PARAMETER(10), MAREA_TEST_PARAMETER(11), MAREA_TEST_PARAMETER(12), MAREA_TEST_PARAMETER(13), MAREA_TEST_PARAMETER(14), MAREA_TEST_PARAMETER(15), MAREA_TEST_PARAMETER(16), MAREA_TEST_PARAMETER(17), MAREA_TEST_PARAMETER(18), MAREA_TEST_PARAMETER(19), MAREA_TEST_PARAMETER(20), MAREA_TEST_PARAMETER(21), MAREA_TEST_PARAMETER(22), MAREA_TEST_PARAMETER(23), MAREA_TEST_PARAMETER(24), MAREA_TEST_PARAMETER(25), MAREA_TEST_PARAMETER(26), MAREA_TEST_PARAMETER(27), MAREA_TEST_PARAMETER(28), MAREA_TEST_PARAMETER(29), MAREA_TEST_PARAMETER(30), MAREA_TEST_PARAMETER(31), MAREA_TEST_PARAMETER(32))
+    {
+        const MAREA_Sinteger32 VALUES[32]{ p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18, p19, p20, p21, p22, p23, p24, p25, p26, p27, p28, p29, p30, p31, p32 };
+
+        MAREA_Sinteger64 weighted{ 0 };
+
+        for (int index{ 0 }; index < 32; ++index) {
+            weighted += static_cast<MAREA_Sinteger64>(index + 1) * VALUES[index];
+        }
+
+        return weighted;
+    }
+
+    #undef MAREA_TEST_PARAMETER
+
+    inline void MAREA_CALL MAREA_testHostRaw(MAREA_HostContext *context, const MAREA_Null *arguments, MAREA_Null result)
+    {
+        std::int64_t value{ 0 };
+
+        std::memcpy(&value, arguments[0], sizeof(value));
+
+        MAREA_hostLog().push_back((context != nullptr) ? 1 : 0);
+        MAREA_hostLog().push_back(value);
         MAREA_hostLog().push_back((result == nullptr) ? 0 : -1);
     }
-
-    inline void MAREA_CALL MAREA_testHostAddress(const MAREA_Null *arguments, MAREA_Null result)
-    {
-        MAREA_hostWrite(result, static_cast<std::uint64_t>(reinterpret_cast<std::uintptr_t>(arguments[0])));
-    }
-
-    inline void MAREA_CALL MAREA_testHostRecord(const MAREA_Null *arguments, MAREA_Null)
-    {
-        MAREA_hostLog().push_back(MAREA_hostRead<std::int64_t>(arguments, 0));
-    }
-
-    inline void MAREA_CALL MAREA_testHostTwice(const MAREA_Null *arguments, MAREA_Null result)
-    {
-        MAREA_hostWrite(result, MAREA_hostRead<std::int64_t>(arguments, 0) * 2);
-    }
 }
+
+MAREA_HOST_FUNCTION(MAREA_testHostAdd, MAREA_HOST_RETURNS(sinteger32), MAREA_HOST_VALUE(sinteger32), MAREA_HOST_VALUE(sinteger32));
+MAREA_HOST_FUNCTION(MAREA_testHostWide, MAREA_HOST_RETURNS(float64), MAREA_HOST_VALUE(uinteger64), MAREA_HOST_VALUE(sinteger8), MAREA_HOST_VALUE(float32));
+MAREA_HOST_FUNCTION(MAREA_testHostIdentity, MAREA_HOST_RETURNS(sinteger32), MAREA_HOST_VALUE(sinteger32));
+MAREA_HOST_FUNCTION(MAREA_testHostThird, MAREA_HOST_RETURNS(float64));
+MAREA_HOST_FUNCTION(MAREA_testHostNegate, MAREA_HOST_RETURNS(boolean), MAREA_HOST_VALUE(boolean));
+MAREA_HOST_FUNCTION(MAREA_testHostSum, MAREA_HOST_RETURNS_STRUCTURE(MAREA_HostPair), MAREA_HOST_BORROW(MAREA_HostPair), MAREA_HOST_BORROW(MAREA_HostPair));
+MAREA_HOST_FUNCTION(MAREA_testHostSquare, MAREA_HOST_RETURNS(sinteger32), MAREA_HOST_BORROW(MAREA_HostPair));
+MAREA_HOST_FUNCTION(MAREA_testHostSwap, MAREA_HOST_RETURNS_STRUCTURE(MAREA_HostWidePair), MAREA_HOST_BORROW(MAREA_HostWidePair));
+MAREA_HOST_FUNCTION(MAREA_testHostReverse, MAREA_HOST_RETURNS_STRUCTURE(MAREA_HostFive), MAREA_HOST_BORROW(MAREA_HostFive));
+MAREA_HOST_FUNCTION(MAREA_testHostBump, MAREA_HOST_RETURNS_NOTHING, MAREA_HOST_BORROW_MUTABLE(MAREA_HostPair));
+MAREA_HOST_FUNCTION(MAREA_testHostShift, MAREA_HOST_RETURNS_NOTHING, MAREA_HOST_BORROW_MUTABLE(MAREA_HostPair), MAREA_HOST_VALUE(sinteger32));
+MAREA_HOST_FUNCTION(MAREA_testHostAddress, MAREA_HOST_RETURNS(uinteger64), MAREA_HOST_BORROW(MAREA_HostPair));
+MAREA_HOST_FUNCTION(MAREA_testHostRecord, MAREA_HOST_RETURNS_NOTHING, MAREA_HOST_VALUE(sinteger32));
+MAREA_HOST_FUNCTION(MAREA_testHostTwice, MAREA_HOST_RETURNS(sinteger32), MAREA_HOST_VALUE(sinteger32));
+MAREA_HOST_FUNCTION(MAREA_testHostBlock, MAREA_HOST_RETURNS(boolean), MAREA_HOST_CONTEXT, MAREA_HOST_VALUE(uinteger64));
+
+    #define MAREA_TEST_VALUE MAREA_HOST_VALUE(sinteger32)
+
+MAREA_HOST_FUNCTION(MAREA_testHostThirtyTwo, MAREA_HOST_RETURNS(sinteger64), MAREA_TEST_VALUE, MAREA_TEST_VALUE, MAREA_TEST_VALUE, MAREA_TEST_VALUE, MAREA_TEST_VALUE, MAREA_TEST_VALUE, MAREA_TEST_VALUE, MAREA_TEST_VALUE, MAREA_TEST_VALUE, MAREA_TEST_VALUE, MAREA_TEST_VALUE, MAREA_TEST_VALUE, MAREA_TEST_VALUE, MAREA_TEST_VALUE, MAREA_TEST_VALUE, MAREA_TEST_VALUE, MAREA_TEST_VALUE, MAREA_TEST_VALUE, MAREA_TEST_VALUE, MAREA_TEST_VALUE, MAREA_TEST_VALUE, MAREA_TEST_VALUE, MAREA_TEST_VALUE, MAREA_TEST_VALUE, MAREA_TEST_VALUE, MAREA_TEST_VALUE, MAREA_TEST_VALUE, MAREA_TEST_VALUE, MAREA_TEST_VALUE, MAREA_TEST_VALUE, MAREA_TEST_VALUE, MAREA_TEST_VALUE);
+
+    #undef MAREA_TEST_VALUE
+
+    #define MAREA_TEST_REGISTER(registry, name, function) EXPECT_EQ(MAREA_REGISTER_FUNCTION(registry, MAREA_LIBRARY_FLAG_NONE, "demo.host", 9, name, std::strlen(name), function), MAREA_TYPE_REGISTRY_EXCEPT_SUCCESS) << "The host must register " << name
 
 struct MAREA_VmHostFixture
 {
@@ -141,28 +202,26 @@ struct MAREA_VmHostFixture
         MAREA_IGNORE(MAREA_VmContextCreate(arena, generate.ir.sema.parser.lexer.sink, &context));
         MAREA_IGNORE(MAREA_VmContextSetTypeRegistry(context, registry));
 
-        MAREA_register("add", &MAREA_testHostAdd);
-        MAREA_register("wide", &MAREA_testHostWide);
-        MAREA_register("narrow", &MAREA_testHostIdentity);
-        MAREA_register("flag", &MAREA_testHostIdentity);
-        MAREA_register("third", &MAREA_testHostThird);
-        MAREA_register("negate", &MAREA_testHostNegate);
-        MAREA_register("sum", &MAREA_testHostSum);
-        MAREA_register("square", &MAREA_testHostSquare);
-        MAREA_register("bump", &MAREA_testHostBump);
-        MAREA_register("address", &MAREA_testHostAddress);
-        MAREA_register("record", &MAREA_testHostRecord);
-        MAREA_register("swap", &MAREA_testHostSwap);
-        MAREA_register("reverse", &MAREA_testHostReverse);
+        MAREA_TEST_REGISTER(registry, "add", MAREA_testHostAdd);
+        MAREA_TEST_REGISTER(registry, "wide", MAREA_testHostWide);
+        MAREA_TEST_REGISTER(registry, "narrow", MAREA_testHostIdentity);
+        MAREA_TEST_REGISTER(registry, "flag", MAREA_testHostIdentity);
+        MAREA_TEST_REGISTER(registry, "third", MAREA_testHostThird);
+        MAREA_TEST_REGISTER(registry, "negate", MAREA_testHostNegate);
+        MAREA_TEST_REGISTER(registry, "sum", MAREA_testHostSum);
+        MAREA_TEST_REGISTER(registry, "square", MAREA_testHostSquare);
+        MAREA_TEST_REGISTER(registry, "bump", MAREA_testHostBump);
+        MAREA_TEST_REGISTER(registry, "shift", MAREA_testHostShift);
+        MAREA_TEST_REGISTER(registry, "address", MAREA_testHostAddress);
+        MAREA_TEST_REGISTER(registry, "record", MAREA_testHostRecord);
+        MAREA_TEST_REGISTER(registry, "swap", MAREA_testHostSwap);
+        MAREA_TEST_REGISTER(registry, "reverse", MAREA_testHostReverse);
+        MAREA_TEST_REGISTER(registry, "block", MAREA_testHostBlock);
+        MAREA_TEST_REGISTER(registry, "thirtytwo", MAREA_testHostThirtyTwo);
     }
 
     MAREA_VmHostFixture(const MAREA_VmHostFixture &) = delete;
     MAREA_VmHostFixture &operator=(const MAREA_VmHostFixture &) = delete;
-
-    void MAREA_register(const char *name, MAREA_HostFunction function)
-    {
-        EXPECT_EQ(MAREA_REGISTER_FUNCTION(registry, MAREA_LIBRARY_FLAG_NONE, "demo.host", 9, name, std::strlen(name), function), MAREA_TYPE_REGISTRY_EXCEPT_SUCCESS) << "The host must register " << name;
-    }
 
     bool MAREA_build(const std::string &body)
     {

@@ -78,7 +78,9 @@ MAREA_BEGIN_EXTERN_C
      * @brief Gives the context the registry that holds the host functions and the replacements of the runtime
      * hooks "alloc" and "free". A context has none until this call: every host call then traps
      * HOST_FUNCTION_MISSING, and alloc and free use the allocator of the vm. A host replaces both hooks or
-     * neither: with one only, the first alloc or free of a run is MAREA_VM_EXCEPT_ERROR_UNPAIRED_ALLOCATOR.
+     * neither: with one only, the first alloc or free of a run, also through the context of a host function, is
+     * MAREA_VM_EXCEPT_ERROR_UNPAIRED_ALLOCATOR. Every call of a host function gets a new MAREA_HostContext with
+     * these hooks; a trap that the function raises there is a trap of the run.
      * @param context Context to change. Must not be null.
      * @param registry Registry to read, or null for none. It must outlive every call of the context.
      * @return MAREA_VM_EXCEPT_SUCCESS, or MAREA_VM_EXCEPT_ERROR_NULL_POINTER when context is null.
@@ -120,7 +122,8 @@ MAREA_BEGIN_EXTERN_C
      * MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE when functionIndex is not a function of the module,
      * MAREA_VM_EXCEPT_ERROR_UNKNOWN_FUNCTION when it is an import,
      * MAREA_VM_EXCEPT_ERROR_UNPAIRED_ALLOCATOR when the registry replaces only one of "alloc" and "free" and the
-     * run reaches one of them, or MAREA_VM_EXCEPT_ERROR_ARGUMENT_COUNT when argumentCount does not match the
+     * run reaches one of them (also through a host context), or MAREA_VM_EXCEPT_ERROR_ARGUMENT_COUNT when
+     * argumentCount does not match the
      * parameter count. outResult is only filled on MAREA_VM_EXCEPT_SUCCESS.
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_VmExcept MAREA_CALL MAREA_VmCall(MAREA_VmContext * context, const MAREA_BytecodeModule *module, MAREA_Uinteger32 functionIndex, const MAREA_Uinteger64 *arguments, MAREA_Uinteger32 argumentCount, MAREA_VmResult *outResult);

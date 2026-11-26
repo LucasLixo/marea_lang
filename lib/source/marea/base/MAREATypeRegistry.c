@@ -17,12 +17,12 @@ typedef struct MAREA_G_MacroEntry
     const MAREA_MacroDescriptor *descriptor;
 } MAREA_G_MacroEntry;
 
-// INFO: one registered C function, under its namespace and its name.
+// INFO: the wrapper of one registered C function, under its namespace and its name.
 typedef struct MAREA_G_FunctionEntry
 {
     const MAREA_Character8 *namespaceText;
     const MAREA_Character8 *name;
-    MAREA_Null functionPointer;
+    MAREA_HostFunction function;
     MAREA_IntegerSize namespaceLength;
     MAREA_IntegerSize nameLength;
 } MAREA_G_FunctionEntry;
@@ -277,9 +277,9 @@ const MAREA_TypeDescriptor *MAREA_CALL MAREA_TypeRegistryFindByRole(const MAREA_
     return MAREA_NULLPTR;
 }
 
-MAREA_TypeRegistryExcept MAREA_CALL MAREA_TypeRegistryRegisterInternalFunction(MAREA_TypeRegistry *registry, MAREA_LibraryFlag owner, const MAREA_Character8 *namespaceText, MAREA_IntegerSize namespaceLength, const MAREA_Character8 *name, MAREA_IntegerSize nameLength, MAREA_Null functionPointer)
+MAREA_TypeRegistryExcept MAREA_CALL MAREA_TypeRegistryRegisterInternalFunction(MAREA_TypeRegistry *registry, MAREA_LibraryFlag owner, const MAREA_Character8 *namespaceText, MAREA_IntegerSize namespaceLength, const MAREA_Character8 *name, MAREA_IntegerSize nameLength, MAREA_HostFunction function)
 {
-    if ((registry == MAREA_NULLPTR) || (namespaceText == MAREA_NULLPTR) || (name == MAREA_NULLPTR) || (functionPointer == MAREA_NULLPTR)) {
+    if ((registry == MAREA_NULLPTR) || (namespaceText == MAREA_NULLPTR) || (name == MAREA_NULLPTR) || (function == MAREA_NULLPTR)) {
         return MAREA_TYPE_REGISTRY_EXCEPT_ERROR_NULL_POINTER;
     }
 
@@ -297,7 +297,7 @@ MAREA_TYPE_REGISTRY_EXCEPT_ERROR_MISSING_DEPENDENCY
 
 MAREA_TypeRegistryExcept except = MAREA_TYPE_REGISTRY_EXCEPT_SUCCESS;
 
-const MAREA_G_FunctionEntry ENTRY = { .namespaceText = namespaceText, .name = name, .functionPointer = functionPointer, .namespaceLength = namespaceLength, .nameLength = nameLength };
+const MAREA_G_FunctionEntry ENTRY = { .namespaceText = namespaceText, .name = name, .function = function, .namespaceLength = namespaceLength, .nameLength = nameLength };
 
 MAREA_G_APPEND
 (registry, registry->functions, registry->functionCount, registry->functionCapacity, MAREA_G_FunctionEntry, ENTRY, &except);
@@ -306,9 +306,9 @@ return except;
 }
 
 // INFO: the reserved-root rejection, the same as MAREA_TypeRegistryRegisterPublic above.
-MAREA_TypeRegistryExcept MAREA_CALL MAREA_TypeRegistryRegisterPublicFunction(MAREA_TypeRegistry *registry, const MAREA_Character8 *namespaceText, MAREA_IntegerSize namespaceLength, const MAREA_Character8 *name, MAREA_IntegerSize nameLength, MAREA_Null functionPointer)
+MAREA_TypeRegistryExcept MAREA_CALL MAREA_TypeRegistryRegisterPublicFunction(MAREA_TypeRegistry *registry, const MAREA_Character8 *namespaceText, MAREA_IntegerSize namespaceLength, const MAREA_Character8 *name, MAREA_IntegerSize nameLength, MAREA_HostFunction function)
 {
-    if ((registry == MAREA_NULLPTR) || (namespaceText == MAREA_NULLPTR) || (name == MAREA_NULLPTR) || (functionPointer == MAREA_NULLPTR)) {
+    if ((registry == MAREA_NULLPTR) || (namespaceText == MAREA_NULLPTR) || (name == MAREA_NULLPTR) || (function == MAREA_NULLPTR)) {
         return MAREA_TYPE_REGISTRY_EXCEPT_ERROR_NULL_POINTER;
     }
 
@@ -318,7 +318,7 @@ MAREA_TypeRegistryExcept MAREA_CALL MAREA_TypeRegistryRegisterPublicFunction(MAR
 
     MAREA_TypeRegistryExcept except = MAREA_TYPE_REGISTRY_EXCEPT_SUCCESS;
 
-    const MAREA_G_FunctionEntry ENTRY = { .namespaceText = namespaceText, .name = name, .functionPointer = functionPointer, .namespaceLength = namespaceLength, .nameLength = nameLength };
+    const MAREA_G_FunctionEntry ENTRY = { .namespaceText = namespaceText, .name = name, .function = function, .namespaceLength = namespaceLength, .nameLength = nameLength };
 
 MAREA_G_APPEND
 (registry, registry->functions, registry->functionCount, registry->functionCapacity, MAREA_G_FunctionEntry, ENTRY, &except);
@@ -326,7 +326,7 @@ MAREA_G_APPEND
 return except;
 }
 
-MAREA_Null MAREA_CALL MAREA_TypeRegistryFindFunction(const MAREA_TypeRegistry *registry, const MAREA_Character8 *namespaceText, MAREA_IntegerSize namespaceLength, const MAREA_Character8 *name, MAREA_IntegerSize nameLength)
+MAREA_HostFunction MAREA_CALL MAREA_TypeRegistryFindFunction(const MAREA_TypeRegistry *registry, const MAREA_Character8 *namespaceText, MAREA_IntegerSize namespaceLength, const MAREA_Character8 *name, MAREA_IntegerSize nameLength)
 {
     if (registry == MAREA_NULLPTR) {
         return MAREA_NULLPTR;
@@ -336,7 +336,7 @@ MAREA_Null MAREA_CALL MAREA_TypeRegistryFindFunction(const MAREA_TypeRegistry *r
         const MAREA_G_FunctionEntry *entry = &registry->functions[index];
 
         if ((MAREA_G_TextEquals(entry->namespaceText, entry->namespaceLength, namespaceText, namespaceLength) == MAREA_BOOLEAN_TRUE) && (MAREA_G_TextEquals(entry->name, entry->nameLength, name, nameLength) == MAREA_BOOLEAN_TRUE)) {
-            return entry->functionPointer;
+            return entry->function;
         }
     }
 

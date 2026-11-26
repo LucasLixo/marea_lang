@@ -7,6 +7,7 @@
     #include "marea/base/MAREAArena.h"
     #include "marea/base/MAREACTypes.h"
     #include "marea/base/MAREADiagnostic.h"
+    #include "marea/base/MAREAHostFunction.h"
     #include "marea/base/MAREATypeRegistry.h"
     #include "marea/bytecode/MAREABytecode.h"
     #include "marea/vm/MAREAVm.h"
@@ -48,10 +49,11 @@ MAREA_BEGIN_EXTERN_C
     #endif
 
     /**
-     * @brief Largest number of parameters of a host function. A call of an import with more is a vm limit.
+     * @brief Largest number of parameters of a host function, the limit of the binding macro. A call of an import
+     * with more is a vm limit.
      */
     #if !defined(MAREA_VM_HOST_PARAMETER_LIMIT)
-        #define MAREA_VM_HOST_PARAMETER_LIMIT MAREA_UINTEGER_32(32)
+        #define MAREA_VM_HOST_PARAMETER_LIMIT MAREA_UINTEGER_32(MAREA_HOST_FUNCTION_PARAMETER_LIMIT)
     #endif
 
     /**

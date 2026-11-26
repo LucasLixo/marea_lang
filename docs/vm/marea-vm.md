@@ -38,19 +38,20 @@ if (result.trapped) {
 }
 ```
 
-A program that calls C needs a registry, and a function in the one shape the vm calls:
+A program that calls C needs a registry. A C function keeps its typed signature; one file-scope binding declaration
+(`MAREA_HOST_FUNCTION`) makes the wrapper that the vm calls, and `MAREA_REGISTER_FUNCTION` registers it:
 
 ```c
-static void MAREA_CALL host_add(const MAREA_Null *arguments, MAREA_Null result)
+static MAREA_Sinteger32 MAREA_CALL host_add(MAREA_Sinteger32 left, MAREA_Sinteger32 right)
 {
-    const MAREA_Sinteger64 SUM = (*(const MAREA_Sinteger64 *)arguments[0] + *(const MAREA_Sinteger64 *)arguments[1]);
-
-    *(MAREA_Sinteger64 *)result = SUM;
+    return (left + right);
 }
+
+MAREA_HOST_FUNCTION(host_add, MAREA_HOST_RETURNS(sinteger32), MAREA_HOST_VALUE(sinteger32), MAREA_HOST_VALUE(sinteger32));
 
 MAREA_TypeRegistry *registry;
 MAREA_TypeRegistryCreate(arena, MAREA_LIBRARY_MASK_DEFAULT, &registry);
-MAREA_REGISTER_FUNCTION(registry, MAREA_LIBRARY_FLAG_NONE, "demo.host", 9, "add", 3, &host_add);
+MAREA_REGISTER_FUNCTION(registry, MAREA_LIBRARY_FLAG_NONE, "demo.host", 9, "add", 3, host_add);
 MAREA_VmContextSetTypeRegistry(context, registry);
 ```
 
@@ -129,10 +130,33 @@ the import at its last dot and asks the registry of the context for that namespa
 `HOST_FUNCTION_MISSING`. The registry rejects a registration of a user or a host under `c` or `marea`, so only a
 shipped library, through the internal entry, answers there.
 
-Every registered function that the vm calls has the one shape `MAREA_HostFunction` (`marea/base/MAREATypeRegistry.h`):
-`void f(const MAREA_Null *arguments, MAREA_Null result)`.
+### The binding of a C function
 
-| Value | Pointer that the function gets |
+`MAREA_HOST_FUNCTION(function, result, parameters...)` (`marea/base/MAREAHostFunction.h`) is written at file scope,
+after the declaration of the function and in the file that registers it. It describes the signature, and the C
+function must have exactly that signature, with `MAREA_CALL`:
+
+| In the binding | The C function |
+|---|---|
+| `MAREA_HOST_VALUE(scalar)` | a parameter by value; `scalar` is `boolean`, `sinteger8` to `sinteger64`, `uinteger8` to `uinteger64`, `float32` or `float64`, and the C type is `MAREA_Boolean`, `MAREA_Sinteger8`, ... `MAREA_Float64` |
+| `MAREA_HOST_BORROW(Type)` | `const Type *` |
+| `MAREA_HOST_BORROW_MUTABLE(Type)` | `Type *` |
+| `MAREA_HOST_CONTEXT` | `MAREA_HostContext *`, not a parameter of the program; only a function that lists it gets it |
+| `MAREA_HOST_RETURNS_NOTHING` | `void` |
+| `MAREA_HOST_RETURNS(scalar)` | the C type of `scalar`, returned by value |
+| `MAREA_HOST_RETURNS_STRUCTURE(Type)` | `void`, with a last parameter `Type *` for the result |
+
+A signature that differs (a type, a missing or extra parameter, a context that the function does not take) and a
+function with more than `MAREA_HOST_FUNCTION_PARAMETER_LIMIT` (32) parameters are compile errors in C and in C++,
+with any warning settings. `MAREA_REGISTER_FUNCTION` takes the name of the function, so a function with no binding
+does not compile. The wrapper is for the vm; a C caller calls the typed function itself.
+
+### The shape the vm calls
+
+The binding makes a function of the one shape `MAREA_HostFunction`:
+`void f(MAREA_HostContext *context, const MAREA_Null *arguments, MAREA_Null result)`.
+
+| Value | Pointer that the wrapper gets |
 |---|---|
 | A borrowed structure | the bytes of the value itself, with its layout; a write through it changes the value of the program |
 | A scalar argument | 8 bytes in the register form: an integer sign or zero extended to 64 bits, a float32 or float64 as a float64, a boolean as the integer 0 or 1 |
@@ -140,11 +164,24 @@ Every registered function that the vm calls has the one shape `MAREA_HostFunctio
 | A scalar result | 8 zeroed bytes; the vm then normalizes them to the declared type (`sinteger8` 200 is -56, a `float32` is rounded, a `boolean` is 0 or 1) |
 | No result | a null pointer |
 
-The macro does not check the shape of the function, and the vm cannot check that the types of an import match what
-the function reads and writes: the registered function, the signature given to sema and the registration must agree.
-A host function has no way to raise a trap and gets no context. It adds no frame to the call depth. A host function
-takes at most `MAREA_VM_HOST_PARAMETER_LIMIT` (32) parameters; more is `MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE`.
-`MAREA_VmFindFunction` does not find an import, and `MAREA_VmCall` of one is `MAREA_VM_EXCEPT_ERROR_UNKNOWN_FUNCTION`.
+A call whose result nobody wants (no result in the import, for a call that sema could not type) still runs: the
+wrapper drops a scalar result and gives a structure result a zeroed local of its own. The vm cannot check that the
+types of an import match what the function reads and writes: the binding, the signature given to sema and the
+registration must agree.
+
+### The host context
+
+Every call gets a new `MAREA_HostContext` (`marea/base/MAREAHostContext.h`), so the vm keeps no state between calls.
+`MAREA_HostContextAllocate` gives a zeroed block from the replaced `alloc` hook, or from the allocator of the vm, and
+`MAREA_HostContextFree` gives it back. A failed allocation is a result of the call, not a trap: the function raises
+`MAREA_HostContextRaiseTrap(context, MAREA_HOST_TRAP_OUT_OF_MEMORY)` and returns. A raised trap stops the run when
+the function returns, drops its result and is the trap `OUT_OF_MEMORY` of the run; nothing after the call runs. With
+one replaced hook only, a function that allocates or frees makes the call
+`MAREA_VM_EXCEPT_ERROR_UNPAIRED_ALLOCATOR`, as `alloc` and `free` do. A host function adds no frame to the call depth.
+
+A host function takes at most `MAREA_VM_HOST_PARAMETER_LIMIT` (32) parameters; an import with more is
+`MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE`. `MAREA_VmFindFunction` does not find an import, and `MAREA_VmCall` of one is
+`MAREA_VM_EXCEPT_ERROR_UNKNOWN_FUNCTION`.
 
 ## Allocation
 
@@ -176,6 +213,13 @@ of `docs/bytecode/marea-bytecode.md`), and every other fault is a `MAREA_VmExcep
 ## Gaps
 
 - Every opcode the format header defines today is interpreted; a later opcode needs a matching case added here.
+- The vm does not check the binding of a host function against the import of the module: a binding and a sema
+  signature that differ are undefined.
+- A binding has no form for a `character`, a `string`, an `enum` or a library type, as the bytecode stage cannot pass
+  them yet, and a scalar write borrow does not exist.
+- The traps that a host function can raise are `MAREA_HostTrap`, which holds `OUT_OF_MEMORY` only.
+- A typed function reads a borrowed structure in the frame memory of the vm through a pointer of its own type, which
+  relies on the vm being compiled apart from the host functions.
 - `fork_join` is sequential: there is no thread and no atomic in the vm.
 - Nothing traps on a double `free` and nothing tracks the blocks of a run, so a run that traps leaks them.
 - A structure with an alignment above 16 may reach a C function misaligned: the frame memory area is aligned to 16 only.
