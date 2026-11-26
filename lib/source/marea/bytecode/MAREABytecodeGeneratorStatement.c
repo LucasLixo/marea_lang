@@ -67,6 +67,27 @@ static MAREA_BytecodeExcept MAREA_CALL MAREA_G_LowerLocal(MAREA_BytecodeGenerato
     return MAREA_BYTECODE_EXCEPT_SUCCESS;
 }
 
+// INFO: the new value is built in bytes of its own and copied after, because the value may read the target.
+static MAREA_BytecodeExcept MAREA_CALL MAREA_G_LowerAggregateAssignment(MAREA_BytecodeGenerator *generator, const MAREA_IrNode *node, const MAREA_IrNode *value, MAREA_Uinteger32 target, MAREA_Uinteger32 aggregateIndex)
+{
+    const MAREA_Uinteger64 SIZE = generator->aggregates[aggregateIndex].size;
+    const MAREA_Uinteger64 ALIGNMENT = generator->aggregates[aggregateIndex].alignment;
+
+    MAREA_Uinteger32 offset = MAREA_UINTEGER_32(0);
+
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorAllocateFrame(generator, node, SIZE, ALIGNMENT, &offset));
+
+    MAREA_Uinteger32 temporary = MAREA_UINTEGER_32(0);
+
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorAllocate(generator, node, MAREA_UINTEGER_32(1), &temporary));
+
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorEmit(generator, MAREA_BYTECODE_OPCODE_ADDRESS_OF, temporary, offset, MAREA_UINTEGER_32(0), MAREA_NULLPTR));
+
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorConstructAggregate(generator, value, temporary, aggregateIndex));
+
+    return MAREA_BytecodeGeneratorEmit(generator, MAREA_BYTECODE_OPCODE_COPY_BYTES, target, temporary, (MAREA_Uinteger32)SIZE, MAREA_NULLPTR);
+}
+
 static MAREA_BytecodeExcept MAREA_CALL MAREA_G_LowerAssignment(MAREA_BytecodeGenerator *generator, const MAREA_IrNode *node)
 {
     const MAREA_IrNode *target = MAREA_BytecodeGeneratorChildAt(node, MAREA_INTEGER_SIZE(0));
@@ -85,6 +106,10 @@ static MAREA_BytecodeExcept MAREA_CALL MAREA_G_LowerAssignment(MAREA_BytecodeGen
     const MAREA_TokenKind OPERATOR = MAREA_IrNodeGetOperator(node);
     const MAREA_Uinteger32 TARGET = symbol->registerIndex;
     const MAREA_Uinteger8 KIND = symbol->kind;
+
+    if ((OPERATOR == MAREA_TOKEN_KIND_EQUAL) && (KIND == MAREA_BYTECODE_GENERATOR_KIND_AGGREGATE)) {
+        return MAREA_G_LowerAggregateAssignment(generator, node, value, TARGET, symbol->aggregateType);
+    }
 
     if (OPERATOR == MAREA_TOKEN_KIND_EQUAL) {
         MAREA_Uinteger32 temporary = MAREA_UINTEGER_32(0);

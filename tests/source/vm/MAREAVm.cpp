@@ -744,6 +744,28 @@ TEST(MAREAVm, MovesAStructureLocalIntoANewOne)
     EXPECT_EQ(static_cast<std::int32_t>(RESULT.value), 15) << "The moved-to local must read x (7) and y (8) back: 7 + 8 is 15.";
 }
 
+TEST(MAREAVm, AssigningAStructureCopiesItsBytesAndDoesNotAliasTheSource)
+{
+    GTEST_COUT << "Validating an assignment of a structure local copies the bytes, so a later move of the source does not change the target." << std::endl;
+
+    MAREA_VmFixture fixture;
+
+    ASSERT_TRUE(fixture.MAREA_build("structure Pair x: sinteger32; y: sinteger32; end function f(): sinteger32 local a: Pair = Pair{ x = 7, y = 1 }; local b: Pair = Pair{ x = 3, y = 4 }; b = copy a; local c: Pair = move a; return b.x * 100 + c.x; end")) << "The unit must generate.";
+
+    EXPECT_EQ(static_cast<std::int32_t>(fixture.MAREA_call("f").value), 707) << "b keeps its own 7 and c takes 7 from a.";
+}
+
+TEST(MAREAVm, AssignsAStructureLiteralToAStructureLocal)
+{
+    GTEST_COUT << "Validating a structure literal can be assigned to a structure local, over its old bytes." << std::endl;
+
+    MAREA_VmFixture fixture;
+
+    ASSERT_TRUE(fixture.MAREA_build("structure Pair x: sinteger32; y: sinteger32; end function f(): sinteger32 local a: Pair = Pair{ x = 1, y = 2 }; a = Pair{ x = 5, y = 6 }; return a.x * 10 + a.y; end")) << "The unit must generate.";
+
+    EXPECT_EQ(static_cast<std::int32_t>(fixture.MAREA_call("f").value), 56) << "The new literal replaces both fields.";
+}
+
 TEST(MAREAVm, NestedStructureFieldsConstructAndReadThroughAChain)
 {
     GTEST_COUT << "Validating a structure field that is itself a structure is zero-filled and field-stored in the same pass as the outer one, and that a chain of field reads (bx.inner.x) reaches it, from real language source." << std::endl;

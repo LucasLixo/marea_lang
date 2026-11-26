@@ -204,7 +204,9 @@ to a later slice.
   lowers to `zero` over the whole size, the language's zero-default rule, then one `field` and `load`/`store` or
   recursive `MAREA_BytecodeGeneratorConstructAggregate` call per `FIELD_ENTRY` (a nested structure field is built
   in the same pass). `copy name` and `move name` both lower to `copy_bytes` from the named local's address;
-  `move` also `zero`s the source's bytes afterward, the same instruction the zero rule uses. A `MEMBER_ACCESS`
+  `move` also `zero`s the source's bytes afterward, the same instruction the zero rule uses. An assignment to a
+  structure local (`=`) builds the new value in frame bytes of its own and then `copy_bytes` it over the target,
+  so the value may read the target and the two never alias. A `MEMBER_ACCESS`
   chain (`a.b.c`) reads a field, following a nested structure's address through as many `field` steps as the
   chain needs. `load_data_block` copies a read-only blob into a reserved range of the frame area, for a future
   `include_bytes!`. None of this crosses a call: a `structure` parameter, call argument or result, a
