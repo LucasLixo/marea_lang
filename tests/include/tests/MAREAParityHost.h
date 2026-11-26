@@ -32,8 +32,15 @@ typedef struct marea_parity_five
     MAREA_Sinteger64 values[5];
 } marea_parity_five;
 
+// INFO: the generated C program is one file. The C++ tests are many files that share the inline helpers of the parity
+// tests, so they share one log: with one log per file, a helper could read another log than the host function writes.
+    #if defined(__cplusplus)
+inline MAREA_Sinteger64 marea_parity_log[MAREA_PARITY_LOG_LIMIT];
+inline int marea_parity_log_count;
+    #else
 static MAREA_UNUSED MAREA_Sinteger64 marea_parity_log[MAREA_PARITY_LOG_LIMIT];
 static MAREA_UNUSED int marea_parity_log_count;
+    #endif
 
 static inline void MAREA_CALL marea_parity_record(MAREA_Sinteger32 value)
 {
