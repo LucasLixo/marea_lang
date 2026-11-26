@@ -53,6 +53,21 @@ MAREA_DiagnosticSink *MAREA_CALL MAREA_VmContextGetDiagnostics(const MAREA_VmCon
     return context->sink;
 }
 
+MAREA_VmExcept MAREA_CALL MAREA_VmContextSetTypeRegistry(MAREA_VmContext *context, const MAREA_TypeRegistry *registry)
+{
+    MAREA_IGNORE(context);
+    MAREA_IGNORE(registry);
+
+    return MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE;
+}
+
+const MAREA_TypeRegistry *MAREA_CALL MAREA_VmContextGetTypeRegistry(const MAREA_VmContext *context)
+{
+    MAREA_IGNORE(context);
+
+    return MAREA_NULLPTR;
+}
+
 MAREA_VmExcept MAREA_CALL MAREA_VmFindFunction(const MAREA_BytecodeModule *module, const MAREA_Character8 *name, MAREA_IntegerSize length, MAREA_Uinteger32 *outIndex)
 {
     if (outIndex == MAREA_NULLPTR) {

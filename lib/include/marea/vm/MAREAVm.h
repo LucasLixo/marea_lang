@@ -8,6 +8,7 @@
     #include "marea/base/MAREAMacros.h"
     #include "marea/base/MAREAArena.h"
     #include "marea/base/MAREADiagnostic.h"
+    #include "marea/base/MAREATypeRegistry.h"
     #include "marea/bytecode/MAREABytecode.h"
     #include "marea/bytecode/MAREABytecodeOpcode.h"
 
@@ -25,6 +26,7 @@ MAREA_BEGIN_EXTERN_C
         MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE = MAREA_UINTEGER_8(3),
         MAREA_VM_EXCEPT_ERROR_UNKNOWN_FUNCTION = MAREA_UINTEGER_8(4),
         MAREA_VM_EXCEPT_ERROR_ARGUMENT_COUNT = MAREA_UINTEGER_8(5),
+        MAREA_VM_EXCEPT_ERROR_UNPAIRED_ALLOCATOR = MAREA_UINTEGER_8(6),
     } MAREA_VmExcept;
 
     /**
@@ -73,8 +75,27 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_DiagnosticSink *MAREA_CALL MAREA_VmContextGetDiagnostics(const MAREA_VmContext *context);
 
     /**
+     * @brief Gives the context the registry that holds the host functions and the replacements of the runtime
+     * hooks "alloc" and "free". A context has none until this call: every host call then traps
+     * HOST_FUNCTION_MISSING, and alloc and free use the allocator of the vm. A host replaces both hooks or
+     * neither: with one only, the first alloc or free of a run is MAREA_VM_EXCEPT_ERROR_UNPAIRED_ALLOCATOR.
+     * @param context Context to change. Must not be null.
+     * @param registry Registry to read, or null for none. It must outlive every call of the context.
+     * @return MAREA_VM_EXCEPT_SUCCESS, or MAREA_VM_EXCEPT_ERROR_NULL_POINTER when context is null.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_VmExcept MAREA_CALL MAREA_VmContextSetTypeRegistry(MAREA_VmContext * context, const MAREA_TypeRegistry *registry);
+
+    /**
+     * @brief Returns the registry of the context.
+     * @param context Context to query. Null returns null.
+     * @return The registry, or null when the context has none or context is null.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_TypeRegistry *MAREA_CALL MAREA_VmContextGetTypeRegistry(const MAREA_VmContext *context);
+
+    /**
      * @brief Finds a function of a module by its full name (the namespace and the name, as
-     * MAREA_BytecodeModuleGetFunction and MAREA_BytecodeModuleGetString give it).
+     * MAREA_BytecodeModuleGetFunction and MAREA_BytecodeModuleGetString give it). An import (a function with
+     * MAREA_BYTECODE_FUNCTION_FLAG_HOST) is not a function of the module and is never found.
      * @param module Module to search. Must not be null.
      * @param name Bytes of the name. Must not be null.
      * @param length Number of bytes of the name.
@@ -96,9 +117,11 @@ MAREA_BEGIN_EXTERN_C
      * @param argumentCount Number of arguments. Must equal the parameter count of the function.
      * @param outResult Receives the outcome. Must not be null.
      * @return MAREA_VM_EXCEPT_SUCCESS, MAREA_VM_EXCEPT_ERROR_NULL_POINTER when a required argument is null,
-     * MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE when functionIndex is not a function of the module, or
-     * MAREA_VM_EXCEPT_ERROR_ARGUMENT_COUNT when argumentCount does not match the parameter count. outResult is only
-     * filled on MAREA_VM_EXCEPT_SUCCESS.
+     * MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE when functionIndex is not a function of the module,
+     * MAREA_VM_EXCEPT_ERROR_UNKNOWN_FUNCTION when it is an import,
+     * MAREA_VM_EXCEPT_ERROR_UNPAIRED_ALLOCATOR when the registry replaces only one of "alloc" and "free" and the
+     * run reaches one of them, or MAREA_VM_EXCEPT_ERROR_ARGUMENT_COUNT when argumentCount does not match the
+     * parameter count. outResult is only filled on MAREA_VM_EXCEPT_SUCCESS.
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_VmExcept MAREA_CALL MAREA_VmCall(MAREA_VmContext * context, const MAREA_BytecodeModule *module, MAREA_Uinteger32 functionIndex, const MAREA_Uinteger64 *arguments, MAREA_Uinteger32 argumentCount, MAREA_VmResult *outResult);
 

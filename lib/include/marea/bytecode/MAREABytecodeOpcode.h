@@ -54,6 +54,17 @@ MAREA_BEGIN_EXTERN_C
      *   address, c is the number of bytes to copy. The ranges may overlap.
      * - load_data_block: a is a register that holds the destination address, b is the index of a blob of the
      *   read-only data section. The blob's own bytes are copied there, as many as the blob holds.
+     * - alloc: a is the destination register, b is a register that holds the number of bytes, c is the
+     *   alignment, a power of two. The destination receives the address of a new block of zeros from the
+     *   allocator of the runtime. 0 bytes still give a block. A block that the allocator cannot give is the trap
+     *   OUT_OF_MEMORY.
+     * - free: a is a register that holds the address of a block that alloc gave. The null address does nothing.
+     *   A block that is freed twice, or an address that alloc did not give, is undefined.
+     *
+     * A call of a function that has MAREA_BYTECODE_FUNCTION_FLAG_HOST goes to a C function (see
+     * MAREA_HostFunction). The window is the same. A structure result is written at the address that register a
+     * holds before the call, and register a keeps that address. A name that nothing registered is the trap
+     * HOST_FUNCTION_MISSING.
      */
     typedef enum MAREA_BytecodeOpcode
     {
@@ -103,7 +114,9 @@ MAREA_BEGIN_EXTERN_C
         MAREA_BYTECODE_OPCODE_STORE = MAREA_UINTEGER_16(43),
         MAREA_BYTECODE_OPCODE_COPY_BYTES = MAREA_UINTEGER_16(44),
         MAREA_BYTECODE_OPCODE_LOAD_DATA_BLOCK = MAREA_UINTEGER_16(45),
-        MAREA_BYTECODE_OPCODE_COUNT = MAREA_UINTEGER_16(46),
+        MAREA_BYTECODE_OPCODE_ALLOCATE = MAREA_UINTEGER_16(46),
+        MAREA_BYTECODE_OPCODE_FREE = MAREA_UINTEGER_16(47),
+        MAREA_BYTECODE_OPCODE_COUNT = MAREA_UINTEGER_16(48),
     } MAREA_BytecodeOpcode;
 
     /**
@@ -140,7 +153,10 @@ MAREA_BEGIN_EXTERN_C
         MAREA_BYTECODE_TRAP_CODE_MISSING_RETURN = MAREA_UINTEGER_8(6),
         MAREA_BYTECODE_TRAP_CODE_STACK_OVERFLOW = MAREA_UINTEGER_8(7),
         MAREA_BYTECODE_TRAP_CODE_INDEX_OUT_OF_BOUNDS = MAREA_UINTEGER_8(8),
-        MAREA_BYTECODE_TRAP_CODE_COUNT = MAREA_UINTEGER_8(9),
+        MAREA_BYTECODE_TRAP_CODE_OUT_OF_MEMORY = MAREA_UINTEGER_8(9),
+        MAREA_BYTECODE_TRAP_CODE_HOST_FUNCTION_MISSING = MAREA_UINTEGER_8(10),
+        MAREA_BYTECODE_TRAP_CODE_INVALID_PARTITION_COUNT = MAREA_UINTEGER_8(11),
+        MAREA_BYTECODE_TRAP_CODE_COUNT = MAREA_UINTEGER_8(12),
     } MAREA_BytecodeTrapCode;
 
     /**
