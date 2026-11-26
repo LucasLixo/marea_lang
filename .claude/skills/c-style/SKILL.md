@@ -212,5 +212,5 @@ clang-format is the formatter and wins on whitespace and layout: [`.clang-format
 
 - `mise run format:check-sources` reports nothing.
 - `mise run dev:ascii-check` passes. Untracked new files are not covered by it: run `lua tools/marea-ascii-check/main.lua <file>...` on them.
-- The library builds (`mise run build:marea`) and the test target builds and passes (`cmake --build cmake-build-debug --target marea_tests` then `ctest --test-dir cmake-build-debug`). No `test:*` mise task exists yet.
+- The library and the tests build and pass: `mise run dev:quiet-test` ([cpp-testing](../cpp-testing/SKILL.md), "Running tests").
 - `grep -R "printf\|fprintf\|puts" lib` prints nothing.

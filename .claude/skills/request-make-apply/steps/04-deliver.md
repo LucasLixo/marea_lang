@@ -15,7 +15,8 @@ Deliver by size, from the worktree:
   `## How to run` to carry it to a merged PR.
 - Small: the direct pipeline (issue through [generate-issue](../../generate-issue/SKILL.md), branch
   `<label>/<n>`, work with `generate-commit`, audit, push, PR, merge, close, branch cleanup), no
-  apply file.
+  apply file. Push, PR, merge, close and branch cleanup run through `marea-ship`, with the commands
+  [apply-part-template](../../generate-apply/references/apply-part-template.md) shows.
 
 Never dispatch the work to a later session; generation and execution happen in this run.
 

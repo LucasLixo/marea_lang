@@ -43,10 +43,9 @@ from, and what already landed that this builds on.
 ## Conventions
 
 TDD first, no symbol ships without a test (`cpp-testing`). Docs are part of the change
-(`AGENTS.md`). Style per language (`c-style`, `rust-style`, `cmake-style`). Configure and build
-with `mise run config:cmake` and `cmake --build cmake-build-debug --target marea marea_tests
---parallel`, test with `ctest --test-dir cmake-build-debug --output-on-failure` (there is no
-`test:*` mise task). Format with `mise run format:cpp-sources` and check with
+(`AGENTS.md`). Style per language (`c-style`, `rust-style`, `cmake-style`). Build and
+test with `mise run dev:quiet-build` and `mise run dev:quiet-test` (`cpp-testing`, "Running tests").
+Format with `mise run format:cpp-sources` and check with
 `mise run format:check-sources`. ASCII only, verified with `mise run dev:ascii-check` (tracked
 files) or `lua tools/marea-ascii-check/main.lua <file>...`.
 
@@ -60,7 +59,7 @@ Observable conditions that make this done.
 
 ## Verification
 
-The commands that prove it, e.g. `ctest --test-dir cmake-build-debug --output-on-failure` after the build of `marea_tests`.
+The commands that prove it, e.g. `mise run dev:quiet-test`.
 
 ## Do not touch
 
@@ -68,12 +67,7 @@ Paths and concerns owned by other work.
 
 ## How to run
 
-Run the parts in order. Each part file under `_PART/<slug>/` is a complete prompt for that part
-alone.
-
-1. Open ONE part file, read it fully, and do exactly what it says.
-2. Check its "Done when" list. Fix any item that fails before you move on.
-3. Only then open the next part. Never read ahead, never merge parts and never skip one.
+<the "## How to run" block of references/apply-part-template.md, copied verbatim>
 
 ## Parts
 

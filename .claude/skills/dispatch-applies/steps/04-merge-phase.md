@@ -23,9 +23,9 @@ then the rest; within one handoff, by dependency order. One PR at a time:
    for (its apply's `## Verification` section is the source of truth - do not invent a heavier
    or lighter check). If it breaks, do not merge anything else in this round: report which PR
    broke it and why.
-4. `gh pr merge <branch> --merge --delete-branch`; `gh issue close <n>` if it is still open; delete
-   any local/remote branch that survived; `git switch` back to the branch this PR targeted, then
-   `git fetch`.
+4. Push the branch if step 1 or 2 changed it, then `lua tools/marea-ship/main.lua merge --branch
+   <branch> --base <base of that PR>`. It merges, closes the issue, switches to the base, fast-forwards
+   it and deletes the branch. Do by hand what a `WARNING:` line says was not done.
 5. If this PR's apply belongs to a handoff, check `temp/_LIST_HANDOFF.md`'s matching section: once
    every row is `[x]` or `[-]`, close that handoff out now (below) before moving to the next PR.
 

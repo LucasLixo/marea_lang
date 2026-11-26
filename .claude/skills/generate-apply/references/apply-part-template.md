@@ -32,6 +32,11 @@ alone.
 1. Open ONE part file, read it fully, and do exactly what it says.
 2. Check its "Done when" list. Fix any item that fails before you move on.
 3. Only then open the next part. Never read ahead, never merge parts and never skip one.
+4. In an apply of four parts or more, run each part that carries the task's own Steps in a fresh
+   `general-purpose` subagent, one at a time, in this same tree. Give it the paths of the index and
+   of the part, and what the earlier parts reported. Take back at most 15 lines: commits, each check
+   with its real counts, deviations, and what the next part needs. Run every other part yourself. A
+   session that is itself a subagent runs every part itself.
 
 ## Parts
 
@@ -94,17 +99,16 @@ one part per gated, ordered unit, never past about 80 lines. The common shapes:
    1. Run the checks of the index's `## Verification` once more on the final tree, run
       [audit-code](../../audit-code/SKILL.md) over the files this apply changed and commit its
       changes through `generate-commit`.
-   2. `git push -u origin <label>/<n>`.
-   3. `gh pr create --base <base> --head <label>/<n> --title "<title>" --body "Resolves #<n>"`.
+   2. `lua tools/marea-ship/main.lua open-pr --base <base> --title "<title>"` - pushes the branch and
+      opens the pull request. Its description is the list of the branch's commits and `Resolves #<n>`,
+      so write no `--body` unless the reviewer needs something the commit messages do not say.
    ```
-   Ends exactly at `gh pr create` - nothing after it.
+   Ends exactly at `open-pr`, without `--merge` - nothing after it.
 4. `04-merge-and-finish.md` (last part):
    ```
-   1. `gh pr merge <label>/<n> --merge --delete-branch`.
-   2. `gh issue close <n>` - a safety net, the merge normally closes it already.
-   3. `git switch <base>` then `git pull --rebase`.
-   4. `git branch -D <label>/<n>`, and `git push origin --delete <label>/<n>` if the remote
-      branch survived the merge.
+   1. `lua tools/marea-ship/main.lua merge --base <base>` - merges the pull request, closes the issue,
+      switches to `<base>`, fast-forwards it and deletes the branch, local and remote. Do by hand
+      what a `WARNING:` line says was not done.
    ```
    followed by the "On finish" bookkeeping below.
 
@@ -122,15 +126,14 @@ one part per gated, ordered unit, never past about 80 lines. The common shapes:
   `<label>/<root-n>`" line in the same section. Then `git pull --rebase` on `<root-branch>`, open
   this batch's issue with `--parent <root-n>` so GitHub files it as a sub-issue, and
   `git branch <label>/<n> <root-branch>` then `git switch <label>/<n>`.
-- `03-open-pr.md` targets `<root-branch>`: `gh pr create --base <root-branch> --head <label>/<n> ...`.
-- `04-merge-and-finish.md` merges into `<root-branch>` (not `<base>`), switches back to
-  `<root-branch>` and pulls it, then, only when `../../../_LIST_HANDOFF.md`'s "<exact handoff title>"
-  section now has every row `[x]` or `[-]`, closes the handoff out: open
-  `gh pr create --base <base> --head <root-branch> --title "<handoff title>" --body "Resolves #<root-n>"`,
-  merge it, `git switch <base>` then `git pull --rebase`, delete `<root-branch>` (local and remote)
-  the same way a batch branch is deleted, add a closing entry to `../../../_LOG_HANDOFF_SUCCESS.md`'s
-  matching section (and a matching `../../../_LOG_HANDOFF_ERROR.md` entry if anything real is still
-  open) - before the per-apply bookkeeping below.
+- `03-open-pr.md` targets `<root-branch>`: `... open-pr --base <root-branch> --title "<title>"`.
+- `04-merge-and-finish.md` runs `... merge --base <root-branch>`, which leaves the tree on
+  `<root-branch>`. Then, only when `../../../_LIST_HANDOFF.md`'s "<exact handoff title>" section now
+  has every row `[x]` or `[-]`, it closes the handoff out with
+  `lua tools/marea-ship/main.lua open-pr --base <base> --title "<handoff title>" --issue <root-n> --merge`
+  and adds a closing entry to `../../../_LOG_HANDOFF_SUCCESS.md`'s matching section (and a matching
+  `../../../_LOG_HANDOFF_ERROR.md` entry if anything real is still open) - before the per-apply
+  bookkeeping below.
 
 `<root-n>` and `<root-branch>` stay literal placeholders in every handoff-batch part, resolved the
 same way `<n>` already is: by whichever session executes `01-setup.md` first, and read back by
@@ -144,16 +147,16 @@ only part a dispatch-applies worker must never open - see
 Four points every part that carries pipeline content must honour, because this is where the
 surrounding rules meet:
 
-- **The `generate-commit` skill never pushes and never creates a branch.** The `git`/`gh` actions
-  above belong to the parts and are run directly - handing them to the commit command contradicts
-  it.
+- **The `generate-commit` skill never pushes and never creates a branch.** The branch is made with
+  `git`, and the push, the pull request and the merge with
+  [marea-ship](../../../../tools/marea-ship/main.lua), directly by the part - handing them to the
+  commit skill contradicts it.
 - **Branch in place, not a worktree.** The report `generate-issue` writes suggests
   `git worktree add`; the apply's parts stay in the same tree with `git switch`. A part borrows
   only the issue creation from that command, not its command sheet.
 - **A bare `git rebase` is not on the allow list** of `.claude/settings.json`. `git pull --rebase` is
   a different command; never emit a bare `git rebase`.
-- **A handoff batch's target is the root branch, never `<base>` itself.** Every `gh pr create
-  --base`, and the branch-point of every `git branch <label>/<n> ...`, is `<root-branch>` - only
+- **A handoff batch's target is the root branch, never `<base>` itself.** Every `--base`, and the branch-point of every `git branch <label>/<n> ...`, is `<root-branch>` - only
   the handoff-closeout action of the last part ever touches `<base>` directly, and only once, for
   the whole handoff.
 

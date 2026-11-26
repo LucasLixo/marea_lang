@@ -2,7 +2,7 @@
 name: reconcile-temp-logs
 mode: edit
 effort: low
-description: Use when the user asks to reconcile temp/ bookkeeping - delete apply files already marked done, prune closed handoff sections and merged success-log entries with a verbatim backup first, and verify every open error-log entry. Run it only when the user or a rule names it.
+description: Use when the user asks to reconcile temp/ bookkeeping - move apply files already marked done into a backup folder, prune closed handoff sections and merged success-log entries with a verbatim copy there first, and verify every open error-log entry. Run it only when the user or a rule names it.
 argument-hint: ""
 ---
 
@@ -10,22 +10,30 @@ argument-hint: ""
 
 ## Context
 
-`temp/` is gitignored. Once an apply is done, its `.apply.md` file has no further use: the merged PR
-and its issue are the permanent record. Success-log prose for merged work and closed handoff sections
+`temp/` is gitignored. Once an apply is done, its `.apply.md` file is no longer active: the merged PR
+and its issue are the permanent record, and the file moves out of the way. Success-log prose for merged work and closed handoff sections
 age out the same way. Error-log entries do not age out: an entry stays until what it describes is
 proven resolved. This skill replaces the former `cleanup-temp` and keeps its safe behaviors, then
 adds a verification pass over the two error logs.
 
-`temp/_LOG_APPLY.md` is a frozen pre-split archive and is out of scope. Any existing
-`temp/_LOG_APPLY_{DATE}_{TIME}.md` backup is never read, edited, pruned, or deleted by a later run.
+`temp/_LOG_APPLY.md` is a frozen pre-split archive and is out of scope. Nothing under `temp/_BACKUP/`,
+and no older `temp/_LOG_APPLY_{DATE}_{TIME}.md` backup, is read, edited, pruned, or deleted by a later run.
 
 ## Requirements
 
 - Startup, before anything else: run `mise trust`, then `git pull --rebase`, and resolve what it
   reports first. If the tree is dirty and the pull refuses, use `git fetch` plus
   `git merge --ff-only origin/<branch>` instead, and never stage what was already dirty.
-- Back up every block verbatim (heading included, no rewording) to a timestamped file before removing
-  it, from any log. Never remove text that is not confirmed present in the backup.
+- Delete nothing. A file or folder is moved, and a log block is copied before it leaves its log, always
+  into this run's backup folder `temp/_BACKUP/{DATE}_{TIME}/`.
+- The backup folder: take the timestamp once with `date +%Y-%m-%d_%H%M%S` and create the folder at the
+  first move or copy of the run (if the name exists, wait a second and take a fresh timestamp). A run
+  with nothing to back up creates none.
+- A moved file keeps its path below `temp/`: `temp/_APPLY/<slug>.apply.md` goes to
+  `temp/_BACKUP/{DATE}_{TIME}/_APPLY/<slug>.apply.md`. Move with `mv -n` and check that the source is
+  gone and the destination exists.
+- Copy every log block verbatim (heading included, no rewording) into `LOG_BLOCKS.md` of that folder
+  before removing it. Never remove text that is not confirmed present there.
 - Never remove an error-log entry unless verification proves the error no longer exists. An
   unverified or still-open entry stays.
 - Commit only through the `generate-commit` skill ([../generate-commit/SKILL.md](../generate-commit/SKILL.md)); never a hand-written `git commit`.

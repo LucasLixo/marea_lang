@@ -54,15 +54,14 @@ Add another direct include only when the symbol under test is unavailable throug
 
 ### Running tests
 
-There is no `test:*` mise task. Configure and build the test target, then run `ctest`:
+Run builds and tests through these two tasks, from the root of the checkout or worktree. Each configures first, keeps the whole output in `tmp/quiet-<command>.log` and prints only errors, warnings, failed tests and the test total. The exit code is the one of the step that failed.
 
 ```sh
-mise run config:cmake
-cmake --build cmake-build-debug --target marea_tests --parallel
-ctest --test-dir cmake-build-debug --output-on-failure
+mise run dev:quiet-build
+mise run dev:quiet-test
 ```
 
-`mise run build:marea` builds only the `marea` library, not `marea_tests`. Debug is the default configuration; for another one, use `mise run config:cmake -- --config Release` and the matching `cmake-build-release` directory. A filtered run is fine for debugging, for example `ctest --test-dir cmake-build-debug -R MAREAVersion`. See [cmake-style](../cmake-style/SKILL.md) for the CMake side.
+Both take `-- --config Release` (default Debug, in `cmake-build-<config>`); the build takes `--target <name>` (default `marea_tests`) and the test takes `--filter <regex>`, for example `mise run dev:quiet-test -- --filter MAREASettingsHeader`. A filtered run is fine for debugging. When the printed lines do not explain a failure, `grep -n` the log and Read that range; never print the whole log. Do not call `cmake --build` or `ctest` directly for these. `mise run build:marea` builds only the `marea` library. See [cmake-style](../cmake-style/SKILL.md) for the CMake side.
 
 ### Naming `TEST(SuiteName, TestName)`
 
@@ -119,7 +118,7 @@ MAREA_IGNORE(MAREA_DiagnosticSinkAdd(sink, code, severity, position, "message"))
 ## Workflow
 
 1. Write the failing test in `tests/source/<path>/<HeaderName>.cpp`.
-2. Build `marea_tests` and run it with `ctest`; confirm it fails for the right reason (a test that cannot compile because the symbol is missing counts as the first failure).
+2. Build and run the tests with `mise run dev:quiet-test`; confirm it fails for the right reason (a test that cannot compile because the symbol is missing counts as the first failure).
 3. Implement the minimum, then refactor with the suite green.
 4. Run `mise run format:check-sources` and `mise run dev:ascii-check`.
 

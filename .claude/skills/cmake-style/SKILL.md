@@ -97,7 +97,7 @@ Check a requirement at the top of configure and stop with one `message(FATAL_ERR
 
 ## Validation
 
-- `mise run config:cmake` then `mise run build:marea` (both default to Debug; `-- --config Release` overrides), and the tests through `ctest --test-dir cmake-build-debug`, with `MAREA_OPTION_TARGET_TESTS` ON and OFF.
+- `mise run config:cmake` then `mise run build:marea` (both default to Debug; `-- --config Release` overrides), and the tests through `mise run dev:quiet-test`, with `MAREA_OPTION_TARGET_TESTS` ON and OFF.
 - `mise run format:check-sources` is the read-only formatting check; `mise run dev:ascii-check` checks ASCII.
 - To prove "no behaviour change" in a refactor, compare a fresh configure (a reconfigure reuses the cache), such as the sorted `compile_commands.json`.
 
