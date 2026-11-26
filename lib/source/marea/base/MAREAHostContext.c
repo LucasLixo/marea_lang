@@ -6,8 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-// INFO: the default allocator keeps the address that malloc gave in the word before the aligned block, so any power
-// of two works and free needs no size.
+// INFO: the default allocator keeps the address that malloc gave in the word before the aligned block, so any power of two works and free needs no size.
 static MAREA_Null MAREA_CALL MAREA_G_HostContextDefaultAllocate(MAREA_IntegerSize size, MAREA_IntegerSize alignment)
 {
     const MAREA_IntegerSize EXTRA = ((alignment - MAREA_INTEGER_SIZE(1)) + sizeof(MAREA_Null));
