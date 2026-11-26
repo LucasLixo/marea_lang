@@ -1,6 +1,6 @@
 ---
 name: shipper
-description: Commits an already finished change, and opens or merges its pull request when the prompt asks, through the generate-commit skill and tools/marea-ship. The prompt must name the paths, what changed and why, and the bump level. Never writes or fixes code.
+description: Commits an already finished change in a batch of two or more calls (several commits, or commits plus open-pr or merge), through the generate-commit skill and tools/marea-ship. Not for a single call, which the session runs itself. The prompt must name the paths, what changed and why, and the bump level. Never writes or fixes code.
 model: haiku
 tools: Bash, Read
 skills:
