@@ -10,6 +10,8 @@
 #include <string>
 #include <vector>
 
+#include <unistd.h>
+
 namespace
 {
     // INFO: every compiler this machine has, found by cmake/CMakeLists.txt, each one a row of the acceptance
@@ -304,6 +306,57 @@ TEST(MAREACgen, GenerateModuleRejectsNullArgumentsAndABadRoot)
     MAREA_IGNORE(MAREA_IrNodeGetChildAt(fixture.ir.module, 0, &notAModule));
 
     EXPECT_EQ(MAREA_CgenGenerateModule(fixture.context, notAModule, &outText, &outLength), MAREA_CGEN_EXCEPT_ERROR_BAD_ROOT);
+}
+
+TEST(MAREACgen, TwoTestProcessesNeverShareTheFilesOfACompile)
+{
+    GTEST_COUT << "Validating two test processes, as ctest -j starts them, never name the same scratch directory for a compile." << std::endl;
+
+    int channel[2]{ -1, -1 };
+
+    ASSERT_EQ(pipe(channel), 0) << "The pipe must open.";
+
+    const pid_t CHILD{ fork() };
+
+    ASSERT_NE(CHILD, -1) << "The second process must start.";
+
+    if (CHILD == 0) {
+        const MAREA_ScratchDirectory SCRATCH;
+
+        const std::string NAME{ SCRATCH.path.string() };
+
+        const bool SENT{ write(channel[1], NAME.data(), NAME.size()) == static_cast<ssize_t>(NAME.size()) };
+
+        _exit(SENT ? 0 : 1);
+    }
+
+    close(channel[1]);
+
+    const MAREA_ScratchDirectory SCRATCH;
+
+    std::string other;
+
+    char chunk[256];
+
+    for (ssize_t read{ ::read(channel[0], chunk, sizeof(chunk)) }; read > 0; read = ::read(channel[0], chunk, sizeof(chunk))) {
+        other.append(chunk, static_cast<std::size_t>(read));
+    }
+
+    close(channel[0]);
+
+    int status{ -1 };
+
+    ASSERT_EQ(waitpid(CHILD, &status, 0), CHILD) << "The second process must end.";
+
+    EXPECT_TRUE(WIFEXITED(status) && (WEXITSTATUS(status) == 0)) << "The second process must send its name.";
+
+    EXPECT_FALSE(other.empty()) << "The name of the second process must arrive.";
+
+    EXPECT_NE(other, SCRATCH.path.string()) << "Two processes must never share one directory.";
+
+    std::error_code ignored;
+
+    std::filesystem::remove_all(other, ignored);
 }
 
 TEST(MAREACgen, ContextCreateRejectsNullArguments)
