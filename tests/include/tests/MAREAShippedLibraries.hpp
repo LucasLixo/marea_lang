@@ -10,10 +10,7 @@
 
     // INFO: the header of a container library that does not exist yet makes its registration answer false: the tests that
     // need it fail with a message and every other test still builds. The change that writes a header removes its guard.
-    #if __has_include("marea/base/MAREAArrayLibrary.h")
-        #include "marea/base/MAREAArrayLibrary.h"
-        #define MAREA_TESTS_HAS_ARRAY_LIBRARY 1
-    #endif
+    #include "marea/base/MAREAArrayLibrary.h"
 
     #if __has_include("marea/base/MAREAVectorLibrary.h")
         #include "marea/base/MAREAVectorLibrary.h"
@@ -27,13 +24,7 @@
 
 inline bool MAREA_registerArrayLibrary(MAREA_TypeRegistry *registry)
 {
-    #if defined(MAREA_TESTS_HAS_ARRAY_LIBRARY)
     return MAREA_ArrayLibraryRegister(registry) == MAREA_TYPE_REGISTRY_EXCEPT_SUCCESS;
-    #else
-    MAREA_IGNORE(registry);
-
-    return false;
-    #endif
 }
 
 inline bool MAREA_registerVectorLibrary(MAREA_TypeRegistry *registry)
