@@ -702,10 +702,12 @@ raised at the local, once per local. The rule is syntactic and needs no flow ana
 does not change it. The grammar still lets the parser accept the form (the initializer is optional there); sema rejects it.
 A local with an `ERROR_NODE` as its name or type is not checked.
 
-**Constant cycle.** A file constant whose initial value reaches the constant itself, directly or through other file
-constants, is `CYCLIC_CONSTANT` (3055), raised once for each cycle at the constant of the cycle that comes first in the
-file. A name counts as an edge only where it stands as a value: a member name, a field key, a type and a call target are
-not followed. A constant that only uses a cycle without being on it is not reported. The search runs once, after the
+**Constant cycle.** A file constant, or a constant of an `implementation` block, whose initial value reaches the
+constant itself, directly or through other constants, is `CYCLIC_CONSTANT` (3055), raised once for each cycle at the constant of the cycle that comes first in the
+file. A name counts as an edge only where it stands as a value: a field key, a type and a call target are not
+followed, and a member name is followed only in `Type.NAME`, `Self.NAME` and `ns.NAME`. A qualified name, and a name
+that a member import binds, is read through the import resolver: the constants of another namespace are walked back to
+the constants of this file that they reach. A constant that only uses a cycle without being on it is not reported. The search runs once, after the
 declaration checks and before the visit, with a visit state kept in the arena and an explicit stack, so a long chain
 needs no recursion.
 
@@ -1387,9 +1389,9 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
   opaque name of the same file as a field type.
 - `COMPILE_TIME_ASSERTION_FAILED` (3059) does not fold a call other than `size_of` and `align_of` (`convert` included),
   a character, a constant of another namespace or the size of an imported or library type: such a condition is accepted.
-- `CYCLIC_CONSTANT` (3055) sees only the constants that a file declares at the top level. A constant that an
-  `implementation` declares is not part of the search. A name is matched by its text in the name table, so a
-  qualified name of another namespace is not followed.
+- `CYCLIC_CONSTANT` (3055) does not follow, in another namespace, a constant of an `implementation` block, a name that
+  a member import or a wildcard of that file binds, or a chain of more than 64 constants of other namespaces, and it
+  does not follow `ns.Type.NAME`.
 - `INVALID_MACRO_ARGUMENT` (3061) accepts a `{}` value or a condition of an unknown type, such as an enum variant written
   `Color.Red` or a call that sema does not type. The names inside a macro argument are not checked. The five log levels
   are an assumption (see Built-in macro).

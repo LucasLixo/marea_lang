@@ -1329,6 +1329,7 @@ reject code or no issue named in Gaps. Each direction is proven on every build w
 | Id | Shows | Expected |
 |---|---|---|
 | L-COVERAGE-001 | a constant that is its own initial value | 3055 @9 |
+| L-COVERAGE-002 | Two constants, one of an implementation block, that read each other | 3055 @14 |
 
 ## Counts
 
@@ -1339,7 +1340,7 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | adversarial | 0 | 64 | 8 |
 | attributes | 3 | 20 | 0 |
 | bindings | 33 | 83 | 0 |
-| coverage | 0 | 1 | 0 |
+| coverage | 0 | 2 | 0 |
 | examples | 20 | 0 | 0 |
 | functions | 19 | 54 | 0 |
 | interop | 18 | 36 | 0 |
@@ -1349,7 +1350,7 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | parallel | 20 | 41 | 0 |
 | seed | 1 | 2 | 0 |
 | types | 62 | 151 | 0 |
-| total | 278 | 591 | 10 |
+| total | 278 | 592 | 10 |
 
 ## Parity
 
