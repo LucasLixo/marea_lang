@@ -255,6 +255,7 @@ A `known_gap` item that shares an issue shows one hole of the compiler through m
 | L-BINDINGS-114 | A local of a for body repeats the loop name | 3003 @11 |
 | L-BINDINGS-115 | A for bound reads the name of its own loop | 3004 @10 |
 | L-BINDINGS-116 | A constant of an implementation block is assigned | 3040 @17 |
+| L-BINDINGS-117 | A raw pointer local of a type alias outside an unsafe block | 3041 @10, 3065 @13, 3041 @13 |
 
 ### Bindings: known_gap
 
@@ -1346,7 +1347,7 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 |---|---|---|---|
 | adversarial | 0 | 64 | 8 |
 | attributes | 3 | 20 | 0 |
-| bindings | 33 | 83 | 0 |
+| bindings | 33 | 84 | 0 |
 | coverage | 0 | 2 | 0 |
 | examples | 20 | 0 | 0 |
 | functions | 19 | 54 | 0 |
@@ -1357,7 +1358,7 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | parallel | 20 | 41 | 0 |
 | seed | 1 | 2 | 0 |
 | types | 62 | 152 | 0 |
-| total | 281 | 596 | 10 |
+| total | 281 | 597 | 10 |
 
 ## Parity
 

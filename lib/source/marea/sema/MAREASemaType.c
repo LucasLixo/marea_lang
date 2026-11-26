@@ -502,9 +502,14 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckRawPointerPlacement(MAREA_SemaCo
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
+    // INFO: an alias is read as the type that it stands for.
+    MAREA_SemaTypeTarget target = { .type = MAREA_NULLPTR, .declaration = MAREA_NULLPTR, .root = MAREA_NULLPTR };
+
+    MAREA_IGNORE(MAREA_SemaFindTypeTarget(context, node, MAREA_NULLPTR, &target));
+
     const MAREA_TypeDescriptor *descriptor = MAREA_NULLPTR;
 
-    if ((MAREA_SemaDescriptorOfType(context, node, &descriptor) == MAREA_BOOLEAN_FALSE) || ((descriptor->roles & MAREA_TYPE_ROLE_RAW_POINTER) == MAREA_TYPE_ROLE_NONE)) {
+    if ((MAREA_SemaDescriptorOfType(context, target.type, &descriptor) == MAREA_BOOLEAN_FALSE) || ((descriptor->roles & MAREA_TYPE_ROLE_RAW_POINTER) == MAREA_TYPE_ROLE_NONE)) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 

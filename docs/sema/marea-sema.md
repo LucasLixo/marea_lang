@@ -694,7 +694,8 @@ parameter of that function (`Self` is the type of the left side), else `TYPE_MIS
 of an unknown type fits. The built-in operand rules above do not apply to such an expression.
 
 **Raw pointer.** A written type whose descriptor has the raw pointer role (a local, a parameter, a result, a field, an alias or a type
-argument) is `RAW_POINTER_OUTSIDE_UNSAFE` (3041) unless an `unsafe ... end` block encloses it. A block nested in the `unsafe` block is enclosed too; the block ends the cover at its `end`. The context
+argument) is `RAW_POINTER_OUTSIDE_UNSAFE` (3041) unless an `unsafe ... end` block encloses it. A type alias, of this file or of a `FOUND` namespace, is
+read as the type that it stands for, so each use of an alias of a raw pointer is 3041 too. A block nested in the `unsafe` block is enclosed too; the block ends the cover at its `end`. The context
 keeps an `unsafeDepth` counter beside `loopDepth`, and the scope mark restores it.
 
 **Local initial value.** A `local` needs a written value: `local x: sinteger32;` is `LOCAL_WITHOUT_INITIAL_VALUE` (3065),
@@ -1399,8 +1400,6 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 - `INVALID_MACRO_ARGUMENT` (3061) accepts a `{}` value or a condition of an unknown type, such as an enum variant written
   `Color.Red` or a call that sema does not type. The names inside a macro argument are not checked. The five log levels
   are an assumption (see Built-in macro).
-- `RAW_POINTER_OUTSIDE_UNSAFE` (3041) reads the role of the written type in every place, but a type alias of a raw pointer is
-  not followed through its use: the alias declaration itself is the place that is rejected.
 - `RECURSIVE_TYPE` (3045) ends a walk through generic structures after a depth of 64 more than the count of
   declarations, or 4096 steps for one declaration: a recursion that needs a longer walk is not seen.
 - `LITERAL_OUT_OF_RANGE` (3033) reads only a written integer literal. A float literal, a literal in an operand
