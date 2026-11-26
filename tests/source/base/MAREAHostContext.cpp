@@ -73,7 +73,9 @@ TEST(MAREAHostContext, HostContextAllocateGivesAZeroedBlockOfTheRuntimeAllocator
 
     EXPECT_EQ(std::vector<MAREA_Byte>(static_cast<MAREA_Byte *>(block), static_cast<MAREA_Byte *>(block) + 32), std::vector<MAREA_Byte>(32, 0)) << "Every byte is zero.";
 
-    EXPECT_EQ(MAREA_HostContextFree(&context, block), MAREA_HOST_CONTEXT_EXCEPT_SUCCESS) << "The block must be freed.";
+    MAREA_HostContextFree(&context, block);
+
+    EXPECT_EQ(marea_g_releases, 1) << "The block must be freed.";
 
     ASSERT_EQ(MAREA_HostContextAllocate(&context, 0, 1, &block), MAREA_HOST_CONTEXT_EXCEPT_SUCCESS) << "0 bytes still give a block.";
 
@@ -81,9 +83,9 @@ TEST(MAREAHostContext, HostContextAllocateGivesAZeroedBlockOfTheRuntimeAllocator
 
     EXPECT_EQ(marea_g_sizes, (std::vector<MAREA_IntegerSize>{ 32, 1 })) << "0 bytes ask for 1 byte.";
 
-    EXPECT_EQ(MAREA_HostContextFree(&context, block), MAREA_HOST_CONTEXT_EXCEPT_SUCCESS) << "The block must be freed.";
+    MAREA_HostContextFree(&context, block);
 
-    EXPECT_EQ(MAREA_HostContextFree(&context, nullptr), MAREA_HOST_CONTEXT_EXCEPT_SUCCESS) << "The null address does nothing.";
+    MAREA_HostContextFree(&context, nullptr);
 
     EXPECT_EQ(marea_g_releases, 2) << "The null address is not given to the runtime.";
 
@@ -114,7 +116,9 @@ TEST(MAREAHostContext, HostContextAllocateReportsAFailedAndAWrongRequest)
 
     EXPECT_EQ(MAREA_HostContextAllocate(&context, 16, 16, nullptr), MAREA_HOST_CONTEXT_EXCEPT_ERROR_NULL_POINTER) << "A null out pointer must be refused.";
 
-    EXPECT_EQ(MAREA_HostContextFree(nullptr, nullptr), MAREA_HOST_CONTEXT_EXCEPT_ERROR_NULL_POINTER) << "A null context must be refused.";
+    MAREA_HostContextFree(nullptr, &context);
+
+    EXPECT_EQ(marea_g_releases, 0) << "A null context frees nothing.";
 }
 
 TEST(MAREAHostContext, HostContextAllocateAndFreeReportOneReplacedHook)
@@ -133,7 +137,7 @@ TEST(MAREAHostContext, HostContextAllocateAndFreeReportOneReplacedHook)
 
     MAREA_HostContext releaseOnly{ MAREA_contextOf(nullptr, &MAREA_releaseBlock) };
 
-    EXPECT_EQ(MAREA_HostContextFree(&releaseOnly, &releaseOnly), MAREA_HOST_CONTEXT_EXCEPT_ERROR_UNPAIRED_ALLOCATOR) << "A block must not go to one hook only.";
+    MAREA_HostContextFree(&releaseOnly, &releaseOnly);
 
     EXPECT_TRUE(releaseOnly.unpaired) << "The runtime must learn the fault.";
 
@@ -142,25 +146,25 @@ TEST(MAREAHostContext, HostContextAllocateAndFreeReportOneReplacedHook)
 
 TEST(MAREAHostContext, HostContextRaiseTrapKeepsTheFirstTrap)
 {
-    GTEST_COUT << "Validating a raised trap is read back, the first one stays and a value that is no trap is refused." << std::endl;
+    GTEST_COUT << "Validating a raised trap is read back, the first one stays and a value that is no trap does nothing." << std::endl;
 
     MAREA_HostContext context{ MAREA_contextOf(&MAREA_dirtyBlock, &MAREA_releaseBlock) };
 
     EXPECT_EQ(MAREA_HostContextGetTrap(&context), MAREA_HOST_TRAP_NONE) << "A new context has no trap.";
 
-    EXPECT_EQ(MAREA_HostContextRaiseTrap(&context, MAREA_HOST_TRAP_NONE), MAREA_HOST_CONTEXT_EXCEPT_ERROR_OUT_OF_RANGE) << "NONE is not a trap to raise.";
+    MAREA_HostContextRaiseTrap(&context, MAREA_HOST_TRAP_NONE);
 
-    EXPECT_EQ(MAREA_HostContextRaiseTrap(&context, static_cast<MAREA_HostTrap>(1)), MAREA_HOST_CONTEXT_EXCEPT_ERROR_OUT_OF_RANGE) << "A host raises only the traps of the enum.";
+    MAREA_HostContextRaiseTrap(&context, static_cast<MAREA_HostTrap>(1));
 
-    EXPECT_EQ(MAREA_HostContextGetTrap(&context), MAREA_HOST_TRAP_NONE) << "A refused value leaves no trap.";
+    EXPECT_EQ(MAREA_HostContextGetTrap(&context), MAREA_HOST_TRAP_NONE) << "NONE and a value outside the enum leave no trap.";
 
-    EXPECT_EQ(MAREA_HostContextRaiseTrap(&context, MAREA_HOST_TRAP_OUT_OF_MEMORY), MAREA_HOST_CONTEXT_EXCEPT_SUCCESS) << "OUT_OF_MEMORY must be raised.";
+    MAREA_HostContextRaiseTrap(&context, MAREA_HOST_TRAP_OUT_OF_MEMORY);
 
-    EXPECT_EQ(MAREA_HostContextRaiseTrap(&context, MAREA_HOST_TRAP_OUT_OF_MEMORY), MAREA_HOST_CONTEXT_EXCEPT_SUCCESS) << "A second raise keeps the first trap.";
+    MAREA_HostContextRaiseTrap(&context, MAREA_HOST_TRAP_OUT_OF_MEMORY);
 
-    EXPECT_EQ(MAREA_HostContextGetTrap(&context), MAREA_HOST_TRAP_OUT_OF_MEMORY) << "The trap must be read back.";
+    EXPECT_EQ(MAREA_HostContextGetTrap(&context), MAREA_HOST_TRAP_OUT_OF_MEMORY) << "The first trap stays and is read back.";
 
-    EXPECT_EQ(MAREA_HostContextRaiseTrap(nullptr, MAREA_HOST_TRAP_OUT_OF_MEMORY), MAREA_HOST_CONTEXT_EXCEPT_ERROR_NULL_POINTER) << "A null context must be refused.";
+    MAREA_HostContextRaiseTrap(nullptr, MAREA_HOST_TRAP_OUT_OF_MEMORY);
 
     EXPECT_EQ(MAREA_HostContextGetTrap(nullptr), MAREA_HOST_TRAP_NONE) << "A null context has no trap.";
 }

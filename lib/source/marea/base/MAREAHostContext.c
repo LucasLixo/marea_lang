@@ -54,38 +54,30 @@ MAREA_HostContextExcept MAREA_CALL MAREA_HostContextAllocate(MAREA_HostContext *
     return MAREA_HOST_CONTEXT_EXCEPT_SUCCESS;
 }
 
-MAREA_HostContextExcept MAREA_CALL MAREA_HostContextFree(MAREA_HostContext *context, MAREA_Null address)
+void MAREA_CALL MAREA_HostContextFree(MAREA_HostContext *context, MAREA_Null address)
 {
     if (context == MAREA_NULLPTR) {
-        return MAREA_HOST_CONTEXT_EXCEPT_ERROR_NULL_POINTER;
+        return;
     }
 
     if (!MAREA_G_HostContextIsPaired(context)) {
-        return MAREA_HOST_CONTEXT_EXCEPT_ERROR_UNPAIRED_ALLOCATOR;
+        return;
     }
 
     if (address != MAREA_NULLPTR) {
         context->release(address);
     }
-
-    return MAREA_HOST_CONTEXT_EXCEPT_SUCCESS;
 }
 
-MAREA_HostContextExcept MAREA_CALL MAREA_HostContextRaiseTrap(MAREA_HostContext *context, MAREA_HostTrap trap)
+void MAREA_CALL MAREA_HostContextRaiseTrap(MAREA_HostContext *context, MAREA_HostTrap trap)
 {
     if (context == MAREA_NULLPTR) {
-        return MAREA_HOST_CONTEXT_EXCEPT_ERROR_NULL_POINTER;
+        return;
     }
 
-    if (trap != MAREA_HOST_TRAP_OUT_OF_MEMORY) {
-        return MAREA_HOST_CONTEXT_EXCEPT_ERROR_OUT_OF_RANGE;
-    }
-
-    if (context->trap == MAREA_HOST_TRAP_NONE) {
+    if ((trap == MAREA_HOST_TRAP_OUT_OF_MEMORY) && (context->trap == MAREA_HOST_TRAP_NONE)) {
         context->trap = trap;
     }
-
-    return MAREA_HOST_CONTEXT_EXCEPT_SUCCESS;
 }
 
 MAREA_HostTrap MAREA_CALL MAREA_HostContextGetTrap(const MAREA_HostContext *context)

@@ -54,24 +54,21 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_HostContextExcept MAREA_CALL MAREA_HostContextAllocate(MAREA_HostContext * context, MAREA_IntegerSize size, MAREA_IntegerSize alignment, MAREA_Null * outBlock);
 
     /**
-     * @brief Gives a block back to the hook "free" of the runtime.
-     * @param context Context of the call. Must not be null.
+     * @brief Gives a block back to the hook "free" of the runtime. With only one hook replaced nothing is freed
+     * and the runtime reports the fault after the function returns, as for MAREA_HostContextAllocate.
+     * @param context Context of the call. Null does nothing.
      * @param address Block that MAREA_HostContextAllocate or the alloc of the program gave, or null, which does
      * nothing.
-     * @return MAREA_HOST_CONTEXT_EXCEPT_SUCCESS, ERROR_NULL_POINTER when context is null, or
-     * ERROR_UNPAIRED_ALLOCATOR, the same as MAREA_HostContextAllocate.
      */
-    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_HostContextExcept MAREA_CALL MAREA_HostContextFree(MAREA_HostContext * context, MAREA_Null address);
+    MAREA_EXTERN_DECL void MAREA_CALL MAREA_HostContextFree(MAREA_HostContext * context, MAREA_Null address);
 
     /**
      * @brief Raises a trap: the runtime stops the run when the function returns, and the result of the function
      * is dropped. The function must still return. The first trap of a call stays.
-     * @param context Context of the call. Must not be null.
-     * @param trap Trap to raise, a value of MAREA_HostTrap that is not NONE.
-     * @return MAREA_HOST_CONTEXT_EXCEPT_SUCCESS, ERROR_NULL_POINTER when context is null, or
-     * ERROR_OUT_OF_RANGE when trap is NONE or no value of MAREA_HostTrap.
+     * @param context Context of the call. Null does nothing.
+     * @param trap Trap to raise. MAREA_HOST_TRAP_NONE and a value that is no member of MAREA_HostTrap do nothing.
      */
-    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_HostContextExcept MAREA_CALL MAREA_HostContextRaiseTrap(MAREA_HostContext * context, MAREA_HostTrap trap);
+    MAREA_EXTERN_DECL void MAREA_CALL MAREA_HostContextRaiseTrap(MAREA_HostContext * context, MAREA_HostTrap trap);
 
     /**
      * @brief Reads the trap that was raised in this call.
