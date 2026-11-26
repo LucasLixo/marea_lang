@@ -1,0 +1,25 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A write goes through a with name over a call.
+
+namespace main;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+function make_point(): Point
+    return Point{ x = 1, y = 2 };
+end
+
+function check(): sinteger32
+    local total: sinteger32 = 0;
+    with make_point() as made do
+        made.x = 7;
+        total = made.x;
+    end
+    return total;
+end

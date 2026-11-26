@@ -451,8 +451,9 @@ retired, `mutable` stays reserved only for `for each` and `partition`.
 A second table, `readOnly`, is built like the references table: `MAREA_SemaBindReadOnly` pushes one entry per binder
 when a scope is entered and `MAREA_SemaScopeLeave` pops them. A function parameter is read-only exactly when its
 effective passing mode is `reference_read_only`. A `for each` variable and a `partition` part are writable only when
-the statement says `mutable` and its source is not read-only. A `with` name is read-only when the source is an
-existing value (a name, a field or an element: a borrowed view) and writable when the source is a call. A new local
+the statement says `mutable` and its source is not read-only. A `with` name follows the source: a name, a field or
+an element has the mode of that place (a source rooted in a name that is no local, such as a file constant, is
+read-only), and a call gives a new value, so the name is writable. A new local
 that reuses a read-only name is a writable shadow. The root of an expression is the name at the bottom of its field and
 element chain; a root that is not in the table (a plain local, a by-value parameter, a file name) is writable, so sema
 rounds toward valid. `WRITE_THROUGH_READ_ONLY_BORROW` (3069) is raised in four shapes: an assignment of any operator
@@ -1310,8 +1311,6 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 - A write through a method call on a read-only receiver, and a library call that mutates (`values.append(x)`), are
   not seen: sema does not know which calls mutate. The rule 3069 reads only a written assignment, a mutable loop or
   partition and a write-borrow argument.
-- A `with` over a call is writable and a `with` over an existing value is read-only, whatever the type of the value:
-  the rule reads the shape of the source, not what the call returns.
 - The visibility check (3066 to 3068) reads only a bare namespace name and a bare name with a written type `ns.T`. It does
   not check a member that the tree does not declare, a field of a value that is not a plain `ns.T` name (a call result,
   an index, a chain such as `a.b.c`), a field of a type that an imported symbol gives (`import a.b.Box;`), or a private

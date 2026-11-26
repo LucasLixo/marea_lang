@@ -231,7 +231,22 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_PushReadOnly(MAREA_SemaContext *conte
     return MAREA_SemaTableAppend(context, &context->readOnly, (MAREA_SemaName){ .text = MAREA_AstNodeGetText(name), .declaration = (readOnly == MAREA_BOOLEAN_TRUE) ? binding : MAREA_NULLPTR, .length = MAREA_AstNodeGetTextLength(name), .kind = MAREA_SEMA_NAME_KIND_DECLARATION });
 }
 
-static MAREA_Boolean MAREA_CALL MAREA_G_IsExistingValue(const MAREA_AstNode *expression);
+// INFO: a with over a name, a field or an element has the mode of that place; a call or a literal gives a new value, which has no root name.
+static MAREA_Boolean MAREA_CALL MAREA_G_IsReadOnlySource(const MAREA_SemaContext *context, const MAREA_AstNode *source)
+{
+    const MAREA_AstNode *root = MAREA_G_RootOf(source);
+
+    if (root == MAREA_NULLPTR) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    // INFO: a root that is no local is a constant, a type or a namespace, which has no storage to write.
+    if (MAREA_SemaLocalFind(context, MAREA_AstNodeGetText(root), MAREA_AstNodeGetTextLength(root)) == MAREA_NULLPTR) {
+        return MAREA_BOOLEAN_TRUE;
+    }
+
+    return MAREA_SemaIsReadOnly(context, source);
+}
 
 MAREA_SemaExcept MAREA_CALL MAREA_SemaBindReadOnly(MAREA_SemaContext *context, const MAREA_AstNode *node)
 {
@@ -293,8 +308,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaBindReadOnly(MAREA_SemaContext *context, c
     }
 
     if (KIND == MAREA_AST_KIND_WITH_STATEMENT) {
-        // INFO: a with over an existing value is a borrowed view; a with over a call holds a value that the call returned, so it may be written.
-        return MAREA_G_PushReadOnly(context, MAREA_SemaChildAt(node, 1), node, MAREA_G_IsExistingValue(MAREA_SemaChildAt(node, 0)));
+        return MAREA_G_PushReadOnly(context, MAREA_SemaChildAt(node, 1), node, MAREA_G_IsReadOnlySource(context, MAREA_SemaChildAt(node, 0)));
     }
 
     return MAREA_SEMA_EXCEPT_SUCCESS;

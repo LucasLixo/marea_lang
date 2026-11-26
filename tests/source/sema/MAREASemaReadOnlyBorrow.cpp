@@ -75,11 +75,23 @@ TEST(MAREASemaReadOnlyBorrow, ForEachVariableOverAReadOnlySourceIsReadOnly)
     EXPECT_EQ(MAREA_codesOf("function f(xs: c.array<Point>) for each v in xs do v.x = 1; end end"), ONE) << "A for each variable is read-only without mutable.";
 }
 
-TEST(MAREASemaReadOnlyBorrow, WithNameOverAnExistingValueIsReadOnly)
+TEST(MAREASemaReadOnlyBorrow, WithNameFollowsTheModeOfItsSource)
 {
-    GTEST_COUT << "Validating that a with name over a name is read-only and over a call is writable." << std::endl;
+    GTEST_COUT << "Validating that a with name over an existing value has the mode of that value and over a call is writable." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf("function f() local p: Point = make_point(); with p as v do v.x = 1; end end"), ONE) << "A view of an existing value is read-only.";
+    EXPECT_EQ(MAREA_codesOf("function f() local p: Point = make_point(); with p as v do v.x = 1; end end"), NONE) << "A view of a writable local is writable.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(#[semantics = reference_mutable] p: Point) with p as v do v.x = 1; end end"), NONE) << "A view of a write borrow is writable.";
+
+    EXPECT_EQ(MAREA_codesOf("function f() local b: Box = Box{ inner = make_point(), count = 1 }; with b.inner as v do v.x = 1; end end"), NONE) << "A view of a field of a writable local is writable.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(p: Point) with p as v do v.x = 1; end end"), ONE) << "A view of a read-only borrow is read-only.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(b: Box) with b.inner as v do v.x = 1; end end"), ONE) << "A view of a field of a read-only borrow is read-only.";
+
+    EXPECT_EQ(MAREA_codesOf("constant ORIGIN: Point = Point{ x = 0, y = 0 }; function f() with ORIGIN as v do v.x = 1; end end"), ONE) << "A view of a file constant is read-only.";
+
+    EXPECT_EQ(MAREA_codesOf("implementation Point constant ZERO: Point = Point{ x = 0, y = 0 }; end function f() with Point.ZERO as v do v.x = 1; end end"), ONE) << "A view of an implementation constant is read-only.";
 
     EXPECT_EQ(MAREA_codesOf("function f() with make_point() as v do v.x = 1; end end"), NONE) << "A with over a call is writable.";
 }

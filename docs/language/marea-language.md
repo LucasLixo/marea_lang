@@ -328,6 +328,7 @@ write-borrow parameter.
 | L-OWNERSHIP-090 | A parameter with no attribute is only read | ok |
 | L-OWNERSHIP-091 | A parameter with the write attribute is written | ok |
 | L-OWNERSHIP-095 | A nested field of a write borrow is written | ok |
+| L-OWNERSHIP-099 | A with name over a writable local is written | ok |
 | L-OWNERSHIP-102 | A write borrow is passed on to a write-borrow parameter | ok |
 | L-OWNERSHIP-104 | A parameter with no attribute is passed on to a read-borrow parameter | ok |
 | L-OWNERSHIP-106 | A primitive parameter may be marked as a write borrow | ok |
@@ -349,6 +350,7 @@ write-borrow parameter.
 | L-OWNERSHIP-141 | A new value is given to an owned parameter | ok |
 | L-OWNERSHIP-143 | A local of an owned type takes a value with move | ok |
 | L-OWNERSHIP-145 | An owned parameter is returned and the owner goes up | ok |
+| L-OWNERSHIP-147 | A write goes through a with name over a call | ok |
 
 ### Ownership and borrows: reject
 
@@ -406,7 +408,6 @@ write-borrow parameter.
 | L-OWNERSHIP-096 | An element of a read-only vector is written | 3069 @20 |
 | L-OWNERSHIP-097 | A whole read-only borrow is assigned | 3069 @24 |
 | L-OWNERSHIP-098 | A for each variable is written | 3069 @21 |
-| L-OWNERSHIP-099 | A with name is written | 3069 @26 |
 | L-OWNERSHIP-100 | A for each mutable over a read-only vector | 3069 @20, 3069 @21 |
 | L-OWNERSHIP-101 | A read-only borrow is passed on to a write-borrow parameter | 3069 @24 |
 | L-OWNERSHIP-103 | A parameter with no attribute is passed on to a write-borrow parameter | 3069 @24 |
@@ -431,6 +432,7 @@ write-borrow parameter.
 | L-OWNERSHIP-136 | A field of a file constant is passed to a write-borrow parameter | 3032 @26 |
 | L-OWNERSHIP-138 | A file constant is passed to a write-borrow parameter in a branch | 2001 @29, 3032 @27 |
 | L-OWNERSHIP-144 | A local of an owned type takes a value with no word | 3016 @25 |
+| L-OWNERSHIP-146 | A write goes through a with name over a read-only parameter | 3069 @20 |
 
 ### Ownership and borrows: known_gap
 
@@ -1338,11 +1340,11 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | interop | 18 | 36 | 0 |
 | memory | 15 | 18 | 0 |
 | namespaces | 20 | 43 | 0 |
-| ownership | 65 | 78 | 2 |
+| ownership | 67 | 78 | 2 |
 | parallel | 19 | 40 | 0 |
 | seed | 1 | 2 | 0 |
 | types | 62 | 151 | 0 |
-| total | 275 | 587 | 10 |
+| total | 277 | 587 | 10 |
 
 ## Parity
 
