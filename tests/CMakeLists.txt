@@ -46,6 +46,12 @@ if(NOT TARGET marea::cgen)
     list(FILTER MAREA_TESTS_SOURCES EXCLUDE REGEX "/source/cgen/")
 endif()
 
+# INFO: the parity tests need both backends, so they and the cgen tests that compare with the vm need both targets.
+if(NOT TARGET marea::cgen OR NOT TARGET marea::vm)
+    list(FILTER MAREA_TESTS_SOURCES EXCLUDE REGEX "/source/cgen/MAREACgen[A-Za-z]+\\.cpp$")
+    list(FILTER MAREA_TESTS_SOURCES EXCLUDE REGEX "/source/language/MAREALanguageParity\\.cpp$")
+endif()
+
 add_executable(marea_tests ${MAREA_TESTS_SOURCES})
 
 target_include_directories(marea_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include" "${CMAKE_CURRENT_SOURCE_DIR}")
@@ -97,6 +103,13 @@ if(TARGET marea::cgen)
 endif()
 
 target_compile_definitions(marea_tests PRIVATE "MAREA_TESTS_CGEN_C_COMPILER=\"${CMAKE_C_COMPILER}\"")
+
+# INFO: the generated C programs of the parity tests include the host header of tests/include and link the base library.
+target_compile_definitions(marea_tests PRIVATE "MAREA_TESTS_SUPPORT_DIRECTORY=\"${CMAKE_CURRENT_SOURCE_DIR}/include\"")
+
+if(TARGET marea::base)
+    target_compile_definitions(marea_tests PRIVATE "MAREA_TESTS_BASE_LIBRARY=\"$<TARGET_FILE:marea::base>\"")
+endif()
 
 # INFO: the cgen tests also exercise every other C11 compiler this machine has, beyond CMAKE_C_COMPILER.
 find_program(MAREA_TESTS_CGEN_CLANG "clang")

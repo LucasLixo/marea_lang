@@ -2,16 +2,21 @@
 
 ## Contract
 
-The `cgen` stage is the second backend of the one IR: it reads a `MAREA_IrNode` tree rooted at
+The `cgen` stage is the second backend of the one IR. It reads a `MAREA_IrNode` tree rooted at
 `MAREA_IR_KIND_MODULE` (the output of `marea::ir`) and writes C11 source text into a caller-owned
-arena. It has no global state, never prints and never reads or writes the disk: the caller gives it
-an arena and a diagnostic sink through a `MAREA_CgenContext`, and the written text is a plain
-`MAREA_Character8` buffer the caller hands to its own C compiler or build step. The stage links only
-`marea::ir` (and, through it, the earlier stages); it never reads `marea::bytecode` or `marea::vm`,
-so the two backends of the one IR stay independent, as the project policy requires. A construct this
-stage cannot generate yet is not an exception: it is a diagnostic in the sink, and
-`MAREA_CgenGenerateModule` still returns `MAREA_CGEN_EXCEPT_SUCCESS` (the function that could not be
-written is simply absent from the output).
+arena. It also reads what the caller gives in a `MAREA_CgenContext`: the type registry of the library
+types, a function that names the C functions of the host, the headers that declare them and the
+allocator hooks. It has no global state, never prints and never reads or writes the disk. The stage
+links only `marea::ir` (and, through it, the earlier stages); it never reads `marea::bytecode` or
+`marea::vm`, so the two backends of the one IR stay independent.
+
+A construct that this stage cannot write is not an exception: it is a diagnostic in the sink. The
+function that holds it, and every function that calls that function, gets no declaration and no
+definition, and `MAREA_CgenGenerateModule` still returns `MAREA_CGEN_EXCEPT_SUCCESS`. The text that
+remains is always a complete translation unit.
+
+The text is for clang or gcc. It uses `__attribute__` and compiler built-ins, and the tests compile
+it with `-std=c11 -Wall -Wextra -Wpedantic -Werror`.
 
 ## Use
 
@@ -21,103 +26,199 @@ const MAREA_Character8 *text;
 MAREA_IntegerSize length;
 
 MAREA_CgenContextCreate(arena, sink, &context);
+MAREA_CgenContextSetTypeRegistry(context, registry);          /* the registry that sema got */
+MAREA_CgenContextSetHostResolver(context, resolve, userData); /* names the C function of a name */
+MAREA_CgenContextAddInclude(context, "host/functions.h", 16); /* declares those functions */
+MAREA_CgenContextSetAllocator(context, "host_alloc", 10, "host_free", 9); /* optional */
+
 MAREA_CgenGenerateModule(context, irModule, &text, &length);
 
 /* text is NUL-terminated C11 source; hand it to a C compiler found by CMake, as the tests do. */
 ```
 
-## What this apply covers
+Each setter is optional. With no registry, no library type has a form. With no resolver, every call
+of the host traps `HOST_FUNCTION_MISSING`.
 
-Scalar functions only: their parameters, their locals, their expressions, their control flow (`if`,
-`while`, the `while true` a `do ... while` lowers to, the `if` chain a `switch` lowers to, the `while`
-a for-range loop lowers to) and a plain call of another function of the same module. A structure, an
-enum, a lifecycle call (`construct`/`destroy`), a host call and `fork_join` are the next cgen apply
-(`cgen-composites-and-parity`); a `FUNCTION_DECLARATION` that is not purely scalar, or a call this
-stage does not resolve, is reported through the sink (`MAREA_CGEN_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE`,
-`_UNSUPPORTED_CONSTRUCT` or `_UNRESOLVED_NAME`) and left out of the generated text.
+## Generated functions and names
 
-## Scalar kinds and name mangling
+A function is `R f_name(parameters, marea_rt_trap *marea_trap)`. The caller sets the trap to
+`MAREA_RT_TRAP_NONE`, calls and reads it; after a trap the result has no meaning (it is zero).
 
-The ten scalar kinds the `ir` carries a resolved type for map to a fixed C11 type: `sinteger8..64` to
-`int8_t..int64_t`, `uinteger8..64` to `uint8_t..uint64_t`, `float32`/`float64` to `float`/`double`, and
-`boolean` to `bool` (`<stdbool.h>`). A function with no result type maps to `void`.
+| Source | C name |
+|---|---|
+| function `name` | `f_name` |
+| function `name` of a type `Type` | `f_<length of Type>_Type_name`, for example `f_5_Point_sum` |
+| parameter or local `name` | `v_name` |
+| hidden local `$name` of the ir | `h_name` |
+| structure `Name`, enum `Name`, array | `marea_s_Name`, `marea_e_Name`, `marea_a<number>` |
+| field `name` | `f_name` |
+| temporary | `marea_t<number>` |
 
-Every name cgen writes is mangled: a function gets the prefix `f_` and a local or a parameter gets
-the prefix `v_`, each followed by its source text with every byte that is not a letter, a digit or an
-underscore (so a hidden local such as `$return0` or `$last0`) replaced by `_`. The prefix is the only
-guarantee two different source names before it never collide; the mangling is not meant to be
-reversible. A function keeps the bare name sema and the `ir` leave it with inside its own module (see
-the ir doc, "Aliases"): `main.add` called from inside `main` stays `add`, so cgen mangles `add` to
-`f_add`, never reading the module's own namespace for this.
+A byte that is not a letter, a digit or an underscore becomes an underscore.
 
-## Defined arithmetic, never C undefined behavior
+A primitive and an enum pass by value. A structure passes by `const T *`, or by `T *` with a write
+borrow (`#[semantics = reference_mutable]`). An array always passes by `T *`. A result comes back by
+value.
 
-Every generated module opens with a small preamble of `static inline` helper functions, one per
-integer kind, that give the exact outcome `docs/vm/marea-vm.md` already defines for the reference
-interpreter, so the two backends agree observably even though this apply ships no parity test yet
-(that is `cgen-composites-and-parity`):
+## Traps
 
-- `marea_rt_add_*`, `_sub_*`, `_mul_*`, `_neg_*`, `_not_*` compute through the kind's own unsigned
-  type and cast back, the portable form of C11's own fixed-width wraparound rule, so `+ - * -(unary)
-  ~` never overflow signed integer arithmetic.
-- `marea_rt_div_*` and `_rem_*` take a `marea_rt_trap *` out parameter: a zero divisor sets
-  `MAREA_RT_TRAP_DIVISION_BY_ZERO` and returns 0; a signed divisor of -1 is computed as an unsigned
-  negation (never the one C expression, `INT_MIN / -1`, that would overflow) and a signed remainder
-  by -1 is 0, both without consulting the dividend.
-- `marea_rt_shl_*` and `_shr_*` also take a trap pointer: a count not less than the kind's own width
-  sets `MAREA_RT_TRAP_SHIFT_OUT_OF_RANGE` and returns 0, so the shift count is always in range by the
-  time the C `<<`/`>>` operator runs. A signed right shift still leans on clang's and gcc's own
-  implementation-defined (arithmetic, two's complement) choice for a negative left operand once the
-  count is in range; it is not re-derived through an unsigned trick (see Gaps).
-- Float arithmetic (`+ - * /`) is plain C, since IEEE 754 already defines every one of its outcomes
-  (including a division by zero, which gives an infinity or a NaN, never a trap); `%` on a float is
-  not generated (see Gaps).
+The codes of `marea_rt_trap` are the codes of the vm:
 
-Division, remainder, shift and a plain call all take (or receive) a `marea_rt_trap *marea_trap`, the
-one hidden last parameter of every generated function. A trap is checked once per statement, right
-after a statement that could have reached a trapping operation (a local's initializer, an
-assignment's value, an expression statement, a `return` with a value): `if (*marea_trap) { return
-<zero of the result kind>; }`. This is the statement-granularity stand-in for the vm's own rule that a
-trapped callee never executes another instruction; it is coarser than the vm's own per-instruction
-check (see Gaps).
+| Code | Name | Code | Name |
+|---|---|---|---|
+| 0 | NONE | 6 | MISSING_RETURN |
+| 1 | DIVISION_BY_ZERO | 7 | STACK_OVERFLOW (never set by cgen) |
+| 2 | SHIFT_OUT_OF_RANGE | 8 | INDEX_OUT_OF_BOUNDS |
+| 3 | NEGATIVE_EXPONENT | 9 | OUT_OF_MEMORY |
+| 4 | CONVERT_OUT_OF_RANGE | 10 | HOST_FUNCTION_MISSING |
+| 5 | UNREACHABLE | 11 | INVALID_PARTITION_COUNT |
 
-## Control flow
+After each operation that can trap, and after each call, a function that sees a trap returns at once.
+Nothing else runs and nothing is destroyed. `unreachable!()` sets UNREACHABLE and returns.
 
-`if`/`elseif`/`else`, `while` and `break`/`continue` lower to the same C11 keywords, because the IR
-already desugars `do ... while`, a for-range loop and `switch` into exactly this shape (see the ir
-doc, "For-range desugaring", "Switch desugaring" and "Do-while lowering") before cgen ever sees them;
-cgen itself has no do-while, for-range or switch code of its own. A `BLOCK` and a `SCOPE_BLOCK` open a
-fresh C11 `{ ... }` scope.
+## Evaluation order
+
+Operands and arguments run from left to right, and each operation goes into a temporary, so the order
+of the source never depends on the C compiler. An assignment reaches its target first (with the check
+of each index) and then runs the value; a compound assignment reads the target after the right side.
+`and` and `or` run their right side only when the left one does not decide. The test of an `elseif`
+runs only when it is reached. The value of a new local reads the outer name that the local hides.
+
+## Arithmetic
+
+No operation relies on C undefined behavior. Each one gives the outcome of the vm
+([marea-vm.md](../vm/marea-vm.md)).
+
+- `+ - * -(unary) ~ & | ^` on integers wrap, through `uint64_t`. The wrapping forms are the same.
+- `/` and `%` trap on a zero divisor. A signed divisor of -1 negates with a wrap, or gives remainder 0.
+- A shift reads its whole count as an unsigned 64-bit number, so a negative count is out of range. A
+  count of the width of the type or more traps.
+- `**` wraps. A negative signed exponent traps.
+- A saturating form (`+| -| *|`) stays inside the type.
+- Float `+ - * /` are plain C in the width of the type. A float `%` and `**` run `fmod` and `pow` in
+  double. The saturating forms of floats are the plain ones.
+- `convert` traps when the target cannot hold the value: an integer that does not fit, a float that is
+  NaN or out of range, also exactly 2^63 or 2^64 for the 64-bit integers. A float is truncated. An
+  integer becomes a float through double.
+
+## Types and layout
+
+The scalars are `int8_t` to `int64_t`, `uint8_t` to `uint64_t`, `float`, `double` and `bool`.
+
+- **Structure.** The layout of sema, with explicit padding. `_Static_assert` checks the size, the
+  alignment and every offset. A layout that C would not give is written `__packed__` or
+  `__aligned__`. A structure whose layout sema does not measure (a string field, a generic type, an
+  array of structures or enums inside it) has no form.
+- **Enum.** With no data and the size of its tag, a `typedef` of the tag integer. Else a structure with
+  `marea_tag` and a union `marea_data` of the data of each variant, at the offsets of sema, also
+  asserted. `==` and `!=` compare the variant. A data field is read and written under the tag; the
+  field of another variant is the trap UNREACHABLE.
+- **Array.** A registered type with an index protocol, no role, a copy class and two type arguments,
+  the element and a literal count, is a structure that holds `items[count]`. This is the shape that
+  sema measures. An index is checked on each access; a negative index is out of bounds. The spelling
+  of an element type is read through the aliases that the module shows.
+- A constant is built where it is read, so each reader gets a new value.
+- `build_value!` is its default value.
+- `copy` gives a new value. `move` of a composite value leaves zeros in the source.
+- A borrow of storage inside a packed type passes an aligned copy, and a write borrow copies it back
+  after the call.
+
+## Lifecycle
+
+A creation (`Type(args)`, or `Type{...}` of a type with `construct`) makes the zero value or the
+literal first, then runs the arguments, then the construct operator. The ir does not name that
+operator, so cgen takes the one function of the type with no result, no `self`, a default for every
+parameter, the argument count of the call, that is not a destroy operator. With no argument, no literal
+and no function of that shape, the value is only zeros. Any other case is reported, never guessed.
+
+The destroy calls are the ones the ir inserts at each scope exit, in the reverse order of creation. A
+trap runs none of them.
+
+## Host calls
+
+A call that `MAREA_IrNodeIsExternalCall` marks goes to the C function that the resolver gives for its
+full path, for example `demo.host.add`. The generated text calls that typed function itself (not the
+wrapper that `MAREA_HOST_FUNCTION` makes for the registry), and a header of the context declares it.
+
+- A primitive passes by value and a composite value by address (`(void *)&x`). A structure result
+  comes back through a zeroed value that is passed last. A primitive result is converted to the type
+  that sema gave the call.
+- A name with no answer runs its arguments and then traps `HOST_FUNCTION_MISSING`.
+- A function that takes a `MAREA_HostContext *` (its `contextPosition`) gets a context that the
+  generated code makes on its stack with `MAREA_HostContextInitialize`, with the allocator hooks of
+  the context or with the allocator of the base library. After the call, a raised trap stops the run.
+  Such a program includes `marea/base/MAREAHostContext.h` and links `marea::base`.
+
+## fork_join and partition
+
+A `fork_join` is a block and a `spawn` statement is its call, run where it stands, so every worker
+ends before the next statement. A `partition` runs its body once for each part, from part 0; a part
+count of zero or less traps `INVALID_PARTITION_COUNT`. The part is not a value yet.
+
+## Parity with the vm
+
+`tests/source/language/MAREALanguageParity.cpp` runs every accept item of `tests/language` that has a
+function with a result through both backends. The ir of an item is lowered once; the vm runs its
+bytecode, and the C compilers that the build found run the text of cgen (the first with address and
+undefined behavior checks where it can link them, the second optimized). The compilers must print the
+same lines, and those lines must match the vm.
+
+The calling convention of an item: each function with a primitive result and only primitive
+parameters is called with the same sample values, eight rows (one call when it takes no value). The
+test compares the trap of each call, the value when there is no trap (two NaN values are equal) and
+the log of the host functions.
+
+Of 275 accept items, 209 have a function with a result: 72 run on both backends (324 calls) and 137
+are excluded, each with a reason in the table of the test. The test checks every line both ways, so a
+line that no longer holds fails. The 71 excluded items that cgen writes are still compiled.
+
+| Items | Reason | cgen writes it |
+|---|---|---|
+| 53 | the vm takes and returns no structure between functions | yes |
+| 9 | the vm holds no enum value | yes |
+| 6 | the vm runs no construct and no destroy operator | yes |
+| 1 | the vm assigns no field of a structure | yes |
+| 1 | the vm reads no constant of a structure type | yes |
+| 1 | a library array type that the vm cannot hold | yes |
+| 43 | a library type that no registry describes as an array | no |
+| 11 | a string | no |
+| 3 | a call of a C function that no signature types and no host registers | no |
+| 2 | a character | no |
+| 2 | a function type value | no |
+| 2 | a `with` block | no |
+| 1 | a generic structure, which the ir does not instantiate | no |
+| 1 | an operator or a method of a library array | no |
+| 1 | a user operator and a C function that no signature types | no |
 
 ## Diagnostics
 
 | Code | Name | Example |
 |---|---|---|
-| 7001 | UNSUPPORTED_CONSTRUCT | A statement or an expression this apply does not generate yet (a structure, a method call, a macro call). |
-| 7002 | UNSUPPORTED_TYPE | A parameter, a local or a result whose type is not one of the ten scalar kinds. |
-| 7003 | UNRESOLVED_NAME | A name that is not a local, a parameter or a function of the same module. |
+| 7001 | UNSUPPORTED_CONSTRUCT | A `with` block, the handle of a spawn, a construct operator that cannot be told apart, a macro of a library, a built-in other than `convert`, a call of a function that is not written. |
+| 7002 | UNSUPPORTED_TYPE | A string or a character, a structure with no layout, a library type that is not a registered array, a partition part used as a value. |
+| 7003 | UNRESOLVED_NAME | A call into another module, a name that is no local, parameter, constant or function. |
+| 7004 | UNTYPED_OPERAND | A host call that no signature types used as a value, or an argument of a host call with no type. |
 
 ## Gaps
 
-- Composites (a `structure` or an `enum`), lifecycle calls (`construct`/`destroy`), a host call and
-  `fork_join` are not generated yet; a `FUNCTION_DECLARATION` that needs one is skipped with a
-  diagnostic (`cgen-composites-and-parity`, the next apply).
-- No parity test against the vm exists yet: "the same observable behavior in both backends" is
-  checked only by this stage's own tests today, as the ir doc already notes for the vm.
-- A trap is checked once per statement, not once per instruction as the vm does; once a function
-  traps it still finishes evaluating the rest of the statement that trapped (with whatever value the
-  trapping operation itself returned, always 0) before the next statement's guard stops it. The value
-  observed after a trap is still 0/0.0/false either way, so no test distinguishes the two
-  granularities, but a future apply that chains several traps in one statement should re-check this.
-- A signed right shift in range relies on clang's and gcc's own implementation-defined (not
-  undefined) arithmetic-shift behavior for a negative left operand; it is not computed through an
-  explicit unsigned trick the way division and negation are.
-- `%` (remainder) on a float operand is not generated (`UNSUPPORTED_CONSTRUCT`); the language's own
-  float remainder semantics were not part of this apply's scope.
-- Only a plain call of a function identified by a bare `IDENTIFIER` callee is generated; a static
-  call, a method call, a built-in call (`size_of`, `align_of`, `convert`) and a macro call all raise
-  `UNSUPPORTED_CONSTRUCT` today.
-- The acceptance list asks for a sanitizer run where available; this apply's own verification ran
-  `-std=c11 -Wall -Wextra -Werror` under every C compiler the build found, but did not additionally
-  run `-fsanitize=undefined`/`-fsanitize=address` over the generated programs (see
-  `temp/_LOG_APPLY_ERROR.md`).
+- Not written: strings, characters, function values, generic structures, library types other than a
+  registered array, operators and methods of a library, `with`, user operators (the ir calls no
+  function for them), `size_of`, `align_of`, macros other than `build_value!`, the handle of a spawn,
+  the value of a partition part and a call into another module.
+- Sema measures an array only when its element is a primitive or another measured array, so a
+  structure that holds an array of structures or enums is reported.
+- The ir does not name the construct operator. A type with two functions of that shape, or a construct
+  with no parameter called as `Type()`, is reported.
+- A returned local with a destroy operator is destroyed in the callee and again in the caller, since
+  the ir inserts both calls.
+- A write borrow of an enum or of a primitive passes a copy, since the ir marks such a parameter as a
+  value, so the caller does not see the write. The vm does the same for a primitive.
+- cgen sets no limit to the depth of calls; the vm traps `STACK_OVERFLOW` past 512 calls.
+- cgen and the vm differ where the vm is wrong: the vm gives 0 for a saturating multiply of two large
+  `uinteger32` values, and converts a float of exactly 2^63 or 2^64 to a 64-bit integer with no trap.
+- A signed right shift relies on the arithmetic shift of clang and gcc.
+- The C names of functions do not hold the namespace, so two generated modules cannot be linked into
+  one program.
+- cgen writes no declaration of a host function; a header of the context declares it. A C signature
+  that differs from the signature of sema follows the conversion rules of C.
+- The generated text needs clang or gcc.

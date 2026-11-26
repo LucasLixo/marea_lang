@@ -244,8 +244,12 @@ of `docs/bytecode/marea-bytecode.md`), and every other fault is a `MAREA_VmExcep
 - A call is native C recursion, one stack frame per bytecode call, bounded by `MAREA_VM_CALL_DEPTH_LIMIT` (512).
   A host that embeds the vm on a thread with a small stack may need to lower this limit; it is a compile-time
   constant, not yet read from a build setting.
-- No parity test against `cgen` exists yet (`cgen` is not built): the "same observable behavior in both
-  backends" goal of the design is checked only by this stage's own tests today.
+- The parity test with `cgen` (see [marea-cgen.md](../cgen/marea-cgen.md), "Parity with the vm") compares only
+  what this interpreter runs, so each construct that it cannot run is outside the comparison.
+- A saturating multiply of two large `uinteger32` values gives 0 instead of the maximum, since the product is
+  computed in a signed 64-bit integer.
+- A float of exactly 2^63 or 2^64 passes the range check of a conversion to a 64-bit integer, which then gives a
+  value instead of `CONVERT_OUT_OF_RANGE`.
 - `MAREA_VmCall` trusts the function index it is given once it is in range; it does not call
   `MAREA_BytecodeValidate` itself first. A host that deserializes or assembles a module already gets that check
   for free (both readers validate before handing back a module), but a module built by hand with the add calls

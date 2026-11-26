@@ -330,8 +330,8 @@ The range 5000 to 5999 is reserved for this stage. The messages are fixed texts 
 - The frame memory area is a fixed-capacity bump allocator (`MAREA_BYTECODE_GENERATOR_FRAME_LIMIT`, 4096 bytes),
   matched by the vm's own `MAREA_VM_FRAME_MEMORY_LIMIT`: a function whose locals need more is `OPERAND_OVERFLOW`,
   a slice limit, not a language rule. A structure's own byte layout (field order, offset, size, alignment) comes
-  straight from sema's layout table with no re-derivation here, so a future `cgen` backend must compute the same
-  layout for the two backends to agree (the parity goal of the design).
+  straight from sema's layout table with no re-derivation here; `cgen` reads the same table, so the two backends
+  agree on the layout (the parity goal of the design).
 - The binary has no constants section, no exports, no interface hash and no debug section, so the module cannot
   state a C module API yet (load, unload, interface hash, find by name). The design numbers sections 3, 7, 8 and 9
   for these; they are unused in version 0.1.
