@@ -405,9 +405,10 @@ plain name is not judged. `construct` and `destroy` keep their own shape rule (3
 operator attribute is not checked.
 
 **Type function call.** A call `value.name(...)` or `Type.name(...)` is `UNKNOWN_TYPE_FUNCTION` (3049), reported at the
-call, when the receiver is a structure or an enum declared in the file (a bare type name that no local hides, or a
-local or parameter of that type, an alias followed) and the type has no function `name` in any of its
-`implementation` blocks, no field `name` (a callback) and, for an enum, no variant `name` (`Shape.Circle(1.0)`).
+call, when the receiver is a structure or an enum (a bare type name that no local hides, or a local or parameter of that
+type, an alias followed) and the type has no function `name` in any of its `implementation` blocks, no field `name` (a
+callback) and, for an enum, no variant `name` (`Shape.Circle(1.0)`). The type may be declared in the file, or in a
+`FOUND` namespace and written `b.Point`, `a.b.Point` or by an imported name; its blocks are then read in its own tree.
 
 **Type construction call.** A call whose callee is a structure or an enum name of the file, not hidden by a local,
 resolves to that type's construct operator instead of an ordinary call: `Point(1.0, 2.0)` is checked against
@@ -436,9 +437,10 @@ ordinary call.
 width is the size of the tag (see [Layout of a structure and an enum](#layout-of-a-structure-and-an-enum)).
 
 **Enum variants.** An enum that declares no variant is `EMPTY_ENUM` (3047), once at the enum. `Enum.Name` is
-`UNKNOWN_ENUM_VARIANT` (3048) when `Enum` is an enum of this file, no local hides its name, and `Name` is no variant
-and no function or constant of an `implementation` block of this file for that enum. The callee of a call
-(`Color.make()`) is not checked here (see `UNKNOWN_TYPE_FUNCTION`, 3049).
+`UNKNOWN_ENUM_VARIANT` (3048) when `Enum` names an enum, no local hides its name, and `Name` is no variant and no
+function or constant of an `implementation` block for that enum. The enum may be of this file, or of a `FOUND`
+namespace, written `b.Color`, `a.b.Color` or by an imported name; its blocks are then read in its own tree. The callee
+of a call (`Color.make()`) is not checked here (see `UNKNOWN_TYPE_FUNCTION`, 3049).
 
 **Ownership.** A parameter's passing mode is its `semantics` attribute - `value_read_only` (a
 copy), `reference_read_only` (a read-only borrow) or `reference_mutable` (a write borrow, the
@@ -451,8 +453,9 @@ retired, `mutable` stays reserved only for `for each` and `partition`.
 A second table, `readOnly`, is built like the references table: `MAREA_SemaBindReadOnly` pushes one entry per binder
 when a scope is entered and `MAREA_SemaScopeLeave` pops them. A function parameter is read-only exactly when its
 effective passing mode is `reference_read_only`. A `for each` variable and a `partition` part are writable only when
-the statement says `mutable` and its source is not read-only. A `with` name is read-only when the source is an
-existing value (a name, a field or an element: a borrowed view) and writable when the source is a call. A new local
+the statement says `mutable` and its source is not read-only. A `with` name follows the source: a name, a field or
+an element has the mode of that place (a source rooted in a name that is no local, such as a file constant, is
+read-only), and a call gives a new value, so the name is writable. A new local
 that reuses a read-only name is a writable shadow. The root of an expression is the name at the bottom of its field and
 element chain; a root that is not in the table (a plain local, a by-value parameter, a file name) is writable, so sema
 rounds toward valid. `WRITE_THROUGH_READ_ONLY_BORROW` (3069) is raised in four shapes: an assignment of any operator
@@ -480,7 +483,8 @@ rooted in one (`ORIGIN.inner`, `ORIGINS[0]`), passed as the argument of
 an explicit `reference_mutable` (write-borrow) parameter has no writable storage to
 back the borrow, so it is rejected with `CANNOT_BORROW_CONSTANT_AS_MUTABLE` (3032); a variable
 passed to the same parameter is unaffected. An assignment (`=` or a compound form) whose target is a file constant, or a field or element path
-rooted in one (`ORIGIN.x = 1;`, `TABLE[0] = 1;`), is `ASSIGNMENT_TO_CONSTANT` (3040), raised at the target; a local,
+rooted in one (`ORIGIN.x = 1;`, `TABLE[0] = 1;`), is `ASSIGNMENT_TO_CONSTANT` (3040), raised at the target. A constant of
+an `implementation` block counts too, by its bare name inside the block, by `Self.NAME` or by `Type.NAME`; a local,
 parameter or `for` variable of the same name hides the constant and may be assigned. Tracking of a live borrow across
 statements is a design decision recorded in the last bullet of `## Gaps`.
 
@@ -546,8 +550,9 @@ an active `partition mutable`, or a field access (`a.b`, nested too) whose base 
 **Spawn and partition shape.** After the scope check, the operand of a `spawn` must be a call: any other operand (a name,
 a literal, a macro call such as `print!("x")`) is rejected with `SPAWN_NEEDS_CALL` (3063) at the operand. The source of a
 `partition` is rejected with `PARTITION_SOURCE_NOT_ARRAY` (3064) at the source when sema knows it is not an array: a number
-literal, a primitive (a `string` too), a structure or an enum. Any other shape is accepted, so a registered type of any role and a
-call result raise nothing. A construct that fails the scope check raises no shape code.
+literal, a primitive (a `string` too), a structure, an enum, a function value, or a registered type with no index, no
+partition part role and no owner role (a raw pointer, a spawn handle, a keyed table). A call result is judged by its type. An
+owner and a type that sema cannot trace to a registered descriptor are accepted. A construct that fails the scope check raises no shape code.
 
 **Parallel bodies.** The body of a `partition` runs once for each part, so it is a worker body and ends
 only at its own `end`. A `return`, a `break` or a `continue` in it that would leave the body is rejected
@@ -625,7 +630,8 @@ program the parser accepts.
 **Opaque structures.** An `opaque structure` has no known layout, so sema refuses to build it, to read a field of it,
 to apply an operator to it and to hold it by value in a structure. A struct literal of an opaque type, a field read
 and a binary operation whose operand is an opaque name raise `OPAQUE_TYPE_MISUSE` (3057), and a `FIELD_DECLARATION`
-whose type is the bare name of an opaque structure raises `OPAQUE_FIELD_BY_VALUE` (3058). a type
+whose type stands for an opaque structure raises `OPAQUE_FIELD_BY_VALUE` (3058). An opaque structure of a `FOUND`
+namespace, reached by an alias, a full path or an imported symbol, is one too. A type
 with the owner role, a raw pointer, a borrow and a C call stay legal.
 
 **Expressions.** Sema gives an expression a type only when it is cheap to know, and never guesses. A
@@ -691,7 +697,8 @@ parameter of that function (`Self` is the type of the left side), else `TYPE_MIS
 of an unknown type fits. The built-in operand rules above do not apply to such an expression.
 
 **Raw pointer.** A written type whose descriptor has the raw pointer role (a local, a parameter, a result, a field, an alias or a type
-argument) is `RAW_POINTER_OUTSIDE_UNSAFE` (3041) unless an `unsafe ... end` block encloses it. A block nested in the `unsafe` block is enclosed too; the block ends the cover at its `end`. The context
+argument) is `RAW_POINTER_OUTSIDE_UNSAFE` (3041) unless an `unsafe ... end` block encloses it. A type alias, of this file or of a `FOUND` namespace, is
+read as the type that it stands for, so each use of an alias of a raw pointer is 3041 too. A block nested in the `unsafe` block is enclosed too; the block ends the cover at its `end`. The context
 keeps an `unsafeDepth` counter beside `loopDepth`, and the scope mark restores it.
 
 **Local initial value.** A `local` needs a written value: `local x: sinteger32;` is `LOCAL_WITHOUT_INITIAL_VALUE` (3065),
@@ -699,10 +706,12 @@ raised at the local, once per local. The rule is syntactic and needs no flow ana
 does not change it. The grammar still lets the parser accept the form (the initializer is optional there); sema rejects it.
 A local with an `ERROR_NODE` as its name or type is not checked.
 
-**Constant cycle.** A file constant whose initial value reaches the constant itself, directly or through other file
-constants, is `CYCLIC_CONSTANT` (3055), raised once for each cycle at the constant of the cycle that comes first in the
-file. A name counts as an edge only where it stands as a value: a member name, a field key, a type and a call target are
-not followed. A constant that only uses a cycle without being on it is not reported. The search runs once, after the
+**Constant cycle.** A file constant, or a constant of an `implementation` block, whose initial value reaches the
+constant itself, directly or through other constants, is `CYCLIC_CONSTANT` (3055), raised once for each cycle at the constant of the cycle that comes first in the
+file. A name counts as an edge only where it stands as a value: a field key, a type and a call target are not
+followed, and a member name is followed only in `Type.NAME`, `Self.NAME` and `ns.NAME`. A qualified name, and a name
+that a member import binds, is read through the import resolver: the constants of another namespace are walked back to
+the constants of this file that they reach. A constant that only uses a cycle without being on it is not reported. The search runs once, after the
 declaration checks and before the visit, with a visit state kept in the arena and an explicit stack, so a long chain
 needs no recursion.
 
@@ -725,15 +734,18 @@ is skipped. The message holds the text of the string literal argument without it
 **Visibility across namespaces.** The default visibility is public: only an explicit `#[visibility = private]` hides a
 symbol, a type or a field from another file (a file attribute `#![visibility = private]` hides every symbol of the file,
 but never a field, which reads only its own attribute). A whole-namespace import (`import a.b;`, or `import a.b as x;`)
-brings no names, so three uses reach into the tree that the resolver answers `FOUND` for. `b.hidden()` or `b.LIMIT`,
-where the member is a top-level declaration that is private, is `PRIVATE_SYMBOL_ACCESS` (3066) at the member. A type
-written `b.Secret`, in a parameter, local, field, return, generic argument or struct literal, where the structure,
-enum, opaque or alias is private, is `PRIVATE_TYPE_ACCESS` (3067) at the type. A private field of a structure that is
-not private, read or written as `box.value` where `box` is a local or parameter written `b.Box`, or set in a literal
-`b.Box{ value = 1 }`, is `PRIVATE_FIELD_ACCESS` (3068) at the field name; a private structure is 3067 at its written
-type and never also 3068. A local or a generic parameter that hides the namespace name is no namespace access. A
-namespace that the resolver answers `EXTERNAL` or `NOT_FOUND` is never checked, and neither is a field of the same
-file. An import of one symbol or a member list is checked the same way: a private symbol is `UNRESOLVED_IMPORT`.
+brings no names, so the uses below reach into the tree that the resolver answers `FOUND` for. `b.hidden()` or `b.LIMIT`,
+where the member is a top-level declaration that is private, is `PRIVATE_SYMBOL_ACCESS` (3066) at the member, and so is
+a function of an implementation block that is private by its own attribute or by the attribute of its block. A type
+written `b.Secret` or `a.b.Secret`, in a parameter, local, field, return, generic argument or struct literal, where the
+structure, enum, opaque or alias is private, is `PRIVATE_TYPE_ACCESS` (3067) at the type. A private field of a structure
+of another namespace, read, written or set in a literal, is `PRIVATE_FIELD_ACCESS` (3068) at the field name. Each segment
+of a member chain is looked up in the declaration of the segment before it, so the value may be a local, a constant, a
+field, an element, or the result of a function or a method, and its type may be reached through a namespace alias, a full
+path, an imported symbol or a type alias. A private structure that this file writes is 3067 at its written type and never
+also 3068. A local or a generic parameter that hides the namespace name is no namespace access. A namespace that the
+resolver answers `EXTERNAL` or `NOT_FOUND` is never checked, and neither is a member of a type of the same file. An
+import of one symbol or a member list is checked the same way: a private symbol is `UNRESOLVED_IMPORT`.
 
 **Built-in macro.** `MAREA_SemaCheckMacro` (`MAREASemaMacro.c`) checks every `MACRO_CALL` against one table of the 14
 built-in macros (the table of `examples/macros/builtin.marea` and `build_value`), and a call with a qualified name against the
@@ -815,7 +827,8 @@ after it.
 **Recursive type and cyclic alias.** `MAREA_SemaCheckDeclarations` runs two passes over the top-level declarations,
 the alias pass first. A `type` alias that leads back to itself through other aliases is `CYCLIC_TYPE_ALIAS` (3046),
 reported once for each alias on the cycle, at the alias. A structure or enum that holds itself by value, directly or
-through other structures, enums, aliases and the element of an inline run, is `RECURSIVE_TYPE` (3045), reported once for
+through other structures, enums, aliases, the element of an inline run and a generic structure of the file
+that holds the type argument by value (`Box<Node>`), is `RECURSIVE_TYPE` (3045), reported once for
 each such declaration, at the field or variant field that holds the path back. `owned`, `vector`, `pointer`, `slice`,
 `task` and a function type are indirect and raise nothing. Both walks read the name table only, so a type of another
 file is skipped, and both are bounded by the number of declarations of the file.
@@ -873,11 +886,16 @@ constant of that block shadows a top-level constant of the same name: the inner 
 type that the block gives it. A parameter or a local still hides both. A constant of one block is not a name in
 another block or outside the blocks.
 
+**Loop and scope names.** The name of a `for`, `for each`, `partition` or `with` statement comes into scope after
+its header, for the body only. It is a name of the body block: it cannot repeat a local of the block that holds the
+statement, and a local of the body cannot repeat it (`NAME_ALREADY_DECLARED`, 3003). It can hide a name of an outer
+block, and a statement in the body can hide it with a name of its own.
+
 **Names in expressions.** A bare name in the initializer of a local, either side of an assignment, an
 expression statement, the condition of an `if`, `elseif` or `while`, a `return` value and a `switch` value (and
 below them: operands, arguments, indexes, entries of a literal value) must be declared, or sema raises
 `UNDECLARED_NAME` (3004) on it. A name is declared when it is a local or parameter in scope, the name of a
-`for`, `for each`, `partition` or `with` statement (hidden from the end of that statement), a declaration or
+`for`, `for each`, `partition` or `with` statement (in scope in its body only, not in its own header), a declaration or
 import of the file, a generic parameter in scope, a constant of an `implementation` block inside that block only, the
 first segment of the file namespace, or one of the built-ins `size_of`, `align_of`, `convert` and `Self`.
 A member name, a field key of a literal value, a type and a macro call are not checked. The bare name that
@@ -1274,7 +1292,7 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 | 3061 | `INVALID_MACRO_ARGUMENT` | `print!();`, `print!(1, 2);`, `print!("{} {}", 1);`, `assert!(1, "x");`, `unreachable!(1);`, `log!(loud, "x");`, `include_text!(1);`: the wrong count of arguments, a literal of the wrong kind, a log level that is not one of the five, a text that is not a string literal, a condition that is not a `boolean`, a count of `{}` that differs from the count of values, or a `{}` value that is not printable (`print!("{}", point)`), at the offending argument; `build_value!("X", sinteger32)`, a first argument that is not a string literal, a type argument that is no primitive and no enum of the file, an enum with a field that has no default; a call of a macro of a library with the wrong arguments or that the expander refuses (`marea.array.include_bytes!("missing.bin");`) |
 | 3062 | `PARALLEL_CONSTRUCT_OUTSIDE_FORK_JOIN` | `function f(a: sinteger32) spawn g(a); end` or `partition values into 2 as part do end` with no `fork_join` block around it, also a `spawn` after the `end` of a block: raised at the `spawn` or `partition` and nothing else for that construct |
 | 3063 | `SPAWN_NEEDS_CALL` | `fork_join spawn point; end` or `spawn print!("x");`: the operand of a `spawn` is not a call, at the operand |
-| 3064 | `PARTITION_SOURCE_NOT_ARRAY` | `partition count into 2 as part do end` when `count` is a primitive, a structure, an enum or a number literal, at the source |
+| 3064 | `PARTITION_SOURCE_NOT_ARRAY` | `partition count into 2 as part do end` when `count` is a primitive, a structure, an enum, a number literal, a function value or a registered type with no array shape, at the source |
 | 3065 | `LOCAL_WITHOUT_INITIAL_VALUE` | `local x: sinteger32;` with no `= value`, for a primitive, a structure, a `pointer` or an `array`, at any depth of nesting |
 | 3066 | `PRIVATE_SYMBOL_ACCESS` | `b.hidden()` or `b.LIMIT` after `import a.b;` (or an alias) when the member is a top-level declaration of a `FOUND` namespace with `#[visibility = private]` |
 | 3067 | `PRIVATE_TYPE_ACCESS` | `s: b.Secret`, `b.Secret{ }` or any written `b.Secret` when the structure, enum, opaque or alias of a `FOUND` namespace is private |
@@ -1300,36 +1318,28 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 
 ## Gaps
 
-- `UNKNOWN_ENUM_VARIANT` (3048) checks a member access of an enum of this file only. A `case Color.Purple then` label
-  is not a checked slot, so a label that is not a variant is not seen. An enum of another namespace or an imported
-  enum is not checked, because its `implementation` blocks are in another file. The call form `Color.make()` is the
-  rule of 3049.
-- The array rule of `partition` (3064) rejects only a source that sema knows is a number, a primitive, a structure or an
-  enum (a call result of one of these included). A `slice`, a `pointer`, a function value, a library type that is not an
-  array and a result that sema does not type are not rejected, so a partition of them is accepted.
+- `UNKNOWN_ENUM_VARIANT` (3048): a `case Color.Purple then` label is not a checked slot, so a label that is not a
+  variant is not seen.
+- The array rule of `partition` (3064) does not judge a source that sema cannot trace to a type: a type that no
+  descriptor describes, a call result that sema does not type, and an owner (the value that it holds is not read).
 - A write through a method call on a read-only receiver, and a library call that mutates (`values.append(x)`), are
   not seen: sema does not know which calls mutate. The rule 3069 reads only a written assignment, a mutable loop or
   partition and a write-borrow argument.
-- A `with` over a call is writable and a `with` over an existing value is read-only, whatever the type of the value:
-  the rule reads the shape of the source, not what the call returns.
-- The visibility check (3066 to 3068) reads only a bare namespace name and a bare name with a written type `ns.T`. It does
-  not check a member that the tree does not declare, a field of a value that is not a plain `ns.T` name (a call result,
-  an index, a chain such as `a.b.c`), a field of a type that an imported symbol gives (`import a.b.Box;`), or a private
-  symbol that a generic or an alias leads to.
+- The visibility check (3066 to 3068) does not check a member that the tree does not declare, a value whose type sema
+  cannot follow (a call of a function value, a `for each` name, a field or a result typed by a generic parameter, a type
+  that another namespace names through its own import alias), or a private type that a public alias or a generic of
+  another namespace leads to.
 
 - The full-path rules read the member chain of a value or a call and the qualified name of a type. A full path to a type of a
-  `FOUND` namespace (`a.b.Item`, with no alias) is checked for its cover and its existence as a namespace prefix only: the
-  visibility checks of a type and of a field (3067, 3068), the layout of such a field and the typed spelling of the type
-  read the alias form (`import a.b as b;` then `b.Item`). A full path to an enum of a `FOUND` namespace with a variant
-  (`a.b.Color.Red`) is covered but not read for its variants.
+  `FOUND` namespace (`a.b.Item`, with no alias) is read for its cover, for its existence as a namespace prefix and for
+  the visibility of the type and of its members (3066 to 3068): the layout of such a field and the typed spelling of the
+  type read the alias form (`import a.b as b;` then `b.Item`).
 - A private member reached by the full path of a namespace is `PRIVATE_SYMBOL_ACCESS` (3066) as before; a cover that is
   an unresolved declaration still covers its path, so the use raises nothing beyond the unresolved report.
 - The IR does not lower a full path yet: a chain before a member is only flagged as a qualifier, so the unit lowers like one
   with an alias.
 - Two functions that call each other cannot be written, because a function must be declared before its use and the
   grammar has no forward declaration.
-- The name of a `for`, `for each`, `partition` or `with` statement is not checked against the names of its own
-  scope: it can repeat a local of the same block, and a local of its body can repeat it.
 - No check of the signature of `main` exists any more, and a driver-level replacement does not exist yet.
 - No real library exists yet: the types of `marea.array`, `marea.vector`, `marea.tuple`, `c.memory` and `c.threads` are registered
   by fixtures in the tests (under the neutral root `demo` and under the planned full paths), so the roles are proven but no shipped
@@ -1372,31 +1382,27 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
   compared (3011, 3053). A bare name of an imported function, and a value that sema does not type, are accepted.
 - A declared operator is read at its use only on a binary expression: a compound assignment and a unary operator do not
   read it, its result type is not read, and a type with two functions for one operator is not judged.
-- `UNKNOWN_TYPE_FUNCTION` (3049) skips a receiver of another namespace, a library type, a generic parameter and an
-  unknown type, because sema cannot see their functions. Only a bare name or a local that is a bare name is a receiver:
-  a call on a field chain or on a call result is not checked. A function of a contract on a generic receiver is not checked.
+- `UNKNOWN_TYPE_FUNCTION` (3049) skips a library type, a generic parameter, an `EXTERNAL` namespace and an unknown
+  type, because sema cannot see their functions. Only a bare name, a local that is a bare name and a name of a type of
+  another namespace are a receiver: a call on a field chain or on a call result is not checked. A function of a contract
+  on a generic receiver is not checked.
 - The `for`, `for each`, `partition`
-  and `with` header expressions and the initializer of a file constant are checked. The loop name is already in
-  scope when its own header is checked, so `for i in 0 .. i` with no outer `i` raises nothing. A constant that has
+  and `with` header expressions and the initializer of a file constant are checked. A constant that has
   an `ERROR_NODE` below it has no name check, because the parser may leave its tokens as an expression.
 - `OPAQUE_TYPE_MISUSE` (3057) sees only an operand or a base that is a bare name, or one in parentheses, whose
-  written type is an opaque structure of the same file. A call result, an index, a field of another value and an
-  opaque type of another file are not classified, and `OPAQUE_FIELD_BY_VALUE` (3058) likewise sees only a bare
-  opaque name of the same file as a field type.
-- `ASSIGNMENT_TO_CONSTANT` (3040) sees only a constant that a file declares. A constant that an `implementation`
-  declares is not rejected.
+  written type stands for an opaque structure, of this file or of a `FOUND` namespace. A call result, an index and a
+  field of another value are not classified, and `OPAQUE_FIELD_BY_VALUE` (3058) likewise reads only the written type of
+  a field, not a type argument. An opaque type that another namespace names through its own import alias is not seen.
 - `COMPILE_TIME_ASSERTION_FAILED` (3059) does not fold a call other than `size_of` and `align_of` (`convert` included),
   a character, a constant of another namespace or the size of an imported or library type: such a condition is accepted.
-- `CYCLIC_CONSTANT` (3055) sees only the constants that a file declares at the top level. A constant that an
-  `implementation` declares is not part of the search. A name is matched by its text in the name table, so a
-  qualified name of another namespace is not followed.
+- `CYCLIC_CONSTANT` (3055) does not follow, in another namespace, a constant of an `implementation` block, a name that
+  a member import or a wildcard of that file binds, or a chain of more than 64 constants of other namespaces, and it
+  does not follow `ns.Type.NAME`.
 - `INVALID_MACRO_ARGUMENT` (3061) accepts a `{}` value or a condition of an unknown type, such as an enum variant written
   `Color.Red` or a call that sema does not type. The names inside a macro argument are not checked. The five log levels
   are an assumption (see Built-in macro).
-- `RAW_POINTER_OUTSIDE_UNSAFE` (3041) reads the role of the written type in every place, but a type alias of a raw pointer is
-  not followed through its use: the alias declaration itself is the place that is rejected.
-- `RECURSIVE_TYPE` (3045) does not follow a user generic structure given as `Box<Node>`: its field types are written in
-  its own scope, so a recursion through it is not seen.
+- `RECURSIVE_TYPE` (3045) ends a walk through generic structures after a depth of 64 more than the count of
+  declarations, or 4096 steps for one declaration: a recursion that needs a longer walk is not seen.
 - `LITERAL_OUT_OF_RANGE` (3033) reads only a written integer literal. A float literal, a literal in an operand
   (`1 + 300` bound to a `uinteger8`), a value folded from a named constant, and a literal whose target type is not a
   primitive sema knows (it is then checked against `uinteger64` only) are not range checked.

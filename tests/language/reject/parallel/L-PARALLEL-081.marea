@@ -1,0 +1,21 @@
+-- expect: 3064 @16
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A partition of a raw pointer.
+
+namespace main;
+
+require demo.pointer;
+require demo.memory;
+
+function check()
+    unsafe
+        local raw: demo.pointer<float32> = demo.memory.address();
+        fork_join
+            partition raw into 2 as part do
+                local unused: sinteger32 = 0;
+            end
+        end
+    end
+end

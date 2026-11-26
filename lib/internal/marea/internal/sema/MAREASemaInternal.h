@@ -162,6 +162,7 @@ MAREA_BEGIN_EXTERN_C
         const MAREA_AstNode *forkBody;
         MAREA_IntegerSize captureLocalBase;
         MAREA_IntegerSize localStart;
+        MAREA_IntegerSize localStartBinders;
         MAREA_IntegerSize functionLocalStart;
         const MAREA_AstNode *root;
         const MAREA_AstNode *function;
@@ -192,6 +193,7 @@ MAREA_BEGIN_EXTERN_C
         const MAREA_AstNode *forkBody;
         MAREA_Boolean captureScope;
         MAREA_IntegerSize localStart;
+        MAREA_IntegerSize localStartBinders;
         MAREA_IntegerSize functionLocalStart;
         MAREA_Uinteger32 selfDepth;
         MAREA_Uinteger32 forkDepth;
@@ -757,6 +759,40 @@ MAREA_BEGIN_EXTERN_C
     MAREA_EXTERN_DECL void MAREA_CALL MAREA_SemaScopeLeave(MAREA_SemaContext * context, MAREA_SemaScopeMark mark);
 
     /**
+     * @brief The table sizes that MAREA_SemaHideBinders saves.
+     */
+    typedef struct MAREA_SemaBinderWindow
+    {
+        MAREA_IntegerSize localCount;
+        MAREA_IntegerSize referenceCount;
+        MAREA_IntegerSize readOnlyCount;
+    } MAREA_SemaBinderWindow;
+
+    /**
+     * @brief Tells whether a child is a header expression of a statement that declares a name.
+     * @param node Parent node. May be null.
+     * @param index Place of the child.
+     * @return MAREA_BOOLEAN_TRUE for a child that is no declared name and not the body.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaIsBinderHeader(const MAREA_AstNode *node, MAREA_IntegerSize index);
+
+    /**
+     * @brief Takes the names of the scope that mark opened out of the tables, to read a header. Nothing may be
+     * declared before MAREA_SemaShowBinders.
+     * @param context Context of the run. Must not be null.
+     * @param mark Mark of the scope of the statement.
+     * @return The sizes to give back to MAREA_SemaShowBinders.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaBinderWindow MAREA_CALL MAREA_SemaHideBinders(MAREA_SemaContext * context, MAREA_SemaScopeMark mark);
+
+    /**
+     * @brief Puts back the names that MAREA_SemaHideBinders took out.
+     * @param context Context of the run. Must not be null.
+     * @param window Result of MAREA_SemaHideBinders.
+     */
+    MAREA_EXTERN_DECL void MAREA_CALL MAREA_SemaShowBinders(MAREA_SemaContext * context, MAREA_SemaBinderWindow window);
+
+    /**
      * @brief Resolves the name of a NAMED_TYPE node: a built-in type, Self, a generic parameter in scope,
      * a type of the file, an import, or a name the import resolver knows. Reports UNKNOWN_TYPE on the node
      * when none matches. A node whose name holds an ERROR_NODE is skipped.
@@ -1013,6 +1049,40 @@ MAREA_BEGIN_EXTERN_C
      * @return True when a descriptor was found, false otherwise (outDescriptor is null).
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaDescriptorOfType(const MAREA_SemaContext *context, const MAREA_AstNode *type, const MAREA_TypeDescriptor **outDescriptor);
+
+    /**
+     * @brief What a written type stands for: the type after its aliases, the declaration of that type, and the
+     * tree of the namespace that wrote it (null for the file of the run).
+     */
+    typedef struct MAREA_SemaTypeTarget
+    {
+        const MAREA_AstNode *type;
+        const MAREA_AstNode *declaration;
+        const MAREA_AstNode *root;
+    } MAREA_SemaTypeTarget;
+
+    /**
+     * @brief Follows a written type to its declaration, in the file of the run or in a FOUND namespace: through
+     * a namespace alias, a full path, an imported symbol and every type alias.
+     * @param context Context of the run. Must not be null.
+     * @param type NAMED_TYPE node. May be null, which gives false.
+     * @param root Tree that wrote the type, or null for the file of the run.
+     * @param outTarget Receives the last type of the walk, its tree and the declaration, which is null when
+     * sema does not see it. Must not be null.
+     * @return True when the declaration is not null.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaFindTypeTarget(const MAREA_SemaContext *context, const MAREA_AstNode *type, const MAREA_AstNode *root, MAREA_SemaTypeTarget *outTarget);
+
+    /**
+     * @brief Gives the declaration that an expression names, as Box, ns.Box, the full path of one or an
+     * imported symbol. A name that a local hides names nothing, and no type alias is followed.
+     * @param context Context of the run. Must not be null.
+     * @param expression Expression node. May be null.
+     * @param outTarget Receives the declaration, or null, and its tree (null for the file of the run). Must
+     * not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaFindNamedTarget(MAREA_SemaContext * context, const MAREA_AstNode *expression, MAREA_SemaTypeTarget *outTarget);
 
     /**
      * @brief Writes the type that a role names around one argument, as text in the arena of the context:
@@ -1615,8 +1685,9 @@ MAREA_BEGIN_EXTERN_C
 
     /**
      * @brief Tells whether sema knows an expression is not an array. A number literal, a primitive (a string
-     * included), a structure and an enum are known not to be an array; every other shape, an unclassified one
-     * included, answers false, so a slice, a pointer, a library type and a call result are accepted.
+     * included), a structure, an enum, a function value and a registered type with no index, no partition part
+     * role and no owner role are known not to be an array; every other shape, an unclassified one included,
+     * answers false.
      * @param context Context of the run. Must not be null.
      * @param expression Expression node. May be null.
      * @return MAREA_BOOLEAN_TRUE when the expression is known not to be an array, else MAREA_BOOLEAN_FALSE.
@@ -1657,6 +1728,15 @@ MAREA_BEGIN_EXTERN_C
      * @return MAREA_SEMA_EXCEPT_SUCCESS, or ERROR_NULL_POINTER when context is null.
      */
     MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckConstantOperands(MAREA_SemaContext * context, MAREA_TokenKind operatorKind, const MAREA_AstNode *left, const MAREA_AstNode *right, MAREA_SourcePosition position);
+
+    /**
+     * @brief Finds the constant that an implementation block of this file gives a type, for Type.NAME or Self.NAME.
+     * @param context Context of the run. May be null, which gives null.
+     * @param typeName Identifier before the dot. May be null. A local of that name hides the type.
+     * @param name Identifier after the dot. May be null.
+     * @return The CONSTANT_DECLARATION, or null.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_AstNode *MAREA_CALL MAREA_SemaFindTypeConstant(const MAREA_SemaContext *context, const MAREA_AstNode *typeName, const MAREA_AstNode *name);
 
     /**
      * @brief Reports ASSIGNMENT_TO_CONSTANT for an assignment (= or a compound form) whose target is a file
@@ -1745,6 +1825,22 @@ MAREA_BEGIN_EXTERN_C
      * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaDeclareBinders(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
+     * @brief Gives the places of the names that a for, for each, partition or with statement declares.
+     * @param node Statement node. May be null.
+     * @param outFirst Receives the first place. Must not be null.
+     * @param outEnd Receives the place after the last one. Must not be null.
+     * @return MAREA_BOOLEAN_TRUE for one of the four statements, else MAREA_BOOLEAN_FALSE with the outputs untouched.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaBinderRange(const MAREA_AstNode *node, MAREA_IntegerSize *outFirst, MAREA_IntegerSize *outEnd);
+
+    /**
+     * @brief Counts the names that MAREA_SemaDeclareBinders records for a node.
+     * @param node Node. May be null.
+     * @return The count, 0 for a node that declares no name.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_IntegerSize MAREA_CALL MAREA_SemaBinderCount(const MAREA_AstNode *node);
 
     /**
      * @brief Checks what the operands of an operator may be. A bitwise operator (&, |, ^, ~ and the compound forms)

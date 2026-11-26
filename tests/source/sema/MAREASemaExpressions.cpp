@@ -306,9 +306,9 @@ TEST(MAREASemaExpressions, BinderShadowsAnOuterLocal)
 {
     GTEST_COUT << "Validating a loop, with or partition name hides an outer local of the same name." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("function g() local i: string = \"a\"; for i in 0 .. 3 do local n: sinteger32 = i; end end").empty()) << "A for name must hide the outer local.";
+    EXPECT_TRUE(MAREA_codesOf("function g() local i: string = \"a\"; do for i in 0 .. 3 do local n: sinteger32 = i; end end end").empty()) << "A for name must hide the outer local.";
 
-    EXPECT_TRUE(MAREA_codesOf("function g(items: c.array<sinteger32>) local item: string = \"a\"; for each item in items do local n: sinteger32 = item; end end").empty()) << "A for each name must hide the outer local.";
+    EXPECT_TRUE(MAREA_codesOf("function g(items: c.array<sinteger32>) local item: string = \"a\"; do for each item in items do local n: sinteger32 = item; end end end").empty()) << "A for each name must hide the outer local.";
 
     EXPECT_EQ(MAREA_codesOf("function g() for i in 0 .. 3 do end local n: sinteger32 = i; end"), Codes{ UNDECLARED }) << "A for name must end with its loop.";
 }

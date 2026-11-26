@@ -1,8 +1,8 @@
--- expect: 3069 @26
+-- expect: ok
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- A with name is written.
+-- A with name over a writable local is written.
 
 namespace main;
 

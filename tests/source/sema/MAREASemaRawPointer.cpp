@@ -71,3 +71,23 @@ TEST(MAREASemaRawPointer, OtherLocalTypesAreSilent)
 
     EXPECT_TRUE(MAREA_codesOf(MAREA_function("local a: sinteger32 = 1; local b: float64 = 1.5;")).empty()) << "A primitive local must raise nothing.";
 }
+
+TEST(MAREASemaRawPointer, AliasOfARawPointerIsFollowedAtItsUse)
+{
+    GTEST_COUT << "Validating a use of a type alias of a raw pointer outside unsafe raises 3041 at the alias and at the use." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("type Raw = demo.pointer<sinteger32>; " + MAREA_function("local raw: Raw = lib.f();")), (Codes{ RAW_POINTER, RAW_POINTER })) << "A local of an aliased raw pointer must raise 3041.";
+
+    EXPECT_EQ(MAREA_codesOf("type Raw = demo.pointer<sinteger32>; function h(raw: Raw) end"), (Codes{ RAW_POINTER, RAW_POINTER })) << "A parameter of an aliased raw pointer must raise 3041.";
+
+    EXPECT_EQ(MAREA_codesOf("type Raw = demo.pointer<sinteger32>; type Again = Raw; " + MAREA_function("local raw: Again = lib.f();")), (Codes{ RAW_POINTER, RAW_POINTER, RAW_POINTER })) << "A chain of aliases must be followed.";
+}
+
+TEST(MAREASemaRawPointer, AliasUseInsideUnsafeOrOfAnotherTypeIsSilent)
+{
+    GTEST_COUT << "Validating a use of an alias inside unsafe, or of an alias of another type, adds no diagnostic." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("type Raw = demo.pointer<sinteger32>; " + MAREA_function("unsafe local raw: Raw = lib.f(); end")), Codes{ RAW_POINTER }) << "Only the alias itself must raise 3041.";
+
+    EXPECT_TRUE(MAREA_codesOf("type Number = sinteger32; " + MAREA_function("local value: Number = 1;")).empty()) << "An alias of a primitive must raise nothing.";
+}

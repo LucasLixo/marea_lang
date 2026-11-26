@@ -414,3 +414,38 @@ TEST(MAREASemaGenericsAndContracts, GenericThatOnlyMovesDataRaisesNothing)
     EXPECT_TRUE(MAREA_codesOf("function pass<Item>(a: Item): Item where Item: Movable return move a; end").empty()) << "A move must raise nothing.";
     EXPECT_TRUE(MAREA_codesOf("function count<Item>(a: Item): sinteger32 local x: sinteger32 = 1; local y: sinteger32 = 2; return x + y; end").empty()) << "An operator on primitives inside a generic function must raise nothing.";
 }
+
+TEST(MAREASemaGenericsAndContracts, UnknownFunctionOfATypeOfAnotherNamespaceIsRejected)
+{
+    GTEST_COUT << "Validating UNKNOWN_TYPE_FUNCTION for a receiver whose type is in a FOUND namespace." << std::endl;
+
+    MAREA_SemaFixture library;
+
+    ASSERT_EQ(library.parser.MAREA_parse("namespace a.b; structure Point x: float64; end implementation Point function origin(): Point return Point{ x = 0.0 }; end function length(self: Point) end end enum Color Red; end"), MAREA_PARSE_EXCEPT_SUCCESS) << "The library must parse.";
+
+    const auto CODES{ [&library](const std::string &body) {
+        MAREA_SemaFixture fixture([&library](const std::string &text, const MAREA_AstNode **outRoot) {
+            if (text != "a.b") {
+                return MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
+            }
+
+            *outRoot = library.parser.root;
+
+            return MAREA_SEMA_IMPORT_RESULT_FOUND;
+        });
+
+        MAREA_IGNORE(fixture.MAREA_sema("namespace main; " + body));
+
+        return fixture.MAREA_semaCodes();
+    } };
+
+    const std::vector<MAREA_Uinteger32> UNKNOWN{ MAREA_SEMA_DIAGNOSTIC_CODE_UNKNOWN_TYPE_FUNCTION };
+
+    EXPECT_EQ(CODES("import a.b as b; function f() b.Point.missing(); end"), UNKNOWN) << "A static call through an alias must be checked.";
+    EXPECT_EQ(CODES("import a.b; function f() a.b.Point.missing(); end"), UNKNOWN) << "A static call through a full path must be checked.";
+    EXPECT_EQ(CODES("import a.b.Point as Spot; function f() Spot.missing(); end"), UNKNOWN) << "A static call on an imported type must be checked.";
+    EXPECT_EQ(CODES("import a.b as b; function f(p: b.Point) p.missing(); end"), UNKNOWN) << "A call on a local of that type must be checked.";
+    EXPECT_EQ(CODES("import a.b as b; function f(c: b.Color) c.missing(); end"), UNKNOWN) << "An enum receiver must be checked.";
+    EXPECT_TRUE(CODES("import a.b as b; function f(p: b.Point) p.length(); b.Point.origin(); end").empty()) << "A declared function must raise nothing.";
+    EXPECT_TRUE(CODES("import a.b; function f() a.b.Point.origin(); end").empty()) << "A declared function through a full path must raise nothing.";
+}

@@ -1,0 +1,18 @@
+-- expect: 3055 @14
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Two constants, one of an implementation block, that read each other.
+
+namespace main;
+
+structure Point
+    x: sinteger32;
+end
+
+-- The cycle is reported at its first constant.
+constant LOOP: sinteger32 = Point.INNER;
+
+implementation Point
+    constant INNER: sinteger32 = LOOP;
+end

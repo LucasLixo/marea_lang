@@ -1,0 +1,15 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A public field of another namespace is read on an element.
+
+namespace main;
+
+require demo.array;
+
+import fixture.shapes as shapes;
+
+function check(boxes: demo.array<shapes.Box, 2>)
+    local value: sinteger32 = boxes[0].open;
+end

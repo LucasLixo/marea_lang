@@ -1,0 +1,23 @@
+-- expect: 3069 @20
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A write goes through a with name over a read-only parameter.
+
+namespace main;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+function make_point(): Point
+    return Point{ x = 1, y = 2 };
+end
+
+function check(point: Point): sinteger32
+    with point as view do
+        view.x = 5;
+    end
+    return point.x;
+end

@@ -1814,8 +1814,8 @@ static MAREA_Boolean MAREA_CALL MAREA_G_MemberNameIs(const MAREA_AstNode *member
     return ((identifier != MAREA_NULLPTR) && (MAREA_SemaTextEquals(MAREA_AstNodeGetText(identifier), MAREA_AstNodeGetTextLength(identifier), name, nameLength) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
-// INFO: tells whether a structure of this file has the field, an enum of this file has the variant, or an implementation block of the type has the function.
-static MAREA_Boolean MAREA_CALL MAREA_G_TypeHasMember(const MAREA_SemaContext *context, const MAREA_AstNode *declaration, const MAREA_Character8 *typeName, MAREA_IntegerSize typeLength, const MAREA_Character8 *name, MAREA_IntegerSize nameLength)
+// INFO: tells whether a structure has the field, an enum has the variant, or an implementation block of the tree has the function of the type.
+static MAREA_Boolean MAREA_CALL MAREA_G_TypeHasMember(const MAREA_AstNode *root, const MAREA_AstNode *declaration, const MAREA_Character8 *typeName, MAREA_IntegerSize typeLength, const MAREA_Character8 *name, MAREA_IntegerSize nameLength)
 {
     const MAREA_AstKind MEMBER_KIND = (MAREA_AstNodeGetKind(declaration) == MAREA_AST_KIND_ENUM_DECLARATION) ? MAREA_AST_KIND_VARIANT_DECLARATION : MAREA_AST_KIND_FIELD_DECLARATION;
 
@@ -1827,8 +1827,8 @@ static MAREA_Boolean MAREA_CALL MAREA_G_TypeHasMember(const MAREA_SemaContext *c
         }
     }
 
-    for (MAREA_IntegerSize index = 0; index < MAREA_AstNodeGetChildCount(context->root); ++index) {
-        const MAREA_AstNode *implementation = MAREA_SemaChildAt(context->root, index);
+    for (MAREA_IntegerSize index = 0; index < MAREA_AstNodeGetChildCount(root); ++index) {
+        const MAREA_AstNode *implementation = MAREA_SemaChildAt(root, index);
 
         if ((implementation == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(implementation) != MAREA_AST_KIND_IMPLEMENTATION_DECLARATION)) {
             continue;
@@ -1854,15 +1854,59 @@ static MAREA_Boolean MAREA_CALL MAREA_G_TypeHasMember(const MAREA_SemaContext *c
     return MAREA_BOOLEAN_FALSE;
 }
 
-// INFO: a call base.name(...) where base is a type of this file (a bare type name no local hides) or a local of such a type. A receiver of another namespace, a library type, a generic parameter or an unknown type is skipped: sema cannot see its functions.
+// INFO: the receiver of a type of a FOUND namespace: a local of such a type, or an expression that names the type. Its functions are in its own tree.
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckForeignTypeFunction(MAREA_SemaContext *context, const MAREA_AstNode *node, const MAREA_AstNode *base, const MAREA_AstNode *member, MAREA_Boolean *outForeign)
+{
+    *outForeign = MAREA_BOOLEAN_FALSE;
+
+    MAREA_SemaTypeTarget target = { .type = MAREA_NULLPTR, .declaration = MAREA_NULLPTR, .root = MAREA_NULLPTR };
+
+    const MAREA_SemaName *local = (MAREA_AstNodeGetKind(base) == MAREA_AST_KIND_IDENTIFIER) ? MAREA_SemaLocalFind(context, MAREA_AstNodeGetText(base), MAREA_AstNodeGetTextLength(base)) : MAREA_NULLPTR;
+
+    if (local != MAREA_NULLPTR) {
+        MAREA_IGNORE(MAREA_SemaFindTypeTarget(context, local->declaration, MAREA_NULLPTR, &target));
+    } else {
+        const MAREA_SemaExcept RESULT = MAREA_SemaFindNamedTarget(context, base, &target);
+
+        if (RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return RESULT;
+        }
+    }
+
+    const MAREA_Character8 *typeName = MAREA_NULLPTR;
+
+    MAREA_IntegerSize typeLength = 0;
+
+    if ((target.root == MAREA_NULLPTR) || (target.declaration == MAREA_NULLPTR) || ((MAREA_AstNodeGetKind(target.declaration) != MAREA_AST_KIND_STRUCTURE_DECLARATION) && (MAREA_AstNodeGetKind(target.declaration) != MAREA_AST_KIND_ENUM_DECLARATION)) || (MAREA_SemaDeclarationName(target.declaration, &typeName, &typeLength) == MAREA_BOOLEAN_FALSE)) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    *outForeign = MAREA_BOOLEAN_TRUE;
+
+    if (MAREA_G_TypeHasMember(target.root, target.declaration, typeName, typeLength, MAREA_AstNodeGetText(member), MAREA_AstNodeGetTextLength(member)) == MAREA_BOOLEAN_TRUE) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_UNKNOWN_TYPE_FUNCTION, MAREA_AstNodeGetPosition(node), "type has no function:", MAREA_AstNodeGetText(member), MAREA_AstNodeGetTextLength(member));
+}
+
+// INFO: a call base.name(...) where base is a type (a bare type name no local hides, ns.T or an imported type) or a local of such a type. A receiver that is a field chain or a call result, a library type, a generic parameter or an unknown type is skipped.
 static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckTypeFunction(MAREA_SemaContext *context, const MAREA_AstNode *node, const MAREA_AstNode *callee)
 {
     const MAREA_AstNode *base = MAREA_SemaChildAt(callee, 0);
 
     const MAREA_AstNode *member = MAREA_SemaChildAt(callee, 1);
 
-    if ((base == MAREA_NULLPTR) || (member == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(base) != MAREA_AST_KIND_IDENTIFIER) || (MAREA_AstNodeGetKind(member) != MAREA_AST_KIND_IDENTIFIER) || (context->root == MAREA_NULLPTR)) {
+    if ((base == MAREA_NULLPTR) || (member == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(member) != MAREA_AST_KIND_IDENTIFIER) || (context->root == MAREA_NULLPTR)) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    MAREA_Boolean foreign = MAREA_BOOLEAN_FALSE;
+
+    const MAREA_SemaExcept FOREIGN_RESULT = MAREA_G_CheckForeignTypeFunction(context, node, base, member, &foreign);
+
+    if ((FOREIGN_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) || (foreign == MAREA_BOOLEAN_TRUE) || (MAREA_AstNodeGetKind(base) != MAREA_AST_KIND_IDENTIFIER)) {
+        return FOREIGN_RESULT;
     }
 
     const MAREA_Character8 *baseName = MAREA_AstNodeGetText(base);
@@ -1904,7 +1948,7 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckTypeFunction(MAREA_SemaContext *
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
-    if (MAREA_G_TypeHasMember(context, declaration, typeName, typeLength, MAREA_AstNodeGetText(member), MAREA_AstNodeGetTextLength(member)) == MAREA_BOOLEAN_TRUE) {
+    if (MAREA_G_TypeHasMember(context->root, declaration, typeName, typeLength, MAREA_AstNodeGetText(member), MAREA_AstNodeGetTextLength(member)) == MAREA_BOOLEAN_TRUE) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 

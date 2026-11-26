@@ -1,0 +1,14 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A public type of another namespace is written with its full path.
+
+namespace main;
+
+require demo.array;
+
+import fixture.shapes as shapes;
+
+function check(value: fixture.shapes.Box)
+end

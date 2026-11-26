@@ -1,0 +1,13 @@
+-- expect: 3048 @12
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A variant that an enum of another namespace does not have.
+
+namespace main;
+
+import fixture.shapes as shapes;
+
+function run(): shapes.Color
+    return shapes.Color.Purple;
+end

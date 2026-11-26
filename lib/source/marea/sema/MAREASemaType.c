@@ -185,6 +185,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaScopeEnter(MAREA_SemaContext *context, con
     outMark->forkBody = context->forkBody;
     outMark->captureScope = (MAREA_AstNodeGetKind(node) == MAREA_AST_KIND_FORK_JOIN_BLOCK) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
     outMark->localStart = context->localStart;
+    outMark->localStartBinders = context->localStartBinders;
     outMark->functionLocalStart = context->functionLocalStart;
     outMark->function = context->function;
     outMark->implementation = context->implementation;
@@ -224,7 +225,11 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaScopeEnter(MAREA_SemaContext *context, con
 
         const MAREA_Boolean IS_BODY = ((FUNCTION_COUNT > 0) && (MAREA_SemaChildAt(context->function, (FUNCTION_COUNT - 1)) == node)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 
-        context->localStart = (IS_BODY == MAREA_BOOLEAN_TRUE) ? context->functionLocalStart : context->locals.count;
+        // INFO: the names of a for, for each, partition or with statement are names of its body block too.
+        const MAREA_IntegerSize BINDERS = MAREA_SemaBinderCount(context->parent);
+
+        context->localStart = (IS_BODY == MAREA_BOOLEAN_TRUE) ? context->functionLocalStart : ((context->locals.count >= BINDERS) ? (context->locals.count - BINDERS) : context->locals.count);
+        context->localStartBinders = (IS_BODY == MAREA_BOOLEAN_TRUE) ? 0 : BINDERS;
     }
 
     if ((KIND == MAREA_AST_KIND_IMPLEMENTATION_DECLARATION) || (KIND == MAREA_AST_KIND_CONTRACT_DECLARATION)) {
@@ -323,6 +328,7 @@ void MAREA_CALL MAREA_SemaScopeLeave(MAREA_SemaContext *context, MAREA_SemaScope
     }
 
     context->localStart = mark.localStart;
+    context->localStartBinders = mark.localStartBinders;
     context->functionLocalStart = mark.functionLocalStart;
     context->function = mark.function;
     context->implementation = mark.implementation;
@@ -331,6 +337,38 @@ void MAREA_CALL MAREA_SemaScopeLeave(MAREA_SemaContext *context, MAREA_SemaScope
     context->partitionDepth = mark.partitionDepth;
     context->loopDepth = mark.loopDepth;
     context->unsafeDepth = mark.unsafeDepth;
+}
+
+MAREA_Boolean MAREA_CALL MAREA_SemaIsBinderHeader(const MAREA_AstNode *node, MAREA_IntegerSize index)
+{
+    MAREA_IntegerSize first = 0;
+
+    MAREA_IntegerSize end = 0;
+
+    if (MAREA_SemaBinderRange(node, &first, &end) == MAREA_BOOLEAN_FALSE) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    // INFO: the body is the last child, and every other child that is no declared name is part of the header.
+    return (((index < first) || (index >= end)) && ((index + 1) < MAREA_AstNodeGetChildCount(node))) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
+MAREA_SemaBinderWindow MAREA_CALL MAREA_SemaHideBinders(MAREA_SemaContext *context, MAREA_SemaScopeMark mark)
+{
+    const MAREA_SemaBinderWindow WINDOW = { .localCount = context->locals.count, .referenceCount = context->references.count, .readOnlyCount = context->readOnly.count };
+
+    context->locals.count = mark.localCount;
+    context->references.count = mark.referenceCount;
+    context->readOnly.count = mark.readOnlyCount;
+
+    return WINDOW;
+}
+
+void MAREA_CALL MAREA_SemaShowBinders(MAREA_SemaContext *context, MAREA_SemaBinderWindow window)
+{
+    context->locals.count = window.localCount;
+    context->references.count = window.referenceCount;
+    context->readOnly.count = window.readOnlyCount;
 }
 
 static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckArity(MAREA_SemaContext *context, const MAREA_AstNode *node, const MAREA_AstNode *declaration, const MAREA_Character8 *name, MAREA_IntegerSize nameLength)
@@ -464,9 +502,14 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckRawPointerPlacement(MAREA_SemaCo
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
+    // INFO: an alias is read as the type that it stands for.
+    MAREA_SemaTypeTarget target = { .type = MAREA_NULLPTR, .declaration = MAREA_NULLPTR, .root = MAREA_NULLPTR };
+
+    MAREA_IGNORE(MAREA_SemaFindTypeTarget(context, node, MAREA_NULLPTR, &target));
+
     const MAREA_TypeDescriptor *descriptor = MAREA_NULLPTR;
 
-    if ((MAREA_SemaDescriptorOfType(context, node, &descriptor) == MAREA_BOOLEAN_FALSE) || ((descriptor->roles & MAREA_TYPE_ROLE_RAW_POINTER) == MAREA_TYPE_ROLE_NONE)) {
+    if ((MAREA_SemaDescriptorOfType(context, target.type, &descriptor) == MAREA_BOOLEAN_FALSE) || ((descriptor->roles & MAREA_TYPE_ROLE_RAW_POINTER) == MAREA_TYPE_ROLE_NONE)) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
@@ -613,13 +656,9 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckOpaqueField(MAREA_SemaContext *contex
             continue;
         }
 
-        const MAREA_AstNode *declaration = MAREA_NULLPTR;
+        MAREA_SemaTypeTarget target = { .type = MAREA_NULLPTR, .declaration = MAREA_NULLPTR, .root = MAREA_NULLPTR };
 
-        const MAREA_Character8 *name = MAREA_NULLPTR;
-
-        MAREA_IntegerSize length = 0;
-
-        if ((MAREA_SemaClassifyType(context, type, &declaration, &name, &length) == MAREA_SEMA_TYPE_CLASS_USER) && (declaration != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(declaration) == MAREA_AST_KIND_OPAQUE_DECLARATION)) {
+        if ((MAREA_SemaFindTypeTarget(context, type, MAREA_NULLPTR, &target) == MAREA_BOOLEAN_TRUE) && (MAREA_AstNodeGetKind(target.declaration) == MAREA_AST_KIND_OPAQUE_DECLARATION)) {
             MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_OPAQUE_FIELD_BY_VALUE, MAREA_AstNodeGetPosition(type), "an opaque type cannot be held by value in a field");
         }
 
