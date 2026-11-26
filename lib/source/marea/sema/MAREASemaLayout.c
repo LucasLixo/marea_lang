@@ -82,8 +82,11 @@ typedef struct MAREA_G_FieldShape
     MAREA_Uinteger64 size;
     MAREA_Uinteger64 alignment;
     MAREA_Uinteger64 explicitAlignment;
+    // INFO: a field that is an inline run holds repeat values of the shape in a row; isRun tells it apart from one value.
+    MAREA_Uinteger64 repeat;
     MAREA_G_ShapeKind kind;
     MAREA_SemaMeasureReason reason;
+    MAREA_Boolean isRun;
 } MAREA_G_FieldShape;
 
 static MAREA_Uinteger64 MAREA_CALL MAREA_G_RoundUp(MAREA_Uinteger64 value, MAREA_Uinteger64 alignment)
@@ -148,7 +151,7 @@ static const MAREA_G_PrimitiveWidth *MAREA_CALL MAREA_G_FindWidth(const MAREA_Ch
 }
 
 // INFO: sorts one written type: a primitive that has a width, a structure or an enum, or a type that sema does not measure, with the reason. A library type is not measured on purpose: its layout comes from the library.
-static void MAREA_CALL MAREA_G_ClassifyType(const MAREA_SemaContext *context, const MAREA_AstNode *type, MAREA_G_FieldShape *outShape)
+static void MAREA_CALL MAREA_G_ClassifyType(const MAREA_SemaContext *context, const MAREA_AstNode *type, MAREA_Uinteger64 depth, MAREA_G_FieldShape *outShape)
 {
     outShape->name = MAREA_NULLPTR;
     outShape->length = 0;
@@ -157,6 +160,8 @@ static void MAREA_CALL MAREA_G_ClassifyType(const MAREA_SemaContext *context, co
     outShape->alignment = 0;
     outShape->kind = MAREA_G_SHAPE_KIND_UNDECIDED;
     outShape->reason = MAREA_SEMA_MEASURE_REASON_LIBRARY_TYPE;
+    outShape->repeat = 1;
+    outShape->isRun = MAREA_BOOLEAN_FALSE;
 
     if (MAREA_G_IsKind(type, MAREA_AST_KIND_FUNCTION_TYPE) == MAREA_BOOLEAN_TRUE) {
         outShape->reason = MAREA_SEMA_MEASURE_REASON_FUNCTION_TYPE;
@@ -164,32 +169,30 @@ static void MAREA_CALL MAREA_G_ClassifyType(const MAREA_SemaContext *context, co
         return;
     }
 
-    // INFO: a registered inline run (an index protocol, no role, a copy class) with a measured element and a
-    // literal count is measured from its descriptor: the size is the count times the element size and the
-    // alignment is the element's. Any other registered type has the layout its library gives, which sema does not see.
+    // INFO: a registered inline run with a measured element and a literal count is measured from its descriptor: the
+    // size is the count times the element size and the alignment is the element's. A run of runs multiplies the
+    // counts. Any other registered type has the layout its library gives, which sema does not see.
     const MAREA_TypeDescriptor *descriptor = MAREA_NULLPTR;
 
     if (MAREA_SemaDescriptorOfType(context, type, &descriptor) == MAREA_BOOLEAN_TRUE) {
-        const MAREA_AstNode *arguments = MAREA_G_FindChildOfKind(type, MAREA_AST_KIND_TYPE_ARGUMENTS);
+        MAREA_SemaInlineRun run = { 0 };
 
-        MAREA_Uinteger64 count = 0;
-
-        if ((descriptor->hasIndexProtocol == MAREA_BOOLEAN_FALSE) || (descriptor->roles != MAREA_TYPE_ROLE_NONE) || (descriptor->ownershipClass != MAREA_TYPE_OWNERSHIP_CLASS_COPY) || (arguments == MAREA_NULLPTR) || (MAREA_AstNodeGetChildCount(arguments) != 2) || (MAREA_SemaAttributeReadInteger(arguments, &count) == MAREA_BOOLEAN_FALSE) || (count == 0)) {
+        if ((depth >= MAREA_G_DEPTH_LIMIT) || (MAREA_SemaInlineRunOfType(context, type, &run) == MAREA_BOOLEAN_FALSE) || (run.hasCount == MAREA_BOOLEAN_FALSE)) {
             return;
         }
 
-        MAREA_G_FieldShape element = { 0 };
+        MAREA_G_ClassifyType(context, run.element, (depth + 1), outShape);
 
-        MAREA_G_ClassifyType(context, MAREA_SemaChildAt(arguments, 0), &element);
-
-        if (element.kind != MAREA_G_SHAPE_KIND_PRIMITIVE) {
+        if (outShape->kind == MAREA_G_SHAPE_KIND_UNDECIDED) {
             return;
         }
 
-        outShape->kind = MAREA_G_SHAPE_KIND_PRIMITIVE;
-        outShape->reason = MAREA_SEMA_MEASURE_REASON_NONE;
-        outShape->size = (count * element.size);
-        outShape->alignment = (element.alignment > 0) ? element.alignment : element.size;
+        if ((outShape->kind == MAREA_G_SHAPE_KIND_PRIMITIVE) && (outShape->alignment == 0)) {
+            outShape->alignment = outShape->size;
+        }
+
+        outShape->repeat = ((outShape->isRun == MAREA_BOOLEAN_TRUE) ? outShape->repeat : 1) * run.count;
+        outShape->isRun = MAREA_BOOLEAN_TRUE;
 
         return;
     }
@@ -235,7 +238,7 @@ static void MAREA_CALL MAREA_G_ClassifyType(const MAREA_SemaContext *context, co
 // INFO: reads the shape of a field of a structure: its type, and its own align. A field align that sema cannot use is not decided.
 static void MAREA_CALL MAREA_G_FieldShapeOf(const MAREA_SemaContext *context, const MAREA_AstNode *field, MAREA_G_FieldShape *outShape)
 {
-    MAREA_G_ClassifyType(context, MAREA_SemaChildAt(field, (MAREA_AstNodeGetChildCount(field) - 1)), outShape);
+    MAREA_G_ClassifyType(context, MAREA_SemaChildAt(field, (MAREA_AstNodeGetChildCount(field) - 1)), 0, outShape);
 
     outShape->explicitAlignment = 0;
 
@@ -322,7 +325,12 @@ static MAREA_Boolean MAREA_CALL MAREA_G_PlaceShape(MAREA_G_State *state, MAREA_G
         }
     }
 
-    *outOffset = MAREA_G_Place(cursor, size, natural, shape->explicitAlignment);
+    // INFO: the convert check does not compare an inline run.
+    if (shape->isRun == MAREA_BOOLEAN_TRUE) {
+        parent->comparable = MAREA_BOOLEAN_FALSE;
+    }
+
+    *outOffset = MAREA_G_Place(cursor, (size * shape->repeat), natural, shape->explicitAlignment);
 
     return MAREA_BOOLEAN_TRUE;
 }
@@ -396,7 +404,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_ReadTagSize(const MAREA_SemaContext *con
 
         MAREA_G_FieldShape shape = { 0 };
 
-        MAREA_G_ClassifyType(context, child, &shape);
+        MAREA_G_ClassifyType(context, child, 0, &shape);
 
         const MAREA_G_PrimitiveWidth *width = (shape.kind == MAREA_G_SHAPE_KIND_PRIMITIVE) ? MAREA_G_FindWidth(shape.name, shape.length) : MAREA_NULLPTR;
 
@@ -449,7 +457,7 @@ static void MAREA_CALL MAREA_G_MeasureEnum(MAREA_G_State *state, const MAREA_Ast
 
             MAREA_Uinteger64 offset = 0;
 
-            MAREA_G_ClassifyType(state->context, MAREA_G_VariantFieldType(field), &shape);
+            MAREA_G_ClassifyType(state->context, MAREA_G_VariantFieldType(field), 0, &shape);
 
             if (MAREA_G_PlaceShape(state, outMeasure, &cursor, &shape, depth, &offset) == MAREA_BOOLEAN_FALSE) {
                 return;
@@ -549,10 +557,10 @@ MAREA_Boolean MAREA_CALL MAREA_SemaMeasureWrittenType(const MAREA_SemaContext *c
 
     MAREA_G_FieldShape shape = { 0 };
 
-    MAREA_G_ClassifyType(context, type, &shape);
+    MAREA_G_ClassifyType(context, type, 0, &shape);
 
     if (shape.kind == MAREA_G_SHAPE_KIND_PRIMITIVE) {
-        *outSize = shape.size;
+        *outSize = shape.size * shape.repeat;
         *outAlignment = (shape.alignment > 0) ? shape.alignment : shape.size;
 
         return MAREA_BOOLEAN_TRUE;
@@ -572,7 +580,7 @@ MAREA_Boolean MAREA_CALL MAREA_SemaMeasureWrittenType(const MAREA_SemaContext *c
         return MAREA_BOOLEAN_FALSE;
     }
 
-    *outSize = measure.size;
+    *outSize = measure.size * shape.repeat;
     *outAlignment = measure.alignment;
 
     return MAREA_BOOLEAN_TRUE;

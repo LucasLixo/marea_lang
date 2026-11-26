@@ -6,11 +6,12 @@
 namespace types.collections;
 
 require marea.array;
+require marea.vector;
 
 #[visibility = public]
 function show_collections(): sinteger32
-    -- marea.array.Array<T>: elements of one type. An element of a primitive type is copied out.
-    local values: marea.array.Array<float32> = marea.array.Array<float32>{ 1.0, 2.0, 3.0 };
+    -- marea.vector.Vector<T>: elements of one type, as many as it holds. An element of a primitive type is copied out.
+    local values: marea.vector.Vector<float32> = marea.vector.Vector<float32>{ 1.0, 2.0, 3.0 };
     local first: float32 = values[0];
 
     -- marea.array.Array<T, N>: the size is part of the type.

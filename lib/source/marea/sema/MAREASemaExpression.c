@@ -465,6 +465,19 @@ static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOfCall(const MAREA_SemaContext *con
         }
     }
 
+    // INFO: the count of an inline run is a uinteger64 and its empty test a boolean.
+    MAREA_SemaInlineRunCall runCall;
+
+    if (MAREA_SemaInlineRunCallOf(context, call, &runCall) == MAREA_BOOLEAN_TRUE) {
+        if ((runCall.member == MAREA_SEMA_INLINE_RUN_MEMBER_SIZE) || (runCall.member == MAREA_SEMA_INLINE_RUN_MEMBER_MAX_SIZE)) {
+            return MAREA_G_ShapeMake(MAREA_G_SHAPE_KIND_PRIMITIVE, "uinteger64", strlen("uinteger64"));
+        }
+
+        if (runCall.member == MAREA_SEMA_INLINE_RUN_MEMBER_EMPTY) {
+            return MAREA_G_ShapeMake(MAREA_G_SHAPE_KIND_PRIMITIVE, "boolean", strlen("boolean"));
+        }
+    }
+
     return MAREA_G_ShapeOfDeclared(context, call);
 }
 

@@ -975,15 +975,18 @@ const MAREA_AstNode *MAREA_CALL MAREA_SemaAttributeFind(const MAREA_AstNode *roo
     return item;
 }
 
-MAREA_Boolean MAREA_CALL MAREA_SemaAttributeReadInteger(const MAREA_AstNode *item, MAREA_Uinteger64 *outValue)
+MAREA_Boolean MAREA_CALL MAREA_SemaReadIntegerLiteral(const MAREA_AstNode *node, MAREA_Uinteger64 *outValue)
 {
-    const MAREA_AstNode *value = MAREA_SemaChildAt(item, 1);
-
-    if ((value == MAREA_NULLPTR) || (outValue == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(value) != MAREA_AST_KIND_INTEGER_LITERAL)) {
+    if ((node == MAREA_NULLPTR) || (outValue == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(node) != MAREA_AST_KIND_INTEGER_LITERAL)) {
         return MAREA_BOOLEAN_FALSE;
     }
 
-    return MAREA_G_ParseInteger(value, outValue);
+    return MAREA_G_ParseInteger(node, outValue);
+}
+
+MAREA_Boolean MAREA_CALL MAREA_SemaAttributeReadInteger(const MAREA_AstNode *item, MAREA_Uinteger64 *outValue)
+{
+    return MAREA_SemaReadIntegerLiteral(MAREA_SemaChildAt(item, 1), outValue);
 }
 
 MAREA_Boolean MAREA_CALL MAREA_SemaAttributeIsOn(const MAREA_AstNode *root, const MAREA_AstNode *declaration, const MAREA_Character8 *key)

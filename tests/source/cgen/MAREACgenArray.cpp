@@ -88,11 +88,17 @@ TEST(MAREACgenArray, ArraysOfStructuresAndOfArraysAreStored)
     EXPECT_NE(RESULT.cText.find("_Static_assert(sizeof(marea_s_Holder) == 28"), std::string::npos) << "The size of sema must be asserted.";
 }
 
-TEST(MAREACgenArray, AStructureThatHoldsAnArrayOfStructuresIsReported)
+TEST(MAREACgenArray, AStructureThatHoldsAnArrayOfStructuresIsMeasuredAndWritten)
 {
-    GTEST_COUT << "Validating a structure whose layout sema cannot measure, an array of structures inside it, is reported." << std::endl;
+    GTEST_COUT << "Validating a structure that holds an array of structures is written with the layout that sema measures." << std::endl;
 
-    EXPECT_EQ(MAREA_parityRejected("namespace main; require demo.array; structure Point x: sinteger32; end structure Holder points: demo.array<Point, 2>; end function f(): sinteger32 local h: Holder = Holder{ points = demo.array<Point, 2>{} }; return 1; end").count(MAREA_CGEN_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE), 1U) << "Sema measures no layout for it.";
+    const MAREA_ParityResult RESULT{ MAREA_parityGenerated("namespace main; require demo.array; structure Point x: sinteger32; end structure Holder points: demo.array<Point, 2>; end function f(): sinteger32 local h: Holder = Holder{ points = demo.array<Point, 2>{ Point{ x = 3 }, Point{ x = 4 } } }; return h.points[1].x; end", {}) };
+
+    ASSERT_TRUE(RESULT.failures.empty()) << RESULT.MAREA_failures();
+
+    EXPECT_EQ(MAREA_parityValue(RESULT.MAREA_outcome("f()")), 4) << "The second point of the array.";
+
+    EXPECT_NE(RESULT.cText.find("_Static_assert(sizeof(marea_s_Holder) == 8"), std::string::npos) << "Two points of four bytes.";
 }
 
 TEST(MAREACgenArray, ForEachWalksEveryElementWithItsKey)

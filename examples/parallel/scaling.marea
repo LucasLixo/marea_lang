@@ -14,6 +14,7 @@
 namespace parallel.scaling;
 
 require marea.array;
+require marea.vector;
 require c.memory;
 require c.threads;
 
@@ -35,7 +36,7 @@ function sum_slice(part: c.memory.Slice<float32>): float32
 end
 
 #[visibility = public]
-function scale_all(#[semantics = reference_mutable] values: marea.array.Array<float32>, factor: float32)
+function scale_all(#[semantics = reference_mutable] values: marea.array.Array<float32, 4>, factor: float32)
     fork_join
         partition mutable values into WORKER_COUNT as part do
             spawn scale_slice(part, factor);
@@ -44,8 +45,8 @@ function scale_all(#[semantics = reference_mutable] values: marea.array.Array<fl
 end
 
 #[visibility = public]
-function sum_all(values: marea.array.Array<float32>): float32
-    local tasks: marea.array.Array<c.threads.Task<float32>> = marea.array.Array<c.threads.Task<float32>>{};
+function sum_all(values: marea.array.Array<float32, 4>): float32
+    local tasks: marea.vector.Vector<c.threads.Task<float32>> = marea.vector.Vector<c.threads.Task<float32>>{};
     fork_join
         partition values into WORKER_COUNT as part do
             tasks.append(spawn sum_slice(part));

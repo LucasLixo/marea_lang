@@ -58,7 +58,7 @@ end
 
 -- A reference can not be returned. The function gives a copy, so the type must be Copyable.
 #[visibility = public]
-function first_of<Item>(values: marea.array.Array<Item>): Item where Item: Copyable
+function first_of<Item, constant COUNT: sinteger32>(values: marea.array.Array<Item, COUNT>): Item where Item: Copyable
     return copy values[0];
 end
 

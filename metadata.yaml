@@ -10,4 +10,4 @@ version:
   major: 4 # Breaks the public API
   minor: 2 # Adds to the public API
   patch: 0 # No public API impact
-  build: 410 # Bumped once per commit, regardless of major/minor/patch
+  build: 411 # Bumped once per commit, regardless of major/minor/patch

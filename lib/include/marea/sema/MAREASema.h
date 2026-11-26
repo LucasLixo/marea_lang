@@ -126,6 +126,10 @@ MAREA_BEGIN_EXTERN_C
         MAREA_SEMA_DIAGNOSTIC_CODE_MISPLACED_ATTRIBUTE = MAREA_UINTEGER_32(3085),
         // INFO: a value that the build gives to build_value! and that does not fit the type of the call.
         MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_BUILD_VALUE = MAREA_UINTEGER_32(3086),
+        // INFO: an array literal whose positional values differ from the count of the array.
+        MAREA_SEMA_DIAGNOSTIC_CODE_LITERAL_COUNT_MISMATCH = MAREA_UINTEGER_32(3087),
+        // INFO: a constant index of an array that is not below its count.
+        MAREA_SEMA_DIAGNOSTIC_CODE_CONSTANT_INDEX_OUT_OF_RANGE = MAREA_UINTEGER_32(3088),
     } MAREA_SemaDiagnosticCode;
 
     /**

@@ -2129,6 +2129,102 @@ MAREA_BEGIN_EXTERN_C
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaBaseEntry(MAREA_SemaContext * context, const MAREA_AstNode *base, const MAREA_AstNode *member, const MAREA_SemaName **outEntry);
 
+    /**
+     * @brief What a written type of an inline run holds: the shape that a descriptor with the index protocol, no
+     * role, a copy class and two type parameters gives (the element and the count).
+     */
+    typedef struct MAREA_SemaInlineRun
+    {
+        const MAREA_AstNode *type;
+        const MAREA_AstNode *element;
+        MAREA_Uinteger64 count;
+        MAREA_Boolean hasCount;
+    } MAREA_SemaInlineRun;
+
+    /**
+     * @brief The members of an inline run, which the compiler implements itself.
+     */
+    typedef enum MAREA_SemaInlineRunMember
+    {
+        MAREA_SEMA_INLINE_RUN_MEMBER_NONE = MAREA_UINTEGER_8(0),
+        MAREA_SEMA_INLINE_RUN_MEMBER_FRONT = MAREA_UINTEGER_8(1),
+        MAREA_SEMA_INLINE_RUN_MEMBER_BACK = MAREA_UINTEGER_8(2),
+        MAREA_SEMA_INLINE_RUN_MEMBER_SIZE = MAREA_UINTEGER_8(3),
+        MAREA_SEMA_INLINE_RUN_MEMBER_MAX_SIZE = MAREA_UINTEGER_8(4),
+        MAREA_SEMA_INLINE_RUN_MEMBER_EMPTY = MAREA_UINTEGER_8(5),
+        MAREA_SEMA_INLINE_RUN_MEMBER_FILL = MAREA_UINTEGER_8(6),
+        MAREA_SEMA_INLINE_RUN_MEMBER_SWAP = MAREA_UINTEGER_8(7),
+        MAREA_SEMA_INLINE_RUN_MEMBER_FILLED = MAREA_UINTEGER_8(8),
+    } MAREA_SemaInlineRunMember;
+
+    /**
+     * @brief One call whose receiver is an inline run. member is NONE for a name that the run does not have.
+     * written is the type of the receiver with the bindings of its frame.
+     */
+    typedef struct MAREA_SemaInlineRunCall
+    {
+        const MAREA_AstNode *receiver;
+        const MAREA_AstNode *name;
+        MAREA_SemaWrittenType written;
+        MAREA_SemaInlineRun run;
+        MAREA_IntegerSize argumentCount;
+        MAREA_SemaInlineRunMember member;
+        MAREA_Boolean isStatic;
+    } MAREA_SemaInlineRunCall;
+
+    /**
+     * @brief Reads a written type as an inline run. The count is known when it is written as an integer literal.
+     * @return MAREA_BOOLEAN_TRUE when the type is an inline run.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaInlineRunOfType(const MAREA_SemaContext *context, const MAREA_AstNode *type, MAREA_SemaInlineRun *outRun);
+
+    /**
+     * @brief Reads the written type of an expression as an inline run.
+     * @param outWritten Receives the written type; its node is null when sema does not know it. Must not be null.
+     * @return MAREA_BOOLEAN_TRUE when the type is an inline run.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaInlineRunOfValue(const MAREA_SemaContext *context, const MAREA_AstNode *expression, MAREA_SemaWrittenType *outWritten, MAREA_SemaInlineRun *outRun);
+
+    /**
+     * @brief Reads a call expression as a call of a member of an inline run, on a value or on the type itself.
+     * @return MAREA_BOOLEAN_TRUE when the receiver is an inline run.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaInlineRunCallOf(const MAREA_SemaContext *context, const MAREA_AstNode *call, MAREA_SemaInlineRunCall *outCall);
+
+    /**
+     * @brief Checks a call of a member of an inline run: the name, the argument count, the Copyable element, the
+     * writable receiver, the fit of a value and the two arrays of a swap.
+     * @param outHandled Receives MAREA_BOOLEAN_TRUE when the call is one of an inline run. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckInlineRunCall(MAREA_SemaContext * context, const MAREA_AstNode *node, MAREA_Boolean * outHandled);
+
+    /**
+     * @brief Reports a constant index of an INDEX_ACCESS that is not below the count of its inline run.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckInlineRunIndex(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
+     * @brief Checks the entries of a LITERAL_VALUE of an inline run against its count.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckInlineRunLiteral(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
+     * @brief Reads an INTEGER_LITERAL node.
+     * @return MAREA_BOOLEAN_TRUE when the node is an integer literal that fits 64 bits.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaReadIntegerLiteral(const MAREA_AstNode *node, MAREA_Uinteger64 *outValue);
+
+    /**
+     * @brief Tells whether two places may name the same storage.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaPlacesAlias(const MAREA_AstNode *left, const MAREA_AstNode *right);
+
+    /**
+     * @brief Tells whether a written type meets the contract Copyable. A type that sema cannot see meets it.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaIsCopyable(const MAREA_SemaContext *context, const MAREA_AstNode *type);
+
 MAREA_END_EXTERN_C
 
 #endif /* MAREA_INTERNAL_SEMA_MAREASEMAINTERNAL_H */

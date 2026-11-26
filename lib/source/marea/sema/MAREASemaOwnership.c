@@ -74,6 +74,13 @@ MAREA_SemaParameterSemantics MAREA_CALL MAREA_SemaGetParameterSemantics(const MA
 
     const MAREA_AstNode *type = MAREA_SemaChildAt(parameter, 1);
 
+    // INFO: an inline run is copied by an assignment, but a parameter of it is a read-only borrow, so a large one is not copied by a call.
+    MAREA_SemaInlineRun run = { 0 };
+
+    if (MAREA_SemaInlineRunOfType(context, type, &run) == MAREA_BOOLEAN_TRUE) {
+        return MAREA_SEMA_PARAMETER_SEMANTICS_REFERENCE_READ_ONLY;
+    }
+
     // INFO: the default by type class: a primitive or the one documented by-value exception (an enum) is VALUE_READ_ONLY, a move-in type (owned, task, vector) keeps REFERENCE_MUTABLE, anything else is a read-only borrow.
     if (MAREA_G_IsByValue(context, type, MAREA_BOOLEAN_FALSE) == MAREA_BOOLEAN_TRUE) {
         return MAREA_SEMA_PARAMETER_SEMANTICS_VALUE_READ_ONLY;
@@ -153,7 +160,10 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaBindReferences(MAREA_SemaContext *context,
                 break;
             }
 
-            const MAREA_SemaExcept RESULT = MAREA_G_PushReference(context, child, node);
+            // INFO: with two names the first one is the key, an index held by value, which is no reference: it is pushed with no binding so that it hides an outer reference of the same name.
+            const MAREA_Boolean IS_KEY = ((index == 0) && (COUNT == 4)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+
+            const MAREA_SemaExcept RESULT = MAREA_G_PushReference(context, child, (IS_KEY == MAREA_BOOLEAN_TRUE) ? MAREA_NULLPTR : node);
 
             if (RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
                 return RESULT;
