@@ -928,6 +928,17 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaMeasureDeclaration(MAREA_SemaContext * context, const MAREA_AstNode *declaration, const MAREA_SemaTypeLayout **outLayout);
 
     /**
+     * @brief Gives the size and the alignment of a written type: a primitive with a width, a structure or an enum of
+     * the file, or an inline run of a measured primitive. The measure is the one of MAREA_SemaMeasureDeclaration.
+     * @param context Context of the run. Must not be null.
+     * @param type Written type node. May be null.
+     * @param outSize Receives the size in bytes. Must not be null.
+     * @param outAlignment Receives the alignment in bytes. Must not be null.
+     * @return MAREA_BOOLEAN_FALSE when sema does not measure the type.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaMeasureWrittenType(const MAREA_SemaContext *context, const MAREA_AstNode *type, MAREA_Uinteger64 *outSize, MAREA_Uinteger64 *outAlignment);
+
+    /**
      * @brief Checks a WHERE_CLAUSE: every constraint names a generic parameter in scope and known contracts.
      * @param context Context of the run. Must not be null.
      * @param node WHERE_CLAUSE node. Must not be null.
@@ -1663,9 +1674,10 @@ MAREA_BEGIN_EXTERN_C
     /**
      * @brief Reports COMPILE_TIME_ASSERTION_FAILED for a compile_error macro call, whatever its arguments are, and for
      * a static_assert macro call with two arguments whose condition is a constant that is false. The condition is
-     * read by a small evaluator: boolean and integer literals, a file constant (depth limit 32, so a cycle ends as
-     * unknown), parentheses, not, unary minus, and, or, the comparisons and + - * / % over 64-bit integers. Overflow,
-     * a division by zero, a call, size_of, align_of, a name that is not a file constant (a local or a parameter of
+     * read by a small evaluator: boolean, integer, float and string literals, a file constant in its declared type
+     * (depth limit 32, so a cycle ends as unknown), size_of and align_of of a measured type, parentheses, not, unary
+     * minus, and, or, the comparisons and + - * / %. Integer arithmetic wraps in the width of a narrow type. Overflow of
+     * a 64-bit value, a division by zero, any other call, a name that is not a file constant (a local or a parameter of
      * the same name hides the constant) and every other node are unknown, and an unknown condition is accepted. Any
      * other macro, and a static_assert with another argument count, is skipped. The message holds the text of the
      * string literal argument when there is one.

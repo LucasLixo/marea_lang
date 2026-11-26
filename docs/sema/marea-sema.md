@@ -704,12 +704,16 @@ needs no recursion.
 **Compile-time macros.** A `compile_error!(...)` call always raises `COMPILE_TIME_ASSERTION_FAILED` (3059) at the
 call, in a function body and at the top level, whatever its arguments are (a wrong argument shape adds 3061 before it). A `static_assert!(condition, "text")` call
 with two arguments raises 3059 when its condition is a constant that evaluates to false. A small evaluator reads the
-condition: boolean and integer literals (decimal, `0x`, `0b`, `_`), a file constant (read through its initial value,
-with a depth limit of 32, so a cyclic constant ends as unknown), parentheses, unary `not` and unary minus, `and`, `or`,
-the comparisons `==`, `!=`, `<`, `<=`, `>`, `>=` and `+ - * / %` over 64-bit integers. It answers true, false or
-unknown, and an unknown condition is accepted. Overflow, a division by zero, a call, `size_of`, `align_of`, a name that
-is not a file constant (a local or a parameter of the same name hides the constant) and every other node are unknown:
-the rules of constant arithmetic are other checks, never reported here. A `static_assert!` with another argument count
+condition: boolean, integer (decimal, `0x`, `0b`, `_`), float and string literals, a file constant (read through its
+initial value in its declared type, with a depth limit of 32, so a cyclic constant ends as unknown), `size_of<T>()` and
+`align_of<T>()` of a primitive with a width, an inline run, or a structure or enum of the file (the layout record, as a
+`uinteger64`), parentheses, unary `not` and unary minus, `and`, `or`, the comparisons `==`, `!=`, `<`, `<=`, `>`, `>=`
+and `+ - * / %`. Integer arithmetic on a typed value of 8, 16 or 32 bits wraps in that width; literals alone and 64-bit
+types are computed in 64 bits. A `float32` constant is rounded to its width. Two strings fold for `==` and `!=` only,
+and two different texts that hold an escape are unknown. It answers true, false or unknown, and an unknown condition is
+accepted. An overflow of 64 bits, a division by zero, any other call, a character, a name that is not a file constant (a
+local or a parameter of the same name hides the constant) and every other node are unknown: the rules of constant
+arithmetic are other checks, never reported here. A `static_assert!` with another argument count
 is skipped. The message holds the text of the string literal argument without its quotes, as
 `compile_error: <text>` or `static assertion failed: <text>`, and the prefix alone when there is none.
 
@@ -1378,11 +1382,8 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
   opaque name of the same file as a field type.
 - `ASSIGNMENT_TO_CONSTANT` (3040) sees only a constant that a file declares. A constant that an `implementation`
   declares is not rejected.
-- `COMPILE_TIME_ASSERTION_FAILED` (3059) decides a `static_assert!` condition only when the evaluator can fold it. A
-  condition with `size_of`, `align_of`, a call, a name that is not a file constant of this file (a constant of another
-  namespace included), a float, a string, a division by zero or an overflow is unknown and accepted, so a false
-  `static_assert!(size_of<Light>() == 9, "x");` raises nothing yet. The arithmetic is over 64-bit integers, not over the
-  type of the constant, so a constant of a narrow type does not wrap.
+- `COMPILE_TIME_ASSERTION_FAILED` (3059) does not fold a call other than `size_of` and `align_of` (`convert` included),
+  a character, a constant of another namespace or the size of an imported or library type: such a condition is accepted.
 - `CYCLIC_CONSTANT` (3055) sees only the constants that a file declares at the top level. A constant that an
   `implementation` declares is not part of the search. A name is matched by its text in the name table, so a
   qualified name of another namespace is not followed.

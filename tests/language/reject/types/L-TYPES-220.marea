@@ -1,0 +1,14 @@
+-- expect: 3059 @14
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A false static assertion on the size of a structure.
+
+namespace main;
+
+structure Light
+    power: sinteger32;
+    range: sinteger32;
+end
+
+static_assert!(size_of<Light>() == 9, "Light must use 9 bytes");

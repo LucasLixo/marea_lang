@@ -806,6 +806,7 @@ Function declaration and call, parameters and defaults, the result and `return v
 | L-TYPES-217 | a bitwise operator on two characters | 3038 @10 |
 | L-TYPES-218 | a declared operator with an operand of another type | 3011 @21 |
 | L-TYPES-219 | a condition that is a field of another type | 3043 @14 |
+| L-TYPES-220 | a false static assertion on the size of a structure | 3059 @14 |
 
 ### Types and control flow: known_gap
 
@@ -1338,8 +1339,8 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | ownership | 65 | 78 | 2 |
 | parallel | 19 | 40 | 0 |
 | seed | 1 | 2 | 0 |
-| types | 62 | 147 | 3 |
-| total | 275 | 581 | 13 |
+| types | 62 | 148 | 3 |
+| total | 275 | 582 | 13 |
 
 ## Parity
 
