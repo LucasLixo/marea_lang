@@ -1,0 +1,15 @@
+-- expect: 3061 @14
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A print macro with a structure for a placeholder.
+
+namespace main;
+
+structure Point
+    x: sinteger32;
+end
+
+function show(point: Point)
+    print!("{}", point);
+end

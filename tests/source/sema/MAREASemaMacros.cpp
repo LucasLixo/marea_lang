@@ -183,12 +183,13 @@ TEST(MAREASemaMacros, PlaceMacrosTakeNoArgument)
     EXPECT_EQ(MAREA_codesOfStatement("local text: string = file!(\"x\");"), Codes{ INVALID_ARGUMENT });
 }
 
-TEST(MAREASemaMacros, ACallOfAMacroThatSemaCannotTypeIsAccepted)
+TEST(MAREASemaMacros, AnArgumentThatIsNoLiteralIsJudgedByItsType)
 {
-    GTEST_COUT << "Validating that a non-literal argument of the wrong kind stays unknown and is accepted." << std::endl;
+    GTEST_COUT << "Validating that an integer name is no condition and no format text." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOfStatement("assert!(count, \"x\");"), Codes{});
-    EXPECT_EQ(MAREA_codesOfStatement("print!(count);"), Codes{});
+    EXPECT_EQ(MAREA_codesOfStatement("assert!(count, \"x\");"), Codes{ INVALID_ARGUMENT });
+    EXPECT_EQ(MAREA_codesOfStatement("print!(count);"), Codes{ INVALID_ARGUMENT });
+    EXPECT_EQ(MAREA_codesOfStatement("assert!(unknown(), \"x\");"), Codes{}) << "A condition of an unknown type must be accepted.";
 }
 
 TEST(MAREASemaMacros, MacroValueMustFitItsTarget)
@@ -225,4 +226,31 @@ TEST(MAREASemaMacros, MacroStatementIsNotAValueUse)
 
     EXPECT_EQ(MAREA_codesOfStatement("print!(\"x\");"), Codes{});
     EXPECT_EQ(MAREA_codesOfStatement("log!(info, \"x\");"), Codes{});
+}
+
+TEST(MAREASemaMacros, EveryPlaceholderValueMustBePrintable)
+{
+    GTEST_COUT << "Validating that a {} value of a type that cannot be printed raises INVALID_MACRO_ARGUMENT." << std::endl;
+
+    const std::string HEAD{ "namespace main; structure Point x: sinteger32; end enum Color Red; end " };
+
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "function f(p: Point) print!(\"{}\", p); end"), Codes{ INVALID_ARGUMENT });
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "function f(c: Color) log!(info, \"{}\", c); end"), Codes{ INVALID_ARGUMENT });
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "require demo.slice; function f(v: demo.slice<boolean>) local t: string = format!(\"{}\", v); end"), Codes{ INVALID_ARGUMENT });
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "function f(p: Point, a: boolean, b: character, c: string, d: float32) print!(\"{} {} {} {} {} {}\", a, b, c, d, p.x, 1.5); end"), Codes{});
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "function f<Item>(value: Item) print!(\"{}\", value); end"), Codes{});
+}
+
+TEST(MAREASemaMacros, ATextMustBeAStringLiteralAndAConditionABoolean)
+{
+    GTEST_COUT << "Validating that a text that is not a string literal and a condition that is not a boolean are rejected." << std::endl;
+
+    const std::string HEAD{ "namespace main; " };
+
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "function f(t: string) print!(t); end"), Codes{ INVALID_ARGUMENT });
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "function f(t: string) log!(info, t); end"), Codes{ INVALID_ARGUMENT });
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "function f(t: string) local s: string = include_text!(t); end"), Codes{ INVALID_ARGUMENT });
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "function f(t: string, ok: boolean) assert!(ok, t); end"), Codes{ INVALID_ARGUMENT });
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "function f(n: sinteger32) assert!(n, \"x\"); end"), Codes{ INVALID_ARGUMENT });
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "function f(n: sinteger32, ok: boolean) assert!(ok, \"x\"); debug_assert!(n > 0, \"x\"); end"), Codes{});
 }

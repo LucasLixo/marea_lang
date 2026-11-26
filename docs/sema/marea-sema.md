@@ -752,11 +752,11 @@ or at the argument list when the count is wrong; at most one diagnostic is raise
 
 Four decisions bind the table. (1) The log levels are the five names `trace`, `debug`, `info`, `warning` and `error`
 (a bare name, not a string); the language docs did not list them, so the list is an assumption that the user must
-confirm. A level that is not a bare name of the list is rejected, a literal included. (2) A condition or a text argument
-is rejected only when it is a literal of the wrong kind: an integer, float, boolean or character literal for a text; an
-integer, float, string or character literal for a condition. Any other expression has an unknown type and is accepted.
-(3) The `{}` check runs when the format text is a string literal: it counts the occurrences of the two characters `{}`
-and compares the count with the number of value arguments. A lone `{` or `}` is skipped. (4) `line!()` is `uinteger32`;
+confirm. A level that is not a bare name of the list is rejected, a literal included. (2) A text argument (a message, a format text, a path) must be a string literal. A condition is rejected when its type
+is known and is not `boolean` (see "Condition type"); a condition of an unknown type is accepted. (3) The count of the two
+characters `{}` in the format text must equal the number of value arguments (a lone `{` or `}` is skipped), and each value
+must be printable: a value whose type is known to be a structure, an enum, a view, a raw pointer, an array, a function
+type or no value is rejected, while a primitive, a literal and a value of an unknown, generic or library type pass. (4) `line!()` is `uinteger32`;
 `file!()` and `namespace!()` are `string`.
 
 The value of a macro is part of the type check. A macro with no value has a shape that fits no type, so it is
@@ -1266,7 +1266,7 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 | 3058 | `OPAQUE_FIELD_BY_VALUE` | `structure Holder texture: Texture; end` with `Texture` an `opaque structure` of the same file |
 | 3059 | `COMPILE_TIME_ASSERTION_FAILED` | `compile_error!("stop");` with any arguments, at the top level or in a function body; `static_assert!(1 == 2, "never");` or `static_assert!(N == 5, "n");` when the condition is a constant that is false |
 | 3060 | `UNKNOWN_MACRO` | `shout!("hello");` when `shout` is none of the 14 built-in macros, `marea.array.nothing!("x");` or `array.print!("x");` when the library registers no such macro, or a macro of a library that is off, at the call |
-| 3061 | `INVALID_MACRO_ARGUMENT` | `print!();`, `print!(1, 2);`, `print!("{} {}", 1);`, `assert!(1, "x");`, `unreachable!(1);`, `log!(loud, "x");`, `include_text!(1);`: the wrong count of arguments, a literal of the wrong kind, a log level that is not one of the five, or a count of `{}` that differs from the count of values, at the offending argument; `build_value!("X", sinteger32)`, a first argument that is not a string literal, a type argument that is no primitive and no enum of the file, an enum with a field that has no default; a call of a macro of a library with the wrong arguments or that the expander refuses (`marea.array.include_bytes!("missing.bin");`) |
+| 3061 | `INVALID_MACRO_ARGUMENT` | `print!();`, `print!(1, 2);`, `print!("{} {}", 1);`, `assert!(1, "x");`, `unreachable!(1);`, `log!(loud, "x");`, `include_text!(1);`: the wrong count of arguments, a literal of the wrong kind, a log level that is not one of the five, a text that is not a string literal, a condition that is not a `boolean`, a count of `{}` that differs from the count of values, or a `{}` value that is not printable (`print!("{}", point)`), at the offending argument; `build_value!("X", sinteger32)`, a first argument that is not a string literal, a type argument that is no primitive and no enum of the file, an enum with a field that has no default; a call of a macro of a library with the wrong arguments or that the expander refuses (`marea.array.include_bytes!("missing.bin");`) |
 | 3062 | `PARALLEL_CONSTRUCT_OUTSIDE_FORK_JOIN` | `function f(a: sinteger32) spawn g(a); end` or `partition values into 2 as part do end` with no `fork_join` block around it, also a `spawn` after the `end` of a block: raised at the `spawn` or `partition` and nothing else for that construct |
 | 3063 | `SPAWN_NEEDS_CALL` | `fork_join spawn point; end` or `spawn print!("x");`: the operand of a `spawn` is not a call, at the operand |
 | 3064 | `PARTITION_SOURCE_NOT_ARRAY` | `partition count into 2 as part do end` when `count` is a primitive, a structure, an enum or a number literal, at the source |
@@ -1387,9 +1387,9 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 - `CYCLIC_CONSTANT` (3055) sees only the constants that a file declares at the top level. A constant that an
   `implementation` declares is not part of the search. A name is matched by its text in the name table, so a
   qualified name of another namespace is not followed.
-- `INVALID_MACRO_ARGUMENT` (3061) does not check the type of each value that a `{}` takes: `print!("{}", x)` is
-  accepted for any `x`. A condition or a text that is not a literal is accepted whatever its type, and a format text
-  that is not a string literal has no `{}` count. The five log levels are an assumption (see Built-in macro).
+- `INVALID_MACRO_ARGUMENT` (3061) accepts a `{}` value or a condition of an unknown type, such as an enum variant written
+  `Color.Red` or a call that sema does not type. The names inside a macro argument are not checked. The five log levels
+  are an assumption (see Built-in macro).
 - `RAW_POINTER_OUTSIDE_UNSAFE` (3041) reads the role of the written type in every place, but a type alias of a raw pointer is
   not followed through its use: the alias declaration itself is the place that is rejected.
 - `RECURSIVE_TYPE` (3045) does not follow a user generic structure given as `Box<Node>`: its field types are written in

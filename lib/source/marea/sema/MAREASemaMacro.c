@@ -116,32 +116,20 @@ static MAREA_Boolean MAREA_CALL MAREA_G_HasErrorNode(const MAREA_AstNode *list)
     return MAREA_BOOLEAN_FALSE;
 }
 
-// INFO: a text is rejected only when it is a literal of another kind. Any other expression has an unknown type and is accepted.
+// INFO: a text is read at compile time, so only a string literal is a text.
 static MAREA_Boolean MAREA_CALL MAREA_G_IsWrongText(const MAREA_AstNode *argument)
 {
-    switch (MAREA_AstNodeGetKind(argument)) {
-    case MAREA_AST_KIND_INTEGER_LITERAL:
-    case MAREA_AST_KIND_FLOAT_LITERAL:
-    case MAREA_AST_KIND_BOOLEAN_LITERAL:
-    case MAREA_AST_KIND_CHARACTER_LITERAL:
-        return MAREA_BOOLEAN_TRUE;
-    default:
-        return MAREA_BOOLEAN_FALSE;
-    }
+    return (MAREA_AstNodeGetKind(argument) != MAREA_AST_KIND_STRING_LITERAL) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
-// INFO: a condition is rejected only when it is a number, string or character literal.
-static MAREA_Boolean MAREA_CALL MAREA_G_IsWrongCondition(const MAREA_AstNode *argument)
+// INFO: a condition is rejected when its type is known and is not boolean. A literal of another type has such a type.
+static MAREA_Boolean MAREA_CALL MAREA_G_IsWrongCondition(const MAREA_SemaContext *context, const MAREA_AstNode *argument)
 {
-    switch (MAREA_AstNodeGetKind(argument)) {
-    case MAREA_AST_KIND_INTEGER_LITERAL:
-    case MAREA_AST_KIND_FLOAT_LITERAL:
-    case MAREA_AST_KIND_STRING_LITERAL:
-    case MAREA_AST_KIND_CHARACTER_LITERAL:
-        return MAREA_BOOLEAN_TRUE;
-    default:
-        return MAREA_BOOLEAN_FALSE;
-    }
+    const MAREA_Character8 *name = MAREA_NULLPTR;
+
+    MAREA_IntegerSize length = 0;
+
+    return MAREA_SemaIsSurelyNotBoolean(context, argument, &name, &length);
 }
 
 static MAREA_Boolean MAREA_CALL MAREA_G_IsLogLevel(const MAREA_AstNode *argument)
@@ -193,8 +181,16 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckFormat(MAREA_SemaContext *contex
         return MAREA_G_ReportArgument(context, MAREA_AstNodeGetPosition(text), name, "needs a string literal as the format text");
     }
 
-    if ((MAREA_AstNodeGetKind(text) == MAREA_AST_KIND_STRING_LITERAL) && (MAREA_G_CountPlaceholders(text) != (COUNT - first - 1))) {
+    if (MAREA_G_CountPlaceholders(text) != (COUNT - first - 1)) {
         return MAREA_G_ReportArgument(context, MAREA_AstNodeGetPosition(text), name, "has a count of {} that differs from the count of values");
+    }
+
+    for (MAREA_IntegerSize index = (first + 1); index < COUNT; ++index) {
+        const MAREA_AstNode *value = MAREA_SemaChildAt(list, index);
+
+        if (MAREA_SemaIsSurelyNotPrintable(context, value) == MAREA_BOOLEAN_TRUE) {
+            return MAREA_G_ReportArgument(context, MAREA_AstNodeGetPosition(value), name, "cannot print a value of this type for a {}");
+        }
     }
 
     return MAREA_SEMA_EXCEPT_SUCCESS;
@@ -218,8 +214,8 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckShape(MAREA_SemaContext *context
             return MAREA_G_ReportArgument(context, MAREA_AstNodeGetPosition(list), name, "takes a condition and a string literal message");
         }
 
-        if (MAREA_G_IsWrongCondition(MAREA_SemaChildAt(list, 0)) == MAREA_BOOLEAN_TRUE) {
-            return MAREA_G_ReportArgument(context, MAREA_AstNodeGetPosition(MAREA_SemaChildAt(list, 0)), name, "needs a condition that is not a literal of another type");
+        if (MAREA_G_IsWrongCondition(context, MAREA_SemaChildAt(list, 0)) == MAREA_BOOLEAN_TRUE) {
+            return MAREA_G_ReportArgument(context, MAREA_AstNodeGetPosition(MAREA_SemaChildAt(list, 0)), name, "needs a boolean condition");
         }
 
         return (MAREA_G_IsWrongText(MAREA_SemaChildAt(list, 1)) == MAREA_BOOLEAN_TRUE) ? MAREA_G_ReportArgument(context, MAREA_AstNodeGetPosition(MAREA_SemaChildAt(list, 1)), name, "needs a string literal message") : MAREA_SEMA_EXCEPT_SUCCESS;

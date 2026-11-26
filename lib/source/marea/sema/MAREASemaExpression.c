@@ -791,6 +791,25 @@ MAREA_Boolean MAREA_CALL MAREA_SemaIsSurelyNotBoolean(const MAREA_SemaContext *c
     }
 }
 
+MAREA_Boolean MAREA_CALL MAREA_SemaIsSurelyNotPrintable(const MAREA_SemaContext *context, const MAREA_AstNode *expression)
+{
+    const MAREA_G_Shape shape = MAREA_G_ShapeOf(context, expression, 0);
+
+    switch (shape.kind) {
+    case MAREA_G_SHAPE_KIND_STRUCTURE:
+    case MAREA_G_SHAPE_KIND_ENUM:
+    case MAREA_G_SHAPE_KIND_BUILTIN:
+    case MAREA_G_SHAPE_KIND_NONE:
+    case MAREA_G_SHAPE_KIND_REGISTERED:
+    case MAREA_G_SHAPE_KIND_VIEW:
+    case MAREA_G_SHAPE_KIND_FUNCTION:
+        return MAREA_BOOLEAN_TRUE;
+    // INFO: a literal and a primitive print, and an unknown shape, a generic parameter and a library type may print.
+    default:
+        return MAREA_BOOLEAN_FALSE;
+    }
+}
+
 MAREA_Boolean MAREA_CALL MAREA_SemaExpressionIsKnownNotArray(const MAREA_SemaContext *context, const MAREA_AstNode *expression)
 {
     const MAREA_G_Shape shape = MAREA_G_ShapeOf(context, expression, 0);
