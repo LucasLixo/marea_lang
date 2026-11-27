@@ -3,54 +3,79 @@
 
 #include "marea/base/MAREAMemoryRuntime.h"
 
-// TODO: not implemented yet.
+#include "marea/base/MAREACMemoryRuntime.h"
+
+// INFO: the alignment of the one block of an arena. A part that asks for more is aligned by its address.
+#define MAREA_G_ARENA_ALIGNMENT MAREA_UINTEGER_64(16)
+
 void MAREA_CALL MAREA_MemoryOwnedCreate(MAREA_HostContext *context, MAREA_MemoryOwnedHeader *owned, MAREA_Uinteger64 size, MAREA_Uinteger64 alignment)
 {
-    MAREA_IGNORE(context);
-    MAREA_IGNORE(owned);
-    MAREA_IGNORE(size);
-    MAREA_IGNORE(alignment);
+    const MAREA_Uinteger64 BLOCK = MAREA_CMemoryAllocate(context, size, alignment);
+
+    if (BLOCK != MAREA_UINTEGER_64(0)) {
+        owned->data = BLOCK;
+    }
 }
 
-// TODO: not implemented yet.
 void MAREA_CALL MAREA_MemoryOwnedDestroy(MAREA_HostContext *context, MAREA_MemoryOwnedHeader *owned)
 {
-    MAREA_IGNORE(context);
-    MAREA_IGNORE(owned);
+    if (owned->data != MAREA_UINTEGER_64(0)) {
+        MAREA_CMemoryFree(context, owned->data);
+
+        owned->data = MAREA_UINTEGER_64(0);
+    }
 }
 
-// TODO: not implemented yet.
 MAREA_Uinteger64 MAREA_CALL MAREA_MemorySliceElement(const MAREA_MemorySliceHeader *slice, MAREA_Uinteger64 index, MAREA_Uinteger64 stride)
 {
-    MAREA_IGNORE(slice);
-    MAREA_IGNORE(index);
-    MAREA_IGNORE(stride);
-
-    return MAREA_UINTEGER_64(0);
+    return (index < slice->size) ? MAREA_CMemoryOffset(slice->data, (MAREA_Sinteger64)index, stride) : MAREA_UINTEGER_64(0);
 }
 
-// TODO: not implemented yet.
 void MAREA_CALL MAREA_MemoryArenaCreate(MAREA_HostContext *context, MAREA_MemoryArenaHeader *arena, MAREA_Uinteger64 capacity)
 {
-    MAREA_IGNORE(context);
-    MAREA_IGNORE(arena);
-    MAREA_IGNORE(capacity);
+    const MAREA_Uinteger64 BLOCK = MAREA_CMemoryAllocate(context, capacity, MAREA_G_ARENA_ALIGNMENT);
+
+    if (BLOCK != MAREA_UINTEGER_64(0)) {
+        arena->data = BLOCK;
+        arena->capacity = capacity;
+        arena->used = MAREA_UINTEGER_64(0);
+    }
 }
 
-// TODO: not implemented yet.
 MAREA_Uinteger64 MAREA_CALL MAREA_MemoryArenaAllocate(MAREA_HostContext *context, MAREA_MemoryArenaHeader *arena, MAREA_Uinteger64 size, MAREA_Uinteger64 alignment)
 {
-    MAREA_IGNORE(context);
-    MAREA_IGNORE(arena);
-    MAREA_IGNORE(size);
-    MAREA_IGNORE(alignment);
+    if ((arena->data != MAREA_UINTEGER_64(0)) && (alignment != MAREA_UINTEGER_64(0)) && ((alignment & (alignment - MAREA_UINTEGER_64(1))) == MAREA_UINTEGER_64(0))) {
+        const MAREA_Uinteger64 NEXT = arena->data + arena->used;
+
+        // INFO: the bytes up to the next multiple of a power of two, with unsigned wraparound.
+        const MAREA_Uinteger64 PADDING = (MAREA_UINTEGER_64(0) - NEXT) & (alignment - MAREA_UINTEGER_64(1));
+
+        const MAREA_Uinteger64 LEFT = arena->capacity - arena->used;
+
+        // INFO: both tests subtract from what is left, so no sum can wrap.
+        if ((PADDING <= LEFT) && (size <= (LEFT - PADDING))) {
+            const MAREA_Uinteger64 ADDRESS = NEXT + PADDING;
+
+            arena->used += PADDING + size;
+
+            MAREA_CMemoryFillBytes(ADDRESS, MAREA_UINTEGER_8(0), size);
+
+            return ADDRESS;
+        }
+    }
+
+    MAREA_HostContextRaiseTrap(context, MAREA_HOST_TRAP_OUT_OF_MEMORY);
 
     return MAREA_UINTEGER_64(0);
 }
 
-// TODO: not implemented yet.
 void MAREA_CALL MAREA_MemoryArenaDestroy(MAREA_HostContext *context, MAREA_MemoryArenaHeader *arena)
 {
-    MAREA_IGNORE(context);
-    MAREA_IGNORE(arena);
+    if (arena->data != MAREA_UINTEGER_64(0)) {
+        MAREA_CMemoryFree(context, arena->data);
+
+        arena->data = MAREA_UINTEGER_64(0);
+        arena->capacity = MAREA_UINTEGER_64(0);
+        arena->used = MAREA_UINTEGER_64(0);
+    }
 }
