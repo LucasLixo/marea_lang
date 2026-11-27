@@ -10,10 +10,9 @@ Part of the [reconcile-temp-logs](../SKILL.md) skill. This file is a complete pr
    a. Create `LOG_BLOCKS.md` in this run's backup folder (see the Requirements of
       [SKILL.md](../SKILL.md)), one file per run.
    b. Write a `# Apply log backup` title, one line naming the run timestamp, then the collected
-      blocks verbatim under `## From _LOG_HANDOFF.md`, `## From _LOG_APPLY_SUCCESS.md`,
-      `## From _LOG_HANDOFF_SUCCESS.md` (omit an empty group). Phase 1-3 copies of error entries
-      are appended to this same file under `## From _LOG_APPLY_ERROR.md` and
-      `## From _LOG_HANDOFF_ERROR.md`, so create the file when the first block of the run is
+      blocks verbatim under `## From _LOG_HANDOFF.md` (omit if empty). Phase 1-3 copies of
+      resolved entries are appended to this same file under `## From _LOG_APPLY_ERROR.md` and
+      `## From _LOG_APPLY_OPEN_POINTS.md`, so create the file when the first block of the run is
       copied, whichever phase it comes from.
    c. Read the file back and confirm every block is present, then remove the collected blocks
       from their source logs.
