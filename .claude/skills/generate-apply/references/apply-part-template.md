@@ -130,10 +130,10 @@ one part per gated, ordered unit, never past about 80 lines. The common shapes:
 - `04-merge-and-finish.md` runs `... merge --base <root-branch>`, which leaves the tree on
   `<root-branch>`. Then, only when `../../../_LIST_HANDOFF.md`'s "<exact handoff title>" section now
   has every row `[x]` or `[-]`, it closes the handoff out with
-  `lua tools/marea-ship/main.lua open-pr --base <base> --title "<handoff title>" --issue <root-n> --merge`
-  and adds a closing entry to `../../../_LOG_HANDOFF_SUCCESS.md`'s matching section (and a matching
-  `../../../_LOG_HANDOFF_ERROR.md` entry if anything real is still open) - before the per-apply
-  bookkeeping below.
+  `lua tools/marea-ship/main.lua open-pr --base <base> --title "<handoff title>" --issue <root-n> --merge`.
+  A handoff has no outcome log of its own - this closing apply's own per-apply bookkeeping below
+  (`../../../_LOG_APPLY_ERROR.md`/`../../../_LOG_APPLY_OPEN_POINTS.md`) is the handoff's outcome
+  record too, per [generate-handoff](../../generate-handoff/references/outcome-logs.md).
 
 `<root-n>` and `<root-branch>` stay literal placeholders in every handoff-batch part, resolved the
 same way `<n>` already is: by whichever session executes `01-setup.md` first, and read back by
@@ -167,10 +167,14 @@ writing the parts - the executing session should find a branch name, not a varia
 
 The tail of the LAST part, after whatever merge/cleanup actions the variant above adds:
 
-1. Tick this apply's row in `../../../_LIST_APPLY.md` and fill its Issue column. Always record
-   a success entry in `../../../_LOG_APPLY_SUCCESS.md` (verification counts, a harmless deviation,
-   a fact the next apply can rely on) and, only when something is left open, wrong, or
-   inconvenient, also an error entry in `../../../_LOG_APPLY_ERROR.md` - the list holds only the
+1. Tick this apply's row in `../../../_LIST_APPLY.md` and fill its Issue column. Before writing
+   anything new, check `../../../_LOG_APPLY_OPEN_POINTS.md` and `../../../_LOG_APPLY_ERROR.md`
+   ([logs.md](logs.md)) for an entry this apply resolved, and remove that entry's mention as part
+   of finishing - never because the apply is merely done, only because the thing it described is
+   now actually resolved. Then, only when something qualifies, record an error entry in
+   `../../../_LOG_APPLY_ERROR.md` (a confirmed bug or broken check seen during this apply) and an
+   open-points entry in `../../../_LOG_APPLY_OPEN_POINTS.md` (a deferred feature, a known gap, a
+   decision waiting on the user, a harmless deviation, a check not run) - the list holds only the
    table, never prose.
 2. When the `handoff:` header field is filled, tick this apply's row in that section of
    `../../../_LIST_HANDOFF.md` too and fill its Issue column. The two lists stay in step - an
