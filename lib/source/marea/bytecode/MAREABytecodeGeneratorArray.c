@@ -70,6 +70,23 @@ static const MAREA_TypeDescriptor *MAREA_CALL MAREA_G_DescribeSpelling(const MAR
     return MAREA_NULLPTR;
 }
 
+const MAREA_TypeDescriptor *MAREA_CALL MAREA_BytecodeGeneratorDescribe(const MAREA_BytecodeGenerator *generator, const MAREA_Character8 *text, MAREA_IntegerSize length)
+{
+    if ((generator->context->registry == MAREA_NULLPTR) || (text == MAREA_NULLPTR)) {
+        return MAREA_NULLPTR;
+    }
+
+    const MAREA_IntegerSize HEAD = MAREA_G_HeadLength(text, length);
+
+    if ((HEAD >= length) || (text[HEAD] != '<')) {
+        return MAREA_NULLPTR;
+    }
+
+    const MAREA_TypeDescriptor *descriptor = MAREA_G_Describe(generator, text, HEAD);
+
+    return (descriptor != MAREA_NULLPTR) ? descriptor : MAREA_G_DescribeSpelling(generator, generator->root, text, HEAD);
+}
+
 // INFO: splits the resolved spelling of a run into its element and, for an inline run, its literal count. The shapes
 // are the ones that sema reads: an index protocol and no role; an inline run, head<element,count>, has a copy class
 // and two type parameters; a growable run, head<element>, a move class and one.
@@ -167,6 +184,13 @@ MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorRunKind(MAREA_BytecodeGen
     MAREA_IntegerSize elementLength = MAREA_INTEGER_SIZE(0);
     MAREA_Uinteger64 count = MAREA_UINTEGER_64(0);
     MAREA_Boolean isVector = MAREA_BOOLEAN_FALSE;
+
+    const MAREA_TypeDescriptor *descriptor = MAREA_BytecodeGeneratorDescribe(generator, text, length);
+
+    // INFO: a tuple is passed and held by its bytes, as a run is.
+    if ((descriptor != MAREA_NULLPTR) && MAREA_TYPE_DESCRIPTOR_IS_TUPLE(descriptor)) {
+        return MAREA_BytecodeGeneratorTupleKind(generator, node, text, length, outAggregateIndex);
+    }
 
     if (!MAREA_G_SplitRun(generator, text, length, &element, &elementLength, &count, &isVector)) {
         return MAREA_BYTECODE_EXCEPT_SUCCESS;
@@ -325,6 +349,10 @@ MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorElementPlace(MAREA_Byteco
         return MAREA_BytecodeGeneratorVectorPlace(generator, node, run, base, outRegister);
     }
 
+    if (generator->aggregates[run].isTuple) {
+        return MAREA_BytecodeGeneratorTuplePlace(generator, node, run, base, outRegister, outKind, outAggregateIndex);
+    }
+
     if (!generator->aggregates[run].isRun) {
         return MAREA_BytecodeGeneratorFail(generator, node, MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_CONSTRUCT, "Only an array or a vector is indexed.");
     }
@@ -352,7 +380,7 @@ MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorElementPlace(MAREA_Byteco
 }
 
 // INFO: stores one value at the address of an element.
-static MAREA_BytecodeExcept MAREA_CALL MAREA_G_StoreElement(MAREA_BytecodeGenerator *generator, const MAREA_IrNode *value, MAREA_Uinteger32 address, MAREA_Uinteger8 kind, MAREA_Uinteger32 aggregateIndex)
+MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorStoreElement(MAREA_BytecodeGenerator *generator, const MAREA_IrNode *value, MAREA_Uinteger32 address, MAREA_Uinteger8 kind, MAREA_Uinteger32 aggregateIndex)
 {
     if (kind == MAREA_BYTECODE_GENERATOR_KIND_AGGREGATE) {
         return MAREA_BytecodeGeneratorConstructAggregate(generator, value, address, aggregateIndex);
@@ -521,6 +549,10 @@ MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorRunCall(MAREA_BytecodeGen
 
     *outHandled = MAREA_BOOLEAN_TRUE;
 
+    if (generator->aggregates[run].isTuple) {
+        return MAREA_BytecodeGeneratorTupleCall(generator, node, run, outKind);
+    }
+
     if (generator->aggregates[run].isVector && !IS_STATIC) {
         return MAREA_BytecodeGeneratorVectorCall(generator, node, run, destination, outKind);
     }
@@ -634,7 +666,7 @@ MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorConstructRun(MAREA_Byteco
             positionKnown = MAREA_BOOLEAN_FALSE;
         }
 
-        MAREA_BYTECODE_TRY(MAREA_G_StoreElement(generator, value, address, RUN.elementKind, RUN.elementAggregate));
+        MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorStoreElement(generator, value, address, RUN.elementKind, RUN.elementAggregate));
 
         generator->nextRegister = MARK;
     }

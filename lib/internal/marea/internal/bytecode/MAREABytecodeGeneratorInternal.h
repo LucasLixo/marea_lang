@@ -86,6 +86,18 @@ MAREA_BEGIN_EXTERN_C
     } MAREA_BytecodeGeneratorSymbol;
 
     /**
+     * @brief One element of a tuple: where its bytes start and what they are. aggregate is MAREA_BYTECODE_NONE for a
+     * scalar.
+     */
+    typedef struct MAREA_BytecodeGeneratorElement
+    {
+        MAREA_Uinteger64 offset;
+        MAREA_Uinteger32 aggregate;
+        MAREA_Uinteger8 kind;
+        MAREA_Uinteger8 padding[3];
+    } MAREA_BytecodeGeneratorElement;
+
+    /**
      * @brief One structure that has been given a row of the bytecode type table: the IR declaration (for its field
      * list, read again whenever a field is read or written) and the row it was given (for size and alignment).
      * Cached by name the first time a local, a parameter or a field needs it, the same way MAREA_BytecodeGenerator's
@@ -110,6 +122,9 @@ MAREA_BEGIN_EXTERN_C
         MAREA_Boolean isRun;
         // INFO: a growable run: its bytes are the header of the runtime, and its elements are in storage of the allocator.
         MAREA_Boolean isVector;
+        // INFO: a tuple: a structure with no declaration, whose members are count elements named by their places.
+        MAREA_Boolean isTuple;
+        const MAREA_BytecodeGeneratorElement *elements;
     } MAREA_BytecodeGeneratorAggregate;
 
     /**
@@ -675,6 +690,42 @@ MAREA_BEGIN_EXTERN_C
      * @brief Builds a vector from a LITERAL_VALUE at a given address.
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorConstructVector(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node, MAREA_Uinteger32 destination, MAREA_Uinteger32 vector);
+
+    /**
+     * @brief The descriptor of the head of a type spelling, through an alias when a node of the module spells the
+     * same type, or null.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_TypeDescriptor *MAREA_CALL MAREA_BytecodeGeneratorDescribe(const MAREA_BytecodeGenerator *generator, const MAREA_Character8 *text, MAREA_IntegerSize length);
+
+    /**
+     * @brief The aggregate of the spelling of a tuple, or MAREA_BYTECODE_NONE when an element is not lowered.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorTupleKind(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node, const MAREA_Character8 *text, MAREA_IntegerSize length, MAREA_Uinteger32 *outAggregateIndex);
+
+    /**
+     * @brief The address of the element that the literal index of an INDEX_ACCESS names in a tuple at base.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorTuplePlace(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node, MAREA_Uinteger32 tuple, MAREA_Uinteger32 base, MAREA_Uinteger32 *outRegister, MAREA_Uinteger8 *outKind, MAREA_Uinteger32 *outAggregateIndex);
+
+    /**
+     * @brief Writes a tuple literal into the bytes at an address.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorConstructTuple(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node, MAREA_Uinteger32 destinationAddress, MAREA_Uinteger32 tuple);
+
+    /**
+     * @brief Lowers the call of swap on a tuple.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorTupleCall(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node, MAREA_Uinteger32 tuple, MAREA_Uinteger8 *outKind);
+
+    /**
+     * @brief Lowers == or != of two tuples of one type, element by element.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorTupleComparison(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node, MAREA_Uinteger32 tuple, MAREA_Uinteger32 destination);
+
+    /**
+     * @brief Stores one value of a literal at the address of an element.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorStoreElement(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *value, MAREA_Uinteger32 address, MAREA_Uinteger8 kind, MAREA_Uinteger32 aggregateIndex);
 
 MAREA_END_EXTERN_C
 

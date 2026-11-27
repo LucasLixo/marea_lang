@@ -311,6 +311,17 @@ static MAREA_BytecodeExcept MAREA_CALL MAREA_G_LowerComparison(MAREA_BytecodeGen
 {
     const MAREA_Uinteger32 MARK = generator->nextRegister;
 
+    MAREA_Uinteger8 writtenKind = MAREA_BYTECODE_GENERATOR_KIND_NONE;
+    MAREA_Uinteger32 written = MAREA_BYTECODE_NONE;
+
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorAggregateKind(generator, MAREA_BytecodeGeneratorChildAt(node, MAREA_INTEGER_SIZE(0)), &writtenKind, &written));
+
+    if ((writtenKind == MAREA_BYTECODE_GENERATOR_KIND_AGGREGATE) && generator->aggregates[written].isTuple) {
+        *outKind = MAREA_BYTECODE_GENERATOR_KIND_BOOLEAN;
+
+        return MAREA_BytecodeGeneratorTupleComparison(generator, node, written, destination);
+    }
+
     MAREA_Uinteger32 left = MAREA_UINTEGER_32(0);
     MAREA_Uinteger32 right = MAREA_UINTEGER_32(0);
     MAREA_Uinteger8 leftKind = MAREA_BYTECODE_GENERATOR_KIND_NONE;
@@ -738,6 +749,10 @@ MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorConstructAggregate(MAREA_
 
     if ((MAREA_IrNodeGetKind(node) == MAREA_IR_KIND_LITERAL_VALUE) && AGGREGATE.isRun) {
         return MAREA_BytecodeGeneratorConstructRun(generator, node, destinationAddress, aggregateIndex);
+    }
+
+    if ((MAREA_IrNodeGetKind(node) == MAREA_IR_KIND_LITERAL_VALUE) && AGGREGATE.isTuple) {
+        return MAREA_BytecodeGeneratorConstructTuple(generator, node, destinationAddress, aggregateIndex);
     }
 
     if (MAREA_IrNodeGetKind(node) == MAREA_IR_KIND_LITERAL_VALUE) {

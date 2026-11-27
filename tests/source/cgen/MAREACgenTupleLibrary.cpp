@@ -96,3 +96,41 @@ TEST(MAREACgenTupleLibrary, SwapCopyAndMoveExchangeOrDuplicateTheElements)
 
     EXPECT_EQ(MAREA_parityValue(RESULT.MAREA_outcome("v()")), 32) << "The vector moved out and the other element stays.";
 }
+
+TEST(MAREACgenTupleLibrary, TuplesPassToCallsAndLiveInStructuresAndVectors)
+{
+    GTEST_COUT << "Validating a read and a write borrow of a tuple, a tuple in a structure field and in a vector." << std::endl;
+
+    const std::string RANGE{ "marea.tuple.Tuple<sinteger32, sinteger32>" };
+
+    const std::string V{ "marea.vector.Vector<" + RANGE + ">" };
+
+    const MAREA_ParityResult RESULT{ MAREA_run("structure Box tag: uinteger8; value: " + RANGE + "; end function sum(t: " + RANGE + "): sinteger32 return t[0] + t[1]; end function bump(#[semantics = reference_mutable] t: " + RANGE + ") t[1] += 10; end function p(): sinteger32 local t: " + RANGE + " = " + RANGE + "{ 1, 2 }; bump(t); return (sum(t) * 100) + t[1]; end function s(): sinteger32 local b: Box = Box{ tag = 1, value = " + RANGE + "{ 3, 4 } }; b.value[0] = 5; local same: boolean = b.value == " + RANGE + "{ 5, 4 }; if same then return sum(b.value); end return 0; end function w(): sinteger32 local v: " + V + " = " + V + "{ " + RANGE + "{ 1, 2 } }; v.append(" + RANGE + "{ 3, 4 }); v[0][1] = 7; return (v[0][1] * 10) + v[1][0]; end") };
+
+    ASSERT_TRUE(RESULT.failures.empty()) << RESULT.MAREA_failures();
+
+    EXPECT_EQ(MAREA_parityValue(RESULT.MAREA_outcome("p()")), 1312) << "The write borrow changed the tuple of the caller.";
+
+    EXPECT_EQ(MAREA_parityValue(RESULT.MAREA_outcome("s()")), 9) << "A tuple in a structure field.";
+
+    EXPECT_EQ(MAREA_parityValue(RESULT.MAREA_outcome("w()")), 73) << "Tuples in a vector.";
+}
+
+TEST(MAREACgenTupleLibrary, TuplesThatOwnStorageAreReturnedReplacedAndCopiedWithTheirStructure)
+{
+    GTEST_COUT << "Validating the storage of a vector held by a tuple has one owner in every path." << std::endl;
+
+    const std::string V{ "marea.vector.Vector<sinteger32>" };
+
+    const std::string HELD{ "marea.tuple.Tuple<" + V + ", sinteger32>" };
+
+    const MAREA_ParityResult RESULT{ MAREA_run("structure Box value: " + HELD + "; end function make(n: sinteger32): " + HELD + " return " + HELD + "{ " + V + "{ n, n }, n }; end function r(): sinteger32 local t: " + HELD + " = make(1); t = make(2); t = make(3); return t[0][1] + t[1]; end function c(): sinteger32 local a: Box = Box{ value = make(4) }; local b: Box = copy a; b.value[0][0] = 9; return (a.value[0][0] * 10) + b.value[0][0]; end function d(): sinteger32 local total: sinteger32 = 0; for i in 0..3 do local t: " + HELD + " = make(i); total += t[0][0]; end local kept: " + HELD + " = make(5); local other: " + HELD + " = make(6); kept.swap(other); return total + kept[0][0] + other[1]; end") };
+
+    ASSERT_TRUE(RESULT.failures.empty()) << RESULT.MAREA_failures();
+
+    EXPECT_EQ(MAREA_parityValue(RESULT.MAREA_outcome("r()")), 6) << "A returned tuple replaces the old one.";
+
+    EXPECT_EQ(MAREA_parityValue(RESULT.MAREA_outcome("c()")), 49) << "The copy has its own storage.";
+
+    EXPECT_EQ(MAREA_parityValue(RESULT.MAREA_outcome("d()")), 17) << "A tuple of a loop and a swap of two owners.";
+}

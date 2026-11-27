@@ -602,7 +602,7 @@ MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorTextKind(MAREA_BytecodeGe
 
 MAREA_Boolean MAREA_CALL MAREA_BytecodeGeneratorAggregateField(const MAREA_BytecodeGenerator *generator, MAREA_Uinteger32 aggregateIndex, const MAREA_Character8 *name, MAREA_IntegerSize length, MAREA_Uinteger64 *outOffset, const MAREA_IrNode **outField)
 {
-    if ((aggregateIndex >= generator->aggregateCount) || generator->aggregates[aggregateIndex].isRun || generator->aggregates[aggregateIndex].isVector) {
+    if ((aggregateIndex >= generator->aggregateCount) || generator->aggregates[aggregateIndex].isRun || generator->aggregates[aggregateIndex].isVector || generator->aggregates[aggregateIndex].isTuple) {
         return MAREA_BOOLEAN_FALSE;
     }
 

@@ -84,7 +84,13 @@ static MAREA_BytecodeExcept MAREA_CALL MAREA_G_Needs(MAREA_BytecodeGenerator *ge
         return MAREA_BYTECODE_EXCEPT_SUCCESS;
     }
 
-    const MAREA_IntegerSize COUNT = MAREA_IrNodeGetChildCount(AGGREGATE.declaration);
+    for (MAREA_Uinteger64 element = MAREA_UINTEGER_64(0); AGGREGATE.isTuple && (element < AGGREGATE.count) && !*outNeeds; element += MAREA_UINTEGER_64(1)) {
+        if (AGGREGATE.elements[element].aggregate != MAREA_BYTECODE_NONE) {
+            MAREA_BYTECODE_TRY(MAREA_G_Needs(generator, AGGREGATE.elements[element].aggregate, (depth + MAREA_UINTEGER_32(1)), outNeeds));
+        }
+    }
+
+    const MAREA_IntegerSize COUNT = AGGREGATE.isTuple ? MAREA_INTEGER_SIZE(0) : MAREA_IrNodeGetChildCount(AGGREGATE.declaration);
 
     for (MAREA_IntegerSize child = MAREA_INTEGER_SIZE(0); (child < COUNT) && !*outNeeds; child += MAREA_INTEGER_SIZE(1)) {
         MAREA_Uinteger32 field = MAREA_BYTECODE_NONE;
@@ -306,6 +312,21 @@ static MAREA_BytecodeExcept MAREA_CALL MAREA_G_Drop(MAREA_BytecodeGenerator *gen
             MAREA_BYTECODE_TRY(MAREA_G_Constant(generator, node, AGGREGATE.count, &count));
             MAREA_BYTECODE_TRY(MAREA_G_DropElements(generator, node, address, count, aggregateIndex, isElement, depth));
         }
+    } else if (AGGREGATE.isTuple) {
+        for (MAREA_Uinteger64 element = AGGREGATE.count; element > MAREA_UINTEGER_64(0); element -= MAREA_UINTEGER_64(1)) {
+            const MAREA_BytecodeGeneratorElement ELEMENT = AGGREGATE.elements[(element - MAREA_UINTEGER_64(1))];
+
+            MAREA_Boolean needs = MAREA_BOOLEAN_FALSE;
+
+            MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorNeedsDrop(generator, ELEMENT.aggregate, &needs));
+
+            if (needs) {
+                MAREA_Uinteger32 member = MAREA_UINTEGER_32(0);
+
+                MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorAt(generator, node, address, ELEMENT.offset, &member));
+                MAREA_BYTECODE_TRY(MAREA_G_Drop(generator, node, member, ELEMENT.aggregate, MAREA_BOOLEAN_FALSE, (depth + MAREA_UINTEGER_32(1))));
+            }
+        }
     } else {
         for (MAREA_IntegerSize child = MAREA_IrNodeGetChildCount(AGGREGATE.declaration); child > MAREA_INTEGER_SIZE(0); child -= MAREA_INTEGER_SIZE(1)) {
             MAREA_Uinteger32 field = MAREA_BYTECODE_NONE;
@@ -438,8 +459,26 @@ static MAREA_BytecodeExcept MAREA_CALL MAREA_G_DeepCopy(MAREA_BytecodeGenerator 
             MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorEmit(generator, MAREA_BYTECODE_OPCODE_COPY_BYTES, destination, source, (MAREA_Uinteger32)AGGREGATE.size, MAREA_NULLPTR));
         }
 
+        // INFO: the bytes hold the other elements; each element with storage gets a copy of its own over them.
+        for (MAREA_Uinteger64 element = MAREA_UINTEGER_64(0); needs && AGGREGATE.isTuple && (element < AGGREGATE.count); element += MAREA_UINTEGER_64(1)) {
+            const MAREA_BytecodeGeneratorElement ELEMENT = AGGREGATE.elements[element];
+
+            MAREA_Boolean elementNeeds = MAREA_BOOLEAN_FALSE;
+
+            MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorNeedsDrop(generator, ELEMENT.aggregate, &elementNeeds));
+
+            if (elementNeeds) {
+                MAREA_Uinteger32 target = MAREA_UINTEGER_32(0);
+                MAREA_Uinteger32 member = MAREA_UINTEGER_32(0);
+
+                MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorAt(generator, node, destination, ELEMENT.offset, &target));
+                MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorAt(generator, node, source, ELEMENT.offset, &member));
+                MAREA_BYTECODE_TRY(MAREA_G_DeepCopy(generator, node, target, member, ELEMENT.aggregate, (depth + MAREA_UINTEGER_32(1))));
+            }
+        }
+
         // INFO: the bytes hold the other fields; each field with storage gets a copy of its own over them.
-        for (MAREA_IntegerSize child = MAREA_INTEGER_SIZE(0); needs && (child < MAREA_IrNodeGetChildCount(AGGREGATE.declaration)); child += MAREA_INTEGER_SIZE(1)) {
+        for (MAREA_IntegerSize child = MAREA_INTEGER_SIZE(0); needs && !AGGREGATE.isTuple && (child < MAREA_IrNodeGetChildCount(AGGREGATE.declaration)); child += MAREA_INTEGER_SIZE(1)) {
             MAREA_Uinteger32 field = MAREA_BYTECODE_NONE;
             MAREA_Uinteger64 offset = MAREA_UINTEGER_64(0);
             MAREA_Boolean fieldNeeds = MAREA_BOOLEAN_FALSE;
