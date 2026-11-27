@@ -1485,10 +1485,10 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
   character and an enum from the build are converted for the check but never folded for `static_assert!`.
 - The `auto` backend has the start rule only (decision 18): the table of the best backend per operation does not exist.
   Backend rows that need a library that does not exist yet (`marea.math`) are proven by files written in the tests under that
-  namespace, and a project file under the root `marea` is always `RESERVED_NAMESPACE_ROOT`, so a shipped `marea.math` file
-  cannot pass the checks of sema clean until a shipped-file entry exists. The entry is the shipped library source input; the
-  source of `marea.math` does not hold all its types yet.
-- `marea.math` is checked by sema, and its C functions run only from C. No backend lowers a structure of another
+  namespace. A project file under the root `marea` is always `RESERVED_NAMESPACE_ROOT`; the shipped source of
+  `marea.math` passes the checks of sema with the shipped library source input.
+- `marea.math` is checked by sema, and its C functions run only from C. The matrices and the quaternion of its source
+  file have no operator and no C function. No backend lowers a structure of another
   namespace, so a program cannot run a vector of `marea.math`: the `vm` and `cgen` refuse a local or a parameter of such
   a type. The ir raises 4006 for an operator applied to a value of such a type.
 - The result of a registered function is not compared with the declared type of its place, as for any `EXTERNAL`
