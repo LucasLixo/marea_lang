@@ -44,13 +44,13 @@ MAREA_BEGIN_EXTERN_C
      * @param target String to grow and append to. Must not be null and must not alias suffix.
      * @param suffix String whose bytes are appended. Must not be null and must not alias target.
      */
-    MAREA_EXTERN_DECL void MAREA_CALL MAREA_CStringAppend(MAREA_HostContext *context, MAREA_String *target, const MAREA_String *suffix);
+    MAREA_EXTERN_DECL void MAREA_CALL MAREA_CStringAppend(MAREA_HostContext * context, MAREA_String * target, const MAREA_String *suffix);
 
     /**
      * @brief Sets target's length to zero. Does not touch target's capacity and does not free its block.
      * @param target String to clear. Must not be null.
      */
-    MAREA_EXTERN_DECL void MAREA_CALL MAREA_CStringClear(MAREA_String *target);
+    MAREA_EXTERN_DECL void MAREA_CALL MAREA_CStringClear(MAREA_String * target);
 
     /**
      * @brief Compares left and right by byte order. A string that is a prefix of a longer one compares
