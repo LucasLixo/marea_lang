@@ -20,7 +20,7 @@ namespace
     {
         return MAREA_matrixOf<MAREA_MathMatrix3x3Sinteger32>(MAREA_integerColumns(3, values));
     }
-}
+} // namespace
 
 TEST(MAREAMathMatrix3x3, Layout)
 {

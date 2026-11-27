@@ -96,7 +96,7 @@ namespace
             (P(3, 3) - P(0, 0)) - (P(1, 1) + P(2, 2))
         };
     }
-}
+} // namespace
 
 TEST(MAREAMathQuaternion, Layout)
 {
@@ -264,17 +264,17 @@ TEST(MAREAMathQuaternion, SphericalMixTakesTheShortestArc)
     for (const MAREA_FloatPair &pair : MAREA_vectorPairCases()) {
         const MAREA_FloatLanes START{ MAREA_referenceQuaternionNormalize(pair.first) };
 
-        const MAREA_FloatLanes END{ MAREA_referenceQuaternionNormalize(pair.second) };
+        const MAREA_FloatLanes STOP{ MAREA_referenceQuaternionNormalize(pair.second) };
 
         const MAREA_MathQuaternionFloat32 LEFT{ MAREA_quaternion(START) };
 
-        const MAREA_MathQuaternionFloat32 RIGHT{ MAREA_quaternion(END) };
+        const MAREA_MathQuaternionFloat32 RIGHT{ MAREA_quaternion(STOP) };
 
         MAREA_MathQuaternionFloat32 result{ MAREA_garbage<MAREA_MathQuaternionFloat32>() };
 
         MAREA_MathSphericalMixQuaternionFloat32(&LEFT, &RIGHT, MAREA_mixParameter(index), &result);
 
-        MAREA_expectFloats(result, MAREA_referenceSphericalMix(START, END, MAREA_mixParameter(index)), 4, "spherical mix", index);
+        MAREA_expectFloats(result, MAREA_referenceSphericalMix(START, STOP, MAREA_mixParameter(index)), 4, "spherical mix", index);
 
         ++index;
     }
@@ -288,17 +288,17 @@ TEST(MAREAMathQuaternion, SphericalMixAtTheEndsAndOnTheOtherHemisphere)
 
     const MAREA_MathQuaternionFloat32 START{ MAREA_quaternion(MAREA_QUATERNION_IDENTITY) };
 
-    const MAREA_MathQuaternionFloat32 END{ MAREA_quaternion(TURN) };
+    const MAREA_MathQuaternionFloat32 STOP{ MAREA_quaternion(TURN) };
 
     const MAREA_MathQuaternionFloat32 NEGATED{ MAREA_quaternion({ -0.0F, -TURN[1], -0.0F, -TURN[3] }) };
 
     MAREA_MathQuaternionFloat32 result{ MAREA_garbage<MAREA_MathQuaternionFloat32>() };
 
-    MAREA_MathSphericalMixQuaternionFloat32(&START, &END, 0.0F, &result);
+    MAREA_MathSphericalMixQuaternionFloat32(&START, &STOP, 0.0F, &result);
 
     MAREA_expectNear(result, MAREA_QUATERNION_IDENTITY, 1.0e-5F, "start");
 
-    MAREA_MathSphericalMixQuaternionFloat32(&START, &END, 1.0F, &result);
+    MAREA_MathSphericalMixQuaternionFloat32(&START, &STOP, 1.0F, &result);
 
     MAREA_expectNear(result, TURN, 1.0e-5F, "end");
 

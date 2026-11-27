@@ -50,7 +50,7 @@ namespace
             EXPECT_NEAR(actual[lane], expected[lane], tolerance) << label << " lane " << lane;
         }
     }
-}
+} // namespace
 
 TEST(MAREAMathMatrix4x4, Layout)
 {
