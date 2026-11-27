@@ -52,6 +52,15 @@ if(NOT TARGET marea::cgen OR NOT TARGET marea::vm)
     list(FILTER MAREA_TESTS_SOURCES EXCLUDE REGEX "/source/language/MAREALanguageParity\\.cpp$")
 endif()
 
+# INFO: marea-bc/marea-cc's own GoogleTest sources exist only when their executable's own option is ON.
+if(NOT TARGET marea-bc-driver)
+    list(FILTER MAREA_TESTS_SOURCES EXCLUDE REGEX "/source/apps/marea-bc/")
+endif()
+
+if(NOT TARGET marea-cc-driver)
+    list(FILTER MAREA_TESTS_SOURCES EXCLUDE REGEX "/source/apps/marea-cc/")
+endif()
+
 add_executable(marea_tests ${MAREA_TESTS_SOURCES})
 
 target_include_directories(marea_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include" "${CMAKE_CURRENT_SOURCE_DIR}")
@@ -62,12 +71,22 @@ target_link_libraries(marea_tests PRIVATE marea::include GTest::gtest_main)
 target_include_directories(marea_tests PRIVATE "${MAREA_FOLDER_LIB_INTERNAL}")
 
 # INFO: marea-cc/marea-bc's own internal/ headers, the same cpp-testing allowance as lib/internal
-# (apply marea-cc-and-bc-tools).
-target_include_directories(
-    marea_tests
-    PRIVATE "${MAREA_FOLDER_APPS}/marea-shared/internal" "${MAREA_FOLDER_APPS}/marea-bc/internal"
-)
-target_link_libraries(marea_tests PRIVATE marea-shared marea-bc-driver)
+# (apply marea-cc-and-bc-tools), each guarded on its own target so the tests still build when its
+# option is OFF.
+if(TARGET marea-shared)
+    target_include_directories(marea_tests PRIVATE "${MAREA_FOLDER_APPS}/marea-shared/internal")
+    target_link_libraries(marea_tests PRIVATE marea-shared)
+endif()
+
+if(TARGET marea-bc-driver)
+    target_include_directories(marea_tests PRIVATE "${MAREA_FOLDER_APPS}/marea-bc/internal")
+    target_link_libraries(marea_tests PRIVATE marea-bc-driver)
+endif()
+
+if(TARGET marea-cc-driver)
+    target_include_directories(marea_tests PRIVATE "${MAREA_FOLDER_APPS}/marea-cc/internal")
+    target_link_libraries(marea_tests PRIVATE marea-cc-driver)
+endif()
 
 target_compile_definitions(marea_tests PRIVATE "MAREA_TESTS_EXAMPLES_DIRECTORY=\"${MAREA_FOLDER_EXAMPLES}\"")
 
@@ -183,6 +202,24 @@ unset(TEMP_CASE)
 unset(TEMP_CASE_NAME)
 unset(TEMP_CASE_STUB_DIR)
 unset(TEMP_CASE_EXPECT)
+
+# Proves FindExecutable resolves the real, freshly built marea-cc/marea-bc of this repository (not a
+# stand-in) once their output directory is on CMAKE_PROGRAM_PATH, and that each real binary actually
+# runs end to end on a real ".marea" fixture (apply marea-cc-and-bc-tools, part 3). Needs both tools
+# buildable from this same source tree.
+if(MAREA_OPTION_TARGET_CC AND MAREA_OPTION_TARGET_BC)
+    add_test(
+        NAME MareaFunctions.RealTools
+        COMMAND
+            "${CMAKE_COMMAND}" "-DCHECK_SOURCE=${MAREA_FOLDER}"
+            "-DCHECK_TOOLS_BINARY=${CMAKE_CURRENT_BINARY_DIR}/MareaFunctionsRealToolsCheck/Tools"
+            "-DCHECK_FIXTURE_BINARY=${CMAKE_CURRENT_BINARY_DIR}/MareaFunctionsRealToolsCheck/Fixture"
+            "-DCHECK_GENERATOR=${CMAKE_GENERATOR}" "-DCHECK_C_COMPILER=${CMAKE_C_COMPILER}"
+            "-DCHECK_CXX_COMPILER=${CMAKE_CXX_COMPILER}" "-DCHECK_MAREA_ROOT=${MAREA_FOLDER}"
+            "-DCHECK_FIXTURE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/cmake/fixtures/MareaRealTools" -P
+            "${CMAKE_CURRENT_SOURCE_DIR}/cmake/CheckMareaFunctionsRealTools.cmake"
+    )
+endif()
 
 # SETTINGS/MAREA_SETTING_<NAME> normalization and override order (part of marea_add_library/marea_add_executable)
 set(MAREA_TESTS_SETTINGS_STUB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/cmake/fixtures/MareaStandIns")

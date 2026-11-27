@@ -13,7 +13,10 @@ unset(TEMP_GUARD_SET)
 # marea-shared comes first: both tool executables link it.
 add_subdirectory("${MAREA_FOLDER_APPS}/marea-shared" "${CMAKE_CURRENT_BINARY_DIR}/Marea-Shared")
 
-# INFO: marea-cc's own subdirectory and the MAREA_OPTION_TARGET_CC/MAREA_OPTION_TARGET_BC options are
-# added by the marea-cc-and-bc-tools apply's own part 3 (marea-cc-and-cmake-wiring); marea-bc builds
-# unconditionally here until that part gates both behind their options.
-add_subdirectory("${MAREA_FOLDER_APPS}/marea-bc" "${CMAKE_CURRENT_BINARY_DIR}/Marea-Bc")
+if(MAREA_OPTION_TARGET_CC)
+    add_subdirectory("${MAREA_FOLDER_APPS}/marea-cc" "${CMAKE_CURRENT_BINARY_DIR}/Marea-Cc")
+endif()
+
+if(MAREA_OPTION_TARGET_BC)
+    add_subdirectory("${MAREA_FOLDER_APPS}/marea-bc" "${CMAKE_CURRENT_BINARY_DIR}/Marea-Bc")
+endif()
