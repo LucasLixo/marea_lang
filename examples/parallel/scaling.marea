@@ -6,7 +6,7 @@
 --   1. fork_join ... end         the block. All started workers end before the "end".
 --   2. partition ... as part     cuts the value in disjoint parts, one body run for each part.
 --                                "mutable" gives each body exclusive write access to its part.
---   3. spawn call                starts one worker. It gives a c.threads.Task<T> with the result.
+--   3. spawn call                starts one worker. It gives a marea.tasks.Task<T> with the result.
 -- "part" is a reference that lives only in the body. A task is an owner, so the function can
 -- keep it in a local that was declared before the block: it goes up to the outer scope.
 -- The checker accepts a spawn only when its arguments are parts, or read-only data.
@@ -16,7 +16,7 @@ namespace parallel.scaling;
 require marea.array;
 require marea.vector;
 require c.memory;
-require c.threads;
+require marea.tasks;
 
 constant WORKER_COUNT: sinteger32 = 4;
 
@@ -46,7 +46,7 @@ end
 
 #[visibility = public]
 function sum_all(values: marea.array.Array<float32, 4>): float32
-    local tasks: marea.vector.Vector<c.threads.Task<float32>> = marea.vector.Vector<c.threads.Task<float32>>{};
+    local tasks: marea.vector.Vector<marea.tasks.Task<float32>> = marea.vector.Vector<marea.tasks.Task<float32>>{};
     fork_join
         partition values into WORKER_COUNT as part do
             tasks.append(spawn sum_slice(part));

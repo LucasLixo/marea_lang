@@ -63,6 +63,12 @@ function(MareaAddStageLibrary)
             target_link_libraries(${TEMP_TARGET} PUBLIC m)
         endif()
 
+        # The base library holds the real thread, mutex and atomic bindings of c.threads
+        if(PARAM_STAGE STREQUAL "base")
+            find_package(Threads REQUIRED)
+            target_link_libraries(${TEMP_TARGET} PUBLIC Threads::Threads)
+        endif()
+
         foreach(TEMP_LINK IN LISTS PARAM_LINK)
             target_link_libraries(${TEMP_TARGET} PUBLIC marea::${TEMP_LINK}_${TEMP_KIND_LOWER})
         endforeach()
