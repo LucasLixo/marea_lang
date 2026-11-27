@@ -151,7 +151,7 @@ TEST(MAREASemaOwnership, ArrayCopiesByValueAndVectorNeedsAWord)
 {
     GTEST_COUT << "Validating an array is assigned as a value and a vector needs copy or move." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("function f(a: demo.array<float32, 4>, b: demo.array<float32, 4>) a = b; end").empty()) << "An array must be assigned without a word.";
+    EXPECT_TRUE(MAREA_codesOf("function f(#[semantics = reference_mutable] a: demo.array<float32, 4>, b: demo.array<float32, 4>) a = b; end").empty()) << "An array must be assigned without a word.";
 
     EXPECT_EQ(MAREA_codesOf("function f(a: demo.vector<float32>, b: demo.vector<float32>) a = b; end"), Codes{ NEEDS_WORD }) << "A vector must raise ASSIGNMENT_NEEDS_COPY_OR_MOVE.";
 

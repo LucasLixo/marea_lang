@@ -1580,7 +1580,7 @@ static void MAREA_CALL MAREA_G_CallType(const MAREA_SemaContext *context, const 
         MAREA_SemaInlineRunCall runCall;
 
         if (MAREA_SemaInlineRunCallOf(context, call, &runCall) == MAREA_BOOLEAN_TRUE) {
-            if ((runCall.member == MAREA_SEMA_INLINE_RUN_MEMBER_FRONT) || (runCall.member == MAREA_SEMA_INLINE_RUN_MEMBER_BACK)) {
+            if ((runCall.member == MAREA_SEMA_INLINE_RUN_MEMBER_FRONT) || (runCall.member == MAREA_SEMA_INLINE_RUN_MEMBER_BACK) || (runCall.member == MAREA_SEMA_INLINE_RUN_MEMBER_POP) || (runCall.member == MAREA_SEMA_INLINE_RUN_MEMBER_ERASE)) {
                 *outType = runCall.written;
 
                 outType->type = runCall.run.element;

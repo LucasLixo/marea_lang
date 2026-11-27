@@ -5,33 +5,56 @@
 
 #include <string.h>
 
+#define MAREA_G_ARRAY  MAREA_UINTEGER_8(1)
+#define MAREA_G_VECTOR MAREA_UINTEGER_8(2)
+#define MAREA_G_BOTH   MAREA_UINTEGER_8(3)
+
 typedef struct MAREA_G_MemberRow
 {
     const MAREA_Character8 *name;
     MAREA_IntegerSize argumentCount;
     MAREA_SemaInlineRunMember member;
     MAREA_Boolean isStatic;
+    MAREA_Uinteger8 runs;
 } MAREA_G_MemberRow;
 
 static const MAREA_G_MemberRow MAREA_G_MEMBERS[] = {
-    { "front", 0, MAREA_SEMA_INLINE_RUN_MEMBER_FRONT, MAREA_BOOLEAN_FALSE },
-    { "back", 0, MAREA_SEMA_INLINE_RUN_MEMBER_BACK, MAREA_BOOLEAN_FALSE },
-    { "size", 0, MAREA_SEMA_INLINE_RUN_MEMBER_SIZE, MAREA_BOOLEAN_FALSE },
-    { "max_size", 0, MAREA_SEMA_INLINE_RUN_MEMBER_MAX_SIZE, MAREA_BOOLEAN_FALSE },
-    { "empty", 0, MAREA_SEMA_INLINE_RUN_MEMBER_EMPTY, MAREA_BOOLEAN_FALSE },
-    { "fill", 1, MAREA_SEMA_INLINE_RUN_MEMBER_FILL, MAREA_BOOLEAN_FALSE },
-    { "swap", 1, MAREA_SEMA_INLINE_RUN_MEMBER_SWAP, MAREA_BOOLEAN_FALSE },
-    { "filled", 1, MAREA_SEMA_INLINE_RUN_MEMBER_FILLED, MAREA_BOOLEAN_TRUE },
+    { "front", 0, MAREA_SEMA_INLINE_RUN_MEMBER_FRONT, MAREA_BOOLEAN_FALSE, MAREA_G_BOTH },
+    { "back", 0, MAREA_SEMA_INLINE_RUN_MEMBER_BACK, MAREA_BOOLEAN_FALSE, MAREA_G_BOTH },
+    { "size", 0, MAREA_SEMA_INLINE_RUN_MEMBER_SIZE, MAREA_BOOLEAN_FALSE, MAREA_G_BOTH },
+    { "max_size", 0, MAREA_SEMA_INLINE_RUN_MEMBER_MAX_SIZE, MAREA_BOOLEAN_FALSE, MAREA_G_BOTH },
+    { "empty", 0, MAREA_SEMA_INLINE_RUN_MEMBER_EMPTY, MAREA_BOOLEAN_FALSE, MAREA_G_BOTH },
+    { "fill", 1, MAREA_SEMA_INLINE_RUN_MEMBER_FILL, MAREA_BOOLEAN_FALSE, MAREA_G_BOTH },
+    { "swap", 1, MAREA_SEMA_INLINE_RUN_MEMBER_SWAP, MAREA_BOOLEAN_FALSE, MAREA_G_BOTH },
+    { "filled", 1, MAREA_SEMA_INLINE_RUN_MEMBER_FILLED, MAREA_BOOLEAN_TRUE, MAREA_G_ARRAY },
+    { "capacity", 0, MAREA_SEMA_INLINE_RUN_MEMBER_CAPACITY, MAREA_BOOLEAN_FALSE, MAREA_G_VECTOR },
+    { "reserve", 1, MAREA_SEMA_INLINE_RUN_MEMBER_RESERVE, MAREA_BOOLEAN_FALSE, MAREA_G_VECTOR },
+    { "shrink_to_fit", 0, MAREA_SEMA_INLINE_RUN_MEMBER_SHRINK_TO_FIT, MAREA_BOOLEAN_FALSE, MAREA_G_VECTOR },
+    { "append", 1, MAREA_SEMA_INLINE_RUN_MEMBER_APPEND, MAREA_BOOLEAN_FALSE, MAREA_G_VECTOR },
+    { "pop", 0, MAREA_SEMA_INLINE_RUN_MEMBER_POP, MAREA_BOOLEAN_FALSE, MAREA_G_VECTOR },
+    { "insert", 2, MAREA_SEMA_INLINE_RUN_MEMBER_INSERT, MAREA_BOOLEAN_FALSE, MAREA_G_VECTOR },
+    { "erase", 1, MAREA_SEMA_INLINE_RUN_MEMBER_ERASE, MAREA_BOOLEAN_FALSE, MAREA_G_VECTOR },
+    { "clear", 0, MAREA_SEMA_INLINE_RUN_MEMBER_CLEAR, MAREA_BOOLEAN_FALSE, MAREA_G_VECTOR },
+    { "resize", 2, MAREA_SEMA_INLINE_RUN_MEMBER_RESIZE, MAREA_BOOLEAN_FALSE, MAREA_G_VECTOR },
+    { "data", 0, MAREA_SEMA_INLINE_RUN_MEMBER_DATA, MAREA_BOOLEAN_FALSE, MAREA_G_VECTOR },
 };
 
 MAREA_Boolean MAREA_CALL MAREA_SemaInlineRunOfType(const MAREA_SemaContext *context, const MAREA_AstNode *type, MAREA_SemaInlineRun *outRun)
 {
-    *outRun = (MAREA_SemaInlineRun){ .type = type, .element = MAREA_NULLPTR, .count = 0, .hasCount = MAREA_BOOLEAN_FALSE };
+    *outRun = (MAREA_SemaInlineRun){ .type = type, .element = MAREA_NULLPTR, .count = 0, .hasCount = MAREA_BOOLEAN_FALSE, .isGrowable = MAREA_BOOLEAN_FALSE };
 
     const MAREA_TypeDescriptor *descriptor = MAREA_NULLPTR;
 
-    // INFO: sema knows no library type name: an inline run is the shape that the descriptor gives.
-    if ((MAREA_SemaDescriptorOfType(context, type, &descriptor) == MAREA_BOOLEAN_FALSE) || (descriptor->hasIndexProtocol == MAREA_BOOLEAN_FALSE) || (descriptor->roles != MAREA_TYPE_ROLE_NONE) || (descriptor->ownershipClass != MAREA_TYPE_OWNERSHIP_CLASS_COPY) || (descriptor->typeParameterCount != MAREA_INTEGER_SIZE(2))) {
+    // INFO: sema knows no library type name: a run is the shape that the descriptor gives.
+    if ((MAREA_SemaDescriptorOfType(context, type, &descriptor) == MAREA_BOOLEAN_FALSE) || (descriptor->hasIndexProtocol == MAREA_BOOLEAN_FALSE) || (descriptor->roles != MAREA_TYPE_ROLE_NONE)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_Boolean IS_INLINE = ((descriptor->ownershipClass == MAREA_TYPE_OWNERSHIP_CLASS_COPY) && (descriptor->typeParameterCount == MAREA_INTEGER_SIZE(2))) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+
+    outRun->isGrowable = ((descriptor->ownershipClass == MAREA_TYPE_OWNERSHIP_CLASS_MOVE) && (descriptor->typeParameterCount == MAREA_INTEGER_SIZE(1))) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+
+    if ((IS_INLINE == MAREA_BOOLEAN_FALSE) && (outRun->isGrowable == MAREA_BOOLEAN_FALSE)) {
         return MAREA_BOOLEAN_FALSE;
     }
 
@@ -43,7 +66,7 @@ MAREA_Boolean MAREA_CALL MAREA_SemaInlineRunOfType(const MAREA_SemaContext *cont
         }
 
         outRun->element = MAREA_SemaChildAt(arguments, 0);
-        outRun->hasCount = MAREA_SemaReadIntegerLiteral(MAREA_SemaChildAt(arguments, 1), &outRun->count);
+        outRun->hasCount = (outRun->isGrowable == MAREA_BOOLEAN_FALSE) ? MAREA_SemaReadIntegerLiteral(MAREA_SemaChildAt(arguments, 1), &outRun->count) : MAREA_BOOLEAN_FALSE;
     }
 
     return MAREA_BOOLEAN_TRUE;
@@ -60,12 +83,14 @@ MAREA_Boolean MAREA_CALL MAREA_SemaInlineRunOfValue(const MAREA_SemaContext *con
     return MAREA_SemaInlineRunOfType(context, outWritten->type, outRun);
 }
 
-MAREA_SemaInlineRunMember MAREA_CALL MAREA_SemaInlineRunMemberOf(const MAREA_AstNode *name, MAREA_Boolean isStatic, MAREA_IntegerSize *outArgumentCount)
+MAREA_SemaInlineRunMember MAREA_CALL MAREA_SemaInlineRunMemberOf(const MAREA_AstNode *name, MAREA_Boolean isStatic, MAREA_Boolean isGrowable, MAREA_IntegerSize *outArgumentCount)
 {
+    const MAREA_Uinteger8 RUN = (isGrowable == MAREA_BOOLEAN_TRUE) ? MAREA_G_VECTOR : MAREA_G_ARRAY;
+
     for (MAREA_IntegerSize index = 0; index < MAREA_ARRAY_SIZE(MAREA_G_MEMBERS); ++index) {
         const MAREA_G_MemberRow *row = &MAREA_G_MEMBERS[index];
 
-        if ((row->isStatic == isStatic) && (MAREA_SemaTextEquals(MAREA_AstNodeGetText(name), MAREA_AstNodeGetTextLength(name), row->name, strlen(row->name)) == MAREA_BOOLEAN_TRUE)) {
+        if ((row->isStatic == isStatic) && ((row->runs & RUN) != 0) && (MAREA_SemaTextEquals(MAREA_AstNodeGetText(name), MAREA_AstNodeGetTextLength(name), row->name, strlen(row->name)) == MAREA_BOOLEAN_TRUE)) {
             if (outArgumentCount != MAREA_NULLPTR) {
                 *outArgumentCount = row->argumentCount;
             }
@@ -105,7 +130,7 @@ MAREA_Boolean MAREA_CALL MAREA_SemaInlineRunCallOf(const MAREA_SemaContext *cont
         return MAREA_BOOLEAN_FALSE;
     }
 
-    outCall->member = MAREA_SemaInlineRunMemberOf(outCall->name, outCall->isStatic, &outCall->argumentCount);
+    outCall->member = MAREA_SemaInlineRunMemberOf(outCall->name, outCall->isStatic, outCall->run.isGrowable, &outCall->argumentCount);
 
     return MAREA_BOOLEAN_TRUE;
 }
@@ -130,7 +155,7 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckWritable(MAREA_SemaContext *cont
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
-    return MAREA_G_Report(context, MAREA_SEMA_DIAGNOSTIC_CODE_WRITE_THROUGH_READ_ONLY_BORROW, place, "an array that cannot be written is changed by", name);
+    return MAREA_G_Report(context, MAREA_SEMA_DIAGNOSTIC_CODE_WRITE_THROUGH_READ_ONLY_BORROW, place, "a value that cannot be written is changed by", name);
 }
 
 // INFO: a value argument of the element type: the same fit and range rules as any other value of a written type.
@@ -145,6 +170,46 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckElementValue(MAREA_SemaContext *
     return (FIT != MAREA_SEMA_EXCEPT_SUCCESS) ? FIT : MAREA_SemaCheckLiteralRange(context, call->run.element, value);
 }
 
+// INFO: a stored value goes into the run, so an existing value of a type that is not copied needs copy or move, as in an assignment.
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckStoredValue(MAREA_SemaContext *context, const MAREA_SemaInlineRunCall *call, const MAREA_AstNode *value)
+{
+    const MAREA_SemaExcept RESULT = MAREA_G_CheckElementValue(context, call, value);
+
+    const MAREA_AstKind KIND = (value == MAREA_NULLPTR) ? MAREA_AST_KIND_ERROR_NODE : MAREA_AstNodeGetKind(value);
+
+    const MAREA_Boolean EXISTING = ((KIND == MAREA_AST_KIND_IDENTIFIER) || (KIND == MAREA_AST_KIND_MEMBER_ACCESS) || (KIND == MAREA_AST_KIND_INDEX_ACCESS)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+
+    // INFO: a borrow that is stored is already reported as a reference that escapes.
+    const MAREA_Boolean BORROW = ((KIND == MAREA_AST_KIND_IDENTIFIER) && (MAREA_SemaIsReference(context, MAREA_AstNodeGetText(value), MAREA_AstNodeGetTextLength(value)) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+
+    if ((RESULT != MAREA_SEMA_EXCEPT_SUCCESS) || (EXISTING == MAREA_BOOLEAN_FALSE) || (BORROW == MAREA_BOOLEAN_TRUE) || (call->run.element == MAREA_NULLPTR) || (call->written.bindings.count != 0) || (MAREA_SemaTypeIsByValue(context, call->run.element, MAREA_BOOLEAN_TRUE) == MAREA_BOOLEAN_TRUE)) {
+        return RESULT;
+    }
+
+    MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_ASSIGNMENT_NEEDS_COPY_OR_MOVE, MAREA_AstNodeGetPosition(value), "an existing value that is stored needs copy or move");
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
+static MAREA_Boolean MAREA_CALL MAREA_G_ChangesReceiver(MAREA_SemaInlineRunMember member)
+{
+    switch (member) {
+    case MAREA_SEMA_INLINE_RUN_MEMBER_FILL:
+    case MAREA_SEMA_INLINE_RUN_MEMBER_SWAP:
+    case MAREA_SEMA_INLINE_RUN_MEMBER_RESERVE:
+    case MAREA_SEMA_INLINE_RUN_MEMBER_SHRINK_TO_FIT:
+    case MAREA_SEMA_INLINE_RUN_MEMBER_APPEND:
+    case MAREA_SEMA_INLINE_RUN_MEMBER_POP:
+    case MAREA_SEMA_INLINE_RUN_MEMBER_INSERT:
+    case MAREA_SEMA_INLINE_RUN_MEMBER_ERASE:
+    case MAREA_SEMA_INLINE_RUN_MEMBER_CLEAR:
+    case MAREA_SEMA_INLINE_RUN_MEMBER_RESIZE:
+        return MAREA_BOOLEAN_TRUE;
+    default:
+        return MAREA_BOOLEAN_FALSE;
+    }
+}
+
 static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckSwapArgument(MAREA_SemaContext *context, const MAREA_SemaInlineRunCall *call, const MAREA_AstNode *node, const MAREA_AstNode *argument)
 {
     MAREA_SemaWrittenType written = { .type = MAREA_NULLPTR, .bindings = { .count = 0 } };
@@ -155,7 +220,7 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckSwapArgument(MAREA_SemaContext *
         return (written.type == MAREA_NULLPTR) ? MAREA_SEMA_EXCEPT_SUCCESS : MAREA_G_Report(context, MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH, argument, "an array is needed by", call->name);
     }
 
-    if (((call->run.hasCount == MAREA_BOOLEAN_TRUE) && (other.hasCount == MAREA_BOOLEAN_TRUE) && (call->run.count != other.count)) || (MAREA_SemaTypeArgumentsDiffer(context, &call->written, argument) == MAREA_BOOLEAN_TRUE)) {
+    if ((call->run.isGrowable != other.isGrowable) || ((call->run.hasCount == MAREA_BOOLEAN_TRUE) && (other.hasCount == MAREA_BOOLEAN_TRUE) && (call->run.count != other.count)) || (MAREA_SemaTypeArgumentsDiffer(context, &call->written, argument) == MAREA_BOOLEAN_TRUE)) {
         return MAREA_G_Report(context, MAREA_SEMA_DIAGNOSTIC_CODE_GENERIC_ARGUMENT_MISMATCH, argument, "the two arrays of a swap differ in their type arguments:", call->name);
     }
 
@@ -210,13 +275,17 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckInlineRunCall(MAREA_SemaContext *cont
         return MAREA_G_Report(context, MAREA_SEMA_DIAGNOSTIC_CODE_ARGUMENT_COUNT_MISMATCH, node, "wrong number of arguments in the call of", call.name);
     }
 
-    const MAREA_Boolean COPIES = ((call.member == MAREA_SEMA_INLINE_RUN_MEMBER_FRONT) || (call.member == MAREA_SEMA_INLINE_RUN_MEMBER_BACK) || (call.member == MAREA_SEMA_INLINE_RUN_MEMBER_FILL) || (call.member == MAREA_SEMA_INLINE_RUN_MEMBER_FILLED)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+    const MAREA_Boolean COPIES = ((call.member == MAREA_SEMA_INLINE_RUN_MEMBER_FRONT) || (call.member == MAREA_SEMA_INLINE_RUN_MEMBER_BACK) || (call.member == MAREA_SEMA_INLINE_RUN_MEMBER_FILL) || (call.member == MAREA_SEMA_INLINE_RUN_MEMBER_FILLED) || (call.member == MAREA_SEMA_INLINE_RUN_MEMBER_RESIZE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 
     if ((COPIES == MAREA_BOOLEAN_TRUE) && (call.run.element != MAREA_NULLPTR) && (call.written.bindings.count == 0) && (MAREA_SemaIsCopyable(context, call.run.element) == MAREA_BOOLEAN_FALSE)) {
         return MAREA_G_Report(context, MAREA_SEMA_DIAGNOSTIC_CODE_CONTRACT_NOT_SATISFIED, node, "an element type that is not Copyable is copied by", call.name);
     }
 
-    if ((call.member == MAREA_SEMA_INLINE_RUN_MEMBER_FILL) || (call.member == MAREA_SEMA_INLINE_RUN_MEMBER_SWAP)) {
+    if ((call.member == MAREA_SEMA_INLINE_RUN_MEMBER_DATA) && (context->unsafeDepth == 0)) {
+        return MAREA_G_Report(context, MAREA_SEMA_DIAGNOSTIC_CODE_RAW_POINTER_OUTSIDE_UNSAFE, node, "a raw pointer exists only inside an unsafe block, so it is not given by", call.name);
+    }
+
+    if (MAREA_G_ChangesReceiver(call.member) == MAREA_BOOLEAN_TRUE) {
         const MAREA_SemaExcept WRITABLE = MAREA_G_CheckWritable(context, call.receiver, call.name);
 
         if (WRITABLE != MAREA_SEMA_EXCEPT_SUCCESS) {
@@ -228,7 +297,42 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckInlineRunCall(MAREA_SemaContext *cont
         return MAREA_G_CheckSwapArgument(context, &call, node, MAREA_SemaChildAt(arguments, 0));
     }
 
-    return (call.argumentCount == 1) ? MAREA_G_CheckElementValue(context, &call, MAREA_SemaChildAt(arguments, 0)) : MAREA_SEMA_EXCEPT_SUCCESS;
+    if ((call.member == MAREA_SEMA_INLINE_RUN_MEMBER_FILL) || (call.member == MAREA_SEMA_INLINE_RUN_MEMBER_FILLED)) {
+        return MAREA_G_CheckElementValue(context, &call, MAREA_SemaChildAt(arguments, 0));
+    }
+
+    if (call.member == MAREA_SEMA_INLINE_RUN_MEMBER_RESIZE) {
+        return MAREA_G_CheckElementValue(context, &call, MAREA_SemaChildAt(arguments, 1));
+    }
+
+    if (call.member == MAREA_SEMA_INLINE_RUN_MEMBER_APPEND) {
+        return MAREA_G_CheckStoredValue(context, &call, MAREA_SemaChildAt(arguments, 0));
+    }
+
+    return (call.member == MAREA_SEMA_INLINE_RUN_MEMBER_INSERT) ? MAREA_G_CheckStoredValue(context, &call, MAREA_SemaChildAt(arguments, 1)) : MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
+MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckGrowableRunCopy(MAREA_SemaContext *context, const MAREA_AstNode *node)
+{
+    if ((context == MAREA_NULLPTR) || (node == MAREA_NULLPTR)) {
+        return MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    if (MAREA_AstNodeGetOperator(node) != MAREA_TOKEN_KIND_KEYWORD_COPY) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    MAREA_SemaWrittenType written = { .type = MAREA_NULLPTR, .bindings = { .count = 0 } };
+
+    MAREA_SemaInlineRun run = { 0 };
+
+    if ((MAREA_SemaInlineRunOfValue(context, MAREA_SemaChildAt(node, 0), &written, &run) == MAREA_BOOLEAN_FALSE) || (run.isGrowable == MAREA_BOOLEAN_FALSE) || (run.element == MAREA_NULLPTR) || (written.bindings.count != 0) || (MAREA_SemaIsCopyable(context, run.element) == MAREA_BOOLEAN_TRUE)) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_CONTRACT_NOT_SATISFIED, MAREA_AstNodeGetPosition(node), "a copy needs an element type that is Copyable");
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
 }
 
 static MAREA_SemaExcept MAREA_CALL MAREA_G_ReportIndex(MAREA_SemaContext *context, const MAREA_AstNode *at)

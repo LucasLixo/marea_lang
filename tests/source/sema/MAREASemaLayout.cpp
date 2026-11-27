@@ -400,7 +400,7 @@ TEST(MAREASemaLayout, LibraryTypeIsUndecided)
 {
     GTEST_COUT << "Validating a structure or an enum that holds a library type is undecided, with the library reason." << std::endl;
 
-    const std::vector<std::string> LIBRARY_TYPES{ "string", "demo.array<demo.vector<sinteger32>, 4>", "demo.vector<sinteger32>", "demo.slice<sinteger32>", "demo.task<sinteger32>", "demo.owned<sinteger32>" };
+    const std::vector<std::string> LIBRARY_TYPES{ "string", "demo.array<demo.table<sinteger32, sinteger32>, 4>", "demo.table<sinteger32, sinteger32>", "demo.slice<sinteger32>", "demo.task<sinteger32>", "demo.owned<sinteger32>" };
 
     for (const std::string &type : LIBRARY_TYPES) {
         MAREA_expectUndecided("namespace main; structure S a: uinteger8; b: " + type + "; end", MAREA_AST_KIND_STRUCTURE_DECLARATION, 0, MAREA_SEMA_MEASURE_REASON_LIBRARY_TYPE, 2);

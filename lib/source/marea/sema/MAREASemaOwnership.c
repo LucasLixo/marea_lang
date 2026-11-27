@@ -77,7 +77,7 @@ MAREA_SemaParameterSemantics MAREA_CALL MAREA_SemaGetParameterSemantics(const MA
     // INFO: an inline run is copied by an assignment, but a parameter of it is a read-only borrow, so a large one is not copied by a call.
     MAREA_SemaInlineRun run = { 0 };
 
-    if (MAREA_SemaInlineRunOfType(context, type, &run) == MAREA_BOOLEAN_TRUE) {
+    if ((MAREA_SemaInlineRunOfType(context, type, &run) == MAREA_BOOLEAN_TRUE) && (run.isGrowable == MAREA_BOOLEAN_FALSE)) {
         return MAREA_SEMA_PARAMETER_SEMANTICS_REFERENCE_READ_ONLY;
     }
 
@@ -442,6 +442,13 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckAppendArguments(MAREA_SemaContex
             continue;
         }
 
+        // INFO: a value of a type that is copied is no reference once it is stored; a type that sema cannot see stays rejected.
+        const MAREA_AstNode *type = MAREA_SemaInferType(context, argument);
+
+        if ((type != MAREA_NULLPTR) && (MAREA_G_IsByValue(context, type, MAREA_BOOLEAN_FALSE) == MAREA_BOOLEAN_TRUE)) {
+            continue;
+        }
+
         const MAREA_SemaExcept RESULT = MAREA_G_ReportEscape(context, argument, "a reference cannot be stored in a vector:");
 
         if (RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
@@ -531,6 +538,8 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckOwnership(MAREA_SemaContext *context,
     }
 
     switch (MAREA_AstNodeGetKind(node)) {
+    case MAREA_AST_KIND_UNARY_EXPRESSION:
+        return MAREA_SemaCheckGrowableRunCopy(context, node);
     case MAREA_AST_KIND_PARAMETER:
         return MAREA_G_CheckParameter(context, node);
     case MAREA_AST_KIND_RETURN_STATEMENT:

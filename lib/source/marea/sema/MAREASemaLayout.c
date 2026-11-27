@@ -3,6 +3,8 @@
 
 #include "marea/internal/sema/MAREASemaInternal.h"
 
+#include "marea/base/MAREAVectorRuntime.h"
+
 #include <string.h>
 
 // INFO: the largest alignment that sema computes with. A larger value is a gap for the backend, so the arithmetic below never overflows.
@@ -164,7 +166,19 @@ static void MAREA_CALL MAREA_G_ClassifyType(const MAREA_SemaContext *context, co
     if (MAREA_SemaDescriptorOfType(context, type, &descriptor) == MAREA_BOOLEAN_TRUE) {
         MAREA_SemaInlineRun run = { 0 };
 
-        if ((depth >= MAREA_G_DEPTH_LIMIT) || (MAREA_SemaInlineRunOfType(context, type, &run) == MAREA_BOOLEAN_FALSE) || (run.hasCount == MAREA_BOOLEAN_FALSE)) {
+        const MAREA_Boolean IS_RUN = MAREA_SemaInlineRunOfType(context, type, &run);
+
+        // INFO: a growable run is its header of three words, whatever its element is.
+        if ((IS_RUN == MAREA_BOOLEAN_TRUE) && (run.isGrowable == MAREA_BOOLEAN_TRUE)) {
+            outShape->kind = MAREA_G_SHAPE_KIND_PRIMITIVE;
+            outShape->reason = MAREA_SEMA_MEASURE_REASON_NONE;
+            outShape->size = sizeof(MAREA_VectorHeader);
+            outShape->alignment = MAREA_ALIGNOF(MAREA_VectorHeader);
+
+            return;
+        }
+
+        if ((depth >= MAREA_G_DEPTH_LIMIT) || (IS_RUN == MAREA_BOOLEAN_FALSE) || (run.hasCount == MAREA_BOOLEAN_FALSE)) {
             return;
         }
 

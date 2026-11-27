@@ -2131,8 +2131,9 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaBaseEntry(MAREA_SemaContext * context, const MAREA_AstNode *base, const MAREA_AstNode *member, const MAREA_SemaName **outEntry);
 
     /**
-     * @brief What a written type of an inline run holds: the shape that a descriptor with the index protocol, no
-     * role, a copy class and two type parameters gives (the element and the count).
+     * @brief What a written type of a sequence holds: the shape that a descriptor with the index protocol and no
+     * role gives. An inline run has the copy class and two type parameters (the element and the count). A growable
+     * run (isGrowable) has the move class and one type parameter (the element).
      */
     typedef struct MAREA_SemaInlineRun
     {
@@ -2140,6 +2141,7 @@ MAREA_BEGIN_EXTERN_C
         const MAREA_AstNode *element;
         MAREA_Uinteger64 count;
         MAREA_Boolean hasCount;
+        MAREA_Boolean isGrowable;
     } MAREA_SemaInlineRun;
 
     /**
@@ -2156,6 +2158,16 @@ MAREA_BEGIN_EXTERN_C
         MAREA_SEMA_INLINE_RUN_MEMBER_FILL = MAREA_UINTEGER_8(6),
         MAREA_SEMA_INLINE_RUN_MEMBER_SWAP = MAREA_UINTEGER_8(7),
         MAREA_SEMA_INLINE_RUN_MEMBER_FILLED = MAREA_UINTEGER_8(8),
+        MAREA_SEMA_INLINE_RUN_MEMBER_CAPACITY = MAREA_UINTEGER_8(9),
+        MAREA_SEMA_INLINE_RUN_MEMBER_RESERVE = MAREA_UINTEGER_8(10),
+        MAREA_SEMA_INLINE_RUN_MEMBER_SHRINK_TO_FIT = MAREA_UINTEGER_8(11),
+        MAREA_SEMA_INLINE_RUN_MEMBER_APPEND = MAREA_UINTEGER_8(12),
+        MAREA_SEMA_INLINE_RUN_MEMBER_POP = MAREA_UINTEGER_8(13),
+        MAREA_SEMA_INLINE_RUN_MEMBER_INSERT = MAREA_UINTEGER_8(14),
+        MAREA_SEMA_INLINE_RUN_MEMBER_ERASE = MAREA_UINTEGER_8(15),
+        MAREA_SEMA_INLINE_RUN_MEMBER_CLEAR = MAREA_UINTEGER_8(16),
+        MAREA_SEMA_INLINE_RUN_MEMBER_RESIZE = MAREA_UINTEGER_8(17),
+        MAREA_SEMA_INLINE_RUN_MEMBER_DATA = MAREA_UINTEGER_8(18),
     } MAREA_SemaInlineRunMember;
 
     /**
@@ -2193,11 +2205,12 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaInlineRunIsShipped(const MAREA_SemaContext *context, const MAREA_AstNode *type);
 
     /**
-     * @brief Finds the member of an inline run that a name gives, on the type itself when isStatic is true.
+     * @brief Finds the member of a run that a name gives, on the type itself when isStatic is true, of a growable
+     * run when isGrowable is true.
      * @param outArgumentCount Receives the argument count of a member that is found. May be null.
      * @return The member, or NONE.
      */
-    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaInlineRunMember MAREA_CALL MAREA_SemaInlineRunMemberOf(const MAREA_AstNode *name, MAREA_Boolean isStatic, MAREA_IntegerSize *outArgumentCount);
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaInlineRunMember MAREA_CALL MAREA_SemaInlineRunMemberOf(const MAREA_AstNode *name, MAREA_Boolean isStatic, MAREA_Boolean isGrowable, MAREA_IntegerSize *outArgumentCount);
 
     /**
      * @brief Reads a call expression as a call of a member of an inline run, on a value or on the type itself.
@@ -2212,6 +2225,12 @@ MAREA_BEGIN_EXTERN_C
      * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER or ERROR_OUT_OF_MEMORY.
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckInlineRunCall(MAREA_SemaContext * context, const MAREA_AstNode *node, MAREA_Boolean *outHandled);
+
+    /**
+     * @brief Reports a copy of a growable run whose element does not meet the contract Copyable, since the copy
+     * is a deep copy of the elements.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckGrowableRunCopy(MAREA_SemaContext * context, const MAREA_AstNode *node);
 
     /**
      * @brief Reports a constant index of an INDEX_ACCESS that is not below the count of its inline run.
