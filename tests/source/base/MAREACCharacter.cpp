@@ -66,18 +66,20 @@ namespace
 
         MAREA_HostFunction MAREA_find(const char *name)
         {
-            return MAREA_TypeRegistryFindFunction(registry, "c.character", MAREA_INTEGER_SIZE(12), name, static_cast<MAREA_IntegerSize>(std::strlen(name)));
+            return MAREA_TypeRegistryFindFunction(registry, "c.character", MAREA_INTEGER_SIZE(11), name, static_cast<MAREA_IntegerSize>(std::strlen(name)));
         }
     };
 
     // Every byte 0..255, split into the set a predicate must answer true for and the rest, which
     // must answer false; mirrors ascii.rs's assert_all!/assert_none! over the printable ranges.
-    void MAREA_expect(MAREA_CharacterCallFixture &call, MAREA_HostFunction function, const char *trueFor, const char *label)
+    // trueFor is a std::string, not a bare C string: is_control's own true set holds the NUL byte
+    // (0), which a cursor stopping at the first '\0' would read as an empty set.
+    void MAREA_expect(MAREA_CharacterCallFixture &call, MAREA_HostFunction function, const std::string &trueFor, const char *label)
     {
         std::array<bool, 256> expected{};
 
-        for (const char *cursor{ trueFor }; *cursor != '\0'; ++cursor) {
-            expected[static_cast<unsigned char>(*cursor)] = true;
+        for (std::size_t index{ 0 }; index < trueFor.size(); ++index) {
+            expected[static_cast<unsigned char>(trueFor[index])] = true;
         }
 
         for (int value{ 0 }; value < 256; ++value) {
@@ -135,7 +137,7 @@ TEST(MAREACCharacter, IsControlIsTrueForZeroToThirtyOneAndOneTwentySeven)
 
     trueFor.push_back(static_cast<char>(127));
 
-    MAREA_expect(call, fixture.MAREA_find("is_control"), trueFor.c_str(), "is_control");
+    MAREA_expect(call, fixture.MAREA_find("is_control"), trueFor, "is_control");
 }
 
 TEST(MAREACCharacter, IsDecimalIsTrueForZeroToNine)
@@ -163,7 +165,7 @@ TEST(MAREACCharacter, IsGraphicalIsTruePrintableAndNotASpace)
         trueFor.push_back(static_cast<char>(value));
     }
 
-    MAREA_expect(call, fixture.MAREA_find("is_graphical"), trueFor.c_str(), "is_graphical");
+    MAREA_expect(call, fixture.MAREA_find("is_graphical"), trueFor, "is_graphical");
 }
 
 TEST(MAREACCharacter, IsLowercaseIsTrueForATooZ)
@@ -193,7 +195,7 @@ TEST(MAREACCharacter, IsPrintableIsTrueForThirtyTwoToOneTwentySix)
         trueFor.push_back(static_cast<char>(value));
     }
 
-    MAREA_expect(call, fixture.MAREA_find("is_printable"), trueFor.c_str(), "is_printable");
+    MAREA_expect(call, fixture.MAREA_find("is_printable"), trueFor, "is_printable");
 }
 
 TEST(MAREACCharacter, IsPunctuationIsTrueForGraphicalAndNotAlphanumeric)
@@ -333,7 +335,7 @@ TEST(MAREACCharacter, ARegistryWithTheCCharacterBitOffRegistersNoFunctionOfThisL
 
     MAREA_IGNORE(MAREA_CCharacterRegister(registry));
 
-    EXPECT_EQ(MAREA_TypeRegistryFindFunction(registry, "c.character", MAREA_INTEGER_SIZE(12), "is_alphabetic", MAREA_INTEGER_SIZE(13)), nullptr) << "The library bit was off, so nothing was registered.";
+    EXPECT_EQ(MAREA_TypeRegistryFindFunction(registry, "c.character", MAREA_INTEGER_SIZE(11), "is_alphabetic", MAREA_INTEGER_SIZE(13)), nullptr) << "The library bit was off, so nothing was registered.";
 
     MAREA_ArenaDestroy(arena);
 }
