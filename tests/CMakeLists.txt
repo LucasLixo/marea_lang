@@ -61,6 +61,14 @@ target_link_libraries(marea_tests PRIVATE marea::include GTest::gtest_main)
 # INFO: tests may include internal headers (see the cpp-testing skill).
 target_include_directories(marea_tests PRIVATE "${MAREA_FOLDER_LIB_INTERNAL}")
 
+# INFO: marea-cc/marea-bc's own internal/ headers, the same cpp-testing allowance as lib/internal
+# (apply marea-cc-and-bc-tools).
+target_include_directories(
+    marea_tests
+    PRIVATE "${MAREA_FOLDER_APPS}/marea-shared/internal" "${MAREA_FOLDER_APPS}/marea-bc/internal"
+)
+target_link_libraries(marea_tests PRIVATE marea-shared marea-bc-driver)
+
 target_compile_definitions(marea_tests PRIVATE "MAREA_TESTS_EXAMPLES_DIRECTORY=\"${MAREA_FOLDER_EXAMPLES}\"")
 
 target_compile_definitions(
