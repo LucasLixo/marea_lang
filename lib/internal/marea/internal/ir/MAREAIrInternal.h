@@ -118,6 +118,7 @@ MAREA_BEGIN_EXTERN_C
         MAREA_TokenKind operatorKind;
         MAREA_IrKind kind;
         MAREA_Boolean externalCall;
+        MAREA_Boolean destroyOperator;
     };
 
     /**
@@ -323,6 +324,11 @@ MAREA_BEGIN_EXTERN_C
      * @return The typed default expression, or null when the node has no type child or nothing follows it.
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_SemaTypedNode *MAREA_CALL MAREA_IrTypedFindDefault(const MAREA_SemaTypedNode *typed);
+
+    /**
+     * @brief Tells whether a typed FUNCTION_DECLARATION carries #[operator = "destroy"].
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_IrIsDestroyFunction(const MAREA_SemaTypedNode *function);
 
     /**
      * @brief Finds the construct or destroy operator of a type: the FUNCTION_DECLARATION, inside an
