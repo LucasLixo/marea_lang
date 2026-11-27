@@ -15,15 +15,15 @@ Part of the [reconcile-temp-logs](../SKILL.md) skill. This file is a complete pr
       reasoning may live only there and in the logs.
 2. Read `temp/_LIST_HANDOFF.md` in full. A `##` section whose rows are all `[x]` or `[-]` is a closed
    handoff. Confirm each of its rows either had its file moved by step 1 or never had one.
-3. Read `temp/_LOG_HANDOFF.md`, `temp/_LOG_APPLY_SUCCESS.md`, and `temp/_LOG_HANDOFF_SUCCESS.md` in
-   full and collect (do not remove yet):
-   a. every `##` section of `_LOG_HANDOFF.md` and `_LOG_HANDOFF_SUCCESS.md` for a closed handoff;
-   b. every `### <slug> ...` entry of `_LOG_APPLY_SUCCESS.md` whose slug is a `[x]` row with no
-      remaining `.apply.md` file. Entries for `[ ]` or `[-]` rows stay.
+3. Read `temp/_LOG_HANDOFF.md` in full and collect (do not remove yet) every `##` section for a
+   closed handoff. There is no success log and no handoff outcome log to collect entries from any
+   more: a closed handoff's own outcome now lives in the closing apply's
+   `temp/_LOG_APPLY_ERROR.md`/`temp/_LOG_APPLY_OPEN_POINTS.md` entries, which Phase 1-3 (steps 03
+   to 05) handles by verification, not this step.
 
 ## Done when
 
 - Every `[x]` row's apply file and parts folder were moved to the backup folder, after its Mode, Effort and Label cells were backfilled when missing.
-- The closed handoffs and the success-log entries to prune are collected, and no log block is removed yet.
+- The closed handoff sections to prune are collected, and no log block is removed yet.
 
 Next: [steps/02-backup-and-remove.md](02-backup-and-remove.md)

@@ -27,4 +27,4 @@ lose sight of that information, moving the apply file right after.
 
 ## Mutability
 
-The list is the single source of truth for progress - an apply file never keeps its own status. A session that finds a better approach may reword, split, add, or cancel a row, and updates the matching apply file to match, always with a short parenthetical reason so the next session sees why the plan moved, e.g. `(split - see ../_LOG_APPLY_SUCCESS.md)`. **Never delete a row to make it disappear; cancel it.** Anything longer than a short parenthetical belongs in `_LOG_APPLY_SUCCESS.md` or `_LOG_APPLY_ERROR.md`, not in the row.
+The list is the single source of truth for progress - an apply file never keeps its own status. A session that finds a better approach may reword, split, add, or cancel a row, and updates the matching apply file to match, always with a short parenthetical reason so the next session sees why the plan moved, e.g. `(split - see ../_LOG_APPLY_OPEN_POINTS.md)`. **Never delete a row to make it disappear; cancel it.** Anything longer than a short parenthetical belongs in `_LOG_APPLY_ERROR.md` or `_LOG_APPLY_OPEN_POINTS.md`, not in the row.

@@ -51,7 +51,10 @@ Parallel waves:
 
 The goal, why the decomposition looks the way it does, what is deliberately out of scope, any reference pattern or shared verification recipe every apply in the handoff follows, and the `Parallel waves` summary all go here at write time - write the `Root issue`/`Root branch` lines as shown, literally `TBD`. `TBD` means absent: the first batch to execute replaces both values during its first-batch setup, per step 0 of `generate-apply`'s handoff-batch pipeline, and every later batch reads them from here. Recompute `Parallel waves` whenever an edge in the matching `_LIST_HANDOFF.md` table changes.
 
-This file never holds a deviation entry or a closing note - those are outcomes, not plan, and belong in `_LOG_HANDOFF_SUCCESS.md`/`_LOG_HANDOFF_ERROR.md` below. A per-apply deviation belongs in `_LOG_APPLY_SUCCESS.md`/`_LOG_APPLY_ERROR.md` instead, cross-referenced by slug - never duplicated into more than one file.
+This file never holds a deviation entry or a closing note - those are outcomes, not plan. A handoff's outcome,
+once it closes, is recorded through the closing apply's own `_LOG_APPLY_ERROR.md`/`_LOG_APPLY_OPEN_POINTS.md`
+entries instead (see [references/outcome-logs.md](../references/outcome-logs.md)), cross-referenced by slug -
+never duplicated into more than one file.
 
 ## Done when
 

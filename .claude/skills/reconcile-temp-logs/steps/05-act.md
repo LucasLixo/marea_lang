@@ -9,13 +9,13 @@ Part of the [reconcile-temp-logs](../SKILL.md) skill. This file is a complete pr
 Apply results serially unless stated otherwise.
 
 - **resolved**: back up the entry verbatim (backup file of step 02), confirm the backup, then remove
-  the entry. Record the verification evidence in `temp/_LOG_APPLY_SUCCESS.md` under the heading of
-  this run.
+  the entry. Carry the verification evidence (command and real result) into this run's final
+  report (step 06) - there is no success log to record it in instead.
 - **small gap**: run the smallest relevant test first and watch it fail, fix on the current branch,
   validate with the checks the owning skill names, commit through the `generate-commit` skill, then
-  back up and remove the entry with the evidence (test, result, commit short hash) recorded in the
-  success log. Small fixes may run in parallel (at most 3) only when their write sets are disjoint;
-  otherwise serialize them.
+  back up and remove the entry with the evidence (test, result, commit short hash) carried into the
+  final report the same way. Small fixes may run in parallel (at most 3) only when their write sets
+  are disjoint; otherwise serialize them.
 - **large gap**: do not fix inline. Run
   [request-make-apply](../../request-make-apply/SKILL.md) with the entry's own text as
   `<request text>`. Keep the entry until that workflow has landed and the acceptance checks prove

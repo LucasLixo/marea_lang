@@ -2,7 +2,7 @@
 name: reconcile-temp-logs
 mode: edit
 effort: low
-description: Use when the user asks to reconcile temp/ bookkeeping - move apply files already marked done into a backup folder, prune closed handoff sections and merged success-log entries with a verbatim copy there first, and verify every open error-log entry. Run it only when the user or a rule names it.
+description: Use when the user asks to reconcile temp/ bookkeeping - move apply files already marked done into a backup folder, prune closed handoff sections with a verbatim copy there first, and verify every open error-log and open-points-log entry. Run it only when the user or a rule names it.
 argument-hint: ""
 ---
 
@@ -11,13 +11,18 @@ argument-hint: ""
 ## Context
 
 `temp/` is gitignored. Once an apply is done, its `.apply.md` file is no longer active: the merged PR
-and its issue are the permanent record, and the file moves out of the way. Success-log prose for merged work and closed handoff sections
-age out the same way. Error-log entries do not age out: an entry stays until what it describes is
-proven resolved. This skill replaces the former `cleanup-temp` and keeps its safe behaviors, then
-adds a verification pass over the two error logs.
+and its issue are the permanent record, and the file moves out of the way. Closed handoff sections
+age out the same way. `temp/_LOG_APPLY_ERROR.md` and `temp/_LOG_APPLY_OPEN_POINTS.md`
+([generate-apply logs](../generate-apply/references/logs.md)) do not age out on that trigger: an
+entry stays until what it describes is proven resolved. This skill replaces the former
+`cleanup-temp` and keeps its safe behaviors, then adds a verification pass over those two logs.
 
-`temp/_LOG_APPLY.md` is a frozen pre-split archive and is out of scope. Nothing under `temp/_BACKUP/`,
-and no older `temp/_LOG_APPLY_{DATE}_{TIME}.md` backup, is read, edited, pruned, or deleted by a later run.
+`temp/_LOG_APPLY.md` is a frozen pre-split archive and is out of scope. `temp/_LOG_APPLY_SUCCESS.md`,
+`temp/_LOG_HANDOFF_SUCCESS.md` and `temp/_LOG_HANDOFF_ERROR.md` are retired logs that no skill writes
+to any more (per [generate-apply logs](../generate-apply/references/logs.md) and
+[generate-handoff's outcome-logs reference](../generate-handoff/references/outcome-logs.md)): this
+skill never reads, prunes or edits them. Nothing under `temp/_BACKUP/`, and no older
+`temp/_LOG_APPLY_{DATE}_{TIME}.md` backup, is read, edited, pruned, or deleted by a later run.
 
 ## Requirements
 
@@ -34,14 +39,14 @@ and no older `temp/_LOG_APPLY_{DATE}_{TIME}.md` backup, is read, edited, pruned,
   gone and the destination exists.
 - Copy every log block verbatim (heading included, no rewording) into `LOG_BLOCKS.md` of that folder
   before removing it. Never remove text that is not confirmed present there.
-- Never remove an error-log entry unless verification proves the error no longer exists. An
+- Never remove an error-log or open-points-log entry unless verification proves it is resolved. An
   unverified or still-open entry stays.
 - Commit only through the `generate-commit` skill ([../generate-commit/SKILL.md](../generate-commit/SKILL.md)); never a hand-written `git commit`.
 - Verification tasks are read-only and go through [parallelize](../parallelize/SKILL.md), at
   most 3 tasks per wave, one task per error heading.
 - Do not touch any row's checkbox, description, or issue number in `temp/_LIST_APPLY.md` or
-  `temp/_LIST_HANDOFF.md`, the `## Notes` section of `_LOG_APPLY_SUCCESS.md`, or anything outside
-  `temp/` except a small gap fix (Phase 3).
+  `temp/_LIST_HANDOFF.md`, anything in the retired logs named above, or anything outside `temp/`
+  except a small gap fix (Phase 3).
 - ASCII only.
 
 Step map: steps 01 and 02 are Phase 0, step 03 is Phase 1, step 04 is Phase 2 and step 05 is Phase 3. Step 06 validates and reports.
@@ -61,7 +66,7 @@ Run the steps in order. Each step file under `steps/` is a complete prompt for t
 | --- | --- | --- |
 | 1 | [steps/01-collect-prunable.md](steps/01-collect-prunable.md) | Phase 0 - Collect what can be pruned |
 | 2 | [steps/02-backup-and-remove.md](steps/02-backup-and-remove.md) | Phase 0 - Back up, then remove |
-| 3 | [steps/03-inventory.md](steps/03-inventory.md) | Phase 1 - Inventory the error logs |
+| 3 | [steps/03-inventory.md](steps/03-inventory.md) | Phase 1 - Inventory the error and open-points logs |
 | 4 | [steps/04-verify.md](steps/04-verify.md) | Phase 2 - Read-only verification |
 | 5 | [steps/05-act.md](steps/05-act.md) | Phase 3 - Act on the classification |
 | 6 | [steps/06-validate-and-report.md](steps/06-validate-and-report.md) | Validate and report |

@@ -1,5 +1,21 @@
-# temp/_LOG_HANDOFF_SUCCESS.md and temp/_LOG_HANDOFF_ERROR.md
+# temp/_LOG_HANDOFF.md and a handoff's outcome
 
-The outcome siblings of `_LOG_HANDOFF.md`, one `##` section per handoff under the same title (the join key across all four handoff files). Unlike a per-apply entry, a handoff's own section fills in gradually, over the whole life of the handoff, not only once at the end: whoever merges a wave's PRs appends what that merge proved (a conflict resolved, a combined-tree verification result with real counts) to `_LOG_HANDOFF_SUCCESS.md`, and appends any open item that merge left behind (a check not run yet, a follow-up worth its own issue) to `_LOG_HANDOFF_ERROR.md`, right when it is found - not saved up for later. The pipeline's closing step ([generate-apply](../../generate-apply/SKILL.md) handoff-batch step 11) is just the last such addition: it appends a closing entry to `_LOG_HANDOFF_SUCCESS.md` confirming every batch merged and naming the final PR that landed the root branch on `<base>`, and, only if something real is still open, a matching entry in `_LOG_HANDOFF_ERROR.md`.
+`temp/_LOG_HANDOFF.md` ([steps/05-write-handoff-files.md](../steps/05-write-handoff-files.md)) holds only a
+handoff's **plan**: the goal, the decomposition rationale, out-of-scope notes, the `Root issue`/`Root branch`
+lines and the `Parallel waves` summary. It is settled once at write time and is only ever updated for the
+`Root issue`/`Root branch` lines (replaced by whichever batch's setup runs first) and `Parallel waves`
+(recomputed when an edge changes). This file is unaffected by anything below - it is not an outcome log and it
+is not removed.
 
-`_LOG_HANDOFF_ERROR.md` is a live checklist, same rule as `_LOG_APPLY_ERROR.md`: an entry survives the handoff closing and even [reconcile-temp-logs](../../reconcile-temp-logs/SKILL.md) pruning the plan section out of `_LOG_HANDOFF.md` - it is removed only when whatever it describes is actually resolved.
+A handoff has no outcome log of its own. What a handoff produced - what landed, what is still open - is
+recorded through the **closing apply's own entries** in `temp/_LOG_APPLY_ERROR.md` (a confirmed bug or broken
+check) and `temp/_LOG_APPLY_OPEN_POINTS.md` (anything else still open), exactly as
+[generate-apply](../../generate-apply/SKILL.md)'s [logs reference](../../generate-apply/references/logs.md)
+defines for any other apply. The closing apply - the one whose last part runs the handoff-closeout action
+([apply-part-template.md](../../generate-apply/references/apply-part-template.md)'s handoff-batch variant) -
+writes that record the moment it closes the handoff out, naming the handoff the same way every batch already
+does.
+
+`temp/_LOG_HANDOFF_SUCCESS.md` and `temp/_LOG_HANDOFF_ERROR.md` no longer exist as a concept: no skill reads or
+writes them any more. A per-apply deviation or open point belongs in `temp/_LOG_APPLY_ERROR.md`/
+`temp/_LOG_APPLY_OPEN_POINTS.md` instead, cross-referenced by slug - never duplicated into more than one file.

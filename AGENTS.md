@@ -76,23 +76,30 @@ Every turn reads the whole context again, so keep it small, in the main session 
 
 ## Reporting the outcome of any task
 
-Every task ends with a record in the two logs [generate-apply](.claude/skills/generate-apply/references/logs.md)
-defines, `temp/_LOG_APPLY_SUCCESS.md` and `temp/_LOG_APPLY_ERROR.md`, whether or not it was an apply: a fix asked
-for in conversation, a refactor, a build repair, a dependency change. `temp/` is ignored by git, so a log is never
-committed; create the file when it is missing.
+Every task that leaves a confirmed bug or an open point behind ends with a record in the two logs
+[generate-apply](.claude/skills/generate-apply/references/logs.md) defines, `temp/_LOG_APPLY_ERROR.md` and
+`temp/_LOG_APPLY_OPEN_POINTS.md`, whether or not it was an apply: a fix asked for in conversation, a refactor, a
+build repair, a dependency change. `temp/` is ignored by git, so a log is never committed; create the file when
+it is missing. A task that leaves nothing wrong and nothing open writes to neither.
 
-- **`_LOG_APPLY_SUCCESS.md`** - what went right, always written: the checks that were actually run with their real
-  counts or results, a deviation from the request that turned out harmless, and a fact later work can rely on
-  without re-deriving it.
-- **`_LOG_APPLY_ERROR.md`** - open points and inconveniences, written whenever any exist: a check that was not run
-  or could not be run, a failure seen and whether it already existed without the change, a rough edge left on
-  purpose, a decision waiting on the user. An entry stays until what it describes is resolved; it is never removed
-  because the task is done.
+- **`_LOG_APPLY_ERROR.md`** - confirmed bugs, broken checks and real failures seen during the task only, and
+  whether each already existed without the change.
+- **`_LOG_APPLY_OPEN_POINTS.md`** - everything else by design: a deferred feature, a known gap, a decision
+  waiting on the user, a harmless deviation, a check that was not run or could not be run. An entry stays until
+  what it describes is resolved; it is never removed because the task is done.
+- A new apply, before it is written, checks both logs for an existing entry relevant to what it is about to
+  build, so it can pick up or build on a still-open point instead of re-discovering it.
+- Finishing an apply - its own closing or merge step - that resolves something an earlier task logged removes
+  that entry's mention from `_LOG_APPLY_OPEN_POINTS.md`/`_LOG_APPLY_ERROR.md` as part of what finishing means.
+  This is not a new exception to "never removed because the task is done": a mention goes away only once the
+  thing it describes is actually resolved, the same retention rule, now stated as something the closing part of
+  an apply does rather than something that happens by chance.
 - **Heading**: one `### <slug> (#<issue>, merged via PR #<n>)` per task, appended in the order tasks ran. A task
   with no issue or apply uses `### <slug> (no apply, commit <short hash>)`, and work that never landed says so
   plainly, for example `(NOT applied, no commit)`. The slug is lowercase kebab-case and names the work.
-- **Never overstate**: an unverified claim goes to the error log as unverified, not to the success log as done.
-  ASCII only.
+- **Never overstate**: an unverified claim goes to the error log (a real failure) or the open-points log
+  (anything else still open) as unverified or open, never claimed as resolved anywhere - there is no success log
+  to wrongly mark it done in. ASCII only.
 
 ## Versioning
 
@@ -128,7 +135,7 @@ only when the user or a rule names them:
   this repository, carried to a merged PR in the same run.
 - `parallelize` - free text => tasks => dependency waves dispatched to subagents, in a git worktree only when
   write sets could collide.
-- `reconcile-temp-logs` - moves finished applies and merged log entries to `temp/_BACKUP/`, deleting nothing; never removes
-  open error-log entries.
+- `reconcile-temp-logs` - moves finished applies and closed handoff sections to `temp/_BACKUP/`, deleting
+  nothing; never removes an open error-log or open-points-log entry.
 - `audit-code` - `<file>...`: the post-apply code audit; [the skill](.claude/skills/audit-code/SKILL.md) owns its
   stages and run conditions.

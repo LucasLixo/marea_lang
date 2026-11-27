@@ -56,17 +56,17 @@ Fixed order. A stage-specific section is inserted only where marked; nothing els
 ## Gaps versus the outcome logs
 
 `## Gaps` is the curated, de-duplicated, reader-facing statement of what a stage cannot do yet.
-`temp/_LOG_APPLY_ERROR.md` (owned by [generate-apply](../generate-apply/SKILL.md)) is the
+`temp/_LOG_APPLY_OPEN_POINTS.md` (owned by [generate-apply](../generate-apply/SKILL.md)) is the
 chronological, per-task record of everything every apply left open, and is never pruned while an
 item stays open. The two are compatible, not duplicates: a limitation is usually logged first, by
-the apply that found it, in `temp/_LOG_APPLY_ERROR.md`; the stage doc then folds it into `## Gaps`
-as the lasting statement a cold reader sees without reading history.
+the apply that found it, in `temp/_LOG_APPLY_OPEN_POINTS.md`; the stage doc then folds it into
+`## Gaps` as the lasting statement a cold reader sees without reading history.
 
 - Closing a gap: rewrite or remove its `## Gaps` bullet in the same change, and mark the matching
-  `temp/_LOG_APPLY_ERROR.md` entry resolved - never delete that entry ([generate-apply](../generate-apply/SKILL.md)'s
+  `temp/_LOG_APPLY_OPEN_POINTS.md` entry resolved - never delete that entry ([generate-apply](../generate-apply/SKILL.md)'s
   own retention rule).
 - Finding a new one: add a `## Gaps` bullet and, if the finding came from an apply or an audit,
-  record it in `temp/_LOG_APPLY_ERROR.md` the same way every other open point is recorded.
+  record it in `temp/_LOG_APPLY_OPEN_POINTS.md` the same way every other open point is recorded.
 
 ## Validation
 
