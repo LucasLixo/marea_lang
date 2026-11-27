@@ -161,6 +161,8 @@ TEST(MAREACString, LengthCountsUtf8ScalarValuesNotRawBytes)
 
     MAREA_HostContext context{};
 
+    MAREA_IGNORE(MAREA_HostContextInitialize(&context, nullptr, nullptr));
+
     // "e" (1 byte) + U+00E9 (2 bytes) + U+20AC (3 bytes) + U+10000 (4 bytes) = 10 bytes, 4 scalar values.
     const char bytes[]{ 'e', '\xc3', '\xa9', '\xe2', '\x82', '\xac', '\xf0', '\x90', '\x80', '\x80' };
 
@@ -187,6 +189,8 @@ TEST(MAREACString, LengthOfTheEmptyStringIsZero)
 
     MAREA_HostContext context{};
 
+    MAREA_IGNORE(MAREA_HostContextInitialize(&context, nullptr, nullptr));
+
     MAREA_String value{};
 
     MAREA_CStringFixture fixture;
@@ -201,6 +205,8 @@ TEST(MAREACString, AppendGrowsAnEmptyStringAndConcatenates)
                << std::endl;
 
     MAREA_HostContext context{};
+
+    MAREA_IGNORE(MAREA_HostContextInitialize(&context, nullptr, nullptr));
 
     MAREA_String target{};
 
@@ -243,6 +249,8 @@ TEST(MAREACString, AppendGrowsCapacityByMaxOfFourOrTwiceCapacity)
                << std::endl;
 
     MAREA_HostContext context{};
+
+    MAREA_IGNORE(MAREA_HostContextInitialize(&context, nullptr, nullptr));
 
     MAREA_String target{};
 
@@ -289,6 +297,8 @@ TEST(MAREACString, ClearSetsLengthToZeroAndKeepsCapacity)
 
     MAREA_HostContext context{};
 
+    MAREA_IGNORE(MAREA_HostContextInitialize(&context, nullptr, nullptr));
+
     MAREA_String target{};
 
     MAREA_CStringFixture fixture;
@@ -328,6 +338,8 @@ TEST(MAREACString, CompareGivesTheSignOfTheByteOrderComparison)
 
     MAREA_HostContext context{};
 
+    MAREA_IGNORE(MAREA_HostContextInitialize(&context, nullptr, nullptr));
+
     MAREA_CStringFixture fixture;
 
     MAREA_HostFunction compare{ fixture.MAREA_find("compare") };
@@ -366,6 +378,8 @@ TEST(MAREACString, AppendRaisesOutOfMemoryAndLeavesTheTargetUnchangedWhenTheHost
                << std::endl;
 
     MAREA_HostContext context{};
+
+    MAREA_IGNORE(MAREA_HostContextInitialize(&context, nullptr, nullptr));
 
     MAREA_IGNORE(MAREA_HostContextInitialize(&context, MAREA_failingAllocate, MAREA_failingFree));
 
