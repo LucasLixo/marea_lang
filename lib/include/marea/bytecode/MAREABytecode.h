@@ -8,6 +8,7 @@
     #include "marea/base/MAREAMacros.h"
     #include "marea/base/MAREAArena.h"
     #include "marea/base/MAREADiagnostic.h"
+    #include "marea/base/MAREATypeRegistry.h"
 
 MAREA_BEGIN_EXTERN_C
 
@@ -183,6 +184,17 @@ MAREA_BEGIN_EXTERN_C
      * MAREA_BYTECODE_EXCEPT_ERROR_OUT_OF_MEMORY when the arena cannot grow.
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeContextCreate(MAREA_Arena * arena, MAREA_DiagnosticSink * sink, MAREA_BytecodeContext * *outContext);
+
+    /**
+     * @brief Gives the context the registry that describes the library types, the same registry that sema was
+     * given. The lowering reads one shape from it: an inline run (an index protocol, no role, a copy class and two
+     * type arguments, the element and the count), which it lowers as an array in the frame memory. With no registry
+     * an array is not lowered.
+     * @param context Context to change. Must not be null.
+     * @param registry Registry to read, or null for none. It must outlive every generation of the context.
+     * @return MAREA_BYTECODE_EXCEPT_SUCCESS, or MAREA_BYTECODE_EXCEPT_ERROR_NULL_POINTER when context is null.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeContextSetTypeRegistry(MAREA_BytecodeContext * context, const MAREA_TypeRegistry *registry);
 
     /**
      * @brief Returns the arena the context was created with.

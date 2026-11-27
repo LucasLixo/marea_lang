@@ -9,6 +9,7 @@
     #include "marea/base/MAREAArena.h"
     #include "marea/base/MAREADiagnostic.h"
     #include "marea/bytecode/MAREABytecode.h"
+    #include "marea/base/MAREATypeRegistry.h"
 
 MAREA_BEGIN_EXTERN_C
 
@@ -19,6 +20,7 @@ MAREA_BEGIN_EXTERN_C
     {
         MAREA_Arena *arena;
         MAREA_DiagnosticSink *sink;
+        const MAREA_TypeRegistry *registry;
     };
 
     /**

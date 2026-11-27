@@ -7,11 +7,13 @@
     #include "marea/base/MAREACTypes.h"
     #include "marea/base/MAREAMacros.h"
     #include "marea/base/MAREAArena.h"
+    #include "marea/base/MAREATypeRegistry.h"
     #include "marea/bytecode/MAREABytecode.h"
     #include "marea/bytecode/MAREABytecodeOpcode.h"
     #include "marea/ir/MAREAIrLayout.h"
     #include "marea/ir/MAREAIrNode.h"
     #include "marea/lex/MAREATokenKind.h"
+    #include "marea/parse/MAREAAst.h"
 
 MAREA_BEGIN_EXTERN_C
 
@@ -78,7 +80,9 @@ MAREA_BEGIN_EXTERN_C
         MAREA_Uinteger32 registerIndex;
         MAREA_Uinteger32 aggregateType;
         MAREA_Uinteger8 kind;
-        MAREA_Uinteger8 padding[3];
+        // INFO: the register holds the address of a scalar, so the name reads and writes that place.
+        MAREA_Boolean isPlace;
+        MAREA_Uinteger8 padding[2];
     } MAREA_BytecodeGeneratorSymbol;
 
     /**
@@ -96,6 +100,13 @@ MAREA_BEGIN_EXTERN_C
         MAREA_Uinteger32 typeIndex;
         MAREA_Uinteger64 size;
         MAREA_Uinteger64 alignment;
+        // INFO: an inline run holds count elements of elementKind, one every stride bytes. It has no declaration
+        // and no layout.
+        MAREA_Uinteger64 count;
+        MAREA_Uinteger64 stride;
+        MAREA_Uinteger32 elementAggregate;
+        MAREA_Uinteger8 elementKind;
+        MAREA_Boolean isRun;
     } MAREA_BytecodeGeneratorAggregate;
 
     /**
@@ -107,6 +118,8 @@ MAREA_BEGIN_EXTERN_C
         const MAREA_IrNode *node;
         const MAREA_Character8 *name;
         MAREA_Uinteger8 *parameterKinds;
+        // INFO: the aggregate of each parameter that is one, else MAREA_BYTECODE_NONE.
+        MAREA_Uinteger32 *parameterAggregates;
         MAREA_IntegerSize nameLength;
         MAREA_Uinteger32 parameterCount;
         MAREA_Uinteger8 resultKind;
@@ -493,6 +506,53 @@ MAREA_BEGIN_EXTERN_C
      * @return MAREA_BYTECODE_EXCEPT_SUCCESS or MAREA_BYTECODE_EXCEPT_ERROR_OUT_OF_MEMORY.
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorLowerBlock(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node);
+
+    /**
+     * @brief Reads a type text as an aggregate: a structure of this unit or an inline run that the registry
+     * describes. outKind is MAREA_BYTECODE_GENERATOR_KIND_NONE for any other text.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorTextKind(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node, const MAREA_Character8 *text, MAREA_IntegerSize length, MAREA_Uinteger8 *outKind, MAREA_Uinteger32 *outAggregateIndex);
+
+    /**
+     * @brief Gives the aggregate of an inline run type text, or MAREA_BYTECODE_NONE when the text is none.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorRunKind(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node, const MAREA_Character8 *text, MAREA_IntegerSize length, MAREA_Uinteger32 *outAggregateIndex);
+
+    /**
+     * @brief Builds a value of an aggregate in bytes of its own and gives the register of its address.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorMaterialize(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node, MAREA_Uinteger32 aggregateIndex, MAREA_Uinteger32 *outRegister);
+
+    /**
+     * @brief Lowers the place that a name, a field or an element gives: the register of its address, the kind of
+     * the value there, and its aggregate when it is one.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorPlace(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node, MAREA_Uinteger32 *outRegister, MAREA_Uinteger8 *outKind, MAREA_Uinteger32 *outAggregateIndex);
+
+    /**
+     * @brief Lowers the checked place of an element of an INDEX_ACCESS.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorElementPlace(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node, MAREA_Uinteger32 *outRegister, MAREA_Uinteger8 *outKind, MAREA_Uinteger32 *outAggregateIndex);
+
+    /**
+     * @brief Builds an array from a LITERAL_VALUE at a given address.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorConstructRun(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node, MAREA_Uinteger32 destinationAddress, MAREA_Uinteger32 aggregateIndex);
+
+    /**
+     * @brief Lowers a CALL_EXPRESSION that calls a member of an array. outHandled is false for any other call.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorRunCall(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node, MAREA_Uinteger32 destination, MAREA_Boolean * outHandled, MAREA_Uinteger8 * outKind);
+
+    /**
+     * @brief Lowers a FOR_EACH_STATEMENT over an array.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorLowerForEach(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node);
+
+    /**
+     * @brief Lowers the body of a loop that starts at start, with the jump that leaves it, and closes the scope.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorLowerLoopBody(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node, const MAREA_IrNode *body, MAREA_Uinteger32 start, MAREA_Uinteger32 exitJump, MAREA_IntegerSize symbolMark, MAREA_Uinteger32 registerMark);
 
 MAREA_END_EXTERN_C
 

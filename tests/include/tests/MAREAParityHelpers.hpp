@@ -413,6 +413,7 @@ inline MAREA_ParityModules MAREA_parityGenerate(MAREA_IrFixture &fixture, const 
     MAREA_BytecodeContext *bytecodeContext{ nullptr };
 
     MAREA_IGNORE(MAREA_BytecodeContextCreate(fixture.sema.parser.lexer.arena, fixture.sema.parser.lexer.sink, &bytecodeContext));
+    MAREA_IGNORE(MAREA_BytecodeContextSetTypeRegistry(bytecodeContext, MAREA_buildLibraryRegistry(fixture.sema.parser.lexer.arena)));
 
     MAREA_IntegerSize first{ MAREA_DiagnosticSinkGetCount(fixture.sema.parser.lexer.sink) };
 

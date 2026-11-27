@@ -71,8 +71,22 @@ static MAREA_BytecodeExcept MAREA_CALL MAREA_G_Declare(MAREA_BytecodeGenerator *
 
         entry->parameterKinds = memory;
 
+        if (MAREA_ArenaAllocate(generator->arena, (COUNT * sizeof(MAREA_Uinteger32)), MAREA_ALIGNOF(MAREA_Uinteger32), &memory) != MAREA_ARENA_EXCEPT_SUCCESS) {
+            return MAREA_BYTECODE_EXCEPT_ERROR_OUT_OF_MEMORY;
+        }
+
+        entry->parameterAggregates = memory;
+
         for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < COUNT; index += MAREA_INTEGER_SIZE(1)) {
-            entry->parameterKinds[index] = MAREA_BytecodeGeneratorKindOfNode(MAREA_BytecodeGeneratorChildAt(parameters, index));
+            const MAREA_IrNode *parameter = MAREA_BytecodeGeneratorChildAt(parameters, index);
+
+            entry->parameterKinds[index] = MAREA_BytecodeGeneratorKindOfNode(parameter);
+
+            MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorRunKind(generator, parameter, MAREA_IrNodeGetResolvedType(parameter), MAREA_IrNodeGetResolvedTypeLength(parameter), &entry->parameterAggregates[index]));
+
+            if (entry->parameterAggregates[index] != MAREA_BYTECODE_NONE) {
+                entry->parameterKinds[index] = MAREA_BYTECODE_GENERATOR_KIND_AGGREGATE;
+            }
         }
     }
 
@@ -136,7 +150,11 @@ static MAREA_BytecodeExcept MAREA_CALL MAREA_G_Publish(MAREA_BytecodeGenerator *
             .flags = MAREA_UINTEGER_32(0),
         };
 
-        MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorTypeIndex(generator, entry->parameterKinds[parameter], &parameterInfo.type));
+        if (entry->parameterKinds[parameter] == MAREA_BYTECODE_GENERATOR_KIND_AGGREGATE) {
+            parameterInfo.type = generator->aggregates[entry->parameterAggregates[parameter]].typeIndex;
+        } else {
+            MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorTypeIndex(generator, entry->parameterKinds[parameter], &parameterInfo.type));
+        }
 
         MAREA_BYTECODE_TRY(MAREA_BytecodeModuleAddParameter(generator->module, index, &parameterInfo));
     }
@@ -174,7 +192,7 @@ static MAREA_BytecodeExcept MAREA_CALL MAREA_G_LowerFunction(MAREA_BytecodeGener
     for (MAREA_Uinteger32 index = MAREA_UINTEGER_32(0); index < entry->parameterCount; index += MAREA_UINTEGER_32(1)) {
         const MAREA_IrNode *parameter = MAREA_BytecodeGeneratorChildAt(parameters, index);
 
-        if (!((entry->parameterKinds[index] < MAREA_BYTECODE_NUMBER_KIND_COUNT) || (entry->parameterKinds[index] == MAREA_BYTECODE_GENERATOR_KIND_BOOLEAN))) {
+        if (!((entry->parameterKinds[index] < MAREA_BYTECODE_NUMBER_KIND_COUNT) || (entry->parameterKinds[index] == MAREA_BYTECODE_GENERATOR_KIND_BOOLEAN) || (entry->parameterKinds[index] == MAREA_BYTECODE_GENERATOR_KIND_AGGREGATE))) {
             MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorFail(generator, parameter, MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, "A parameter has a type that is not a scalar."));
 
             continue;
@@ -184,7 +202,7 @@ static MAREA_BytecodeExcept MAREA_CALL MAREA_G_LowerFunction(MAREA_BytecodeGener
 
         MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorAllocate(generator, parameter, MAREA_UINTEGER_32(1), &registerIndex));
 
-        MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorPushSymbol(generator, MAREA_IrNodeGetText(parameter), MAREA_IrNodeGetTextLength(parameter), registerIndex, entry->parameterKinds[index], MAREA_BYTECODE_NONE));
+        MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorPushSymbol(generator, MAREA_IrNodeGetText(parameter), MAREA_IrNodeGetTextLength(parameter), registerIndex, entry->parameterKinds[index], entry->parameterAggregates[index]));
     }
 
     if ((body == MAREA_NULLPTR) || (MAREA_IrNodeGetKind(body) != MAREA_IR_KIND_BLOCK)) {
