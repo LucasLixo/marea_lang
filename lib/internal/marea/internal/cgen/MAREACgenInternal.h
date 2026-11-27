@@ -74,6 +74,7 @@ MAREA_BEGIN_EXTERN_C
         MAREA_CGEN_CATEGORY_STRUCTURE = MAREA_UINTEGER_8(3),
         MAREA_CGEN_CATEGORY_ENUM = MAREA_UINTEGER_8(4),
         MAREA_CGEN_CATEGORY_ARRAY = MAREA_UINTEGER_8(5),
+        MAREA_CGEN_CATEGORY_VECTOR = MAREA_UINTEGER_8(6),
     } MAREA_CgenCategory;
 
     /**
@@ -138,7 +139,7 @@ MAREA_BEGIN_EXTERN_C
 
     /**
      * @brief One composite type of the type table. memberCount counts the fields of a structure or the variants of an
-     * enum, element is the element of an array or the tag of an enum, count the length of an array. cName is the C
+     * enum, element is the element of an array or of a vector or the tag of an enum, count the length of an array. cName is the C
      * name of the type. wrapped is set for an enum written as a C structure (it has data or padding), packed for a
      * type whose members can be misaligned. A type that failed has no definition and its users report it.
      */
@@ -231,6 +232,16 @@ MAREA_BEGIN_EXTERN_C
     } MAREA_CgenValue;
 
     /**
+     * @brief One value that is destroyed when its block ends: the C text of its storage and its type.
+     */
+    typedef struct MAREA_CgenOwned
+    {
+        const MAREA_Character8 *text;
+        MAREA_Uinteger32 type;
+        MAREA_Uinteger8 padding[4];
+    } MAREA_CgenOwned;
+
+    /**
      * @brief The body of the context of MAREACgen.h: what the caller gave.
      */
     struct MAREA_CgenContext
@@ -269,6 +280,13 @@ MAREA_BEGIN_EXTERN_C
         const MAREA_IrNode **destroys;
         MAREA_CgenSymbol *symbols;
         MAREA_CgenAlias *aliases;
+        // INFO: the values in scope that are destroyed at the end of their block, and the count of them at the start of the innermost loop.
+        MAREA_CgenOwned *owned;
+        // INFO: the declarations at the top of the function that is written: the temporaries that outlive a block.
+        MAREA_CgenBuffer *prelude;
+        MAREA_IntegerSize ownedCount;
+        MAREA_IntegerSize ownedCapacity;
+        MAREA_IntegerSize loopMark;
         MAREA_CgenFunction *current;
         const MAREA_Character8 *selfName;
         MAREA_IntegerSize namespaceLength;
@@ -292,7 +310,10 @@ MAREA_BEGIN_EXTERN_C
         MAREA_Boolean usesMath;
         MAREA_Boolean usesPacked;
         MAREA_Boolean usesContext;
-        MAREA_Uinteger8 padding[3];
+        MAREA_Boolean usesVector;
+        // INFO: set while the destroys of a trap are written, which run whatever they raise.
+        MAREA_Boolean unwinding;
+        MAREA_Uinteger8 padding[1];
     } MAREA_CgenGenerator;
 
     /**
@@ -745,6 +766,86 @@ MAREA_BEGIN_EXTERN_C
      * file of the module.
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_CgenExcept MAREA_CALL MAREA_CgenWriteIncludedBytes(MAREA_CgenGenerator * generator, const MAREA_IrNode *node, MAREA_CgenValue *outValue);
+
+    /**
+     * @brief Tells whether a value of a type holds storage of the allocator: a vector, or a value that holds one.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_CgenNeedsDrop(const MAREA_CgenGenerator *generator, MAREA_Uinteger32 type);
+
+    /**
+     * @brief Tells whether an element of a container must be destroyed: it holds storage, or its type declares the
+     * destroy operator.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_CgenElementNeedsDrop(const MAREA_CgenGenerator *generator, MAREA_Uinteger32 type);
+
+    /**
+     * @brief Writes the destroy of the value at a place. With isElement the destroy operator of the type runs first,
+     * which for a local the ir writes itself. A destroy of a value that was taken does nothing.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_CgenExcept MAREA_CALL MAREA_CgenWriteDrop(MAREA_CgenGenerator * generator, const MAREA_IrNode *node, const MAREA_Character8 *place, MAREA_Uinteger32 type, MAREA_Boolean isElement);
+
+    /**
+     * @brief Writes a deep copy of a value into storage that holds none yet.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_CgenExcept MAREA_CALL MAREA_CgenWriteDeepCopy(MAREA_CgenGenerator * generator, const MAREA_IrNode *node, const MAREA_Character8 *target, const MAREA_Character8 *source, MAREA_Uinteger32 type);
+
+    /**
+     * @brief Puts a value among those that are destroyed when the current block ends.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_CgenExcept MAREA_CALL MAREA_CgenPushOwned(MAREA_CgenGenerator * generator, const MAREA_Character8 *text, MAREA_Uinteger32 type);
+
+    /**
+     * @brief Writes the destroys of the owned values from a mark up, the last one first. They stay in the list.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_CgenExcept MAREA_CALL MAREA_CgenWriteDrops(MAREA_CgenGenerator * generator, const MAREA_IrNode *node, MAREA_IntegerSize mark);
+
+    /**
+     * @brief Moves a temporary that holds storage, and that nothing takes over, into storage of the function that is
+     * destroyed with the block. Any other value stays as it is.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_CgenExcept MAREA_CALL MAREA_CgenHold(MAREA_CgenGenerator * generator, const MAREA_IrNode *node, MAREA_CgenValue *ioValue);
+
+    /**
+     * @brief Writes a value that the caller takes over: as MAREA_CgenWriteTyped, and a name, a field or an element
+     * that holds storage leaves zeros behind.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_CgenExcept MAREA_CALL MAREA_CgenWriteOwned(MAREA_CgenGenerator * generator, const MAREA_IrNode *node, MAREA_Uinteger32 expected, MAREA_CgenValue *outValue);
+
+    /**
+     * @brief The C text of the element of a vector at an index that is known to exist.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_Character8 *MAREA_CALL MAREA_CgenElementText(MAREA_CgenGenerator * generator, const MAREA_Character8 *vector, MAREA_Uinteger32 element, const MAREA_Character8 *index);
+
+    /**
+     * @brief The two C arguments that give the stride and the alignment of an element to the runtime of a vector.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_Character8 *MAREA_CALL MAREA_CgenStrideText(MAREA_CgenGenerator * generator, MAREA_Uinteger32 element);
+
+    /**
+     * @brief Declares a context of one runtime call in the current block and gives its name.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_Character8 *MAREA_CALL MAREA_CgenWriteContext(MAREA_CgenGenerator * generator);
+
+    /**
+     * @brief Writes the out of memory trap of a context that the runtime raised a trap on.
+     */
+    MAREA_EXTERN_DECL void MAREA_CALL MAREA_CgenWriteMemoryGuard(MAREA_CgenGenerator * generator, const MAREA_Character8 *context);
+
+    /**
+     * @brief Writes the checked place of an element of a vector, for an INDEX_ACCESS.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_CgenExcept MAREA_CALL MAREA_CgenWriteVectorIndex(MAREA_CgenGenerator * generator, const MAREA_IrNode *node, const MAREA_CgenValue *base, MAREA_CgenValue *outPlace);
+
+    /**
+     * @brief Writes a LITERAL_VALUE of a vector.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_CgenExcept MAREA_CALL MAREA_CgenWriteVectorLiteral(MAREA_CgenGenerator * generator, const MAREA_IrNode *node, MAREA_Uinteger32 type, MAREA_CgenValue *outValue);
+
+    /**
+     * @brief Writes a call of a member of a vector, whose place is already written. With no use of the result a
+     * member that gives an element up destroys it.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_CgenExcept MAREA_CALL MAREA_CgenWriteVectorCall(MAREA_CgenGenerator * generator, const MAREA_IrNode *node, const MAREA_CgenValue *receiver, const MAREA_IrNode *member, const MAREA_IrNode *arguments, MAREA_Boolean valueUsed, MAREA_CgenValue *outValue);
 
 MAREA_END_EXTERN_C
 

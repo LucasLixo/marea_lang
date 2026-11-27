@@ -440,6 +440,10 @@ static MAREA_CgenExcept MAREA_CALL MAREA_G_WriteIndexPlace(MAREA_CgenGenerator *
         return MAREA_CGEN_EXCEPT_SUCCESS;
     }
 
+    if (MAREA_CgenCategoryOf(generator, base.type) == MAREA_CGEN_CATEGORY_VECTOR) {
+        return MAREA_CgenWriteVectorIndex(generator, node, &base, outPlace);
+    }
+
     if (MAREA_CgenCategoryOf(generator, base.type) != MAREA_CGEN_CATEGORY_ARRAY) {
         return MAREA_CgenGeneratorFail(generator, node, MAREA_CGEN_DIAGNOSTIC_CODE_UNSUPPORTED_CONSTRUCT, "Only an array of a registered inline run is indexed.");
     }
@@ -555,6 +559,11 @@ MAREA_CgenExcept MAREA_CALL MAREA_CgenWritePlace(MAREA_CgenGenerator *generator,
 
     if ((generator->functionFailed == MAREA_BOOLEAN_FALSE) && (outPlace->stable == MAREA_BOOLEAN_FALSE) && (MAREA_CgenIsAggregate(generator, outPlace->type) == MAREA_BOOLEAN_FALSE) && (MAREA_IrNodeGetKind(node) != MAREA_IR_KIND_IDENTIFIER)) {
         MAREA_CgenSnapshot(generator, outPlace);
+    }
+
+    // INFO: a value that is only borrowed here has no owner yet, so the block destroys it.
+    if ((generator->functionFailed == MAREA_BOOLEAN_FALSE) && (MAREA_IrNodeGetKind(node) != MAREA_IR_KIND_IDENTIFIER)) {
+        MAREA_CGEN_TRY(MAREA_CgenHold(generator, node, outPlace));
     }
 
     return MAREA_CGEN_EXCEPT_SUCCESS;

@@ -230,6 +230,10 @@ static MAREA_CgenExcept MAREA_CALL MAREA_G_WriteMemberCall(MAREA_CgenGenerator *
         return MAREA_CGEN_EXCEPT_SUCCESS;
     }
 
+    if (MAREA_CgenCategoryOf(generator, receiver.type) == MAREA_CGEN_CATEGORY_VECTOR) {
+        return MAREA_CgenWriteVectorCall(generator, node, &receiver, member, arguments, valueUsed, outValue);
+    }
+
     if (MAREA_CgenCategoryOf(generator, receiver.type) == MAREA_CGEN_CATEGORY_ARRAY) {
         return MAREA_CgenWriteArrayCall(generator, node, &receiver, member, arguments, outValue);
     }

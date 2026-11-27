@@ -14,7 +14,7 @@ static MAREA_CgenExcept MAREA_CALL MAREA_G_WriteElement(MAREA_CgenGenerator *gen
 
     MAREA_CgenValue element = { 0 };
 
-    MAREA_CGEN_TRY(MAREA_CgenWriteTyped(generator, value, ELEMENT, &element));
+    MAREA_CGEN_TRY(MAREA_CgenWriteOwned(generator, value, ELEMENT, &element));
 
     MAREA_CgenStore(generator, MAREA_CGEN_JOIN(generator, "(", target, ").items[", MAREA_CgenNumber(generator, position), "]"), ELEMENT, element.text);
 
@@ -47,7 +47,7 @@ static MAREA_CgenExcept MAREA_CALL MAREA_G_WriteIndexedElement(MAREA_CgenGenerat
 
     MAREA_CgenValue element = { 0 };
 
-    MAREA_CGEN_TRY(MAREA_CgenWriteTyped(generator, MAREA_CgenChildAt(entry, MAREA_INTEGER_SIZE(1)), ELEMENT, &element));
+    MAREA_CGEN_TRY(MAREA_CgenWriteOwned(generator, MAREA_CgenChildAt(entry, MAREA_INTEGER_SIZE(1)), ELEMENT, &element));
 
     MAREA_CgenStore(generator, MAREA_CGEN_JOIN(generator, "(", target, ").items[", name, "]"), ELEMENT, element.text);
 
@@ -68,7 +68,7 @@ static MAREA_CgenExcept MAREA_CALL MAREA_G_WriteFieldEntry(MAREA_CgenGenerator *
 
     MAREA_CgenValue value = { 0 };
 
-    MAREA_CGEN_TRY(MAREA_CgenWriteTyped(generator, MAREA_CgenChildAt(entry, MAREA_INTEGER_SIZE(0)), FIELD_TYPE, &value));
+    MAREA_CGEN_TRY(MAREA_CgenWriteOwned(generator, MAREA_CgenChildAt(entry, MAREA_INTEGER_SIZE(0)), FIELD_TYPE, &value));
 
     MAREA_CgenStore(generator, MAREA_CGEN_JOIN(generator, "(", target, ").", name), FIELD_TYPE, value.text);
 
@@ -84,6 +84,10 @@ MAREA_CgenExcept MAREA_CALL MAREA_CgenWriteLiteralValue(MAREA_CgenGenerator *gen
     }
 
     const MAREA_Uinteger8 CATEGORY = MAREA_CgenCategoryOf(generator, type);
+
+    if (CATEGORY == MAREA_CGEN_CATEGORY_VECTOR) {
+        return MAREA_CgenWriteVectorLiteral(generator, node, type, outValue);
+    }
 
     if ((MAREA_CgenIsValueType(generator, type) == MAREA_BOOLEAN_FALSE) || ((CATEGORY != MAREA_CGEN_CATEGORY_STRUCTURE) && (CATEGORY != MAREA_CGEN_CATEGORY_ARRAY))) {
         return MAREA_CgenGeneratorFail(generator, node, MAREA_CGEN_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, "A literal makes a type that cgen does not write.");
@@ -167,7 +171,7 @@ MAREA_CgenExcept MAREA_CALL MAREA_CgenWriteVariant(MAREA_CgenGenerator *generato
     MAREA_CgenValue *values = memory;
 
     for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < GIVEN; index = (index + MAREA_INTEGER_SIZE(1))) {
-        MAREA_CGEN_TRY(MAREA_CgenWriteTyped(generator, MAREA_CgenChildAt(arguments, index), fields[index].type, &values[index]));
+        MAREA_CGEN_TRY(MAREA_CgenWriteOwned(generator, MAREA_CgenChildAt(arguments, index), fields[index].type, &values[index]));
 
         if ((generator->functionFailed == MAREA_BOOLEAN_FALSE) && (values[index].stable == MAREA_BOOLEAN_FALSE)) {
             MAREA_CgenSnapshot(generator, &values[index]);

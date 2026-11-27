@@ -30,7 +30,7 @@ static MAREA_CgenExcept MAREA_CALL MAREA_G_WriteLocal(MAREA_CgenGenerator *gener
 
     MAREA_CgenValue value = { 0 };
 
-    MAREA_CGEN_TRY(MAREA_CgenWriteTyped(generator, initial, type, &value));
+    MAREA_CGEN_TRY(MAREA_CgenWriteOwned(generator, initial, type, &value));
 
     if (generator->functionFailed == MAREA_BOOLEAN_TRUE) {
         return MAREA_CGEN_EXCEPT_SUCCESS;
@@ -44,6 +44,10 @@ static MAREA_CgenExcept MAREA_CALL MAREA_G_WriteLocal(MAREA_CgenGenerator *gener
     }
 
     MAREA_CGEN_WRITE(generator->buffer, MAREA_CgenTypeName(generator, type), " ", name, " = ", value.text, ";\n(void)", name, ";\n");
+
+    if (MAREA_CgenNeedsDrop(generator, type) == MAREA_BOOLEAN_TRUE) {
+        MAREA_CGEN_TRY(MAREA_CgenPushOwned(generator, name, type));
+    }
 
     return MAREA_CgenPushSymbol(generator, MAREA_IrNodeGetText(node), MAREA_IrNodeGetTextLength(node), name, type, (MAREA_CgenIsAggregate(generator, type) == MAREA_BOOLEAN_FALSE), MAREA_BOOLEAN_FALSE);
 }
@@ -157,7 +161,13 @@ static MAREA_CgenExcept MAREA_CALL MAREA_G_WriteStore(MAREA_CgenGenerator *gener
     MAREA_CgenValue value = { 0 };
 
     if (OPERATOR == MAREA_TOKEN_KIND_EQUAL) {
-        MAREA_CGEN_TRY(MAREA_CgenWriteTyped(generator, source, place->type, &value));
+        MAREA_CGEN_TRY(MAREA_CgenWriteOwned(generator, source, place->type, &value));
+
+        // INFO: the new value is taken before the old one is destroyed, since it may read the target.
+        if ((generator->functionFailed == MAREA_BOOLEAN_FALSE) && (MAREA_CgenNeedsDrop(generator, place->type) == MAREA_BOOLEAN_TRUE)) {
+            MAREA_CgenSnapshot(generator, &value);
+            MAREA_CGEN_TRY(MAREA_CgenWriteDrop(generator, node, place->text, place->type, MAREA_BOOLEAN_FALSE));
+        }
 
         if (generator->functionFailed == MAREA_BOOLEAN_FALSE) {
             MAREA_CgenStore(generator, place->text, place->type, value.text);
@@ -246,6 +256,11 @@ static MAREA_CgenExcept MAREA_CALL MAREA_G_WriteExpressionStatement(MAREA_CgenGe
         MAREA_CGEN_TRY(MAREA_CgenWriteValue(generator, expression, MAREA_CGEN_KIND_NONE, &value));
     }
 
+    // INFO: a result that nothing takes over is destroyed at once.
+    if ((generator->functionFailed == MAREA_BOOLEAN_FALSE) && (MAREA_CgenNeedsDrop(generator, value.type) == MAREA_BOOLEAN_TRUE) && (MAREA_IrNodeGetKind(expression) == MAREA_IR_KIND_CALL_EXPRESSION)) {
+        MAREA_CGEN_TRY(MAREA_CgenWriteDrop(generator, node, value.text, value.type, MAREA_BOOLEAN_FALSE));
+    }
+
     if ((generator->functionFailed == MAREA_BOOLEAN_FALSE) && (value.type != MAREA_CGEN_KIND_VOID)) {
         MAREA_CGEN_WRITE(generator->buffer, "(void)(", value.text, ");\n");
     }
@@ -256,6 +271,7 @@ static MAREA_CgenExcept MAREA_CALL MAREA_G_WriteExpressionStatement(MAREA_CgenGe
 static MAREA_CgenExcept MAREA_CALL MAREA_G_WriteReturn(MAREA_CgenGenerator *generator, const MAREA_IrNode *node)
 {
     if (MAREA_IrNodeGetChildCount(node) == MAREA_INTEGER_SIZE(0)) {
+        MAREA_CGEN_TRY(MAREA_CgenWriteDrops(generator, node, MAREA_INTEGER_SIZE(0)));
         MAREA_CgenWriteText(generator->buffer, "return;\n");
 
         return MAREA_CGEN_EXCEPT_SUCCESS;
@@ -263,7 +279,13 @@ static MAREA_CgenExcept MAREA_CALL MAREA_G_WriteReturn(MAREA_CgenGenerator *gene
 
     MAREA_CgenValue value = { 0 };
 
-    MAREA_CGEN_TRY(MAREA_CgenWriteTyped(generator, MAREA_CgenChildAt(node, MAREA_INTEGER_SIZE(0)), generator->current->result, &value));
+    MAREA_CGEN_TRY(MAREA_CgenWriteOwned(generator, MAREA_CgenChildAt(node, MAREA_INTEGER_SIZE(0)), generator->current->result, &value));
+
+    // INFO: the result is held before the values of the function are destroyed, since it may read them.
+    if ((generator->functionFailed == MAREA_BOOLEAN_FALSE) && (generator->ownedCount > MAREA_INTEGER_SIZE(0))) {
+        MAREA_CgenSnapshot(generator, &value);
+        MAREA_CGEN_TRY(MAREA_CgenWriteDrops(generator, node, MAREA_INTEGER_SIZE(0)));
+    }
 
     if (generator->functionFailed == MAREA_BOOLEAN_FALSE) {
         MAREA_CGEN_WRITE(generator->buffer, "return ", value.text, ";\n");
@@ -319,7 +341,13 @@ static MAREA_CgenExcept MAREA_CALL MAREA_G_WriteWhile(MAREA_CgenGenerator *gener
         MAREA_CGEN_WRITE(generator->buffer, "if (!(", test.text, ")) {\nbreak;\n}\n");
     }
 
+    const MAREA_IntegerSize LOOP_MARK = generator->loopMark;
+
+    generator->loopMark = generator->ownedCount;
+
     MAREA_CGEN_TRY(MAREA_CgenWriteBlock(generator, MAREA_CgenChildAt(node, MAREA_INTEGER_SIZE(1))));
+
+    generator->loopMark = LOOP_MARK;
 
     MAREA_CgenWriteText(generator->buffer, "}\n");
 
@@ -374,7 +402,7 @@ static MAREA_CgenExcept MAREA_CALL MAREA_G_WriteForEachBody(MAREA_CgenGenerator 
 
     const MAREA_Uinteger32 ELEMENT = MAREA_CgenTypeAt(generator, collection->type)->element;
 
-    const MAREA_Character8 *element = MAREA_CGEN_JOIN(generator, "(", collection->text, ").items[", index, "]");
+    const MAREA_Character8 *element = (MAREA_CgenCategoryOf(generator, collection->type) == MAREA_CGEN_CATEGORY_VECTOR) ? MAREA_CgenElementText(generator, collection->text, ELEMENT, index) : MAREA_CGEN_JOIN(generator, "(", collection->text, ").items[", index, "]");
 
     if (CHILDREN == MAREA_INTEGER_SIZE(3)) {
         const MAREA_IrNode *key = MAREA_CgenChildAt(node, MAREA_INTEGER_SIZE(0));
@@ -393,8 +421,8 @@ static MAREA_CgenExcept MAREA_CALL MAREA_G_WriteForEachBody(MAREA_CgenGenerator 
         MAREA_CGEN_TRY(MAREA_CgenPushSymbol(generator, MAREA_IrNodeGetText(key), MAREA_IrNodeGetTextLength(key), name, type, MAREA_BOOLEAN_TRUE, MAREA_BOOLEAN_FALSE));
     }
 
-    // INFO: a mutable loop names each element itself, so a write reaches the collection; a plain one copies it.
-    if ((MAREA_IrNodeGetFlags(node) & (MAREA_Uinteger32)MAREA_AST_FLAG_MUTABLE) != MAREA_UINTEGER_32(0)) {
+    // INFO: a mutable loop names each element itself, so a write reaches the collection; a plain one copies it, but an element that holds storage is named too, since a copy of its bytes would be a second owner.
+    if (((MAREA_IrNodeGetFlags(node) & (MAREA_Uinteger32)MAREA_AST_FLAG_MUTABLE) != MAREA_UINTEGER_32(0)) || (MAREA_CgenNeedsDrop(generator, ELEMENT) == MAREA_BOOLEAN_TRUE)) {
         MAREA_CGEN_TRY(MAREA_CgenPushSymbol(generator, MAREA_IrNodeGetText(node), MAREA_IrNodeGetTextLength(node), element, ELEMENT, MAREA_BOOLEAN_FALSE, collection->unaligned));
     } else {
         const MAREA_Character8 *name = MAREA_CgenLocalName(generator, MAREA_IrNodeGetText(node), MAREA_IrNodeGetTextLength(node));
@@ -424,28 +452,43 @@ static MAREA_CgenExcept MAREA_CALL MAREA_G_WriteForEach(MAREA_CgenGenerator *gen
         return MAREA_CGEN_EXCEPT_SUCCESS;
     }
 
-    if (MAREA_CgenCategoryOf(generator, collection.type) != MAREA_CGEN_CATEGORY_ARRAY) {
-        return MAREA_CgenGeneratorFail(generator, node, MAREA_CGEN_DIAGNOSTIC_CODE_UNSUPPORTED_CONSTRUCT, "Only an array of a registered inline run is walked by a for each.");
+    const MAREA_Uinteger8 CATEGORY = MAREA_CgenCategoryOf(generator, collection.type);
+
+    if ((CATEGORY != MAREA_CGEN_CATEGORY_ARRAY) && (CATEGORY != MAREA_CGEN_CATEGORY_VECTOR)) {
+        return MAREA_CgenGeneratorFail(generator, node, MAREA_CGEN_DIAGNOSTIC_CODE_UNSUPPORTED_CONSTRUCT, "Only an array or a vector is walked by a for each.");
     }
 
     const MAREA_Uinteger64 COUNT = MAREA_CgenTypeAt(generator, collection.type)->count;
 
     // INFO: the body of a loop over no element never runs, so it is not written.
-    if (COUNT == MAREA_UINTEGER_64(0)) {
+    if ((CATEGORY == MAREA_CGEN_CATEGORY_ARRAY) && (COUNT == MAREA_UINTEGER_64(0))) {
         MAREA_CGEN_WRITE(generator->buffer, "(void)(", collection.text, ");\n}\n");
 
         return MAREA_CGEN_EXCEPT_SUCCESS;
     }
 
+    // INFO: the count of a vector is read once, when the loop starts.
+    const MAREA_Character8 *last = MAREA_CGEN_JOIN(generator, MAREA_CgenNumber(generator, COUNT), "ULL");
+
+    if (CATEGORY == MAREA_CGEN_CATEGORY_VECTOR) {
+        last = MAREA_CgenTemporaryName(generator);
+
+        MAREA_CGEN_WRITE(generator->buffer, "uint64_t ", last, " = (", collection.text, ").size;\n");
+    }
+
     const MAREA_Character8 *index = MAREA_CgenTemporaryName(generator);
 
-    MAREA_CGEN_WRITE(generator->buffer, "for (uint64_t ", index, " = 0; ", index, " < ", MAREA_CgenNumber(generator, COUNT), "ULL; ", index, " += 1u) {\n");
+    MAREA_CGEN_WRITE(generator->buffer, "for (uint64_t ", index, " = 0; ", index, " < ", last, "; ", index, " += 1u) {\n");
 
     const MAREA_IntegerSize MARK = generator->symbolCount;
+    const MAREA_IntegerSize LOOP_MARK = generator->loopMark;
+
+    generator->loopMark = generator->ownedCount;
 
     MAREA_CGEN_TRY(MAREA_G_WriteForEachBody(generator, node, &collection, index));
 
     generator->symbolCount = MARK;
+    generator->loopMark = LOOP_MARK;
 
     MAREA_CgenWriteText(generator->buffer, "}\n}\n");
 
@@ -523,10 +566,12 @@ MAREA_CgenExcept MAREA_CALL MAREA_CgenWriteStatement(MAREA_CgenGenerator *genera
     case MAREA_IR_KIND_DESTROY_CALL:
         return MAREA_G_WriteDestroy(generator, node);
     case MAREA_IR_KIND_BREAK_STATEMENT:
+        MAREA_CGEN_TRY(MAREA_CgenWriteDrops(generator, node, generator->loopMark));
         MAREA_CgenWriteText(generator->buffer, "break;\n");
 
         return MAREA_CGEN_EXCEPT_SUCCESS;
     case MAREA_IR_KIND_CONTINUE_STATEMENT:
+        MAREA_CGEN_TRY(MAREA_CgenWriteDrops(generator, node, generator->loopMark));
         MAREA_CgenWriteText(generator->buffer, "continue;\n");
 
         return MAREA_CGEN_EXCEPT_SUCCESS;
@@ -542,6 +587,7 @@ MAREA_CgenExcept MAREA_CALL MAREA_CgenWriteStatement(MAREA_CgenGenerator *genera
 MAREA_CgenExcept MAREA_CALL MAREA_CgenWriteBlock(MAREA_CgenGenerator *generator, const MAREA_IrNode *node)
 {
     const MAREA_IntegerSize MARK = generator->symbolCount;
+    const MAREA_IntegerSize OWNED_MARK = generator->ownedCount;
     const MAREA_IntegerSize COUNT = MAREA_IrNodeGetChildCount(node);
 
     MAREA_CgenWriteText(generator->buffer, "{\n");
@@ -550,7 +596,10 @@ MAREA_CgenExcept MAREA_CALL MAREA_CgenWriteBlock(MAREA_CgenGenerator *generator,
         MAREA_CGEN_TRY(MAREA_CgenWriteStatement(generator, MAREA_CgenChildAt(node, index)));
     }
 
+    MAREA_CGEN_TRY(MAREA_CgenWriteDrops(generator, node, OWNED_MARK));
+
     generator->symbolCount = MARK;
+    generator->ownedCount = OWNED_MARK;
 
     MAREA_CgenWriteText(generator->buffer, "}\n");
 

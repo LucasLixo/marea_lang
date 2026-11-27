@@ -3,6 +3,8 @@
 
 #include "marea/internal/cgen/MAREACgenInternal.h"
 
+#include "marea/base/MAREAVectorRuntime.h"
+
 #include <string.h>
 
 typedef struct MAREA_G_Scalar
@@ -565,6 +567,59 @@ static MAREA_Boolean MAREA_CALL MAREA_G_TwoArguments(const MAREA_Character8 *tex
     return MAREA_BOOLEAN_TRUE;
 }
 
+static MAREA_CgenExcept MAREA_CALL MAREA_G_DefineVector(MAREA_CgenGenerator *generator, MAREA_Uinteger32 element, MAREA_Uinteger32 *outType)
+{
+    generator->usesVector = MAREA_BOOLEAN_TRUE;
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < generator->typeCount; index = (index + MAREA_INTEGER_SIZE(1))) {
+        const MAREA_CgenType *entry = &generator->typeTable[index];
+
+        if ((entry->category == MAREA_CGEN_CATEGORY_VECTOR) && (entry->element == element)) {
+            *outType = (MAREA_CGEN_TYPE_FIRST_COMPOSITE + (MAREA_Uinteger32)index);
+
+            return MAREA_CGEN_EXCEPT_SUCCESS;
+        }
+    }
+
+    // INFO: every vector is the header of the runtime in C; the table keeps one type for each element.
+    MAREA_CGEN_TRY(MAREA_G_AddType(generator, MAREA_CGEN_CATEGORY_VECTOR, "", MAREA_INTEGER_SIZE(0), "MAREA_VectorHeader", outType));
+
+    MAREA_CgenType *entry = MAREA_G_Entry(generator, *outType);
+
+    entry->element = element;
+    entry->size = sizeof(MAREA_VectorHeader);
+    entry->alignment = MAREA_ALIGNOF(MAREA_VectorHeader);
+    entry->done = MAREA_BOOLEAN_TRUE;
+
+    return MAREA_CGEN_EXCEPT_SUCCESS;
+}
+
+// INFO: the one type argument of a resolved spelling of a growable run.
+static MAREA_CgenExcept MAREA_CALL MAREA_G_VectorType(MAREA_CgenGenerator *generator, const MAREA_Character8 *resolved, MAREA_IntegerSize resolvedLength, MAREA_Uinteger32 *outType)
+{
+    MAREA_IntegerSize open = MAREA_INTEGER_SIZE(0);
+
+    while ((open < resolvedLength) && (resolved[open] != '<')) {
+        open = (open + MAREA_INTEGER_SIZE(1));
+    }
+
+    if (((open + MAREA_INTEGER_SIZE(1)) >= resolvedLength) || (resolved[(resolvedLength - MAREA_INTEGER_SIZE(1))] != '>')) {
+        return MAREA_CGEN_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_Character8 *text = (resolved + open + MAREA_INTEGER_SIZE(1));
+
+    MAREA_IntegerSize length = (resolvedLength - open - MAREA_INTEGER_SIZE(2));
+
+    MAREA_G_Trim(&text, &length);
+
+    MAREA_Uinteger32 element = MAREA_CGEN_KIND_NONE;
+
+    MAREA_CGEN_TRY(MAREA_CgenTypeOfText(generator, MAREA_NULLPTR, MAREA_INTEGER_SIZE(0), text, length, &element));
+
+    return (MAREA_CgenIsValueType(generator, element) == MAREA_BOOLEAN_TRUE) ? MAREA_G_DefineVector(generator, element, outType) : MAREA_CGEN_EXCEPT_SUCCESS;
+}
+
 // INFO: an array of a registered inline run: an index protocol, no role, a copy class and two type arguments, the element and a literal count. This is the shape that sema measures, so cgen writes it as a C array.
 static MAREA_CgenExcept MAREA_CALL MAREA_G_ArrayType(MAREA_CgenGenerator *generator, const MAREA_Character8 *head, MAREA_IntegerSize headLength, const MAREA_Character8 *resolved, MAREA_IntegerSize resolvedLength, MAREA_Uinteger32 *outType)
 {
@@ -578,7 +633,15 @@ static MAREA_CgenExcept MAREA_CALL MAREA_G_ArrayType(MAREA_CgenGenerator *genera
 
     const MAREA_TypeDescriptor *descriptor = MAREA_G_Describe(generator, full, fullLength);
 
-    if ((descriptor == MAREA_NULLPTR) || (descriptor->hasIndexProtocol == MAREA_BOOLEAN_FALSE) || (descriptor->roles != MAREA_TYPE_ROLE_NONE) || (descriptor->ownershipClass != MAREA_TYPE_OWNERSHIP_CLASS_COPY) || (descriptor->typeParameterCount != MAREA_INTEGER_SIZE(2))) {
+    if ((descriptor == MAREA_NULLPTR) || (descriptor->hasIndexProtocol == MAREA_BOOLEAN_FALSE) || (descriptor->roles != MAREA_TYPE_ROLE_NONE)) {
+        return MAREA_CGEN_EXCEPT_SUCCESS;
+    }
+
+    if ((descriptor->ownershipClass == MAREA_TYPE_OWNERSHIP_CLASS_MOVE) && (descriptor->typeParameterCount == MAREA_INTEGER_SIZE(1))) {
+        return MAREA_G_VectorType(generator, resolved, resolvedLength, outType);
+    }
+
+    if ((descriptor->ownershipClass != MAREA_TYPE_OWNERSHIP_CLASS_COPY) || (descriptor->typeParameterCount != MAREA_INTEGER_SIZE(2))) {
         return MAREA_CGEN_EXCEPT_SUCCESS;
     }
 

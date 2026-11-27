@@ -383,6 +383,12 @@ MAREA_CgenExcept MAREA_CALL MAREA_CgenWriteUnary(MAREA_CgenGenerator *generator,
     if (OPERATOR == MAREA_TOKEN_KIND_KEYWORD_COPY) {
         *outValue = value;
 
+        if (MAREA_CgenNeedsDrop(generator, value.type) == MAREA_BOOLEAN_TRUE) {
+            MAREA_CgenZeroTemporary(generator, value.type, outValue);
+
+            return MAREA_CgenWriteDeepCopy(generator, node, outValue->text, value.text, value.type);
+        }
+
         if ((value.stable == MAREA_BOOLEAN_FALSE) || (MAREA_CgenIsAggregate(generator, value.type) == MAREA_BOOLEAN_TRUE)) {
             MAREA_CgenSnapshot(generator, outValue);
         }
