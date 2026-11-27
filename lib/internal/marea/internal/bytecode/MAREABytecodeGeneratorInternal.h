@@ -165,6 +165,8 @@ MAREA_BEGIN_EXTERN_C
         MAREA_BytecodeGeneratorFunction *functions;
         const MAREA_IrNode **constants;
         MAREA_Uinteger64 *dataValues;
+        // INFO: the number of blobs that hold a block of bytes, which stand between the constants of dataValues.
+        MAREA_Uinteger32 *dataBlobs;
         MAREA_BytecodeInstruction *code;
         MAREA_BytecodeGeneratorSymbol *symbols;
         MAREA_BytecodeGeneratorLoop *loops;
@@ -180,6 +182,7 @@ MAREA_BEGIN_EXTERN_C
         MAREA_IntegerSize constantCapacity;
         MAREA_IntegerSize dataCount;
         MAREA_IntegerSize dataCapacity;
+        MAREA_IntegerSize dataBlobCapacity;
         MAREA_IntegerSize codeCount;
         MAREA_IntegerSize codeCapacity;
         MAREA_IntegerSize symbolCount;
@@ -542,7 +545,7 @@ MAREA_BEGIN_EXTERN_C
     /**
      * @brief Lowers a CALL_EXPRESSION that calls a member of an array. outHandled is false for any other call.
      */
-    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorRunCall(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node, MAREA_Uinteger32 destination, MAREA_Boolean * outHandled, MAREA_Uinteger8 * outKind);
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorRunCall(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node, MAREA_Uinteger32 destination, MAREA_Boolean *outHandled, MAREA_Uinteger8 *outKind);
 
     /**
      * @brief Lowers a FOR_EACH_STATEMENT over an array.
@@ -553,6 +556,11 @@ MAREA_BEGIN_EXTERN_C
      * @brief Lowers the body of a loop that starts at start, with the jump that leaves it, and closes the scope.
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorLowerLoopBody(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node, const MAREA_IrNode *body, MAREA_Uinteger32 start, MAREA_Uinteger32 exitJump, MAREA_IntegerSize symbolMark, MAREA_Uinteger32 registerMark);
+
+    /**
+     * @brief Builds the array of an INCLUDED_BYTES node at a given address.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorConstructIncluded(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node, MAREA_Uinteger32 destinationAddress, MAREA_Uinteger32 aggregateIndex);
 
 MAREA_END_EXTERN_C
 

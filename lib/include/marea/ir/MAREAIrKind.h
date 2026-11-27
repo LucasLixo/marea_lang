@@ -37,7 +37,10 @@ MAREA_BEGIN_EXTERN_C
      * auto), so the first two children of a function keep their places. A function with no backend has no such child. MACRO_CALL comes last: a compile-time macro that the
      * IR keeps for a later stage (build_value! and the macro that a shipped library registers). The text is the name, with the
      * alias of a namespace replaced by the namespace (marea.array.include_bytes), and the one child is the ARGUMENT_LIST of the
-     * lowered arguments, in the order they were written. It carries the resolved type of the call. The list ends with MAREA_IR_KIND_COUNT.
+     * lowered arguments, in the order they were written. It carries the resolved type of the call. INCLUDED_BYTES is the value of a macro that gives the bytes of a file, when the
+     * include resolver gave them: the text holds two lowercase hexadecimal digits for each byte, the one child is a STRING_LITERAL
+     * whose text is the path of the file as the resolver gave it, and the resolved type is the array of uinteger8 that holds
+     * them. The list ends with MAREA_IR_KIND_COUNT.
      */
     typedef enum MAREA_IrKind
     {
@@ -91,6 +94,7 @@ MAREA_BEGIN_EXTERN_C
         MAREA_IR_KIND_DESTROY_CALL,
         MAREA_IR_KIND_BACKEND_ATTRIBUTE,
         MAREA_IR_KIND_MACRO_CALL,
+        MAREA_IR_KIND_INCLUDED_BYTES,
 
         MAREA_IR_KIND_COUNT
     } MAREA_IrKind;

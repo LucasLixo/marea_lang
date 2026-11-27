@@ -273,6 +273,7 @@ MAREA_BEGIN_EXTERN_C
         const MAREA_Character8 *backend;
         MAREA_SemaExprType exprType;
         MAREA_SemaTypedNode **children;
+        const MAREA_SemaIncludedFile *includedFile;
         MAREA_IntegerSize typeNameLength;
         MAREA_IntegerSize resolvedTypeLength;
         MAREA_IntegerSize backendLength;
@@ -2196,7 +2197,7 @@ MAREA_BEGIN_EXTERN_C
      * @param outArgumentCount Receives the argument count of a member that is found. May be null.
      * @return The member, or NONE.
      */
-    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaInlineRunMember MAREA_CALL MAREA_SemaInlineRunMemberOf(const MAREA_AstNode *name, MAREA_Boolean isStatic, MAREA_IntegerSize * outArgumentCount);
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaInlineRunMember MAREA_CALL MAREA_SemaInlineRunMemberOf(const MAREA_AstNode *name, MAREA_Boolean isStatic, MAREA_IntegerSize *outArgumentCount);
 
     /**
      * @brief Reads a call expression as a call of a member of an inline run, on a value or on the type itself.
@@ -2210,7 +2211,7 @@ MAREA_BEGIN_EXTERN_C
      * @param outHandled Receives MAREA_BOOLEAN_TRUE when the call is one of an inline run. Must not be null.
      * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER or ERROR_OUT_OF_MEMORY.
      */
-    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckInlineRunCall(MAREA_SemaContext * context, const MAREA_AstNode *node, MAREA_Boolean * outHandled);
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckInlineRunCall(MAREA_SemaContext * context, const MAREA_AstNode *node, MAREA_Boolean *outHandled);
 
     /**
      * @brief Reports a constant index of an INDEX_ACCESS that is not below the count of its inline run.
@@ -2237,6 +2238,15 @@ MAREA_BEGIN_EXTERN_C
      * @brief Tells whether a written type meets the contract Copyable. A type that sema cannot see meets it.
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaIsCopyable(const MAREA_SemaContext *context, const MAREA_AstNode *type);
+
+    /**
+     * @brief Reads the file of a call of a registered macro whose result is an array of uinteger8: the bytes of the
+     * file that its argument names, copied into the arena with their path.
+     * @param outFile Receives the file, or null when the call is no such macro or the resolver gives no bytes. Must
+     * not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS or MAREA_SEMA_EXCEPT_ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaMacroIncludedFile(const MAREA_SemaContext *context, const MAREA_AstNode *call, const MAREA_SemaIncludedFile **outFile);
 
 MAREA_END_EXTERN_C
 

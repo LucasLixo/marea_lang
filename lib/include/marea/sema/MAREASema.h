@@ -172,6 +172,32 @@ MAREA_BEGIN_EXTERN_C
     } MAREA_SemaSettings;
 
     /**
+     * @brief A file that include_bytes! names, as the caller of sema read it: its bytes, their number, and the path
+     * of the file that the C compiler of the generated text can open. path is not NUL terminated; with no path the
+     * length is 0 and the C backend cannot write the file. A plain struct, filled by the load function of the
+     * caller; sema copies the bytes and the path into its arena.
+     */
+    typedef struct MAREA_ALIGNED(8) MAREA_SemaIncludedFile
+    {
+        const MAREA_Byte *bytes;
+        MAREA_IntegerSize size;
+        const MAREA_Character8 *path;
+        MAREA_IntegerSize pathLength;
+    } MAREA_SemaIncludedFile;
+
+    /**
+     * @brief Function the caller of sema gives so that a program can take the bytes of a file. Sema never reads the
+     * disk itself.
+     * @param userData Pointer the caller keeps with the function.
+     * @param path File path as written in the call, relative to the source file, not NUL terminated.
+     * @param pathLength Length of path in bytes.
+     * @param outFile Receives the file. Read only when the function returns true. Its pointers must stay valid
+     * until the next call of the function.
+     * @return True when the file was read, false when it was not.
+     */
+    typedef MAREA_Boolean(MAREA_CALL * MAREA_SemaIncludeLoadFunction)(MAREA_Null userData, const MAREA_Character8 *path, MAREA_IntegerSize pathLength, MAREA_SemaIncludedFile *outFile);
+
+    /**
      * @brief The include resolver that the caller gives to sema: the one way a registered macro such as
      * include_bytes! learns the size of a file, because sema never reads the disk. A plain struct, caller
      * owned, not opaque, for the same reason as MAREA_SemaTarget.
@@ -180,6 +206,9 @@ MAREA_BEGIN_EXTERN_C
     {
         MAREA_MacroIncludeSizeFunction size;
         MAREA_Null userData;
+        // INFO: gives the bytes of a file, whose number must be the one that size gives. May be null: include_bytes!
+        // is then checked by its size alone, and no backend can write its value.
+        MAREA_SemaIncludeLoadFunction load;
     } MAREA_SemaIncludeResolver;
 
     /**

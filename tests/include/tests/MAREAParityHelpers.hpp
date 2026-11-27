@@ -801,11 +801,15 @@ struct MAREA_ParityResult
     }
 };
 
-inline MAREA_ParityResult MAREA_parityCheck(const std::string &source, const std::vector<MAREA_ParityCall> &calls, const MAREA_ParityHost *host = nullptr)
+inline MAREA_ParityResult MAREA_parityCheck(const std::string &source, const std::vector<MAREA_ParityCall> &calls, const MAREA_ParityHost *host = nullptr, const MAREA_SemaIncludeResolver *includes = nullptr)
 {
     MAREA_ParityResult result;
 
     MAREA_IrFixture fixture((host != nullptr) ? MAREA_parityHostResolverCallback() : MAREA_parityLibraries());
+
+    if (includes != nullptr) {
+        MAREA_IGNORE(MAREA_SemaContextSetIncludeResolver(fixture.sema.context, includes));
+    }
 
     if (host != nullptr) {
         MAREA_IGNORE(MAREA_SemaImportResolverSetSignatureFunction(fixture.sema.resolver, &MAREA_hostSignatureThunk));

@@ -619,6 +619,8 @@ MAREA_CgenExcept MAREA_CALL MAREA_CgenWriteValue(MAREA_CgenGenerator *generator,
         return MAREA_CgenWriteLiteralValue(generator, node, expected, outValue);
     case MAREA_IR_KIND_CONSTRUCT_CALL:
         return MAREA_CgenWriteConstruct(generator, node, outValue);
+    case MAREA_IR_KIND_INCLUDED_BYTES:
+        return MAREA_CgenWriteIncludedBytes(generator, node, outValue);
     case MAREA_IR_KIND_MACRO_CALL:
         return MAREA_G_WriteMacro(generator, node, expected, outValue);
     case MAREA_IR_KIND_STRING_LITERAL:

@@ -188,6 +188,14 @@ MAREA_BEGIN_EXTERN_C
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaTypedNodeIsExternalCall(const MAREA_SemaTypedNode *node);
 
+    /**
+     * @brief Returns the file of a MACRO_CALL that gives the bytes of a file, as include_bytes! does.
+     * @param node Node to query. May be null.
+     * @return The bytes and the path, held by the arena of the context, or null for any other node and when the
+     * include resolver of the context gave no bytes.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_SemaIncludedFile *MAREA_CALL MAREA_SemaTypedNodeGetIncludedFile(const MAREA_SemaTypedNode *node);
+
 MAREA_END_EXTERN_C
 
 #endif /* MAREA_INCLUDE_SEMA_MAREASEMATYPEDAST_H */

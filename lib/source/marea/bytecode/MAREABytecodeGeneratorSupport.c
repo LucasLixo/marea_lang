@@ -177,12 +177,16 @@ MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorEmitConstant(MAREA_Byteco
             return MAREA_BYTECODE_EXCEPT_ERROR_OUT_OF_MEMORY;
         }
 
+        MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorGrow(generator, generator->dataBlobs, &generator->dataBlobCapacity, generator->dataCount, sizeof(MAREA_Uinteger32), MAREA_ALIGNOF(MAREA_Uinteger32), &items));
+
+        generator->dataBlobs = items;
+        generator->dataBlobs[generator->dataCount] = blob;
         generator->dataValues[generator->dataCount] = bits;
 
         generator->dataCount += MAREA_INTEGER_SIZE(1);
     }
 
-    return MAREA_BytecodeGeneratorEmit(generator, MAREA_BYTECODE_OPCODE_LOAD_DATA, destination, (MAREA_Uinteger32)found, MAREA_UINTEGER_32(0), MAREA_NULLPTR);
+    return MAREA_BytecodeGeneratorEmit(generator, MAREA_BYTECODE_OPCODE_LOAD_DATA, destination, generator->dataBlobs[found], MAREA_UINTEGER_32(0), MAREA_NULLPTR);
 }
 
 MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorPushSymbol(MAREA_BytecodeGenerator *generator, const MAREA_Character8 *name, MAREA_IntegerSize length, MAREA_Uinteger32 registerIndex, MAREA_Uinteger8 kind, MAREA_Uinteger32 aggregateIndex)

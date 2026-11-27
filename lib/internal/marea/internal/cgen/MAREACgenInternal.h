@@ -259,6 +259,10 @@ MAREA_BEGIN_EXTERN_C
         const MAREA_Character8 *namespaceText;
         MAREA_CgenBuffer *buffer;
         MAREA_CgenBuffer *types;
+        // INFO: the names of the included files that are defined already.
+        const MAREA_Character8 **included;
+        MAREA_IntegerSize includedCount;
+        MAREA_IntegerSize includedCapacity;
         MAREA_CgenType *typeTable;
         MAREA_CgenFunction *functions;
         const MAREA_IrNode **constants;
@@ -735,6 +739,12 @@ MAREA_BEGIN_EXTERN_C
      * @brief Writes a call of a member of an array, whose place is already written.
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_CgenExcept MAREA_CALL MAREA_CgenWriteArrayCall(MAREA_CgenGenerator * generator, const MAREA_IrNode *node, const MAREA_CgenValue *receiver, const MAREA_IrNode *member, const MAREA_IrNode *arguments, MAREA_CgenValue *outValue);
+
+    /**
+     * @brief Writes the value of an INCLUDED_BYTES node: a static array that holds the file, defined once for each
+     * file of the module.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_CgenExcept MAREA_CALL MAREA_CgenWriteIncludedBytes(MAREA_CgenGenerator * generator, const MAREA_IrNode *node, MAREA_CgenValue *outValue);
 
 MAREA_END_EXTERN_C
 

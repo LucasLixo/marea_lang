@@ -127,6 +127,17 @@ MAREA_SemaExprType MAREA_CALL MAREA_SemaTypedAstMacroCallType(const MAREA_SemaCo
 {
     const MAREA_AstNode *name = MAREA_SemaChildAt(call, 0);
 
+    // INFO: a call that gives the bytes of a file, which the backends write, has its type whatever way it is called.
+    const MAREA_SemaIncludedFile *included = MAREA_NULLPTR;
+
+    const MAREA_MacroDescriptor *byPath = MAREA_NULLPTR;
+
+    MAREA_IntegerSize byPathCount = 0;
+
+    if ((MAREA_SemaMacroIncludedFile(context, call, &included) == MAREA_SEMA_EXCEPT_SUCCESS) && (included != MAREA_NULLPTR) && (MAREA_SemaMacroResultOf(context, call, &byPath, &byPathCount) == MAREA_BOOLEAN_TRUE)) {
+        return MAREA_G_MacroResultType(context, byPath, byPathCount, outOfMemory);
+    }
+
     // INFO: a macro that a library is called by its path for keeps no type: the ir reads it from the declaration around it.
     if (MAREA_G_IsKind(name, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_FALSE) {
         return MAREA_G_FixedType(MAREA_NULLPTR, 0);

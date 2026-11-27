@@ -712,6 +712,10 @@ MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorConstructAggregate(MAREA_
     // INFO: a copy of the entry, since the table may move while a value inside it is lowered.
     const MAREA_BytecodeGeneratorAggregate AGGREGATE = generator->aggregates[aggregateIndex];
 
+    if ((MAREA_IrNodeGetKind(node) == MAREA_IR_KIND_INCLUDED_BYTES) && AGGREGATE.isRun) {
+        return MAREA_BytecodeGeneratorConstructIncluded(generator, node, destinationAddress, aggregateIndex);
+    }
+
     if ((MAREA_IrNodeGetKind(node) == MAREA_IR_KIND_LITERAL_VALUE) && AGGREGATE.isRun) {
         return MAREA_BytecodeGeneratorConstructRun(generator, node, destinationAddress, aggregateIndex);
     }
@@ -904,6 +908,17 @@ MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorLowerInto(MAREA_BytecodeG
     case MAREA_IR_KIND_MEMBER_ACCESS:
     case MAREA_IR_KIND_INDEX_ACCESS:
         return MAREA_G_LowerRead(generator, node, destination, outKind);
+    case MAREA_IR_KIND_INCLUDED_BYTES:
+    {
+        MAREA_Uinteger32 address = MAREA_UINTEGER_32(0);
+        MAREA_Uinteger32 aggregate = MAREA_BYTECODE_NONE;
+
+        *outKind = MAREA_BYTECODE_GENERATOR_KIND_AGGREGATE;
+
+        MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorAggregateAddress(generator, node, &address, &aggregate));
+
+        return MAREA_BytecodeGeneratorEmit(generator, MAREA_BYTECODE_OPCODE_MOVE, destination, address, MAREA_UINTEGER_32(0), MAREA_NULLPTR);
+    }
     case MAREA_IR_KIND_MACRO_CALL:
         return MAREA_G_LowerMacro(generator, node, destination, hint, outKind);
     case MAREA_IR_KIND_STRING_LITERAL:

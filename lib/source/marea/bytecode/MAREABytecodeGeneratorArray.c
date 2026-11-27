@@ -593,6 +593,49 @@ MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorConstructRun(MAREA_Byteco
     return MAREA_BYTECODE_EXCEPT_SUCCESS;
 }
 
+static MAREA_Byte MAREA_CALL MAREA_G_HexDigit(MAREA_Character8 digit)
+{
+    return (MAREA_Byte)((digit <= '9') ? (digit - '0') : (digit - 'a' + 10));
+}
+
+// INFO: the bytes of an included file go to the read only data section, and are copied from there to the place of the value.
+MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorConstructIncluded(MAREA_BytecodeGenerator *generator, const MAREA_IrNode *node, MAREA_Uinteger32 destinationAddress, MAREA_Uinteger32 run)
+{
+    const MAREA_IntegerSize SIZE = (MAREA_IrNodeGetTextLength(node) / MAREA_INTEGER_SIZE(2));
+
+    if (SIZE != generator->aggregates[run].size) {
+        return MAREA_BytecodeGeneratorFail(generator, node, MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, "An included file has another size than its array.");
+    }
+
+    if (SIZE == MAREA_INTEGER_SIZE(0)) {
+        return MAREA_BYTECODE_EXCEPT_SUCCESS;
+    }
+
+    MAREA_Null memory = MAREA_NULLPTR;
+
+    if (MAREA_ArenaAllocate(generator->arena, SIZE, MAREA_INTEGER_SIZE(1), &memory) != MAREA_ARENA_EXCEPT_SUCCESS) {
+        return MAREA_BYTECODE_EXCEPT_ERROR_OUT_OF_MEMORY;
+    }
+
+    MAREA_Byte *bytes = memory;
+
+    const MAREA_Character8 *text = MAREA_IrNodeGetText(node);
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < SIZE; index += MAREA_INTEGER_SIZE(1)) {
+        bytes[index] = (MAREA_Byte)((MAREA_G_HexDigit(text[(index * MAREA_INTEGER_SIZE(2))]) << 4) | MAREA_G_HexDigit(text[((index * MAREA_INTEGER_SIZE(2)) + MAREA_INTEGER_SIZE(1))]));
+    }
+
+    MAREA_Uinteger32 blob = MAREA_UINTEGER_32(0);
+
+    MAREA_BYTECODE_TRY(MAREA_BytecodeModuleAddData(generator->module, bytes, SIZE, &blob));
+
+    if (blob > MAREA_UINTEGER_32(65535)) {
+        return MAREA_BytecodeGeneratorFail(generator, node, MAREA_BYTECODE_DIAGNOSTIC_CODE_OPERAND_OVERFLOW, "A module needs more than 65535 constants.");
+    }
+
+    return MAREA_BytecodeGeneratorEmit(generator, MAREA_BYTECODE_OPCODE_LOAD_DATA_BLOCK, destinationAddress, blob, MAREA_UINTEGER_32(0), MAREA_NULLPTR);
+}
+
 // INFO: the loop starts before the first element, so a continue jumps to the step; the key is a copy of the index.
 MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorLowerForEach(MAREA_BytecodeGenerator *generator, const MAREA_IrNode *node)
 {

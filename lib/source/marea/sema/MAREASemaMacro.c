@@ -920,6 +920,25 @@ static MAREA_Boolean MAREA_CALL MAREA_G_ExpandRegistered(const MAREA_SemaContext
     return descriptor->expand(&REQUEST, outCount);
 }
 
+// INFO: a macro whose result is an inline run of uinteger8 gives the bytes of the file that its argument names. Sema
+// knows no macro by name.
+static MAREA_Boolean MAREA_CALL MAREA_G_GivesBytes(const MAREA_MacroDescriptor *descriptor)
+{
+    const MAREA_TypeDescriptor *result = descriptor->resultType;
+
+    return ((result != MAREA_NULLPTR) && (result->hasIndexProtocol == MAREA_BOOLEAN_TRUE) && (result->roles == MAREA_TYPE_ROLE_NONE) && (result->ownershipClass == MAREA_TYPE_OWNERSHIP_CLASS_COPY) && (MAREA_SemaTextEquals(descriptor->resultElementText, descriptor->resultElementLength, "uinteger8", strlen("uinteger8")) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
+// INFO: the bytes that the caller gives for the argument of a call that expanded to count bytes. A resolver with no load function gives none.
+static MAREA_Boolean MAREA_CALL MAREA_G_LoadFile(const MAREA_SemaContext *context, const MAREA_AstNode *list, MAREA_IntegerSize count, MAREA_SemaIncludedFile *outFile)
+{
+    const MAREA_AstNode *argument = MAREA_SemaChildAt(list, 0);
+
+    *outFile = (MAREA_SemaIncludedFile){ .bytes = MAREA_NULLPTR, .size = 0, .path = MAREA_NULLPTR, .pathLength = 0 };
+
+    return ((context->includeResolver->load(context->includeResolver->userData, (MAREA_AstNodeGetText(argument) + 1), (MAREA_AstNodeGetTextLength(argument) - 2), outFile) == MAREA_BOOLEAN_TRUE) && (outFile->size == count) && ((count == 0) || (outFile->bytes != MAREA_NULLPTR))) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
 // INFO: the call has the argument kinds of the descriptor, one for each argument.
 static MAREA_Boolean MAREA_CALL MAREA_G_ArgumentsMatch(const MAREA_MacroDescriptor *descriptor, const MAREA_AstNode *list)
 {
@@ -962,7 +981,9 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckRegistered(MAREA_SemaContext *co
 
     MAREA_IntegerSize count = 0;
 
-    if (MAREA_G_ExpandRegistered(context, resolution.descriptor, list, &count) == MAREA_BOOLEAN_FALSE) {
+    MAREA_SemaIncludedFile file = { 0 };
+
+    if ((MAREA_G_ExpandRegistered(context, resolution.descriptor, list, &count) == MAREA_BOOLEAN_FALSE) || ((MAREA_G_GivesBytes(resolution.descriptor) == MAREA_BOOLEAN_TRUE) && (context->includeResolver != MAREA_NULLPTR) && (context->includeResolver->load != MAREA_NULLPTR) && (MAREA_G_LoadFile(context, list, count, &file) == MAREA_BOOLEAN_FALSE))) {
         return MAREA_G_ReportArgument(context, MAREA_AstNodeGetPosition(list), last, "cannot expand this call, a file may be missing");
     }
 
@@ -1052,6 +1073,48 @@ MAREA_Boolean MAREA_CALL MAREA_SemaMacroResultOf(const MAREA_SemaContext *contex
     *outDescriptor = resolution.descriptor;
 
     return MAREA_BOOLEAN_TRUE;
+}
+
+MAREA_SemaExcept MAREA_CALL MAREA_SemaMacroIncludedFile(const MAREA_SemaContext *context, const MAREA_AstNode *call, const MAREA_SemaIncludedFile **outFile)
+{
+    *outFile = MAREA_NULLPTR;
+
+    const MAREA_MacroDescriptor *descriptor = MAREA_NULLPTR;
+
+    MAREA_IntegerSize count = 0;
+
+    MAREA_SemaIncludedFile file = { 0 };
+
+    if ((context->includeResolver == MAREA_NULLPTR) || (context->includeResolver->load == MAREA_NULLPTR) || (MAREA_SemaMacroResultOf(context, call, &descriptor, &count) == MAREA_BOOLEAN_FALSE) || (MAREA_G_GivesBytes(descriptor) == MAREA_BOOLEAN_FALSE) || (MAREA_G_LoadFile(context, MAREA_SemaChildAt(call, 1), count, &file) == MAREA_BOOLEAN_FALSE)) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    MAREA_Null memory = MAREA_NULLPTR;
+
+    // INFO: one block holds the record, then the bytes, then the path.
+    if (MAREA_ArenaAllocate(context->arena, (sizeof(MAREA_SemaIncludedFile) + file.size + file.pathLength), MAREA_ALIGNOF(MAREA_SemaIncludedFile), &memory) != MAREA_ARENA_EXCEPT_SUCCESS) {
+        return MAREA_SEMA_EXCEPT_ERROR_OUT_OF_MEMORY;
+    }
+
+    MAREA_SemaIncludedFile *kept = memory;
+
+    MAREA_Byte *bytes = (MAREA_Byte *)(kept + 1);
+
+    MAREA_Character8 *path = (MAREA_Character8 *)(bytes + file.size);
+
+    if (file.size > 0) {
+        memcpy(bytes, file.bytes, file.size);
+    }
+
+    if (file.pathLength > 0) {
+        memcpy(path, file.path, file.pathLength);
+    }
+
+    *kept = (MAREA_SemaIncludedFile){ .bytes = bytes, .size = file.size, .path = path, .pathLength = file.pathLength };
+
+    *outFile = kept;
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
 }
 
 MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckMacroResultFit(MAREA_SemaContext *context, const MAREA_AstNode *type, const MAREA_AstNode *expression)

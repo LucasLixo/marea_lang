@@ -178,7 +178,7 @@ TEST(MAREAIrContext, KindNamesAreStable)
 
     EXPECT_EQ(static_cast<int>(MAREA_IR_KIND_BACKEND_ATTRIBUTE), static_cast<int>(MAREA_IR_KIND_DESTROY_CALL) + 1) << "BACKEND_ATTRIBUTE must follow DESTROY_CALL, so no value moves.";
 
-    EXPECT_EQ(static_cast<int>(MAREA_IR_KIND_COUNT), static_cast<int>(MAREA_IR_KIND_MACRO_CALL) + 1) << "MACRO_CALL must be the last kind before COUNT.";
+    EXPECT_EQ(static_cast<int>(MAREA_IR_KIND_COUNT), static_cast<int>(MAREA_IR_KIND_INCLUDED_BYTES) + 1) << "INCLUDED_BYTES must be the last kind before COUNT.";
 
     EXPECT_STREQ(MAREA_IrKindGetName(MAREA_IR_KIND_COUNT), "UNKNOWN") << "COUNT must be unknown.";
 

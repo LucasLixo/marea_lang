@@ -1167,6 +1167,10 @@ MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedAstResolveExpressionType(MARE
         }
     }
 
+    if ((MAREA_AstNodeGetKind(built->astNode) == MAREA_AST_KIND_MACRO_CALL) && (MAREA_SemaMacroIncludedFile(context, built->astNode, &built->includedFile) != MAREA_SEMA_EXCEPT_SUCCESS)) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_OUT_OF_MEMORY;
+    }
+
     MAREA_G_Resolver resolver = { .context = context, .outOfMemory = MAREA_BOOLEAN_FALSE };
 
     const MAREA_SemaExprType TYPE = MAREA_G_TypeOfExpression(&resolver, built, parent, index);

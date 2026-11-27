@@ -775,6 +775,68 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerFieldEntry(MAREA_IrContext *contex
 // INFO: the one built-in macro that the IR keeps for a later stage, next to the macros of a shipped library: its value comes from the build, which the IR never reads.
 static const MAREA_Character8 MAREA_G_BuildValueName[] = "build_value";
 
+// INFO: the bytes travel in the text of the node as hexadecimal digits, so the ir stays serializable text, and the path of the file is the one child.
+static MAREA_IrExcept MAREA_CALL MAREA_G_LowerIncludedBytes(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, const MAREA_SemaIncludedFile *included, MAREA_IrNode **outNode)
+{
+    static const MAREA_Character8 DIGITS[] = "0123456789abcdef";
+
+    MAREA_IrNode *node = MAREA_NULLPTR;
+    MAREA_IrNode *path = MAREA_NULLPTR;
+
+    MAREA_IrExcept result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_INCLUDED_BYTES, MAREA_SemaTypedNodeGetAstNode(typed), &node);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_STRING_LITERAL, MAREA_SemaTypedNodeGetAstNode(typed), &path);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    MAREA_Null memory = MAREA_NULLPTR;
+
+    if (MAREA_ArenaAllocate(context->arena, ((included->size * MAREA_INTEGER_SIZE(2)) + MAREA_INTEGER_SIZE(1)), MAREA_INTEGER_SIZE(1), &memory) != MAREA_ARENA_EXCEPT_SUCCESS) {
+        return MAREA_IR_EXCEPT_ERROR_OUT_OF_MEMORY;
+    }
+
+    MAREA_Character8 *text = memory;
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < included->size; index = (index + MAREA_INTEGER_SIZE(1))) {
+        text[(index * MAREA_INTEGER_SIZE(2))] = DIGITS[(included->bytes[index] >> 4)];
+        text[((index * MAREA_INTEGER_SIZE(2)) + MAREA_INTEGER_SIZE(1))] = DIGITS[(included->bytes[index] & 15)];
+    }
+
+    text[(included->size * MAREA_INTEGER_SIZE(2))] = '\0';
+
+    node->text = text;
+    node->textLength = (MAREA_Uinteger32)(included->size * MAREA_INTEGER_SIZE(2));
+    node->flags = MAREA_UINTEGER_32(0);
+
+    path->text = included->path;
+    path->textLength = (MAREA_Uinteger32)included->pathLength;
+    path->flags = MAREA_UINTEGER_32(0);
+
+    result = MAREA_IrNodeAppendChild(context, node, path);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    MAREA_Boolean typedResult = MAREA_BOOLEAN_FALSE;
+
+    result = MAREA_IrNodeSetResolvedTypeFromTyped(context, node, typed, &typedResult);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    *outNode = node;
+
+    return MAREA_IR_EXCEPT_SUCCESS;
+}
+
 MAREA_IrExcept MAREA_CALL MAREA_IrLowerMacroCall(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_Boolean *outHandled, MAREA_IrNode **outNode)
 {
     if ((context == MAREA_NULLPTR) || (typed == MAREA_NULLPTR) || (outHandled == MAREA_NULLPTR) || (outNode == MAREA_NULLPTR)) {
@@ -783,6 +845,14 @@ MAREA_IrExcept MAREA_CALL MAREA_IrLowerMacroCall(MAREA_IrContext *context, const
 
     *outHandled = MAREA_BOOLEAN_FALSE;
     *outNode = MAREA_NULLPTR;
+
+    const MAREA_SemaIncludedFile *included = MAREA_SemaTypedNodeGetIncludedFile(typed);
+
+    if (included != MAREA_NULLPTR) {
+        *outHandled = MAREA_BOOLEAN_TRUE;
+
+        return MAREA_G_LowerIncludedBytes(context, typed, included, outNode);
+    }
 
     const MAREA_SemaTypedNode *name = MAREA_IrTypedChildAt(typed, MAREA_INTEGER_SIZE(0));
 
