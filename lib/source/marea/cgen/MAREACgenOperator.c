@@ -273,6 +273,11 @@ MAREA_CgenExcept MAREA_CALL MAREA_CgenWriteBinary(MAREA_CgenGenerator *generator
         return MAREA_CgenWriteComparison(generator, node, outValue);
     }
 
+    // INFO: a pointer is stepped by c.memory.offset and by an index, so both backends refuse an operator on it.
+    if ((MAREA_CgenIsPointer(generator, MAREA_CgenChildAt(node, MAREA_INTEGER_SIZE(0))) == MAREA_BOOLEAN_TRUE) || (MAREA_CgenIsPointer(generator, MAREA_CgenChildAt(node, MAREA_INTEGER_SIZE(1))) == MAREA_BOOLEAN_TRUE)) {
+        return MAREA_CgenGeneratorFail(generator, node, MAREA_CGEN_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, "A pointer has no arithmetic or bit operator.");
+    }
+
     MAREA_CgenValue left = { 0 };
 
     MAREA_CGEN_TRY(MAREA_CgenWriteValue(generator, MAREA_CgenChildAt(node, MAREA_INTEGER_SIZE(0)), expected, &left));
@@ -368,6 +373,10 @@ MAREA_CgenExcept MAREA_CALL MAREA_CgenWriteUnary(MAREA_CgenGenerator *generator,
         return MAREA_G_WriteMove(generator, operand, outValue);
     }
 
+    if ((OPERATOR != MAREA_TOKEN_KIND_KEYWORD_COPY) && (MAREA_CgenIsPointer(generator, operand) == MAREA_BOOLEAN_TRUE)) {
+        return MAREA_CgenGeneratorFail(generator, node, MAREA_CGEN_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, "A pointer has no unary operator.");
+    }
+
     if (OPERATOR == MAREA_TOKEN_KIND_MINUS) {
         return MAREA_G_WriteNegation(generator, node, operand, expected, outValue);
     }
@@ -427,7 +436,11 @@ MAREA_CgenExcept MAREA_CALL MAREA_CgenWriteConvert(MAREA_CgenGenerator *generato
         return MAREA_CgenGeneratorFail(generator, node, MAREA_CGEN_DIAGNOSTIC_CODE_UNSUPPORTED_CONSTRUCT, "A convert has not one type and one value.");
     }
 
-    const MAREA_Uinteger32 TARGET = MAREA_CgenKindFromText(MAREA_IrNodeGetText(target), MAREA_IrNodeGetTextLength(target));
+    // INFO: the unchecked conversion: a pointer is an address held as a uinteger64, to and from an integer or a pointer.
+    const MAREA_Boolean TO_POINTER = MAREA_CgenIsPointer(generator, node);
+    const MAREA_Boolean FROM_POINTER = MAREA_CgenIsPointer(generator, MAREA_CgenChildAt(arguments, MAREA_INTEGER_SIZE(0)));
+
+    const MAREA_Uinteger32 TARGET = (TO_POINTER == MAREA_BOOLEAN_TRUE) ? (MAREA_Uinteger32)MAREA_CGEN_KIND_UINTEGER_64 : MAREA_CgenKindFromText(MAREA_IrNodeGetText(target), MAREA_IrNodeGetTextLength(target));
 
     MAREA_CgenValue value = { 0 };
 
@@ -441,6 +454,10 @@ MAREA_CgenExcept MAREA_CALL MAREA_CgenWriteConvert(MAREA_CgenGenerator *generato
 
     if ((MAREA_CgenIsNumber(TARGET) == MAREA_BOOLEAN_FALSE) || (MAREA_CgenIsNumber(SOURCE) == MAREA_BOOLEAN_FALSE)) {
         return MAREA_CgenGeneratorFail(generator, node, MAREA_CGEN_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, "A convert takes a number and gives a number.");
+    }
+
+    if (((TO_POINTER == MAREA_BOOLEAN_TRUE) || (FROM_POINTER == MAREA_BOOLEAN_TRUE)) && ((MAREA_CgenIsFloat(SOURCE) == MAREA_BOOLEAN_TRUE) || (MAREA_CgenIsFloat(TARGET) == MAREA_BOOLEAN_TRUE))) {
+        return MAREA_CgenGeneratorFail(generator, node, MAREA_CGEN_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, "A pointer converts to and from an integer or a pointer.");
     }
 
     if (SOURCE == TARGET) {

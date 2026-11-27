@@ -218,6 +218,10 @@ static MAREA_BytecodeExcept MAREA_CALL MAREA_G_LowerUnary(MAREA_BytecodeGenerato
         return MAREA_BytecodeGeneratorLowerInto(generator, operand, destination, hint, outKind);
     }
 
+    if (MAREA_BytecodeGeneratorIsPointer(generator, operand)) {
+        return MAREA_BytecodeGeneratorFail(generator, node, MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, "A pointer has no unary operator.");
+    }
+
     if (OPERATOR == MAREA_TOKEN_KIND_MINUS) {
         const MAREA_Uinteger8 OWN = MAREA_BytecodeGeneratorKindOfNode(node);
         const MAREA_Uinteger8 USED = (MAREA_G_IsNumber(OWN) ? OWN : hint);
@@ -369,6 +373,11 @@ static MAREA_BytecodeExcept MAREA_CALL MAREA_G_LowerBinary(MAREA_BytecodeGenerat
         return MAREA_G_LowerComparison(generator, node, destination, outKind);
     }
 
+    // INFO: a pointer is stepped by c.memory.offset and by an index, so both backends refuse an operator on it.
+    if (MAREA_BytecodeGeneratorIsPointer(generator, MAREA_BytecodeGeneratorChildAt(node, MAREA_INTEGER_SIZE(0))) || MAREA_BytecodeGeneratorIsPointer(generator, MAREA_BytecodeGeneratorChildAt(node, MAREA_INTEGER_SIZE(1)))) {
+        return MAREA_BytecodeGeneratorFail(generator, node, MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, "A pointer has no arithmetic or bit operator.");
+    }
+
     MAREA_Uinteger16 opcode = MAREA_BYTECODE_OPCODE_NOP;
     MAREA_Boolean threeRegisters = MAREA_BOOLEAN_FALSE;
 
@@ -416,7 +425,11 @@ static MAREA_BytecodeExcept MAREA_CALL MAREA_G_LowerConvert(MAREA_BytecodeGenera
         return MAREA_BytecodeGeneratorFail(generator, node, MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_CONSTRUCT, "A convert has not one type and one value.");
     }
 
-    const MAREA_Uinteger8 TARGET = MAREA_BytecodeGeneratorKindFromText(MAREA_IrNodeGetText(target), MAREA_IrNodeGetTextLength(target));
+    // INFO: the unchecked conversion: a pointer is an address of kind uinteger64, to and from an integer or a pointer.
+    const MAREA_Boolean TO_POINTER = MAREA_BytecodeGeneratorIsPointer(generator, node);
+    const MAREA_Boolean FROM_POINTER = MAREA_BytecodeGeneratorIsPointer(generator, argument);
+
+    const MAREA_Uinteger8 TARGET = (TO_POINTER ? MAREA_BYTECODE_NUMBER_KIND_UINTEGER_64 : MAREA_BytecodeGeneratorKindFromText(MAREA_IrNodeGetText(target), MAREA_IrNodeGetTextLength(target)));
 
     if (!MAREA_G_IsNumber(TARGET)) {
         return MAREA_BytecodeGeneratorFail(generator, node, MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, "A convert target is not a number type.");
@@ -433,6 +446,10 @@ static MAREA_BytecodeExcept MAREA_CALL MAREA_G_LowerConvert(MAREA_BytecodeGenera
 
     if (!MAREA_G_IsNumber(sourceKind)) {
         return MAREA_BytecodeGeneratorFail(generator, node, MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, "A convert source is not a number type.");
+    }
+
+    if ((TO_POINTER || FROM_POINTER) && (MAREA_G_IsFloat(sourceKind) || MAREA_G_IsFloat(TARGET))) {
+        return MAREA_BytecodeGeneratorFail(generator, node, MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, "A pointer converts to and from an integer or a pointer.");
     }
 
     if (sourceKind == TARGET) {

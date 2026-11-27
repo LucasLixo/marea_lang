@@ -429,9 +429,51 @@ static MAREA_CgenExcept MAREA_CALL MAREA_G_WriteMemberPlace(MAREA_CgenGenerator 
     return MAREA_CgenWriteMember(generator, node, &base, outPlace);
 }
 
+// INFO: the element of a raw pointer, at the address plus index times the size, with no check. A member of a packed
+// struct that may alias reads and writes it at any address and as any type, as the bytes that the vm moves.
+static MAREA_CgenExcept MAREA_CALL MAREA_G_WritePointerPlace(MAREA_CgenGenerator *generator, const MAREA_IrNode *node, const MAREA_Character8 *element, MAREA_IntegerSize length, MAREA_CgenValue *outPlace)
+{
+    const MAREA_Uinteger32 ELEMENT = MAREA_CgenKindFromText(element, length);
+
+    if ((MAREA_CgenIsNumber(ELEMENT) == MAREA_BOOLEAN_FALSE) && (ELEMENT != MAREA_CGEN_KIND_BOOLEAN)) {
+        return MAREA_CgenGeneratorFail(generator, node, MAREA_CGEN_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, "A pointer reaches a number or a boolean only.");
+    }
+
+    MAREA_CgenValue base = { 0 };
+    MAREA_CgenValue index = { 0 };
+
+    MAREA_CGEN_TRY(MAREA_CgenWriteValue(generator, MAREA_CgenChildAt(node, MAREA_INTEGER_SIZE(0)), MAREA_CGEN_KIND_NONE, &base));
+    MAREA_CGEN_TRY(MAREA_CgenWriteValue(generator, MAREA_CgenChildAt(node, MAREA_INTEGER_SIZE(1)), MAREA_CGEN_KIND_NONE, &index));
+
+    if (generator->functionFailed == MAREA_BOOLEAN_TRUE) {
+        return MAREA_CGEN_EXCEPT_SUCCESS;
+    }
+
+    if (MAREA_CgenIsInteger(index.type) == MAREA_BOOLEAN_FALSE) {
+        return MAREA_CgenGeneratorFail(generator, node, MAREA_CGEN_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, "An index is an integer.");
+    }
+
+    const MAREA_Character8 *name = MAREA_CgenTemporaryName(generator);
+    const MAREA_Character8 *cType = MAREA_CgenTypeName(generator, ELEMENT);
+
+    // INFO: the cast of a negative index keeps its two's complement bits, so the sum steps back.
+    MAREA_CGEN_WRITE(generator->buffer, "uint64_t ", name, " = (uint64_t)(", base.text, ") + (uint64_t)(", index.text, ") * sizeof(", cType, ");\n");
+
+    MAREA_G_SetValue(outPlace, MAREA_CGEN_JOIN(generator, "((struct __attribute__((__packed__, __may_alias__)) { ", cType, " item; } *)(uintptr_t)", name, ")->item"), ELEMENT, MAREA_BOOLEAN_FALSE, MAREA_BOOLEAN_TRUE);
+
+    return MAREA_CGEN_EXCEPT_SUCCESS;
+}
+
 // INFO: the index is checked when the place is reached, before the value that is stored is computed. A negative index reads as a very large one, so it is past the count too.
 static MAREA_CgenExcept MAREA_CALL MAREA_G_WriteIndexPlace(MAREA_CgenGenerator *generator, const MAREA_IrNode *node, MAREA_CgenValue *outPlace)
 {
+    const MAREA_Character8 *element = MAREA_NULLPTR;
+    MAREA_IntegerSize elementLength = MAREA_INTEGER_SIZE(0);
+
+    if (MAREA_CgenPointee(generator, MAREA_CgenChildAt(node, MAREA_INTEGER_SIZE(0)), &element, &elementLength) == MAREA_BOOLEAN_TRUE) {
+        return MAREA_G_WritePointerPlace(generator, node, element, elementLength, outPlace);
+    }
+
     MAREA_CgenValue base = { 0 };
 
     MAREA_CGEN_TRY(MAREA_CgenWritePlace(generator, MAREA_CgenChildAt(node, MAREA_INTEGER_SIZE(0)), MAREA_CGEN_KIND_NONE, &base));
