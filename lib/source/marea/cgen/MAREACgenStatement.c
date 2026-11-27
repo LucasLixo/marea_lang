@@ -191,6 +191,79 @@ static MAREA_CgenExcept MAREA_CALL MAREA_G_WriteStore(MAREA_CgenGenerator *gener
     return MAREA_CGEN_EXCEPT_SUCCESS;
 }
 
+// INFO: tells whether the place of a target is inside the storage of a vector, which a call in the value may move.
+static MAREA_CgenExcept MAREA_CALL MAREA_G_ThroughVector(MAREA_CgenGenerator *generator, const MAREA_IrNode *target, MAREA_Boolean *outThrough)
+{
+    *outThrough = MAREA_BOOLEAN_FALSE;
+
+    for (const MAREA_IrNode *node = target; (MAREA_IrNodeGetKind(node) == MAREA_IR_KIND_INDEX_ACCESS) || (MAREA_IrNodeGetKind(node) == MAREA_IR_KIND_MEMBER_ACCESS); node = MAREA_CgenChildAt(node, MAREA_INTEGER_SIZE(0))) {
+        if (MAREA_IrNodeGetKind(node) != MAREA_IR_KIND_INDEX_ACCESS) {
+            continue;
+        }
+
+        MAREA_Uinteger32 type = MAREA_CGEN_KIND_NONE;
+
+        MAREA_CGEN_TRY(MAREA_CgenTypeOfNode(generator, MAREA_CgenChildAt(node, MAREA_INTEGER_SIZE(0)), &type));
+
+        if (MAREA_CgenCategoryOf(generator, type) == MAREA_CGEN_CATEGORY_VECTOR) {
+            *outThrough = MAREA_BOOLEAN_TRUE;
+        }
+    }
+
+    return MAREA_CGEN_EXCEPT_SUCCESS;
+}
+
+// INFO: a target in a vector: the value runs first, then the target is reached, so it is never an old address of the storage.
+static MAREA_CgenExcept MAREA_CALL MAREA_G_WriteVectorAssignment(MAREA_CgenGenerator *generator, const MAREA_IrNode *node)
+{
+    const MAREA_IrNode *target = MAREA_CgenChildAt(node, MAREA_INTEGER_SIZE(0));
+    const MAREA_IrNode *source = MAREA_CgenChildAt(node, MAREA_INTEGER_SIZE(1));
+
+    const MAREA_TokenKind OPERATOR = MAREA_IrNodeGetOperator(node);
+
+    MAREA_Uinteger32 type = MAREA_CGEN_KIND_NONE;
+
+    MAREA_CGEN_TRY(MAREA_CgenTypeOfNode(generator, target, &type));
+
+    if (MAREA_CgenIsValueType(generator, type) == MAREA_BOOLEAN_FALSE) {
+        return MAREA_CgenGeneratorFail(generator, node, MAREA_CGEN_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, "An assigned element has a type that cgen does not write.");
+    }
+
+    MAREA_CgenValue value = { 0 };
+
+    if (OPERATOR == MAREA_TOKEN_KIND_EQUAL) {
+        MAREA_CGEN_TRY(MAREA_CgenWriteOwned(generator, source, type, &value));
+    } else {
+        MAREA_CGEN_TRY(MAREA_CgenWriteValue(generator, source, ((MAREA_G_IsShiftAssignment(OPERATOR) == MAREA_BOOLEAN_TRUE) ? (MAREA_Uinteger32)MAREA_CGEN_KIND_NONE : type), &value));
+    }
+
+    if (generator->functionFailed == MAREA_BOOLEAN_TRUE) {
+        return MAREA_CGEN_EXCEPT_SUCCESS;
+    }
+
+    MAREA_CgenSnapshot(generator, &value);
+
+    MAREA_CgenValue place = { 0 };
+
+    MAREA_CGEN_TRY(MAREA_CgenWritePlace(generator, target, MAREA_CGEN_KIND_NONE, &place));
+
+    if (generator->functionFailed == MAREA_BOOLEAN_TRUE) {
+        return MAREA_CGEN_EXCEPT_SUCCESS;
+    }
+
+    if (OPERATOR != MAREA_TOKEN_KIND_EQUAL) {
+        MAREA_CGEN_TRY(MAREA_G_WriteCombined(generator, node, &place, &value));
+    } else if (MAREA_CgenNeedsDrop(generator, place.type) == MAREA_BOOLEAN_TRUE) {
+        MAREA_CGEN_TRY(MAREA_CgenWriteDrop(generator, node, place.text, place.type, MAREA_BOOLEAN_FALSE));
+    }
+
+    if (generator->functionFailed == MAREA_BOOLEAN_FALSE) {
+        MAREA_CgenStore(generator, place.text, place.type, value.text);
+    }
+
+    return MAREA_CGEN_EXCEPT_SUCCESS;
+}
+
 // INFO: the target is reached first, with the check of each index, then the value runs.
 static MAREA_CgenExcept MAREA_CALL MAREA_G_WriteAssignment(MAREA_CgenGenerator *generator, const MAREA_IrNode *node)
 {
@@ -198,6 +271,14 @@ static MAREA_CgenExcept MAREA_CALL MAREA_G_WriteAssignment(MAREA_CgenGenerator *
 
     if ((target == MAREA_NULLPTR) || (MAREA_CgenChildAt(node, MAREA_INTEGER_SIZE(1)) == MAREA_NULLPTR)) {
         return MAREA_CgenGeneratorFail(generator, node, MAREA_CGEN_DIAGNOSTIC_CODE_UNSUPPORTED_CONSTRUCT, "An assignment has no target or no value.");
+    }
+
+    MAREA_Boolean through = MAREA_BOOLEAN_FALSE;
+
+    MAREA_CGEN_TRY(MAREA_G_ThroughVector(generator, target, &through));
+
+    if (through == MAREA_BOOLEAN_TRUE) {
+        return MAREA_G_WriteVectorAssignment(generator, node);
     }
 
     MAREA_CgenValue place = { 0 };

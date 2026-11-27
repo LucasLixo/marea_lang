@@ -93,6 +93,95 @@ static MAREA_BytecodeExcept MAREA_CALL MAREA_G_LowerAggregateAssignment(MAREA_By
     return MAREA_BytecodeGeneratorEmit(generator, MAREA_BYTECODE_OPCODE_COPY_BYTES, target, temporary, (MAREA_Uinteger32)SIZE, MAREA_NULLPTR);
 }
 
+// INFO: tells whether the place of a target is inside the storage of a vector, which a call in the value may move.
+static MAREA_BytecodeExcept MAREA_CALL MAREA_G_ThroughVector(MAREA_BytecodeGenerator *generator, const MAREA_IrNode *target, MAREA_Boolean *outThrough)
+{
+    *outThrough = MAREA_BOOLEAN_FALSE;
+
+    for (const MAREA_IrNode *node = target; (MAREA_IrNodeGetKind(node) == MAREA_IR_KIND_INDEX_ACCESS) || (MAREA_IrNodeGetKind(node) == MAREA_IR_KIND_MEMBER_ACCESS); node = MAREA_BytecodeGeneratorChildAt(node, MAREA_INTEGER_SIZE(0))) {
+        const MAREA_IrNode *base = MAREA_BytecodeGeneratorChildAt(node, MAREA_INTEGER_SIZE(0));
+
+        if (MAREA_IrNodeGetKind(node) != MAREA_IR_KIND_INDEX_ACCESS) {
+            continue;
+        }
+
+        MAREA_Uinteger32 run = MAREA_BYTECODE_NONE;
+
+        MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorRunKind(generator, base, MAREA_IrNodeGetResolvedType(base), MAREA_IrNodeGetResolvedTypeLength(base), &run));
+
+        if ((run != MAREA_BYTECODE_NONE) && generator->aggregates[run].isVector) {
+            *outThrough = MAREA_BOOLEAN_TRUE;
+        }
+    }
+
+    return MAREA_BYTECODE_EXCEPT_SUCCESS;
+}
+
+// INFO: a target in a vector: the value runs first, then the target is reached, so it is never an old address of the storage.
+static MAREA_BytecodeExcept MAREA_CALL MAREA_G_LowerVectorAssignment(MAREA_BytecodeGenerator *generator, const MAREA_IrNode *node, const MAREA_IrNode *target, const MAREA_IrNode *value)
+{
+    const MAREA_TokenKind OPERATOR = MAREA_IrNodeGetOperator(node);
+
+    MAREA_Uinteger8 kind = MAREA_BYTECODE_GENERATOR_KIND_NONE;
+    MAREA_Uinteger32 aggregate = MAREA_BYTECODE_NONE;
+
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorAggregateKind(generator, target, &kind, &aggregate));
+
+    MAREA_Uinteger32 held = MAREA_UINTEGER_32(0);
+    MAREA_Uinteger32 address = MAREA_UINTEGER_32(0);
+    MAREA_Uinteger8 placeKind = MAREA_BYTECODE_GENERATOR_KIND_NONE;
+    MAREA_Uinteger32 placeAggregate = MAREA_BYTECODE_NONE;
+    MAREA_Uinteger8 heldKind = MAREA_BYTECODE_GENERATOR_KIND_NONE;
+
+    if (kind == MAREA_BYTECODE_GENERATOR_KIND_AGGREGATE) {
+        if (OPERATOR != MAREA_TOKEN_KIND_EQUAL) {
+            return MAREA_BytecodeGeneratorFail(generator, node, MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, "A compound assignment needs a number.");
+        }
+
+        MAREA_Uinteger32 offset = MAREA_UINTEGER_32(0);
+
+        MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorAllocateFrame(generator, node, generator->aggregates[aggregate].size, generator->aggregates[aggregate].alignment, &offset));
+        MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorAllocate(generator, node, MAREA_UINTEGER_32(1), &held));
+        MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorEmit(generator, MAREA_BYTECODE_OPCODE_ADDRESS_OF, held, offset, MAREA_UINTEGER_32(0), MAREA_NULLPTR));
+        MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorConstructAggregate(generator, value, held, aggregate));
+        MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorPlace(generator, target, &address, &placeKind, &placeAggregate));
+        MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorDrop(generator, node, address, aggregate, MAREA_BOOLEAN_FALSE));
+
+        return MAREA_BytecodeGeneratorEmit(generator, MAREA_BYTECODE_OPCODE_COPY_BYTES, address, held, (MAREA_Uinteger32)generator->aggregates[aggregate].size, MAREA_NULLPTR);
+    }
+
+    if (!((kind < MAREA_BYTECODE_NUMBER_KIND_COUNT) || (kind == MAREA_BYTECODE_GENERATOR_KIND_BOOLEAN))) {
+        return MAREA_BytecodeGeneratorFail(generator, node, MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, "A value of this type is not assigned yet.");
+    }
+
+    const MAREA_Uinteger8 WIDTH_KIND = ((kind == MAREA_BYTECODE_GENERATOR_KIND_BOOLEAN) ? MAREA_BYTECODE_NUMBER_KIND_UINTEGER_8 : kind);
+
+    MAREA_Uinteger16 opcode = MAREA_BYTECODE_OPCODE_NOP;
+    MAREA_Boolean threeRegisters = MAREA_BOOLEAN_FALSE;
+
+    if ((OPERATOR != MAREA_TOKEN_KIND_EQUAL) && (!MAREA_BytecodeGeneratorOperatorOpcode(OPERATOR, &opcode, &threeRegisters) || (kind >= MAREA_BYTECODE_NUMBER_KIND_COUNT))) {
+        return MAREA_BytecodeGeneratorFail(generator, node, MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_CONSTRUCT, "An assignment operator is not lowered.");
+    }
+
+    const MAREA_Boolean SHIFT = ((opcode == MAREA_BYTECODE_OPCODE_SHIFT_LEFT) || (opcode == MAREA_BYTECODE_OPCODE_SHIFT_RIGHT));
+
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorAllocate(generator, node, MAREA_UINTEGER_32(1), &held));
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorLowerInto(generator, value, held, (SHIFT ? MAREA_BYTECODE_GENERATOR_KIND_NONE : kind), &heldKind));
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorPlace(generator, target, &address, &placeKind, &placeAggregate));
+
+    if (OPERATOR != MAREA_TOKEN_KIND_EQUAL) {
+        MAREA_Uinteger32 result = MAREA_UINTEGER_32(0);
+
+        MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorAllocate(generator, node, MAREA_UINTEGER_32(1), &result));
+        MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorEmit(generator, MAREA_BYTECODE_OPCODE_LOAD, result, address, WIDTH_KIND, MAREA_NULLPTR));
+        MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorEmit(generator, opcode, result, (threeRegisters ? result : held), (threeRegisters ? held : (MAREA_Uinteger32)kind), MAREA_NULLPTR));
+
+        held = result;
+    }
+
+    return MAREA_BytecodeGeneratorEmit(generator, MAREA_BYTECODE_OPCODE_STORE, address, held, WIDTH_KIND, MAREA_NULLPTR);
+}
+
 // INFO: a target in memory, a field or an element, is reached first, with the check of each index, then the value
 // runs; a compound assignment then reads the place, combines and writes it back.
 static MAREA_BytecodeExcept MAREA_CALL MAREA_G_LowerPlaceAssignment(MAREA_BytecodeGenerator *generator, const MAREA_IrNode *node, const MAREA_IrNode *target, const MAREA_IrNode *value)
@@ -100,6 +189,14 @@ static MAREA_BytecodeExcept MAREA_CALL MAREA_G_LowerPlaceAssignment(MAREA_Byteco
     MAREA_Uinteger32 address = MAREA_UINTEGER_32(0);
     MAREA_Uinteger8 kind = MAREA_BYTECODE_GENERATOR_KIND_NONE;
     MAREA_Uinteger32 aggregate = MAREA_BYTECODE_NONE;
+
+    MAREA_Boolean through = MAREA_BOOLEAN_FALSE;
+
+    MAREA_BYTECODE_TRY(MAREA_G_ThroughVector(generator, target, &through));
+
+    if (through) {
+        return MAREA_G_LowerVectorAssignment(generator, node, target, value);
+    }
 
     MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorPlace(generator, target, &address, &kind, &aggregate));
 

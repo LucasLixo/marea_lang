@@ -362,3 +362,20 @@ TEST(MAREACgenVectorLibrary, TemporariesLoopsJumpsAndContainersGiveEveryBlockBac
         EXPECT_EQ(std::count(log.begin(), log.end(), 2000), BLOCKS) << MAREA_parityDescribe(CALLS[index]);
     }
 }
+
+TEST(MAREACgenVectorLibrary, TheValueOfAnElementAssignmentRunsBeforeItsPlaceIsReached)
+{
+    GTEST_COUT << "Validating a value that grows or shrinks the vector it is assigned into never writes through an old address." << std::endl;
+
+    const std::string GROW{ "function grow(#[semantics = reference_mutable] v: " + MAREA_V + "): sinteger32 for i in 1 .. 40 do v.append(i); end return 5; end " };
+
+    const MAREA_ParityResult RESULT{ MAREA_run(GROW + "function s(): sinteger32 " + MAREA_THREE + "v[0] = grow(v); return v[0]; end function c(): sinteger32 " + MAREA_THREE + "v[1] += grow(v); return v[1]; end function p(): sinteger32 " + MAREA_THREE + "v[2] = v.pop(); return v[0]; end") };
+
+    ASSERT_TRUE(RESULT.failures.empty()) << RESULT.MAREA_failures();
+
+    EXPECT_EQ(MAREA_parityValue(RESULT.MAREA_outcome("s()")), 5) << "The element of the grown storage is written.";
+
+    EXPECT_EQ(MAREA_parityValue(RESULT.MAREA_outcome("c()")), 7) << "The element is read after the value ran.";
+
+    EXPECT_EQ(RESULT.MAREA_outcome("p()").trap, MAREA_TRAP_INDEX_OUT_OF_BOUNDS) << "The index is checked against the size that the value left.";
+}
