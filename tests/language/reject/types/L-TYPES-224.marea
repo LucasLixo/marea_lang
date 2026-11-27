@@ -1,0 +1,18 @@
+-- expect: 3091 @17
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A structure with no declared operator used with a binary operator.
+
+namespace main;
+
+structure Point
+    x: float32;
+end
+
+implementation Point
+end
+
+function shift(point: Point): Point
+    return point + point;
+end

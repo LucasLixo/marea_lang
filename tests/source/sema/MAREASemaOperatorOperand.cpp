@@ -12,6 +12,7 @@ namespace
     constexpr MAREA_Uinteger32 MISMATCH{ MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH };
     constexpr MAREA_Uinteger32 BITWISE{ MAREA_SEMA_DIAGNOSTIC_CODE_BITWISE_OPERAND_NOT_INTEGER };
     constexpr MAREA_Uinteger32 LOGICAL{ MAREA_SEMA_DIAGNOSTIC_CODE_LOGICAL_OPERAND_NOT_BOOLEAN };
+    constexpr MAREA_Uinteger32 UNDECLARED{ MAREA_SEMA_DIAGNOSTIC_CODE_UNDECLARED_OPERATOR };
 
     Codes MAREA_codesOf(const std::string &body)
     {
@@ -169,5 +170,14 @@ TEST(MAREASemaOperatorOperand, DeclaredOperatorChecksItsOtherOperand)
 
     EXPECT_TRUE(MAREA_codesOf(POINT + "function f(a: Point, b: Point, k: float32) local c: Point = a + b; local d: Point = a * k; local e: Point = a * 2.0; end").empty()) << "A fitting operand must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf(POINT + "function f(a: Point) local c: Point = a - 1; end").empty()) << "An operator that no function declares must raise nothing.";
+    EXPECT_EQ(MAREA_codesOf(POINT + "function f(a: Point) local c: Point = a - 1; end"), Codes{ UNDECLARED }) << "An operator that no function declares must raise 3091.";
+}
+
+TEST(MAREASemaOperatorOperand, UndeclaredOperatorOnAStructureIsRejected)
+{
+    GTEST_COUT << "Validating that a binary operator with zero declared functions on a structure raises UNDECLARED_OPERATOR." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function f(a: Point, b: Point) local c: boolean = a == b; end"), Codes{ UNDECLARED }) << "An undeclared == on a structure must raise 3091.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function f(a: Point, b: Point) local c: Point = a / b; end"), Codes{ UNDECLARED }) << "An undeclared / on a structure must raise 3091.";
 }

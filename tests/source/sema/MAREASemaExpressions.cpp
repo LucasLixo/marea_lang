@@ -19,6 +19,7 @@ namespace
     constexpr MAREA_Uinteger32 FUNCTION_TYPE_MISMATCH{ MAREA_SEMA_DIAGNOSTIC_CODE_FUNCTION_TYPE_MISMATCH };
     constexpr MAREA_Uinteger32 INVALID_RESULT_USE{ MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_RESULT_USE };
     constexpr MAREA_Uinteger32 DEFAULT_BEFORE_REQUIRED{ MAREA_SEMA_DIAGNOSTIC_CODE_DEFAULT_PARAMETER_BEFORE_REQUIRED };
+    constexpr MAREA_Uinteger32 UNDECLARED_OPERATOR{ MAREA_SEMA_DIAGNOSTIC_CODE_UNDECLARED_OPERATOR };
 
     Codes MAREA_codesOf(const std::string &body)
     {
@@ -181,7 +182,9 @@ TEST(MAREASemaExpressions, BinaryOperandOfAnUnknownTypeIsAccepted)
 
     const std::string POINT{ "structure Point x: float32; end enum Color red; end " };
 
-    EXPECT_TRUE(MAREA_codesOf(POINT + "function g(p: Point, c: Color, a: sinteger32, q: demo.slice<sinteger32>) p == a; c == a; c + 1; q + a; a + q; end").empty()) << "A structure, an enum and a pointer must not be compared with a primitive.";
+    EXPECT_TRUE(MAREA_codesOf(POINT + "function g(c: Color, a: sinteger32, q: demo.slice<sinteger32>) c == a; c + 1; q + a; a + q; end").empty()) << "An enum and a pointer must not be compared with a primitive.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function g(p: Point, a: sinteger32) p == a; end"), Codes{ UNDECLARED_OPERATOR }) << "A structure with no declared operator must raise 3091, even against an operand of unknown fit.";
 
     EXPECT_EQ(MAREA_codesOf("function same<Item>(a: Item): Item return copy a; end function g(a: sinteger32, b: float64) same(a) + b; same(b) + a; end"), (Codes{ MISMATCH, MISMATCH })) << "The result of a generic call has its bound type.";
 
