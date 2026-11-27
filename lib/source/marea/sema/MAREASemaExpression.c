@@ -1077,7 +1077,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsWrongOperand(const MAREA_G_Shape *targ
     return (((actual->kind == MAREA_G_SHAPE_KIND_STRUCTURE) || (actual->kind == MAREA_G_SHAPE_KIND_ENUM)) && (actual->declaration != target->declaration)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
-// INFO: an operator of a structure or an enum is the function that an implementation marks with it, so the right side must fit its second parameter. With more than one, sema does not choose and accepts. outDeclared says that such a function governs the operator, so no built-in operand rule applies.
+// INFO: an operator of a structure or an enum is the function that an implementation marks with it, so the right side must fit its second parameter. A structure with none declared raises UNDECLARED_OPERATOR, because the built-in operand rules never judge a structure either; an enum with none is silent, since sema never compares an enum type and its variants compare by ordinal with no declared operator needed. With more than one, sema does not choose and accepts. outDeclared says that such a function, or the absence of one on a structure, already governs the operator, so no built-in operand rule applies.
 static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckDeclaredOperator(MAREA_SemaContext *context, const MAREA_AstNode *expression, const MAREA_G_Shape *left, const MAREA_G_Shape *right, MAREA_Boolean *outDeclared)
 {
     *outDeclared = MAREA_BOOLEAN_FALSE;
@@ -1093,6 +1093,13 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckDeclaredOperator(MAREA_SemaConte
     const MAREA_AstNode *function = MAREA_SemaFindOperatorFunction(context, left->declaration, token, strlen(token), &count);
 
     *outDeclared = (count > 0) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+
+    // ERROR: a structure with no implementation that declares this operator token has nothing to apply it, and the built-in operand rules never judge a structure either. An enum is excluded: sema never compares an enum type (its variants compare by ordinal with no declared operator needed), so a zero count there is not a defect.
+    if ((count == 0) && (left->kind == MAREA_G_SHAPE_KIND_STRUCTURE)) {
+        *outDeclared = MAREA_BOOLEAN_TRUE;
+
+        return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_UNDECLARED_OPERATOR, MAREA_AstNodeGetPosition(expression), "no implementation declares the operator", token, strlen(token));
+    }
 
     const MAREA_AstNode *parameters = (count == 1) ? MAREA_G_FindChild(function, MAREA_AST_KIND_PARAMETER_LIST) : MAREA_NULLPTR;
 

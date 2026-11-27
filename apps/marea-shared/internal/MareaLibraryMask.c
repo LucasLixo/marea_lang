@@ -20,6 +20,7 @@ static const MareaLibraryMaskEntry MAREA_LIBRARY_MASK_TABLE[] = {
     { "c.memory", MAREA_LIBRARY_FLAG_C_MEMORY },
     { "c.threads", MAREA_LIBRARY_FLAG_C_THREADS },
     { "marea.memory", MAREA_LIBRARY_FLAG_MAREA_MEMORY },
+    { "marea.math", MAREA_LIBRARY_FLAG_MAREA_MATH },
 };
 
 MAREA_Boolean MareaLibraryMaskParse(const MAREA_Character8 *text, MAREA_LibraryMask *outMask)

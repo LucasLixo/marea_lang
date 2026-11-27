@@ -30,7 +30,7 @@ MAREA_SemaCheckCompilationUnit(sema, root);   /* once per file, dependencies fir
 `MAREA_SemaCheckCompilationUnit` returns an error only for a null argument or an out of memory. A rule
 violation is a diagnostic in the sink. A size that does not fit in `MAREA_IntegerSize` (a diagnostic
 message, or the growth of a name table) is also an out of memory: nothing is allocated or copied.
-Every sema diagnostic is an error, in the range 3001-3090. Not every number of the range is a live code: the
+Every sema diagnostic is an error, in the range 3001-3091. Not every number of the range is a live code: the
 Diagnostics table lists the live ones.
 The lexer file name decides the path rule, so call `MAREA_LexContextSetFileName` with a project
 relative path with forward slashes and the `.marea` extension before the lex step.
@@ -805,10 +805,14 @@ comparison between two `boolean` operands (`==` and `!=` too), is `TYPE_MISMATCH
 expression, and only when the two operands already agree in type: a pair that raises 3011 raises no second code. An
 operand of an unknown type is accepted, and so is an expression that holds a node the parser could not build.
 
-**A declared operator.** When the left side of a binary operator is a structure or an enum of the file and exactly one
-function of its implementations has `#[operator = "token"]` for the operator, the right side must fit the second
-parameter of that function (`Self` is the type of the left side), else `TYPE_MISMATCH` (3011) at the expression. A value
-of an unknown type fits. The built-in operand rules above do not apply to such an expression.
+**A declared operator.** When the left side of a binary operator is a structure or an enum of the file, the right side
+must fit the second parameter of the function that declares the operator (`Self` is the type of the left side). When
+no implementation of a **structure** left side has `#[operator = "token"]` for the operator, `UNDECLARED_OPERATOR`
+(3091) is raised at the expression, since the built-in operand rules above never judge a structure operand either. An
+**enum** left side with no such implementation raises nothing: sema never compares an enum type, so its variants
+compare by ordinal with no declared operator needed. When exactly one function declares it, a right side that does
+not fit is `TYPE_MISMATCH` (3011) at the expression; a value of an unknown type fits. When more than one function
+declares it, sema does not choose and accepts.
 
 **Raw pointer.** A written type whose descriptor has the raw pointer role (a local, a parameter, a result, a field, an alias or a type
 argument) is `RAW_POINTER_OUTSIDE_UNSAFE` (3041) unless an `unsafe ... end` block encloses it. A type alias, of this file or of a `FOUND` namespace, is
@@ -1434,6 +1438,7 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 | 3088 | `CONSTANT_INDEX_OUT_OF_RANGE` | `values[4]` when `values` holds 4 elements, `pair[2]` for a tuple of two |
 | 3089 | `TUPLE_INDEX_NOT_CONSTANT` | `pair[index]` when `pair` is a tuple |
 | 3090 | `NOT_ITERABLE` | `for each value in pair do` when `pair` is a tuple |
+| 3091 | `UNDECLARED_OPERATOR` | `a - 1` on a structure `Point` whose implementations declare no `#[operator = "-"]` function |
 
 ## Gaps
 
