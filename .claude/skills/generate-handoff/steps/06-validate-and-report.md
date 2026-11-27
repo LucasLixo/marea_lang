@@ -7,7 +7,9 @@ Part of the [generate-handoff](../SKILL.md) skill. This file is a complete promp
 - Outcome logs of a handoff follow [references/outcome-logs.md](../references/outcome-logs.md).
 - ASCII only, no emojis, in everything you write.
 
-Report which applies can start in parallel right now. Then append this task's entry to `temp/_LOG_APPLY_SUCCESS.md`.
+Report which applies can start in parallel right now. Then, only if this planning task itself leaves a confirmed
+bug or something open, append this task's entry to `temp/_LOG_APPLY_ERROR.md` or
+`temp/_LOG_APPLY_OPEN_POINTS.md`, as [generate-apply logs](../../generate-apply/references/logs.md) defines.
 
 Before reporting: every apply has a row in both lists, every edge points backwards, `Parallel waves` matches the table, and each file is ASCII only.
 
@@ -22,6 +24,7 @@ Both lists follow the same mutability rule: a row may be reworded, split, added,
 - Every apply has a row in both lists, every edge points backwards, and `Parallel waves` matches the table.
 - Each file is ASCII only.
 - The report says wave 1 is parallel once the root branch exists, not from the first instant.
-- The success-log entry is written, and an error-log entry when something is open.
+- An error-log entry is written when a real problem was found, and an open-points entry when something is left
+  open; neither when there is nothing to report.
 
 This is the last step. Do not start another task on your own.

@@ -23,7 +23,11 @@ When the request turns out to be one focused session of work, this is the wrong 
 - Plan only, inside `temp/`; the applies follow [generate-apply](../generate-apply/SKILL.md) for format and pipeline.
 - Every apply carries `handoff: <the exact section title>`; edges are real dependencies only.
 - Any commit an apply asks for goes through the `generate-commit` skill ([SKILL.md](../generate-commit/SKILL.md)); this skill commits nothing.
-- Outcome record: like every task, this one ends with an entry in `temp/_LOG_APPLY_SUCCESS.md` (and `temp/_LOG_APPLY_ERROR.md` when something is open), as [generate-apply](../generate-apply/SKILL.md) defines. A handoff's own outcomes go to the handoff logs below.
+- Outcome record: like every task, this planning step ends with an entry in `temp/_LOG_APPLY_ERROR.md` (a
+  confirmed bug or broken check) or `temp/_LOG_APPLY_OPEN_POINTS.md` (anything else left open), only when
+  something qualifies, as [generate-apply](../generate-apply/SKILL.md) defines. A handoff's own outcome, once it
+  closes, is recorded the same way, through the closing apply's own entries - see
+  [references/outcome-logs.md](references/outcome-logs.md).
 
 ## How to run
 
