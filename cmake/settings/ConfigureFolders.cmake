@@ -20,7 +20,11 @@ macro(ConfigureFolders)
     set(MAREA_FOLDER_DOCS "${MAREA_FOLDER}/docs" CACHE PATH "Source directory for the documentation")
     set(MAREA_FOLDER_EXAMPLES "${MAREA_FOLDER}/examples" CACHE PATH "Source directory for the example programs")
     set(MAREA_FOLDER_LIB "${MAREA_FOLDER}/lib" CACHE PATH "Source directory for the compiler libraries")
-    set(MAREA_FOLDER_APPS "${MAREA_FOLDER}/apps" CACHE PATH "Source directory for the marea-cc/marea-bc command-line tools")
+    set(MAREA_FOLDER_APPS
+        "${MAREA_FOLDER}/apps"
+        CACHE PATH
+        "Source directory for the marea-cc/marea-bc command-line tools"
+    )
     set(MAREA_FOLDER_TESTS "${MAREA_FOLDER}/tests" CACHE PATH "Source directory for the test suites")
     set(MAREA_FOLDER_TOOLS "${MAREA_FOLDER}/tools" CACHE PATH "Source directory for the build-time tools")
 

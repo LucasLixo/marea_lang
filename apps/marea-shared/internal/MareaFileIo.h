@@ -18,7 +18,7 @@ MAREA_BEGIN_EXTERN_C
      * @return MAREA_BOOLEAN_TRUE on success, MAREA_BOOLEAN_FALSE when the file cannot be opened or read,
      * or an argument is null.
      */
-    MAREA_Boolean MareaFileIoReadAll(MAREA_Arena *arena, const char *path, const MAREA_Character8 **outData, MAREA_IntegerSize *outLength);
+    MAREA_Boolean MareaFileIoReadAll(MAREA_Arena * arena, const char *path, const MAREA_Character8 **outData, MAREA_IntegerSize *outLength);
 
     /**
      * @brief Writes length bytes of data to path, overwriting any existing file.

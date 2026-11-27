@@ -53,8 +53,7 @@ static const MAREA_Character8 *MareaTargetDescriptionEndianness(void)
 
 void MareaTargetDescriptionDetectHost(MAREA_SemaTarget *target)
 {
-    if (target == NULL)
-    {
+    if (target == NULL) {
         return;
     }
 

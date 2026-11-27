@@ -34,12 +34,10 @@ static char *MareaBcDriverDirectoryOf(const char *path)
 
     lastSlash = strrchr(path, '/');
 
-    if (lastSlash == NULL)
-    {
+    if (lastSlash == NULL) {
         directory = (char *)malloc(2);
 
-        if (directory != NULL)
-        {
+        if (directory != NULL) {
             directory[0] = '.';
             directory[1] = '\0';
         }
@@ -50,8 +48,7 @@ static char *MareaBcDriverDirectoryOf(const char *path)
     length = (MAREA_IntegerSize)(lastSlash - path);
     directory = (char *)malloc(length + 1);
 
-    if (directory != NULL)
-    {
+    if (directory != NULL) {
         memcpy(directory, path, length);
         directory[length] = '\0';
     }
@@ -66,13 +63,11 @@ static MAREA_LexExcept MareaBcDriverLexFile(MAREA_Arena *arena, MAREA_Diagnostic
 {
     MAREA_LexContext *lexContext;
 
-    if (MAREA_LexContextCreate(arena, sink, &lexContext) != MAREA_LEX_EXCEPT_SUCCESS)
-    {
+    if (MAREA_LexContextCreate(arena, sink, &lexContext) != MAREA_LEX_EXCEPT_SUCCESS) {
         return MAREA_LEX_EXCEPT_ERROR_NULL_POINTER;
     }
 
-    if (MAREA_LexContextSetFileName(lexContext, (const MAREA_Character8 *)inputPath) != MAREA_LEX_EXCEPT_SUCCESS)
-    {
+    if (MAREA_LexContextSetFileName(lexContext, (const MAREA_Character8 *)inputPath) != MAREA_LEX_EXCEPT_SUCCESS) {
         return MAREA_LEX_EXCEPT_ERROR_NULL_POINTER;
     }
 
@@ -98,26 +93,22 @@ static MAREA_Boolean MareaBcDriverLowerToIr(const char *inputPath, MAREA_Library
     MAREA_IrContext *irContext;
     char *primaryDirectory;
 
-    if (!MareaFileIoReadAll(arena, inputPath, &source, &sourceLength))
-    {
+    if (!MareaFileIoReadAll(arena, inputPath, &source, &sourceLength)) {
         fprintf(errorStream, "error: cannot read '%s'\n", inputPath);
         return MAREA_BOOLEAN_FALSE;
     }
 
-    if (MareaBcDriverLexFile(arena, sink, inputPath, source, sourceLength, &tokens) != MAREA_LEX_EXCEPT_SUCCESS || MAREA_DiagnosticSinkGetErrorCount(sink) != 0)
-    {
+    if (MareaBcDriverLexFile(arena, sink, inputPath, source, sourceLength, &tokens) != MAREA_LEX_EXCEPT_SUCCESS || MAREA_DiagnosticSinkGetErrorCount(sink) != 0) {
         MareaDiagnosticPrinterPrint(sink, errorStream);
         return MAREA_BOOLEAN_FALSE;
     }
 
-    if (MAREA_ParseContextCreate(arena, sink, &parseContext) != MAREA_PARSE_EXCEPT_SUCCESS || MAREA_ParseCompilationUnit(parseContext, tokens, &root) != MAREA_PARSE_EXCEPT_SUCCESS || MAREA_DiagnosticSinkGetErrorCount(sink) != 0)
-    {
+    if (MAREA_ParseContextCreate(arena, sink, &parseContext) != MAREA_PARSE_EXCEPT_SUCCESS || MAREA_ParseCompilationUnit(parseContext, tokens, &root) != MAREA_PARSE_EXCEPT_SUCCESS || MAREA_DiagnosticSinkGetErrorCount(sink) != 0) {
         MareaDiagnosticPrinterPrint(sink, errorStream);
         return MAREA_BOOLEAN_FALSE;
     }
 
-    if (MAREA_TypeRegistryCreate(arena, libraryMask, &registry) != MAREA_TYPE_REGISTRY_EXCEPT_SUCCESS)
-    {
+    if (MAREA_TypeRegistryCreate(arena, libraryMask, &registry) != MAREA_TYPE_REGISTRY_EXCEPT_SUCCESS) {
         fprintf(errorStream, "error: cannot create the type registry\n");
         return MAREA_BOOLEAN_FALSE;
     }
@@ -125,36 +116,31 @@ static MAREA_Boolean MareaBcDriverLowerToIr(const char *inputPath, MAREA_Library
     primaryDirectory = MareaBcDriverDirectoryOf(inputPath);
     MareaImportResolverInit(&resolverState, arena, sink, includeDirectories, includeDirectoryCount, (const MAREA_Character8 *)primaryDirectory);
 
-    if (MAREA_SemaImportResolverCreate(arena, MareaImportResolverResolve, &resolverState, &resolver) != MAREA_SEMA_IMPORT_RESOLVER_EXCEPT_SUCCESS)
-    {
+    if (MAREA_SemaImportResolverCreate(arena, MareaImportResolverResolve, &resolverState, &resolver) != MAREA_SEMA_IMPORT_RESOLVER_EXCEPT_SUCCESS) {
         free(primaryDirectory);
         fprintf(errorStream, "error: cannot create the import resolver\n");
         return MAREA_BOOLEAN_FALSE;
     }
 
-    if (MAREA_SemaContextCreate(arena, sink, resolver, &semaContext) != MAREA_SEMA_EXCEPT_SUCCESS)
-    {
+    if (MAREA_SemaContextCreate(arena, sink, resolver, &semaContext) != MAREA_SEMA_EXCEPT_SUCCESS) {
         free(primaryDirectory);
         fprintf(errorStream, "error: cannot create the sema context\n");
         return MAREA_BOOLEAN_FALSE;
     }
 
-    if (MAREA_SemaContextSetTypeRegistry(semaContext, registry) != MAREA_SEMA_EXCEPT_SUCCESS || MAREA_SemaContextSetTarget(semaContext, target) != MAREA_SEMA_EXCEPT_SUCCESS || MAREA_SemaContextSetSettings(semaContext, &settings) != MAREA_SEMA_EXCEPT_SUCCESS)
-    {
+    if (MAREA_SemaContextSetTypeRegistry(semaContext, registry) != MAREA_SEMA_EXCEPT_SUCCESS || MAREA_SemaContextSetTarget(semaContext, target) != MAREA_SEMA_EXCEPT_SUCCESS || MAREA_SemaContextSetSettings(semaContext, &settings) != MAREA_SEMA_EXCEPT_SUCCESS) {
         free(primaryDirectory);
         fprintf(errorStream, "error: cannot configure the sema context\n");
         return MAREA_BOOLEAN_FALSE;
     }
 
-    if (MAREA_SemaCheckCompilationUnit(semaContext, root) != MAREA_SEMA_EXCEPT_SUCCESS || MAREA_DiagnosticSinkGetErrorCount(sink) != 0)
-    {
+    if (MAREA_SemaCheckCompilationUnit(semaContext, root) != MAREA_SEMA_EXCEPT_SUCCESS || MAREA_DiagnosticSinkGetErrorCount(sink) != 0) {
         free(primaryDirectory);
         MareaDiagnosticPrinterPrint(sink, errorStream);
         return MAREA_BOOLEAN_FALSE;
     }
 
-    if (MAREA_SemaBuildTypedAst(semaContext, root, &typedRoot) != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS || MAREA_DiagnosticSinkGetErrorCount(sink) != 0)
-    {
+    if (MAREA_SemaBuildTypedAst(semaContext, root, &typedRoot) != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS || MAREA_DiagnosticSinkGetErrorCount(sink) != 0) {
         free(primaryDirectory);
         MareaDiagnosticPrinterPrint(sink, errorStream);
         return MAREA_BOOLEAN_FALSE;
@@ -162,8 +148,7 @@ static MAREA_Boolean MareaBcDriverLowerToIr(const char *inputPath, MAREA_Library
 
     free(primaryDirectory);
 
-    if (MAREA_IrContextCreate(arena, sink, &irContext) != MAREA_IR_EXCEPT_SUCCESS || MAREA_IrLowerCompilationUnit(irContext, typedRoot, outIrModule) != MAREA_IR_EXCEPT_SUCCESS || MAREA_DiagnosticSinkGetErrorCount(sink) != 0)
-    {
+    if (MAREA_IrContextCreate(arena, sink, &irContext) != MAREA_IR_EXCEPT_SUCCESS || MAREA_IrLowerCompilationUnit(irContext, typedRoot, outIrModule) != MAREA_IR_EXCEPT_SUCCESS || MAREA_DiagnosticSinkGetErrorCount(sink) != 0) {
         MareaDiagnosticPrinterPrint(sink, errorStream);
         return MAREA_BOOLEAN_FALSE;
     }
@@ -182,14 +167,12 @@ MAREA_Boolean MareaBcDriverCompile(const char *inputPath, const char *outputPath
     MAREA_IntegerSize byteSize;
     MAREA_Boolean succeeded;
 
-    if (MAREA_ArenaCreate(0, &arena) != MAREA_ARENA_EXCEPT_SUCCESS)
-    {
+    if (MAREA_ArenaCreate(0, &arena) != MAREA_ARENA_EXCEPT_SUCCESS) {
         fprintf(errorStream, "error: cannot create the arena\n");
         return MAREA_BOOLEAN_FALSE;
     }
 
-    if (MAREA_DiagnosticSinkCreate(arena, &sink) != MAREA_DIAGNOSTIC_EXCEPT_SUCCESS)
-    {
+    if (MAREA_DiagnosticSinkCreate(arena, &sink) != MAREA_DIAGNOSTIC_EXCEPT_SUCCESS) {
         MAREA_ArenaDestroy(arena);
         fprintf(errorStream, "error: cannot create the diagnostic sink\n");
         return MAREA_BOOLEAN_FALSE;
@@ -197,28 +180,24 @@ MAREA_Boolean MareaBcDriverCompile(const char *inputPath, const char *outputPath
 
     succeeded = MareaBcDriverLowerToIr(inputPath, libraryMask, settings, target, includeDirectories, includeDirectoryCount, arena, sink, errorStream, &irModule);
 
-    if (!succeeded)
-    {
+    if (!succeeded) {
         MAREA_ArenaDestroy(arena);
         return MAREA_BOOLEAN_FALSE;
     }
 
-    if (MAREA_BytecodeContextCreate(arena, sink, &bytecodeContext) != MAREA_BYTECODE_EXCEPT_SUCCESS || MAREA_BytecodeGenerate(bytecodeContext, irModule, &bytecodeModule) != MAREA_BYTECODE_EXCEPT_SUCCESS || MAREA_DiagnosticSinkGetErrorCount(sink) != 0)
-    {
+    if (MAREA_BytecodeContextCreate(arena, sink, &bytecodeContext) != MAREA_BYTECODE_EXCEPT_SUCCESS || MAREA_BytecodeGenerate(bytecodeContext, irModule, &bytecodeModule) != MAREA_BYTECODE_EXCEPT_SUCCESS || MAREA_DiagnosticSinkGetErrorCount(sink) != 0) {
         MareaDiagnosticPrinterPrint(sink, errorStream);
         MAREA_ArenaDestroy(arena);
         return MAREA_BOOLEAN_FALSE;
     }
 
-    if (MAREA_BytecodeSerialize(bytecodeModule, &bytes, &byteSize) != MAREA_BYTECODE_EXCEPT_SUCCESS)
-    {
+    if (MAREA_BytecodeSerialize(bytecodeModule, &bytes, &byteSize) != MAREA_BYTECODE_EXCEPT_SUCCESS) {
         fprintf(errorStream, "error: cannot serialize the bytecode module\n");
         MAREA_ArenaDestroy(arena);
         return MAREA_BOOLEAN_FALSE;
     }
 
-    if (!MareaFileIoWriteAll(outputPath, bytes, byteSize))
-    {
+    if (!MareaFileIoWriteAll(outputPath, bytes, byteSize)) {
         fprintf(errorStream, "error: cannot write '%s'\n", outputPath);
         MAREA_ArenaDestroy(arena);
         return MAREA_BOOLEAN_FALSE;
@@ -240,20 +219,17 @@ MAREA_Boolean MareaBcDriverAssemble(const char *inputPath, const char *outputPat
     MAREA_IntegerSize byteSize;
     MAREA_Boolean result;
 
-    if (MAREA_ArenaCreate(0, &arena) != MAREA_ARENA_EXCEPT_SUCCESS)
-    {
+    if (MAREA_ArenaCreate(0, &arena) != MAREA_ARENA_EXCEPT_SUCCESS) {
         fprintf(errorStream, "error: cannot create the arena\n");
         return MAREA_BOOLEAN_FALSE;
     }
 
-    if (MAREA_DiagnosticSinkCreate(arena, &sink) != MAREA_DIAGNOSTIC_EXCEPT_SUCCESS)
-    {
+    if (MAREA_DiagnosticSinkCreate(arena, &sink) != MAREA_DIAGNOSTIC_EXCEPT_SUCCESS) {
         MAREA_ArenaDestroy(arena);
         return MAREA_BOOLEAN_FALSE;
     }
 
-    if (!MareaFileIoReadAll(arena, inputPath, &text, &textLength))
-    {
+    if (!MareaFileIoReadAll(arena, inputPath, &text, &textLength)) {
         fprintf(errorStream, "error: cannot read '%s'\n", inputPath);
         MAREA_ArenaDestroy(arena);
         return MAREA_BOOLEAN_FALSE;
@@ -261,13 +237,10 @@ MAREA_Boolean MareaBcDriverAssemble(const char *inputPath, const char *outputPat
 
     result = MAREA_BOOLEAN_TRUE;
 
-    if (MAREA_BytecodeContextCreate(arena, sink, &bytecodeContext) != MAREA_BYTECODE_EXCEPT_SUCCESS || MAREA_BytecodeAssemble(bytecodeContext, text, textLength, &module) != MAREA_BYTECODE_EXCEPT_SUCCESS || MAREA_DiagnosticSinkGetErrorCount(sink) != 0)
-    {
+    if (MAREA_BytecodeContextCreate(arena, sink, &bytecodeContext) != MAREA_BYTECODE_EXCEPT_SUCCESS || MAREA_BytecodeAssemble(bytecodeContext, text, textLength, &module) != MAREA_BYTECODE_EXCEPT_SUCCESS || MAREA_DiagnosticSinkGetErrorCount(sink) != 0) {
         MareaDiagnosticPrinterPrint(sink, errorStream);
         result = MAREA_BOOLEAN_FALSE;
-    }
-    else if (MAREA_BytecodeSerialize(module, &bytes, &byteSize) != MAREA_BYTECODE_EXCEPT_SUCCESS || !MareaFileIoWriteAll(outputPath, bytes, byteSize))
-    {
+    } else if (MAREA_BytecodeSerialize(module, &bytes, &byteSize) != MAREA_BYTECODE_EXCEPT_SUCCESS || !MareaFileIoWriteAll(outputPath, bytes, byteSize)) {
         fprintf(errorStream, "error: cannot write '%s'\n", outputPath);
         result = MAREA_BOOLEAN_FALSE;
     }
@@ -288,20 +261,17 @@ MAREA_Boolean MareaBcDriverDisassemble(const char *inputPath, const char *output
     MAREA_IntegerSize textLength;
     MAREA_Boolean result;
 
-    if (MAREA_ArenaCreate(0, &arena) != MAREA_ARENA_EXCEPT_SUCCESS)
-    {
+    if (MAREA_ArenaCreate(0, &arena) != MAREA_ARENA_EXCEPT_SUCCESS) {
         fprintf(errorStream, "error: cannot create the arena\n");
         return MAREA_BOOLEAN_FALSE;
     }
 
-    if (MAREA_DiagnosticSinkCreate(arena, &sink) != MAREA_DIAGNOSTIC_EXCEPT_SUCCESS)
-    {
+    if (MAREA_DiagnosticSinkCreate(arena, &sink) != MAREA_DIAGNOSTIC_EXCEPT_SUCCESS) {
         MAREA_ArenaDestroy(arena);
         return MAREA_BOOLEAN_FALSE;
     }
 
-    if (!MareaFileIoReadAll(arena, inputPath, &bytes, &byteSize))
-    {
+    if (!MareaFileIoReadAll(arena, inputPath, &bytes, &byteSize)) {
         fprintf(errorStream, "error: cannot read '%s'\n", inputPath);
         MAREA_ArenaDestroy(arena);
         return MAREA_BOOLEAN_FALSE;
@@ -309,13 +279,10 @@ MAREA_Boolean MareaBcDriverDisassemble(const char *inputPath, const char *output
 
     result = MAREA_BOOLEAN_TRUE;
 
-    if (MAREA_BytecodeContextCreate(arena, sink, &bytecodeContext) != MAREA_BYTECODE_EXCEPT_SUCCESS || MAREA_BytecodeDeserialize(bytecodeContext, (const MAREA_Byte *)bytes, byteSize, &module) != MAREA_BYTECODE_EXCEPT_SUCCESS || MAREA_DiagnosticSinkGetErrorCount(sink) != 0)
-    {
+    if (MAREA_BytecodeContextCreate(arena, sink, &bytecodeContext) != MAREA_BYTECODE_EXCEPT_SUCCESS || MAREA_BytecodeDeserialize(bytecodeContext, (const MAREA_Byte *)bytes, byteSize, &module) != MAREA_BYTECODE_EXCEPT_SUCCESS || MAREA_DiagnosticSinkGetErrorCount(sink) != 0) {
         MareaDiagnosticPrinterPrint(sink, errorStream);
         result = MAREA_BOOLEAN_FALSE;
-    }
-    else if (MAREA_BytecodeDisassemble(module, &text, &textLength) != MAREA_BYTECODE_EXCEPT_SUCCESS || !MareaFileIoWriteAll(outputPath, text, textLength))
-    {
+    } else if (MAREA_BytecodeDisassemble(module, &text, &textLength) != MAREA_BYTECODE_EXCEPT_SUCCESS || !MareaFileIoWriteAll(outputPath, text, textLength)) {
         fprintf(errorStream, "error: cannot write '%s'\n", outputPath);
         result = MAREA_BOOLEAN_FALSE;
     }
@@ -336,27 +303,23 @@ MAREA_Boolean MareaBcDriverDumpTokens(const char *inputPath, FILE *outStream, FI
     MAREA_IntegerSize index;
     MAREA_Boolean result;
 
-    if (MAREA_ArenaCreate(0, &arena) != MAREA_ARENA_EXCEPT_SUCCESS)
-    {
+    if (MAREA_ArenaCreate(0, &arena) != MAREA_ARENA_EXCEPT_SUCCESS) {
         fprintf(errorStream, "error: cannot create the arena\n");
         return MAREA_BOOLEAN_FALSE;
     }
 
-    if (MAREA_DiagnosticSinkCreate(arena, &sink) != MAREA_DIAGNOSTIC_EXCEPT_SUCCESS)
-    {
+    if (MAREA_DiagnosticSinkCreate(arena, &sink) != MAREA_DIAGNOSTIC_EXCEPT_SUCCESS) {
         MAREA_ArenaDestroy(arena);
         return MAREA_BOOLEAN_FALSE;
     }
 
-    if (!MareaFileIoReadAll(arena, inputPath, &source, &sourceLength))
-    {
+    if (!MareaFileIoReadAll(arena, inputPath, &source, &sourceLength)) {
         fprintf(errorStream, "error: cannot read '%s'\n", inputPath);
         MAREA_ArenaDestroy(arena);
         return MAREA_BOOLEAN_FALSE;
     }
 
-    if (MareaBcDriverLexFile(arena, sink, inputPath, source, sourceLength, &tokens) != MAREA_LEX_EXCEPT_SUCCESS || MAREA_DiagnosticSinkGetErrorCount(sink) != 0)
-    {
+    if (MareaBcDriverLexFile(arena, sink, inputPath, source, sourceLength, &tokens) != MAREA_LEX_EXCEPT_SUCCESS || MAREA_DiagnosticSinkGetErrorCount(sink) != 0) {
         MareaDiagnosticPrinterPrint(sink, errorStream);
         MAREA_ArenaDestroy(arena);
         return MAREA_BOOLEAN_FALSE;
@@ -365,13 +328,11 @@ MAREA_Boolean MareaBcDriverDumpTokens(const char *inputPath, FILE *outStream, FI
     result = MAREA_BOOLEAN_TRUE;
     count = MAREA_TokenListGetCount(tokens);
 
-    for (index = 0; index < count; index = index + 1)
-    {
+    for (index = 0; index < count; index = index + 1) {
         const MAREA_Token *token;
         MAREA_SourcePosition position;
 
-        if (MAREA_TokenListGetAt(tokens, index, &token) != MAREA_LEX_EXCEPT_SUCCESS)
-        {
+        if (MAREA_TokenListGetAt(tokens, index, &token) != MAREA_LEX_EXCEPT_SUCCESS) {
             result = MAREA_BOOLEAN_FALSE;
             break;
         }
@@ -407,20 +368,17 @@ MAREA_Boolean MareaBcDriverDumpAst(const char *inputPath, FILE *outStream, FILE 
     MAREA_IntegerSize textLength;
     MAREA_Boolean result;
 
-    if (MAREA_ArenaCreate(0, &arena) != MAREA_ARENA_EXCEPT_SUCCESS)
-    {
+    if (MAREA_ArenaCreate(0, &arena) != MAREA_ARENA_EXCEPT_SUCCESS) {
         fprintf(errorStream, "error: cannot create the arena\n");
         return MAREA_BOOLEAN_FALSE;
     }
 
-    if (MAREA_DiagnosticSinkCreate(arena, &sink) != MAREA_DIAGNOSTIC_EXCEPT_SUCCESS)
-    {
+    if (MAREA_DiagnosticSinkCreate(arena, &sink) != MAREA_DIAGNOSTIC_EXCEPT_SUCCESS) {
         MAREA_ArenaDestroy(arena);
         return MAREA_BOOLEAN_FALSE;
     }
 
-    if (!MareaFileIoReadAll(arena, inputPath, &source, &sourceLength))
-    {
+    if (!MareaFileIoReadAll(arena, inputPath, &source, &sourceLength)) {
         fprintf(errorStream, "error: cannot read '%s'\n", inputPath);
         MAREA_ArenaDestroy(arena);
         return MAREA_BOOLEAN_FALSE;
@@ -428,23 +386,16 @@ MAREA_Boolean MareaBcDriverDumpAst(const char *inputPath, FILE *outStream, FILE 
 
     result = MAREA_BOOLEAN_TRUE;
 
-    if (MareaBcDriverLexFile(arena, sink, inputPath, source, sourceLength, &tokens) != MAREA_LEX_EXCEPT_SUCCESS || MAREA_DiagnosticSinkGetErrorCount(sink) != 0)
-    {
+    if (MareaBcDriverLexFile(arena, sink, inputPath, source, sourceLength, &tokens) != MAREA_LEX_EXCEPT_SUCCESS || MAREA_DiagnosticSinkGetErrorCount(sink) != 0) {
         MareaDiagnosticPrinterPrint(sink, errorStream);
         result = MAREA_BOOLEAN_FALSE;
-    }
-    else if (MAREA_ParseContextCreate(arena, sink, &parseContext) != MAREA_PARSE_EXCEPT_SUCCESS || MAREA_ParseCompilationUnit(parseContext, tokens, &root) != MAREA_PARSE_EXCEPT_SUCCESS || MAREA_DiagnosticSinkGetErrorCount(sink) != 0)
-    {
+    } else if (MAREA_ParseContextCreate(arena, sink, &parseContext) != MAREA_PARSE_EXCEPT_SUCCESS || MAREA_ParseCompilationUnit(parseContext, tokens, &root) != MAREA_PARSE_EXCEPT_SUCCESS || MAREA_DiagnosticSinkGetErrorCount(sink) != 0) {
         MareaDiagnosticPrinterPrint(sink, errorStream);
         result = MAREA_BOOLEAN_FALSE;
-    }
-    else if (MAREA_AstDump(arena, root, &text, &textLength) != MAREA_AST_EXCEPT_SUCCESS)
-    {
+    } else if (MAREA_AstDump(arena, root, &text, &textLength) != MAREA_AST_EXCEPT_SUCCESS) {
         fprintf(errorStream, "error: cannot dump the AST\n");
         result = MAREA_BOOLEAN_FALSE;
-    }
-    else
-    {
+    } else {
         fwrite(text, 1, (size_t)textLength, outStream);
     }
 
@@ -465,29 +416,23 @@ MAREA_Boolean MareaBcDriverDumpIr(const char *inputPath, MAREA_LibraryMask libra
     emptySettings.pairs = NULL;
     emptySettings.count = 0;
 
-    if (MAREA_ArenaCreate(0, &arena) != MAREA_ARENA_EXCEPT_SUCCESS)
-    {
+    if (MAREA_ArenaCreate(0, &arena) != MAREA_ARENA_EXCEPT_SUCCESS) {
         fprintf(errorStream, "error: cannot create the arena\n");
         return MAREA_BOOLEAN_FALSE;
     }
 
-    if (MAREA_DiagnosticSinkCreate(arena, &sink) != MAREA_DIAGNOSTIC_EXCEPT_SUCCESS)
-    {
+    if (MAREA_DiagnosticSinkCreate(arena, &sink) != MAREA_DIAGNOSTIC_EXCEPT_SUCCESS) {
         MAREA_ArenaDestroy(arena);
         return MAREA_BOOLEAN_FALSE;
     }
 
     result = MareaBcDriverLowerToIr(inputPath, libraryMask, emptySettings, target, includeDirectories, includeDirectoryCount, arena, sink, errorStream, &irModule);
 
-    if (result)
-    {
-        if (MAREA_IrModuleDump(arena, irModule, &text, &textLength) != MAREA_IR_EXCEPT_SUCCESS)
-        {
+    if (result) {
+        if (MAREA_IrModuleDump(arena, irModule, &text, &textLength) != MAREA_IR_EXCEPT_SUCCESS) {
             fprintf(errorStream, "error: cannot dump the IR module\n");
             result = MAREA_BOOLEAN_FALSE;
-        }
-        else
-        {
+        } else {
             fwrite(text, 1, (size_t)textLength, outStream);
         }
     }
@@ -500,8 +445,7 @@ void MareaBcDriverListSettings(MAREA_SemaSettings settings, FILE *outStream)
 {
     MAREA_IntegerSize index;
 
-    for (index = 0; index < settings.count; index = index + 1)
-    {
+    for (index = 0; index < settings.count; index = index + 1) {
         fprintf(outStream, "%s=%s\n", settings.pairs[index].name, settings.pairs[index].value);
     }
 }

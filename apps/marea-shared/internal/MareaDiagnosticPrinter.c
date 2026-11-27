@@ -5,8 +5,7 @@
 
 static const char *MareaDiagnosticPrinterSeverityText(MAREA_DiagnosticSeverity severity)
 {
-    if (severity == MAREA_DIAGNOSTIC_SEVERITY_WARNING)
-    {
+    if (severity == MAREA_DIAGNOSTIC_SEVERITY_WARNING) {
         return "warning";
     }
 
@@ -18,22 +17,19 @@ MAREA_Boolean MareaDiagnosticPrinterPrint(const MAREA_DiagnosticSink *sink, FILE
     MAREA_IntegerSize count;
     MAREA_IntegerSize index;
 
-    if (sink == NULL)
-    {
+    if (sink == NULL) {
         return MAREA_BOOLEAN_TRUE;
     }
 
     count = MAREA_DiagnosticSinkGetCount(sink);
 
-    for (index = 0; index < count; index = index + 1)
-    {
+    for (index = 0; index < count; index = index + 1) {
         const MAREA_Diagnostic *diagnostic;
         MAREA_SourcePosition position;
 
         /* TAG: a null diagnostic never occurs for an index inside the sink's own count, but the sink's
          * own accessor is checked anyway, since this printer never trusts the sink past what it returns. */
-        if (MAREA_DiagnosticSinkGetAt(sink, index, &diagnostic) != MAREA_DIAGNOSTIC_EXCEPT_SUCCESS)
-        {
+        if (MAREA_DiagnosticSinkGetAt(sink, index, &diagnostic) != MAREA_DIAGNOSTIC_EXCEPT_SUCCESS) {
             continue;
         }
 

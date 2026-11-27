@@ -14,11 +14,11 @@ typedef struct MareaLibraryMaskEntry
 /* TAG: one entry per MAREA_KNOWN_LIBRARIES name of cmake/settings/ConfigureMareaFunctions.cmake, kept in
  * step with it by hand, since the CMake list and this table name the same five shipped libraries. */
 static const MareaLibraryMaskEntry MAREA_LIBRARY_MASK_TABLE[] = {
-    {"marea.array", MAREA_LIBRARY_FLAG_MAREA_ARRAY},
-    {"marea.vector", MAREA_LIBRARY_FLAG_MAREA_VECTOR},
-    {"marea.tuple", MAREA_LIBRARY_FLAG_MAREA_TUPLE},
-    {"c.memory", MAREA_LIBRARY_FLAG_C_MEMORY},
-    {"c.threads", MAREA_LIBRARY_FLAG_C_THREADS},
+    { "marea.array", MAREA_LIBRARY_FLAG_MAREA_ARRAY },
+    { "marea.vector", MAREA_LIBRARY_FLAG_MAREA_VECTOR },
+    { "marea.tuple", MAREA_LIBRARY_FLAG_MAREA_TUPLE },
+    { "c.memory", MAREA_LIBRARY_FLAG_C_MEMORY },
+    { "c.threads", MAREA_LIBRARY_FLAG_C_THREADS },
 };
 
 MAREA_Boolean MareaLibraryMaskParse(const MAREA_Character8 *text, MAREA_LibraryMask *outMask)
@@ -27,13 +27,11 @@ MAREA_Boolean MareaLibraryMaskParse(const MAREA_Character8 *text, MAREA_LibraryM
     MAREA_IntegerSize length;
     MAREA_LibraryMask mask;
 
-    if (outMask == NULL)
-    {
+    if (outMask == NULL) {
         return MAREA_BOOLEAN_FALSE;
     }
 
-    if (text == NULL || text[0] == '\0')
-    {
+    if (text == NULL || text[0] == '\0') {
         *outMask = MAREA_LIBRARY_MASK_DEFAULT;
         return MAREA_BOOLEAN_TRUE;
     }
@@ -42,8 +40,7 @@ MAREA_Boolean MareaLibraryMaskParse(const MAREA_Character8 *text, MAREA_LibraryM
     length = (MAREA_IntegerSize)strlen((const char *)text);
     cursor = 0;
 
-    while (cursor < length)
-    {
+    while (cursor < length) {
         MAREA_IntegerSize start;
         MAREA_IntegerSize tokenLength;
         MAREA_IntegerSize tableIndex;
@@ -51,34 +48,29 @@ MAREA_Boolean MareaLibraryMaskParse(const MAREA_Character8 *text, MAREA_LibraryM
 
         start = cursor;
 
-        while (cursor < length && text[cursor] != ',')
-        {
+        while (cursor < length && text[cursor] != ',') {
             cursor = cursor + 1;
         }
 
         tokenLength = cursor - start;
         matched = MAREA_BOOLEAN_FALSE;
 
-        for (tableIndex = 0; tableIndex < MAREA_ARRAY_SIZE(MAREA_LIBRARY_MASK_TABLE); tableIndex = tableIndex + 1)
-        {
+        for (tableIndex = 0; tableIndex < MAREA_ARRAY_SIZE(MAREA_LIBRARY_MASK_TABLE); tableIndex = tableIndex + 1) {
             MAREA_IntegerSize nameLength = (MAREA_IntegerSize)strlen(MAREA_LIBRARY_MASK_TABLE[tableIndex].name);
 
-            if (nameLength == tokenLength && strncmp((const char *)text + start, MAREA_LIBRARY_MASK_TABLE[tableIndex].name, tokenLength) == 0)
-            {
+            if (nameLength == tokenLength && strncmp((const char *)text + start, MAREA_LIBRARY_MASK_TABLE[tableIndex].name, tokenLength) == 0) {
                 mask = mask | MAREA_LIBRARY_MASK_TABLE[tableIndex].flag;
                 matched = MAREA_BOOLEAN_TRUE;
                 break;
             }
         }
 
-        if (!matched)
-        {
+        if (!matched) {
             return MAREA_BOOLEAN_FALSE;
         }
 
         /* Skip the comma separator, when one ended this token. */
-        if (cursor < length)
-        {
+        if (cursor < length) {
             cursor = cursor + 1;
         }
     }

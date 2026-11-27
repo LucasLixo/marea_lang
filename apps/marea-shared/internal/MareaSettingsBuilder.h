@@ -28,7 +28,7 @@ MAREA_BEGIN_EXTERN_C
      * @param builder Builder to initialize. Must not be null.
      * @param arena Arena that owns every copied name/value text and the pair array. Must not be null.
      */
-    void MareaSettingsBuilderInit(MareaSettingsBuilder *builder, MAREA_Arena *arena);
+    void MareaSettingsBuilderInit(MareaSettingsBuilder * builder, MAREA_Arena * arena);
 
     /**
      * @brief Parses one "NAME=value" argument and appends it to the builder.
@@ -37,7 +37,7 @@ MAREA_BEGIN_EXTERN_C
      * @return MAREA_BOOLEAN_TRUE on success, MAREA_BOOLEAN_FALSE when argument has no '=' or growing the
      * arena fails.
      */
-    MAREA_Boolean MareaSettingsBuilderAddPair(MareaSettingsBuilder *builder, const MAREA_Character8 *argument);
+    MAREA_Boolean MareaSettingsBuilderAddPair(MareaSettingsBuilder * builder, const MAREA_Character8 *argument);
 
     /**
      * @brief Returns the settings built so far, as the plain struct MAREA_SemaContextSetSettings takes.

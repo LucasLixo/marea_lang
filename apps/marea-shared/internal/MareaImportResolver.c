@@ -12,8 +12,7 @@
 
 void MareaImportResolverInit(MareaImportResolverState *state, MAREA_Arena *arena, MAREA_DiagnosticSink *sink, const MAREA_Character8 *const *includeDirectories, MAREA_IntegerSize includeDirectoryCount, const MAREA_Character8 *primaryDirectory)
 {
-    if (state == NULL)
-    {
+    if (state == NULL) {
         return;
     }
 
@@ -43,23 +42,20 @@ static char *MareaImportResolverBuildPath(const char *directory, const MAREA_Cha
 
     path = (char *)malloc(totalLength);
 
-    if (path == NULL)
-    {
+    if (path == NULL) {
         return NULL;
     }
 
     cursor = 0;
 
-    if (directoryLength > 0)
-    {
+    if (directoryLength > 0) {
         memcpy(path, directory, directoryLength);
         cursor = directoryLength;
         path[cursor] = '/';
         cursor = cursor + 1;
     }
 
-    for (index = 0; index < namespaceLength; index = index + 1)
-    {
+    for (index = 0; index < namespaceLength; index = index + 1) {
         char character = (char)namespaceText[index];
         path[cursor + index] = (character == '.') ? '/' : character;
     }
@@ -82,33 +78,28 @@ static const MAREA_Character8 *MareaImportResolverReadFile(MAREA_Arena *arena, c
 
     file = fopen(path, "rb");
 
-    if (file == NULL)
-    {
+    if (file == NULL) {
         return NULL;
     }
 
-    if (fseek(file, 0, SEEK_END) != 0)
-    {
+    if (fseek(file, 0, SEEK_END) != 0) {
         fclose(file);
         return NULL;
     }
 
     size = ftell(file);
 
-    if (size < 0 || fseek(file, 0, SEEK_SET) != 0)
-    {
+    if (size < 0 || fseek(file, 0, SEEK_SET) != 0) {
         fclose(file);
         return NULL;
     }
 
-    if (MAREA_ArenaAllocate(arena, (MAREA_IntegerSize)size + 1, 1, &memory) != MAREA_ARENA_EXCEPT_SUCCESS)
-    {
+    if (MAREA_ArenaAllocate(arena, (MAREA_IntegerSize)size + 1, 1, &memory) != MAREA_ARENA_EXCEPT_SUCCESS) {
         fclose(file);
         return NULL;
     }
 
-    if (size > 0 && fread(memory, 1, (size_t)size, file) != (size_t)size)
-    {
+    if (size > 0 && fread(memory, 1, (size_t)size, file) != (size_t)size) {
         fclose(file);
         return NULL;
     }
@@ -124,10 +115,8 @@ static MAREA_Boolean MareaImportResolverFindCached(MareaImportResolverState *sta
 {
     MAREA_IntegerSize index;
 
-    for (index = 0; index < state->cacheCount; index = index + 1)
-    {
-        if (state->cache[index].namespaceLength == namespaceLength && memcmp(state->cache[index].namespaceText, namespaceText, namespaceLength) == 0)
-        {
+    for (index = 0; index < state->cacheCount; index = index + 1) {
+        if (state->cache[index].namespaceLength == namespaceLength && memcmp(state->cache[index].namespaceText, namespaceText, namespaceLength) == 0) {
             *outEntry = state->cache[index];
             return MAREA_BOOLEAN_TRUE;
         }
@@ -141,17 +130,14 @@ static void MareaImportResolverAppendCache(MareaImportResolverState *state, cons
     MAREA_Null memory;
     MAREA_Character8 *namespaceCopy;
 
-    if (state->cacheCount == state->cacheCapacity)
-    {
+    if (state->cacheCount == state->cacheCapacity) {
         MAREA_IntegerSize newCapacity = state->cacheCapacity == 0 ? 4 : state->cacheCapacity * 2;
 
-        if (MAREA_ArenaAllocate(state->arena, newCapacity * sizeof(MareaImportResolverCacheEntry), MAREA_ALIGNOF(MareaImportResolverCacheEntry), &memory) != MAREA_ARENA_EXCEPT_SUCCESS)
-        {
+        if (MAREA_ArenaAllocate(state->arena, newCapacity * sizeof(MareaImportResolverCacheEntry), MAREA_ALIGNOF(MareaImportResolverCacheEntry), &memory) != MAREA_ARENA_EXCEPT_SUCCESS) {
             return;
         }
 
-        if (state->cacheCount > 0)
-        {
+        if (state->cacheCount > 0) {
             memcpy(memory, state->cache, state->cacheCount * sizeof(MareaImportResolverCacheEntry));
         }
 
@@ -159,8 +145,7 @@ static void MareaImportResolverAppendCache(MareaImportResolverState *state, cons
         state->cacheCapacity = newCapacity;
     }
 
-    if (MAREA_ArenaAllocate(state->arena, namespaceLength + 1, 1, &memory) != MAREA_ARENA_EXCEPT_SUCCESS)
-    {
+    if (MAREA_ArenaAllocate(state->arena, namespaceLength + 1, 1, &memory) != MAREA_ARENA_EXCEPT_SUCCESS) {
         return;
     }
 
@@ -189,36 +174,30 @@ static MAREA_Boolean MareaImportResolverTryDirectory(MareaImportResolverState *s
 
     path = MareaImportResolverBuildPath(directory, namespaceText, namespaceLength);
 
-    if (path == NULL)
-    {
+    if (path == NULL) {
         return MAREA_BOOLEAN_FALSE;
     }
 
     source = MareaImportResolverReadFile(state->arena, path, &sourceLength);
     free(path);
 
-    if (source == NULL)
-    {
+    if (source == NULL) {
         return MAREA_BOOLEAN_FALSE;
     }
 
-    if (MAREA_LexContextCreate(state->arena, state->sink, &lexContext) != MAREA_LEX_EXCEPT_SUCCESS)
-    {
+    if (MAREA_LexContextCreate(state->arena, state->sink, &lexContext) != MAREA_LEX_EXCEPT_SUCCESS) {
         return MAREA_BOOLEAN_FALSE;
     }
 
-    if (MAREA_LexTokenize(lexContext, source, sourceLength, &tokens) != MAREA_LEX_EXCEPT_SUCCESS)
-    {
+    if (MAREA_LexTokenize(lexContext, source, sourceLength, &tokens) != MAREA_LEX_EXCEPT_SUCCESS) {
         return MAREA_BOOLEAN_FALSE;
     }
 
-    if (MAREA_ParseContextCreate(state->arena, state->sink, &parseContext) != MAREA_PARSE_EXCEPT_SUCCESS)
-    {
+    if (MAREA_ParseContextCreate(state->arena, state->sink, &parseContext) != MAREA_PARSE_EXCEPT_SUCCESS) {
         return MAREA_BOOLEAN_FALSE;
     }
 
-    if (MAREA_ParseCompilationUnit(parseContext, tokens, outRoot) != MAREA_PARSE_EXCEPT_SUCCESS)
-    {
+    if (MAREA_ParseCompilationUnit(parseContext, tokens, outRoot) != MAREA_PARSE_EXCEPT_SUCCESS) {
         return MAREA_BOOLEAN_FALSE;
     }
 
@@ -234,17 +213,14 @@ void MAREA_CALL MareaImportResolverResolve(MAREA_Null userData, const MAREA_Char
 
     state = (MareaImportResolverState *)userData;
 
-    if (state == NULL || outResult == NULL)
-    {
+    if (state == NULL || outResult == NULL) {
         return;
     }
 
-    if (MareaImportResolverFindCached(state, namespaceText, namespaceLength, &cached))
-    {
+    if (MareaImportResolverFindCached(state, namespaceText, namespaceLength, &cached)) {
         *outResult = cached.result;
 
-        if (outRoot != NULL)
-        {
+        if (outRoot != NULL) {
             *outRoot = cached.root;
         }
 
@@ -253,12 +229,10 @@ void MAREA_CALL MareaImportResolverResolve(MAREA_Null userData, const MAREA_Char
 
     root = NULL;
 
-    if (state->primaryDirectory != NULL && MareaImportResolverTryDirectory(state, (const char *)state->primaryDirectory, namespaceText, namespaceLength, &root))
-    {
+    if (state->primaryDirectory != NULL && MareaImportResolverTryDirectory(state, (const char *)state->primaryDirectory, namespaceText, namespaceLength, &root)) {
         *outResult = MAREA_SEMA_IMPORT_RESULT_FOUND;
 
-        if (outRoot != NULL)
-        {
+        if (outRoot != NULL) {
             *outRoot = root;
         }
 
@@ -266,14 +240,11 @@ void MAREA_CALL MareaImportResolverResolve(MAREA_Null userData, const MAREA_Char
         return;
     }
 
-    for (directoryIndex = 0; directoryIndex < state->includeDirectoryCount; directoryIndex = directoryIndex + 1)
-    {
-        if (MareaImportResolverTryDirectory(state, (const char *)state->includeDirectories[directoryIndex], namespaceText, namespaceLength, &root))
-        {
+    for (directoryIndex = 0; directoryIndex < state->includeDirectoryCount; directoryIndex = directoryIndex + 1) {
+        if (MareaImportResolverTryDirectory(state, (const char *)state->includeDirectories[directoryIndex], namespaceText, namespaceLength, &root)) {
             *outResult = MAREA_SEMA_IMPORT_RESULT_FOUND;
 
-            if (outRoot != NULL)
-            {
+            if (outRoot != NULL) {
                 *outRoot = root;
             }
 
@@ -284,8 +255,7 @@ void MAREA_CALL MareaImportResolverResolve(MAREA_Null userData, const MAREA_Char
 
     *outResult = MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
 
-    if (outRoot != NULL)
-    {
+    if (outRoot != NULL) {
         *outRoot = NULL;
     }
 

@@ -88,7 +88,7 @@ MAREA_BEGIN_EXTERN_C
      * @param settings Settings to list.
      * @param outStream Stream the listing is printed to. Must not be null.
      */
-    void MareaBcDriverListSettings(MAREA_SemaSettings settings, FILE *outStream);
+    void MareaBcDriverListSettings(MAREA_SemaSettings settings, FILE * outStream);
 
 MAREA_END_EXTERN_C
 

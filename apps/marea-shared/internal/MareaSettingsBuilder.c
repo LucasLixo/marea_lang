@@ -9,8 +9,7 @@ static MAREA_Character8 *MareaSettingsBuilderCopyText(MAREA_Arena *arena, const 
 {
     MAREA_Null memory;
 
-    if (MAREA_ArenaAllocate(arena, length + 1, 1, &memory) != MAREA_ARENA_EXCEPT_SUCCESS)
-    {
+    if (MAREA_ArenaAllocate(arena, length + 1, 1, &memory) != MAREA_ARENA_EXCEPT_SUCCESS) {
         return NULL;
     }
 
@@ -22,8 +21,7 @@ static MAREA_Character8 *MareaSettingsBuilderCopyText(MAREA_Arena *arena, const 
 
 void MareaSettingsBuilderInit(MareaSettingsBuilder *builder, MAREA_Arena *arena)
 {
-    if (builder == NULL)
-    {
+    if (builder == NULL) {
         return;
     }
 
@@ -41,15 +39,13 @@ MAREA_Boolean MareaSettingsBuilderAddPair(MareaSettingsBuilder *builder, const M
     MAREA_Character8 *name;
     MAREA_Character8 *value;
 
-    if (builder == NULL || argument == NULL)
-    {
+    if (builder == NULL || argument == NULL) {
         return MAREA_BOOLEAN_FALSE;
     }
 
     equals = strchr((const char *)argument, '=');
 
-    if (equals == NULL)
-    {
+    if (equals == NULL) {
         return MAREA_BOOLEAN_FALSE;
     }
 
@@ -59,25 +55,21 @@ MAREA_Boolean MareaSettingsBuilderAddPair(MareaSettingsBuilder *builder, const M
     name = MareaSettingsBuilderCopyText(builder->arena, (const char *)argument, nameLength);
     value = MareaSettingsBuilderCopyText(builder->arena, equals + 1, valueLength);
 
-    if (name == NULL || value == NULL)
-    {
+    if (name == NULL || value == NULL) {
         return MAREA_BOOLEAN_FALSE;
     }
 
-    if (builder->count == builder->capacity)
-    {
+    if (builder->count == builder->capacity) {
         MAREA_IntegerSize newCapacity;
         MAREA_Null memory;
 
         newCapacity = builder->capacity == 0 ? 4 : builder->capacity * 2;
 
-        if (MAREA_ArenaAllocate(builder->arena, newCapacity * sizeof(MAREA_SemaSetting), MAREA_ALIGNOF(MAREA_SemaSetting), &memory) != MAREA_ARENA_EXCEPT_SUCCESS)
-        {
+        if (MAREA_ArenaAllocate(builder->arena, newCapacity * sizeof(MAREA_SemaSetting), MAREA_ALIGNOF(MAREA_SemaSetting), &memory) != MAREA_ARENA_EXCEPT_SUCCESS) {
             return MAREA_BOOLEAN_FALSE;
         }
 
-        if (builder->count > 0)
-        {
+        if (builder->count > 0) {
             memcpy(memory, builder->pairs, builder->count * sizeof(MAREA_SemaSetting));
         }
 

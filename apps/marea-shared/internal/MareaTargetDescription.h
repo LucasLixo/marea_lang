@@ -16,7 +16,7 @@ MAREA_BEGIN_EXTERN_C
      * only given through a repeatable --target-feature flag.
      * @param target Target to fill. Must not be null.
      */
-    void MareaTargetDescriptionDetectHost(MAREA_SemaTarget *target);
+    void MareaTargetDescriptionDetectHost(MAREA_SemaTarget * target);
 
 MAREA_END_EXTERN_C
 

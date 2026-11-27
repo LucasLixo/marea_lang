@@ -50,7 +50,7 @@ MAREA_BEGIN_EXTERN_C
      * @param includeDirectoryCount Number of entries in includeDirectories.
      * @param primaryDirectory Directory of the file being compiled, searched first. May be null.
      */
-    void MareaImportResolverInit(MareaImportResolverState *state, MAREA_Arena *arena, MAREA_DiagnosticSink *sink, const MAREA_Character8 *const *includeDirectories, MAREA_IntegerSize includeDirectoryCount, const MAREA_Character8 *primaryDirectory);
+    void MareaImportResolverInit(MareaImportResolverState * state, MAREA_Arena * arena, MAREA_DiagnosticSink * sink, const MAREA_Character8 *const *includeDirectories, MAREA_IntegerSize includeDirectoryCount, const MAREA_Character8 *primaryDirectory);
 
     /**
      * @brief The resolve function itself, matching MAREA_SemaImportResolveFunction. userData must be a

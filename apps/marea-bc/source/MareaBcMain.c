@@ -57,26 +57,22 @@ int main(int argumentCount, char **arguments)
     int index;
     MAREA_Boolean listSettings;
 
-    if (argumentCount < 2)
-    {
+    if (argumentCount < 2) {
         MareaBcPrintUsage();
         return 1;
     }
 
-    if (strcmp(arguments[1], "--help") == 0)
-    {
+    if (strcmp(arguments[1], "--help") == 0) {
         MareaBcPrintUsage();
         return 0;
     }
 
-    if (strcmp(arguments[1], "--version") == 0)
-    {
+    if (strcmp(arguments[1], "--version") == 0) {
         printf("marea-bc (marea_lang)\n");
         return 0;
     }
 
-    if (MAREA_ArenaCreate(0, &argumentArena) != MAREA_ARENA_EXCEPT_SUCCESS)
-    {
+    if (MAREA_ArenaCreate(0, &argumentArena) != MAREA_ARENA_EXCEPT_SUCCESS) {
         fprintf(stderr, "error: cannot create the argument arena\n");
         return 1;
     }
@@ -93,85 +89,57 @@ int main(int argumentCount, char **arguments)
 
     /* arguments[1] is the mode only when it is not itself a flag, so a flag-only invocation such as
      * "marea-bc --list-settings --settings NAME=value" works with no mode at all. */
-    if (arguments[1][0] != '-')
-    {
+    if (arguments[1][0] != '-') {
         mode = arguments[1];
     }
 
     MareaTargetDescriptionDetectHost(&target);
 
-    for (index = mode != NULL ? 2 : 1; index < argumentCount; index = index + 1)
-    {
+    for (index = mode != NULL ? 2 : 1; index < argumentCount; index = index + 1) {
         const char *argument = arguments[index];
 
-        if (strcmp(argument, "-o") == 0 && index + 1 < argumentCount)
-        {
+        if (strcmp(argument, "-o") == 0 && index + 1 < argumentCount) {
             outputPath = arguments[index + 1];
             index = index + 1;
-        }
-        else if (strcmp(argument, "--libraries") == 0 && index + 1 < argumentCount)
-        {
+        } else if (strcmp(argument, "--libraries") == 0 && index + 1 < argumentCount) {
             librariesText = arguments[index + 1];
             index = index + 1;
-        }
-        else if (strcmp(argument, "--settings") == 0 && index + 1 < argumentCount)
-        {
-            if (!MareaSettingsBuilderAddPair(&settingsBuilder, (const MAREA_Character8 *)arguments[index + 1]))
-            {
+        } else if (strcmp(argument, "--settings") == 0 && index + 1 < argumentCount) {
+            if (!MareaSettingsBuilderAddPair(&settingsBuilder, (const MAREA_Character8 *)arguments[index + 1])) {
                 fprintf(stderr, "error: malformed --settings '%s' (expected NAME=value)\n", arguments[index + 1]);
                 MAREA_ArenaDestroy(argumentArena);
                 return 1;
             }
 
             index = index + 1;
-        }
-        else if (strcmp(argument, "--include") == 0 && index + 1 < argumentCount && includeDirectoryCount < MAREA_ARRAY_SIZE(includeDirectories))
-        {
+        } else if (strcmp(argument, "--include") == 0 && index + 1 < argumentCount && includeDirectoryCount < MAREA_ARRAY_SIZE(includeDirectories)) {
             includeDirectories[includeDirectoryCount] = arguments[index + 1];
             includeDirectoryCount = includeDirectoryCount + 1;
             index = index + 1;
-        }
-        else if (strcmp(argument, "--target-architecture") == 0 && index + 1 < argumentCount)
-        {
+        } else if (strcmp(argument, "--target-architecture") == 0 && index + 1 < argumentCount) {
             target.architecture = (const MAREA_Character8 *)arguments[index + 1];
             index = index + 1;
-        }
-        else if (strcmp(argument, "--target-os") == 0 && index + 1 < argumentCount)
-        {
+        } else if (strcmp(argument, "--target-os") == 0 && index + 1 < argumentCount) {
             target.operatingSystem = (const MAREA_Character8 *)arguments[index + 1];
             index = index + 1;
-        }
-        else if (strcmp(argument, "--target-compiler") == 0 && index + 1 < argumentCount)
-        {
+        } else if (strcmp(argument, "--target-compiler") == 0 && index + 1 < argumentCount) {
             target.compiler = (const MAREA_Character8 *)arguments[index + 1];
             index = index + 1;
-        }
-        else if (strcmp(argument, "--target-endianness") == 0 && index + 1 < argumentCount)
-        {
+        } else if (strcmp(argument, "--target-endianness") == 0 && index + 1 < argumentCount) {
             target.endianness = (const MAREA_Character8 *)arguments[index + 1];
             index = index + 1;
-        }
-        else if (strcmp(argument, "--target-pointer-width") == 0 && index + 1 < argumentCount)
-        {
+        } else if (strcmp(argument, "--target-pointer-width") == 0 && index + 1 < argumentCount) {
             target.pointerWidth = (MAREA_Uinteger32)atoi(arguments[index + 1]);
             index = index + 1;
-        }
-        else if (strcmp(argument, "--target-feature") == 0 && index + 1 < argumentCount && featureCount < MAREA_ARRAY_SIZE(features))
-        {
+        } else if (strcmp(argument, "--target-feature") == 0 && index + 1 < argumentCount && featureCount < MAREA_ARRAY_SIZE(features)) {
             features[featureCount] = arguments[index + 1];
             featureCount = featureCount + 1;
             index = index + 1;
-        }
-        else if (strcmp(argument, "--list-settings") == 0)
-        {
+        } else if (strcmp(argument, "--list-settings") == 0) {
             listSettings = MAREA_BOOLEAN_TRUE;
-        }
-        else if (inputPath == NULL)
-        {
+        } else if (inputPath == NULL) {
             inputPath = argument;
-        }
-        else
-        {
+        } else {
             fprintf(stderr, "error: unexpected argument '%s'\n", argument);
             MareaBcPrintUsage();
             MAREA_ArenaDestroy(argumentArena);
@@ -182,30 +150,26 @@ int main(int argumentCount, char **arguments)
     target.features = (const MAREA_Character8 *const *)features;
     target.featureCount = featureCount;
 
-    if (listSettings)
-    {
+    if (listSettings) {
         MareaBcDriverListSettings(MareaSettingsBuilderBuild(&settingsBuilder), stdout);
         MAREA_ArenaDestroy(argumentArena);
         return 0;
     }
 
-    if (!MareaLibraryMaskParse((const MAREA_Character8 *)librariesText, &libraryMask))
-    {
+    if (!MareaLibraryMaskParse((const MAREA_Character8 *)librariesText, &libraryMask)) {
         fprintf(stderr, "error: --libraries names an unknown library in '%s'\n", librariesText);
         MAREA_ArenaDestroy(argumentArena);
         return 1;
     }
 
-    if (mode == NULL)
-    {
+    if (mode == NULL) {
         fprintf(stderr, "error: missing mode\n");
         MareaBcPrintUsage();
         MAREA_ArenaDestroy(argumentArena);
         return 1;
     }
 
-    if (inputPath == NULL)
-    {
+    if (inputPath == NULL) {
         fprintf(stderr, "error: missing input file\n");
         MareaBcPrintUsage();
         MAREA_ArenaDestroy(argumentArena);
@@ -215,53 +179,37 @@ int main(int argumentCount, char **arguments)
     {
         MAREA_Boolean succeeded = MAREA_BOOLEAN_FALSE;
 
-        if (strcmp(mode, "compile") == 0)
-        {
-            if (outputPath == NULL)
-            {
+        if (strcmp(mode, "compile") == 0) {
+            if (outputPath == NULL) {
                 fprintf(stderr, "error: compile needs -o <output.mbc>\n");
                 MAREA_ArenaDestroy(argumentArena);
                 return 1;
             }
 
             succeeded = MareaBcDriverCompile(inputPath, outputPath, libraryMask, MareaSettingsBuilderBuild(&settingsBuilder), &target, (const MAREA_Character8 *const *)includeDirectories, includeDirectoryCount, stderr);
-        }
-        else if (strcmp(mode, "assemble") == 0)
-        {
-            if (outputPath == NULL)
-            {
+        } else if (strcmp(mode, "assemble") == 0) {
+            if (outputPath == NULL) {
                 fprintf(stderr, "error: assemble needs -o <output.mbc>\n");
                 MAREA_ArenaDestroy(argumentArena);
                 return 1;
             }
 
             succeeded = MareaBcDriverAssemble(inputPath, outputPath, stderr);
-        }
-        else if (strcmp(mode, "disassemble") == 0)
-        {
-            if (outputPath == NULL)
-            {
+        } else if (strcmp(mode, "disassemble") == 0) {
+            if (outputPath == NULL) {
                 fprintf(stderr, "error: disassemble needs -o <output.mbca>\n");
                 MAREA_ArenaDestroy(argumentArena);
                 return 1;
             }
 
             succeeded = MareaBcDriverDisassemble(inputPath, outputPath, stderr);
-        }
-        else if (strcmp(mode, "dump-tokens") == 0)
-        {
+        } else if (strcmp(mode, "dump-tokens") == 0) {
             succeeded = MareaBcDriverDumpTokens(inputPath, stdout, stderr);
-        }
-        else if (strcmp(mode, "dump-ast") == 0)
-        {
+        } else if (strcmp(mode, "dump-ast") == 0) {
             succeeded = MareaBcDriverDumpAst(inputPath, stdout, stderr);
-        }
-        else if (strcmp(mode, "dump-ir") == 0)
-        {
+        } else if (strcmp(mode, "dump-ir") == 0) {
             succeeded = MareaBcDriverDumpIr(inputPath, libraryMask, &target, (const MAREA_Character8 *const *)includeDirectories, includeDirectoryCount, stdout, stderr);
-        }
-        else
-        {
+        } else {
             fprintf(stderr, "error: unknown mode '%s'\n", mode);
             MareaBcPrintUsage();
             MAREA_ArenaDestroy(argumentArena);
