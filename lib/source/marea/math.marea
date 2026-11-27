@@ -6,6 +6,12 @@
 
 namespace marea.math;
 
+-- The default backend of every function of this file: the best one the real build target gives (intrinsics, then
+-- vector_extension, then scalar), through MareaTargetDescriptionDetectHost's feature detection. No function below
+-- needs an explicit backend or when override yet: nothing in the ported reference material forces one away from
+-- auto.
+#![backend = auto]
+
 #[visibility = public, layout = c, align = 16]
 structure Vector2Float32
     x: float32;

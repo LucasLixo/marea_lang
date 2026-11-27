@@ -1,0 +1,13 @@
+-- expect: 3083 @10
+-- shipped: marea/math.marea
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An explicit backend the build target does not give is BACKEND_UNAVAILABLE, never a silent fallback to scalar.
+
+namespace marea.math;
+
+#[backend = vector_extension]
+function check_backend_rejected(value: float32): float32
+    return value;
+end

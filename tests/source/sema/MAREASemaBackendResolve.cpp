@@ -5,6 +5,7 @@
 
 #include "tests/MAREASemaCallerHelpers.hpp"
 
+#include "MareaTargetDescription.h"
 #include "marea/internal/sema/MAREASemaInternal.h"
 
 namespace
@@ -106,6 +107,34 @@ TEST(MAREASemaBackendResolve, AWhenThatHoldsGivesTheBackend)
 
     EXPECT_EQ(MAREA_backendOf(PROGRAM, MAREA_target("aarch64", { "neon" })), "scalar") << "A when that does not hold must leave the plain value.";
 }
+
+// INFO: this build machine is confirmed x86_64 with gcc or clang and sse2 (see the apply report of
+// lib-math-simd-backends, part 4): the wiring this test checks, not a guess about another machine.
+#if (defined(__GNUC__) || defined(__clang__)) && (defined(__x86_64__) || defined(_M_X64))
+TEST(MAREASemaBackendResolve, AutoResolvesOnTheRealBuildTarget)
+{
+    GTEST_COUT << "Validating auto resolves against MareaTargetDescriptionDetectHost's real target, not a synthetic one." << std::endl;
+
+    MAREA_SemaTarget real{};
+
+    MareaTargetDescriptionDetectHost(&real);
+
+    MAREA_CallerInputs inputs;
+
+    inputs.hasTarget = true;
+    inputs.architecture = (real.architecture == nullptr) ? std::string() : std::string(real.architecture);
+    inputs.operatingSystem = (real.operatingSystem == nullptr) ? std::string() : std::string(real.operatingSystem);
+    inputs.compiler = (real.compiler == nullptr) ? std::string() : std::string(real.compiler);
+    inputs.endianness = (real.endianness == nullptr) ? std::string() : std::string(real.endianness);
+    inputs.pointerWidth = real.pointerWidth;
+
+    for (MAREA_IntegerSize index{ 0 }; index < real.featureCount; ++index) {
+        inputs.features.emplace_back(real.features[index]);
+    }
+
+    EXPECT_EQ(MAREA_backendOf(MATH + "function run()\nend\n", inputs), "intrinsics") << "auto on this real build machine must resolve to intrinsics through the real target description.";
+}
+#endif
 
 TEST(MAREASemaBackendResolve, TheTypedFunctionAnswersNoBackendOutsideMareaMath)
 {
