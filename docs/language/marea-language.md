@@ -86,6 +86,34 @@ These rules bind every item (user decision 2026-11-23).
 
 Where the compiler does not enforce a rule yet, the item is a `known_gap` with `-- rule:`.
 
+## Undefined behavior
+
+Safe code has no undefined behavior: each fault that the language sees is a defined trap, the same in both backends.
+Undefined behavior is possible only inside `unsafe`, and when a value crosses the C border and C breaks a promise that
+the type system cannot see. `c.memory` is that border: it trusts each address that it gets. These cases remain:
+
+- A zero-filled array or vector of `c.memory.Pointer`, an empty slot of a vector and a `resize` with a default hold
+  null pointers. The language has no `nil`: a zero pointer is the null address of C. A read or a write through it is
+  undefined.
+- A pointer to freed or foreign memory. A container stores the address only and never frees what it points to. A
+  read or a write through such a pointer, a second `free` of one block and a `free` of an address that `alloc` did
+  not give are undefined.
+- `copy` of a container of pointers, and a `fill` with a pointer, copy the addresses and not the pointed values. Two
+  owners of one block then risk a double free.
+- The address that `data()` of a container gives is not valid after a later resize, move or destroy of the container.
+  Neither backend lowers `data()` today.
+- A write of C past the size or the capacity of the storage that it was given.
+- Padding bytes read through a raw access have no specified value. Compare values element by element, never by their
+  bytes. A `boolean` read from a byte other than 0 or 1 is undefined.
+- A `marea.memory.Slice` over a C buffer trusts the length that it is given. When C gives a wrong length, an index
+  below that length can read past the buffer.
+- Two workers of a `fork_join` that use one C pointer can race: the ownership rules see Marea values only.
+- An unchecked conversion to a pointer does not check the alignment. An element access of both backends moves the
+  bytes at any alignment, but a C function that receives a misaligned address has undefined behavior.
+- A borrow of an opaque structure lives for one call. When C frees the object during the call, the borrow dangles.
+- A structure without `#[layout = c]` that reaches C: no rule refuses it yet, and C can then read other offsets (see
+  Gaps).
+
 ## Catalogue: accept
 
 | Id | Shows | Expected |
@@ -478,6 +506,9 @@ lifecycle operator (3027) and structured `fork_join` with `partition` and `spawn
 | L-MEMORY-024 | A worker spawned on a read-borrow parameter | ok |
 | L-MEMORY-027 | Two workers read the same local | ok |
 | L-MEMORY-033 | A field of a local is read inside its own scope block | ok |
+| L-MEMORY-034 | a member is read through a marea.memory owner, and the owner moves | ok |
+| L-MEMORY-035 | a marea.memory view passes by value to two calls and is walked | ok |
+| L-MEMORY-036 | a marea.memory arena is lent for a write and then moves | ok |
 
 ### Memory and regions: reject
 
@@ -501,6 +532,11 @@ lifecycle operator (3027) and structured `fork_join` with `partition` and `spawn
 | L-MEMORY-030 | A worker is spawned outside of a fork_join block | 3062 @29 |
 | L-MEMORY-031 | A worker takes the part of a partition mutable while the source is also spawned | 3020 @30 |
 | L-MEMORY-032 | A field of a scope block local is read after the block | 3004 @27 |
+| L-MEMORY-037 | a marea.memory owner is given to a name with no copy and no move | 3016 @17 |
+| L-MEMORY-038 | a marea.memory owner is read after it moved | 3070 @18 |
+| L-MEMORY-039 | a marea.memory arena is given to a name with no move | 3016 @12 |
+| L-MEMORY-040 | a marea.memory arena with a type argument | 3014 @11 |
+| L-MEMORY-041 | a marea.memory view of an element with no measured layout | 3082 @11 |
 
 ### Memory and regions: known_gap
 
@@ -1525,7 +1561,7 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | functions | 19 | 54 | 0 |
 | interop | 18 | 38 | 0 |
 | math | 10 | 1 | 0 |
-| memory | 15 | 18 | 0 |
+| memory | 18 | 23 | 0 |
 | namespaces | 23 | 46 | 0 |
 | ownership | 67 | 78 | 2 |
 | parallel | 20 | 41 | 0 |
@@ -1533,7 +1569,7 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | tuple | 8 | 17 | 0 |
 | types | 62 | 154 | 0 |
 | vector | 13 | 14 | 1 |
-| total | 324 | 648 | 12 |
+| total | 327 | 653 | 12 |
 
 ## Parity
 
@@ -1608,6 +1644,12 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
   runner gives an item one file. The mutation of the accept items was run once, by a script that is not in the
   repository, so a new accept item gets no mutants until someone runs that sweep again. A copy of a structure with a
   `destroy` operator (the `copy` of L-MEMORY-012) is accepted; no rule says whether it must be refused, so it has no item.
+
+- The items of `marea.memory` (L-MEMORY-034 to 041) check the front end only. No syntax builds an
+  `marea.memory.Owned`, `Slice` or `Arena`: sema gives such a local no check of its initial value, and neither backend
+  holds one of these values.
+- Only a `layout = c` type with measured members should cross the C border. No rule checks this.
+- The `vm` has no debug build that traps on a null address or on a view out of range.
 
 ### Open decisions and holes of the catalogue
 

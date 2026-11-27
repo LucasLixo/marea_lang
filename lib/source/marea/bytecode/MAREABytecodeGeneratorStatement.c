@@ -262,6 +262,10 @@ static MAREA_BytecodeExcept MAREA_CALL MAREA_G_LowerAssignment(MAREA_BytecodeGen
     const MAREA_IrNode *target = MAREA_BytecodeGeneratorChildAt(node, MAREA_INTEGER_SIZE(0));
     const MAREA_IrNode *value = MAREA_BytecodeGeneratorChildAt(node, MAREA_INTEGER_SIZE(1));
 
+    if ((MAREA_IrNodeGetOperator(node) != MAREA_TOKEN_KIND_EQUAL) && MAREA_BytecodeGeneratorIsPointer(generator, target)) {
+        return MAREA_BytecodeGeneratorFail(generator, node, MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, "A pointer has no compound assignment.");
+    }
+
     if ((target != MAREA_NULLPTR) && (value != MAREA_NULLPTR) && ((MAREA_IrNodeGetKind(target) == MAREA_IR_KIND_INDEX_ACCESS) || (MAREA_IrNodeGetKind(target) == MAREA_IR_KIND_MEMBER_ACCESS))) {
         return MAREA_G_LowerPlaceAssignment(generator, node, target, value);
     }

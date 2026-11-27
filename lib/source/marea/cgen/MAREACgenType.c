@@ -770,6 +770,13 @@ static MAREA_CgenExcept MAREA_CALL MAREA_G_ArrayType(MAREA_CgenGenerator *genera
         return MAREA_G_TupleType(generator, resolved, resolvedLength, outType);
     }
 
+    // INFO: a raw pointer is an address, held as a uinteger64; its element type is read where it is indexed.
+    if ((descriptor != MAREA_NULLPTR) && ((descriptor->roles & MAREA_TYPE_ROLE_RAW_POINTER) != MAREA_TYPE_ROLE_NONE)) {
+        *outType = MAREA_CGEN_KIND_UINTEGER_64;
+
+        return MAREA_CGEN_EXCEPT_SUCCESS;
+    }
+
     if ((descriptor == MAREA_NULLPTR) || (descriptor->hasIndexProtocol == MAREA_BOOLEAN_FALSE) || (descriptor->roles != MAREA_TYPE_ROLE_NONE)) {
         return MAREA_CGEN_EXCEPT_SUCCESS;
     }
@@ -802,6 +809,63 @@ static MAREA_CgenExcept MAREA_CALL MAREA_G_ArrayType(MAREA_CgenGenerator *genera
     }
 
     return MAREA_G_DefineArray(generator, element, count, outType);
+}
+
+MAREA_Boolean MAREA_CALL MAREA_CgenPointee(MAREA_CgenGenerator *generator, const MAREA_IrNode *node, const MAREA_Character8 **outElement, MAREA_IntegerSize *outElementLength)
+{
+    *outElement = MAREA_NULLPTR;
+    *outElementLength = MAREA_INTEGER_SIZE(0);
+
+    const MAREA_Character8 *text = (node == MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_IrNodeGetResolvedType(node);
+    const MAREA_IntegerSize LENGTH = (text == MAREA_NULLPTR) ? MAREA_INTEGER_SIZE(0) : MAREA_IrNodeGetResolvedTypeLength(node);
+
+    MAREA_IntegerSize head = MAREA_INTEGER_SIZE(0);
+
+    while ((head < LENGTH) && (text[head] != '<') && (text[head] != '(')) {
+        head = (head + MAREA_INTEGER_SIZE(1));
+    }
+
+    if ((head >= LENGTH) || (text[head] != '<') || (text[(LENGTH - MAREA_INTEGER_SIZE(1))] != '>')) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    MAREA_IntegerSize fullLength = MAREA_INTEGER_SIZE(0);
+
+    const MAREA_Character8 *full = MAREA_G_FullPath(generator, text, head, &fullLength);
+
+    const MAREA_TypeDescriptor *descriptor = MAREA_G_Describe(generator, full, fullLength);
+
+    if ((descriptor == MAREA_NULLPTR) || ((descriptor->roles & MAREA_TYPE_ROLE_RAW_POINTER) == MAREA_TYPE_ROLE_NONE)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    MAREA_IntegerSize from = (head + MAREA_INTEGER_SIZE(1));
+    MAREA_IntegerSize to = (LENGTH - MAREA_INTEGER_SIZE(1));
+
+    while ((from < to) && (text[from] == ' ')) {
+        from = (from + MAREA_INTEGER_SIZE(1));
+    }
+
+    while ((to > from) && (text[(to - MAREA_INTEGER_SIZE(1))] == ' ')) {
+        to = (to - MAREA_INTEGER_SIZE(1));
+    }
+
+    if (to <= from) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    *outElement = (text + from);
+    *outElementLength = (to - from);
+
+    return MAREA_BOOLEAN_TRUE;
+}
+
+MAREA_Boolean MAREA_CALL MAREA_CgenIsPointer(MAREA_CgenGenerator *generator, const MAREA_IrNode *node)
+{
+    const MAREA_Character8 *element = MAREA_NULLPTR;
+    MAREA_IntegerSize length = MAREA_INTEGER_SIZE(0);
+
+    return MAREA_CgenPointee(generator, node, &element, &length);
 }
 
 MAREA_CgenExcept MAREA_CALL MAREA_CgenTypeOfText(MAREA_CgenGenerator *generator, const MAREA_Character8 *head, MAREA_IntegerSize headLength, const MAREA_Character8 *resolved, MAREA_IntegerSize resolvedLength, MAREA_Uinteger32 *outType)

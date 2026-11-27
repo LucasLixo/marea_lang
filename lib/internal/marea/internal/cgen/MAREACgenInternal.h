@@ -558,6 +558,17 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_CgenExcept MAREA_CALL MAREA_CgenTypeOfNode(MAREA_CgenGenerator * generator, const MAREA_IrNode *node, MAREA_Uinteger32 *outType);
 
     /**
+     * @brief True when the resolved type of a node is a raw pointer, a type whose descriptor has the raw pointer
+     * role. Gives the text of its element type, which points into the resolved type. False for a null node.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_CgenPointee(MAREA_CgenGenerator * generator, const MAREA_IrNode *node, const MAREA_Character8 **outElement, MAREA_IntegerSize *outElementLength);
+
+    /**
+     * @brief MAREA_CgenPointee for a caller that does not need the element.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_CgenIsPointer(MAREA_CgenGenerator * generator, const MAREA_IrNode *node);
+
+    /**
      * @brief Reads the aliases that the written types of a tree show.
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_CgenExcept MAREA_CALL MAREA_CgenCollectAliases(MAREA_CgenGenerator * generator, const MAREA_IrNode *node);

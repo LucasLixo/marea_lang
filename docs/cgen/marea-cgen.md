@@ -120,6 +120,10 @@ The scalars are `int8_t` to `int64_t`, `uint8_t` to `uint64_t`, `float`, `double
   length array (an extension of the C compiler): its index always traps and its loops are not written.
   `size`, `max_size` and `empty` are constants, `front` and `back` copy an end, `fill`, `filled` and
   `swap` are loops or whole copies.
+- **Raw pointer.** A type whose descriptor has the raw pointer role is a `uint64_t` address, with the rules of the vm
+  (see [marea-bytecode.md](../bytecode/marea-bytecode.md), "Raw pointers"). An element `p[i]` is the one member of a
+  packed struct that may alias, so an address with no alignment and a read as another type move the same bytes as the
+  vm. A null or wrong address is undefined, and so is a `boolean` read from a byte other than 0 or 1.
 - **Included file.** `INCLUDED_BYTES` is one static array for each file of the module, named
   `marea_included_<hash of the namespace, the path and the bytes>`. File scope `asm` puts the file
   with `.incbin` into the read only section of ELF, Mach-O or COFF, and a `.if` stops the C build when
@@ -194,7 +198,7 @@ parameters is called with the same sample values, eight rows (one call when it t
 test compares the trap of each call, the value when there is no trap (two NaN values are equal) and
 the log of the host functions.
 
-Of 314 accept items, 241 have a function with a result: 100 run on both backends (396 calls) and 136
+Of 317 accept items, 241 have a function with a result: 100 run on both backends (396 calls) and 136
 are excluded, each with a reason in the table of the test. The test checks every line both ways, so a
 line that no longer holds fails. The 71 excluded items that cgen writes are still compiled. Five items
 whose functions take only composites are compiled and not run.
@@ -205,9 +209,9 @@ whose functions take only composites are compiled and not run.
 | 9 | the vm holds no enum value | yes |
 | 6 | the vm runs no construct and no destroy operator | yes |
 | 1 | the vm reads no constant of a structure type | yes |
-| 37 | a library type that no registry describes (an owner, a pointer, a view, a task, a C library) | no |
+| 36 | a library type that no registry describes (an owner, a pointer, a view, a task, a C library) | no |
 | 11 | a string | no |
-| 3 | a call of a C function that no signature types and no host registers | no |
+| 4 | a call of a C function that no signature types and no host registers | no |
 | 2 | a character | no |
 | 2 | a function type value | no |
 | 4 | a `with` block | no |
@@ -230,16 +234,18 @@ the backend computes the offsets.
 | Code | Name | Example |
 |---|---|---|
 | 7001 | UNSUPPORTED_CONSTRUCT | A `with` block, the handle of a spawn, a construct operator that cannot be told apart, a macro of a library, a built-in other than `convert`, a call of a function that is not written. |
-| 7002 | UNSUPPORTED_TYPE | A string or a character, a structure with no layout, a library type that is no registered array, vector or tuple, a partition part used as a value. |
+| 7002 | UNSUPPORTED_TYPE | A string or a character, a structure with no layout, a library type that is no registered array, vector, tuple or raw pointer, an operator on a raw pointer, a partition part used as a value. |
 | 7003 | UNRESOLVED_NAME | A call into another module, a name that is no local, parameter, constant or function. |
 | 7004 | UNTYPED_OPERAND | A host call that no signature types used as a value, or an argument of a host call with no type. |
 
 ## Gaps
 
 - Not written: strings, characters, function values, generic structures, library types other than a
-  registered array, vector or tuple, operators and methods of a library, `with`, user operators (the ir calls no
+  registered array, vector, tuple or raw pointer (and a raw pointer reaches a number or a `boolean` only), operators and methods of a library, `with`, user operators (the ir calls no
   function for them), `size_of`, `align_of`, macros other than `build_value!`, the handle of a spawn,
   the value of a partition part and a call into another module.
+- `marea.memory.Owned`, `Slice` and `Arena` are not written (`UNSUPPORTED_TYPE`). Their runtime is in
+  `marea/base/MAREAMemoryRuntime.h`; the generated code does not call it yet.
 - A `swap` or a `fill` of an array inside a packed structure writes through the place that cgen
   gives, with no test of its own. The Mach-O and COFF forms of an included file were not built.
 - Vector: `data` is not written, and neither is a copy of an enum that holds a vector or an element type that holds

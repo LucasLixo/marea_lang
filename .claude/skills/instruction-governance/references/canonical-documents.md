@@ -8,7 +8,7 @@ Link map of every canonical agent-instruction document and the one subject each 
 
 | Document | Owned subject |
 | --- | --- |
-| [AGENTS.md](../../../../AGENTS.md) | Project description, language boundary, working model (commits through generate-commit, TDD, ASCII, copyright header), context economy, the two outcome logs, versioning, the table of skills |
+| [AGENTS.md](../../../../AGENTS.md) | Project description, a pointer to the compiler and language specifications under `docs/` (the specifications themselves are owned by those docs, not by this file), working model (commits through generate-commit, TDD, ASCII, copyright header), context economy, the two outcome logs, versioning, the table of skills |
 
 ## Skills
 

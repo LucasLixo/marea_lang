@@ -14,6 +14,8 @@
 (*      an import also uses braces: it is a list, never a block (note 14).                   *)
 (*   4. A new line is a space. It does not end anything.                                     *)
 (*   5. The first statement of a file is its namespace.                                      *)
+(*   6. Identifier case: PascalCase for types, snake_case for functions, variables and        *)
+(*      namespaces, SCREAMING_SNAKE_CASE for constants. No abbreviation.                      *)
 
 
 (* ================================ 1. Lexical rules ================================= *)
