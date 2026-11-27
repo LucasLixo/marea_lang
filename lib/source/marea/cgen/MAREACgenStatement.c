@@ -461,9 +461,34 @@ static MAREA_CgenExcept MAREA_CALL MAREA_G_WriteDestroy(MAREA_CgenGenerator *gen
         return MAREA_CgenGeneratorFail(generator, node, MAREA_CGEN_DIAGNOSTIC_CODE_UNRESOLVED_NAME, "A destroy names no function of this unit.");
     }
 
+    // INFO: an array is destroyed element by element, so the operator runs once for each element of its arrays.
+    const MAREA_IrNode *local = MAREA_CgenChildAt(node, MAREA_INTEGER_SIZE(0));
+
+    const MAREA_CgenSymbol *symbol = (local == MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_CgenFindSymbol(generator, MAREA_IrNodeGetText(local), MAREA_IrNodeGetTextLength(local));
+
+    MAREA_Uinteger64 times = MAREA_UINTEGER_64(1);
+
+    for (MAREA_Uinteger32 type = (symbol == MAREA_NULLPTR) ? (MAREA_Uinteger32)MAREA_CGEN_KIND_NONE : symbol->type; MAREA_CgenCategoryOf(generator, type) == MAREA_CGEN_CATEGORY_ARRAY; type = MAREA_CgenTypeAt(generator, type)->element) {
+        times = (times * MAREA_CgenTypeAt(generator, type)->count);
+    }
+
     MAREA_CgenValue ignored = { 0 };
 
-    return MAREA_CgenWriteUnitCall(generator, node, function, MAREA_NULLPTR, MAREA_NULLPTR, &ignored);
+    if (times == MAREA_UINTEGER_64(1)) {
+        return MAREA_CgenWriteUnitCall(generator, node, function, MAREA_NULLPTR, MAREA_NULLPTR, &ignored);
+    }
+
+    if (times == MAREA_UINTEGER_64(0)) {
+        return MAREA_CGEN_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_Character8 *index = MAREA_CgenTemporaryName(generator);
+
+    MAREA_CGEN_WRITE(generator->buffer, "for (uint64_t ", index, " = 0; ", index, " < ", MAREA_CgenNumber(generator, times), "ULL; ", index, " += 1u) {\n");
+    MAREA_CGEN_TRY(MAREA_CgenWriteUnitCall(generator, node, function, MAREA_NULLPTR, MAREA_NULLPTR, &ignored));
+    MAREA_CgenWriteText(generator->buffer, "}\n");
+
+    return MAREA_CGEN_EXCEPT_SUCCESS;
 }
 
 MAREA_CgenExcept MAREA_CALL MAREA_CgenWriteStatement(MAREA_CgenGenerator *generator, const MAREA_IrNode *node)

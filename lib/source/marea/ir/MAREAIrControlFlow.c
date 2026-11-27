@@ -1247,6 +1247,9 @@ typedef struct MAREA_G_DestroyPlanEntry
 {
     const MAREA_IrNode *local;
     const MAREA_SemaTypedNode *function;
+    // INFO: the type that names the destroy operator: the type of the local, or the element of its arrays.
+    const MAREA_Character8 *typeName;
+    MAREA_IntegerSize typeNameLength;
 } MAREA_G_DestroyPlanEntry;
 
 // INFO: true when a UNARY_EXPRESSION with the operator move, anywhere in node's subtree, names the local text:
@@ -1273,8 +1276,11 @@ static MAREA_Boolean MAREA_CALL MAREA_G_ContainsMoveOf(const MAREA_IrNode *node,
 
 // INFO: builds one DESTROY_CALL: the text is the qualified destroy function ("Type.name"), the one child an
 // INFO: IDENTIFIER naming the local, for a backend to bind as the receiver.
-static MAREA_IrExcept MAREA_CALL MAREA_G_CreateDestroyCall(MAREA_IrContext *context, const MAREA_AstNode *positionAst, const MAREA_IrNode *local, const MAREA_SemaTypedNode *destroyFunction, MAREA_IrNode **outNode)
+static MAREA_IrExcept MAREA_CALL MAREA_G_CreateDestroyCall(MAREA_IrContext *context, const MAREA_AstNode *positionAst, const MAREA_G_DestroyPlanEntry *entry, MAREA_IrNode **outNode)
 {
+    const MAREA_IrNode *local = entry->local;
+    const MAREA_SemaTypedNode *destroyFunction = entry->function;
+
     const MAREA_SemaTypedNode *name = MAREA_IrTypedFindChild(destroyFunction, MAREA_AST_KIND_IDENTIFIER);
 
     if (name == MAREA_NULLPTR) {
@@ -1293,7 +1299,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_CreateDestroyCall(MAREA_IrContext *cont
 
     MAREA_G_KeepOnlyPosition(node);
 
-    result = MAREA_IrNodeSetQualifiedText(context, node, local->typeName, local->typeNameLength, MAREA_AstNodeGetText(nameAst), MAREA_AstNodeGetTextLength(nameAst));
+    result = MAREA_IrNodeSetQualifiedText(context, node, entry->typeName, entry->typeNameLength, MAREA_AstNodeGetText(nameAst), MAREA_AstNodeGetTextLength(nameAst));
 
     if (result != MAREA_IR_EXCEPT_SUCCESS) {
         return result;
@@ -1336,7 +1342,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_MaterializeDestroys(MAREA_IrContext *co
     for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < planCount; index = (index + MAREA_INTEGER_SIZE(1))) {
         nodes[index] = MAREA_NULLPTR;
 
-        const MAREA_IrExcept result = MAREA_G_CreateDestroyCall(context, positionAst, plan[index].local, plan[index].function, &nodes[index]);
+        const MAREA_IrExcept result = MAREA_G_CreateDestroyCall(context, positionAst, &plan[index], &nodes[index]);
 
         if (result != MAREA_IR_EXCEPT_SUCCESS) {
             return result;
@@ -1534,14 +1540,66 @@ static MAREA_Boolean MAREA_CALL MAREA_G_BlockEndsInJump(const MAREA_IrNode *bloc
     return (last->kind == MAREA_IR_KIND_BLOCK) ? MAREA_G_BlockEndsInJump(last) : MAREA_BOOLEAN_FALSE;
 }
 
-// INFO: a local is destructible when its written type names a destroy operator in some implementation of it.
-static const MAREA_SemaTypedNode *MAREA_CALL MAREA_G_FindDestroyOperator(MAREA_IrContext *context, const MAREA_IrNode *local)
+// INFO: the element of an inline run in a resolved spelling, head<element,count>: a type with two arguments whose last one
+// is a literal count. The innermost element is read, so an array of arrays gives it too. False for any other spelling.
+static MAREA_Boolean MAREA_CALL MAREA_G_RunElement(const MAREA_Character8 *text, MAREA_IntegerSize length, const MAREA_Character8 **outElement, MAREA_IntegerSize *outLength)
+{
+    MAREA_Boolean found = MAREA_BOOLEAN_FALSE;
+
+    while ((text != MAREA_NULLPTR) && (length > MAREA_INTEGER_SIZE(0)) && (text[(length - MAREA_INTEGER_SIZE(1))] == '>')) {
+        MAREA_IntegerSize open = MAREA_INTEGER_SIZE(0);
+
+        while ((open < length) && (text[open] != '<')) {
+            open = (open + MAREA_INTEGER_SIZE(1));
+        }
+
+        MAREA_IntegerSize comma = (length - MAREA_INTEGER_SIZE(1));
+
+        while ((comma > open) && (text[comma] != ',')) {
+            comma = (comma - MAREA_INTEGER_SIZE(1));
+        }
+
+        MAREA_IntegerSize digit = (comma + MAREA_INTEGER_SIZE(1));
+
+        while ((digit < length) && (text[digit] == ' ')) {
+            digit = (digit + MAREA_INTEGER_SIZE(1));
+        }
+
+        if ((comma <= open) || (digit >= length) || (text[digit] < '0') || (text[digit] > '9')) {
+            break;
+        }
+
+        text = (text + open + MAREA_INTEGER_SIZE(1));
+        length = (comma - open - MAREA_INTEGER_SIZE(1));
+        found = MAREA_BOOLEAN_TRUE;
+    }
+
+    *outElement = text;
+    *outLength = length;
+
+    return found;
+}
+
+// INFO: a local is destructible when its written type, or the element of its arrays, names a destroy operator in some implementation of it.
+static const MAREA_SemaTypedNode *MAREA_CALL MAREA_G_FindDestroyOperator(MAREA_IrContext *context, const MAREA_IrNode *local, MAREA_G_DestroyPlanEntry *outEntry)
 {
     if (local->typeName == MAREA_NULLPTR) {
         return MAREA_NULLPTR;
     }
 
-    return MAREA_IrFindLifecycleFunction(context, local->typeName, local->typeNameLength, MAREA_BOOLEAN_FALSE);
+    outEntry->typeName = local->typeName;
+    outEntry->typeNameLength = local->typeNameLength;
+
+    const MAREA_Character8 *element = MAREA_NULLPTR;
+
+    MAREA_IntegerSize elementLength = MAREA_INTEGER_SIZE(0);
+
+    if (MAREA_G_RunElement(MAREA_IrNodeGetResolvedType(local), MAREA_IrNodeGetResolvedTypeLength(local), &element, &elementLength) == MAREA_BOOLEAN_TRUE) {
+        outEntry->typeName = element;
+        outEntry->typeNameLength = elementLength;
+    }
+
+    return MAREA_IrFindLifecycleFunction(context, outEntry->typeName, outEntry->typeNameLength, MAREA_BOOLEAN_FALSE);
 }
 
 // INFO: inserts the destroy calls for every destructible local block declares directly, at every exit of block:
@@ -1571,7 +1629,7 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_InsertDestroys(MAREA_IrContext *context
             continue;
         }
 
-        const MAREA_SemaTypedNode *destroyFunction = MAREA_G_FindDestroyOperator(context, child);
+        const MAREA_SemaTypedNode *destroyFunction = MAREA_G_FindDestroyOperator(context, child, &forward[forwardCount]);
 
         if (destroyFunction == MAREA_NULLPTR) {
             continue;
