@@ -76,8 +76,9 @@ no built-in name any more: `c.stdio.puts(x)` needs `require c.stdio;`.
 A wildcard cannot have an alias or a member list (a parse error). An alias named `c`, `marea`, a primitive type or a built-in
 macro is refused. One full path covered by an import and by a require (one path equal to, or below, the other) is
 `AMBIGUOUS_NAMESPACE` (3080), reported at the second declaration. A file of the project cannot declare a namespace that starts
-with `c` or `marea`: `RESERVED_NAMESPACE_ROOT` (3081) is unconditional, and no registry changes it. The two roots belong to the
-libraries the language ships, which reach the registry through its internal entry, never through a project file.
+with `c` or `marea`: `RESERVED_NAMESPACE_ROOT` (3081), and no registry changes it. The two roots belong to the
+libraries the language ships: their C code reaches the registry through its internal entry, and their Marea source is checked
+with the shipped library source input (see "Caller inputs").
 
 ### Two resolvers
 
@@ -284,6 +285,14 @@ the only way it learns about a file. With a load function, a macro whose result 
 the typed tree (`MAREA_SemaTypedNodeGetIncludedFile`) and its call has the array type; a load that fails, or that gives
 another number of bytes than the size, is `INVALID_MACRO_ARGUMENT`. With no load function the call is checked by the size
 alone and no backend can write its value.
+
+**Shipped library source.** `MAREA_SemaContextSetShippedLibrarySource(context, value)` says that the compilation unit is a
+source file that the language ships. With it, the namespace declaration of the unit may start with `c` or `marea`. It changes no
+other rule: an alias named `c` or `marea` is still refused, and an import or a require is checked as before. The default is
+false. Only the caller that checks a file of a shipped library sets it, never for a file of the project.
+
+**Where a shipped library is.** The C11 part is in `lib/include/marea/base/` and `lib/source/marea/base/`, in the base library.
+The Marea part is in `lib/source/<path of the namespace>.marea`: the source of `marea.math` is `lib/source/marea/math.marea`.
 
 ### Descriptors and roles
 
@@ -1393,7 +1402,7 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 | 3078 | `UNIMPORTED_NAMESPACE` | `c.stdio.puts(x);` with no `require` that reaches `c.stdio`; `function f(values: marea.array.Array<sinteger32, 4>) end` with no `require marea.array;` |
 | 3079 | `UNRESOLVED_REQUIRE` | `require nowhere.library;`, `require nowhere.*;`, or a `require` of a project file that only the import resolver knows (with a registry) |
 | 3080 | `AMBIGUOUS_NAMESPACE` | `import demo.io; require demo.*;`: one full path under both keywords |
-| 3081 | `RESERVED_NAMESPACE_ROOT` | `namespace marea.tools;` or `namespace c.tools;` in a project file, with no exception |
+| 3081 | `RESERVED_NAMESPACE_ROOT` | `namespace marea.tools;` or `namespace c.tools;` in a file with no shipped library source input |
 | 3082 | `ELEMENT_WITHOUT_MEASURED_LAYOUT` | `marea.array.Array<function(): sinteger32, 2>`: an element type with no measured layout held by value, at the element |
 | 3083 | `BACKEND_UNAVAILABLE` | `#![backend = intrinsics]` in `marea.math` with no target, or on `riscv64`, or with `msvc`; `#[when(architecture = "riscv64", backend = intrinsics)]` on `riscv64` |
 | 3084 | `ATTRIBUTE_NOT_ALLOWED_HERE` | `#![backend = auto]` or `#[backend = scalar]` in a file whose namespace is not `marea.math` or below |
@@ -1456,7 +1465,8 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 - The `auto` backend has the start rule only (decision 18): the table of the best backend per operation does not exist.
   Backend rows that need a library that does not exist yet (`marea.math`) are proven by files written in the tests under that
   namespace, and a project file under the root `marea` is always `RESERVED_NAMESPACE_ROOT`, so a shipped `marea.math` file
-  cannot pass the checks of sema clean until a shipped-file entry exists.
+  cannot pass the checks of sema clean until a shipped-file entry exists. The entry is the shipped library source input; the
+  source of `marea.math` does not hold all its types yet.
 - The IR lowers `build_value!`, a macro with a qualified name and `do ... while` now (see the ir doc, "Macros" and "Do-while
   lowering"). A macro call that the IR lowers (`build_value!`, a qualified name) has no resolved type in the typed tree, so the IR
   reads the type from the declaration around it.

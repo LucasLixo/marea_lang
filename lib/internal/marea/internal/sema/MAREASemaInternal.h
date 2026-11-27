@@ -175,6 +175,7 @@ MAREA_BEGIN_EXTERN_C
         MAREA_Uinteger32 partitionDepth;
         MAREA_Uinteger32 loopDepth;
         MAREA_Uinteger32 unsafeDepth;
+        MAREA_Boolean shippedLibrarySource;
     };
 
     /**
