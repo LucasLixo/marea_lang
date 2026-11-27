@@ -324,7 +324,7 @@ by value in a run that is no view is `ELEMENT_WITHOUT_MEASURED_LAYOUT` (3082).
 
 **Registry.** `MAREA_TypeRegistryCreate(arena, mask, &registry)` makes a registry. The mask is a plain input of the caller:
 `MAREA_LibraryFlag` is a bit-flag enum, one bit per shipped library (`MAREA_LIBRARY_FLAG_MAREA_ARRAY`, `_MAREA_VECTOR`,
-`_MAREA_TUPLE`, `_C_MEMORY`, `_C_THREADS`), combined with bitwise or; `MAREA_LIBRARY_MASK_DEFAULT` turns every one on.
+`_MAREA_TUPLE`, `_C_MEMORY`, `_C_THREADS`, `_C_CHARACTER`, `_C_STRING`, `_MAREA_MATH`), combined with bitwise or; `MAREA_LIBRARY_MASK_DEFAULT` turns every one on.
 A library whose bit is off registers nothing, so every name of it is unknown to sema and a `require` of it is
 `UNRESOLVED_REQUIRE`. A library declares the libraries it depends on (`MAREA_TypeRegistryAddDependency`); a library that is on
 with a dependency that is off is a configuration error, `MAREA_TYPE_REGISTRY_EXCEPT_ERROR_MISSING_DEPENDENCY`, never a silent
