@@ -203,8 +203,11 @@ MAREA_CgenExcept MAREA_CALL MAREA_CgenWriteComparison(MAREA_CgenGenerator *gener
 
     MAREA_Uinteger32 written = MAREA_CGEN_KIND_NONE;
 
-    if (MAREA_IrNodeGetResolvedType(MAREA_CgenChildAt(node, MAREA_INTEGER_SIZE(0))) != MAREA_NULLPTR) {
-        MAREA_CGEN_TRY(MAREA_CgenTypeOfNode(generator, MAREA_CgenChildAt(node, MAREA_INTEGER_SIZE(0)), &written));
+    const MAREA_IrNode *first = MAREA_CgenChildAt(node, MAREA_INTEGER_SIZE(0));
+
+    // INFO: the type is read from the resolved spelling alone, because the type name of a call is not the one of its result.
+    if (MAREA_IrNodeGetResolvedType(first) != MAREA_NULLPTR) {
+        MAREA_CGEN_TRY(MAREA_CgenTypeOfText(generator, MAREA_NULLPTR, MAREA_INTEGER_SIZE(0), MAREA_IrNodeGetResolvedType(first), MAREA_IrNodeGetResolvedTypeLength(first), &written));
     }
 
     if (MAREA_CgenIsTuple(generator, written) == MAREA_BOOLEAN_TRUE) {

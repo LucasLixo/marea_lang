@@ -134,3 +134,18 @@ TEST(MAREACgenTupleLibrary, TuplesThatOwnStorageAreReturnedReplacedAndCopiedWith
 
     EXPECT_EQ(MAREA_parityValue(RESULT.MAREA_outcome("d()")), 17) << "A tuple of a loop and a swap of two owners.";
 }
+
+TEST(MAREACgenTupleLibrary, ACallOnEitherSideOfEqualityAndATypeAliasWork)
+{
+    GTEST_COUT << "Validating a tuple that a call gives is compared on either side, and an alias of a tuple is indexed." << std::endl;
+
+    const std::string RANGE{ "marea.tuple.Tuple<sinteger32, sinteger32>" };
+
+    const MAREA_ParityResult RESULT{ MAREA_run("type Range = " + RANGE + "; function m(): " + RANGE + " return " + RANGE + "{ 1, 2 }; end function e(): boolean local a: " + RANGE + " = m(); return m() == a and m() == m() and a == m(); end function a(): sinteger32 local t: Range = " + RANGE + "{ 3, 4 }; t[0] += 1; return (t[0] * 10) + t[1]; end") };
+
+    ASSERT_TRUE(RESULT.failures.empty()) << RESULT.MAREA_failures();
+
+    EXPECT_EQ(MAREA_parityValue(RESULT.MAREA_outcome("e()")), 1) << "The tuples are equal.";
+
+    EXPECT_EQ(MAREA_parityValue(RESULT.MAREA_outcome("a()")), 44) << "The alias is read as its tuple.";
+}

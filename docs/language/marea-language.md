@@ -1304,6 +1304,7 @@ items sit in `tests/language/<class>/tuple/`.
 | L-TUPLE-022 | == needs every element of a tuple to support it | 3011 @13 |
 | L-TUPLE-023 | a write to a tuple element goes through a read only parameter | 3069 @12 |
 | L-TUPLE-024 | a tuple element has its own type | 3011 @12 |
+| L-TUPLE-025 | a tuple index through a type alias is past the last element | 3088 @14 |
 
 ## Adversarial
 
@@ -1497,10 +1498,10 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | ownership | 67 | 78 | 2 |
 | parallel | 20 | 41 | 0 |
 | seed | 1 | 2 | 0 |
-| tuple | 8 | 16 | 0 |
+| tuple | 8 | 17 | 0 |
 | types | 62 | 154 | 0 |
 | vector | 13 | 14 | 1 |
-| total | 314 | 646 | 12 |
+| total | 314 | 647 | 12 |
 
 ## Parity
 
@@ -1548,6 +1549,8 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 | 3077 | `sema` | [marea-sema.md](../sema/marea-sema.md), `MISSING_FIELD` |
 | 3078-3081 | `sema` | [marea-sema.md](../sema/marea-sema.md), `UNIMPORTED_NAMESPACE`, `UNRESOLVED_REQUIRE`, `AMBIGUOUS_NAMESPACE` and `RESERVED_NAMESPACE_ROOT` |
 | 3083-3086 | `sema` | [marea-sema.md](../sema/marea-sema.md), `BACKEND_UNAVAILABLE`, `ATTRIBUTE_NOT_ALLOWED_HERE`, `MISPLACED_ATTRIBUTE` and `INVALID_BUILD_VALUE`; 3083 and 3086 have no item (see Gaps) |
+| 3087-3088 | `sema` | [marea-sema.md](../sema/marea-sema.md), `LITERAL_COUNT_MISMATCH` and `CONSTANT_INDEX_OUT_OF_RANGE` |
+| 3089-3090 | `sema` | [marea-sema.md](../sema/marea-sema.md), `TUPLE_INDEX_NOT_CONSTANT` and `NOT_ITERABLE` |
 | 4004-4006 | `ir` | [marea-ir.md](../ir/marea-ir.md), no item reaches them (see Gaps) |
 
 ## Gaps
@@ -1555,10 +1558,6 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 - The runner checks one file per item, so an item cannot import a second file of its own (issue #250). A rule that
   needs two namespaces can use an `EXTERNAL` import, which the runner gives to the `c.`, `collections.`,
   `concurrency.`, `arenas.` prefixes and to `text`, or the one fixed `FOUND` namespace `fixture.shapes`.
-- The container `marea.tuple` is not written yet, so its items are ahead of the compiler: most items of the `tuple`
-  area fail until the library exists. The codes 3089 (a tuple index that is not
-  a constant) and 3090 (a `for each` over a type that is not a collection) are named by items before the header of `sema`
-  defines them.
 - `partition` and `partition mutable` over an array or a vector are accepted, but give no part: the part is a view with
   a run-time length, which belongs to a library that is not written yet. L-ARRAY-013 and L-VECTOR-014 keep this gap.
 - `include_bytes!` has no `accept` item: the runner gives sema no include resolver. `tests/source/sema/MAREASemaArrayLibrary.cpp`

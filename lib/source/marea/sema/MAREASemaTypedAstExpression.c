@@ -770,11 +770,15 @@ static MAREA_SemaExprType MAREA_CALL MAREA_G_TypeOfIndexAccess(MAREA_G_Resolver 
 
     MAREA_SemaExprType element = MAREA_G_TypeNone();
 
-    // INFO: the element of a tuple is the one that its constant index names.
-    const MAREA_AstNode *part = (MAREA_G_IsKind(BASE.node, MAREA_AST_KIND_NAMED_TYPE) == MAREA_BOOLEAN_TRUE) ? MAREA_SemaTupleElement(resolver->context, BASE.node, MAREA_SemaChildAt(built->astNode, 1)) : MAREA_NULLPTR;
+    // INFO: the element of a tuple is the one that its constant index names, also through an alias.
+    MAREA_SemaExprType peeled = BASE;
+
+    MAREA_G_Nominal ignored = { .declaration = MAREA_NULLPTR, .arguments = MAREA_NULLPTR, .frame = MAREA_NULLPTR };
+
+    const MAREA_AstNode *part = ((MAREA_G_PeelOwned(resolver->context, &peeled, &ignored) == MAREA_G_PEELED_NODE) && (MAREA_G_IsKind(peeled.node, MAREA_AST_KIND_NAMED_TYPE) == MAREA_BOOLEAN_TRUE)) ? MAREA_SemaTupleElement(resolver->context, peeled.node, MAREA_SemaChildAt(built->astNode, 1)) : MAREA_NULLPTR;
 
     if ((part != MAREA_NULLPTR) && (MAREA_G_IsType(part) == MAREA_BOOLEAN_TRUE)) {
-        return MAREA_G_TypeOfNode(part, BASE.frame);
+        return MAREA_G_TypeOfNode(part, peeled.frame);
     }
 
     MAREA_IGNORE(MAREA_SemaTypedAstElementOf(resolver->context, &BASE, MAREA_BOOLEAN_TRUE, &element));

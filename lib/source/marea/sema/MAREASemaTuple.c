@@ -17,7 +17,20 @@ MAREA_Boolean MAREA_CALL MAREA_SemaTupleOfType(const MAREA_SemaContext *context,
 
     const MAREA_TypeDescriptor *descriptor = MAREA_NULLPTR;
 
-    if ((MAREA_SemaDescriptorOfType(context, type, &descriptor) == MAREA_BOOLEAN_FALSE) || !MAREA_TYPE_DESCRIPTOR_IS_TUPLE(descriptor)) {
+    // INFO: an alias is read as the type that it stands for.
+    if (MAREA_SemaDescriptorOfType(context, type, &descriptor) == MAREA_BOOLEAN_FALSE) {
+        MAREA_SemaTypeTarget target = { .type = MAREA_NULLPTR, .declaration = MAREA_NULLPTR, .root = MAREA_NULLPTR };
+
+        MAREA_IGNORE(MAREA_SemaFindTypeTarget(context, type, MAREA_NULLPTR, &target));
+
+        type = target.type;
+
+        if (MAREA_SemaDescriptorOfType(context, type, &descriptor) == MAREA_BOOLEAN_FALSE) {
+            return MAREA_BOOLEAN_FALSE;
+        }
+    }
+
+    if (!MAREA_TYPE_DESCRIPTOR_IS_TUPLE(descriptor)) {
         return MAREA_BOOLEAN_FALSE;
     }
 
@@ -69,7 +82,10 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckTupleType(MAREA_SemaContext *context,
 
     const MAREA_AstNode *arguments = MAREA_NULLPTR;
 
-    if (MAREA_SemaTupleOfType(context, node, &arguments) == MAREA_BOOLEAN_FALSE) {
+    const MAREA_TypeDescriptor *written = MAREA_NULLPTR;
+
+    // INFO: only the type as it is written is checked here: a use of an alias writes no type of its own.
+    if ((MAREA_SemaDescriptorOfType(context, node, &written) == MAREA_BOOLEAN_FALSE) || (MAREA_SemaTupleOfType(context, node, &arguments) == MAREA_BOOLEAN_FALSE)) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
