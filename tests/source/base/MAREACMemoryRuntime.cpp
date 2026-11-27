@@ -141,43 +141,45 @@ TEST(MAREACMemoryRuntime, AWalkForwardAndBackReachesEveryElement)
 
     const std::uint64_t BEGIN{ MAREA_addressOf(values.data()) };
 
-    const std::uint64_t END{ MAREA_CMemoryOffset(BEGIN, 16, sizeof(std::int32_t)) };
+    const std::uint64_t
+END
+{ MAREA_CMemoryOffset(BEGIN, 16, sizeof(std::int32_t)) };
 
-    std::uint64_t forward{ BEGIN };
+std::uint64_t forward{ BEGIN };
 
-    for (int index{ 0 }; index < 16; ++index) {
-        std::int32_t value{ 0 };
+for (int index{ 0 }; index < 16; ++index) {
+    std::int32_t value{ 0 };
 
-        MAREA_CMemoryCopyBytes(MAREA_addressOf(&value), forward, sizeof(value));
+    MAREA_CMemoryCopyBytes(MAREA_addressOf(&value), forward, sizeof(value));
 
-        ASSERT_EQ(value, 5) << "The walk reads the element " << index;
+    ASSERT_EQ(value, 5) << "The walk reads the element " << index;
 
-        value += 5;
+    value += 5;
 
-        MAREA_CMemoryCopyBytes(forward, MAREA_addressOf(&value), sizeof(value));
+    MAREA_CMemoryCopyBytes(forward, MAREA_addressOf(&value), sizeof(value));
 
-        forward = MAREA_CMemoryOffset(forward, 1, sizeof(std::int32_t));
-    }
+    forward = MAREA_CMemoryOffset(forward, 1, sizeof(std::int32_t));
+}
 
-    EXPECT_EQ(forward, END) << "Sixteen steps of one element reach the end.";
+EXPECT_EQ(forward, END) << "Sixteen steps of one element reach the end.";
 
-    std::uint64_t cursor{ END };
+std::uint64_t cursor{ END };
 
-    int walked{ 0 };
+int walked{ 0 };
 
-    while ((cursor != BEGIN) && (walked < 16)) {
-        cursor = MAREA_CMemoryOffset(cursor, -1, sizeof(std::int32_t));
+while ((cursor != BEGIN) && (walked < 16)) {
+    cursor = MAREA_CMemoryOffset(cursor, -1, sizeof(std::int32_t));
 
-        ++walked;
-    }
+    ++walked;
+}
 
-    EXPECT_EQ(walked, 16) << "The walk back ends at the first element.";
+EXPECT_EQ(walked, 16) << "The walk back ends at the first element.";
 
-    std::array<std::int32_t, 16> expected{};
+std::array<std::int32_t, 16> expected{};
 
-    expected.fill(10);
+expected.fill(10);
 
-    EXPECT_EQ(values, expected) << "Every element was written once.";
+EXPECT_EQ(values, expected) << "Every element was written once.";
 }
 
 TEST(MAREACMemoryRuntime, CopyBytesReadsAndWritesThroughAnAddress)
