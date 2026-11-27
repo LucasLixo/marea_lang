@@ -47,6 +47,14 @@ TEST(MareaLibraryMask, ParsesMareaMemory)
     ASSERT_EQ(mask, static_cast<MAREA_LibraryMask>(MAREA_LIBRARY_FLAG_C_MEMORY | MAREA_LIBRARY_FLAG_MAREA_MEMORY));
 }
 
+TEST(MareaLibraryMask, ParsesMareaMath)
+{
+    MAREA_LibraryMask mask{ 0 };
+
+    ASSERT_TRUE(MareaLibraryMaskParse("marea.math", &mask));
+    ASSERT_EQ(mask, static_cast<MAREA_LibraryMask>(MAREA_LIBRARY_FLAG_MAREA_MATH));
+}
+
 TEST(MareaLibraryMask, RejectsUnknownName)
 {
     MAREA_LibraryMask mask{ 0 };
