@@ -233,7 +233,13 @@ namespace
 
         MAREA_IGNORE(MAREA_SemaContextSetTypeRegistry(fixture.context, MAREA_buildLibraryRegistry(fixture.parser.lexer.arena)));
 
-        result.except = fixture.MAREA_sema(source, "main.marea");
+        const std::string SHIPPED_PATH{ MAREA_shippedPathOf(source) };
+
+        if (!SHIPPED_PATH.empty()) {
+            MAREA_IGNORE(MAREA_SemaContextSetShippedLibrarySource(fixture.context, MAREA_BOOLEAN_TRUE));
+        }
+
+        result.except = fixture.MAREA_sema(source, SHIPPED_PATH.empty() ? "main.marea" : SHIPPED_PATH);
 
         result.errorCount = fixture.MAREA_errorCount();
 
@@ -482,6 +488,21 @@ TEST(MAREALanguageCatalogue, AcceptItemPassesAndAnErroringProgramFails)
     const MAREA_ItemFile BAD{ "accept/seed/L-SEED-002.marea", "-- expect: ok\n" + BAD_PROGRAM };
 
     EXPECT_TRUE(MAREA_mentions(MAREA_checkItem("accept", BAD), BAD.relativePath)) << "An accept item with an error must fail and name its file.";
+}
+
+TEST(MAREALanguageCatalogue, ShippedItemIsCheckedAsAShippedSource)
+{
+    GTEST_COUT << "Validating the line '-- shipped: <path>' checks an item as a source file that the language ships." << std::endl;
+
+    const std::string PROGRAM{ "namespace marea.tools;\n" };
+
+    const MAREA_ItemFile SHIPPED{ "accept/seed/L-SEED-001.marea", "-- expect: ok\n-- shipped: marea/tools.marea\n" + PROGRAM };
+
+    EXPECT_TRUE(MAREA_checkItem("accept", SHIPPED).empty()) << "A shipped item may declare a namespace under marea.";
+
+    const MAREA_ItemFile PROJECT{ "reject/seed/L-SEED-002.marea", "-- expect: 3002 @2, 3081 @2\n" + PROGRAM };
+
+    EXPECT_TRUE(MAREA_checkItem("reject", PROJECT).empty()) << "An item with no shipped line stays a file of the project.";
 }
 
 TEST(MAREALanguageCatalogue, RejectItemChecksTheCodeAndTheLine)

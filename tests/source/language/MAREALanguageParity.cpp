@@ -136,7 +136,8 @@ TEST(MAREALanguageParity, EveryAcceptItemWithAResultRunsOnBothBackendsOrIsExclud
     std::set<std::string> seen;
 
     for (const MAREA_ItemFile &file : MAREA_collectItems()) {
-        if (file.relativePath.rfind("accept/", 0) != 0) {
+        // INFO: a shipped source file is checked by lex, parse and sema only: it is a library, not a program to run.
+        if ((file.relativePath.rfind("accept/", 0) != 0) || !MAREA_shippedPathOf(file.source).empty()) {
             continue;
         }
 
