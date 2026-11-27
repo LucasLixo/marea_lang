@@ -23,7 +23,7 @@ namespace
      * the one test's duration and restores the previous directory afterward. */
     class MareaCcDriverExamplesTest : public ::testing::Test
     {
-    protected:
+      protected:
         void SetUp() override
         {
             previousDirectory = std::filesystem::current_path();
@@ -34,7 +34,7 @@ namespace
 
         static constexpr const char *FIXTURE_PATH = "basics/operators.marea";
 
-    private:
+      private:
         std::filesystem::path previousDirectory;
     };
 } // namespace
