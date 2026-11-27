@@ -8,7 +8,7 @@ Part of the [audit-code](../SKILL.md) skill. This file is a complete prompt for 
 
 1. Run the verification the files imply: `mise run dev:quiet-test` (see step 01) for C and tests, `lua tools/marea-ascii-check/tests/run.lua` when the ASCII checker changed, and `mise run dev:ascii-check` for every file.
 2. Commit each theme through `generate-commit`.
-3. Write the success entry in `temp/_LOG_APPLY_SUCCESS.md` and an error entry in `temp/_LOG_APPLY_ERROR.md` for every finding left open (reported public-API issues, unrunnable checks, skipped formatting), in the format of [the logs reference of generate-apply](../../generate-apply/references/logs.md). A worker with no `temp/` puts them in its final report instead.
+3. Write an error entry in `temp/_LOG_APPLY_ERROR.md` for every confirmed bug the audit found, and an open-points entry in `temp/_LOG_APPLY_OPEN_POINTS.md` for every other finding left open (a reported public-API judgement call, an unrunnable check, skipped formatting), in the format of [the logs reference of generate-apply](../../generate-apply/references/logs.md). A worker with no `temp/` puts them in its final report instead.
 
 - The baseline was green before stage 2, and every covering test is green after each stage.
 - `mise run format:check-sources` exits 0.
@@ -22,7 +22,7 @@ A table per file: skill checked, violations fixed and reported, lines removed an
 
 - The verification the files imply ran with real counts.
 - Each theme is committed through generate-commit.
-- The success entry and an error entry for every open finding are written (or put in the final report when there is no `temp/`).
+- The error entry for every confirmed bug and the open-points entry for every other open finding are written (or put in the final report when there is no `temp/`).
 - The final report has a table per file, the checks run with real counts and the checks that could not run.
 
 This is the last step. Do not start another task on your own.

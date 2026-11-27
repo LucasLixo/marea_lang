@@ -22,7 +22,7 @@ for a task with no apply file yet.
 2. `git status` is your baseline for what NOT to `git add`.
 3. Read `AGENTS.md`, the skills each named apply cites, `temp/_LIST_APPLY.md`,
    `temp/_LIST_HANDOFF.md`, `temp/_LOG_HANDOFF.md`, and, for every apply's slug, its existing
-   entries (if any) in `temp/_LOG_APPLY_SUCCESS.md`/`temp/_LOG_APPLY_ERROR.md`.
+   entries (if any) in `temp/_LOG_APPLY_OPEN_POINTS.md`/`temp/_LOG_APPLY_ERROR.md`.
 4. Verify the **real** state before choosing anything - do not trust memory or an earlier report:
    `git branch --show-current`, `git worktree list`, `gh pr list --state open`,
    `gh issue list --state open --limit 50`. If a previous round left something unfinished - an

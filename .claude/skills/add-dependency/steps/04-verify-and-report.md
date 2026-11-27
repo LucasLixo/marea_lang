@@ -17,7 +17,7 @@ Run the checks and report. Use the mise task when one exists.
 
 ### Report
 
-Short and factual: the dependency, the upstream and version; the license table of step 02 (offered, selected, why); the target that links it and with which visibility; each check with its real result and count (passed, failed, not run); and anything left open. A check that did not run goes to `temp/_LOG_APPLY_ERROR.md`, never to the success log.
+Short and factual: the dependency, the upstream and version; the license table of step 02 (offered, selected, why); the target that links it and with which visibility; each check with its real result and count (passed, failed, not run); and anything left open. A check that did not run goes to `temp/_LOG_APPLY_OPEN_POINTS.md`; a confirmed bug or broken check goes to `temp/_LOG_APPLY_ERROR.md`.
 
 ## Done when
 
