@@ -9,6 +9,7 @@
 #include "tests/MAREACatalogueHelpers.hpp"
 #include "tests/MAREASemaHelpers.hpp"
 
+#include <algorithm>
 #include <map>
 #include <memory>
 #include <string>
@@ -35,6 +36,31 @@ namespace
         { "Vector3Boolean", 4, 1, 3 },
         { "Vector4Boolean", 4, 1, 4 },
     };
+
+    struct MAREA_MathCompositeExpectation
+    {
+        const char *name;
+        MAREA_Uinteger64 size;
+        MAREA_Uinteger64 alignment;
+        MAREA_Uinteger64 memberSize;
+        std::size_t members;
+    };
+
+    const std::vector<MAREA_MathCompositeExpectation> MATH_COMPOSITES{
+        { "Matrix2x2Float32", 32, 16, 16, 2 },
+        { "Matrix3x3Float32", 48, 16, 16, 3 },
+        { "Matrix4x4Float32", 64, 16, 16, 4 },
+        { "Matrix2x2Sinteger32", 32, 16, 16, 2 },
+        { "Matrix3x3Sinteger32", 48, 16, 16, 3 },
+        { "Matrix4x4Sinteger32", 64, 16, 16, 4 },
+        { "Matrix2x2Boolean", 8, 4, 4, 2 },
+        { "Matrix3x3Boolean", 12, 4, 4, 3 },
+        { "Matrix4x4Boolean", 16, 4, 4, 4 },
+        { "QuaternionFloat32", 16, 16, 4, 4 },
+    };
+
+    // INFO: the types whose operator * calls a registered function.
+    const std::vector<std::string> MATH_MULTIPLIED_COMPOSITES{ "Matrix2x2Float32", "Matrix3x3Float32", "Matrix4x4Float32", "Matrix2x2Sinteger32", "Matrix3x3Sinteger32", "Matrix4x4Sinteger32", "QuaternionFloat32" };
 
     std::string MAREA_mathSource()
     {
@@ -102,16 +128,37 @@ const MAREA_SemaSignature *MAREA_mathSignature(const std::string &member)
         return nullptr;
     }
 
+    const bool COMPOSITE{ (member.find("_matrix") != std::string::npos) || (member.find("_quaternion_") != std::string::npos) };
+
+    // INFO: of the matrices and the quaternion, only the product of two values of one type is called by these tests.
+    if (COMPOSITE && ((member.rfind("multiply_", 0) != 0) || (member.find("_vector") != std::string::npos))) {
+        return nullptr;
+    }
+
     std::unique_ptr<MAREA_MathSignature> &row{ signatures[member] };
 
     if (row == nullptr) {
         row = std::make_unique<MAREA_MathSignature>();
 
-        const std::size_t SIZE{ member.find("_vector") + 7 };
-        const std::string LANE{ member.substr(SIZE + 2) };
+        if (COMPOSITE) {
+            const std::size_t MATRIX{ member.find("_matrix") };
 
-        row->type = "marea.math.Vector" + member.substr(SIZE, 1) + (LANE == "float32" ? "Float32" : "Sinteger32");
-        row->result = (member.rfind("dot_", 0) == 0) ? LANE : row->type;
+            row->type = "marea.math.QuaternionFloat32";
+
+            if (MATRIX != std::string::npos) {
+                row->type = "marea.math.Matrix" + member.substr(MATRIX + 7, 3) + (member.substr(MATRIX + 11) == "float32" ? "Float32" : "Sinteger32");
+            }
+
+            row->result = row->type;
+
+        } else {
+            const std::size_t SIZE{ member.find("_vector") + 7 };
+            const std::string LANE{ member.substr(SIZE + 2) };
+
+            row->type = "marea.math.Vector" + member.substr(SIZE, 1) + (LANE == "float32" ? "Float32" : "Sinteger32");
+            row->result = (member.rfind("dot_", 0) == 0) ? LANE : row->type;
+        }
+
         row->parameters.assign(2, { row->type.c_str(), row->type.size() });
         row->signature = { row->parameters.data(), row->parameters.size(), row->result.c_str(), row->result.size() };
     }
@@ -276,7 +323,17 @@ TEST(MAREASemaMathLibrary, OperatorBodiesCallTheRegisteredFunctionsOfTheirOwnNam
         }
     }
 
-    EXPECT_EQ(MAREA_externalCallsOf(fixture), expected) << "Four operators of six types call a registered function.";
+    for (const std::string &name : MATH_MULTIPLIED_COMPOSITES) {
+        expected.push_back("marea.math." + name);
+    }
+
+    std::vector<std::string> calls{ MAREA_externalCallsOf(fixture) };
+
+    std::sort(calls.begin(), calls.end());
+
+    std::sort(expected.begin(), expected.end());
+
+    EXPECT_EQ(calls, expected) << "Four operators of six vector types and one of seven other types call a registered function.";
 }
 
 TEST(MAREASemaMathLibrary, AFileChecksACallIntoItsOwnNamespaceAgainstTheSignature)
@@ -338,4 +395,82 @@ TEST(MAREASemaMathLibrary, AMemberOfAProjectNamespaceIsNeverAskedAsARegisteredFu
     EXPECT_TRUE(fixture.MAREA_semaCodes().empty()) << "No signature is asked for a project namespace.";
 
     EXPECT_TRUE(MAREA_externalCallsOf(fixture).empty()) << "The call is not external.";
+}
+
+TEST(MAREASemaMathLibrary, ShippedSourceDeclaresTheMatrixAndQuaternionTypes)
+{
+    GTEST_COUT << "Validating the shipped source of marea.math measures each matrix type and the quaternion." << std::endl;
+
+    MAREA_SemaFixture fixture;
+
+    ASSERT_EQ(MAREA_SemaContextSetShippedLibrarySource(fixture.context, MAREA_BOOLEAN_TRUE), MAREA_SEMA_EXCEPT_SUCCESS) << "The input must be set.";
+
+    ASSERT_EQ(fixture.MAREA_sema(MAREA_mathSource(), "marea/math.marea"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+
+    ASSERT_EQ(fixture.MAREA_errorCount(), MAREA_INTEGER_SIZE(0)) << "The shipped source must give no diagnostic.";
+
+    const MAREA_SemaTypedNode *root{ nullptr };
+
+    ASSERT_EQ(MAREA_SemaBuildTypedAst(fixture.context, fixture.parser.root, &root), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "The typed tree must be built.";
+
+    for (const MAREA_MathCompositeExpectation &expectation : MATH_COMPOSITES) {
+        const MAREA_SemaTypedNode *node{ MAREA_findStructure(root, expectation.name) };
+
+        ASSERT_NE(node, nullptr) << "The shipped source must declare " << expectation.name;
+
+        const MAREA_SemaTypeLayout *layout{ nullptr };
+
+        ASSERT_EQ(MAREA_SemaTypedNodeGetLayout(node, &layout), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << expectation.name << " must have a layout.";
+
+        MAREA_Uinteger64 size{ 0 };
+
+        MAREA_Uinteger64 alignment{ 0 };
+
+        ASSERT_EQ(MAREA_SemaTypeLayoutGetSize(layout, &size), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << expectation.name << " must be measured.";
+
+        ASSERT_EQ(MAREA_SemaTypeLayoutGetAlignment(layout, &alignment), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << expectation.name << " must be measured.";
+
+        EXPECT_EQ(size, expectation.size) << "The size of " << expectation.name;
+
+        EXPECT_EQ(alignment, expectation.alignment) << "The alignment of " << expectation.name;
+
+        for (std::size_t member{ 0 }; member < expectation.members; ++member) {
+            MAREA_Uinteger64 offset{ 0 };
+
+            ASSERT_EQ(MAREA_SemaTypeLayoutGetMemberOffset(layout, member, &offset), MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << expectation.name << " must have member " << member;
+
+            EXPECT_EQ(offset, member * expectation.memberSize) << "The place of member " << member << " of " << expectation.name;
+        }
+    }
+}
+
+TEST(MAREASemaMathLibrary, ShippedSourceDeclaresTheOperatorsOfEachMatrixAndQuaternionType)
+{
+    GTEST_COUT << "Validating each matrix type and the quaternion have their operator functions." << std::endl;
+
+    const std::string SOURCE{ MAREA_mathSource() };
+
+    ASSERT_FALSE(SOURCE.empty()) << "The shipped source must exist at " << MAREA_mathSourcePath();
+
+    for (const MAREA_MathCompositeExpectation &expectation : MATH_COMPOSITES) {
+        const std::string NAME{ expectation.name };
+
+        const std::string BODY{ MAREA_implementationOf(SOURCE, NAME) };
+
+        ASSERT_FALSE(BODY.empty()) << NAME << " must have an implementation block.";
+
+        std::vector<std::string> tokens{ "==", "!=" };
+
+        if (NAME.find("Matrix") == 0) {
+            tokens.emplace_back("[]");
+        }
+
+        if (NAME.find("Boolean") == std::string::npos) {
+            tokens.emplace_back("*");
+        }
+
+        for (const std::string &token : tokens) {
+            EXPECT_NE(BODY.find("#[operator = \"" + token + "\"]"), std::string::npos) << NAME << " must declare the operator " << token;
+        }
+    }
 }

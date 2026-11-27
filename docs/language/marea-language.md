@@ -1478,7 +1478,7 @@ to is not checked by sema (see the sema doc, Gaps).
 
 ## Math
 
-The vector types of `marea.math`, their operators and their operations. The items sit in
+The vector, matrix and quaternion types of `marea.math`, their operators and their operations. The items sit in
 `tests/language/<class>/math/`. The runner answers the require of `marea.math` with the tree of the shipped source
 file, `lib/source/marea/math.marea`.
 
@@ -1491,6 +1491,11 @@ file, `lib/source/marea/math.marea`.
 | L-MATH-003 | The vectors of sinteger32 take the arithmetic, the equality and the index operators | ok |
 | L-MATH-004 | The vectors of boolean take the equality and the index operators | ok |
 | L-MATH-005 | One call of each family of the vector operations | ok |
+| L-MATH-007 | A program names the nineteen types of `marea.math`, each with its size and its alignment | ok |
+| L-MATH-008 | The matrices of float32 take the product, the equality and the index of a column | ok |
+| L-MATH-009 | The matrices of sinteger32 take the product, the equality and the index of a column | ok |
+| L-MATH-010 | The matrices of boolean take the equality and the index of a column | ok |
+| L-MATH-011 | The quaternion takes the product and the equality | ok |
 
 ### Math: reject
 
@@ -1555,7 +1560,7 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | examples | 20 | 0 | 0 |
 | functions | 19 | 54 | 0 |
 | interop | 18 | 38 | 0 |
-| math | 5 | 1 | 0 |
+| math | 10 | 1 | 0 |
 | memory | 18 | 23 | 0 |
 | namespaces | 23 | 46 | 0 |
 | ownership | 67 | 78 | 2 |
@@ -1564,7 +1569,7 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | tuple | 8 | 17 | 0 |
 | types | 62 | 154 | 0 |
 | vector | 13 | 14 | 1 |
-| total | 322 | 653 | 12 |
+| total | 327 | 653 | 12 |
 
 ## Parity
 

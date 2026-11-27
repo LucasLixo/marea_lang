@@ -6,6 +6,10 @@
 
     #include "marea/base/MAREACTypes.h"
     #include "marea/base/MAREAMacros.h"
+    #include "marea/base/MAREAMathMatrix2x2.h"
+    #include "marea/base/MAREAMathMatrix3x3.h"
+    #include "marea/base/MAREAMathMatrix4x4.h"
+    #include "marea/base/MAREAMathQuaternion.h"
     #include "marea/base/MAREAMathVector2.h"
     #include "marea/base/MAREAMathVector3.h"
     #include "marea/base/MAREAMathVector4.h"
