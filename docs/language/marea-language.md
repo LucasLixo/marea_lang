@@ -474,6 +474,9 @@ lifecycle operator (3027) and structured `fork_join` with `partition` and `spawn
 | L-MEMORY-024 | A worker spawned on a read-borrow parameter | ok |
 | L-MEMORY-027 | Two workers read the same local | ok |
 | L-MEMORY-033 | A field of a local is read inside its own scope block | ok |
+| L-MEMORY-034 | a member is read through a marea.memory owner, and the owner moves | ok |
+| L-MEMORY-035 | a marea.memory view passes by value to two calls and is walked | ok |
+| L-MEMORY-036 | a marea.memory arena is lent for a write and then moves | ok |
 
 ### Memory and regions: reject
 
@@ -497,6 +500,11 @@ lifecycle operator (3027) and structured `fork_join` with `partition` and `spawn
 | L-MEMORY-030 | A worker is spawned outside of a fork_join block | 3062 @29 |
 | L-MEMORY-031 | A worker takes the part of a partition mutable while the source is also spawned | 3020 @30 |
 | L-MEMORY-032 | A field of a scope block local is read after the block | 3004 @27 |
+| L-MEMORY-037 | a marea.memory owner is given to a name with no copy and no move | 3016 @17 |
+| L-MEMORY-038 | a marea.memory owner is read after it moved | 3070 @18 |
+| L-MEMORY-039 | a marea.memory arena is given to a name with no move | 3016 @12 |
+| L-MEMORY-040 | a marea.memory arena with a type argument | 3014 @11 |
+| L-MEMORY-041 | a marea.memory view of an element with no measured layout | 3082 @11 |
 
 ### Memory and regions: known_gap
 
@@ -1493,7 +1501,7 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | examples | 20 | 0 | 0 |
 | functions | 19 | 54 | 0 |
 | interop | 18 | 38 | 0 |
-| memory | 15 | 18 | 0 |
+| memory | 18 | 23 | 0 |
 | namespaces | 23 | 46 | 0 |
 | ownership | 67 | 78 | 2 |
 | parallel | 20 | 41 | 0 |
@@ -1501,7 +1509,7 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | tuple | 8 | 17 | 0 |
 | types | 62 | 154 | 0 |
 | vector | 13 | 14 | 1 |
-| total | 314 | 647 | 12 |
+| total | 317 | 652 | 12 |
 
 ## Parity
 
