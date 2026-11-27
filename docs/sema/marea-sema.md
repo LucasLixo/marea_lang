@@ -317,7 +317,7 @@ by value in a run that is no view is `ELEMENT_WITHOUT_MEASURED_LAYOUT` (3082).
 `MAREA_LibraryFlag` is a bit-flag enum, one bit per shipped library (`MAREA_LIBRARY_FLAG_MAREA_ARRAY`, `_MAREA_VECTOR`,
 `_MAREA_TUPLE`, `_C_MEMORY`, `_C_THREADS`, `_MAREA_MEMORY`), combined with bitwise or; `MAREA_LIBRARY_MASK_DEFAULT` turns every one on.
 A library whose bit is off registers nothing, so every name of it is unknown to sema and a `require` of it is
-`UNRESOLVED_REQUIRE`. A library declares the libraries it depends on (`MAREA_TypeRegistryAddDependency`); a library that is on
+`UNRESOLVED_REQUIRE`. A library declares the libraries it depends on (`MAREA_TypeRegistryDeclareDependency`); a library that is on
 with a dependency that is off is a configuration error, `MAREA_TYPE_REGISTRY_EXCEPT_ERROR_MISSING_DEPENDENCY`, never a silent
 pass. A macro that returns a library type belongs to the library that owns the type (decision 53 of the 2026-11-24 plan):
 `include_bytes!` returns `marea.array.Array<uinteger8, N>`, so it is a macro of `marea.array`, called as
@@ -1429,9 +1429,13 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 - Two functions that call each other cannot be written, because a function must be declared before its use and the
   grammar has no forward declaration.
 - No check of the signature of `main` exists any more, and a driver-level replacement does not exist yet.
-- Only `marea.array`, `marea.vector` and `marea.tuple` are shipped libraries. The types of `c.memory` and `c.threads`
-  are registered by fixtures in the tests. A registered type that is no inline run is checked for too many type
+- Only `marea.array`, `marea.vector`, `marea.tuple` and `c.memory` are shipped libraries. The types of `c.threads` are
+  registered by fixtures in the tests. A registered type that is no inline run is checked for too many type
   arguments only, never too few.
+- The registry gives sema no signature of a function: a call of a function of `c.memory` has a type only when the
+  caller of sema gives its signature through the import resolver.
+- An index through the alias of a `require ... as` (`memory.Pointer<sinteger32>`, `array.Array<sinteger32,2>`) gets no
+  type in the typed AST, so the IR rejects it as `UNTYPED_EXPRESSION` (4006). The full path works.
 - The borrowed-source rule sees an assignment, a move and a changing member. It does not see a call that changes a
   vector through a write borrow (`grow(v)` in a `for each` over `v`, or `f(v[0], grow(v))`), so the address of an
   element can outlive the storage that held it. The `vm` can then read or write freed memory.

@@ -250,6 +250,14 @@ rules are those of the C backend (see [marea-cgen.md](../cgen/marea-cgen.md), "T
 zeros, `copy` is a deep copy, and a block and each jump out of it destroy what is still owned. A function that gives an
 array or a vector takes a hidden first parameter, the address of the result bytes of the caller, and returns it.
 
+**Raw pointers.** A type whose descriptor has the raw pointer role (`c.memory.Pointer<T>`) is an address in a register
+of kind `uinteger64`. `convert` to it or from it takes an integer or another pointer and keeps the bits (a negative
+integer into a pointer traps as any convert to `uinteger64` does); a float is `UNSUPPORTED_TYPE`. `p[i]` is `load` or
+`store` at `p + i * size of T`, with 64-bit wraparound, so a negative index steps back, and with no check of any kind:
+a wrong address is undefined. `T` is a number or a `boolean`. `==`, `!=` and the order comparisons compare addresses.
+Every other operator and a compound assignment on a pointer are `UNSUPPORTED_TYPE`: a program steps an address with an
+index or with `c.memory.offset`. No opcode was added.
+
 ## Host calls
 
 A call that the IR marks external (`MAREA_IrNodeIsExternalCall`: a name that the host or a library registered, because a
@@ -319,6 +327,8 @@ The range 5000 to 5999 is reserved for this stage. The messages are fixed texts 
 
 ## Gaps
 
+- A pointer reaches a number or a `boolean` only: a pointer to a structure, an enum, an array or another pointer is
+  `UNSUPPORTED_TYPE`. A pointer as the element of an array, a vector or a tuple has no test.
 - A `structure` with a user `construct` or `destroy` operator (`CONSTRUCT_CALL`, `DESTROY_CALL`) is not lowered:
   calling it needs the address of the value as a hidden receiver argument, and no call in this slice passes a
   structure. `tests/language/accept/memory/L-MEMORY-010.marea` through `-015.marea` already exercise the sema and

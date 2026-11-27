@@ -201,6 +201,11 @@ A vector takes its storage through the same hooks: the program calls the functio
 `MAREA_VectorLibraryRegister` registers, which are the runtime of `marea/base/MAREAVectorRuntime.h` that the generated C
 calls too. A registry of the vm without the vector library gives `HOST_FUNCTION_MISSING`.
 
+`c.memory.alloc` and `c.memory.free` are the same two hooks as functions of a program, with `copy_bytes`, `fill_bytes`,
+`offset` and `is_null` beside them (`MAREA_CMemoryLibraryRegister`, the runtime of `marea/base/MAREACMemoryRuntime.h`,
+which the generated C calls too). An address is a `uinteger64` and 0 is the null address. A block that cannot be given,
+or an alignment that is not a power of two, is the trap `OUT_OF_MEMORY` there, since the numbers come from the program.
+
 ## fork_join
 
 The vm has nothing for `fork_join`: the bytecode stage lowers it to the plain calls and loops of one thread, so a trap
