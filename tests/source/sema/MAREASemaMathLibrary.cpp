@@ -73,10 +73,12 @@ namespace
             return "";
         }
 
-        const std::size_t END{ source.find("\nend\n", BEGIN + HEAD.size()) };
+        const std::size_t
+END
+{ source.find("\nend\n", BEGIN + HEAD.size()) };
 
-        return source.substr(BEGIN, (END == std::string::npos) ? std::string::npos : END - BEGIN);
-    }
+return source.substr(BEGIN, (END == std::string::npos) ? std::string::npos : END - BEGIN);
+}
 } // namespace
 
 TEST(MAREASemaMathLibrary, ShippedSourcePassesSemaAndDeclaresTheNineVectorTypes)

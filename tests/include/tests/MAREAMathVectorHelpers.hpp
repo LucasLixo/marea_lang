@@ -252,27 +252,32 @@ inline const std::vector<MAREA_FloatPair> &MAREA_vectorPairCases()
         };
 
         const auto APPEND{ [&cases](std::uint32_t seed, float low, float high) {
-            MAREA_MathRandom random{ seed };
+        MAREA_MathRandom random{ seed };
 
-            for (std::size_t index{ 0 }; index < 2048; ++index) {
-                MAREA_FloatPair pair{};
+        for (std::size_t index{ 0 }; index < 2048; ++index) {
+            MAREA_FloatPair pair{};
 
-                for (std::size_t lane{ 0 }; lane < 4; ++lane) {
-                    pair.first[lane] = random.MAREA_range(low, high);
-                    pair.second[lane] = random.MAREA_range(low, high);
-                }
-
-                cases.push_back(pair);
+            for (std::size_t lane{ 0 }; lane < 4; ++lane) {
+                pair.first[lane] = random.MAREA_range(low, high);
+                pair.second[lane] = random.MAREA_range(low, high);
             }
-        } };
 
-        APPEND(0x5EED0001U, 0.1F, 4.0F);
-        APPEND(0x5EED0002U, -4.0F, 4.0F);
+            cases.push_back(pair);
+        }
+    } };
 
-        return cases;
-    }() };
+APPEND
+(0x5EED0001U, 0.1F, 4.0F);
+APPEND
+(0x5EED0002U, -4.0F, 4.0F);
 
-    return CASES;
+return cases;
+}
+()
+}
+;
+
+return CASES;
 }
 
 inline float MAREA_mixParameter(std::size_t index)
