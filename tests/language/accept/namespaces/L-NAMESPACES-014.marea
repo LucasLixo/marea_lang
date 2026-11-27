@@ -2,12 +2,12 @@
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- The same C library imported twice under two aliases.
+-- The same C library required twice under two aliases.
 
 namespace main;
 
-import c.stdio as first;
-import c.stdio as second;
+require c.stdio as first;
+require c.stdio as second;
 
 function check()
     first.puts("a");

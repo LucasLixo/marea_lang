@@ -1,0 +1,11 @@
+-- expect: 3006 @9
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An export label that is not a C identifier.
+
+namespace main;
+
+#[export = "run it"]
+function run()
+end

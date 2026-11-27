@@ -146,6 +146,28 @@ TEST(MAREAParserExpressions, GenericsVersusComparison)
     });
 }
 
+TEST(MAREAParserExpressions, GenericArgumentThatIsAFunctionTypeWithAnAttribute)
+{
+    GTEST_COUT << "Validating a function type with a parameter attribute inside type arguments is read as type arguments, not as comparisons." << std::endl;
+
+    MAREA_expectCases({
+        { "f<function(#[semantics = reference_mutable] a: T)>(x)", "(call f (type_arguments (function_type (parameter_list (parameter a (named_type T) (attribute (attribute_item semantics reference_mutable)))))) (argument_list x))" },
+        { "f<function(#[semantics = reference_read_only] a: T, #[semantics = value_read_only] b: sinteger32): T>(x)", "(call f (type_arguments (function_type (parameter_list (parameter a (named_type T) (attribute (attribute_item semantics reference_read_only))) (parameter b (named_type sinteger32) (attribute (attribute_item semantics value_read_only)))) (named_type T))) (argument_list x))" },
+    });
+}
+
+TEST(MAREAParserExpressions, CallOnATypeNameBuildsAPlainCall)
+{
+    GTEST_COUT << "Validating Point(1.0) is a call like any other: the parser does not know the name is a type." << std::endl;
+
+    MAREA_expectCases({
+        { "Point(1.0)", "(call Point (argument_list 1.0))" },
+        { "Point(1.0, 2.0)", "(call Point (argument_list 1.0 2.0))" },
+        { "geometry.Point(1.0, 2.0)", "(call (member_access geometry Point) (argument_list 1.0 2.0))" },
+        { "array<float32, 4>(1.0)", "(call array (type_arguments (named_type float32) 4) (argument_list 1.0))" },
+    });
+}
+
 TEST(MAREAParserExpressions, LiteralValues)
 {
     GTEST_COUT << "Validating literal values of every entry kind." << std::endl;
@@ -172,6 +194,18 @@ TEST(MAREAParserExpressions, MacroCalls)
         { "line!()", "(macro_call line (argument_list))" },
         { "namespace!()", "(macro_call namespace (argument_list))" },
         { "format!(\"{}\", a, b)", "(macro_call format (argument_list \"{}\" a b))" },
+    });
+}
+
+TEST(MAREAParserExpressions, QualifiedMacroCalls)
+{
+    GTEST_COUT << "Validating a macro call whose name is a qualified name, written with an alias or a full path." << std::endl;
+
+    MAREA_expectCases({
+        { "array.include_bytes!(\"file\")", "(macro_call array.include_bytes (argument_list \"file\"))" },
+        { "marea.array.include_bytes!(\"file\")", "(macro_call marea.array.include_bytes (argument_list \"file\"))" },
+        { "a.b!()", "(macro_call a.b (argument_list))" },
+        { "a.b != c", "(binary:BANG_EQUAL (member_access a b) c)" },
     });
 }
 

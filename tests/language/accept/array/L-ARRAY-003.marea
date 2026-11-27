@@ -1,0 +1,16 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- fill writes every element and filled makes an array of one value.
+
+namespace main;
+
+require marea.array;
+
+function check(): sinteger32
+    local values: marea.array.Array<sinteger32, 4> = marea.array.Array<sinteger32, 4>{};
+    values.fill(7);
+    local scratch: marea.array.Array<sinteger32, 8> = marea.array.Array<sinteger32, 8>.filled(2);
+    return values[3] + scratch[7];
+end

@@ -6,7 +6,7 @@
 
 namespace main;
 
-import c.math.pow as power;
+require c.math.pow as power;
 
 function ten(): float64
     return power(2.0, 10.0);

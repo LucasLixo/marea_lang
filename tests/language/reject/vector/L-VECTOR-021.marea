@@ -1,0 +1,14 @@
+-- expect: 3019 @13
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- swap of a vector with itself borrows it twice.
+
+namespace main;
+
+require marea.vector;
+
+function check()
+    local values: marea.vector.Vector<sinteger32> = marea.vector.Vector<sinteger32>{ 1 };
+    values.swap(values);
+end

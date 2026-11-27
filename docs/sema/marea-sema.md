@@ -4,7 +4,9 @@
 
 The `sema` stage checks the tree of the `parse` stage. It reads a public tree and writes diagnostics.
 It has no global state, never prints and never reads the disk: the caller gives it an arena, a
-diagnostic sink and an import resolver. `MAREA_SemaCheckCompilationUnit` itself returns no artifact
+diagnostic sink and an import resolver (and, when it has one, a second resolver for the names the host registered, a
+type registry with the library types, a target description, the build settings and an include resolver).
+`MAREA_SemaCheckCompilationUnit` itself returns no artifact
 beyond diagnostics; a separate, additive API builds the typed shadow tree the `ir` stage will consume
 - see [Typed AST hand-off](#typed-ast-hand-off). The typed node of a structure and of an enum also carries its size,
 its alignment and the offset of each member, see [Layout of a structure and an enum](#layout-of-a-structure-and-an-enum).
@@ -17,13 +19,18 @@ MAREA_SemaContext *sema;
 
 MAREA_SemaImportResolverCreate(arena, my_resolve_function, my_data, &resolver);
 MAREA_SemaContextCreate(arena, sink, resolver, &sema);
+MAREA_SemaContextSetRequireResolver(sema, registry);   /* optional, see "Two resolvers" */
+MAREA_SemaContextSetTypeRegistry(sema, types);         /* optional, see "Descriptors and roles" */
+MAREA_SemaContextSetTarget(sema, &target);             /* optional, see "Caller inputs" */
+MAREA_SemaContextSetSettings(sema, &settings);         /* optional, see "Caller inputs" */
+MAREA_SemaContextSetIncludeResolver(sema, &includes);  /* optional, see "Caller inputs" */
 MAREA_SemaCheckCompilationUnit(sema, root);   /* once per file, dependencies first */
 ```
 
 `MAREA_SemaCheckCompilationUnit` returns an error only for a null argument or an out of memory. A rule
 violation is a diagnostic in the sink. A size that does not fit in `MAREA_IntegerSize` (a diagnostic
 message, or the growth of a name table) is also an out of memory: nothing is allocated or copied.
-Every sema diagnostic is an error, in the range 3001-3077. Not every number of the range is a live code: the
+Every sema diagnostic is an error, in the range 3001-3090. Not every number of the range is a live code: the
 Diagnostics table lists the live ones.
 The lexer file name decides the path rule, so call `MAREA_LexContextSetFileName` with a project
 relative path with forward slashes and the `.marea` extension before the lex step.
@@ -47,11 +54,47 @@ void resolve(void *userData, const char *text, size_t length,
 `import a.b.c;` asks for `a.b.c`. On `NOT_FOUND` sema asks for `a.b` and looks for a top-level symbol `c` that is not `#[visibility = private]`
 there. Both answers `NOT_FOUND` is `UNRESOLVED_IMPORT`. A name from an
 `EXTERNAL` namespace is opaque: it meets every contract, takes any arguments and gives no diagnostic.
-The local name of an import is its alias, or its last segment. A type name that no local rule knows
-is given to the resolver as a last step.
+A type name that no local rule knows is given to the resolver as a last step.
+
+### Full paths, covers and aliases
+
+An import or a require binds no name. It makes its full path legal in the file: it is a cover, the path and every path below it.
+`require marea.math;` makes `marea.math.Vector4Float32` and `marea.math.scalar.add(a, b)` legal, and `math.Vector4Float32`
+is `UNDECLARED_NAME` (the last segment alone never resolves, and a path is never cut). A name of another namespace that no
+cover reaches is `UNIMPORTED_NAMESPACE` (3078), in a value and in a type position too (`marea.array.Array<sinteger32, 4>` needs
+`require marea.array;` or `require marea.*;`). The namespace of the file and its own declarations need no cover. `c` is
+no built-in name any more: `c.stdio.puts(x)` needs `require c.stdio;`.
+
+| Written | Covers | Binds |
+|---|---|---|
+| `import N;` or `require N;` | `N` and every path below it | nothing |
+| `import N.*;` or `require N.*;` | the same, at any depth. `N` is asked of the resolver as a prefix | nothing |
+| `import N as x;` | the same | `x`, which stands for the whole path `N` (`x.sub.f()` is `N.sub.f()`) |
+| `import N.M.f as g;` | `N.M.f` | `g`, one symbol |
+| `import N.M { f as g, T };` | `N.M.f` and `N.M.T` | `g`; a member with no `as` binds no name |
+
+A wildcard cannot have an alias or a member list (a parse error). An alias named `c`, `marea`, a primitive type or a built-in
+macro is refused. One full path covered by an import and by a require (one path equal to, or below, the other) is
+`AMBIGUOUS_NAMESPACE` (3080), reported at the second declaration. A file of the project cannot declare a namespace that starts
+with `c` or `marea`: `RESERVED_NAMESPACE_ROOT` (3081), and no registry changes it. The two roots belong to the
+libraries the language ships: their C code reaches the registry through its internal entry, and their Marea source is checked
+with the shipped library source input (see "Caller inputs").
+
+### Two resolvers
+
+`import` brings a file of the project and is answered by the import resolver the context was created with. `require`
+brings a name that is registered on the C side, by a shipped library (`c.*`, `marea.*`) or by the host (any other
+root), and is answered by the registry that `MAREA_SemaContextSetRequireResolver` sets. A context with no registry
+answers a require through the import resolver, so a host with one resolver needs no change. With a registry, an `import`
+of a name that only the registry knows is `UNRESOLVED_IMPORT` with the hint "registered on the C side, use require", and
+a `require` of a name that only
+the import resolver knows is `UNRESOLVED_REQUIRE` (3079) with the hint "a project file, use import". A use of a path asks
+the import resolver first, then the registry, and the signature function of the resolver that knows the namespace gives the
+signature of a member. A host may not register a name under `c` or `marea`: the two roots belong to the libraries the
+language ships, and the public entry of the registry rejects them (see Descriptors and roles).
 
 `import a.b { f as g, T as U, Color.red as Crimson, MAX };` asks the resolver for `a.b` once, then
-binds one local name per member: its alias, or the last segment of its path. A member path has one
+binds one local name per member that has an alias (a member with no alias only covers its full path). A member path has one
 or two segments; a longer path is `UNRESOLVED_IMPORT`. For a `NOT_FOUND` namespace every member is
 unresolved. For `EXTERNAL` every member of one or two segments is accepted. For `FOUND` the first
 segment must be a top-level symbol of the tree that is not `#[visibility = private]`, and a two-segment member needs that symbol
@@ -64,8 +107,8 @@ parent is `FOUND`) also keeps that enum declaration with its local name, alias i
 class of that name is then `USER`, so a `switch` over it raises `NON_EXHAUSTIVE_SWITCH` like a
 same-file enum. Any other import, and every `EXTERNAL` one, keeps no declaration and stays `EXTERNAL`.
 
-Every import name keeps its original: the text the same import binds without `as` (the last segment
-of a whole path, the member path as written for a member, for example `Color.red`). The internal name
+Every import alias keeps its original: the last segment of a whole path, or the member path as written for a member
+(for example `Color.red`). The internal name
 table (`MAREA_SemaName`) holds it in `original` and `originalLength`, empty for a name that has none.
 The IR lowers an alias to this text. A type written with an alias compares equal to the type
 written with the original in a contract signature, and so does a local `type Name = Other;` (a chain
@@ -74,9 +117,9 @@ An import name also keeps its qualifier, the namespace it came from (`qualifier`
 and the comparison renders it with that namespace: `import a { T as X }; import b { T as Y };` make two
 types, while two aliases of one member of one namespace stay one type.
 
-The name `c` is the reserved namespace of C. An import alias named `c` (either form) or a `type`
+The names `c` and `marea` are the reserved first segments. An import alias named `c` or `marea` (either form) or a `type`
 named `c` is `NAME_ALREADY_DECLARED` with the message `name is reserved: 'c'`; an alias that is
-refused is not bound. A plain declaration or a plain `import c.x;` is not affected.
+refused is not bound. A plain declaration or a plain `require c.x;` is not affected.
 
 An import alias (either form) named like one of the 13 primitive types (`boolean`, `sinteger8` to `sinteger64`,
 `uinteger8` to `uinteger64`, `float32`, `float64`, `character`, `string`) is `NAME_ALREADY_DECLARED` with the
@@ -86,8 +129,8 @@ of the built-in macros (`assert`, `debug_assert`, `unreachable`, `compile_error`
 `include_text`, `format`, `print`, `log`, `line`, `file`; `namespace` is a keyword) is `RESERVED_MACRO_NAME` (3056)
 with the message `name is a built-in macro: 'print'`. A declaration or a local that is refused is still bound, so its
 uses raise nothing more; an alias that is refused is not bound, so its uses raise `UNDECLARED_NAME`. A name that only
-contains a macro name (`printer`) is accepted. A parameter, a `for`, `for each`, `partition` or `with` name and an
-alias without `as` are not checked for a macro name.
+contains a macro name (`printer`) is accepted. A parameter and a `for`, `for each`, `partition` or `with` name are
+refused like a local and are still bound. An import or a member with no `as` binds no name, so there is no name to refuse.
 
 ### Signature of an EXTERNAL member
 
@@ -100,13 +143,14 @@ void signature(void *userData, const char *namespaceText, size_t namespaceLength
                 MAREA_SemaImportResult *outResult, const MAREA_SemaSignature **outSignature);
 ```
 
-Sema calls it only for a call whose callee names a member of a namespace the resolve function answers
-`EXTERNAL` for - never for a `FOUND` or `NOT_FOUND` namespace, and never when no signature function is
-set. The member is read the same way for a member access (`stdio.puts(text)`: namespace `c.stdio`,
-member `puts`) and for a bare name an import bound to one member (`import c.math.pow as power;` then
-`power(...)`: namespace `c.math`, member `pow`, the import's original name, not its alias). A 3-segment
-`import a.b.c;` into an `EXTERNAL` namespace never resolves its own full joined path to `NOT_FOUND` (every
-depth answers `EXTERNAL`), so its local name stays bound as a namespace with the member kept as its
+Sema calls it for a call whose callee names a member of a namespace the resolve function answers
+`EXTERNAL` for, and for a registered function of a shipped library that has a source file (see "Registered
+functions of a shipped library"). It never calls it for any other `FOUND` or `NOT_FOUND` namespace, and never when no
+signature function is set. The member is read the same way for a member access with a full path (`c.stdio.puts(text)`: namespace `c.stdio`,
+member `puts`), for one through an alias (`require c.stdio as io;` then `io.puts(text)`) and for a bare name an alias bound
+to one member (`require c.math.pow as power;` then `power(...)`: namespace `c.math`, member `pow`, the original name, not
+the alias). A 3-segment `import a.b.c as d;` into an `EXTERNAL` namespace never resolves its own full joined path to
+`NOT_FOUND` (every depth answers `EXTERNAL`), so its local name stays bound as a namespace with the member kept as its
 `original` text, rather than becoming an `IMPORTED_SYMBOL` the way a deeper member of a `FOUND` namespace
 does; sema reads both shapes the same way here.
 
@@ -121,26 +165,219 @@ asked again; sema only reads them during one call, never copies or frees them.
 A call to a member with a signature is checked like a call of a file function: the argument count must
 equal `parameterCount` exactly (the host describes no default) or `ARGUMENT_COUNT_MISMATCH` (3010), and
 each argument must fit its parameter's primitive spelling or `TYPE_MISMATCH` (3011), by the same literal
-and primitive fit rule as `MAREA_SemaCheckExpressionFit`. The call is then typed with the signature's
+and primitive fit rule as `MAREA_SemaCheckExpressionFit`. A parameter may also name a `structure`: a value of the
+structure of that name fits it, and a value of any other structure is `TYPE_MISMATCH`. A number literal fits a primitive
+parameter only, and in the typed tree it takes the type of that parameter, as for a function of the file. The call is then typed with the signature's
 result spelling. The member or name itself (`puts` before the call, `power` used with no call) stays
 untyped: only the call gets the signature's result.
 
+### Registered functions of a shipped library
+
+A shipped library, such as `marea.math`, has a source file and C functions in one namespace. The source file declares
+no form for a C function. A member of a namespace under `c` or `marea` that has a tree (the answer `FOUND`, or the
+namespace of the file that is checked) and that the tree does not declare is read as a registered function: sema asks
+the signature function for it. With the answer `FOUND` the call is typed and checked as a call of an `EXTERNAL`
+member, and it is an external call (see "External calls"). With no signature function, or with no signature for the
+member, nothing changes: the call has no type and gives no diagnostic. A project namespace is never read so.
+
+The source file calls the functions of its own namespace by the full path, which needs no cover:
+`return marea.math.add_vector3_float32(self, other);` in an operator of `lib/source/marea/math.marea`. The resolver
+that knows the namespace gives the signature; when no resolver knows it, the require resolver does, or the import
+resolver of a context with no require resolver. A bare name (`add_vector3_float32(self, other)`) is still
+`UNDECLARED_NAME`, and a member list of a require cannot name a registered function (`UNRESOLVED_IMPORT`).
+
+The caller gives the signatures; the registry holds the wrappers only. A signature writes a type of a library with
+its full path (`marea.math.Vector3Float32`), and in the file of that namespace sema compares it with the bare name.
+
 ### Members of a library type
 
-The same signature function also types a call on a member of a library type: array, vector, slice, pointer, owned,
-task and table, written bare or under the reserved `c`. Sema keeps one fixed shape per library (the canonical
-namespace `c.<name>` and its generic parameter names) and asks the function with that namespace and the member
-name, never with the namespace an import gave the name. Two call shapes are read: a static call on the type
-itself (`array<float32, 16>.filled(0.0)`, `c.array<sinteger32>.filled(8, 0)`) and an instance call on a value whose
-type peels down to one of these types (`tasks.append(x)`, `item.result()`, `product.sum()`), following a generic
-parameter a frame fills, `Self`, a local alias and `owned<T>`. A result spelled `Self` is the receiver's own
-type. A result spelled with a generic parameter of the library (array: `Item`, `Count`; table: `Key`, `Value`;
-the others: `Item`) is the receiver's type argument at that place, read in the receiver's own frame; a size
-argument is not a type, so `Count` leaves the call untyped. Any other spelling is the literal result, as for an
-`EXTERNAL` call. The arguments of such a call are not checked against the signature. The index of a `table<K, V>`
-is typed with `V` by the structure alone (no signature is asked), as the element of an array is. With no signature
-function, a receiver that is not one of these types or a member the function does not know, nothing changes: the
+The same signature function also types a call on a member of a registered library type (see
+[Descriptors and roles](#descriptors-and-roles)). Sema reads the descriptor of the receiver, never its name. The function
+is asked with the full written path of the type (`marea.array.Array`) and the member name. Two call shapes are read: a static
+call on the type itself (`marea.array.Array<float32, 16>.filled(0.0)`) and an instance call on a value whose type peels down
+to a registered type (`tasks.append(x)`, `item.result()`, `product.sum()`), following a generic parameter a frame fills,
+`Self`, a local alias and a type with the owner role. A result spelled `Self` is the receiver's own type. A result spelled with the
+positional generic parameter names of the descriptor (`Item` for the first type argument, `Count` for the second) is the
+receiver's type argument at that place, read in the receiver's own frame; a size argument is not a type, so `Count` leaves
+the call untyped. Any other spelling is the literal result, as for an `EXTERNAL` call. The arguments of such a call are not
+checked against the signature. The index of a registered type with two type parameters and no index protocol (a keyed table)
+is typed with the second argument by the structure alone (no signature is asked), as the element of an array is. With no
+signature function, a receiver that is not a registered type or a member the function does not know, nothing changes: the
 call stays untyped and no diagnostic is raised.
+
+### Inline runs
+
+A descriptor with the index protocol, no role, a copy class and two type parameters is an inline run: the element and a
+count. `MAREA_ArrayLibraryRegister` (`marea/base/MAREAArrayLibrary.h`) registers `marea.array.Array` in that shape and
+the macro `include_bytes`. Sema checks the shape itself and reads no signature for these members:
+
+| Member | Rule |
+|---|---|
+| `front()`, `back()` | the element, which has to be `Copyable` (3013) |
+| `size()`, `max_size()` | `uinteger64` |
+| `empty()` | `boolean` |
+| `fill(value)` | a writable receiver (3069), a `Copyable` element (3013), a value that fits it (3011) |
+| `swap(other)` | two writable arrays (3069) of the same type arguments (3014) that are not one storage (3019) |
+| `Array<E, N>.filled(value)` | static; a `Copyable` element and a value that fits it |
+
+A wrong argument count is `ARGUMENT_COUNT_MISMATCH`. Another name is `UNKNOWN_TYPE_FUNCTION` (3049) for a type under
+the root `marea` (`sum` is let through, see Gaps); a type that a host registers keeps the signature rule above. `fill`
+and `swap` change the array that a `for each` or a `with` borrows (3073). An inline run is written with both type
+arguments (3014 otherwise). A literal takes no value (all zeros), indexed entries (the rest zeros) or exactly as many
+positional values as the count (`LITERAL_COUNT_MISMATCH`, 3087). A constant index that is not below the count, in an
+index access or in a literal, is `CONSTANT_INDEX_OUT_OF_RANGE` (3088). A parameter of an inline run is a read-only
+borrow when `semantics` is not written. The key of a `for each` is a value, not a reference. The counts are checked
+when they are written as literals.
+
+### Growable runs
+
+A descriptor with the index protocol, no role, a move class and one type parameter is a growable run: the element.
+`MAREA_VectorLibraryRegister` (`marea/base/MAREAVectorLibrary.h`) registers `marea.vector.Vector` in that shape. Its
+layout is the header `MAREA_VectorHeader` (24 bytes, aligned to 8) for every element, and sema checks these members:
+
+| Member | Rule |
+|---|---|
+| `front()`, `back()` | the element, which has to be `Copyable` (3013) |
+| `size()`, `max_size()`, `capacity()` | `uinteger64` |
+| `empty()` | `boolean` |
+| `append(value)`, `insert(index, value)` | a writable receiver (3069), a value that fits the element (3011); an existing value of a type that is not by value needs `copy` or `move` (3016) |
+| `pop()`, `erase(index)` | a writable receiver; the element |
+| `reserve(count)`, `shrink_to_fit()`, `clear()` | a writable receiver |
+| `resize(count, value)`, `fill(value)` | a writable receiver, a `Copyable` element (3013), a value that fits it (3011) |
+| `swap(other)` | as for an inline run |
+| `data()` | only in `unsafe` (3041); the call has no type yet |
+
+`copy` of a growable run is a deep copy, so it needs a `Copyable` element (3013). The members that change the run, the
+move class of it and the borrowed-source rule of `for each` and `with` (3073) are the ones that stop a loop from
+walking storage that moved. A parameter keeps the default of a move type (`reference_mutable`).
+
+`append` of a name that is a borrow is `REFERENCE_ESCAPES_SCOPE` (3018) only when its type is not by value: a value
+that is copied, such as the name of a `for each` over numbers, is no reference once it is stored.
+
+### Tuples
+
+A descriptor with the parameter count `MAREA_TYPE_PARAMETER_COUNT_VARIADIC`, no role and no index protocol is a tuple
+(`MAREA_TYPE_DESCRIPTOR_IS_TUPLE`). `MAREA_TupleLibraryRegister` (`marea/base/MAREATupleLibrary.h`) registers
+`marea.tuple.Tuple` in that shape: one descriptor serves every arity, and the ownership class of it is not read. A tuple
+is an anonymous structure, with the type class `MAREA_SEMA_TYPE_CLASS_TUPLE`: a parameter is a read-only borrow by
+default, `=` of a name needs `copy` or `move` (3016), a write through a read-only borrow is 3069, and an element moves
+out alone (`move t[0]`). An alias of a tuple is read as the tuple.
+
+| Rule | Diagnostic |
+|---|---|
+| a tuple writes from 2 to 16 types | `GENERIC_ARGUMENT_MISMATCH` (3014) |
+| no element is a type with no layout, such as an opaque structure or a function type | `ELEMENT_WITHOUT_MEASURED_LAYOUT` (3082) |
+| a structure does not hold itself through a tuple | `RECURSIVE_TYPE` (3045) |
+| an index is an integer literal | `TUPLE_INDEX_NOT_CONSTANT` (3089) |
+| the literal is below the arity, and is not negative | `CONSTANT_INDEX_OUT_OF_RANGE` (3088) |
+| a literal holds no value (all zeros) or one value for each element, in order | `LITERAL_COUNT_MISMATCH` (3087) |
+| each value fits its element, with no name and no index | `TYPE_MISMATCH` (3011) |
+| an existing value that is stored and is not by value needs `copy` or `move` | 3016 |
+| only `==` and `!=`, of two tuples of one type, whose elements are primitives, enums or tuples of these | 3011 |
+| `for each` does not walk a tuple | `NOT_ITERABLE` (3090) |
+| `copy` needs every element type to be `Copyable`, so a tuple that holds a vector or a structure is not copied | `CONTRACT_NOT_SATISFIED` (3013) |
+| `swap(other)` is the one method: two writable tuples of one type that are not one storage | 3049, 3069, 3014, 3019 |
+
+The layout is the one of a `layout = c` structure: each element at the next multiple of its alignment, and the size
+rounded up to the largest one. A tuple with an element that is not measured has the reason of that element.
+
+### Caller inputs
+
+Everything the caller must tell sema is a plain struct in `marea/sema/MAREASema.h`: caller owned, not opaque, and only
+read during a check (sema never copies or frees it). They are plain because the caller fills every field (CMake, or a
+host with no CMake) and no accessor would add a rule; each setter takes a pointer, and a null pointer clears the input.
+A context with none of them behaves as the host-neutral one.
+
+| Struct | Setter | What reads it | With none given |
+|---|---|---|---|
+| `MAREA_SemaTarget` | `MAREA_SemaContextSetTarget` | a `when(...)` predicate and the availability of a `backend` | every comparison is false, `auto` is `scalar`, an explicit `vector_extension` or `intrinsics` is `BACKEND_UNAVAILABLE` |
+| `MAREA_SemaSettings` | `MAREA_SemaContextSetSettings` | `build_value!` | every `build_value!` call takes its default |
+| `MAREA_SemaIncludeResolver` | `MAREA_SemaContextSetIncludeResolver` | a macro that a library registers and that reads a file | every file is missing, so the call is `INVALID_MACRO_ARGUMENT` |
+
+`MAREA_SemaTarget` holds NUL terminated texts (`architecture`, `operatingSystem`, `compiler`, `endianness`), a list of
+feature names and a `pointerWidth`. A null text, an empty list and a zero width are "not answered". `MAREA_SemaSettings` is a
+list of `name`, `value` text pairs; a pair whose name no call asks for is ignored. `MAREA_SemaIncludeResolver` is one function
+that gives the size of a file (`MAREA_MacroIncludeSizeFunction`, declared in the registry header, because a library expander
+calls it), the pointer that goes with it, and an optional load function (`MAREA_SemaIncludeLoadFunction`) that gives the bytes
+and the path of the file that the C compiler of the generated text can open. Sema never reads the disk: these functions are
+the only way it learns about a file. With a load function, a macro whose result is an array of `uinteger8` keeps the bytes in
+the typed tree (`MAREA_SemaTypedNodeGetIncludedFile`) and its call has the array type; a load that fails, or that gives
+another number of bytes than the size, is `INVALID_MACRO_ARGUMENT`. With no load function the call is checked by the size
+alone and no backend can write its value.
+
+**Shipped library source.** `MAREA_SemaContextSetShippedLibrarySource(context, value)` says that the compilation unit is a
+source file that the language ships. With it, the namespace declaration of the unit may start with `c` or `marea`. It changes no
+other rule: an alias named `c` or `marea` is still refused, and an import or a require is checked as before. The default is
+false. Only the caller that checks a file of a shipped library sets it, never for a file of the project.
+
+**Where a shipped library is.** The C11 part is in `lib/include/marea/base/` and `lib/source/marea/base/`, in the base library.
+The Marea part is in `lib/source/<path of the namespace>.marea`: the source of `marea.math` is `lib/source/marea/math.marea`.
+
+### Descriptors and roles
+
+Sema knows no library. A library registers type descriptors, and sema reads the roles and the ownership class of the
+descriptor, never a name. The registry is `MAREA_TypeRegistry` (`marea/base/MAREATypeRegistry.h`, a base header, so no stage
+includes a later one); `MAREA_SemaContextSetTypeRegistry` hands it to sema. A context with no registry knows no library type.
+A type is registered by its namespace and name (`marea.array`, `Array`) and is found by the full path written in the source, so a
+type is always written with a full path and its `require`. `string` stays a primitive. The bare names `array`, `vector`,
+`pointer`, `owned`, `slice` and `task` are not types any more: written bare, each one is `UNKNOWN_TYPE`.
+
+A `MAREA_TypeDescriptor` holds the namespace, the name, the count of type parameters, the roles, the ownership class and
+whether the first type parameter is an element reached by index (`hasIndexProtocol`). The roles are bits:
+
+| Role | What sema does with it |
+|---|---|
+| `PARTITION_PART` | the type of the part a `partition` gives: sema writes `<path><element>` from the registered type that holds the role |
+| `SPAWN_HANDLE` | the type of a `spawn`, written the same way, and a move-in value |
+| `RAW_POINTER` | rejected outside `unsafe` in every place a type is written (`RAW_POINTER_OUTSIDE_UNSAFE`, 3041); index-worthy |
+| `OWNER` | peeled one level to read a member or an element, and a name given to such a parameter needs `copy` or `move` |
+| `VIEW` | a borrow of elements (by value, never guessed to be a move type) |
+
+The ownership class is `COPY` (by value) or `MOVE` (a name needs `copy` or `move`, and a parameter of the type moves in).
+`hasIndexProtocol` makes `for each`, an index access, a literal value and `Copyable` (a `COPY` run with no role) read the first
+type argument as the element. A descriptor with a `COPY` class, no role and the index protocol is an inline run: the layout record
+measures it when its element is measured (a primitive, a structure, an enum or another inline run) and its count is a
+literal: the size is the count times the element size, with no padding, and the alignment is the one of the element
+(`marea.array.Array<sinteger32, 4>` is 16 bytes, aligned to 4; a count of 0 is 0 bytes). A holder of an opaque structure
+by value in a run that is no view is `ELEMENT_WITHOUT_MEASURED_LAYOUT` (3082).
+
+**Registry.** `MAREA_TypeRegistryCreate(arena, mask, &registry)` makes a registry. The mask is a plain input of the caller:
+`MAREA_LibraryFlag` is a bit-flag enum, one bit per shipped library (`MAREA_LIBRARY_FLAG_MAREA_ARRAY`, `_MAREA_VECTOR`,
+`_MAREA_TUPLE`, `_C_MEMORY`, `_C_THREADS`, `_C_CHARACTER`, `_C_STRING`, `_MAREA_MEMORY`, `_MAREA_MATH`), combined with bitwise or; `MAREA_LIBRARY_MASK_DEFAULT` turns every one on.
+A library whose bit is off registers nothing, so every name of it is unknown to sema and a `require` of it is
+`UNRESOLVED_REQUIRE`. The types of `marea.math` are structures of its source file, so its bit only decides whether its
+C functions are registered: sema reads the types from the tree that the resolver gives. `marea.math` declares no
+dependency: with each other library off, all its names are registered. A library declares the libraries it depends on (`MAREA_TypeRegistryDeclareDependency`); a library that is on
+with a dependency that is off is a configuration error, `MAREA_TYPE_REGISTRY_EXCEPT_ERROR_MISSING_DEPENDENCY`, never a silent
+pass. A macro that returns a library type belongs to the library that owns the type (decision 53 of the 2026-11-24 plan):
+`include_bytes!` returns `marea.array.Array<uinteger8, N>`, so it is a macro of `marea.array`, called as
+`array.include_bytes!("file")` after `require marea.array as array;` or as `marea.array.include_bytes!("file")`. With
+`marea.array` off the name is unknown. The macro refuses a path that is absolute, has a drive letter or holds a `..`
+segment, so a build cannot read an arbitrary file.
+
+The registry has two entries. `MAREA_TypeRegistryRegisterInternal` (and the function form, the registration macro) is used only
+by the libraries the language ships and may register under `c.*` and `marea.*`. `MAREA_TypeRegistryRegisterPublic` is the entry of
+the user and the host: it rejects any name whose first segment is `c` or `marea` with
+`MAREA_TYPE_REGISTRY_EXCEPT_ERROR_RESERVED_NAMESPACE_ROOT`. A host may register any other root and may replace a runtime
+function (`alloc`, `free`) through `MAREA_TypeRegistryReplaceRuntimeFunction`; a name outside the allow list is
+`ERROR_UNKNOWN_RUNTIME_FUNCTION`. The C registration macro `MAREA_REGISTER_FUNCTION` registers the wrapper that the binding
+declaration `MAREA_HOST_FUNCTION` made for one typed C function (see the vm doc, "Host calls"), through the internal entry
+for a shipped library and through the public entry for a user or a host. `MAREA_TypeRegistryFindByRole` gives the registered
+type that holds a role.
+
+**Macros of a library.** `MAREA_TypeRegistryRegisterInternalMacro` registers one compile-time macro for a shipped library,
+under the same mask and dependency rules as a type. A `MAREA_MacroDescriptor` holds the namespace and the name, the kind of
+each argument (only `MAREA_MACRO_ARGUMENT_KIND_STRING_LITERAL` exists), the result type (a registered type descriptor, the
+name of its element type and the count that the expander gives) and the expander, a C11 function. The expander gets the text
+of the string argument and the include size function of the caller (`MAREA_MacroExpandRequest`) and answers with a count, or
+false when the call is not valid, for example for a file that does not exist. There is no public entry: a user or a host never
+registers a macro, so the reserved roots `c` and `marea` stay the only owners of one and the rule "macros are never written by a
+user" holds. `MAREA_TypeRegistryFindMacro` finds one by namespace and name.
+
+**Two rules of the border.** A registered type that holds its first type argument by value (an index protocol) needs a
+type with a measured layout there: a function type is `ELEMENT_WITHOUT_MEASURED_LAYOUT` (3082), at the element. A type sema
+cannot see is not guessed here (its own check reports an unknown type). A raw pointer in a parameter, a result, a field, an
+alias or another type's argument is `RAW_POINTER_OUTSIDE_UNSAFE` (3041) too, not only a local (decision 30 of the plan, issue #190).
 
 ## Rules
 
@@ -157,14 +394,15 @@ outer block is accepted, and so is a `for`, `for each`, `partition` or `with` na
 `auto`), `build` (`debug`, `release`), `layout` (`c`, `marea`), `align` (a power of two, not with
 `pack`), `pack` (an integer), `move_only` (a boolean), `operator` (a string of a fixed list),
 `export` (a string, the label at the C border), `semantics` (`value_read_only`,
-`reference_read_only`, `reference_mutable` - a parameter's passing mode, see "Ownership" below). A
+`reference_read_only`, `reference_mutable` - a parameter's passing mode, see "Ownership" below), `backend` (`auto`,
+`scalar`, `vector_extension`, `intrinsics`, see "Backend" below). A
 key of an enum needs one of its members, and `export`
 and `operator` need a string, so a bare key of those is `INVALID_ATTRIBUTE_VALUE`. The strings of `operator`
 are the operator tokens of the grammar (`+ - * / % **`, the wrapping and saturating forms, `~ & | ^ << >>`, the
 comparisons, the assignment forms), `"[]"`, `"()"`, `"convert"`, `"construct"` and `"destroy"`; any other
 string or a name is `INVALID_ATTRIBUTE_VALUE`. A key not in the table, such as the
 retired `public`, `private`, `simd`, `destroy` and `value`, is `UNKNOWN_ATTRIBUTE_KEY`. The deeper meaning of
-`operator` (the placement) and `export` is not checked here: the signature of an operator function is `OPERATOR_SIGNATURE_MISMATCH` (3050), see Rules. A flag key with no value is true. File attributes `#![...]` use
+`operator` is the signature of an operator function, `OPERATOR_SIGNATURE_MISMATCH` (3050), see Rules; its place is the placement matrix below. A flag key with no value is true. File attributes `#![...]` use
 the same table; the attribute of the symbol wins over the file attribute, so `#![visibility = public]`
 with `#[visibility = private]` on one symbol is not a conflict. `semantics` is meaningful only on a
 `PARAMETER`, but is validated by the same generic, node-shape-agnostic attribute check as everywhere
@@ -172,15 +410,61 @@ else; it is adopted as a `PARAMETER` child last, after the name, type and option
 other reader of those fixed positions keeps working unchanged - unlike every other declaration kind,
 whose attributes lead.
 
-**Types.** The built-in names are `boolean`, `sinteger8` to `sinteger64`, `uinteger8` to `uinteger64`,
-`float32`, `float64`, `character`, `string`, `array`, `vector`, `pointer`, `owned`, `slice` and `task`. A type name is also
-`Self` inside an `implementation` or a `contract`, a generic parameter in scope, a structure, enum,
-opaque type or alias of the file, or an import. `array` takes two arguments (a type and a size), the others one, and a
-user generic takes as many arguments as it has parameters. A number fills a value parameter only.
+**Placement of an attribute.** A key stands only where the placement matrix of the attribute map allows it, otherwise it is
+`MISPLACED_ATTRIBUTE` (3085), once per item, at the item. The grammar gives an attribute list to the places in the first
+column; `no` cells are the 3085 cases.
 
-**Contracts.** `Copyable` is met by a primitive, an `array` whose element is `Copyable`, a `pointer`, `slice` or function type and an
-enum; the enum case is a documented, intentional exception to "a non-primitive is never a copy contract" (no attribute exempts any
-other user type - the retired `#[value]` key does not exist). A `vector` is never `Copyable`. `Movable` is met by `owned`, `task`, `vector`, a `#[move_only]` type and a plain
+| Place | visibility | inline | build | layout | align | pack | move_only | operator | export | semantics | backend |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| file `#![...]` | yes | yes | yes | yes | no | no | no | no | no | no | yes |
+| top-level function | yes | yes | yes | no | no | no | no | no | yes | no | yes |
+| top-level constant | yes | no | no | no | no | no | no | no | no | no | no |
+| `structure` | yes | no | no | yes | yes | yes | yes | no | no | no | no |
+| `opaque structure` | yes | no | no | no | no | no | no | no | no | no | no |
+| `enum` | yes | no | no | yes | yes | yes | yes | no | no | no | no |
+| `type` alias | yes | no | no | no | no | no | no | no | no | no | no |
+| `contract` | yes | no | no | no | no | no | no | no | no | no | no |
+| `implementation` block | yes | no | no | no | no | no | no | no | no | no | no |
+| field of a `structure` | yes | no | no | no | yes | no | no | no | no | no | no |
+| function in an `implementation` | yes | yes | yes | no | no | no | no | yes | yes | no | yes |
+| constant in an `implementation` | yes | no | no | no | no | no | no | no | no | no | no |
+| parameter | no | no | no | no | no | no | no | no | no | yes | no |
+| macro statement | no | no | no | no | no | no | no | no | no | no | no |
+
+`align` and `pack` have no file form. An `export` on a function with a generic parameter of its own, or in a generic
+`implementation`, is also 3085 (C has no generics), and its label must be a valid C identifier, otherwise
+`INVALID_ATTRIBUTE_VALUE`. One item gives one diagnostic: the first step that fails (key, value, namespace limit, place) ends it.
+
+**The `when` item.** `when(predicate, key = value, ...)` gives the listed attributes a condition. The predicates are
+`architecture`, `operating_system`, `feature`, `compiler` (a string), `pointer_width` (an integer) and `endianness` (a
+string), joined by `all`, `any` and `not`. A predicate name that is not one of the six, or a value of the wrong kind, is
+`INVALID_ATTRIBUTE_VALUE`, once per such predicate; the values themselves are an open set and are not checked. A comparison
+is true when the target description (`MAREA_SemaTarget`) answers it and the answer matches; with no target, or a field the
+caller left empty, it is false (so `not(...)` of it is true). The listed attributes are checked for key, value and place
+whether the predicate holds or not. A `when` that holds replaces the plain value of the same key, and two that hold and give
+one key are `CONFLICTING_ATTRIBUTES` (3007), so the order never decides. A `when` works in any attribute list, the file list
+included. The check is the only reader of a `when`: the other readers of an attribute (visibility, layout, ...) still see only
+the plain items (see Gaps).
+
+**Backend.** The `backend` key stands only in a file whose namespace is `marea.math` or starts with `marea.math.`, on the file
+or on a function; anywhere else it is `ATTRIBUTE_NOT_ALLOWED_HERE` (3084) (and a structure of `marea.math` is 3085). The
+backend that decides is the one a holding `when` gives, else the plain one. `scalar` and `auto` are always available. An
+explicit `vector_extension` needs a compiler `gcc` or `clang` and the architecture `x86_64` with the feature `sse2`, or
+`aarch64`; `intrinsics` needs the same with `neon` on `aarch64`. A backend the target cannot give is
+`BACKEND_UNAVAILABLE` (3083), with no silent fallback, naming the backend, the architecture and the compiler. `auto` has only
+its start rule (the best backend the target gives, `scalar` at least); the table of which backend is best per operation does
+not exist yet.
+
+**Types.** The built-in names are `boolean`, `sinteger8` to `sinteger64`, `uinteger8` to `uinteger64`,
+`float32`, `float64`, `character` and `string`. A type name is also
+`Self` inside an `implementation` or a `contract`, a generic parameter in scope, a structure, enum,
+opaque type or alias of the file, an import, or a library type a registry knows, written with its full path (see
+[Descriptors and roles](#descriptors-and-roles)). A registered type takes at most the type arguments its descriptor declares, and
+a user generic takes as many arguments as it has parameters. A number fills a value parameter only.
+
+**Contracts.** `Copyable` is met by a primitive, an inline run (an index protocol, a copy class, no role) whose element is `Copyable`, any other
+registered type of the copy class, a function type and an enum; the enum case is a documented, intentional exception to "a non-primitive is never a copy contract" (no attribute exempts any
+other user type - the retired `#[value]` key does not exist). A type of the move class is never `Copyable`. `Movable` is met by every type of the move class, a `#[move_only]` type and a plain
 user type. Any other contract is met when the `implementation` blocks of the type hold every contract
 function with the same parameters and result, `Self` replaced by the type. A generic parameter meets a
 contract only when its own `where` clause lists it. The check runs at a call of a function of the file,
@@ -235,9 +519,10 @@ plain name is not judged. `construct` and `destroy` keep their own shape rule (3
 operator attribute is not checked.
 
 **Type function call.** A call `value.name(...)` or `Type.name(...)` is `UNKNOWN_TYPE_FUNCTION` (3049), reported at the
-call, when the receiver is a structure or an enum declared in the file (a bare type name that no local hides, or a
-local or parameter of that type, an alias followed) and the type has no function `name` in any of its
-`implementation` blocks, no field `name` (a callback) and, for an enum, no variant `name` (`Shape.Circle(1.0)`).
+call, when the receiver is a structure or an enum (a bare type name that no local hides, or a local or parameter of that
+type, an alias followed) and the type has no function `name` in any of its `implementation` blocks, no field `name` (a
+callback) and, for an enum, no variant `name` (`Shape.Circle(1.0)`). The type may be declared in the file, or in a
+`FOUND` namespace and written `b.Point`, `a.b.Point` or by an imported name; its blocks are then read in its own tree.
 
 **Type construction call.** A call whose callee is a structure or an enum name of the file, not hidden by a local,
 resolves to that type's construct operator instead of an ordinary call: `Point(1.0, 2.0)` is checked against
@@ -250,11 +535,11 @@ both. `Type{...}` (the aggregate literal) is unaffected and keeps working on its
 parameter is defaulted.
 
 **Function type value.** A declared type that is a function type, written or reached through an alias of the file,
-gets three checks. A literal (integer, float, string, character or boolean) for it is `TYPE_MISMATCH` (3011). A
-bare name of a function of the file, not hidden by a local, for it is `FUNCTION_TYPE_MISMATCH` (3053) when its
-parameter count, the passing mode or type of a parameter, or its result type differ from the function type; the
-check runs wherever a value meets a declared type (a local initializer, an argument, a return, an assignment, a
-constant). A call through a parameter or a local of a function type is checked against the parameters of that
+is compared wherever a value meets it (a local initializer, an argument, a return, an assignment, a constant). A bare
+name of a function of the file, not hidden by a local, and any expression whose written type is a function type (a
+local, a field, an element, a constant, a call result) must have the same parameter count, passing mode and type of
+each parameter, and result type, else `FUNCTION_TYPE_MISMATCH` (3053); an alias equals its original. A value that is
+surely not a function (a literal, a primitive, a structure, an enum, a view) is `TYPE_MISMATCH` (3011). A call through a parameter or a local of a function type is checked against the parameters of that
 function type: a wrong count is `ARGUMENT_COUNT_MISMATCH` (3010) and a wrong argument type is 3011, the rule of an
 ordinary call.
 
@@ -266,42 +551,44 @@ ordinary call.
 width is the size of the tag (see [Layout of a structure and an enum](#layout-of-a-structure-and-an-enum)).
 
 **Enum variants.** An enum that declares no variant is `EMPTY_ENUM` (3047), once at the enum. `Enum.Name` is
-`UNKNOWN_ENUM_VARIANT` (3048) when `Enum` is an enum of this file, no local hides its name, and `Name` is no variant
-and no function or constant of an `implementation` block of this file for that enum. The callee of a call
-(`Color.make()`) is not checked here (see `UNKNOWN_TYPE_FUNCTION`, 3049).
+`UNKNOWN_ENUM_VARIANT` (3048) when `Enum` names an enum, no local hides its name, and `Name` is no variant and no
+function or constant of an `implementation` block for that enum. The enum may be of this file, or of a `FOUND`
+namespace, written `b.Color`, `a.b.Color` or by an imported name; its blocks are then read in its own tree. The callee
+of a call (`Color.make()`) is not checked here (see `UNKNOWN_TYPE_FUNCTION`, 3049).
 
 **Ownership.** A parameter's passing mode is its `semantics` attribute - `value_read_only` (a
 copy), `reference_read_only` (a read-only borrow) or `reference_mutable` (a write borrow, the
 `EXCLUSIVE_BORROW_CONFLICT`/`INVALID_SPAWN_ARGUMENT` axis); `MAREA_SemaGetParameterSemantics` is
 the one place the rest of sema reads it. With no attribute written, a primitive defaults to
-`value_read_only`, `owned<T>`, `task<T>` and `vector<T>` default to `reference_mutable` (they move
+`value_read_only`, a type of the move class (an owner, a spawn handle, a growable collection) defaults to `reference_mutable` (they move
 in and are never a borrow), and any other type defaults to `reference_read_only` - settled rule 2. A
 write borrow needs the explicit `reference_mutable`. The former `mutable`/`reference` keywords are
 retired, `mutable` stays reserved only for `for each` and `partition`.
 A second table, `readOnly`, is built like the references table: `MAREA_SemaBindReadOnly` pushes one entry per binder
 when a scope is entered and `MAREA_SemaScopeLeave` pops them. A function parameter is read-only exactly when its
 effective passing mode is `reference_read_only`. A `for each` variable and a `partition` part are writable only when
-the statement says `mutable` and its source is not read-only. A `with` name is read-only when the source is an
-existing value (a name, a field or an element: a borrowed view) and writable when the source is a call. A new local
+the statement says `mutable` and its source is not read-only. A `with` name follows the source: a name, a field or
+an element has the mode of that place (a source rooted in a name that is no local, such as a file constant, is
+read-only), and a call gives a new value, so the name is writable. A new local
 that reuses a read-only name is a writable shadow. The root of an expression is the name at the bottom of its field and
 element chain; a root that is not in the table (a plain local, a by-value parameter, a file name) is writable, so sema
 rounds toward valid. `WRITE_THROUGH_READ_ONLY_BORROW` (3069) is raised in four shapes: an assignment of any operator
 whose target is rooted in a read-only borrow; `for each ... in mutable` or `partition mutable` over a read-only source,
 at the source; a read-only borrow given to a write-borrow parameter; and a call result or a literal given to a
-write-borrow parameter (a temporary has no storage to write back). A move-in parameter (`owned`, `task`, `vector`) is
+write-borrow parameter (a temporary has no storage to write back). A move-in parameter (a type of the move class) is
 not a write borrow of a place and takes a call result. The rule runs in `MAREA_SemaCheckOwnership` and
 `MAREA_SemaCheckWriteArguments`; the typed AST pass only rebuilds the table and reports nothing.
 `value_read_only` is legal only on a primitive; writing it on anything else is `INVALID_BORROW`
-(3017). `owned<T>` moves in regardless of `semantics`, and a name, a field or an element given to an
-`owned<T>` parameter needs `copy` or `move` like an assignment (3016, at the argument). A primitive, an `array`, `pointer`, `slice`
-and an enum is by value for the *ownership mode* (`MAREA_SemaOwnershipMode`) no matter what
-`semantics` says - checked before `semantics` is even read, the one place `array`/`pointer`/
-`slice` differ from every other non-primitive: the ownership mode is always `VALUE`, so a
+(3017). A type of the move class moves in regardless of `semantics`, and a name, a field or an element given to a
+parameter whose type has the owner role needs `copy` or `move` like an assignment (3016, at the argument). A primitive, a type of
+the copy class (an inline run, a raw pointer, a view) and an enum is by value for the *ownership mode*
+(`MAREA_SemaOwnershipMode`) no matter what `semantics` says - checked before `semantics` is even read, the one place a
+copy-class library type differs from every other non-primitive: the ownership mode is always `VALUE`, so a
 `semantics` attribute on one of them only ever affects whether it counts as a borrow for scope
 escape (below), never its mode. The enum case is the by-value exception among user types (no
 attribute exempts any other user type - the retired `#[value]` key does not exist, so a structure,
-move_only or plain, is never by value by itself). A library storage type written exactly `c.array<T>`, `c.vector<T>`, `c.table<K, V>`, `c.owned<T>` or `c.task<T>` is a move type too, so `=` of one needs `copy` or `move`; `c.slice<T>`, `c.pointer<T>` and any other type that sema cannot see stay by value and are never guessed. A `vector` is a move type, so `=` of a `vector`
-name needs `copy x` or `move x`. `=` of a name, field or element of any other type needs
+move_only or plain, is never by value by itself). A registered type of the move class is a move type, so `=` of one needs `copy x` or `move x`; a type that sema cannot see
+(not registered, not declared) stays by value and is never guessed. `=` of a name, field or element of any other type needs
 `copy x` or `move x`, in an assignment and in a local initializer. A call or a literal needs no word.
 A borrow parameter (`reference_read_only`, explicit or by default, or an explicit `reference_mutable`), a
 `for each` variable, a `partition` part and a `with` name cannot be returned, nor be the value of
@@ -310,7 +597,8 @@ rooted in one (`ORIGIN.inner`, `ORIGINS[0]`), passed as the argument of
 an explicit `reference_mutable` (write-borrow) parameter has no writable storage to
 back the borrow, so it is rejected with `CANNOT_BORROW_CONSTANT_AS_MUTABLE` (3032); a variable
 passed to the same parameter is unaffected. An assignment (`=` or a compound form) whose target is a file constant, or a field or element path
-rooted in one (`ORIGIN.x = 1;`, `TABLE[0] = 1;`), is `ASSIGNMENT_TO_CONSTANT` (3040), raised at the target; a local,
+rooted in one (`ORIGIN.x = 1;`, `TABLE[0] = 1;`), is `ASSIGNMENT_TO_CONSTANT` (3040), raised at the target. A constant of
+an `implementation` block counts too, by its bare name inside the block, by `Self.NAME` or by `Type.NAME`; a local,
 parameter or `for` variable of the same name hides the constant and may be assigned. Tracking of a live borrow across
 statements is a design decision recorded in the last bullet of `## Gaps`.
 
@@ -376,8 +664,9 @@ an active `partition mutable`, or a field access (`a.b`, nested too) whose base 
 **Spawn and partition shape.** After the scope check, the operand of a `spawn` must be a call: any other operand (a name,
 a literal, a macro call such as `print!("x")`) is rejected with `SPAWN_NEEDS_CALL` (3063) at the operand. The source of a
 `partition` is rejected with `PARTITION_SOURCE_NOT_ARRAY` (3064) at the source when sema knows it is not an array: a number
-literal, a primitive (a `string` too), a structure or an enum. Any other shape is accepted, so a `c.array`, an `array`, a
-`vector`, a `slice`, a `pointer` and a call result raise nothing. A construct that fails the scope check raises no shape code.
+literal, a primitive (a `string` too), a structure, an enum, a function value, or a registered type with no index, no
+partition part role and no owner role (a raw pointer, a spawn handle, a keyed table). A call result is judged by its type. An
+owner and a type that sema cannot trace to a registered descriptor are accepted. A construct that fails the scope check raises no shape code.
 
 **Parallel bodies.** The body of a `partition` runs once for each part, so it is a worker body and ends
 only at its own `end`. A `return`, a `break` or a `continue` in it that would leave the body is rejected
@@ -429,6 +718,11 @@ value, a call argument or an operand of a binary or unary operator (not of `spaw
 `return;` are valid. A call through a local or parameter whose declared type is a primitive, a structure or an enum
 is `TYPE_MISMATCH` (3011), as that value is not a function.
 
+**Case values and range bounds.** When the switch value is a primitive or an enum, each value of each `case` must fit
+its type, else `TYPE_MISMATCH` (3011) at the value: a literal fits as it fits a declared type, and `Enum.Variant` of an
+enum of the file is a value of that enum only. A value of an unknown type fits. The two bounds of a `for` range must be
+numbers of one type (a literal fits the other bound), else 3011 at the wrong bound.
+
 **Switch arms.** A `switch` has at most one `default` arm, and no `case` value appears twice. Each second
 and later `default` arm is rejected with `DUPLICATE_SWITCH_ARM` (3025), and so is each `case` value that
 appeared before, in one list (`case 1, 1`) or across arms. The first use is never reported, and each repeat
@@ -450,33 +744,45 @@ program the parser accepts.
 **Opaque structures.** An `opaque structure` has no known layout, so sema refuses to build it, to read a field of it,
 to apply an operator to it and to hold it by value in a structure. A struct literal of an opaque type, a field read
 and a binary operation whose operand is an opaque name raise `OPAQUE_TYPE_MISUSE` (3057), and a `FIELD_DECLARATION`
-whose type is the bare name of an opaque structure raises `OPAQUE_FIELD_BY_VALUE` (3058). `owned<T>`,
-`pointer<T>`, a borrow and a C call stay legal.
+whose type stands for an opaque structure raises `OPAQUE_FIELD_BY_VALUE` (3058). An opaque structure of a `FOUND`
+namespace, reached by an alias, a full path or an imported symbol, is one too. A type
+with the owner role, a raw pointer, a borrow and a C call stay legal.
 
 **Expressions.** Sema gives an expression a type only when it is cheap to know, and never guesses. A
-literal has its own type. A name has the declared type of its local, parameter or file constant. A field, or an
-element of an `array`, `slice`, `vector` or `pointer`, has the type sema already reads for the ownership check
-(a primitive only). A built-in `convert<T>(x)` has the type `T`. A `-`, `~`, `copy` or `move` keeps the type of its operand. `not`, `and`, `or` and a
-comparison give `boolean`. A shift gives the type of its left side. Any other binary operator, `**` too, gives the
-type of both sides when they are the same primitive, or when one side is a number literal and the other a
-primitive of its family; it gives no type when they differ. A call of a plain function of the file (not
-generic, and not hidden by a local of the same name) has the declared result type. A call whose callee is a
-structure or an enum name of the file has that type, as construction ("Type construction call" above). Everything else has an
-unknown type and is accepted. The type of an expression is compared with the declared type when that type
+literal has its own type. A name has the declared type of its local, parameter or constant (a constant of the file, of
+the implementation block being visited, or `Type.NAME`). A field has the type its structure declares for it, and a
+field of a generic structure takes the type arguments of the value (`b.value` is `float32` when `b` is `Box<float32>`);
+`Self` is the implemented type. An element of an `array`, `slice`, `vector` or `pointer` has the first type argument. A
+built-in `convert<T>(x)` has the type `T`. A `-`, `~`, `copy` or `move` keeps the type of its operand. `not`, `and`,
+`or` and a comparison give `boolean`. A shift gives the type of its left side. Any other binary operator, `**` too,
+gives the type of both sides when they are the same primitive, or when one side is a number literal and the other a
+primitive of its family; it gives no type when they differ. A call has the declared result of its callee: a plain
+function of the file (not hidden by a local of the same name), a method or a static function of an
+`implementation` of a structure or an enum of the file, or a value of a function type. A generic callee
+is read after its arguments are bound: the written type arguments first, then the type of each argument that sema knows,
+the first binding of a name wins. A bound name stands for its type in the result and in each parameter, so an argument
+is compared with the bound parameter type (3011, 3014, 3053); a name that nothing binds is not compared. A call whose
+callee is a
+structure or an enum name of the file has that type, as construction ("Type construction call" above). Everything else
+has an unknown type and is accepted. The type of an expression is compared with the declared type when that type
 is a primitive, at a call argument of a function of the file, a local initializer, a plain `=` assignment, a
 `return` value and a constant initializer: a conversion is always written, so two primitives are the same
 only by name (`sinteger32` does not fit `sinteger64`), a number literal fits any number type, a fraction literal
-any float type, a character literal fits only `character` (a number is not a character, and a character is not a number: it has no arithmetic), and a structure fits no primitive. An alias of a primitive is the primitive. The mismatch is
-`TYPE_MISMATCH` (3011) on the expression. A name of an enum, of a library type or of a generic parameter, and an `owned`,
-`task` or `vector` value, and an `array` value, are classified as their own shapes but are never compared as a
+any float type, a character literal fits only `character` (a number is not a character, and a character is not a number: it has no arithmetic), and a structure fits no primitive. An alias of a primitive is the primitive. A value of a registered type with
+the view role or the raw pointer role fits no primitive either, and a declared type of one of these two roles is compared too: a literal, a
+primitive, a structure or an enum does not fit it (its element type is the first type argument, compared as below). A `convert` of a view or
+of a raw pointer is not judged, and a view or raw pointer value fits a name that a host signature gives. The mismatch is
+`TYPE_MISMATCH` (3011) on the expression. A name of an enum, of a library type or of a generic parameter, and a value of a registered type of the move class
+or an inline run, are classified as their own shapes but are never compared as a
 whole; only their type arguments are (next paragraph).
 
 The type arguments of a generic type are compared with the declared type before the primitive check, at the same
-places. When the declared type and the type of the value (a name, a field, an index, a struct literal, with one
-`copy` or `move` and any parentheses looked through) have the same head name and the same number of type arguments,
-each pair must agree: two primitives by name, two value arguments by text, two nested generic types by this rule. A
-difference is `GENERIC_ARGUMENT_MISMATCH` (3014) on the value. The variable of a `for each` has the element type of
-the collection: one `owned<...>` is peeled, then the first type argument of `vector`, `array` or `slice`; with two
+places. The declared type and the type of the value (any expression that has a written type, with `copy`, `move` and
+parentheses looked through) must both have type arguments. Their heads are compared first: a head is a registered
+type, a primitive, or a structure or an enum of the file, and two different heads (`c.memory.Owned<marea.vector.Vector<T>>`
+for `marea.vector.Vector<T>`) are `GENERIC_ARGUMENT_MISMATCH` (3014) on the value. With one head, each pair of
+arguments must agree: two value arguments by text and two types by this rule again. The variable of a `for each` has the element type of
+the collection: one type with the owner role is peeled, then the first type argument of a registered type with the index protocol; with two
 variables the second is the element and the first, the index, stays untyped. A field read through it is compared
 like a field read through a parameter (3011).
 
@@ -491,14 +797,22 @@ operand that is a structure, an enum, a library type, a generic result or any ot
 A shift is not compared here, as its right side may have another type; it has its own rule below.
 
 **What an operand may be.** A bitwise operator (`&`, `|`, `^`, `~` and `&=`, `|=`, `^=`) with an operand that is a
-float (a `float32` or `float64` name or a float literal), a `boolean` or a `string` is `BITWISE_OPERAND_NOT_INTEGER`
-(3038); `and`, `or` and `not` with an operand of a known type that is not `boolean`, or a number, string or character
-literal, is `LOGICAL_OPERAND_NOT_BOOLEAN` (3039). Each is raised once on the expression, and only when the two operands
-already agree in type: a pair that raises `TYPE_MISMATCH` (3011) raises no second code. An operand of an unknown type is
-accepted, and a `character` operand of a bitwise operator is accepted.
+float (a `float32` or `float64` name or a float literal), a `boolean`, a `string` or a `character` is
+`BITWISE_OPERAND_NOT_INTEGER` (3038); `and`, `or` and `not` with an operand of a known type that is not `boolean`, or a
+number, string or character literal, is `LOGICAL_OPERAND_NOT_BOOLEAN` (3039). An arithmetic operator (`+`, `-`, `*`,
+`/`, `%`, `**`, their wrapping, saturating and compound forms and unary `-`) with a `boolean` or `string` operand, and a
+comparison between two `boolean` operands (`==` and `!=` too), is `TYPE_MISMATCH` (3011). Each is raised once on the
+expression, and only when the two operands already agree in type: a pair that raises 3011 raises no second code. An
+operand of an unknown type is accepted, and so is an expression that holds a node the parser could not build.
 
-**Raw pointer.** A `local` whose type is `pointer<T>` is `RAW_POINTER_OUTSIDE_UNSAFE` (3041) unless an `unsafe ... end` block
-encloses it. A block nested in the `unsafe` block is enclosed too; the block ends the cover at its `end`. The context
+**A declared operator.** When the left side of a binary operator is a structure or an enum of the file and exactly one
+function of its implementations has `#[operator = "token"]` for the operator, the right side must fit the second
+parameter of that function (`Self` is the type of the left side), else `TYPE_MISMATCH` (3011) at the expression. A value
+of an unknown type fits. The built-in operand rules above do not apply to such an expression.
+
+**Raw pointer.** A written type whose descriptor has the raw pointer role (a local, a parameter, a result, a field, an alias or a type
+argument) is `RAW_POINTER_OUTSIDE_UNSAFE` (3041) unless an `unsafe ... end` block encloses it. A type alias, of this file or of a `FOUND` namespace, is
+read as the type that it stands for, so each use of an alias of a raw pointer is 3041 too. A block nested in the `unsafe` block is enclosed too; the block ends the cover at its `end`. The context
 keeps an `unsafeDepth` counter beside `loopDepth`, and the scope mark restores it.
 
 **Local initial value.** A `local` needs a written value: `local x: sinteger32;` is `LOCAL_WITHOUT_INITIAL_VALUE` (3065),
@@ -506,40 +820,50 @@ raised at the local, once per local. The rule is syntactic and needs no flow ana
 does not change it. The grammar still lets the parser accept the form (the initializer is optional there); sema rejects it.
 A local with an `ERROR_NODE` as its name or type is not checked.
 
-**Constant cycle.** A file constant whose initial value reaches the constant itself, directly or through other file
-constants, is `CYCLIC_CONSTANT` (3055), raised once for each cycle at the constant of the cycle that comes first in the
-file. A name counts as an edge only where it stands as a value: a member name, a field key, a type and a call target are
-not followed. A constant that only uses a cycle without being on it is not reported. The search runs once, after the
+**Constant cycle.** A file constant, or a constant of an `implementation` block, whose initial value reaches the
+constant itself, directly or through other constants, is `CYCLIC_CONSTANT` (3055), raised once for each cycle at the constant of the cycle that comes first in the
+file. A name counts as an edge only where it stands as a value: a field key, a type and a call target are not
+followed, and a member name is followed only in `Type.NAME`, `Self.NAME` and `ns.NAME`. A qualified name, and a name
+that a member import binds, is read through the import resolver: the constants of another namespace are walked back to
+the constants of this file that they reach. A constant that only uses a cycle without being on it is not reported. The search runs once, after the
 declaration checks and before the visit, with a visit state kept in the arena and an explicit stack, so a long chain
 needs no recursion.
 
 **Compile-time macros.** A `compile_error!(...)` call always raises `COMPILE_TIME_ASSERTION_FAILED` (3059) at the
 call, in a function body and at the top level, whatever its arguments are (a wrong argument shape adds 3061 before it). A `static_assert!(condition, "text")` call
 with two arguments raises 3059 when its condition is a constant that evaluates to false. A small evaluator reads the
-condition: boolean and integer literals (decimal, `0x`, `0b`, `_`), a file constant (read through its initial value,
-with a depth limit of 32, so a cyclic constant ends as unknown), parentheses, unary `not` and unary minus, `and`, `or`,
-the comparisons `==`, `!=`, `<`, `<=`, `>`, `>=` and `+ - * / %` over 64-bit integers. It answers true, false or
-unknown, and an unknown condition is accepted. Overflow, a division by zero, a call, `size_of`, `align_of`, a name that
-is not a file constant (a local or a parameter of the same name hides the constant) and every other node are unknown:
-the rules of constant arithmetic are other checks, never reported here. A `static_assert!` with another argument count
+condition: boolean, integer (decimal, `0x`, `0b`, `_`), float and string literals, a file constant (read through its
+initial value in its declared type, with a depth limit of 32, so a cyclic constant ends as unknown), `size_of<T>()` and
+`align_of<T>()` of a primitive with a width, an inline run, or a structure or enum of the file (the layout record, as a
+`uinteger64`), parentheses, unary `not` and unary minus, `and`, `or`, the comparisons `==`, `!=`, `<`, `<=`, `>`, `>=`
+and `+ - * / %`. Integer arithmetic on a typed value of 8, 16 or 32 bits wraps in that width; literals alone and 64-bit
+types are computed in 64 bits. A `float32` constant is rounded to its width. Two strings fold for `==` and `!=` only,
+and two different texts that hold an escape are unknown. It answers true, false or unknown, and an unknown condition is
+accepted. An overflow of 64 bits, a division by zero, any other call, a character, a name that is not a file constant (a
+local or a parameter of the same name hides the constant) and every other node are unknown: the rules of constant
+arithmetic are other checks, never reported here. A `static_assert!` with another argument count
 is skipped. The message holds the text of the string literal argument without its quotes, as
 `compile_error: <text>` or `static assertion failed: <text>`, and the prefix alone when there is none.
 
 **Visibility across namespaces.** The default visibility is public: only an explicit `#[visibility = private]` hides a
 symbol, a type or a field from another file (a file attribute `#![visibility = private]` hides every symbol of the file,
 but never a field, which reads only its own attribute). A whole-namespace import (`import a.b;`, or `import a.b as x;`)
-brings no names, so three uses reach into the tree that the resolver answers `FOUND` for. `b.hidden()` or `b.LIMIT`,
-where the member is a top-level declaration that is private, is `PRIVATE_SYMBOL_ACCESS` (3066) at the member. A type
-written `b.Secret`, in a parameter, local, field, return, generic argument or struct literal, where the structure,
-enum, opaque or alias is private, is `PRIVATE_TYPE_ACCESS` (3067) at the type. A private field of a structure that is
-not private, read or written as `box.value` where `box` is a local or parameter written `b.Box`, or set in a literal
-`b.Box{ value = 1 }`, is `PRIVATE_FIELD_ACCESS` (3068) at the field name; a private structure is 3067 at its written
-type and never also 3068. A local or a generic parameter that hides the namespace name is no namespace access. A
-namespace that the resolver answers `EXTERNAL` or `NOT_FOUND` is never checked, and neither is a field of the same
-file. An import of one symbol or a member list is checked the same way: a private symbol is `UNRESOLVED_IMPORT`.
+brings no names, so the uses below reach into the tree that the resolver answers `FOUND` for. `b.hidden()` or `b.LIMIT`,
+where the member is a top-level declaration that is private, is `PRIVATE_SYMBOL_ACCESS` (3066) at the member, and so is
+a function of an implementation block that is private by its own attribute or by the attribute of its block. A type
+written `b.Secret` or `a.b.Secret`, in a parameter, local, field, return, generic argument or struct literal, where the
+structure, enum, opaque or alias is private, is `PRIVATE_TYPE_ACCESS` (3067) at the type. A private field of a structure
+of another namespace, read, written or set in a literal, is `PRIVATE_FIELD_ACCESS` (3068) at the field name. Each segment
+of a member chain is looked up in the declaration of the segment before it, so the value may be a local, a constant, a
+field, an element, or the result of a function or a method, and its type may be reached through a namespace alias, a full
+path, an imported symbol or a type alias. A private structure that this file writes is 3067 at its written type and never
+also 3068. A local or a generic parameter that hides the namespace name is no namespace access. A namespace that the
+resolver answers `EXTERNAL` or `NOT_FOUND` is never checked, and neither is a member of a type of the same file. An
+import of one symbol or a member list is checked the same way: a private symbol is `UNRESOLVED_IMPORT`.
 
-**Built-in macro.** `MAREA_SemaCheckMacro` (`MAREASemaMacro.c`) checks every `MACRO_CALL` against one table of the 13
-built-in macros, the table of `examples/macros/builtin.marea`. A name that is not in the table is `UNKNOWN_MACRO` (3060),
+**Built-in macro.** `MAREA_SemaCheckMacro` (`MAREASemaMacro.c`) checks every `MACRO_CALL` against one table of the 14
+built-in macros (the table of `examples/macros/builtin.marea` and `build_value`), and a call with a qualified name against the
+macros that a shipped library registered. A name that is not in the table is `UNKNOWN_MACRO` (3060),
 raised at the call. A call with the wrong arguments is `INVALID_MACRO_ARGUMENT` (3061), raised at the offending argument,
 or at the argument list when the count is wrong; at most one diagnostic is raised for a call, and a call with an
 `ERROR_NODE` among its arguments raises nothing. The message names the macro.
@@ -550,36 +874,75 @@ or at the argument list when the count is wrong; at most one diagnostic is raise
 | `unreachable` | exactly 0 | none |
 | `compile_error` | exactly 1: a string literal | none |
 | `static_assert` | exactly 2: a condition, a string literal | none |
-| `include_bytes`, `include_text` | exactly 1: a string literal | `c.array<uinteger8>` (not typed here), `string` |
+| `include_bytes`, `include_text` | exactly 1: a string literal | `marea.array.Array<uinteger8, N>` (see "Macros of a library"), `string` |
 | `format` | 1 or more: a string literal, then the values | `string` |
 | `print` | 1 or more: a string literal, then the values | none |
 | `log` | 2 or more: a level name, a string literal, then the values | none |
-| `line`, `file`, `namespace` | exactly 0 | not typed (`line`), `string` |
+| `line`, `file`, `namespace` | exactly 0 | `uinteger32` (`line`), `string` |
+| `build_value` | exactly 3: a string literal (the name), a type name, a default | the type of the second argument |
 
 Four decisions bind the table. (1) The log levels are the five names `trace`, `debug`, `info`, `warning` and `error`
 (a bare name, not a string); the language docs did not list them, so the list is an assumption that the user must
-confirm. A level that is not a bare name of the list is rejected, a literal included. (2) A condition or a text argument
-is rejected only when it is a literal of the wrong kind: an integer, float, boolean or character literal for a text; an
-integer, float, string or character literal for a condition. Any other expression has an unknown type and is accepted.
-(3) The `{}` check runs when the format text is a string literal: it counts the occurrences of the two characters `{}`
-and compares the count with the number of value arguments. A lone `{` or `}` is skipped. (4) `line!()` is not typed;
+confirm. A level that is not a bare name of the list is rejected, a literal included. (2) A text argument (a message, a format text, a path) must be a string literal. A condition is rejected when its type
+is known and is not `boolean` (see "Condition type"); a condition of an unknown type is accepted. (3) The count of the two
+characters `{}` in the format text must equal the number of value arguments (a lone `{` or `}` is skipped), and each value
+must be printable: a value whose type is known to be a structure, an enum, a view, a raw pointer, an array, a function
+type or no value is rejected, while a primitive, a literal and a value of an unknown, generic or library type pass. (4) `line!()` is `uinteger32`;
 `file!()` and `namespace!()` are `string`.
 
 The value of a macro is part of the type check. A macro with no value has a shape that fits no type, so it is
 `TYPE_MISMATCH` (3011) where a primitive is expected: the initial value of a `local` (`local n: sinteger32 = print!("x");`),
 a returned value, an argument of a call or an operand. A macro that gives a `string` fits a `string` and is a 3011 for
 any other primitive (`return format!("x");` in a function that returns `sinteger32`). A macro statement is not a value
-use and raises nothing, and the typed tree is not changed.
+use and raises nothing. In the typed tree only a bare `line!()` and `include_bytes!` have a resolved type
+(`uinteger32`, `marea.array.Array<uinteger8,N>`).
 
-**Condition type.** The condition of an `if`, an `elseif` or a `while` must be a `boolean`: a condition with a known
-primitive type other than `boolean`, or a number, string or character literal, is `NON_BOOLEAN_CONDITION` (3043), raised
-at the condition once. `true`, `false`, a comparison, `and`, `or`, `not` and a `boolean` name pass. A `switch` subject and
+**`build_value!`.** `build_value!("NAME", Type, default)` reads a value that the build gave (see "Caller inputs"). `Type` is
+written bare: a primitive (`boolean`, an integer, `float32`, `float64`, `character`, `string`) or an enum declared in the file;
+a qualified name is accepted and not checked, and any other name is `INVALID_MACRO_ARGUMENT`. An enum is usable when every
+field of every variant has a default (decision 53), otherwise `INVALID_MACRO_ARGUMENT` at the type argument. A variant with
+data is built by its name, like one with none. The default must fit the type, otherwise `TYPE_MISMATCH` (an enum default
+is a member, so a literal is a mismatch) or `LITERAL_OUT_OF_RANGE`. When a pair of the settings holds the name, its text must
+convert: `true` or `false`; an integer is decimal or `0x`, with an optional `-`, and in the range of the type; a float is a
+decimal number with an optional fraction and exponent; a character is one character or one between single quotes; a string is
+any text; an enum is a variant name (never its tag number). A text that does not convert is `INVALID_BUILD_VALUE` (3086),
+never replaced by the default, and the message names the setting, the text and the type. The call has the type of its second
+argument, so `constant X: string = build_value!("X", sinteger32, 1);` is `TYPE_MISMATCH`. A `static_assert!` reads the value of
+a boolean or integer `build_value!` call (the given text, or the default when none is given); a value of another type is
+unknown to it. `build_value` is a reserved macro name.
+
+**Macros of a library.** A call whose name is a qualified name (`array.include_bytes!("file")`,
+`marea.array.include_bytes!("file")`) is read as a full path, like any other: an alias expands to its namespace, and a
+namespace that no import or require covers is `UNIMPORTED_NAMESPACE` (3078). The last name is looked up in the registry under
+that namespace; a name that no registered macro has, a namespace that no resolver knows and a library that is off are
+`UNKNOWN_MACRO` (3060). The arguments must be the kinds the descriptor gives, otherwise `INVALID_MACRO_ARGUMENT`, and the
+expander must accept the call, otherwise `INVALID_MACRO_ARGUMENT` too (for example a file that the include resolver does not
+know). The value has the result type of the descriptor, a library type, so it fits no primitive (`TYPE_MISMATCH`), and a declared
+type that is written `Library.Type<Element, Count>` must be that type with the element and the count the expander gave
+(`GENERIC_ARGUMENT_MISMATCH` otherwise). The one macro of a library that its bare name reaches is `include_bytes!`, which
+stands for the macro of that name that `marea.array` registers: it has the same result type, so
+`constant LOGO: marea.array.Array<uinteger8, 12> = include_bytes!("logo.bin");` needs a file of 12 bytes in the include
+resolver. With `marea.array` off there is no such macro and the bare call has no type. The bare name stays in the table of
+the language macros; it leaves with the real macro (see Gaps).
+
+**Condition type.** The condition of an `if`, an `elseif`, a `while` or a `do ... while` must be a `boolean`: a condition
+with a known type other than `boolean` (a primitive, a structure, an enum, a view, a raw pointer, a function type or an
+array), or a number, string or character literal, is `NON_BOOLEAN_CONDITION` (3043), raised at the condition once. `true`,
+`false`, a comparison, `and`, `or`, `not` and a `boolean` name pass. A value of an unknown type, of a generic parameter or
+of a library type passes too. A `switch` subject and
 an expression statement are not conditions and are not checked.
+
+**Do-while.** `do body while condition end` checks its condition like a `while` (`NON_BOOLEAN_CONDITION` and the names of the
+expression), and its body is a loop body: `break` and `continue` are valid in it (`JUMP_OUTSIDE_LOOP` ends with the statement),
+a name that the body declares ends at the `while`, so the condition cannot read it (`UNDECLARED_NAME`; decision 4), and a moved
+value is judged as in any loop. The loop does not end a path by itself, so a function with a result still needs its `return`
+after it.
 
 **Recursive type and cyclic alias.** `MAREA_SemaCheckDeclarations` runs two passes over the top-level declarations,
 the alias pass first. A `type` alias that leads back to itself through other aliases is `CYCLIC_TYPE_ALIAS` (3046),
 reported once for each alias on the cycle, at the alias. A structure or enum that holds itself by value, directly or
-through other structures, enums, aliases and the element of `array<T, N>`, is `RECURSIVE_TYPE` (3045), reported once for
+through other structures, enums, aliases, the element of an inline run and a generic structure of the file
+that holds the type argument by value (`Box<Node>`), is `RECURSIVE_TYPE` (3045), reported once for
 each such declaration, at the field or variant field that holds the path back. `owned`, `vector`, `pointer`, `slice`,
 `task` and a function type are indirect and raise nothing. Both walks read the name table only, so a type of another
 file is skipped, and both are bounded by the number of declarations of the file.
@@ -637,17 +1000,24 @@ constant of that block shadows a top-level constant of the same name: the inner 
 type that the block gives it. A parameter or a local still hides both. A constant of one block is not a name in
 another block or outside the blocks.
 
+**Loop and scope names.** The name of a `for`, `for each`, `partition` or `with` statement comes into scope after
+its header, for the body only. It is a name of the body block: it cannot repeat a local of the block that holds the
+statement, and a local of the body cannot repeat it (`NAME_ALREADY_DECLARED`, 3003). It can hide a name of an outer
+block, and a statement in the body can hide it with a name of its own.
+
 **Names in expressions.** A bare name in the initializer of a local, either side of an assignment, an
 expression statement, the condition of an `if`, `elseif` or `while`, a `return` value and a `switch` value (and
 below them: operands, arguments, indexes, entries of a literal value) must be declared, or sema raises
 `UNDECLARED_NAME` (3004) on it. A name is declared when it is a local or parameter in scope, the name of a
-`for`, `for each`, `partition` or `with` statement (hidden from the end of that statement), a declaration or
+`for`, `for each`, `partition` or `with` statement (in scope in its body only, not in its own header), a declaration or
 import of the file, a generic parameter in scope, a constant of an `implementation` block inside that block only, the
-first segment of the file namespace, or one of the built-ins `c`, `size_of`, `align_of`, `convert` and `Self`.
+first segment of the file namespace, or one of the built-ins `size_of`, `align_of`, `convert` and `Self`.
 A member name, a field key of a literal value, a type and a macro call are not checked. The bare name that
-starts a member chain (`stdio.puts(text)`) is checked like any other name, so a namespace that no import binds,
-or that only the original name of an alias reaches (`import c.stdio as output;` then `stdio.puts(text)`), raises
-`UNDECLARED_NAME` (3004). The local that a
+starts a member chain is checked like any other name, with one more rule: a chain of identifiers whose first name nothing
+declares is read as a full path. When a resolver knows a prefix of it as a namespace, a cover must reach the path (a
+cover: the chain is accepted whole; none: `UNIMPORTED_NAMESPACE`, 3078). When no resolver knows any prefix, the first name
+is checked like any other name, so a short name that no alias binds (`require c.stdio;` then `stdio.puts(text)`), or that
+only the original name of an alias reaches, raises `UNDECLARED_NAME` (3004). The local that a
 `for`, `for each`, `partition` or `with` name hides is never used to type the name.
 A function is declared before its use: a bare function name inside a function body that stands before the declaration
 of that function in the file raises `UNDECLARED_NAME` (3004) with the message "function is used before its declaration".
@@ -714,7 +1084,7 @@ intentional exception; no attribute exempts any other user type), `BORROW` (a pa
 effective `semantics` is `reference_read_only`, a `for each` variable, a `partition` part or a
 `with` name; this is also a parameter with no attribute, whose type is not by value and does not
 move in), `MUTABLE_BORROW` (a parameter whose effective `semantics` is an explicit
-`reference_mutable`), `MOVE` (an `owned<T>` or `task<T>` parameter or value), `COPY` (a `copy x`
+`reference_mutable`), `MOVE` (an `c.memory.Owned<T>` or `marea.tasks.Task<T>` parameter or value), `COPY` (a `copy x`
 expression). A node this cannot classify defaults to `VALUE`.
 
 **Call results.** A call expression's typed node carries the type the call returns. A call of a function of the
@@ -724,7 +1094,7 @@ declaration, never the `construct` function that checked its arguments. A built-
 (with no name `convert` bound in the unit) carries the type `T`, read in the scope of the caller. When the callee is
 generic and the call gives explicit type arguments, a return type that is one generic parameter (`Item`) is
 replaced by the type argument at the same place (`same<sinteger32>(5)` is `sinteger32`). When there are no type
-arguments, or the return type is a compound of a parameter (`c.array<Item>`), the typed node keeps the raw type: a
+arguments, or the return type is a compound of a parameter (`marea.array.Array<Item>`), the typed node keeps the raw type: a
 bare parameter is tagged `GENERIC` with its name - never a guess, never a crash. Resolving a result from inferred
 type arguments is deferred to when the `ir` stage needs one for real.
 
@@ -739,18 +1109,18 @@ function with no result type and a written type that sema cannot spell return
 guesses. A null node, text or length is `ERROR_NULL_POINTER`. The accessor is read-only and gives the same text on
 every run. The canonical spelling:
 
-- Type arguments follow the name in angle brackets, joined by a comma with no space: `array<sinteger32,4>`,
-  `vector<array<sinteger32,4>>`, `vector<Point>`. An integer argument is its text.
+- Type arguments follow the name in angle brackets, joined by a comma with no space: `marea.array.Array<sinteger32,4>`,
+  `marea.vector.Vector<marea.array.Array<sinteger32,4>>`, `marea.vector.Vector<Point>`. An integer argument is its text.
 - A function type is `function(` the parameter types joined by a comma `)`, then `:` and the result type when there
   is one. A parameter name is never part of it: `function(sinteger32,sinteger32):sinteger32`, `function(string)`.
-- A dotted name is kept whole: `c.array<string>`.
+- A dotted name is kept whole: `marea.array.Array<string>`.
 - An import alias is replaced the way the `ir` does it (see [the IR doc](../ir/marea-ir.md), "Aliases"): a whole-path
   alias by the last segment of its path, a member alias by the member path as written, and the head of a dotted name
   that is an import alias by that original, with the tail kept. Written type arguments are kept after it: with
-  `import c.collections.list as lst;`, `lst<sinteger32>` is `list<sinteger32>`. An import without `as` stands for itself.
+  `import c.collections.list as lst;`, `lst<sinteger32>` is `list<sinteger32>`. A full path written in the source is kept whole.
 - A local type alias without generic parameters, written with no type arguments, is replaced by the type it names, and
   a chain is followed up to 8 steps, as in the `ir`. Unlike the `ir`, which keeps only the head name, the arguments of
-  the target are kept: with `type Grid = array<Point, 4>;`, `Grid` is `array<Point,4>`. A generic alias is kept as
+  the target are kept: with `type Grid = marea.array.Array<Point, 4>;`, `Grid` is `marea.array.Array<Point,4>`. A generic alias is kept as
   written.
 - A generic parameter in scope is its own name: `Item`.
 - `void` is the text of the type of a call that returns nothing (see the call row of "Resolved type of an expression"). It is
@@ -768,15 +1138,15 @@ type. The declared name of a `for` and of a `for each` is the exception, see "Lo
 | shift | the type of the left operand |
 | `-` and `~` | the type of the operand |
 | `copy x`, `move x`, `(x)` | the type of `x`, with its type arguments |
-| `spawn call` | `task<T>`, where `T` is the type of the call |
+| `spawn call` | the registered type with the spawn handle role around `T` (`marea.tasks.Task<float32>`), where `T` is the type of the call; no type when no registered type holds the role |
 | identifier | the type of its declaration: a parameter or a local, a constant of the file or of the implementation block, a value parameter such as `Count` in `<constant Count: sinteger32>`, or a function name as its function type |
-| name of a loop or a scope | read as a value, it has the type its statement gives it. `for i in a .. b`: the type of the bounds, as for an operation (a number literal never decides, two literals give the type of the first). `for each key, value in c`: the value is the element type of `array`, `vector` or `slice` (also under `c.`), the key is `uinteger64`. `partition v into n as part`: `slice<T>`, where `T` is the element type of `v`. `with e as name`: the type of `e`. The name has no type when the type that decides it has none |
+| name of a loop or a scope | read as a value, it has the type its statement gives it. `for i in a .. b`: the type of the bounds, as for an operation (a number literal never decides, two literals give the type of the first). `for each key, value in c`: the value is the element type of `array`, `vector` or `slice` (also under `c.`), the key is `uinteger64`. `partition v into n as part`: `c.memory.Slice<T>`, where `T` is the element type of `v`. `with e as name`: the type of `e`. The name has no type when the type that decides it has none |
 | member access | the declared type of the field. On a value of a generic structure, the type arguments of the value replace the parameters of the structure. An enum variant (`Color.Red`) is the enum. A field of a variant of an enum is read on the enum value. `Type.NAME` is a constant of an implementation block. A method or a static function, named with no call, is its function type with the receiver first: `function(Vector2,float64)` |
 | index access | the first type argument of `array`, `slice`, `vector` or `pointer` (also under `c.`) |
 | call | the declared result type of the callee. `convert<T>(x)` is `T`. A call on the name of a structure or enum of the file is that type. A call of a method, a static function, a function value or a local alias of a function type is the result of that function. A call of one of these with no result type is `void`, and `spawn` of such a call keeps no type. `size_of<T>()` and `align_of<T>()` (with no name of the same text bound in the unit) are `uinteger64`; the names `size_of`, `align_of` and `convert` as a callee keep no type of their own. A call of a generic function of the file, by its bare name and with no written type arguments, has its type arguments inferred (see "Inferred type arguments" below); a method call on a receiver whose type is a generic parameter in scope has the result of the contract function its where clause lists for it (see "A method on a generic receiver") |
-| structure, array or indexed literal | the written type (`Point`, `array<float32,4>`) |
+| structure, array or indexed literal | the written type (`Point`, `marea.array.Array<float32,4>`) |
 
-A value that has `owned<T>` as type gives its members and elements as `T` does. A type written for another declaration
+A value that has `c.memory.Owned<T>` as type gives its members and elements as `T` does. A type written for another declaration
 is read with the type arguments that fill it: a generic function takes the explicit type arguments of the call
 (`make<sinteger32, float32>(x, y)` gives `Pair<float32,sinteger32>` for a result written `Pair<Second, First>`), a
 generic structure takes the type arguments of the value, and `Self` is the implemented type. When a parameter has no
@@ -798,7 +1168,7 @@ statement (children in the shape of the AST, see "Typed AST hand-off"):
 | `FOR_RANGE_STATEMENT` | child 1 and child 2, the bounds | the type of each bound, as of any expression |
 | `FOR_EACH_STATEMENT` with one name | child 0, the value | the element type of the collection |
 | `FOR_EACH_STATEMENT` with two names | child 0, the key; child 1, the value | `uinteger64`; the element type of the collection |
-| `FOR_EACH_STATEMENT` | the child before the last, the collection | the type of the collection expression (`array<float32,4>`, `vector<uinteger8>`, `slice<float32>`, `c.array<sinteger32>`) |
+| `FOR_EACH_STATEMENT` | the child before the last, the collection | the type of the collection expression (`marea.array.Array<float32,4>`, `marea.vector.Vector<uinteger8>`, `c.memory.Slice<float32>`) |
 
 The names come first, then the collection, then the body, so a `for each` has 3 children with one name and 4 with two:
 the collection is child `childCount - 2`, and the value is the last name, child `childCount - 3`. The collection of
@@ -818,14 +1188,24 @@ is never in the list.
 value. `MAREA_SemaTypedNodeIsQualifier` is true for it, and it has no resolved type, so it is not an expression that
 misses a type. No local, parameter or generic parameter may have its name, and it is one of these: the name of a
 structure, an enum or an opaque type of the file (`Planet` in `Planet.Earth`, `Vector2` in `Vector2.origin()`); a
-namespace import or its alias, whatever the resolver answered (`stdio`, `lib`); an imported enum, or a type that a
-`FOUND` namespace declares and the file imports by name; a name with no declaration at all, which sema takes for a
-namespace (`stdio.puts` with no `import`). A function or a constant imported by name is a value, not a qualifier. Only
+alias of a namespace, whatever the resolver answered (`io`, `lib`); a chain that a cover reaches, which is the full path of a
+namespace or of a type of one (`c.stdio` in `c.stdio.puts`, flagged on the `MEMBER_ACCESS` node); an imported enum, or a
+type that a `FOUND` namespace declares and the file imports by name; a name with no declaration at all, which sema takes for a
+namespace. A function or a constant imported by name is a value, not a qualifier. Only
 an `IDENTIFIER` is flagged: a dotted type name such as `c.array` is not an expression. The member after a qualifier is
 typed by the rules above (an enum variant, a constant or a static function of the file) or by the rule below.
 
+**External calls.** `MAREA_SemaTypedNodeIsExternalCall` is true for a `CALL_EXPRESSION` of a name that the host or a
+library registered: its callee names a member of a namespace that a resolver answers `EXTERNAL`, or a registered
+function of a shipped library that has a source file (see "Registered functions of a shipped library"). The callee is read in
+the scope of the call, through parentheses: a full path that a cover reaches (`c.math.pow`), a path through an alias of
+an import or a require (`io.puts`) and a bare name that an alias bound to one member (`power`). A call into a tree of
+the project (a `FOUND` namespace), through `Self`, through a local type alias, of a declaration of the file or of its
+own namespace, or of a local or a parameter (also one that hides an alias) is not one. The ir keeps the answer on the call,
+and a backend sends only such a call to a C function.
+
 **Members of a FOUND namespace.** When the name on the left of a member access stands for a namespace that the
-resolver answers `FOUND` (an import with or without an alias), the member is typed from the tree that the resolver gave.
+resolver answers `FOUND` (an alias, or a full path that a cover reaches), the member is typed from the tree that the resolver gave.
 Only a function that is not `#[visibility = private]` (its function type, so a call gives the declared result) and a
 constant (its declared type) are typed. A bare name that an import bound to one such symbol (`import a.b.c as d;`,
 `import a.b { c };`) is typed the same way. A type written in that other file is read in that file, never in this one.
@@ -838,7 +1218,7 @@ and neither has a member of an `EXTERNAL` namespace.
 
 **Inferred type arguments.** A call of a generic function of the file, by its bare name, with no written type
 arguments, unifies each parameter whose written type is a bare generic parameter (`Item`) or a compound of one
-(`array<Item,N>`, `vector<Item>`) against the resolved type text of the typed argument at the same place: a bare
+(`marea.array.Array<Item,N>`, `marea.vector.Vector<Item>`) against the resolved type text of the typed argument at the same place: a bare
 parameter binds the whole argument text, a compound parameter splits head and arguments and binds the generic part
 that the argument text has at the same place, each one recursively. The first binding of a name wins; a second
 binding of the same name that reads a different text makes the whole call keep no inferred type, the same neutral
@@ -883,7 +1263,7 @@ literal fits `float32` and `float64` only.
 A number literal with no fixing context takes the default: `sinteger32` for an integer literal and `float64` for a
 float literal. The repository named no default before this rule, so these two are the assumption of the plan, not a
 language rule from the grammar. This holds for a literal that is not a value of an expression too: the size in
-`array<sinteger32,4>` and the integer in an attribute are `sinteger32`. The key of `[key] = value` and the index of
+`marea.array.Array<sinteger32,4>` and the integer in an attribute are `sinteger32`. The key of `[key] = value` and the index of
 `a[i]` take the default. The rule only records a type: it raises no diagnostic and changes nothing that sema accepts
 or rejects.
 
@@ -908,6 +1288,7 @@ if (MAREA_SemaTypeLayoutGetVerdict(layout) == MAREA_SEMA_MEASURE_VERDICT_MEASURE
 
 | Accessor | Gives |
 |---|---|
+| `MAREA_SemaTypedNodeGetBackend` | the backend of a typed function, resolved by the build of the typed tree against the target of the context (the function attribute over the file attribute, a holding `when` over a plain item, `auto` replaced by `intrinsics`, then `vector_extension`, then `scalar`), a NUL terminated member name. `ERROR_NO_BACKEND` for any node that is not a function of a file in `marea.math`, `ERROR_NULL_POINTER` for a null argument |
 | `MAREA_SemaTypedNodeGetLayout` | the layout of a typed structure or enum declaration. `ERROR_NO_LAYOUT` for any other node (an opaque structure included), `ERROR_NULL_POINTER` for a null argument |
 | `MAREA_SemaTypeLayoutGetVerdict` | `MAREA_SEMA_MEASURE_VERDICT_MEASURED` or `MAREA_SEMA_MEASURE_VERDICT_UNDECIDED` |
 | `MAREA_SemaTypeLayoutGetReason` | `MAREA_SEMA_MEASURE_REASON_NONE` when measured, else the reason (below) |
@@ -941,8 +1322,8 @@ float64); Empty; end` the size is 24, the alignment 8, the tag 1, the payload of
 alignment and no offset. The record has the same format for a measured layout, so a later change can measure a type
 that is undecided today without a change of format. The reasons are:
 
-- `LIBRARY_TYPE`: a field or a variant field of `string`, `array`, `vector`, `pointer`, `owned`, `slice`, `task`, or
-  any type of a library under `c.{lib}` or `marea.{lib}`, or a name that sema cannot see. The layout of such a type
+- `LIBRARY_TYPE`: a field or a variant field of `string`, `pointer`, `owned`, `slice`, `task`, an inline run
+  whose count is no literal, or any other type that is no tuple of a library under `c.{lib}` or `marea.{lib}`, or a name that sema cannot see. The layout of such a type
   comes from its library later.
 - `GENERIC`: a generic structure, or a field whose type is a generic parameter.
 - `FUNCTION_TYPE`: a field of a function type. Its width is a choice of the backend.
@@ -964,22 +1345,22 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 
 | Code | Name | Example |
 |---|---|---|
-| 3001 | `UNRESOLVED_IMPORT` | `import a.b.c;` when the resolver finds neither `a.b.c` nor a `c` that is not private in `a.b`; `import a.b { f };` when `a.b` is not found, `f` is a private symbol of it or is missing, a two-part member is not a variant of an enum that is not private, or the member path has more than two parts |
+| 3001 | `UNRESOLVED_IMPORT` | `import a.b.*;` when `a.b` is not found; `import a.b.c;` when the resolver finds neither `a.b.c` nor a `c` that is not private in `a.b`; `import a.b { f };` when `a.b` is not found, `f` is a private symbol of it or is missing, a two-part member is not a variant of an enum that is not private, or the member path has more than two parts; with a registry, an `import` of a name that only the registry knows |
 | 3002 | `NAMESPACE_PATH_MISMATCH` | `namespace a.b.c;` in the file `a/b.marea` |
 | 3003 | `NAME_ALREADY_DECLARED` | `structure Item end function Item() end`, or an import (or an import alias, or a member alias) and a declaration or another import of one local name; an import alias or a `type` named `c` (message `name is reserved:`); an import alias named like a primitive type, `import c.foo as sinteger32;` (message `name is a primitive type:`); a generic parameter that repeats an earlier one of its list or names a top-level declaration, `pick<Item, Item>`; two parameters of one name; a body local that repeats a parameter or a local of the same block |
-| 3004 | `UNDECLARED_NAME` | `where Item: Missing`, or a constraint on a name that is not a generic parameter; `local x: sinteger32 = missing;`, `missing(1);`, `missing.field`, `stdio.puts(x)` with no import of `stdio`; a bare function name that stands in a function body before the function is declared in the file |
-| 3005 | `UNKNOWN_ATTRIBUTE_KEY` | `#[frobnicate = true]`, `#[simd]`, `#[public]` |
-| 3006 | `INVALID_ATTRIBUTE_VALUE` | `#[inline = maybe]`, `#[build = 1]`, `#[visibility]`, `#[export]` |
-| 3007 | `CONFLICTING_ATTRIBUTES` | `#[pack = 1, align = 16]`, a key given twice (`visibility` twice included) |
+| 3004 | `UNDECLARED_NAME` | `where Item: Missing`, or a constraint on a name that is not a generic parameter; `local x: sinteger32 = missing;`, `missing(1);`, `missing.field`, `stdio.puts(x)` when no alias binds `stdio` and no resolver knows it, `math.sqrt(x)` after `require marea.math;`; a bare function name that stands in a function body before the function is declared in the file |
+| 3005 | `UNKNOWN_ATTRIBUTE_KEY` | `#[frobnicate = true]`, `#[simd]`, `#[public]`, also inside `when(...)` |
+| 3006 | `INVALID_ATTRIBUTE_VALUE` | `#[inline = maybe]`, `#[build = 1]`, `#[visibility]`, `#[export]`, `#[export = "run it"]`, `#[backend = fast]`, `when(colour = "red", ...)`, `when(pointer_width = "64", ...)` |
+| 3007 | `CONFLICTING_ATTRIBUTES` | `#[pack = 1, align = 16]`, a key given twice (`visibility` twice included), two `when` items that hold and give one key |
 | 3008 | `INVALID_ALIGNMENT` | `#[align = 15]` |
 | 3009 | `UNKNOWN_TYPE` | `a: Missing;` in a structure |
 | 3010 | `ARGUMENT_COUNT_MISMATCH` | `add(1)` when `add` takes two parameters with no default; `f()` or `f(1, 2, 3)` when `f` has one required and one defaulted parameter; `Point(1.0, 2.0, 3.0)` when `construct` takes two; `Line(1.0)` when `Line` declares no `construct`; `power(1.0)` when the host's signature of `c.math.pow` takes two parameters |
-| 3011 | `TYPE_MISMATCH` | `convert<sinteger32>(text)` with a `string` name, `convert<Point>(other)` for two structures with another layout, `f("text")` when the parameter is `sinteger32`, `local x: boolean = 1;`, `local n: sinteger32 = a < b;`, `f(s)` with a `string` name `s`, `return a + 1;` in a function that returns `boolean`, `a + b` with an `sinteger32` and a `float64`, `count(2)` when `count` is an `sinteger32` local, `Point("x", 2.0)` when `construct`'s first parameter is `float32`; `power("two", 10.0)` when the host's signature of `c.math.pow` takes `float64, float64`; `local x: sinteger8 = item.x;` over a `for each` whose element field is `sinteger32` |
+| 3011 | `TYPE_MISMATCH` | `convert<sinteger32>(text)` with a `string` name, `convert<Point>(other)` for two structures with another layout, `f("text")` when the parameter is `sinteger32`, `local x: boolean = 1;`, `local n: sinteger32 = a < b;`, `f(s)` with a `string` name `s`, `return a + 1;` in a function that returns `boolean`, `return same(text);` in a function that returns `sinteger32` when `same<Item>` returns `Item`, `a + b` with an `sinteger32` and a `float64`, `count(2)` when `count` is an `sinteger32` local, `Point("x", 2.0)` when `construct`'s first parameter is `float32`; `power("two", 10.0)` when the host's signature of `c.math.pow` takes `float64, float64`; `local x: sinteger8 = item.x;` over a `for each` whose element field is `sinteger32`, `local first: float32 = values;` when `values` is a `demo.slice<float32>`, `f("text")` when the parameter is a slice or a raw pointer; `s + s` with two strings, `-p` with a `boolean`, `p == q` with two booleans, `point + 1` when the `+` function of `Point` takes a `Point`; `case "one" then` over an integer, `case Shape.Circle then` over a `Color`, `for index in 0 .. true do` |
 | 3012 | `DUPLICATE_MEMBER` | two `implementation` blocks of one type that both declare `area`; a structure field, an enum variant or a contract function that is declared twice in its declaration |
 | 3013 | `CONTRACT_NOT_SATISFIED` | `maximum(a, b)` when the type of `a` has no `less` for `where Item: Comparable` |
-| 3014 | `GENERIC_ARGUMENT_MISMATCH` | `Pair<sinteger32>` when `Pair` has two parameters, `Box<4>`, `local x: array<sinteger8, 4> = values;` when `values` is `array<sinteger32, 4>` |
+| 3014 | `GENERIC_ARGUMENT_MISMATCH` | `Pair<sinteger32>` when `Pair` has two parameters, `Box<4>`, a registered type written with more type arguments than its descriptor declares, `local x: marea.array.Array<sinteger8, 4> = values;` when `values` is `marea.array.Array<sinteger32, 4>`, an `owned<vector<T>>` given where a `vector<T>` is declared |
 | 3015 | `INSTANTIATION_TOO_DEEP` | a type argument nested 65 levels |
-| 3016 | `ASSIGNMENT_NEEDS_COPY_OR_MOVE` | `a = b;` when the type is not a primitive, a copyable `array` or an enum; a library storage type (`c.array`, `c.vector`, `c.table`, `c.owned`, `c.task`) needs the word too; so does a name, a field or an element given to an `owned<T>` parameter, reported at the argument (`MAREA_SemaCheckOwnedArguments`; a `vector` or `task` parameter is not checked, and an argument of unknown type is accepted) |
+| 3016 | `ASSIGNMENT_NEEDS_COPY_OR_MOVE` | `a = b;` when the type is not a primitive, a copyable `array` or an enum; a registered type of the move class needs the word too; so does a name, a field or an element given to a parameter with the owner role, reported at the argument (`MAREA_SemaCheckOwnedArguments`; a `vector` or `task` parameter is not checked, and an argument of unknown type is accepted) |
 | 3017 | `INVALID_BORROW` | `#[semantics = value_read_only] s: Shape` when `Shape` is not a primitive |
 | 3018 | `REFERENCE_ESCAPES_SCOPE` | `return s;` when `s` is a borrow parameter; `return s.inner;` when the field is not a value (also in an arm of `switch`); `shapes.append(s);` (the one storing library call that sema knows by name); `kept = part;` when `kept` is not declared in the `partition` body |
 | 3019 | `EXCLUSIVE_BORROW_CONFLICT` | `take(s, s)` when one parameter's effective `semantics` is `reference_mutable`; also two arguments that name overlapping places when one is a write borrow or a `move` (`two_write(b.inner, b.inner)`, `two_write(v[0], v[0])`, `wr(b.inner, b)`, `wt(p, move p)`, `pair(item, v)` in a `for each item in mutable v`; `MAREA_SemaCheckAliasedArguments`) |
@@ -1001,11 +1382,11 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 | 3035 | `SHIFT_COUNT_TOO_LARGE` | `x << 32` for `uinteger32`, `x >>= 64` for `sinteger64`, `x << -1`: a constant shift count that is negative or not below the width of the left integer type |
 | 3036 | `NEGATE_UNSIGNED` | `-value`, `-(a + b)` or `-point.count` when the operand has a known unsigned primitive type |
 | 3037 | `SIGNED_DIVISION_OVERFLOW` | `-2147483648 / -1` or `-128 % -1` when the left side folds to the lowest value of the signed type and the right side folds to -1 |
-| 3038 | `BITWISE_OPERAND_NOT_INTEGER` | `a & b`, `a \| b`, `a ^ b`, `~a`, `a &= b` with a `float32` or `float64`, a `boolean` or a `string` operand, or a float literal |
+| 3038 | `BITWISE_OPERAND_NOT_INTEGER` | `a & b`, `a \| b`, `a ^ b`, `~a`, `a &= b` with a `float32` or `float64`, a `boolean`, a `string` or a `character` operand, or a float literal |
 | 3039 | `LOGICAL_OPERAND_NOT_BOOLEAN` | `a and b`, `a or b`, `not a` with an operand whose known type is not `boolean`, or a number, string or character literal |
 | 3040 | `ASSIGNMENT_TO_CONSTANT` | `LIMIT = 11;`, `LIMIT += 1;`, `ORIGIN.x = 1;`, `TABLE[0] = 1;` when the root name is a file constant and no local hides it |
-| 3041 | `RAW_POINTER_OUTSIDE_UNSAFE` | `local raw: pointer<sinteger32> = f();` with no `unsafe ... end` block around it, at any depth of nesting |
-| 3043 | `NON_BOOLEAN_CONDITION` | `if n then`, `elseif s then`, `while 1 do` when the condition has a known primitive type that is not `boolean`, or is a number, string or character literal |
+| 3041 | `RAW_POINTER_OUTSIDE_UNSAFE` | a written type with the raw pointer role (`local raw: c.memory.Pointer<sinteger32> = f();`, a parameter, a result, a field, an alias) with no `unsafe ... end` block around it, at any depth of nesting |
+| 3043 | `NON_BOOLEAN_CONDITION` | `if n then`, `elseif s then`, `while 1 do`, `do ... while 1 end` when the condition has a known type that is not `boolean` (a primitive, a structure, an enum, a view, an array), or is a number, string or character literal |
 | 3044 | `UNKNOWN_FIELD` | `Point{ z = 1.0 }`, `point.z` or `point.z = 1.0;` when `Point` has no field `z` |
 | 3045 | `RECURSIVE_TYPE` | `structure Node next: Node; end` |
 | 3046 | `CYCLIC_TYPE_ALIAS` | `type First = Second; type Second = First;` |
@@ -1015,18 +1396,18 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 | 3050 | `OPERATOR_SIGNATURE_MISMATCH` | `#[operator = "+"] function add(self: Point): sinteger32` |
 | 3051 | `BOUND_OPERATION_NOT_GIVEN` | `left + right` or `left.size()` on a generic `Item` that no `where` bound gives |
 | 3052 | `OVERLAPPING_IMPLEMENTATION` | `implementation<Item> Box<Item>` and `implementation Box<sinteger32>` that both declare `same` |
-| 3053 | `FUNCTION_TYPE_MISMATCH` | `apply(negate)` when `negate` takes one parameter and the function type takes two |
+| 3053 | `FUNCTION_TYPE_MISMATCH` | `apply(negate)` when `negate` takes one parameter and the function type takes two, `apply(holder.run)` or `apply(make())` when the field or the result has another function type |
 | 3054 | `INVALID_RESULT_USE` | `return 1;` in a function with no result, or `local v: sinteger32 = log_line("x");` when `log_line` has no result |
 | 3055 | `CYCLIC_CONSTANT` | `constant A: sinteger32 = B;` with `constant B: sinteger32 = A;`, or `constant A: sinteger32 = A;`, once for each cycle, at the first constant of it in the file |
-| 3056 | `RESERVED_MACRO_NAME` | `function print() end`, `constant format: sinteger32 = 1;`, `local log: sinteger32 = 1;` or `import c.stdio as print;`: a name that is a built-in macro |
+| 3056 | `RESERVED_MACRO_NAME` | `function print() end`, `constant format: sinteger32 = 1;`, `local log: sinteger32 = 1;` or `import c.stdio as print;`, `for line in 0 .. 3 do end` or `with v as format do end`: a name that is a built-in macro |
 | 3057 | `OPAQUE_TYPE_MISUSE` | `Texture{ }`, `texture.width` or `texture + other` when `texture` is a local or a parameter of an `opaque structure` of the same file |
 | 3058 | `OPAQUE_FIELD_BY_VALUE` | `structure Holder texture: Texture; end` with `Texture` an `opaque structure` of the same file |
 | 3059 | `COMPILE_TIME_ASSERTION_FAILED` | `compile_error!("stop");` with any arguments, at the top level or in a function body; `static_assert!(1 == 2, "never");` or `static_assert!(N == 5, "n");` when the condition is a constant that is false |
-| 3060 | `UNKNOWN_MACRO` | `shout!("hello");` when `shout` is none of the 13 built-in macros, at the call |
-| 3061 | `INVALID_MACRO_ARGUMENT` | `print!();`, `print!(1, 2);`, `print!("{} {}", 1);`, `assert!(1, "x");`, `unreachable!(1);`, `log!(loud, "x");`, `include_text!(1);`: the wrong count of arguments, a literal of the wrong kind, a log level that is not one of the five, or a count of `{}` that differs from the count of values, at the offending argument |
+| 3060 | `UNKNOWN_MACRO` | `shout!("hello");` when `shout` is none of the 14 built-in macros, `marea.array.nothing!("x");` or `array.print!("x");` when the library registers no such macro, or a macro of a library that is off, at the call |
+| 3061 | `INVALID_MACRO_ARGUMENT` | `print!();`, `print!(1, 2);`, `print!("{} {}", 1);`, `assert!(1, "x");`, `unreachable!(1);`, `log!(loud, "x");`, `include_text!(1);`: the wrong count of arguments, a literal of the wrong kind, a log level that is not one of the five, a text that is not a string literal, a condition that is not a `boolean`, a count of `{}` that differs from the count of values, or a `{}` value that is not printable (`print!("{}", point)`), at the offending argument; `build_value!("X", sinteger32)`, a first argument that is not a string literal, a type argument that is no primitive and no enum of the file, an enum with a field that has no default; a call of a macro of a library with the wrong arguments or that the expander refuses (`marea.array.include_bytes!("missing.bin");`) |
 | 3062 | `PARALLEL_CONSTRUCT_OUTSIDE_FORK_JOIN` | `function f(a: sinteger32) spawn g(a); end` or `partition values into 2 as part do end` with no `fork_join` block around it, also a `spawn` after the `end` of a block: raised at the `spawn` or `partition` and nothing else for that construct |
 | 3063 | `SPAWN_NEEDS_CALL` | `fork_join spawn point; end` or `spawn print!("x");`: the operand of a `spawn` is not a call, at the operand |
-| 3064 | `PARTITION_SOURCE_NOT_ARRAY` | `partition count into 2 as part do end` when `count` is a primitive, a structure, an enum or a number literal, at the source |
+| 3064 | `PARTITION_SOURCE_NOT_ARRAY` | `partition count into 2 as part do end` when `count` is a primitive, a structure, an enum, a number literal, a function value or a registered type with no array shape, at the source |
 | 3065 | `LOCAL_WITHOUT_INITIAL_VALUE` | `local x: sinteger32;` with no `= value`, for a primitive, a structure, a `pointer` or an `array`, at any depth of nesting |
 | 3066 | `PRIVATE_SYMBOL_ACCESS` | `b.hidden()` or `b.LIMIT` after `import a.b;` (or an alias) when the member is a top-level declaration of a `FOUND` namespace with `#[visibility = private]` |
 | 3067 | `PRIVATE_TYPE_ACCESS` | `s: b.Secret`, `b.Secret{ }` or any written `b.Secret` when the structure, enum, opaque or alias of a `FOUND` namespace is private |
@@ -1035,91 +1416,134 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 | 3070 | `USE_OF_MOVED_VALUE` | `local b: Point = move a; local c: sinteger32 = a.x;`, `take(move a); read(a);`, `spawn read(a);` or `a.sum()` after `a` was moved, also after a `do` block or after a branch where any arm that reaches the end moved it |
 | 3071 | `VALUE_MOVED_AGAIN` | `move a;` twice, or `move a` of a local declared outside the loop in a loop body that has no `break` or `return` of its own, at the name or at the `move` |
 | 3072 | `USE_OF_PARTIALLY_MOVED_VALUE` | `local s: Shape = move o.inner; local x: float32 = o.inner.x;`, `move o.inner;` then `take(move o);`, `o.total()` after `move o.inner`, `move v[0]; ... v[0].x`, or `move item` of a `for each` element of a collection of a type that is not by value, at the access or at the name |
-| 3073 | `VALUE_CHANGED_WHILE_BORROWED` | `for each x in v do v[0] = ...; end`, `for each x in v do local o: vector<P> = move v; end`, `for each x in mutable v do v.append(...); end`, `with p as view do p.x = 2; end` or `with p as view do local o: P = move p; end`: the source of a `for each` or a `with` block is written, moved or changed by a library call (`append`, `insert`, `remove`, `clear`, `pop`, `push`, `resize`) in the body |
+| 3073 | `VALUE_CHANGED_WHILE_BORROWED` | `for each x in v do v[0] = ...; end`, `for each x in v do local o: marea.vector.Vector<P> = move v; end`, `for each x in mutable v do v.append(...); end`, `with p as view do p.x = 2; end` or `with p as view do local o: P = move p; end`: the source of a `for each` or a `with` block is written, moved or changed by a library call (`append`, `insert`, `remove`, `clear`, `pop`, `push`, `resize`) in the body |
 | 3074 | `CONFLICTING_PARALLEL_ACCESS` | `spawn write(a); spawn write(a);`, `spawn write(a); spawn read(a);`, `spawn write(a); a.y = 5;` or a `spawn write(a);` in a loop in a `fork_join` block when `a` is declared before the block, and `partition xs ...` with a `spawn write(xs)` in the same block |
 | 3075 | `PARTITION_BODY_WRITES_OUTER_NAME` | `local c: sinteger32 = 0; fork_join partition values into 2 as part do c += 1; end end` (also `point.x = 2;` and a parameter) | `a partition body cannot write an outer name: 'c'` |
 | 3076 | `PARTITION_SOURCE_USED_IN_BODY` | `partition mutable values into 2 as part do values[0] = 1.0; end` (a read or a `for each` over the source too, except in a `spawn`, which is 3020) | `the source of a partition mutable cannot be used in the body: 'values'` |
 | 3077 | `MISSING_FIELD` | `Point{ x = 1.0 }` or `Point{}` when `Point` also has the field `y` (the first missing field in declaration order, once per literal) | `struct literal misses a field 'y'` |
+| 3078 | `UNIMPORTED_NAMESPACE` | `c.stdio.puts(x);` with no `require` that reaches `c.stdio`; `function f(values: marea.array.Array<sinteger32, 4>) end` with no `require marea.array;` |
+| 3079 | `UNRESOLVED_REQUIRE` | `require nowhere.library;`, `require nowhere.*;`, or a `require` of a project file that only the import resolver knows (with a registry) |
+| 3080 | `AMBIGUOUS_NAMESPACE` | `import demo.io; require demo.*;`: one full path under both keywords |
+| 3081 | `RESERVED_NAMESPACE_ROOT` | `namespace marea.tools;` or `namespace c.tools;` in a file with no shipped library source input |
+| 3082 | `ELEMENT_WITHOUT_MEASURED_LAYOUT` | `marea.array.Array<function(): sinteger32, 2>`: an element type with no measured layout held by value, at the element |
+| 3083 | `BACKEND_UNAVAILABLE` | `#![backend = intrinsics]` in `marea.math` with no target, or on `riscv64`, or with `msvc`; `#[when(architecture = "riscv64", backend = intrinsics)]` on `riscv64` |
+| 3084 | `ATTRIBUTE_NOT_ALLOWED_HERE` | `#![backend = auto]` or `#[backend = scalar]` in a file whose namespace is not `marea.math` or below |
+| 3085 | `MISPLACED_ATTRIBUTE` | `#[align = 16]` on a function, `#[inline = force]` on a structure or a constant, `#[operator = "+"]` on a free function, `#[visibility = public]` on a parameter or a macro statement, `#[export = "label"]` on a generic function, `#[backend = auto]` on a structure of `marea.math`: any `no` cell of the placement matrix, also inside `when(...)`, at the item |
+| 3086 | `INVALID_BUILD_VALUE` | a setting `LOG_LEVEL` with the text `high` for `build_value!("LOG_LEVEL", sinteger32, 2)`, `256` for a `uinteger8`, `yes` for a `boolean`, `Slow` for an enum with no such variant, at the call |
+| 3087 | `LITERAL_COUNT_MISMATCH` | `marea.array.Array<sinteger32, 2>{ 1, 2, 3 }`, or fewer positional values than the count |
+| 3088 | `CONSTANT_INDEX_OUT_OF_RANGE` | `values[4]` when `values` holds 4 elements, `pair[2]` for a tuple of two |
+| 3089 | `TUPLE_INDEX_NOT_CONSTANT` | `pair[index]` when `pair` is a tuple |
+| 3090 | `NOT_ITERABLE` | `for each value in pair do` when `pair` is a tuple |
 
 ## Gaps
 
-- `UNKNOWN_ENUM_VARIANT` (3048) checks a member access of an enum of this file only. A `case Color.Purple then` label
-  is not a checked slot, so a label that is not a variant is not seen. An enum of another namespace or an imported
-  enum is not checked, because its `implementation` blocks are in another file. The call form `Color.make()` is the
-  rule of 3049.
-- The array rule of `partition` (3064) rejects only a source that sema knows is a number, a primitive, a structure or an
-  enum. A `slice`, a `pointer`, a library type that is not an array and a call result have no known shape, so a
-  partition of them is accepted.
+- `UNKNOWN_ENUM_VARIANT` (3048): a `case Color.Purple then` label is not a checked slot, so a label that is not a
+  variant is not seen.
+- The array rule of `partition` (3064) does not judge a source that sema cannot trace to a type: a type that no
+  descriptor describes, a call result that sema does not type, and an owner (the value that it holds is not read).
 - A write through a method call on a read-only receiver, and a library call that mutates (`values.append(x)`), are
   not seen: sema does not know which calls mutate. The rule 3069 reads only a written assignment, a mutable loop or
   partition and a write-borrow argument.
-- A `with` over a call is writable and a `with` over an existing value is read-only, whatever the type of the value:
-  the rule reads the shape of the source, not what the call returns.
-- The visibility check (3066 to 3068) reads only a bare namespace name and a bare name with a written type `ns.T`. It does
-  not check a member that the tree does not declare, a field of a value that is not a plain `ns.T` name (a call result,
-  an index, a chain such as `a.b.c`), a field of a type that an imported symbol gives (`import a.b.Box;`), or a private
-  symbol that a generic or an alias leads to.
+- The visibility check (3066 to 3068) does not check a member that the tree does not declare, a value whose type sema
+  cannot follow (a call of a function value, a `for each` name, a field or a result typed by a generic parameter, a type
+  that another namespace names through its own import alias), or a private type that a public alias or a generic of
+  another namespace leads to.
 
+- The full-path rules read the member chain of a value or a call and the qualified name of a type. A full path to a type of a
+  `FOUND` namespace (`a.b.Item`, with no alias) is read for its cover, for its existence as a namespace prefix and for
+  the visibility of the type and of its members (3066 to 3068): the layout of such a field and the typed spelling of the
+  type read the alias form (`import a.b as b;` then `b.Item`).
+- A private member reached by the full path of a namespace is `PRIVATE_SYMBOL_ACCESS` (3066) as before; a cover that is
+  an unresolved declaration still covers its path, so the use raises nothing beyond the unresolved report.
+- The IR does not lower a full path yet: a chain before a member is only flagged as a qualifier, so the unit lowers like one
+  with an alias.
 - Two functions that call each other cannot be written, because a function must be declared before its use and the
   grammar has no forward declaration.
-- The name of a `for`, `for each`, `partition` or `with` statement is not checked against the names of its own
-  scope: it can repeat a local of the same block, and a local of its body can repeat it.
 - No check of the signature of `main` exists any more, and a driver-level replacement does not exist yet.
-- `array` and `vector` are built-in names now, so a library that exports a type named `array` is shadowed by the
-  built-in (an import never wins over a built-in name). A growable library type is spelled under the `c.{lib}`
-  namespace for now. A `vector` is still indexable in the type inference, though it is a move type.
+- Only `marea.array`, `marea.vector`, `marea.tuple`, `c.memory`, `marea.memory`, `c.threads` and `marea.tasks` are
+  shipped libraries. A registered type that is no inline run is checked for too many type arguments only, never
+  too few.
+- No construction of a `marea.memory.Owned`, `Slice` or `Arena` exists. A local of one of these types takes any
+  initial value with no diagnostic, and a write of an element of a view is not refused.
+- The registry gives sema no signature of a function: a call of a function of `c.memory` has a type only when the
+  caller of sema gives its signature through the import resolver.
+- An index through the alias of a `require ... as` (`memory.Pointer<sinteger32>`, `array.Array<sinteger32,2>`) gets no
+  type in the typed AST, so the IR rejects it as `UNTYPED_EXPRESSION` (4006). The full path works.
+- The borrowed-source rule sees an assignment, a move and a changing member. It does not see a call that changes a
+  vector through a write borrow (`grow(v)` in a `for each` over `v`, or `f(v[0], grow(v))`), so the address of an
+  element can outlive the storage that held it. The `vm` can then read or write freed memory.
+- A literal of a growable run is not checked entry by entry against the element type.
+- The index of a tuple is an integer literal only: a named constant is `TUPLE_INDEX_NOT_CONSTANT`. A tuple has no
+  destructuring and no order. A tuple of a generic parameter inside a generic function has no test.
+- The bare `include_bytes!` stays in the table of the language macros, and `examples/macros/builtin.marea` still writes
+  it. A bare call whose file the include resolver does not know is not reported (only the call by a qualified name is).
+- A member of an inline run is checked only when sema knows the written type of its receiver: the name of a `for each`
+  or of a `with` has none here. A count written as a constant name is not checked and not measured.
+- `sum` and the element-wise operators of `examples/attributes/simd.marea` are in no specification: sema lets them
+  through and no backend writes them.
+- `partition` over an array or a vector gives no part: the part is a view with a run-time length, of a library that is not written.
+- The `when` item is read only by the attribute check. Another reader (`visibility`, `layout`, `align`, `pack`, `operator`,
+  `export`, `inline`, `build`) sees the plain items, so a `when` that gives such a key has no effect on that reader yet. The
+  `backend` rule reads it, since it is the only check that is about the target.
+- A `when` predicate value is not checked against a list (`architecture = "riscv64"` is accepted for any text), because the
+  sets are open; only the name and the kind of the value are checked.
+- `build_value!` does not resolve a qualified type argument (`other.Mode`): it is accepted and nothing about it is checked,
+  because sema has no way to read the declaration of an enum of another namespace from an expression. A float, a string, a
+  character and an enum from the build are converted for the check but never folded for `static_assert!`.
+- The `auto` backend has the start rule only (decision 18): the table of the best backend per operation does not exist.
+  Backend rows that need a library that does not exist yet (`marea.math`) are proven by files written in the tests under that
+  namespace. A project file under the root `marea` is always `RESERVED_NAMESPACE_ROOT`; the shipped source of
+  `marea.math` passes the checks of sema with the shipped library source input.
+- `marea.math` is checked by sema, and its C functions run only from C. No backend lowers a structure of another
+  namespace, so a program cannot run a vector, a matrix or a quaternion of `marea.math`: the `vm` and `cgen` refuse a
+  local or a parameter of such a type. The ir raises 4006 for an operator applied to a value of such a type. A matrix and
+  the quaternion have no `+`, `-` or `/`, and a matrix has no operator for its product with a vector: a program calls
+  `multiply_matrixNxN_vectorN_*`. Sema accepts an operator that an imported structure does not declare, so the accept
+  items of `marea.math` do not prove that its operators exist.
+- The result of a registered function is not compared with the declared type of its place, as for any `EXTERNAL`
+  member. No caller input gives the signatures of `marea.math` outside the tests.
+- The IR lowers `build_value!`, a macro with a qualified name and `do ... while` now (see the ir doc, "Macros" and "Do-while
+  lowering"). A macro call that the IR lowers (`build_value!`, a qualified name) has no resolved type in the typed tree, so the IR
+  reads the type from the declaration around it.
+- A type that holds a table (two type parameters, no index protocol) is found by that shape, not by a role: a keyed collection
+  has no role of its own in the roles table yet.
 - Renaming on use inside one file (without an import) is not offered: a local declaration has its own name.
 - `TYPE_MISMATCH` (3011) sorts the type of an expression into a fixed set of shapes: a literal, a primitive, a
-  structure, and, known but never compared, an enum, a library type, a generic parameter and an `owned`, `task`, `vector` or `array` value. Still fully unknown: a `pointer`, a `slice`, the type of a field or a file
-  constant that is not a primitive, and the result of a generic call (see below).
+  structure, a view, a raw pointer, and, known but never compared, an enum, a library type, a generic parameter and a registered type of the move class or an inline run. Still fully unknown: any other registered type and the result of a call of an imported function or of an `EXTERNAL` member (its host signature is read
+  for the arguments only).
 - A struct literal with a missing field is rejected (3077, one report per literal, so a second missing field shows only after the first is written). The ir has no `ZERO_VALUE` any more (removed in PR #355): no accepted program has an omitted field, so the ir has nothing to fill.
 - A call of a method or of an imported function that has no result, used as a value, is not seen: sema cannot see its
   result (`INVALID_RESULT_USE`, 3054).
-- The type arguments of a generic type are compared (3014) only for two types of one head name and one argument
-  count. A pair that mentions a generic parameter in scope, an alias, an import or an unknown type, a different head
-  (`owned<vector<T>>` into `vector<T>` is accepted), and a `for each` over a collection of unknown type, are skipped.
-- A function type is compared (3011, 3053) only for a literal and for a bare name of a function of the file. It is
-  still unknown for a field, a call result and any other expression of a function type. A generic function, and a
-  function type that mentions a generic parameter in scope, are never compared.
-- A binary operator is checked against what its operands may be only for a bitwise operator on a float, a boolean
-  or a string (3038) and for `and`, `or` and `not` on a known type that is not `boolean` (3039). Every other operator
-  (arithmetic on a `boolean` or a `string`, a comparison of two booleans) is not checked, a `character` operand of a
-  bitwise operator is accepted, and an operator that is declared for a structure is not compared (its signature is
-  checked by 3050, the use of the operator is still not read).
-- `UNKNOWN_TYPE_FUNCTION` (3049) skips a receiver of another namespace, a library type, a generic parameter and an
-  unknown type, because sema cannot see their functions. Only a bare name or a local that is a bare name is a receiver:
-  a call on a field chain or on a call result is not checked. A function of a contract on a generic receiver is not checked.
-- `RESERVED_MACRO_NAME` (3056) is not raised for a parameter, a `for`, `for each`, `partition` or `with` name, or an
-  import alias with no `as`, even when it is named like a built-in macro.
+- Inside the body of a generic declaration a generic parameter in scope is never compared with a concrete type, and the
+  field values of a literal of a generic structure are not compared with the type arguments of the literal. The
+  arguments of a construction call of a generic structure are not compared after binding either.
+- A pair of types is not compared (3014) when a head is a generic parameter in scope, an alias, an import or an
+  unknown type, when only one side has type arguments, or for a `for each` over a collection of unknown type.
+- A function type that mentions a generic parameter in scope, and a generic function given as a value, are never
+  compared (3011, 3053). A bare name of an imported function, and a value that sema does not type, are accepted.
+- A declared operator is read at its use only on a binary expression: a compound assignment and a unary operator do not
+  read it, its result type is not read, and a type with two functions for one operator is not judged.
+- `UNKNOWN_TYPE_FUNCTION` (3049) skips a library type, a generic parameter, an `EXTERNAL` namespace and an unknown
+  type, because sema cannot see their functions. Only a bare name, a local that is a bare name and a name of a type of
+  another namespace are a receiver: a call on a field chain or on a call result is not checked. A function of a contract
+  on a generic receiver is not checked.
 - The `for`, `for each`, `partition`
-  and `with` header expressions and the initializer of a file constant are checked. The loop name is already in
-  scope when its own header is checked, so `for i in 0 .. i` with no outer `i` raises nothing. A constant that has
+  and `with` header expressions and the initializer of a file constant are checked. A constant that has
   an `ERROR_NODE` below it has no name check, because the parser may leave its tokens as an expression.
 - `OPAQUE_TYPE_MISUSE` (3057) sees only an operand or a base that is a bare name, or one in parentheses, whose
-  written type is an opaque structure of the same file. A call result, an index, a field of another value and an
-  opaque type of another file are not classified, and `OPAQUE_FIELD_BY_VALUE` (3058) likewise sees only a bare
-  opaque name of the same file as a field type.
-- `ASSIGNMENT_TO_CONSTANT` (3040) sees only a constant that a file declares. A constant that an `implementation`
-  declares is not rejected.
-- `COMPILE_TIME_ASSERTION_FAILED` (3059) decides a `static_assert!` condition only when the evaluator can fold it. A
-  condition with `size_of`, `align_of`, a call, a name that is not a file constant of this file (a constant of another
-  namespace included), a float, a string, a division by zero or an overflow is unknown and accepted, so a false
-  `static_assert!(size_of<Light>() == 9, "x");` raises nothing yet. The arithmetic is over 64-bit integers, not over the
-  type of the constant, so a constant of a narrow type does not wrap.
-- `CYCLIC_CONSTANT` (3055) sees only the constants that a file declares at the top level. A constant that an
-  `implementation` declares is not part of the search. A name is matched by its text in the name table, so a
-  qualified name of another namespace is not followed.
-- `INVALID_MACRO_ARGUMENT` (3061) does not check the type of each value that a `{}` takes: `print!("{}", x)` is
-  accepted for any `x`. A condition or a text that is not a literal is accepted whatever its type, and a format text
-  that is not a string literal has no `{}` count. The five log levels are an assumption (see Built-in macro).
-- `line!()` has no type in sema, and `include_bytes!` gives no type either (it should give `c.array<uinteger8>`), so
-  both fit any target.
-- `RAW_POINTER_OUTSIDE_UNSAFE` (3041) checks only a `local` whose type is spelled `pointer<T>`. A `pointer` in a
-  parameter, a return type or a structure field is not checked (issue #190), and a type alias of a pointer is not resolved.
-- `RECURSIVE_TYPE` (3045) does not follow a user generic structure given as `Box<Node>`: its field types are written in
-  its own scope, so a recursion through it is not seen.
-- `NON_BOOLEAN_CONDITION` (3043) judges only a literal and a primitive that sema knows. A condition of an unknown type
-  (a call, a generic value, a field of an imported type) raises nothing.
+  written type stands for an opaque structure, of this file or of a `FOUND` namespace. A call result, an index and a
+  field of another value are not classified, and `OPAQUE_FIELD_BY_VALUE` (3058) likewise reads only the written type of
+  a field, not a type argument. An opaque type that another namespace names through its own import alias is not seen.
+- `COMPILE_TIME_ASSERTION_FAILED` (3059) does not fold a call other than `size_of` and `align_of` (`convert` included),
+  a character, a constant of another namespace or the size of an imported or library type: such a condition is accepted.
+- `CYCLIC_CONSTANT` (3055) does not follow, in another namespace, a constant of an `implementation` block, a name that
+  a member import or a wildcard of that file binds, or a chain of more than 64 constants of other namespaces, and it
+  does not follow `ns.Type.NAME`.
+- `INVALID_MACRO_ARGUMENT` (3061) accepts a `{}` value or a condition of an unknown type, such as an enum variant written
+  `Color.Red` or a call that sema does not type. The names inside a macro argument are not checked. The five log levels
+  are an assumption (see Built-in macro).
+- `RECURSIVE_TYPE` (3045) ends a walk through generic structures after a depth of 64 more than the count of
+  declarations, or 4096 steps for one declaration: a recursion that needs a longer walk is not seen.
 - `LITERAL_OUT_OF_RANGE` (3033) reads only a written integer literal. A float literal, a literal in an operand
   (`1 + 300` bound to a `uinteger8`), a value folded from a named constant, and a literal whose target type is not a
   primitive sema knows (it is then checked against `uinteger64` only) are not range checked.
@@ -1152,30 +1576,31 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 - The declared name of a `partition` (the part) and of a `with` carries no resolved type on its own typed node, though a read of the
   name does: only the declared names of a `for` and a `for each` carry one (see "Loop names and collection"). Neither has a
   consumer that needs it yet.
-- An expression with no resolved type. The sweep of the 23 examples (866 expression nodes, 36 of them qualifier names
-  that are not values and are counted on their own) finds 79 expression nodes with no type, with a fixture signature
+- An expression with no resolved type. The sweep of the 23 examples (838 expression nodes, 54 of them qualifier names
+  that are not values and are counted on their own) finds 75 expression nodes with no type, with a fixture signature
   function that answers `filled`, `append`, `sum` and `result` (see "Members of a library type"), and every one of the
-  79 is in one of the nine classes below. The list is closed: the sweep test
+  75 is in one of the nine classes below. The list is closed: the sweep test
   (`tests/source/sema/MAREASemaTypedAstExamples.cpp`) fails with the file, the position and the name for any other
   untyped expression node, and it fails for a class that no example reaches any more, so a class that a fix empties
   leaves this list in the same change. A literal never has a place in the list: every literal has a type. The `ir`
   stage can treat every untyped expression outside these classes as `UNTYPED_EXPRESSION` (4006).
-  - `MACRO_SUBTREE` (20): a `MACRO_CALL` (15) and every node below one (5: `info` of `log!`, the call `power(...)` of
-    `print!`, `size_of` and `align_of` of `static_assert!`). The `ir` raises 4005 for a macro.
+  - `MACRO_SUBTREE` (19): a `MACRO_CALL` and every node below one (`info` of `log!`, the call `power(...)` of
+    `print!`, `size_of` and `align_of` of `static_assert!`), `line!()` and `include_bytes!` excepted, which have a type.
+    The `ir` raises 4005 for a macro.
   - `QUALIFYING_TYPE_NAME` (2): a `GENERIC_NAME` on the left of a member access, a written type that qualifies a static
-    member (`c.array<sinteger32>.filled(8, 0)`). It is not a value, and sema does not flag it as a qualifier name,
+    member (`marea.array.Array<sinteger32, 4>.filled(8, 0)`). It is not a value, and sema does not flag it as a qualifier name,
     which is only an `IDENTIFIER`.
   - `BUILTIN_CALLEE_NAME` (7): the `IDENTIFIER` `size_of`, `align_of` or `convert` that is the callee of a call. The
     call has the type; the name has none.
   - `UNTYPED_FUNCTION_NAME` (3): an `IDENTIFIER` that is the callee of a call and has no function type: `power` and
     `square_root`, imported by name from an `EXTERNAL` namespace that gives no signature, and `maximum`, a generic
     function of the file (a generic function name has no function type; the call of `maximum` has its inferred type).
-  - `UNTYPED_FUNCTION_MEMBER` (23): a `MEMBER_ACCESS` that is the callee of a call, with no function type: a function
+  - `UNTYPED_FUNCTION_MEMBER` (19): a `MEMBER_ACCESS` that is the callee of a call, with no function type: a function
     or method of an `EXTERNAL` namespace or of a library type (`stdio.puts`, `vulkan.present`, `tasks.append`,
     `item.result`, `Arena.create`, `product.sum`), a static member of a written generic type, or a method on a
     receiver of a generic parameter type (`left.less(right)`, `winner.describe()`). The call may have a type of its
     own (`tasks.append(...)`, `left.less(right)`); the member never does.
-  - `UNTYPED_CALL` (18): a `CALL_EXPRESSION` whose callee has no type and that no rule types: a call of an `EXTERNAL`
+  - `UNTYPED_CALL` (19): a `CALL_EXPRESSION` whose callee has no type and that no rule types: a call of an `EXTERNAL`
     function with no signature, or of a library member that the signature function does not know
     (`stdio.puts(text)`, `vulkan.present(swapchain, texture)`, `text.length(full)`, `slice.length(pixels)`,
     `table.length(scores)`, `square_root(x)`).
@@ -1197,7 +1622,7 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
   size result; a method call on a generic-parameter receiver whose own where clause lists no contract that declares
   the member; a call of a generic function whose inferred type arguments find nothing to bind, disagree, or give a
   result that is not itself one bound bare parameter (see "Inferred type arguments"); the built-in `convert`, `size_of`
-  and `align_of` as names; every `MACRO_CALL` and `GENERIC_NAME`.
+  and `align_of` as names; every `GENERIC_NAME` and every `MACRO_CALL` but a bare `line!()` and `include_bytes!`.
 - A binary operation has the type of its operands even when an operator function of the structure declares another
   result type: the result of `#[operator = "+"]` is not read. A field of a variant is read from the first variant that
   declares the name.
@@ -1205,13 +1630,13 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
   read: a generic parameter type (`g(5)` with `a: Item`, also with explicit type arguments), an enum or a library
   type (an integer literal that `TYPE_MISMATCH` accepts for an enum is `sinteger32`, not the tag type), an entry of a
   library literal such as a table, the index of `a[i]`, the key of `[key] = value`, the count of a shift, a literal
-  inside a macro call, and an operand whose type sema does not know (a call of a generic function, a member of a
-  generic structure). The default itself is an assumption of the plan, not a rule of the grammar. The range of a
+  inside a macro call, and an operand whose type sema does not know (a call of a generic function that nothing
+  binds). The default itself is an assumption of the plan, not a rule of the grammar. The range of a
   value is not checked against the type that the context gave: `local x: uinteger8 = 256;` stays accepted, as before.
   The literal of `convert<T>(x)` takes `T`, so `convert<uinteger8>(300)` types `300` as `uinteger8`.
 - The typed-AST hand-off substitutes a generic result for a bare parameter with explicit type arguments, and now also
   for a bare parameter bound through "Inferred type arguments" when the call gives none; a compound result (such as
-  one written `c.array<Item>`) still keeps the raw type either way, since only a parameter, never a result, is
+  one written `marea.array.Array<Item>`) still keeps the raw type either way, since only a parameter, never a result, is
   unified against a compound shape.
 - `DUPLICATE_SWITCH_ARM` compares a float by its text: `1.0` and `1.00` are taken for different values. A constant
   that sema cannot read (imported, or declared with a computed expression) is compared by its name only, and a
@@ -1227,7 +1652,7 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
   by exact name; a looser rule is a later decision of the user. The numeric range of a conversion
   (`convert<sinteger8>(count)` with `count` above 127) is a run-time stop, not a check of sema.
 - The layout record (see "Layout of a structure and an enum") leaves a library type undecided on purpose: a field of
-  `string`, `array`, `vector`, `pointer`, `owned`, `slice`, `task` or any `c.{lib}` or `marea.{lib}` type makes its
+  `string`, `vector`, `pointer`, `owned`, `slice`, `task` or any `c.{lib}` or `marea.{lib}` type makes its
   structure or enum undecided until the library gives the layout. A function type field is undecided too. The
   `marea` value of the `layout` key is measured like `c` and stays reserved so a later change can reorder the fields.
   An enum that is imported from another file is undecided (`UNRESOLVED`) too, because the names and the file

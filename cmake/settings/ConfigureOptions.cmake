@@ -14,11 +14,26 @@ unset(TEMP_GUARD_SET)
 macro(ConfigureOptions)
     option(MAREA_OPTION_TARGET_TESTS "Build the GoogleTest suite under tests/" ON)
     option(
+        MAREA_OPTION_STATIC_LIBS
+        "Build every stage library as a static library (Marea-<Stage>), next to the shared one when both options are ON"
+        ON
+    )
+    option(
         MAREA_OPTION_SHARED_LIBS
-        "Build Marea-Base, Marea-Lex, Marea-Parse, Marea-Sema and Marea-Ir as shared libraries instead of static"
+        "Build every stage library also as a shared library (Marea-<Stage>-Shared), next to the static one when both options are ON"
         OFF
     )
+    if(NOT MAREA_OPTION_STATIC_LIBS AND NOT MAREA_OPTION_SHARED_LIBS)
+        message(
+            FATAL_ERROR
+            "Both MAREA_OPTION_STATIC_LIBS and MAREA_OPTION_SHARED_LIBS are OFF, so no library would be built. Set at least one to ON, for example: -DMAREA_OPTION_STATIC_LIBS=ON"
+        )
+    endif()
     option(MAREA_OPTION_PRECOMPILE_HEADER "Precompile the most basic headers in every library target" ON)
+    # The MAREA_DEFAULT_INLINE setting of docs/sema/marea-sema.md and the design record, named per this
+    # skill's own MAREA_OPTION_<NAME> convention; ConfigureMareaFunctions feeds it to build_value! and
+    # the C11 side under its design-doc name, MAREA_DEFAULT_INLINE, unchanged
+    option(MAREA_OPTION_DEFAULT_INLINE "Default inline attribute a Marea function takes when it declares none" ON)
     option(MAREA_OPTION_TARGET_BASE "Build the Marea-Base library" ON)
     cmake_dependent_option(
         MAREA_OPTION_TARGET_LEX
@@ -46,6 +61,41 @@ macro(ConfigureOptions)
         "Build the Marea-Ir library"
         ON
         "MAREA_OPTION_TARGET_SEMA"
+        OFF
+    )
+    cmake_dependent_option(
+        MAREA_OPTION_TARGET_BYTECODE
+        "Build the Marea-Bytecode library"
+        ON
+        "MAREA_OPTION_TARGET_IR"
+        OFF
+    )
+    cmake_dependent_option(
+        MAREA_OPTION_TARGET_VM
+        "Build the Marea-Vm library"
+        ON
+        "MAREA_OPTION_TARGET_BYTECODE"
+        OFF
+    )
+    cmake_dependent_option(
+        MAREA_OPTION_TARGET_CGEN
+        "Build the Marea-Cgen library"
+        ON
+        "MAREA_OPTION_TARGET_IR"
+        OFF
+    )
+    cmake_dependent_option(
+        MAREA_OPTION_TARGET_CC
+        "Build the marea-cc executable"
+        ON
+        "MAREA_OPTION_TARGET_CGEN"
+        OFF
+    )
+    cmake_dependent_option(
+        MAREA_OPTION_TARGET_BC
+        "Build the marea-bc executable"
+        ON
+        "MAREA_OPTION_TARGET_BYTECODE"
         OFF
     )
 endmacro()

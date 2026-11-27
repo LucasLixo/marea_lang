@@ -47,6 +47,7 @@ namespace
         { "opaque", MAREA_TOKEN_KIND_KEYWORD_OPAQUE },
         { "or", MAREA_TOKEN_KIND_KEYWORD_OR },
         { "partition", MAREA_TOKEN_KIND_KEYWORD_PARTITION },
+        { "require", MAREA_TOKEN_KIND_KEYWORD_REQUIRE },
         { "return", MAREA_TOKEN_KIND_KEYWORD_RETURN },
         { "spawn", MAREA_TOKEN_KIND_KEYWORD_SPAWN },
         { "structure", MAREA_TOKEN_KIND_KEYWORD_STRUCTURE },
@@ -62,16 +63,16 @@ namespace
 
 } // namespace
 
-TEST(MAREALexerKeywords, KeywordTableHas43Rows)
+TEST(MAREALexerKeywords, KeywordTableHas44Rows)
 {
-    GTEST_COUT << "Validating the test's own keyword table, written from the grammar, has 43 rows." << std::endl;
+    GTEST_COUT << "Validating the test's own keyword table, written from the grammar, has 44 rows." << std::endl;
 
-    ASSERT_EQ(sizeof(MAREA_G_KEYWORD_TABLE) / sizeof(MAREA_G_KEYWORD_TABLE[0]), 43U) << "The keyword table must have 43 rows.";
+    ASSERT_EQ(sizeof(MAREA_G_KEYWORD_TABLE) / sizeof(MAREA_G_KEYWORD_TABLE[0]), 44U) << "The keyword table must have 44 rows.";
 }
 
 TEST(MAREALexerKeywords, AllKeywordsLexToTheirKind)
 {
-    GTEST_COUT << "Validating every one of the 43 keywords lexes to its own kind." << std::endl;
+    GTEST_COUT << "Validating every one of the 44 keywords lexes to its own kind." << std::endl;
 
     for (const MAREA_KeywordRow &row : MAREA_G_KEYWORD_TABLE) {
         MAREA_LexFixture fixture;
@@ -149,4 +150,15 @@ TEST(MAREALexerKeywords, KeywordsAreCaseSensitive)
     for (const MAREA_TokenKind KIND : fixture.MAREA_kinds()) {
         EXPECT_TRUE((KIND == MAREA_TOKEN_KIND_IDENTIFIER) || (KIND == MAREA_TOKEN_KIND_END_OF_FILE)) << "A keyword with the wrong case must lex as a plain identifier.";
     }
+}
+
+TEST(MAREALexerKeywords, RequireIsAKeywordAndNearMissesAreIdentifiers)
+{
+    GTEST_COUT << "Validating require is its own keyword and a longer, shorter or other case name is a plain identifier." << std::endl;
+
+    MAREA_LexFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_lex("require required requires requir Require"), MAREA_LEX_EXCEPT_SUCCESS) << "Lexing must succeed.";
+
+    EXPECT_EQ(fixture.MAREA_kinds(), (std::vector<MAREA_TokenKind>{ MAREA_TOKEN_KIND_KEYWORD_REQUIRE, MAREA_TOKEN_KIND_IDENTIFIER, MAREA_TOKEN_KIND_IDENTIFIER, MAREA_TOKEN_KIND_IDENTIFIER, MAREA_TOKEN_KIND_IDENTIFIER, MAREA_TOKEN_KIND_END_OF_FILE })) << "Only the exact lower case word require is the keyword.";
 }

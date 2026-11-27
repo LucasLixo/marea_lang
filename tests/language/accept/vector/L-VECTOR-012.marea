@@ -1,0 +1,17 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- data gives the address of the first element inside unsafe.
+
+namespace main;
+
+require marea.vector;
+require c.memory;
+
+function check()
+    local values: marea.vector.Vector<sinteger32> = marea.vector.Vector<sinteger32>{ 1 };
+    unsafe
+        local address: c.memory.Pointer<sinteger32> = values.data();
+    end
+end

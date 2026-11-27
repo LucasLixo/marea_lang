@@ -15,51 +15,28 @@ structure.
 
 Comments and session chat according to the ASD-STE100 standard.
 
-## Language boundary
+## Specifications
 
-The rules that shape every decision here. The syntax is in [the grammar](docs/grammar/marea.ebnf) and the example
-programs are in [examples](examples).
+The compiler and language specifications are not restated here: they live under `docs/`, one
+reference per area, each kept in sync with the shipped code in the same change that changes its
+behavior ([stage-docs](.claude/skills/stage-docs/SKILL.md) owns the per-stage pattern). The example
+programs are in [examples](examples). In pipeline order:
 
-- **The compiler core is C11**, written from scratch - no legacy tree to reorganize, no inherited
-  source to attribute.
-- **The compiler is modular, one library per stage:** `lex`, `parse`, `sema`, `ir`, `bytecode`, `vm`, `cgen`. Each
-  stage works alone, reads and writes public serializable data (tokens, AST, typed AST, IR text, bytecode), and a
-  stage never includes a later one. A stage has no global state and never prints: it takes an explicit context (an
-  arena that the caller owns and a diagnostic sink) and returns diagnostics. `sema` never reads the disk: the caller
-  gives it an import resolver. There is no own driver: a small set of CMake functions (`marea_add_library`,
-  `marea_add_executable`) calls `marea-cc` (C11 for the machine code of the processor) and `marea-bc` (bytecode).
-- **Libraries are static by default;** a shared build is an explicit CMake option. A public header holds opaque
-  structs with accessor functions. A struct is opened to the public only where it is needed, with the reason recorded.
-- **One IR, two backends.** A bytecode backend with a small reference interpreter (portable, embedding) and a C11
-  backend built with clang or gcc (maximum performance). Both must give the same observable behavior, and a parity
-  test runs every example through both. There is no JIT. Hot reload is not a language feature: the host reloads
-  modules through a small C module API (load, unload, interface hash, find by name).
-- **No standard library.** The core has the primitives (`string` is one), `structure`, `enum` and function types. Every
-  other type (`array`, `vector`, `tuple`, and the pointer, owner, view and task types) is a library, imported under one
-  of two reserved first segments: `c.{lib}`, only the direct abstractions of the libc and ports of it (as `c.character`), registered
-  through the one C registration macro that the language never replaces, and `marea.{lib}`, the creations of the language
-  that have no direct counterpart in C (`marea.array`, `marea.vector`, `marea.tuple`, `marea.math`), written in Marea or in
-  C11 (a C11 one is registered through the same macro). Planned: `c.memory`, `c.threads`, `c.string`, `c.io`,
-  `c.filesystem` and `c.time`. A host can replace a library or runtime function from C.
-- **Entry point.** `main` is an ordinary function in `sema`: it has no fixed signature and none is required to exist,
-  so a host that drives its own lifecycle needs no `main`. The fixed shape (`arguments: array<string>`, result
-  `integer32`) belongs to a future standalone driver, which does not exist yet.
-- **Memory is scoped (regions) with static ownership rules.** Every non-primitive value has one owner. A primitive or
-  a `#[value]` type passes by value; any other type is a read-only borrow, or a write borrow with `mutable`. A
-  reference lives only for one call and is never stored or returned, so there is no lifetime analysis. Data goes up to
-  the caller with `return value;`, and `copy x` or `move x` says what an assignment does. Parallel code uses
-  structured `fork_join`, and the type system guarantees ownership and immutability across threads.
-- **Typing is compile-time only.** There is no dynamic type and no `nil`. Every type has a fixed width and a full
-  name (`integer32`, `function`, `structure`): no abbreviation. The case is PascalCase for types,
-  snake_case for functions, variables and namespaces, SCREAMING_SNAKE_CASE for constants.
-- **Syntax rules.** Every statement ends with `;`. Every body ends with an explicit `end`, and curly braces are only
-  for literals. A function with a return type ends every path with `return value;`. `switch` replaces `match`.
-  Attributes `#[key = value]` carry visibility, inline, build, layout and more; the key of an enum takes a
-  member, and any other key takes `true` or `false`. Macros are only the built-in ones, never written by a user.
-- **One binding declaration, two consumers.** A single C registration macro exposes a function to the language
-  runtime; there is no external binding generator and no per-language glue written by hand.
-- **C++ exists only for tests** (GoogleTest, see [cpp-testing](.claude/skills/cpp-testing/SKILL.md)). Production
-  code is C11, never C++.
+| Doc | Covers |
+| --- | --- |
+| [docs/grammar/marea.ebnf](docs/grammar/marea.ebnf) | The formal syntax grammar and the language's own main rules (statement and body endings, braces, identifier case) |
+| [docs/lex/marea-lex.md](docs/lex/marea-lex.md) | The `lex` stage |
+| [docs/ast/marea-ast.md](docs/ast/marea-ast.md) | The `parse` stage |
+| [docs/sema/marea-sema.md](docs/sema/marea-sema.md) | The `sema` stage: typing, ownership and borrow checking, the library registry and the C registration macro |
+| [docs/ir/marea-ir.md](docs/ir/marea-ir.md) | The `ir` stage |
+| [docs/bytecode/marea-bytecode.md](docs/bytecode/marea-bytecode.md) | The `bytecode` stage |
+| [docs/vm/marea-vm.md](docs/vm/marea-vm.md) | The `vm` stage: the bytecode reference interpreter |
+| [docs/cgen/marea-cgen.md](docs/cgen/marea-cgen.md) | The `cgen` stage: the C11 backend |
+| [docs/tools/marea-cc-and-bc.md](docs/tools/marea-cc-and-bc.md) | The `marea-cc` and `marea-bc` command-line tools |
+| [docs/language/marea-language.md](docs/language/marea-language.md) | The language catalogue: what is accepted, what is rejected and why |
+
+**C++ exists only for tests** (GoogleTest, see [cpp-testing](.claude/skills/cpp-testing/SKILL.md)). Production
+code is C11, never C++.
 
 ## Working model
 
@@ -146,7 +123,7 @@ only when the user or a rule names them:
 - `generate-issue` - issue => report.
 - `generate-apply` - one self-contained APPLY under `temp/_APPLY/` that a cold session executes end to end.
 - `generate-handoff` - a set of APPLYs plus the dependency graph that lets them run in parallel.
-- `dispatch-applies` - several existing applies at once, one agent worktree each, this session orchestrating.
+- `dispatch-applies` - several existing applies at once, one worktree each and one fresh agent per part, this session orchestrating.
 - `request-make-apply` - `<request text>`: sizes the request, then delivers it at once in an isolated git worktree of
   this repository, carried to a merged PR in the same run.
 - `parallelize` - free text => tasks => dependency waves dispatched to subagents, in a git worktree only when

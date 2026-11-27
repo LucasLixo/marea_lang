@@ -1,0 +1,11 @@
+-- expect: 3002 @7, 3081 @7
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A file cannot declare a namespace under marea when the host did not register it.
+
+namespace marea.tools;
+
+function check(): sinteger32
+    return 1;
+end

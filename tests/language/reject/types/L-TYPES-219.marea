@@ -1,0 +1,17 @@
+-- expect: 3043 @14
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A condition that is a field of another type.
+
+namespace main;
+
+structure Light
+    power: sinteger32;
+end
+
+function run(light: Light)
+    if light.power then
+        return;
+    end
+end

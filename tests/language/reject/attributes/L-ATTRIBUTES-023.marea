@@ -1,0 +1,10 @@
+-- expect: 3085 @9
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A visibility key on a macro statement.
+
+namespace main;
+
+#[visibility = public]
+static_assert!(true, "x");

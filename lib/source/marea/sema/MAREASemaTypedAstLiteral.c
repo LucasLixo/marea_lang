@@ -191,7 +191,36 @@ static void MAREA_CALL MAREA_G_ApplyArguments(const MAREA_SemaContext *context, 
     }
 }
 
-static void MAREA_CALL MAREA_G_ApplyCall(const MAREA_SemaContext *context, const MAREA_SemaTypedNode *built)
+// INFO: an argument of a member with a host signature takes the type of its parameter, as one of a function of the file does.
+static MAREA_Boolean MAREA_CALL MAREA_G_ApplyExternalArguments(MAREA_SemaContext *context, MAREA_SemaTypedNode *arguments, const MAREA_AstNode *callee)
+{
+    const MAREA_SemaSignature *signature = MAREA_NULLPTR;
+
+    MAREA_SemaTypedAstExcept result = MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+
+    if (MAREA_G_IsKind(callee, MAREA_AST_KIND_MEMBER_ACCESS) == MAREA_BOOLEAN_TRUE) {
+        result = MAREA_SemaTypedAstExternalMemberSignature(context, MAREA_SemaChildAt(callee, 0), MAREA_SemaChildAt(callee, 1), &signature);
+    } else if (MAREA_G_IsKind(callee, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_TRUE) {
+        result = MAREA_SemaTypedAstExternalNameSignature(context, callee, &signature);
+    }
+
+    // INFO: a failure here leaves the literals with their defaults; the type of the call asks again and reports it.
+    if ((result != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) || (signature == MAREA_NULLPTR)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    for (MAREA_IntegerSize index = 0; ((index < arguments->childCount) && (index < signature->parameterCount)); ++index) {
+        const MAREA_SemaSignatureParameter *parameter = &signature->parameters[index];
+
+        if (MAREA_SemaIsPrimitiveTypeName(parameter->typeText, parameter->typeTextLength) == MAREA_BOOLEAN_TRUE) {
+            MAREA_G_Apply(arguments->children[index], parameter->typeText, parameter->typeTextLength);
+        }
+    }
+
+    return MAREA_BOOLEAN_TRUE;
+}
+
+static void MAREA_CALL MAREA_G_ApplyCall(MAREA_SemaContext *context, const MAREA_SemaTypedNode *built)
 {
     MAREA_SemaTypedNode *arguments = MAREA_G_FindTypedChild(built, MAREA_AST_KIND_ARGUMENT_LIST);
 
@@ -208,6 +237,10 @@ static void MAREA_CALL MAREA_G_ApplyCall(const MAREA_SemaContext *context, const
     }
 
     const MAREA_AstNode *callee = MAREA_SemaChildAt(built->astNode, 0);
+
+    if (MAREA_G_ApplyExternalArguments(context, arguments, callee) == MAREA_BOOLEAN_TRUE) {
+        return;
+    }
 
     if ((MAREA_G_IsKind(callee, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_FALSE) || (MAREA_SemaLocalFind(context, MAREA_AstNodeGetText(callee), MAREA_AstNodeGetTextLength(callee)) != MAREA_NULLPTR)) {
         return;
@@ -251,9 +284,11 @@ static const MAREA_AstNode *MAREA_CALL MAREA_G_FieldType(const MAREA_AstNode *st
     return MAREA_NULLPTR;
 }
 
-static MAREA_Boolean MAREA_CALL MAREA_G_IsElementContainer(const MAREA_Character8 *name, MAREA_IntegerSize length)
+static MAREA_Boolean MAREA_CALL MAREA_G_IsElementContainer(const MAREA_SemaContext *context, const MAREA_AstNode *type)
 {
-    return ((MAREA_SemaTextEquals(name, length, "array", strlen("array")) == MAREA_BOOLEAN_TRUE) || (MAREA_SemaTextEquals(name, length, "vector", strlen("vector")) == MAREA_BOOLEAN_TRUE) || (MAREA_SemaTextEquals(name, length, "slice", strlen("slice")) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+    const MAREA_TypeDescriptor *descriptor = MAREA_NULLPTR;
+
+    return ((MAREA_SemaDescriptorOfType(context, type, &descriptor) == MAREA_BOOLEAN_TRUE) && (descriptor->hasIndexProtocol == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
 // INFO: an entry of a literal value takes the declared type of its field in a structure, or the element type in an array, a vector or a slice. Any other library type is not guessed.
@@ -279,7 +314,9 @@ static void MAREA_CALL MAREA_G_ApplyLiteralValue(const MAREA_SemaContext *contex
 
     const MAREA_AstNode *firstArgument = (arguments == MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_SemaChildAt(arguments, 0);
 
-    const MAREA_AstNode *element = ((IS_STRUCTURE == MAREA_BOOLEAN_FALSE) && ((CLASS == MAREA_SEMA_TYPE_CLASS_COPY_BUILTIN) || (CLASS == MAREA_SEMA_TYPE_CLASS_MOVE_BUILTIN)) && (MAREA_G_IsElementContainer(name, length) == MAREA_BOOLEAN_TRUE) && (MAREA_G_IsType(firstArgument) == MAREA_BOOLEAN_TRUE)) ? firstArgument : MAREA_NULLPTR;
+    const MAREA_AstNode *element = ((IS_STRUCTURE == MAREA_BOOLEAN_FALSE) && ((CLASS == MAREA_SEMA_TYPE_CLASS_COPY_BUILTIN) || (CLASS == MAREA_SEMA_TYPE_CLASS_MOVE_BUILTIN)) && (MAREA_G_IsElementContainer(context, type) == MAREA_BOOLEAN_TRUE) && (MAREA_G_IsType(firstArgument) == MAREA_BOOLEAN_TRUE)) ? firstArgument : MAREA_NULLPTR;
+
+    const MAREA_Boolean IS_TUPLE = MAREA_SemaTupleOfType(context, type, MAREA_NULLPTR);
 
     for (MAREA_IntegerSize index = 1; index < built->childCount; ++index) {
         const MAREA_SemaTypedNode *entry = built->children[index];
@@ -296,9 +333,13 @@ static void MAREA_CALL MAREA_G_ApplyLiteralValue(const MAREA_SemaContext *contex
 
             break;
         case MAREA_AST_KIND_VALUE_ENTRY:
-            MAREA_G_ApplyType(context, MAREA_G_ChildAt(entry, 0), element);
+        {
+            // INFO: a value of a tuple literal takes the type of the element at its place.
+            const MAREA_AstNode *part = ((IS_TUPLE == MAREA_BOOLEAN_TRUE) && (arguments != MAREA_NULLPTR) && ((index - 1) < MAREA_AstNodeGetChildCount(arguments))) ? MAREA_SemaChildAt(arguments, (index - 1)) : element;
 
+            MAREA_G_ApplyType(context, MAREA_G_ChildAt(entry, 0), part);
             break;
+        }
         case MAREA_AST_KIND_INDEX_ENTRY:
             MAREA_G_ApplyType(context, MAREA_G_ChildAt(entry, 1), element);
 
@@ -375,7 +416,7 @@ void MAREA_CALL MAREA_SemaTypedAstResolveLiteralDefault(MAREA_SemaTypedNode *bui
     }
 }
 
-void MAREA_CALL MAREA_SemaTypedAstResolveLiteralContext(const MAREA_SemaContext *context, const MAREA_SemaTypedNode *built)
+void MAREA_CALL MAREA_SemaTypedAstResolveLiteralContext(MAREA_SemaContext *context, const MAREA_SemaTypedNode *built)
 {
     if ((context == MAREA_NULLPTR) || (built == MAREA_NULLPTR) || (built->childCount == 0)) {
         return;

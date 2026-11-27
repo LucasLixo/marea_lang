@@ -54,7 +54,7 @@ TEST(MAREAIrAliases, NamespaceAliasHeadLowersToTheLastSegment)
 
     const std::string DUMP{ MAREA_dumpOf("namespace main; import collections.list as lst; function run() lst.push(1); end") };
 
-    EXPECT_TRUE(MAREA_has(DUMP, "IDENTIFIER \"list\"")) << "The head must be the original: " << DUMP;
+    EXPECT_TRUE(MAREA_has(DUMP, "IDENTIFIER \"collections.list\"")) << "The head must be the full path: " << DUMP;
     EXPECT_FALSE(MAREA_has(DUMP, "lst")) << "The alias must not appear: " << DUMP;
     EXPECT_TRUE(MAREA_has(DUMP, "IDENTIFIER \"push\"")) << "The member name is not a head and stays: " << DUMP;
 }
@@ -65,7 +65,7 @@ TEST(MAREAIrAliases, SymbolAliasCallLowersToTheOriginal)
 
     const std::string DUMP{ MAREA_dumpOf("namespace main; import collections.list { push as add }; function run() add(1); end") };
 
-    EXPECT_TRUE(MAREA_has(DUMP, "IDENTIFIER \"push\"")) << "The callee must be the original: " << DUMP;
+    EXPECT_TRUE(MAREA_has(DUMP, "IDENTIFIER \"collections.list.push\"")) << "The callee must be the full path: " << DUMP;
     EXPECT_FALSE(MAREA_has(DUMP, "add")) << "The alias must not appear: " << DUMP;
 }
 
@@ -75,9 +75,9 @@ TEST(MAREAIrAliases, MemberAliasTypeLowersInAFieldAndAParameter)
 
     const std::string DUMP{ MAREA_dumpOf("namespace main; import collections.list { Item as Entry }; structure Box value: Entry; end function take(e: Entry) local x: Entry = e; end") };
 
-    EXPECT_TRUE(MAREA_has(DUMP, "FIELD_DECLARATION \"value\" type=Item")) << "The field type must be the original: " << DUMP;
-    EXPECT_TRUE(MAREA_has(DUMP, "PARAMETER \"e\" type=Item")) << "The parameter type must be the original: " << DUMP;
-    EXPECT_TRUE(MAREA_has(DUMP, "LOCAL_DECLARATION \"x\" type=Item")) << "The local type must be the original: " << DUMP;
+    EXPECT_TRUE(MAREA_has(DUMP, "FIELD_DECLARATION \"value\" type=collections.list.Item")) << "The field type must be the original: " << DUMP;
+    EXPECT_TRUE(MAREA_has(DUMP, "PARAMETER \"e\" type=collections.list.Item")) << "The parameter type must be the original: " << DUMP;
+    EXPECT_TRUE(MAREA_has(DUMP, "LOCAL_DECLARATION \"x\" type=collections.list.Item")) << "The local type must be the original: " << DUMP;
     EXPECT_FALSE(MAREA_has(DUMP, "Entry")) << "The alias must not appear: " << DUMP;
 }
 
@@ -87,7 +87,7 @@ TEST(MAREAIrAliases, ConstantAliasLowersToTheOriginal)
 
     const std::string DUMP{ MAREA_dumpOf("namespace main; import collections.limits { MAX as LIMIT }; function run(): sinteger32 return LIMIT; end") };
 
-    EXPECT_TRUE(MAREA_has(DUMP, "IDENTIFIER \"MAX\"")) << "The constant must be the original: " << DUMP;
+    EXPECT_TRUE(MAREA_has(DUMP, "IDENTIFIER \"collections.limits.MAX\"")) << "The constant must be the original: " << DUMP;
     EXPECT_FALSE(MAREA_has(DUMP, "LIMIT")) << "The alias must not appear: " << DUMP;
 }
 
@@ -95,9 +95,9 @@ TEST(MAREAIrAliases, VariantAliasLowersToTheTwoPartPath)
 {
     GTEST_COUT << "Validating a variant alias lowers to the member path as written, joined with a dot." << std::endl;
 
-    const std::string DUMP{ MAREA_dumpOf("namespace main; import collections.shade { Color, Color.red as Crimson }; function run() local c: Color = Crimson; end") };
+    const std::string DUMP{ MAREA_dumpOf("namespace main; import collections.shade { Color as Color, Color.red as Crimson }; function run() local c: Color = Crimson; end") };
 
-    EXPECT_TRUE(MAREA_has(DUMP, "IDENTIFIER \"Color.red\"")) << "The variant must be the original path: " << DUMP;
+    EXPECT_TRUE(MAREA_has(DUMP, "IDENTIFIER \"collections.shade.Color.red\"")) << "The variant must be the original path: " << DUMP;
     EXPECT_FALSE(MAREA_has(DUMP, "Crimson")) << "The alias must not appear: " << DUMP;
 }
 
@@ -121,7 +121,7 @@ TEST(MAREAIrAliases, LocalTypeAliasOfAnImportedAliasFollowsTheChain)
 
     const std::string DUMP{ MAREA_dumpOf("namespace main; import collections.list { Item as Entry }; type Mine = Entry; structure Box value: Mine; end") };
 
-    EXPECT_TRUE(MAREA_has(DUMP, "FIELD_DECLARATION \"value\" type=Item")) << "The chain must end at the imported original: " << DUMP;
+    EXPECT_TRUE(MAREA_has(DUMP, "FIELD_DECLARATION \"value\" type=collections.list.Item")) << "The chain must end at the imported original: " << DUMP;
 }
 
 TEST(MAREAIrAliases, QualifiedTypeWithAliasHeadLowersTheHead)
@@ -130,7 +130,7 @@ TEST(MAREAIrAliases, QualifiedTypeWithAliasHeadLowersTheHead)
 
     const std::string DUMP{ MAREA_dumpOf("namespace main; import collections.list as lst; structure Box value: lst.Item; end") };
 
-    EXPECT_TRUE(MAREA_has(DUMP, "FIELD_DECLARATION \"value\" type=list.Item")) << "The head must be the original: " << DUMP;
+    EXPECT_TRUE(MAREA_has(DUMP, "FIELD_DECLARATION \"value\" type=collections.list.Item")) << "The head must be the original: " << DUMP;
 }
 
 TEST(MAREAIrAliases, ParameterShadowsAnAlias)
@@ -151,7 +151,7 @@ TEST(MAREAIrAliases, LocalShadowsAnAliasOnlyInItsOwnFunction)
 
     EXPECT_TRUE(MAREA_has(DUMP, "FUNCTION_DECLARATION \"one\"")) << "The first function must lower: " << DUMP;
     EXPECT_TRUE(MAREA_has(DUMP, "RETURN_STATEMENT\n        IDENTIFIER \"add\"")) << "The local must keep its name: " << DUMP;
-    EXPECT_TRUE(MAREA_has(DUMP, "IDENTIFIER \"push\"")) << "The other function must see the original: " << DUMP;
+    EXPECT_TRUE(MAREA_has(DUMP, "IDENTIFIER \"collections.list.push\"")) << "The other function must see the full path: " << DUMP;
 }
 
 TEST(MAREAIrAliases, LocalShadowsAnAliasOnlyFromItsDeclarationOnward)
@@ -161,7 +161,7 @@ TEST(MAREAIrAliases, LocalShadowsAnAliasOnlyFromItsDeclarationOnward)
     const std::string DUMP{ MAREA_dumpOf("namespace main; import collections.list { push as add }; function run(): sinteger32 add(1); local add: sinteger32 = 2; return add; end") };
 
     EXPECT_NE(DUMP, "<lower failed>") << "The unit must lower.";
-    EXPECT_TRUE(MAREA_has(DUMP, "IDENTIFIER \"push\"")) << "The reference before the local must see the original: " << DUMP;
+    EXPECT_TRUE(MAREA_has(DUMP, "IDENTIFIER \"collections.list.push\"")) << "The reference before the local must see the full path: " << DUMP;
     EXPECT_TRUE(MAREA_has(DUMP, "RETURN_STATEMENT\n        IDENTIFIER \"add\"")) << "The reference after the local must keep its name: " << DUMP;
 }
 
@@ -192,7 +192,7 @@ TEST(MAREAIrAliases, StaticCallOnAnAliasedTypeLowersTheTypeAndKeepsTheMember)
 
     const std::string DUMP{ MAREA_dumpOf("namespace main; import collections.list { list as items }; function run(): sinteger32 return items<sinteger32>.filled(8, 0).length(); end") };
 
-    EXPECT_TRUE(MAREA_has(DUMP, "TYPE_NAME \"list\"")) << "The type must be the original: " << DUMP;
+    EXPECT_TRUE(MAREA_has(DUMP, "TYPE_NAME \"collections.list.list\"")) << "The type must be the original: " << DUMP;
     EXPECT_FALSE(MAREA_has(DUMP, "\"items\"")) << "The alias must not appear: " << DUMP;
 }
 
@@ -215,14 +215,14 @@ TEST(MAREAIrAliases, TextDumpOfALoweredUnitIsExact)
     GTEST_COUT << "Validating the exact dump of a small unit that uses a member alias and a type alias." << std::endl;
 
     EXPECT_EQ(MAREA_dumpOf("namespace main; import collections.list { push as add, Item as Entry }; function run(e: Entry) add(1); end"), MAREA_lines({
-                                                                                                                                              "MODULE",
+                                                                                                                                              "MODULE \"main\"",
                                                                                                                                               "  FUNCTION_DECLARATION \"run\"",
                                                                                                                                               "    PARAMETER_LIST",
-                                                                                                                                              "      PARAMETER \"e\" type=Item resolved=Item",
+                                                                                                                                              "      PARAMETER \"e\" type=collections.list.Item resolved=Item",
                                                                                                                                               "    BLOCK",
                                                                                                                                               "      EXPRESSION_STATEMENT",
-                                                                                                                                              "        CALL_EXPRESSION",
-                                                                                                                                              "          IDENTIFIER \"push\"",
+                                                                                                                                              "        CALL_EXPRESSION external",
+                                                                                                                                              "          IDENTIFIER \"collections.list.push\"",
                                                                                                                                               "          ARGUMENT_LIST",
                                                                                                                                               "            INTEGER_LITERAL \"1\" resolved=sinteger32",
                                                                                                                                           }))
@@ -235,7 +235,7 @@ TEST(MAREAIrAliases, MemberListNamesAreBoundForBuiltinLookup)
 
     const Codes GENERIC{ 4004 };
 
-    EXPECT_EQ(MAREA_codesOf("namespace main; import collections.list { size_of }; function run(): sinteger32 return size_of<sinteger32>(); end"), GENERIC) << "A member with a built-in name binds it, so the call is a user generic.";
+    EXPECT_EQ(MAREA_codesOf("namespace main; import collections.list { size_of as size_of }; function run(): sinteger32 return size_of<sinteger32>(); end"), GENERIC) << "A member with a built-in name binds it, so the call is a user generic.";
 
     EXPECT_EQ(MAREA_codesOf("namespace main; import collections.list { helper as size_of }; function run(): sinteger32 return size_of<sinteger32>(); end"), GENERIC) << "An alias with a built-in name binds it.";
 
@@ -246,7 +246,7 @@ TEST(MAREAIrAliases, GenericTypeAliasStillRaises)
 {
     GTEST_COUT << "Validating a generic type alias of the unit keeps raising UNINSTANTIATED_GENERIC." << std::endl;
 
-    const Codes CODES{ MAREA_codesOf("namespace main; import collections.list; type Many<Item> = list<Item>; function run(): sinteger32 return Many<sinteger32>.filled(8, 0).length(); end") };
+    const Codes CODES{ MAREA_codesOf("namespace main; import collections.list as list; type Many<Item> = list<Item>; function run(): sinteger32 return Many<sinteger32>.filled(8, 0).length(); end") };
 
     ASSERT_FALSE(CODES.empty()) << "The generic alias must raise.";
 
@@ -260,7 +260,7 @@ TEST(MAREAIrAliases, FunctionTypeAliasLowersLikeTheWrittenFunctionType)
     GTEST_COUT << "Validating an alias of a function type lowers as the function type itself does, so no alias name stays." << std::endl;
 
     EXPECT_EQ(MAREA_dumpOf("namespace main; type Callback = function(v: sinteger32): boolean; structure Holder f: Callback; end function run(a: Callback) end"), MAREA_lines({
-                                                                                                                                                                     "MODULE",
+                                                                                                                                                                     "MODULE \"main\"",
                                                                                                                                                                      "  STRUCTURE_DECLARATION \"Holder\"",
                                                                                                                                                                      "    FIELD_DECLARATION \"f\" resolved=function(sinteger32):boolean",
                                                                                                                                                                      "  FUNCTION_DECLARATION \"run\"",
@@ -288,11 +288,11 @@ TEST(MAREAIrAliases, TypeArgumentAliasLowersToTheHeadName)
 {
     GTEST_COUT << "Validating an alias of a type with concrete type arguments lowers to the head name, as the written type does." << std::endl;
 
-    const std::string DUMP{ MAREA_dumpOf("namespace main; import collections.list; type Ints = list<sinteger32>; type More = Ints; structure Box value: Ints; end function take(e: More) local x: Ints = e; end") };
+    const std::string DUMP{ MAREA_dumpOf("namespace main; import collections.list as list; type Ints = list<sinteger32>; type More = Ints; structure Box value: Ints; end function take(e: More) local x: Ints = e; end") };
 
-    EXPECT_TRUE(MAREA_has(DUMP, "FIELD_DECLARATION \"value\" type=list")) << "The field type must be the head name: " << DUMP;
-    EXPECT_TRUE(MAREA_has(DUMP, "PARAMETER \"e\" type=list")) << "The chain must reach the head name: " << DUMP;
-    EXPECT_TRUE(MAREA_has(DUMP, "LOCAL_DECLARATION \"x\" type=list")) << "The local type must be the head name: " << DUMP;
+    EXPECT_TRUE(MAREA_has(DUMP, "FIELD_DECLARATION \"value\" type=collections.list")) << "The field type must be the head name: " << DUMP;
+    EXPECT_TRUE(MAREA_has(DUMP, "PARAMETER \"e\" type=collections.list")) << "The chain must reach the head name: " << DUMP;
+    EXPECT_TRUE(MAREA_has(DUMP, "LOCAL_DECLARATION \"x\" type=collections.list")) << "The local type must be the head name: " << DUMP;
     EXPECT_FALSE(MAREA_has(DUMP, "Ints")) << "The alias must not appear: " << DUMP;
     EXPECT_FALSE(MAREA_has(DUMP, "More")) << "The alias must not appear: " << DUMP;
 }
@@ -301,7 +301,7 @@ TEST(MAREAIrAliases, TypeOperandThroughALossyAliasRaises)
 {
     GTEST_COUT << "Validating a type operand named by an alias that carries type arguments raises, so no argument is lost." << std::endl;
 
-    const Codes CODES{ MAREA_codesOf("namespace main; import collections.list; type Ints = list<sinteger32>; constant SIZE: uinteger64 = size_of<Ints>();") };
+    const Codes CODES{ MAREA_codesOf("namespace main; import collections.list as list; type Ints = list<sinteger32>; constant SIZE: uinteger64 = size_of<Ints>();") };
 
     ASSERT_FALSE(CODES.empty()) << "The operand must raise.";
 

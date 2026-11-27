@@ -1,0 +1,13 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A call written with the full path of a required namespace.
+
+namespace main;
+
+require demo.io;
+
+function show()
+    demo.io.puts("hello");
+end

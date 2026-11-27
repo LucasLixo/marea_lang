@@ -1,0 +1,39 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- The vectors of sinteger32 take the arithmetic, the equality and the index operators.
+
+namespace main;
+
+require marea.math as math;
+
+function check2(left: math.Vector2Sinteger32, right: math.Vector2Sinteger32)
+    local sum: math.Vector2Sinteger32 = left + right;
+    local difference: math.Vector2Sinteger32 = left - right;
+    local product: math.Vector2Sinteger32 = left * right;
+    local quotient: math.Vector2Sinteger32 = left / right;
+    local equal: boolean = left == right;
+    local different: boolean = left != right;
+    local first: sinteger32 = left[0];
+end
+
+function check3(left: math.Vector3Sinteger32, right: math.Vector3Sinteger32)
+    local sum: math.Vector3Sinteger32 = left + right;
+    local difference: math.Vector3Sinteger32 = left - right;
+    local product: math.Vector3Sinteger32 = left * right;
+    local quotient: math.Vector3Sinteger32 = left / right;
+    local equal: boolean = left == right;
+    local different: boolean = left != right;
+    local first: sinteger32 = left[0];
+end
+
+function check4(left: math.Vector4Sinteger32, right: math.Vector4Sinteger32)
+    local sum: math.Vector4Sinteger32 = left + right;
+    local difference: math.Vector4Sinteger32 = left - right;
+    local product: math.Vector4Sinteger32 = left * right;
+    local quotient: math.Vector4Sinteger32 = left / right;
+    local equal: boolean = left == right;
+    local different: boolean = left != right;
+    local first: sinteger32 = left[0];
+end

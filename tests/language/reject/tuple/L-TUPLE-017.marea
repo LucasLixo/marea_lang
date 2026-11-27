@@ -1,0 +1,17 @@
+-- expect: 3013 @16
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- copy of a tuple needs every element to be copyable.
+
+namespace main;
+
+require marea.tuple;
+
+structure Token
+    value: sinteger32;
+end
+
+function check(pair: marea.tuple.Tuple<Token, sinteger32>)
+    local other: marea.tuple.Tuple<Token, sinteger32> = copy pair;
+end

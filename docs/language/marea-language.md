@@ -42,10 +42,14 @@ The first line is the header. It has one of three forms:
 | `-- expect: <code> @<line>[, <code> @<line>]` | `reject` | The diagnostics are exactly these codes, in the order the compiler gives them, each on its 1-based source line. |
 | `-- gap: #<issue> <code>` | `known_gap` | The program is accepted today, but the language should give `<code>`. `<code>` is `NEW` when no code exists yet. |
 
+An item with `-- shipped: <path>` as its second line is a source file that the language ships: the runner checks it with
+that path (in place of `main.marea`) and with the shipped library source input of sema, so it may declare a namespace
+under `c` or `marea`. The parity test does not run such an item.
+
 A `known_gap` item has `-- rule: reject` or `-- rule: accept` as its second line: the outcome the language has
 decided. A `-- rule:` line in another class is an error. The copyright header follows, then the program.
 
-The codes are the lex codes 1001-1006, the parse codes 2001-2010 and the sema codes 3001-3077 (3023 is retired, and not every other number of the range is a live code).
+The codes are the lex codes 1001-1006, the parse codes 2001-2010 and the sema codes 3001-3081 (3023 is retired, and not every other number of the range is a live code).
 The `@<line>` of the form is optional for the parser of the header, but a `reject` item with a code that has no
 `@<line>` fails.
 
@@ -78,9 +82,37 @@ These rules bind every item (user decision 2026-11-23).
 3. A local `x: T;` with no initial value is an error.
 4. A literal outside the range of its type is a compile-time error and is never truncated; plain `+`, `-` and `*`
    wrap in two's complement; checked and saturating forms are explicit operators.
-5. `private` visibility is enforced across namespaces (3066, 3067, 3068, proven by `tests/source/sema/MAREASemaVisibility.cpp`). The default visibility is public.
+5. `private` visibility is enforced across namespaces (3066, 3067, 3068, L-NAMESPACES-079 to 081). The default visibility is public.
 
 Where the compiler does not enforce a rule yet, the item is a `known_gap` with `-- rule:`.
+
+## Undefined behavior
+
+Safe code has no undefined behavior: each fault that the language sees is a defined trap, the same in both backends.
+Undefined behavior is possible only inside `unsafe`, and when a value crosses the C border and C breaks a promise that
+the type system cannot see. `c.memory` is that border: it trusts each address that it gets. These cases remain:
+
+- A zero-filled array or vector of `c.memory.Pointer`, an empty slot of a vector and a `resize` with a default hold
+  null pointers. The language has no `nil`: a zero pointer is the null address of C. A read or a write through it is
+  undefined.
+- A pointer to freed or foreign memory. A container stores the address only and never frees what it points to. A
+  read or a write through such a pointer, a second `free` of one block and a `free` of an address that `alloc` did
+  not give are undefined.
+- `copy` of a container of pointers, and a `fill` with a pointer, copy the addresses and not the pointed values. Two
+  owners of one block then risk a double free.
+- The address that `data()` of a container gives is not valid after a later resize, move or destroy of the container.
+  Neither backend lowers `data()` today.
+- A write of C past the size or the capacity of the storage that it was given.
+- Padding bytes read through a raw access have no specified value. Compare values element by element, never by their
+  bytes. A `boolean` read from a byte other than 0 or 1 is undefined.
+- A `marea.memory.Slice` over a C buffer trusts the length that it is given. When C gives a wrong length, an index
+  below that length can read past the buffer.
+- Two workers of a `fork_join` that use one C pointer can race: the ownership rules see Marea values only.
+- An unchecked conversion to a pointer does not check the alignment. An element access of both backends moves the
+  bytes at any alignment, but a C function that receives a misaligned address has undefined behavior.
+- A borrow of an opaque structure lives for one call. When C frees the object during the call, the borrow dangles.
+- A structure without `#[layout = c]` that reaches C: no rule refuses it yet, and C can then read other offsets (see
+  Gaps).
 
 ## Catalogue: accept
 
@@ -252,6 +284,10 @@ A `known_gap` item that shares an issue shows one hole of the compiler through m
 | L-BINDINGS-111 | A layout key with an unknown member | 3006 @9 |
 | L-BINDINGS-112 | An attribute with no symbol after it | 2004 @10 |
 | L-BINDINGS-113 | An attribute line that ends with a semicolon | 2004 @9 |
+| L-BINDINGS-114 | A local of a for body repeats the loop name | 3003 @11 |
+| L-BINDINGS-115 | A for bound reads the name of its own loop | 3004 @10 |
+| L-BINDINGS-116 | A constant of an implementation block is assigned | 3040 @17 |
+| L-BINDINGS-117 | A raw pointer local of a type alias outside an unsafe block | 3041 @10, 3065 @13, 3041 @13 |
 
 ### Bindings: known_gap
 
@@ -274,8 +310,8 @@ today. The holes are grouped by kind: memory, permission and aliasing. A gap tha
 issue shows one hole through more than one program.
 
 Settled rule 2 (the default borrow is read-only) holds in sema, the grammar and the examples: a parameter with no
-attribute is a read-only borrow, unless its type is by value (a primitive, an enum, `array`, `pointer`, `slice`) or
-moves in (`owned`, `task`, `vector`). A write needs the explicit `#[semantics = reference_mutable]`. Sema rejects a
+attribute is a read-only borrow, unless its type is by value (a primitive, an enum, a registered type of the copy class) or
+moves in (a registered type of the move class). A write needs the explicit `#[semantics = reference_mutable]`. Sema rejects a
 write through a read-only borrow with 3069: an assignment, a `for each ... in mutable` or `partition mutable` over a
 read-only source, a read-only borrow given to a write-borrow parameter, and a call result or a literal given to a
 write-borrow parameter.
@@ -328,6 +364,7 @@ write-borrow parameter.
 | L-OWNERSHIP-090 | A parameter with no attribute is only read | ok |
 | L-OWNERSHIP-091 | A parameter with the write attribute is written | ok |
 | L-OWNERSHIP-095 | A nested field of a write borrow is written | ok |
+| L-OWNERSHIP-099 | A with name over a writable local is written | ok |
 | L-OWNERSHIP-102 | A write borrow is passed on to a write-borrow parameter | ok |
 | L-OWNERSHIP-104 | A parameter with no attribute is passed on to a read-borrow parameter | ok |
 | L-OWNERSHIP-106 | A primitive parameter may be marked as a write borrow | ok |
@@ -349,6 +386,7 @@ write-borrow parameter.
 | L-OWNERSHIP-141 | A new value is given to an owned parameter | ok |
 | L-OWNERSHIP-143 | A local of an owned type takes a value with move | ok |
 | L-OWNERSHIP-145 | An owned parameter is returned and the owner goes up | ok |
+| L-OWNERSHIP-147 | A write goes through a with name over a call | ok |
 
 ### Ownership and borrows: reject
 
@@ -406,7 +444,6 @@ write-borrow parameter.
 | L-OWNERSHIP-096 | An element of a read-only vector is written | 3069 @20 |
 | L-OWNERSHIP-097 | A whole read-only borrow is assigned | 3069 @24 |
 | L-OWNERSHIP-098 | A for each variable is written | 3069 @21 |
-| L-OWNERSHIP-099 | A with name is written | 3069 @26 |
 | L-OWNERSHIP-100 | A for each mutable over a read-only vector | 3069 @20, 3069 @21 |
 | L-OWNERSHIP-101 | A read-only borrow is passed on to a write-borrow parameter | 3069 @24 |
 | L-OWNERSHIP-103 | A parameter with no attribute is passed on to a write-borrow parameter | 3069 @24 |
@@ -431,6 +468,7 @@ write-borrow parameter.
 | L-OWNERSHIP-136 | A field of a file constant is passed to a write-borrow parameter | 3032 @26 |
 | L-OWNERSHIP-138 | A file constant is passed to a write-borrow parameter in a branch | 2001 @29, 3032 @27 |
 | L-OWNERSHIP-144 | A local of an owned type takes a value with no word | 3016 @25 |
+| L-OWNERSHIP-146 | A write goes through a with name over a read-only parameter | 3069 @20 |
 
 ### Ownership and borrows: known_gap
 
@@ -468,6 +506,9 @@ lifecycle operator (3027) and structured `fork_join` with `partition` and `spawn
 | L-MEMORY-024 | A worker spawned on a read-borrow parameter | ok |
 | L-MEMORY-027 | Two workers read the same local | ok |
 | L-MEMORY-033 | A field of a local is read inside its own scope block | ok |
+| L-MEMORY-034 | a member is read through a marea.memory owner, and the owner moves | ok |
+| L-MEMORY-035 | a marea.memory view passes by value to two calls and is walked | ok |
+| L-MEMORY-036 | a marea.memory arena is lent for a write and then moves | ok |
 
 ### Memory and regions: reject
 
@@ -491,6 +532,11 @@ lifecycle operator (3027) and structured `fork_join` with `partition` and `spawn
 | L-MEMORY-030 | A worker is spawned outside of a fork_join block | 3062 @29 |
 | L-MEMORY-031 | A worker takes the part of a partition mutable while the source is also spawned | 3020 @30 |
 | L-MEMORY-032 | A field of a scope block local is read after the block | 3004 @27 |
+| L-MEMORY-037 | a marea.memory owner is given to a name with no copy and no move | 3016 @17 |
+| L-MEMORY-038 | a marea.memory owner is read after it moved | 3070 @18 |
+| L-MEMORY-039 | a marea.memory arena is given to a name with no move | 3016 @12 |
+| L-MEMORY-040 | a marea.memory arena with a type argument | 3014 @11 |
+| L-MEMORY-041 | a marea.memory view of an element with no measured layout | 3082 @11 |
 
 ### Memory and regions: known_gap
 
@@ -652,6 +698,8 @@ Function declaration and call, parameters and defaults, the result and `return v
 | L-TYPES-136 | the loop variable of a for range used in the body | ok |
 | L-TYPES-202 | a word that looks like a keyword but is not one | ok |
 | L-TYPES-203 | a name that starts with a primitive type name | ok |
+| L-TYPES-204 | A do-while loop whose condition reads a name of the outer scope | ok |
+| L-TYPES-205 | A do-while loop with a break and a continue in its body | ok |
 
 ### Types and control flow: reject
 
@@ -706,7 +754,7 @@ Function declaration and call, parameters and defaults, the result and `return v
 | L-TYPES-090 | a contract declared twice | 3003 @13 |
 | L-TYPES-091 | a construct function that is called directly | 3027 @22 |
 | L-TYPES-092 | a destroy function that is called directly | 3027 @22 |
-| L-TYPES-093 | a construct function at the top level | 3028 @10 |
+| L-TYPES-093 | a construct function at the top level | 3085 @9, 3028 @10 |
 | L-TYPES-094 | a destroy function with a parameter | 3029 @16 |
 | L-TYPES-095 | a construct function with a result | 3029 @16 |
 | L-TYPES-096 | a construct function with a parameter that has no default | 3029 @16 |
@@ -790,31 +838,53 @@ Function declaration and call, parameters and defaults, the result and `return v
 | L-TYPES-199 | a type declaration keyword used as an enum name | 2001 @9 |
 | L-TYPES-200 | a keyword used as a field name | 2001 @10, 2001 @10 |
 | L-TYPES-201 | a keyword used as an enum variant name | 2001 @10, 2001 @10 |
+| L-TYPES-206 | A do-while loop whose condition is an integer | 3043 @11 |
+| L-TYPES-207 | A do-while loop whose condition reads a name of its body | 3004 @12 |
+| L-TYPES-208 | a slice value for a primitive local | 3011 @10 |
+| L-TYPES-209 | a field of a structure type given to a primitive parameter | 3011 @18 |
+| L-TYPES-210 | a field of a function type with another signature than the parameter | 3053 @15 |
+| L-TYPES-211 | an owned vector given to a vector parameter | 3014 @13 |
+| L-TYPES-212 | the result of a generic call compared after its type argument is bound | 3011 @13 |
+| L-TYPES-213 | the line of a call stored in a string | 3011 @8 |
+| L-TYPES-214 | the bytes of a file stored in a string | 3011 @8 |
+| L-TYPES-215 | arithmetic on two strings | 3011 @10 |
+| L-TYPES-216 | a comparison of two booleans | 3011 @10 |
+| L-TYPES-217 | a bitwise operator on two characters | 3038 @10 |
+| L-TYPES-218 | a declared operator with an operand of another type | 3011 @21 |
+| L-TYPES-219 | a condition that is a field of another type | 3043 @14 |
+| L-TYPES-220 | a false static assertion on the size of a structure | 3059 @14 |
+| L-TYPES-221 | A structure that holds itself through a generic structure | 3045 @14 |
+| L-TYPES-222 | A variant that an enum of another namespace does not have | 3048 @12 |
+| L-TYPES-223 | A method call of a function that a type of another namespace does not have | 3049 @12 |
+| L-TYPES-070 | a switch arm whose value has another type than the switch value | 3011 @11 |
+| L-TYPES-071 | a case value of a variant of another enum | 3011 @21 |
+| L-TYPES-147 | a for range with a bound of another type | 3011 @10 |
 
 ### Types and control flow: known_gap
 
 | Id | Shows | Expected |
 |---|---|---|
-| L-TYPES-070 | a switch arm whose value has another type than the switch value | gap: 3011, rule: reject, issue #222 |
-| L-TYPES-071 | a case value of a variant of another enum | gap: 3011, rule: reject, issue #222 |
-| L-TYPES-147 | a for range with a bound of another type | gap: 3011, rule: reject, issue #222 |
 
 ## Namespaces and imports
 
 Namespaces, `main`, imports and the resolver outcomes, the reserved first segments `c` and `marea`, and
 visibility. The items sit in `tests/language/<class>/namespaces/`. Every item is one file named `main.marea` for the
 runner, so its namespace is `main`; a namespace of another name gives 3002 (L-NAMESPACES-024 to 027). The runner
-answers `EXTERNAL` to a `c.` name and `NOT_FOUND` to every other name, so `marea.`, a project namespace and the
-namespace itself give 3001 (L-NAMESPACES-020 to 023, 038, 039, 042, 057). `main` is an ordinary function: it has no
+registers the library types the items write (`demo.array`, `demo.vector`, `demo.slice`, `demo.pointer`, `demo.owned`, `demo.task`) with
+their roles and ownership class, because sema knows no library by name, and answers `EXTERNAL` to a `c.` name, to `demo` and every `demo.` name (the neutral root of the fixtures), and to the
+three names `marea.array`, `marea.memory` and `marea.tasks`. It answers `NOT_FOUND` to every other name, so
+`marea.text`, a project namespace and the namespace itself give 3001 (L-NAMESPACES-020 to 023, 038, 039, 042, 057).
+An import binds no name: the use writes the full path, and a short name exists only through `as`
+(L-NAMESPACES-007 to 014, 065 to 067, 070 to 076). An import or a require that no resolver finds gives 3001 or 3079. `main` is an ordinary function: it has no
 fixed signature and none is required (L-NAMESPACES-002 to 006).
 
-Settled rule 5 (a `private` name used from another namespace is a reject) is enforced by sema (3066, 3067 and 3068) and
-proven by `tests/source/sema/MAREASemaVisibility.cpp`, but it has no item. The runner checks one file per
-item and an item cannot import a second file, so a private name cannot be reached from another namespace until issue
-#250 lands. A private
+Settled rule 5 (a `private` name used from another namespace is a reject) is enforced by sema (3066, 3067 and 3068),
+proven by `tests/source/sema/MAREASemaVisibility.cpp` and shown by L-NAMESPACES-079 to 084. An item is one file, and
+the resolver of the runner answers `FOUND` for one fixed second namespace, `fixture.shapes`
+(`tests/include/tests/MAREACatalogueHelpers.hpp`); an item cannot bring a second file of its own (issue #250). A private
 name used inside its own namespace is accepted (L-NAMESPACES-011, 012, 063, 064). An import cycle and a private enum
-import need the same second file, so they have no item either; a namespace that imports itself gives 3001
-(L-NAMESPACES-039).
+import need a file that the fixed namespace does not give, so they have no item; a namespace that imports itself gives
+3001 (L-NAMESPACES-039).
 
 ### Namespaces and imports: accept
 
@@ -826,17 +896,23 @@ import need the same second file, so they have no item either; a namespace that 
 | L-NAMESPACES-004 | main may have no result | ok |
 | L-NAMESPACES-005 | A file with no main at all | ok |
 | L-NAMESPACES-006 | main takes the argument array of the future driver | ok |
-| L-NAMESPACES-007 | A c import is used by its last segment | ok |
-| L-NAMESPACES-008 | A c import renamed by as | ok |
+| L-NAMESPACES-007 | A required C library is used through the alias of its last segment | ok |
+| L-NAMESPACES-008 | A required C library renamed by as | ok |
 | L-NAMESPACES-009 | One symbol of a c library renamed by as | ok |
-| L-NAMESPACES-010 | An import list with two members, one of them renamed | ok |
+| L-NAMESPACES-010 | A require list with two members, one of them renamed | ok |
 | L-NAMESPACES-011 | A public and a private function, the private one used inside the namespace | ok |
 | L-NAMESPACES-012 | A private constant and a private structure used inside the namespace | ok |
-| L-NAMESPACES-013 | Two imports with different local names | ok |
-| L-NAMESPACES-014 | The same C library imported twice under two aliases | ok |
+| L-NAMESPACES-013 | Two requires with different local names | ok |
+| L-NAMESPACES-014 | The same C library required twice under two aliases | ok |
 | L-NAMESPACES-015 | A file attribute after the namespace and a public function | ok |
 | L-NAMESPACES-063 | A private field of a public structure read inside its own namespace | ok |
 | L-NAMESPACES-064 | A private enum used inside its own namespace | ok |
+| L-NAMESPACES-065 | A call written with the full path of a required namespace | ok |
+| L-NAMESPACES-066 | A wildcard require covers the full path of every namespace below it | ok |
+| L-NAMESPACES-067 | A type of a required library written with its full path | ok |
+| L-NAMESPACES-082 | A public method of another namespace is called on a call result | ok |
+| L-NAMESPACES-083 | A public type of another namespace is written with its full path | ok |
+| L-NAMESPACES-084 | A public field of another namespace is read on an element | ok |
 
 ### Namespaces and imports: reject
 
@@ -849,11 +925,11 @@ import need the same second file, so they have no item either; a namespace that 
 | L-NAMESPACES-024 | A namespace that does not match the file path | 3002 @7 |
 | L-NAMESPACES-025 | A namespace with an extra segment does not match the file path | 3002 @7 |
 | L-NAMESPACES-026 | A file cannot declare a namespace under the reserved first segment c | 3002 @7 |
-| L-NAMESPACES-027 | A file cannot declare a namespace under the reserved first segment marea | 3002 @7 |
-| L-NAMESPACES-028 | The same import twice gives a name that is already declared | 3003 @10 |
-| L-NAMESPACES-029 | Two imports end in the same local name | 3003 @10 |
-| L-NAMESPACES-030 | An alias clashes with an earlier import | 3003 @10 |
-| L-NAMESPACES-031 | An import name clashes with a function of the namespace | 3003 @11 |
+| L-NAMESPACES-027 | A file cannot declare a namespace under the reserved first segment marea | 3002 @7, 3081 @7 |
+| L-NAMESPACES-028 | The same require twice gives a name that is already declared | 3003 @10 |
+| L-NAMESPACES-029 | Two requires end in the same local name | 3003 @10 |
+| L-NAMESPACES-030 | An alias clashes with an earlier require | 3003 @10 |
+| L-NAMESPACES-031 | A require name clashes with a function of the namespace | 3003 @11 |
 | L-NAMESPACES-032 | An alias hides the reserved namespace c | 3003 @9 |
 | L-NAMESPACES-033 | A type alias named c hides the reserved namespace c | 3003 @9 |
 | L-NAMESPACES-034 | Two functions with the same name | 3003 @13 |
@@ -868,14 +944,26 @@ import need the same second file, so they have no item either; a namespace that 
 | L-NAMESPACES-050 | A call of a function that no scope declares | 3004 @10 |
 | L-NAMESPACES-051 | A user function named like a built-in macro | 3056 @9 |
 | L-NAMESPACES-052 | A local named like a built-in macro | 3056 @10 |
-| L-NAMESPACES-053 | An import alias that shadows a primitive type | 3003 @9 |
-| L-NAMESPACES-054 | An import alias named like a built-in macro | 3056 @9, 3004 @12 |
-| L-NAMESPACES-055 | An import alias clashes with a function of the namespace | 3003 @11 |
+| L-NAMESPACES-053 | A require alias that shadows a primitive type | 3003 @9 |
+| L-NAMESPACES-054 | A require alias named like a built-in macro | 3056 @9, 3004 @12 |
+| L-NAMESPACES-055 | A require alias clashes with a function of the namespace | 3003 @11 |
 | L-NAMESPACES-056 | Two visibility values on one function conflict | 3007 @9 |
 | L-NAMESPACES-057 | A marea import with a member list and no library behind it | 3001 @9 |
-| L-NAMESPACES-059 | The same member twice in one import list | 3003 @9 |
+| L-NAMESPACES-059 | The same member twice in one require list | 3003 @9 |
 | L-NAMESPACES-060 | A second namespace declaration in one file | 2004 @9 |
 | L-NAMESPACES-061 | The namespace declaration is not the first statement | 2007 @7, 2004 @11 |
+| L-NAMESPACES-070 | A call of a namespace that no import or require covers | 3078 @10 |
+| L-NAMESPACES-071 | A type of another namespace that no import or require covers | 3078 @9 |
+| L-NAMESPACES-072 | The last segment of a required path binds no name | 3004 @12 |
+| L-NAMESPACES-073 | A require of a name that nothing registered | 3079 @9 |
+| L-NAMESPACES-074 | A wildcard require of a namespace that nothing registered | 3079 @9 |
+| L-NAMESPACES-075 | One full path covered by an import and by a require | 3080 @10 |
+| L-NAMESPACES-076 | A wildcard require binds no short name | 3004 @12 |
+| L-NAMESPACES-077 | A file cannot declare a namespace under marea when the host did not register it | 3002 @7, 3081 @7 |
+| L-NAMESPACES-078 | a loop name that is a built-in macro | 3056 @10 |
+| L-NAMESPACES-079 | A private method of another namespace is called on a call result | 3066 @14 |
+| L-NAMESPACES-080 | A private type of another namespace is written with its full path | 3067 @13 |
+| L-NAMESPACES-081 | A private field of another namespace is read on an element | 3068 @14 |
 
 ### Namespaces and imports: known_gap
 
@@ -916,6 +1004,7 @@ checked. The type `handle<T>` is rejected with 3009 by the type checker, so it h
 | L-INTEROP-016 | The unreachable macro after a branch that cannot run | ok |
 | L-INTEROP-017 | The place macros give the line, the file and the namespace | ok |
 | L-INTEROP-060 | An unsafe block with a plain local | ok |
+| L-INTEROP-018 | A build_value macro takes its default, and a static_assert reads it | ok |
 
 ### Macros and the C border: reject
 
@@ -925,7 +1014,7 @@ checked. The type `handle<T>` is rejected with 3009 by the type checker, so it h
 | L-INTEROP-021 | A call of a macro that the compiler does not define | 3060 @10 |
 | L-INTEROP-022 | An opaque structure has no body | 2001 @10, 2005 @11 |
 | L-INTEROP-023 | A parameter of a type that no declaration names | 3009 @9 |
-| L-INTEROP-024 | An import placed after a function | 2004 @13 |
+| L-INTEROP-024 | A require placed after a function | 2004 @13 |
 | L-INTEROP-040 | An opaque structure is built with a struct literal | 3057 @12 |
 | L-INTEROP-041 | A field of an opaque structure is read | 3057 @12 |
 | L-INTEROP-042 | An operator is applied to two opaque values | 3057 @12 |
@@ -949,11 +1038,63 @@ checked. The type `handle<T>` is rejected with 3009 by the type checker, so it h
 | L-INTEROP-061 | A format macro result returned as an integer | 3011 @10 |
 | L-INTEROP-062 | An include_text macro with a number as the path | 3061 @9 |
 | L-INTEROP-063 | A borrowed opaque value returned by value | 3018 @12 |
+| L-INTEROP-064 | A build_value macro with no default | 3061 @9 |
+| L-INTEROP-065 | A build_value macro with a default of another type | 3011 @9 |
+| L-INTEROP-066 | A build_value macro whose type is not the declared type | 3011 @9 |
+| L-INTEROP-067 | A build_value macro over an enum with a field that has no default | 3061 @14 |
+| L-INTEROP-068 | A qualified macro call of a name that its library does not register | 3060 @12 |
+| L-INTEROP-069 | A qualified macro call of a library that no require covers | 3078 @10 |
+| L-INTEROP-070 | A qualified macro call of a file that the include resolver does not know | 3061 @12 |
+| L-INTEROP-071 | a print macro with a structure for a placeholder | 3061 @14 |
+| L-INTEROP-072 | A field of an opaque structure of another file is read | 3057 @12 |
+| L-INTEROP-073 | An opaque structure of another file is held by value in a field | 3058 @12 |
 
 ### Macros and the C border: known_gap
 
 | Id | Shows | Expected |
 |---|---|---|
+
+## Attributes
+
+The attribute keys, the placement matrix of the attribute map, the `when` item and the `backend` key. The items sit in
+`tests/language/<class>/attributes/`. Every row of the placement matrix has a `reject` item (L-ATTRIBUTES-010 to
+023, code 3085). The catalogue runner gives sema no target description, no build settings and no include resolver, so
+every `when` predicate is false; an explicit backend still resolves against the empty target of
+`MAREA_G_BackendNameAvailable` (L-MATH-012, code 3083), but `INVALID_BUILD_VALUE` (3086) has no item (see
+Gaps); `tests/source/sema/MAREASemaBackendWhen.cpp` and `tests/source/sema/MAREASemaBuildValue.cpp` prove the rest.
+
+### Attributes: accept
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-ATTRIBUTES-001 | A when item on a function, with no target given so the predicate is false | ok |
+| L-ATTRIBUTES-002 | A plain key and a when item on the same key | ok |
+| L-ATTRIBUTES-003 | Every key at a place that the placement matrix gives it | ok |
+
+### Attributes: reject
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-ATTRIBUTES-010 | An align key on the file | 3085 @9 |
+| L-ATTRIBUTES-011 | An align key on a top-level function | 3085 @9 |
+| L-ATTRIBUTES-012 | An inline key on a top-level constant | 3085 @9 |
+| L-ATTRIBUTES-013 | An inline key on a structure | 3085 @9 |
+| L-ATTRIBUTES-014 | A layout key on an opaque structure | 3085 @9 |
+| L-ATTRIBUTES-015 | An export key on an enum | 3085 @9 |
+| L-ATTRIBUTES-016 | A build key on a type alias | 3085 @9 |
+| L-ATTRIBUTES-017 | An align key on a contract | 3085 @9 |
+| L-ATTRIBUTES-018 | An export key on an implementation block | 3085 @13 |
+| L-ATTRIBUTES-019 | A pack key on a field of a structure | 3085 @10 |
+| L-ATTRIBUTES-020 | A layout key on a function of an implementation | 3085 @14 |
+| L-ATTRIBUTES-021 | An inline key on a constant of an implementation | 3085 @14 |
+| L-ATTRIBUTES-022 | A visibility key on a parameter | 3085 @13 |
+| L-ATTRIBUTES-023 | A visibility key on a macro statement | 3085 @9 |
+| L-ATTRIBUTES-024 | A backend key in a file that is not marea.math | 3084 @9 |
+| L-ATTRIBUTES-025 | Two when items that hold give the same key | 3007 @9 |
+| L-ATTRIBUTES-026 | A when item with a predicate name that does not exist | 3006 @9 |
+| L-ATTRIBUTES-027 | An export key on a generic function | 3085 @9 |
+| L-ATTRIBUTES-028 | An export label that is not a C identifier | 3006 @9 |
+| L-ATTRIBUTES-029 | A key at a wrong place inside a when item | 3085 @9 |
 
 ## Parallel code
 
@@ -968,8 +1109,8 @@ the source of a `partition mutable`, or a field of such a name; any other expres
 value, `copy x`, `move x`) is rejected. 3024: a `return`, `break` or `continue` that leaves a `partition` body or stands
 directly in a `fork_join` block. 3062: a `spawn` or a `partition` with no enclosing `fork_join` block in the same
 function (L-MEMORY-030, L-PARALLEL-064, L-PARALLEL-070). 3063: the operand of a `spawn` is not a call, a macro call included
-(L-PARALLEL-071). 3064: the source of a `partition` is known not to be an array, a number, a primitive, a structure or an
-enum (L-PARALLEL-072). 3074: a table of what the workers of one `fork_join` block took (`MAREASemaCapture.c`) is kept
+(L-PARALLEL-071). 3064: the source of a `partition` is known not to be an array, a number, a primitive, a structure, an
+enum, a function value or a registered type with no array shape (L-PARALLEL-072, L-PARALLEL-081). 3074: a table of what the workers of one `fork_join` block took (`MAREASemaCapture.c`) is kept
 from the block start to its end, and a use that overlaps an earlier one, where one of the two writes, is rejected: two
 workers on one value, a worker and a later worker or `partition`, a spawn in a loop or a `partition` body that writes a
 value declared before the block, and a statement of the block that follows a worker and uses what it writes (or writes
@@ -992,7 +1133,7 @@ Facts the items fix, checked by running the compiler:
 - A part is a name of the body only: its use after the `end` of the body is the undeclared name 3004 (item 080).
 - A parameter with no attribute is a read-only borrow (settled rule 2), so `spawn` accepts it as a name that is not a
   write-borrow parameter. `examples/parallel/scaling.marea` writes `#[semantics = reference_mutable]` on the two
-  parameters it writes (`scale_slice`, `scale_all`) and imports `c.array`, `c.slice` and `c.task`.
+  parameters it writes (`scale_slice`, `scale_all`) and requires `marea.array`, `c.memory` and `marea.tasks`.
 
 ### Parallel code: accept
 
@@ -1017,6 +1158,7 @@ Facts the items fix, checked by running the compiler:
 | L-PARALLEL-019 | A part is read in the partition body with a for each | ok |
 | L-PARALLEL-020 | A break in a loop that stands in an if inside a partition body | ok |
 | L-PARALLEL-079 | A local is written after the join | ok |
+| L-PARALLEL-082 | A partition of a type with the partition part role | ok |
 
 ### Parallel code: reject
 
@@ -1062,11 +1204,148 @@ Facts the items fix, checked by running the compiler:
 | L-PARALLEL-076 | A local is written by a worker and by the body of the block | 3074 @55 |
 | L-PARALLEL-077 | A part is passed to a function that writes it, with partition and no mutable | 3069 @54 |
 | L-PARALLEL-080 | A part is used after the partition body | 3004 @56 |
+| L-PARALLEL-081 | A partition of a raw pointer | 3064 @16 |
 
 ### Parallel code: known_gap
 
 | Id | Shows | Expected |
 |---|---|---|
+
+## Array
+
+`marea.array.Array<Element, Count>`: its members, its loops, its layout and its rejections. The items sit in
+`tests/language/<class>/array/`.
+
+### Array: accept
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-ARRAY-001 | an element of a fixed array is read, written and taken with front and back | ok |
+| L-ARRAY-002 | size, max_size and empty give the count, also a count of zero | ok |
+| L-ARRAY-003 | fill writes every element and filled makes an array of one value | ok |
+| L-ARRAY-004 | swap exchanges the elements of two arrays of one count | ok |
+| L-ARRAY-005 | an array holds arrays and structures in place | ok |
+| L-ARRAY-006 | while, do while and for range walk an array by its index | ok |
+| L-ARRAY-007 | for each reads an array with one name or with a key and returns the key | ok |
+| L-ARRAY-008 | for each in mutable writes each element in place through a write borrow | ok |
+| L-ARRAY-009 | a for each over an array of count zero runs no body | ok |
+| L-ARRAY-010 | size_of and align_of measure an array as its count times its element | ok |
+| L-ARRAY-011 | a walk by for each and a walk from the end read an array in both orders | ok |
+| L-ARRAY-012 | an array of owners is borrowed by for each and never copied | ok |
+
+### Array: reject
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-ARRAY-014 | an array literal holds more values than the count | 3087 @12 |
+| L-ARRAY-015 | a positional array literal holds fewer values than the count | 3087 @12 |
+| L-ARRAY-016 | an array type is written with no count | 3014 @11 |
+| L-ARRAY-017 | a constant index is past the count of the array | 3088 @12 |
+| L-ARRAY-018 | a constant index writes into an array of count zero | 3088 @13 |
+| L-ARRAY-019 | fill needs an element type that can be copied | 3013 @16 |
+| L-ARRAY-020 | front needs an element type that can be copied | 3013 @16 |
+| L-ARRAY-021 | swap of an array with itself borrows it twice | 3019 @13 |
+| L-ARRAY-022 | for each in mutable writes through a read only parameter | 3069 @12 |
+| L-ARRAY-023 | fill changes the array that a for each walks | 3073 @14 |
+| L-ARRAY-024 | fill writes through a read only parameter | 3069 @12 |
+| L-ARRAY-025 | fill takes a value of the element type | 3011 @13 |
+| L-ARRAY-026 | swap takes an array of the same count | 3014 @14 |
+| L-ARRAY-027 | an array cannot hold an opaque structure by value | 3082 @13 |
+| L-ARRAY-028 | an array has no member at, only the index | 3049 @12 |
+
+### Array: known_gap
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-ARRAY-013 | partition over an array gives no part until the run time view type exists | #393 NEW |
+
+## Vector
+
+`marea.vector.Vector<Element>`: its members, its ownership, its loops, its layout and its rejections. The items
+sit in `tests/language/<class>/vector/`.
+
+### Vector: accept
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-VECTOR-001 | an empty literal and a literal of values give the size and the capacity | ok |
+| L-VECTOR-002 | append past the capacity grows the vector and keeps the order | ok |
+| L-VECTOR-003 | pop, insert in the middle and erase move the elements | ok |
+| L-VECTOR-004 | reserve, shrink_to_fit and clear change the capacity as they say | ok |
+| L-VECTOR-005 | resize, fill, front, back and max_size of a vector | ok |
+| L-VECTOR-006 | swap exchanges the storage of two vectors | ok |
+| L-VECTOR-007 | for each writes in place and another vector grows in the body | ok |
+| L-VECTOR-008 | while, do while and for range read the size of a vector | ok |
+| L-VECTOR-009 | a vector holds structures and takes inner vectors by move | ok |
+| L-VECTOR-010 | copy, move and return hand a vector on | ok |
+| L-VECTOR-011 | a vector of owners is borrowed by for each and never copied | ok |
+| L-VECTOR-012 | data gives the address of the first element inside unsafe | ok |
+| L-VECTOR-013 | size_of and align_of measure a vector as its header of three words | ok |
+
+### Vector: reject
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-VECTOR-015 | copy of a vector needs an element type that can be copied | 3013 @16 |
+| L-VECTOR-016 | append changes the vector that a for each walks | 3073 @14 |
+| L-VECTOR-017 | reserve may move the storage that a for each walks | 3073 @14 |
+| L-VECTOR-018 | erase changes the vector that a for each walks | 3073 @14 |
+| L-VECTOR-019 | shrink_to_fit may move the storage that a for each walks | 3073 @14 |
+| L-VECTOR-020 | a vector is used after it moved | 3070 @14 |
+| L-VECTOR-021 | swap of a vector with itself borrows it twice | 3019 @13 |
+| L-VECTOR-022 | a vector name is assigned with no copy and no move | 3016 @13 |
+| L-VECTOR-023 | a vector cannot hold an opaque structure by value | 3082 @13 |
+| L-VECTOR-024 | append writes through a read only borrow | 3069 @12 |
+| L-VECTOR-025 | data is called outside unsafe | 3041 @13 |
+| L-VECTOR-026 | append takes a value of the element type | 3011 @13 |
+| L-VECTOR-027 | resize needs an element type that can be copied | 3013 @17 |
+| L-VECTOR-028 | back needs an element type that can be copied | 3013 @16 |
+
+### Vector: known_gap
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-VECTOR-014 | partition over a vector gives no part until the run time view type exists | #393 NEW |
+
+## Tuple
+
+`marea.tuple.Tuple<T0, T1, ...>`: its literal, its constant index, its equality, its layout and its rejections. The
+items sit in `tests/language/<class>/tuple/`.
+
+### Tuple: accept
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-TUPLE-001 | a tuple element is read and written by a constant index | ok |
+| L-TUPLE-002 | == and != compare two tuples element by element | ok |
+| L-TUPLE-003 | a function gives back two values in one tuple | ok |
+| L-TUPLE-004 | a tuple holds a tuple, a structure and an array | ok |
+| L-TUPLE-005 | swap exchanges the elements of two tuples of one type | ok |
+| L-TUPLE-006 | copy and move of a tuple name | ok |
+| L-TUPLE-007 | a vector moves out of a tuple that holds it | ok |
+| L-TUPLE-008 | size_of and align_of measure a tuple as a structure of its elements | ok |
+
+### Tuple: reject
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-TUPLE-009 | a tuple type has one element only | 3014 @11 |
+| L-TUPLE-010 | a tuple type has seventeen elements | 3014 @11 |
+| L-TUPLE-011 | a tuple literal holds fewer values than the elements | 3087 @12 |
+| L-TUPLE-012 | a tuple literal holds more values than the elements | 3087 @12 |
+| L-TUPLE-013 | a tuple literal gives a value of another type | 3011 @12 |
+| L-TUPLE-014 | a tuple index is not a constant | 3089 @12 |
+| L-TUPLE-015 | a tuple index is past the last element | 3088 @12 |
+| L-TUPLE-016 | for each walks a tuple, which is not a collection | 3090 @12 |
+| L-TUPLE-017 | copy of a tuple needs every element to be copyable | 3013 @16 |
+| L-TUPLE-018 | a tuple cannot hold an opaque structure by value | 3082 @13 |
+| L-TUPLE-019 | a tuple has no order | 3011 @12 |
+| L-TUPLE-020 | a tuple name is assigned with no copy and no move | 3016 @13 |
+| L-TUPLE-021 | swap of a tuple with itself borrows it twice | 3019 @13 |
+| L-TUPLE-022 | == needs every element of a tuple to support it | 3011 @13 |
+| L-TUPLE-023 | a write to a tuple element goes through a read only parameter | 3069 @12 |
+| L-TUPLE-024 | a tuple element has its own type | 3011 @12 |
+| L-TUPLE-025 | a tuple index through a type alias is past the last element | 3088 @14 |
 
 ## Adversarial
 
@@ -1108,13 +1387,13 @@ Facts the items fix, checked by running the compiler:
 - The type of a field read through a `for each` variable is compared now (item 070, 3011), as for a parameter, a local
   or an index, and the type arguments of a library type or of a user generic structure are compared with the declared
   type (items 067 to 069, 3014). A pair that mentions a generic parameter, an alias or an import, and a different head
-  such as `owned<vector<T>>` into `vector<T>`, is still accepted.
+  such as an owner of a vector of `T` into a vector of `T`, is still accepted.
 - A file constant passed to a generic function that takes a write borrow gives 3032, as for any function (item 010); a
   spawn of a write borrow of a call result through a generic function gives 3020 (item 029).
 
-Settled rule 5 (a `private` name is a reject across namespaces) is enforced (3066 to 3068) but has no item here: a
-private symbol needs a second namespace, and the runner gives an item one file only (see Gaps). A private symbol that a
-generic or an alias leads to is not checked by sema either (see the sema doc, Gaps).
+Settled rule 5 (a `private` name is a reject across namespaces) is enforced (3066 to 3068) and has its items in the
+namespaces area (L-NAMESPACES-079 to 081). A private type that a public alias or a generic of another namespace leads
+to is not checked by sema (see the sema doc, Gaps).
 
 ### Adversarial: reject
 
@@ -1198,6 +1477,34 @@ generic or an alias leads to is not checked by sema either (see the sema doc, Ga
 | L-ADVERSARIAL-060 | Mutant of L-OWNERSHIP-127: copy is swapped for move on a borrow appended to a vector | gap: #200 NEW, rule: reject |
 | L-ADVERSARIAL-066 | Mutant of L-TYPES-075: copy is swapped for move in a generic return of a borrow | gap: #200 NEW, rule: reject |
 
+## Math
+
+The vector, matrix and quaternion types of `marea.math`, their operators and their operations. The items sit in
+`tests/language/<class>/math/`. The runner answers the require of `marea.math` with the tree of the shipped source
+file, `lib/source/marea/math.marea`.
+
+### Math: accept
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-MATH-001 | A shipped file of `marea.math` declares the nine vector types with the layout of C and their measured size and alignment | ok |
+| L-MATH-002 | The vectors of float32 take the arithmetic, the equality and the index operators | ok |
+| L-MATH-003 | The vectors of sinteger32 take the arithmetic, the equality and the index operators | ok |
+| L-MATH-004 | The vectors of boolean take the equality and the index operators | ok |
+| L-MATH-005 | One call of each family of the vector operations | ok |
+| L-MATH-007 | A program names the nineteen types of `marea.math`, each with its size and its alignment | ok |
+| L-MATH-008 | The matrices of float32 take the product, the equality and the index of a column | ok |
+| L-MATH-009 | The matrices of sinteger32 take the product, the equality and the index of a column | ok |
+| L-MATH-010 | The matrices of boolean take the equality and the index of a column | ok |
+| L-MATH-011 | The quaternion takes the product and the equality | ok |
+
+### Math: reject
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-MATH-006 | A file of the project cannot declare a namespace under marea | 3002 @7, 3081 @7 |
+| L-MATH-012 | An explicit backend the build target does not give is BACKEND_UNAVAILABLE, never a silent fallback | 3083 @10 |
+
 ## Examples and coverage
 
 The 23 files under `examples/` are the programs the project shows. 20 of them have an accept item in
@@ -1239,6 +1546,7 @@ reject code or no issue named in Gaps. Each direction is proven on every build w
 | Id | Shows | Expected |
 |---|---|---|
 | L-COVERAGE-001 | a constant that is its own initial value | 3055 @9 |
+| L-COVERAGE-002 | Two constants, one of an implementation block, that read each other | 3055 @14 |
 
 ## Counts
 
@@ -1247,29 +1555,33 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | area | accept | reject | known_gap |
 |---|---|---|---|
 | adversarial | 0 | 64 | 8 |
-| bindings | 33 | 80 | 0 |
-| coverage | 0 | 1 | 0 |
+| array | 12 | 15 | 1 |
+| attributes | 3 | 20 | 0 |
+| bindings | 33 | 84 | 0 |
+| coverage | 0 | 2 | 0 |
 | examples | 20 | 0 | 0 |
 | functions | 19 | 54 | 0 |
-| interop | 17 | 28 | 0 |
-| memory | 15 | 18 | 0 |
-| namespaces | 17 | 34 | 0 |
-| ownership | 65 | 78 | 2 |
-| parallel | 19 | 40 | 0 |
+| interop | 18 | 38 | 0 |
+| math | 10 | 2 | 0 |
+| memory | 18 | 23 | 0 |
+| namespaces | 23 | 46 | 0 |
+| ownership | 67 | 78 | 2 |
+| parallel | 20 | 41 | 0 |
 | seed | 1 | 2 | 0 |
-| types | 60 | 133 | 3 |
-| total | 266 | 532 | 13 |
+| tuple | 8 | 17 | 0 |
+| types | 62 | 154 | 0 |
+| vector | 13 | 14 | 1 |
+| total | 327 | 654 | 12 |
 
-## Parity plan
+## Parity
 
-The language has two backends from one IR: the bytecode interpreter and the C11 code. A parity test, not written yet
-(it needs the stages in `temp/_BYTECODE_DESIGN.md`), will run every item of `tests/language/accept/` through both
-backends and compare the observable behavior. Only an accept item is a valid program, so it is the input of the parity
-test: a `reject` item has no program to run, and a `known_gap` item is outside the contract until it moves. When a
-`known_gap` item with `-- rule: accept` moves to `accept/`, it joins the parity set. The 16 accept items of
-`examples/` are the first part of that set. An accept item has no `main` and no output in most cases, so the parity
-test also needs a way to call a function of the item and read its result; that way is a decision of the bytecode and
-cgen stages, not of the catalogue.
+The language has two backends from one IR: the bytecode interpreter and the C11 code. The parity test
+(`tests/source/language/MAREALanguageParity.cpp`) runs every item of `tests/language/accept/` that has a function with a
+result through both backends and compares the observable behavior. Only an accept item is a valid program, so it is
+the input of the parity test: a `reject` item has no program to run, and a `known_gap` item is outside the contract
+until it moves. When a `known_gap` item with `-- rule: accept` moves to `accept/`, it joins the parity set. An item that
+a backend cannot run yet is listed in the test with its reason. The way the test calls the functions of an item is in
+[marea-cgen.md](../cgen/marea-cgen.md), "Parity with the vm".
 
 ## Diagnostics
 
@@ -1279,7 +1591,7 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 |---|---|---|
 | 1001-1006 | `lex` | [marea-lex.md](../lex/marea-lex.md) |
 | 2001-2010 | `parse` | [marea-ast.md](../ast/marea-ast.md) |
-| 3001-3032 | `sema` | [marea-sema.md](../sema/marea-sema.md) (3033 to 3077 follow in the rows below) |
+| 3001-3032 | `sema` | [marea-sema.md](../sema/marea-sema.md) (3033 to 3086 follow in the rows below) |
 | 3056 | `sema` | [marea-sema.md](../sema/marea-sema.md), `RESERVED_MACRO_NAME` |
 | 3057-3058 | `sema` | [marea-sema.md](../sema/marea-sema.md), `OPAQUE_TYPE_MISUSE` and `OPAQUE_FIELD_BY_VALUE` |
 | 3033 | `sema` | [marea-sema.md](../sema/marea-sema.md), `LITERAL_OUT_OF_RANGE` |
@@ -1301,20 +1613,31 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 | 3062 | `sema` | [marea-sema.md](../sema/marea-sema.md), `PARALLEL_CONSTRUCT_OUTSIDE_FORK_JOIN` |
 | 3063-3064 | `sema` | [marea-sema.md](../sema/marea-sema.md), `SPAWN_NEEDS_CALL` and `PARTITION_SOURCE_NOT_ARRAY` |
 | 3065 | `sema` | [marea-sema.md](../sema/marea-sema.md), `LOCAL_WITHOUT_INITIAL_VALUE` |
-| 3066-3068 | `sema` | [marea-sema.md](../sema/marea-sema.md), `PRIVATE_SYMBOL_ACCESS`, `PRIVATE_TYPE_ACCESS`, `PRIVATE_FIELD_ACCESS`, no item reaches them (see Gaps) |
+| 3066-3068 | `sema` | [marea-sema.md](../sema/marea-sema.md), `PRIVATE_SYMBOL_ACCESS`, `PRIVATE_TYPE_ACCESS`, `PRIVATE_FIELD_ACCESS` |
 | 3069 | `sema` | [marea-sema.md](../sema/marea-sema.md), `WRITE_THROUGH_READ_ONLY_BORROW` |
 | 3075-3076 | `sema` | [marea-sema.md](../sema/marea-sema.md), `PARTITION_BODY_WRITES_OUTER_NAME` and `PARTITION_SOURCE_USED_IN_BODY` |
 | 3077 | `sema` | [marea-sema.md](../sema/marea-sema.md), `MISSING_FIELD` |
+| 3078-3081 | `sema` | [marea-sema.md](../sema/marea-sema.md), `UNIMPORTED_NAMESPACE`, `UNRESOLVED_REQUIRE`, `AMBIGUOUS_NAMESPACE` and `RESERVED_NAMESPACE_ROOT` |
+| 3083-3086 | `sema` | [marea-sema.md](../sema/marea-sema.md), `BACKEND_UNAVAILABLE`, `ATTRIBUTE_NOT_ALLOWED_HERE`, `MISPLACED_ATTRIBUTE` and `INVALID_BUILD_VALUE`; 3086 has no item (see Gaps) |
+| 3087-3088 | `sema` | [marea-sema.md](../sema/marea-sema.md), `LITERAL_COUNT_MISMATCH` and `CONSTANT_INDEX_OUT_OF_RANGE` |
+| 3089-3090 | `sema` | [marea-sema.md](../sema/marea-sema.md), `TUPLE_INDEX_NOT_CONSTANT` and `NOT_ITERABLE` |
 | 4004-4006 | `ir` | [marea-ir.md](../ir/marea-ir.md), no item reaches them (see Gaps) |
 
 ## Gaps
 
-- The runner checks one file per item, so an item cannot import a second file of the catalogue. A rule that needs
-  two namespaces (settled rule 5) can use only an `EXTERNAL` import, which the runner gives to the `c.`,
-  `collections.`, `concurrency.`, `arenas.` prefixes and to `text`, until a later change adds a way to give an item a
-  second file.
-- The codes 3066, 3067 and 3068 (a private symbol, type or field of another namespace) have no item for the same
-  reason: they need a second namespace (issue #250). `tests/source/sema/MAREASemaVisibility.cpp` proves them.
+- The runner checks one file per item, so an item cannot import a second file of its own (issue #250). A rule that
+  needs two namespaces can use an `EXTERNAL` import, which the runner gives to the `c.`, `collections.`,
+  `concurrency.`, `arenas.` prefixes and to `text`, or the one fixed `FOUND` namespace `fixture.shapes`.
+- `partition` and `partition mutable` over an array or a vector are accepted, but give no part: the part is a view with
+  a run-time length, which belongs to a library that is not written yet. L-ARRAY-013 and L-VECTOR-014 keep this gap.
+- `include_bytes!` has no `accept` item: the runner gives sema no include resolver. `tests/source/sema/MAREASemaArrayLibrary.cpp`
+  proves it instead.
+- The code 3086 (`INVALID_BUILD_VALUE`) has no item: the runner gives sema no build settings, and `include_bytes!` of a
+  library has no include resolver there either (the `reject` item L-INTEROP-070 shows the missing-file case only).
+  `tests/source/sema/MAREASemaBuildValue.cpp` and `tests/source/sema/MAREASemaRegisteredMacros.cpp` prove it. The code
+  3083 (`BACKEND_UNAVAILABLE`) does have an item now: L-MATH-012, an explicit backend the empty target of the catalogue
+  runner cannot give. `tests/source/sema/MAREASemaBackendWhen.cpp` proves the rest of the `when` and `backend` checks
+  that the runner's empty target cannot reach.
 - The runner compares the codes of a `reject` item in the order the compiler gives them, so an item over two stages
   depends on the order of the stages (lex, then parse, then sema).
 - A known_gap item must be accepted today, so a valid program that the compiler rejects by mistake has no item. Known:
@@ -1326,6 +1649,12 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
   repository, so a new accept item gets no mutants until someone runs that sweep again. A copy of a structure with a
   `destroy` operator (the `copy` of L-MEMORY-012) is accepted; no rule says whether it must be refused, so it has no item.
 
+- The items of `marea.memory` (L-MEMORY-034 to 041) check the front end only. No syntax builds an
+  `marea.memory.Owned`, `Slice` or `Arena`: sema gives such a local no check of its initial value, and neither backend
+  holds one of these values.
+- Only a `layout = c` type with measured members should cross the C border. No rule checks this.
+- The `vm` has no debug build that traps on a null address or on a view out of range.
+
 ### Open decisions and holes of the catalogue
 
 - Accepted `copy` of a structure with a `destroy` operator: the language has no rule that says whether it is allowed
@@ -1333,8 +1662,8 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 - Issue #226 (a `switch` over a `boolean` with `case true` and `case false` and no `default` is rejected with 3022)
   cannot be an item. A known_gap item must be accepted today and a reject item states the wanted outcome, so the
   program fits neither class. The runner has no class for a valid program that the compiler rejects.
-- Settled rule 5 (a `private` name is a reject across namespaces, enforced by 3066 to 3068) and an import cycle cannot be shown with one file per
-  item. Issue #250 asks for a runner that gives an item a second file. Until then these two rules have no item.
+- An import cycle cannot be shown: the fixed second namespace of the runner imports nothing. Issue #250 asks for a
+  runner that gives an item a second file. Until then this rule has no item.
 - Settled rule 2 (a non-primitive parameter with no attribute is a read-only borrow) holds in the grammar, the sema
   doc, `MAREA_SemaGetParameterSemantics` and the four examples that write a parameter
   (`examples/basics/ownership.marea`, `examples/types/methods.marea`, `examples/interop/gpu_handles.marea` and
@@ -1354,9 +1683,8 @@ The coverage test holds this list; an example that gains an item must leave it.
 
 ### Diagnostic codes with no reject item
 
-Every live lex, parse and sema code (1001-1006, 2001-2010, 3001-3077 without 3023 and the numbers no code uses) has a `reject` item, except 3066,
-3067 and 3068: no item can reach a second namespace (issue #250), and `tests/source/sema/MAREASemaVisibility.cpp`
-proves them. The ir codes
+Every live lex, parse and sema code (1001-1006, 2001-2010, 3001-3086 without 3023 and the numbers no code uses) has a
+`reject` item, except 3086 (exempt as the Gaps list above says). The ir codes
 4004, 4005 and 4006 are exempt: the runner runs lex, parse and sema only, so no item can reach the ir. The exemption ends
 when a runner or an apply makes the ir run in it. The retired codes 3023 and 4001-4003 are excluded and must not
 return in a header.
@@ -1376,4 +1704,4 @@ Each rule is kept as a `known_gap` item with its issue, as reject codes, or as a
 | cyclic constant | reject items of 3055 (L-COVERAGE-001) |
 | unreachable switch arm | reject items of 3025 (a repeated case) and 2010 (a default that is not last) |
 | import cycle | no item, issue #250 |
-| private access across namespaces | enforced by 3066, 3067 and 3068; no item, issue #250 |
+| private access across namespaces | reject items of 3066, 3067 and 3068 (L-NAMESPACES-079 to 081) |

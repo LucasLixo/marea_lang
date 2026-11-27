@@ -41,7 +41,8 @@ MAREA_BEGIN_EXTERN_C
      * of the unit that is being lowered, which tells whether the unit binds a name of its own. The root is null
      * when no unit is being lowered. The alias table is built once per unit; function is the typed function that
      * is being lowered, or null at module level. loopCount is the number of for-range loops that the function
-     * being lowered has started so far; it names their hidden bounds apart and restarts at zero for each function.
+     * being lowered has started so far; it names their hidden bounds apart and restarts at zero for each function. switchCount and
+     * returnCount do the same for the hidden locals of a switch and of a hoisted return value.
      */
     struct MAREA_IrContext
     {
@@ -52,6 +53,8 @@ MAREA_BEGIN_EXTERN_C
         MAREA_IrAlias *aliases;
         MAREA_IntegerSize aliasCount;
         MAREA_IntegerSize loopCount;
+        MAREA_IntegerSize switchCount;
+        MAREA_IntegerSize returnCount;
     };
 
     /**
@@ -114,6 +117,8 @@ MAREA_BEGIN_EXTERN_C
         MAREA_Uinteger32 flags;
         MAREA_TokenKind operatorKind;
         MAREA_IrKind kind;
+        MAREA_Boolean externalCall;
+        MAREA_Boolean destroyOperator;
     };
 
     /**
@@ -124,7 +129,7 @@ MAREA_BEGIN_EXTERN_C
      * @param outNode Receives the new node. Must not be null.
      * @return MAREA_IR_EXCEPT_SUCCESS, ERROR_NULL_POINTER when an argument is null, or ERROR_OUT_OF_MEMORY.
      */
-    MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrNodeCreate(MAREA_IrContext * context, MAREA_IrKind kind, const MAREA_AstNode *astNode, MAREA_IrNode **outNode);
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_IrExcept MAREA_CALL MAREA_IrNodeCreate(MAREA_IrContext * context, MAREA_IrKind kind, const MAREA_AstNode *astNode, MAREA_IrNode **outNode);
 
     /**
      * @brief Appends a child to a node, growing its child array in the arena.
@@ -133,7 +138,7 @@ MAREA_BEGIN_EXTERN_C
      * @param child Child to append. Must not be null.
      * @return MAREA_IR_EXCEPT_SUCCESS, ERROR_NULL_POINTER when an argument is null, or ERROR_OUT_OF_MEMORY.
      */
-    MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrNodeAppendChild(MAREA_IrContext * context, MAREA_IrNode * parent, MAREA_IrNode * child);
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_IrExcept MAREA_CALL MAREA_IrNodeAppendChild(MAREA_IrContext * context, MAREA_IrNode * parent, MAREA_IrNode * child);
 
     /**
      * @brief Sets the type name of a node, read off a typed node, with every alias lowered to its original. A
@@ -143,7 +148,7 @@ MAREA_BEGIN_EXTERN_C
      * @param typedNode Typed node whose type name is copied. Null leaves the node without a type name.
      * @return MAREA_IR_EXCEPT_SUCCESS, ERROR_NULL_POINTER when context is null, or ERROR_OUT_OF_MEMORY.
      */
-    MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrNodeSetTypeNameFromTyped(MAREA_IrContext * context, MAREA_IrNode * node, const MAREA_SemaTypedNode *typedNode);
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_IrExcept MAREA_CALL MAREA_IrNodeSetTypeNameFromTyped(MAREA_IrContext * context, MAREA_IrNode * node, const MAREA_SemaTypedNode *typedNode);
 
     /**
      * @brief Sets the resolved type of a node, a copy in the arena of the text that
@@ -154,7 +159,7 @@ MAREA_BEGIN_EXTERN_C
      * @param outTyped Receives true when sema gave a type and the node carries it, otherwise false. May be null.
      * @return MAREA_IR_EXCEPT_SUCCESS, ERROR_NULL_POINTER when context is null, or ERROR_OUT_OF_MEMORY.
      */
-    MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrNodeSetResolvedTypeFromTyped(MAREA_IrContext * context, MAREA_IrNode * node, const MAREA_SemaTypedNode *typedNode, MAREA_Boolean *outTyped);
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_IrExcept MAREA_CALL MAREA_IrNodeSetResolvedTypeFromTyped(MAREA_IrContext * context, MAREA_IrNode * node, const MAREA_SemaTypedNode *typedNode, MAREA_Boolean *outTyped);
 
     /**
      * @brief Gives a node the resolved type of another node. The text is shared, not copied: it lives in the arena,
@@ -162,7 +167,7 @@ MAREA_BEGIN_EXTERN_C
      * @param node Node to change.
      * @param source Node whose resolved type is shared.
      */
-    void MAREA_CALL MAREA_IrNodeShareResolvedType(MAREA_IrNode * node, const MAREA_IrNode *source);
+    MAREA_EXTERN_DECL void MAREA_CALL MAREA_IrNodeShareResolvedType(MAREA_IrNode * node, const MAREA_IrNode *source);
 
     /**
      * @brief Sets the type name of a node to the head of its resolved type: the text before the first type
@@ -171,7 +176,7 @@ MAREA_BEGIN_EXTERN_C
      * no head name, is left without a type name. A null node does nothing.
      * @param node Node to change.
      */
-    void MAREA_CALL MAREA_IrNodeSetTypeNameFromResolved(MAREA_IrNode * node);
+    MAREA_EXTERN_DECL void MAREA_CALL MAREA_IrNodeSetTypeNameFromResolved(MAREA_IrNode * node);
 
     /**
      * @brief Sets the resolved type of a node to a text that outlives the arena, such as a string literal. A null
@@ -179,7 +184,7 @@ MAREA_BEGIN_EXTERN_C
      * @param node Node to change.
      * @param text Static text of the type. Must not be null.
      */
-    void MAREA_CALL MAREA_IrNodeSetResolvedTypeStatic(MAREA_IrNode * node, const MAREA_Character8 *text);
+    MAREA_EXTERN_DECL void MAREA_CALL MAREA_IrNodeSetResolvedTypeStatic(MAREA_IrNode * node, const MAREA_Character8 *text);
 
     /**
      * @brief Reads the type name of an AST type node: the text span of the qualified name of a
@@ -189,7 +194,7 @@ MAREA_BEGIN_EXTERN_C
      * @param outLength Receives the byte length of outText. Must not be null.
      * @return MAREA_BOOLEAN_TRUE when a name was found, otherwise MAREA_BOOLEAN_FALSE.
      */
-    MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_IrAstTypeName(const MAREA_AstNode *type, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength);
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_IrAstTypeName(const MAREA_AstNode *type, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength);
 
     /**
      * @brief Reads the text span of a QUALIFIED_NAME: from its first segment to its last, a pointer into the
@@ -199,7 +204,7 @@ MAREA_BEGIN_EXTERN_C
      * @param outLength Receives the byte length of outText. Must not be null.
      * @return MAREA_BOOLEAN_TRUE when a name was found, otherwise MAREA_BOOLEAN_FALSE.
      */
-    MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_IrAstQualifiedNameSpan(const MAREA_AstNode *name, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength);
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_IrAstQualifiedNameSpan(const MAREA_AstNode *name, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength);
 
     /**
      * @brief Sets the type name of a node from an AST type node. A NAMED_TYPE gives the text of its
@@ -210,7 +215,7 @@ MAREA_BEGIN_EXTERN_C
      * @param type AST type node. Null leaves the node without a type name.
      * @return MAREA_IR_EXCEPT_SUCCESS, ERROR_NULL_POINTER when context is null, or ERROR_OUT_OF_MEMORY.
      */
-    MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrNodeSetTypeNameFromAst(MAREA_IrContext * context, MAREA_IrNode * node, const MAREA_AstNode *type);
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_IrExcept MAREA_CALL MAREA_IrNodeSetTypeNameFromAst(MAREA_IrContext * context, MAREA_IrNode * node, const MAREA_AstNode *type);
 
     /**
      * @brief Sets the text of a node to a name, qualified as qualifier.name when a qualifier is given.
@@ -223,7 +228,7 @@ MAREA_BEGIN_EXTERN_C
      * @param nameLength Byte length of name.
      * @return MAREA_IR_EXCEPT_SUCCESS, ERROR_NULL_POINTER when an argument is null, or ERROR_OUT_OF_MEMORY.
      */
-    MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrNodeSetQualifiedText(MAREA_IrContext * context, MAREA_IrNode * node, const MAREA_Character8 *qualifier, MAREA_IntegerSize qualifierLength, const MAREA_Character8 *name, MAREA_IntegerSize nameLength);
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_IrExcept MAREA_CALL MAREA_IrNodeSetQualifiedText(MAREA_IrContext * context, MAREA_IrNode * node, const MAREA_Character8 *qualifier, MAREA_IntegerSize qualifierLength, const MAREA_Character8 *name, MAREA_IntegerSize nameLength);
 
     /**
      * @brief Returns one typed child of a typed node, or null when the index is out of range.
@@ -231,7 +236,7 @@ MAREA_BEGIN_EXTERN_C
      * @param index Zero-based child index.
      * @return The typed child, or null.
      */
-    MAREA_NODISCARD const MAREA_SemaTypedNode *MAREA_CALL MAREA_IrTypedChildAt(const MAREA_SemaTypedNode *typed, MAREA_IntegerSize index);
+    MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_SemaTypedNode *MAREA_CALL MAREA_IrTypedChildAt(const MAREA_SemaTypedNode *typed, MAREA_IntegerSize index);
 
     /**
      * @brief Returns the first typed child whose AST kind is kind, or null when there is none.
@@ -239,14 +244,14 @@ MAREA_BEGIN_EXTERN_C
      * @param kind AST kind to look for.
      * @return The typed child, or null.
      */
-    MAREA_NODISCARD const MAREA_SemaTypedNode *MAREA_CALL MAREA_IrTypedFindChild(const MAREA_SemaTypedNode *typed, MAREA_AstKind kind);
+    MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_SemaTypedNode *MAREA_CALL MAREA_IrTypedFindChild(const MAREA_SemaTypedNode *typed, MAREA_AstKind kind);
 
     /**
      * @brief Returns the AST kind a typed node shadows.
      * @param typed Typed node to query. Null returns MAREA_AST_KIND_ERROR_NODE.
      * @return The AST kind.
      */
-    MAREA_NODISCARD MAREA_AstKind MAREA_CALL MAREA_IrTypedKind(const MAREA_SemaTypedNode *typed);
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_AstKind MAREA_CALL MAREA_IrTypedKind(const MAREA_SemaTypedNode *typed);
 
     /**
      * @brief Builds the layout table of a module, once its declarations are final, and stores it in the module. An
@@ -259,7 +264,7 @@ MAREA_BEGIN_EXTERN_C
      * @param count Number of sources.
      * @return MAREA_IR_EXCEPT_SUCCESS, ERROR_NULL_POINTER when context or module is null, or ERROR_OUT_OF_MEMORY.
      */
-    MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrLayoutTableBuild(MAREA_IrContext * context, MAREA_IrNode * module, const MAREA_IrLayoutSource *sources, MAREA_IntegerSize count);
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_IrExcept MAREA_CALL MAREA_IrLayoutTableBuild(MAREA_IrContext * context, MAREA_IrNode * module, const MAREA_IrLayoutSource *sources, MAREA_IntegerSize count);
 
     /**
      * @brief Lowers one top-level item or implementation member and appends the result to a module or a
@@ -271,7 +276,7 @@ MAREA_BEGIN_EXTERN_C
      * @param parent Node that receives the lowered nodes. Must not be null.
      * @return MAREA_IR_EXCEPT_SUCCESS, ERROR_NULL_POINTER when an argument is null, or ERROR_OUT_OF_MEMORY.
      */
-    MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrLowerDeclaration(MAREA_IrContext * context, const MAREA_SemaTypedNode *typed, const MAREA_Character8 *qualifier, MAREA_IntegerSize qualifierLength, MAREA_IrNode *parent);
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_IrExcept MAREA_CALL MAREA_IrLowerDeclaration(MAREA_IrContext * context, const MAREA_SemaTypedNode *typed, const MAREA_Character8 *qualifier, MAREA_IntegerSize qualifierLength, MAREA_IrNode *parent);
 
     /**
      * @brief Lowers one typed expression and its subtree. A parenthesized expression lowers to its
@@ -281,7 +286,7 @@ MAREA_BEGIN_EXTERN_C
      * @param outNode Receives the lowered node, or null when nothing is produced. Must not be null.
      * @return MAREA_IR_EXCEPT_SUCCESS, ERROR_NULL_POINTER when an argument is null, or ERROR_OUT_OF_MEMORY.
      */
-    MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrLowerExpression(MAREA_IrContext * context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode);
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_IrExcept MAREA_CALL MAREA_IrLowerExpression(MAREA_IrContext * context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode);
 
     /**
      * @brief Creates a node of a kind and names it after the IDENTIFIER child of a typed node, qualified
@@ -295,7 +300,7 @@ MAREA_BEGIN_EXTERN_C
      * @param outNode Receives the new node. Must not be null.
      * @return MAREA_IR_EXCEPT_SUCCESS, ERROR_NULL_POINTER when an argument is null, or ERROR_OUT_OF_MEMORY.
      */
-    MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrCreateNamed(MAREA_IrContext * context, MAREA_IrKind kind, const MAREA_SemaTypedNode *typed, const MAREA_Character8 *qualifier, MAREA_IntegerSize qualifierLength, MAREA_IrNode **outNode);
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_IrExcept MAREA_CALL MAREA_IrCreateNamed(MAREA_IrContext * context, MAREA_IrKind kind, const MAREA_SemaTypedNode *typed, const MAREA_Character8 *qualifier, MAREA_IntegerSize qualifierLength, MAREA_IrNode **outNode);
 
     /**
      * @brief Lowers the expression right after the type child of a typed node, when there is one, and
@@ -308,7 +313,7 @@ MAREA_BEGIN_EXTERN_C
      * @param outComplete Receives false when the initializer lowered to nothing. Must not be null.
      * @return MAREA_IR_EXCEPT_SUCCESS, ERROR_NULL_POINTER when an argument is null, or ERROR_OUT_OF_MEMORY.
      */
-    MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrAppendInitializer(MAREA_IrContext * context, const MAREA_SemaTypedNode *typed, MAREA_IrNode *node, MAREA_Boolean *outComplete);
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_IrExcept MAREA_CALL MAREA_IrAppendInitializer(MAREA_IrContext * context, const MAREA_SemaTypedNode *typed, MAREA_IrNode *node, MAREA_Boolean *outComplete);
 
     /**
      * @brief Returns the typed expression right after a typed node's first type child (NAMED_TYPE or
@@ -318,7 +323,12 @@ MAREA_BEGIN_EXTERN_C
      * @param typed Typed node to search. Null returns null.
      * @return The typed default expression, or null when the node has no type child or nothing follows it.
      */
-    MAREA_NODISCARD const MAREA_SemaTypedNode *MAREA_CALL MAREA_IrTypedFindDefault(const MAREA_SemaTypedNode *typed);
+    MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_SemaTypedNode *MAREA_CALL MAREA_IrTypedFindDefault(const MAREA_SemaTypedNode *typed);
+
+    /**
+     * @brief Tells whether a typed FUNCTION_DECLARATION carries #[operator = "destroy"].
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_IrIsDestroyFunction(const MAREA_SemaTypedNode *function);
 
     /**
      * @brief Finds the construct or destroy operator of a type: the FUNCTION_DECLARATION, inside an
@@ -331,7 +341,7 @@ MAREA_BEGIN_EXTERN_C
      * @param wantConstruct True for construct, false for destroy.
      * @return The typed FUNCTION_DECLARATION that carries the operator, or null when the type declares none.
      */
-    MAREA_NODISCARD const MAREA_SemaTypedNode *MAREA_CALL MAREA_IrFindLifecycleFunction(const MAREA_IrContext *context, const MAREA_Character8 *typeName, MAREA_IntegerSize typeNameLength, MAREA_Boolean wantConstruct);
+    MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_SemaTypedNode *MAREA_CALL MAREA_IrFindLifecycleFunction(const MAREA_IrContext *context, const MAREA_Character8 *typeName, MAREA_IntegerSize typeNameLength, MAREA_Boolean wantConstruct);
 
     /**
      * @brief Lowers one typed BLOCK and its statements. A statement that cannot be lowered makes the
@@ -341,7 +351,30 @@ MAREA_BEGIN_EXTERN_C
      * @param outNode Receives the BLOCK node, or null when nothing is produced. Must not be null.
      * @return MAREA_IR_EXCEPT_SUCCESS, ERROR_NULL_POINTER when an argument is null, or ERROR_OUT_OF_MEMORY.
      */
-    MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrLowerBlock(MAREA_IrContext * context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode);
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_IrExcept MAREA_CALL MAREA_IrLowerBlock(MAREA_IrContext * context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode);
+
+    /**
+     * @brief Tells whether a name is a local type alias of the unit (type Alias = Name;), not an alias of an import
+     * and not an alias of a function type.
+     * @param context Context of the run, with the alias table built. Must not be null.
+     * @param text Name to look up.
+     * @param length Byte length of text.
+     * @return MAREA_BOOLEAN_TRUE for a local type alias, otherwise MAREA_BOOLEAN_FALSE.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_IrAliasIsLocalType(const MAREA_IrContext *context, const MAREA_Character8 *text, MAREA_IntegerSize length);
+
+    /**
+     * @brief Lowers a MACRO_CALL typed node that the IR keeps for a later stage: build_value! (a bare name) and the macro
+     * of a shipped library (a qualified name, with the alias of a namespace replaced by the namespace). The result is a
+     * MACRO_CALL node with the name as its text, one ARGUMENT_LIST child of the lowered arguments, and the resolved type of
+     * the call. Any other macro is not handled and nothing is raised, so the caller raises its own diagnostic.
+     * @param context Context of the run. Must not be null.
+     * @param typed MACRO_CALL typed node. Must not be null.
+     * @param outHandled Receives true when the macro is one the IR keeps, also when a gap in an argument left no node. Must not be null.
+     * @param outNode Receives the lowered node, or null. Must not be null.
+     * @return MAREA_IR_EXCEPT_SUCCESS, ERROR_NULL_POINTER when an argument is null, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_IrExcept MAREA_CALL MAREA_IrLowerMacroCall(MAREA_IrContext * context, const MAREA_SemaTypedNode *typed, MAREA_Boolean *outHandled, MAREA_IrNode **outNode);
 
     /**
      * @brief Lowers a call that carries an explicit type operand: a built-in call (size_of, align_of or
@@ -354,7 +387,7 @@ MAREA_BEGIN_EXTERN_C
      * @param outNode Receives the lowered call, or null when nothing is produced. Must not be null.
      * @return MAREA_IR_EXCEPT_SUCCESS, ERROR_NULL_POINTER when an argument is null, or ERROR_OUT_OF_MEMORY.
      */
-    MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrLowerTypeOperandCall(MAREA_IrContext * context, const MAREA_SemaTypedNode *typed, MAREA_Boolean *outHandled, MAREA_IrNode **outNode);
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_IrExcept MAREA_CALL MAREA_IrLowerTypeOperandCall(MAREA_IrContext * context, const MAREA_SemaTypedNode *typed, MAREA_Boolean *outHandled, MAREA_IrNode **outNode);
 
     /**
      * @brief Raises one ir error diagnostic, positioned at an AST node. The message is the text followed
@@ -368,7 +401,7 @@ MAREA_BEGIN_EXTERN_C
      * @return MAREA_IR_EXCEPT_SUCCESS, ERROR_NULL_POINTER when context or message is null, or
      * ERROR_OUT_OF_MEMORY when the sink cannot grow.
      */
-    MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrRaise(MAREA_IrContext * context, MAREA_IrDiagnosticCode code, const MAREA_AstNode *at, const MAREA_Character8 *message, const MAREA_Character8 *name, MAREA_IntegerSize nameLength);
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_IrExcept MAREA_CALL MAREA_IrRaise(MAREA_IrContext * context, MAREA_IrDiagnosticCode code, const MAREA_AstNode *at, const MAREA_Character8 *message, const MAREA_Character8 *name, MAREA_IntegerSize nameLength);
 
     /**
      * @brief Builds the alias table of a unit: every whole-path alias, every member alias and every plain
@@ -377,7 +410,7 @@ MAREA_BEGIN_EXTERN_C
      * @param unit Typed COMPILATION_UNIT. Must not be null.
      * @return MAREA_IR_EXCEPT_SUCCESS, ERROR_NULL_POINTER when an argument is null, or ERROR_OUT_OF_MEMORY.
      */
-    MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrAliasBuild(MAREA_IrContext * context, const MAREA_SemaTypedNode *unit);
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_IrExcept MAREA_CALL MAREA_IrAliasBuild(MAREA_IrContext * context, const MAREA_SemaTypedNode *unit);
 
     /**
      * @brief Tells whether a typed function declares a name as a parameter or a local of any block, at or
@@ -389,7 +422,7 @@ MAREA_BEGIN_EXTERN_C
      * @param offset Source offset the declaration must be at or before.
      * @return MAREA_BOOLEAN_TRUE when a parameter or a local declares the name at or before offset.
      */
-    MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_IrFunctionDeclares(const MAREA_SemaTypedNode *typed, const MAREA_Character8 *text, MAREA_IntegerSize length, MAREA_Uinteger32 offset);
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_IrFunctionDeclares(const MAREA_SemaTypedNode *typed, const MAREA_Character8 *text, MAREA_IntegerSize length, MAREA_Uinteger32 offset);
 
     /**
      * @brief Looks up an identifier used as a value (a function, a constant, a variant or the head of a member
@@ -403,7 +436,7 @@ MAREA_BEGIN_EXTERN_C
      * @param outLength Receives the byte length of outText. Must not be null.
      * @return MAREA_BOOLEAN_TRUE when the identifier is an alias that applies, otherwise MAREA_BOOLEAN_FALSE.
      */
-    MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_IrAliasValue(const MAREA_IrContext *context, const MAREA_Character8 *text, MAREA_IntegerSize length, MAREA_Uinteger32 offset, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength);
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_IrAliasValue(const MAREA_IrContext *context, const MAREA_Character8 *text, MAREA_IntegerSize length, MAREA_Uinteger32 offset, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength);
 
     /**
      * @brief Lowers a written type name to its original: a chain of type aliases is followed up to 8 steps and
@@ -417,7 +450,7 @@ MAREA_BEGIN_EXTERN_C
      * @param outLength Receives the byte length of outText. Must not be null.
      * @return MAREA_IR_EXCEPT_SUCCESS or ERROR_OUT_OF_MEMORY.
      */
-    MAREA_NODISCARD MAREA_IrExcept MAREA_CALL MAREA_IrAliasType(MAREA_IrContext * context, const MAREA_Character8 *text, MAREA_IntegerSize length, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength);
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_IrExcept MAREA_CALL MAREA_IrAliasType(MAREA_IrContext * context, const MAREA_Character8 *text, MAREA_IntegerSize length, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength);
 
     /**
      * @brief Tells whether lowering a type name through the alias table loses something: a step of the chain
@@ -427,7 +460,7 @@ MAREA_BEGIN_EXTERN_C
      * @param length Byte length of text.
      * @return MAREA_BOOLEAN_TRUE when the lowered name is not the whole type, otherwise MAREA_BOOLEAN_FALSE.
      */
-    MAREA_NODISCARD MAREA_Boolean MAREA_CALL MAREA_IrAliasTypeIsLossy(MAREA_IrContext * context, const MAREA_Character8 *text, MAREA_IntegerSize length);
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_IrAliasTypeIsLossy(MAREA_IrContext * context, const MAREA_Character8 *text, MAREA_IntegerSize length);
 
 MAREA_END_EXTERN_C
 

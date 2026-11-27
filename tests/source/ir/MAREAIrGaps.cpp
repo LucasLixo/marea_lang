@@ -11,7 +11,7 @@ namespace
     const MAREA_Uinteger32 MACRO{ MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_MACRO };
 
     const MAREA_ResolveCallback RESOLVE_EXTERNAL{ [](const std::string &text, const MAREA_AstNode **) {
-        const bool EXTERNAL{ (text.compare(0, 12, "collections.") == 0) || (text.compare(0, 12, "concurrency.") == 0) || (text.compare(0, 7, "arenas.") == 0) || (text == "text") || (text.compare(0, 2, "c.") == 0) };
+        const bool EXTERNAL{ (text.compare(0, 12, "collections.") == 0) || (text.compare(0, 12, "concurrency.") == 0) || (text.compare(0, 7, "arenas.") == 0) || (text == "text") || ((text.compare(0, 2, "c.") == 0) || (text.compare(0, 6, "marea.") == 0) || (text.compare(0, 5, "demo.") == 0)) };
 
         return EXTERNAL ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
     } };
@@ -69,7 +69,7 @@ TEST(MAREAIrGaps, ForEachRaisesNothingAndKeepsTheFunction)
 {
     GTEST_COUT << "Validating a for-each statement is lowered: it raises no ir diagnostic and its function stays in the module." << std::endl;
 
-    const std::string SOURCE{ "namespace main; import collections.list; function run(values: list<sinteger32>) for each value in values do end end" };
+    const std::string SOURCE{ "namespace main; import collections.list as list; function run(values: list<sinteger32>) for each value in values do end end" };
 
     EXPECT_EQ(MAREA_irCodesOf(SOURCE), Codes{}) << "A for each must raise no ir diagnostic.";
 

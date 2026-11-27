@@ -1,0 +1,24 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- size_of and align_of measure an array as its count times its element.
+
+namespace main;
+
+require marea.array;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+static_assert!(size_of<marea.array.Array<float32, 4>>() == 16, "four floats");
+static_assert!(align_of<marea.array.Array<float32, 4>>() == align_of<float32>(), "the alignment of the element");
+static_assert!(size_of<marea.array.Array<Point, 3>>() == 24, "three points");
+static_assert!(size_of<marea.array.Array<marea.array.Array<float32, 4>, 2>>() == 32, "two rows");
+static_assert!(size_of<marea.array.Array<float32, 0>>() == 0, "no element");
+
+function check(): uinteger64
+    return size_of<marea.array.Array<uinteger8, 12>>();
+end

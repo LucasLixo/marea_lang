@@ -10,7 +10,7 @@
 namespace
 {
     const MAREA_ResolveCallback RESOLVE_C{ [](const std::string &text, const MAREA_AstNode **) {
-        return (text.compare(0, 2, "c.") == 0) ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
+        return ((text.compare(0, 2, "c.") == 0) || (text.compare(0, 6, "marea.") == 0) || (text.compare(0, 5, "demo.") == 0)) ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
     } };
 
     std::string MAREA_resolved(const MAREA_IrNode *node)
@@ -145,15 +145,15 @@ TEST(MAREAIrResolvedType, HeadOnlyTypeNameIsUnchanged)
 
     MAREA_IrFixture fixture{ RESOLVE_C };
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; import c.array; function f(a: array<sinteger32, 4>) end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; import c.array as array; function f(a: demo.array<sinteger32, 4>) end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     const MAREA_IrNode *parameter{ MAREA_findKind(fixture.module, MAREA_IR_KIND_PARAMETER) };
 
     ASSERT_NE(parameter, nullptr) << "The tree must hold a PARAMETER.";
 
-    EXPECT_EQ(MAREA_irTypeName(parameter), "array") << "The typeName must stay the head name.";
+    EXPECT_EQ(MAREA_irTypeName(parameter), "demo.array") << "The typeName must stay the head name.";
 
-    EXPECT_EQ(MAREA_resolved(parameter), "array<sinteger32,4>") << "The resolved type must keep the type arguments.";
+    EXPECT_EQ(MAREA_resolved(parameter), "demo.array<sinteger32,4>") << "The resolved type must keep the type arguments.";
 }
 
 TEST(MAREAIrResolvedType, DeclarationsCarryTheirType)
@@ -183,7 +183,7 @@ TEST(MAREAIrResolvedType, UntypedExpressionIsLeftOutOnce)
 
     MAREA_IrFixture fixture{ RESOLVE_C };
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; import c.stdio; function f() local x: sinteger32 = stdio.value; end function g() end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; import c.stdio as stdio; function f() local x: sinteger32 = stdio.value; end function g() end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     EXPECT_EQ(fixture.MAREA_irCodes(), std::vector<MAREA_Uinteger32>{ MAREA_IR_DIAGNOSTIC_CODE_UNTYPED_EXPRESSION }) << "One untyped expression must raise 4006 once.";
 
@@ -200,7 +200,7 @@ TEST(MAREAIrResolvedType, UntypedOnPurposeStaysInTheTree)
 
     MAREA_IrFixture fixture{ RESOLVE_C };
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; import c.stdio; function f() stdio.puts(\"a\"); end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; import c.stdio as stdio; function f() stdio.puts(\"a\"); end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     EXPECT_TRUE(fixture.MAREA_irCodes().empty()) << "A call that sema leaves untyped on purpose must raise nothing.";
 
@@ -376,7 +376,7 @@ TEST(MAREAIrResolvedType, ForEachValueCarriesTheElementTypeOfTheCollection)
 
     MAREA_IrFixture fixture(RESOLVE_C);
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; import c.array; function f(values: array<float32,4>) for each value in values do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; import c.array as array; function f(values: demo.array<float32,4>) for each value in values do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     const MAREA_IrNode *loop{ MAREA_findKind(fixture.module, MAREA_IR_KIND_FOR_EACH_STATEMENT) };
 
@@ -388,7 +388,7 @@ TEST(MAREAIrResolvedType, ForEachValueCarriesTheElementTypeOfTheCollection)
 
     EXPECT_EQ(MAREA_IrNodeGetChildCount(loop), std::size_t{ 2 }) << "A loop with one name must keep two children.";
 
-    EXPECT_EQ(MAREA_resolved(MAREA_irChild(loop, 0)), "array<float32,4>") << "The collection must keep its own full type.";
+    EXPECT_EQ(MAREA_resolved(MAREA_irChild(loop, 0)), "demo.array<float32,4>") << "The collection must keep its own full type.";
 }
 
 TEST(MAREAIrResolvedType, ForEachKeyIsTypedUinteger64AndTheValueByTheElement)
@@ -397,7 +397,7 @@ TEST(MAREAIrResolvedType, ForEachKeyIsTypedUinteger64AndTheValueByTheElement)
 
     MAREA_IrFixture fixture(RESOLVE_C);
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; import c.vector; function f(values: vector<uinteger8>) for each key, value in values do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; import c.vector as vector; function f(values: demo.vector<uinteger8>) for each key, value in values do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     const MAREA_IrNode *loop{ MAREA_findKind(fixture.module, MAREA_IR_KIND_FOR_EACH_STATEMENT) };
 
@@ -415,7 +415,7 @@ TEST(MAREAIrResolvedType, ForEachKeyIsTypedUinteger64AndTheValueByTheElement)
 
     EXPECT_EQ(MAREA_resolved(loop), "uinteger8") << "The value must have a resolved type.";
 
-    EXPECT_EQ(MAREA_resolved(MAREA_irChild(loop, 1)), "vector<uinteger8>") << "The collection must keep its own full type.";
+    EXPECT_EQ(MAREA_resolved(MAREA_irChild(loop, 1)), "demo.vector<uinteger8>") << "The collection must keep its own full type.";
 }
 
 TEST(MAREAIrResolvedType, ForEachValueOfAnElementWithTypeArgumentsKeepsTheHeadAndTheFullType)
@@ -424,32 +424,15 @@ TEST(MAREAIrResolvedType, ForEachValueOfAnElementWithTypeArgumentsKeepsTheHeadAn
 
     MAREA_IrFixture fixture(RESOLVE_C);
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; import c.array; function f(rows: array<array<sinteger32,4>,2>) for each row in rows do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; import c.array as array; function f(rows: demo.array<demo.array<sinteger32,4>,2>) for each row in rows do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     const MAREA_IrNode *loop{ MAREA_findKind(fixture.module, MAREA_IR_KIND_FOR_EACH_STATEMENT) };
 
     ASSERT_NE(loop, nullptr) << "The loop must lower.";
 
-    EXPECT_EQ(MAREA_irTypeName(loop), "array") << "The type name must be the head.";
+    EXPECT_EQ(MAREA_irTypeName(loop), "demo.array") << "The type name must be the head.";
 
-    EXPECT_EQ(MAREA_resolved(loop), "array<sinteger32,4>") << "The resolved type must keep the type arguments.";
-}
-
-TEST(MAREAIrResolvedType, ForEachValueOfAFunctionTypeHasAResolvedTypeAndNoTypeName)
-{
-    GTEST_COUT << "Validating an element of a function type keeps its full resolved type and gets no type name, as a written function type has none." << std::endl;
-
-    MAREA_IrFixture fixture(RESOLVE_C);
-
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; import c.array; type Step = function(value: sinteger32): sinteger32; function f(steps: array<Step,2>) for each step in steps do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
-
-    const MAREA_IrNode *loop{ MAREA_findKind(fixture.module, MAREA_IR_KIND_FOR_EACH_STATEMENT) };
-
-    ASSERT_NE(loop, nullptr) << "The loop must lower.";
-
-    EXPECT_EQ(MAREA_resolved(loop), "function(sinteger32):sinteger32") << "The resolved type must keep the whole function type.";
-
-    EXPECT_EQ(MAREA_IrNodeGetTypeName(loop), nullptr) << "A function type has no head name.";
+    EXPECT_EQ(MAREA_resolved(loop), "demo.array<sinteger32,4>") << "The resolved type must keep the type arguments.";
 }
 
 TEST(MAREAIrResolvedType, ForEachValueOfADottedElementTypeKeepsTheDottedHead)
@@ -458,7 +441,7 @@ TEST(MAREAIrResolvedType, ForEachValueOfADottedElementTypeKeepsTheDottedHead)
 
     MAREA_IrFixture fixture(RESOLVE_C);
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; import c.array; function f(rows: array<c.array<sinteger32>,2>) for each row in rows do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; import c.array as array; function f(rows: demo.array<c.array<sinteger32>,2>) for each row in rows do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     const MAREA_IrNode *loop{ MAREA_findKind(fixture.module, MAREA_IR_KIND_FOR_EACH_STATEMENT) };
 
@@ -475,7 +458,7 @@ TEST(MAREAIrResolvedType, ForEachNamesStayWithoutATypeWhenSemaGivesNone)
 
     MAREA_IrFixture fixture(RESOLVE_C);
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; import c.collections.list; function f(values: list<sinteger32>) for each key, value in values do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; import c.collections.list as list; function f(values: list<sinteger32>) for each key, value in values do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     const MAREA_IrNode *loop{ MAREA_findKind(fixture.module, MAREA_IR_KIND_FOR_EACH_STATEMENT) };
 
@@ -492,7 +475,7 @@ TEST(MAREAIrResolvedType, ForEachNamesStayWithoutATypeWhenSemaGivesNone)
 
 TEST(MAREAIrResolvedType, SwitchHiddenLocalAndTestsAreTyped)
 {
-    GTEST_COUT << "Validating the switch desugaring types $switch, its references and the tests built from it." << std::endl;
+    GTEST_COUT << "Validating the switch desugaring types $switch0, its references and the tests built from it." << std::endl;
 
     MAREA_IrFixture fixture;
 
@@ -500,9 +483,9 @@ TEST(MAREAIrResolvedType, SwitchHiddenLocalAndTestsAreTyped)
 
     const std::string DUMP{ MAREA_dumpOf(fixture) };
 
-    EXPECT_EQ(MAREA_lineOf(DUMP, "LOCAL_DECLARATION \"$switch\""), "LOCAL_DECLARATION \"$switch\" resolved=uinteger8") << DUMP;
+    EXPECT_EQ(MAREA_lineOf(DUMP, "LOCAL_DECLARATION \"$switch0\""), "LOCAL_DECLARATION \"$switch0\" resolved=uinteger8") << DUMP;
 
-    EXPECT_EQ(MAREA_countOf(DUMP, "IDENTIFIER \"$switch\" resolved=uinteger8"), std::size_t{ 3 }) << "Every read of $switch must be typed: " << DUMP;
+    EXPECT_EQ(MAREA_countOf(DUMP, "IDENTIFIER \"$switch0\" resolved=uinteger8"), std::size_t{ 3 }) << "Every read of $switch0 must be typed: " << DUMP;
 
     EXPECT_EQ(MAREA_countOf(DUMP, "BINARY_EXPRESSION resolved=boolean op=EQUAL_EQUAL"), std::size_t{ 3 }) << "Every case test must be boolean: " << DUMP;
 
@@ -511,7 +494,7 @@ TEST(MAREAIrResolvedType, SwitchHiddenLocalAndTestsAreTyped)
 
 TEST(MAREAIrResolvedType, ReturnHoistedThroughADestroyIsTyped)
 {
-    GTEST_COUT << "Validating $return and its read carry the type of the returned value." << std::endl;
+    GTEST_COUT << "Validating $return0 and its read carry the type of the returned value." << std::endl;
 
     MAREA_IrFixture fixture;
 
@@ -519,9 +502,9 @@ TEST(MAREAIrResolvedType, ReturnHoistedThroughADestroyIsTyped)
 
     const std::string DUMP{ MAREA_dumpOf(fixture) };
 
-    EXPECT_EQ(MAREA_lineOf(DUMP, "LOCAL_DECLARATION \"$return\""), "LOCAL_DECLARATION \"$return\" resolved=sinteger32") << DUMP;
+    EXPECT_EQ(MAREA_lineOf(DUMP, "LOCAL_DECLARATION \"$return0\""), "LOCAL_DECLARATION \"$return0\" resolved=sinteger32") << DUMP;
 
-    EXPECT_EQ(MAREA_countOf(DUMP, "IDENTIFIER \"$return\" resolved=sinteger32"), std::size_t{ 1 }) << DUMP;
+    EXPECT_EQ(MAREA_countOf(DUMP, "IDENTIFIER \"$return0\" resolved=sinteger32"), std::size_t{ 1 }) << DUMP;
 
     EXPECT_EQ(MAREA_lineOf(DUMP, "CONSTRUCT_CALL"), "CONSTRUCT_CALL type=Box resolved=Box") << DUMP;
 

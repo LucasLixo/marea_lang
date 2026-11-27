@@ -3,6 +3,8 @@
 
 #include "tests/dependencies.hpp"
 
+#include "tests/MAREACatalogueHelpers.hpp"
+#include "tests/MAREALibraryRegistryHelpers.hpp"
 #include "tests/MAREASemaHelpers.hpp"
 
 #include <algorithm>
@@ -36,12 +38,6 @@ namespace
         std::string gapCode;
         std::string rule;
         std::string error;
-    };
-
-    struct MAREA_ItemFile
-    {
-        std::string relativePath;
-        std::string source;
     };
 
     struct MAREA_RunResult
@@ -107,7 +103,7 @@ namespace
             return true;
         }
 
-        if ((code == MAREA_SEMA_DIAGNOSTIC_CODE_NEGATE_UNSIGNED) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_SIGNED_DIVISION_OVERFLOW) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_BITWISE_OPERAND_NOT_INTEGER) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_LOGICAL_OPERAND_NOT_BOOLEAN) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_RAW_POINTER_OUTSIDE_UNSAFE) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_ASSIGNMENT_TO_CONSTANT) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_NON_BOOLEAN_CONDITION) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_CYCLIC_CONSTANT) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_LOCAL_WITHOUT_INITIAL_VALUE) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_UNKNOWN_MACRO) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_MACRO_ARGUMENT) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_COMPILE_TIME_ASSERTION_FAILED) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_OPAQUE_TYPE_MISUSE) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_OPAQUE_FIELD_BY_VALUE) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_PARALLEL_CONSTRUCT_OUTSIDE_FORK_JOIN) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_SPAWN_NEEDS_CALL) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_PARTITION_SOURCE_NOT_ARRAY) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_WRITE_THROUGH_READ_ONLY_BORROW) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_RESERVED_MACRO_NAME) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_FUNCTION_TYPE_MISMATCH) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_UNKNOWN_TYPE_FUNCTION) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_RESULT_USE) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_OPERATOR_SIGNATURE_MISMATCH) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_RECURSIVE_TYPE) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_CYCLIC_TYPE_ALIAS) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_UNKNOWN_FIELD) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_EMPTY_ENUM) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_UNKNOWN_ENUM_VARIANT) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_BOUND_OPERATION_NOT_GIVEN) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_OVERLAPPING_IMPLEMENTATION) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_USE_OF_MOVED_VALUE) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_VALUE_MOVED_AGAIN) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_VALUE_CHANGED_WHILE_BORROWED) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_CONFLICTING_PARALLEL_ACCESS) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_USE_OF_PARTIALLY_MOVED_VALUE) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_PARTITION_BODY_WRITES_OUTER_NAME) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_PARTITION_SOURCE_USED_IN_BODY) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_MISSING_FIELD)) {
+        if ((code == MAREA_SEMA_DIAGNOSTIC_CODE_LITERAL_COUNT_MISMATCH) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_CONSTANT_INDEX_OUT_OF_RANGE) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_TUPLE_INDEX_NOT_CONSTANT) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_NOT_ITERABLE) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_NEGATE_UNSIGNED) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_SIGNED_DIVISION_OVERFLOW) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_BITWISE_OPERAND_NOT_INTEGER) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_LOGICAL_OPERAND_NOT_BOOLEAN) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_RAW_POINTER_OUTSIDE_UNSAFE) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_ASSIGNMENT_TO_CONSTANT) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_NON_BOOLEAN_CONDITION) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_CYCLIC_CONSTANT) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_LOCAL_WITHOUT_INITIAL_VALUE) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_UNKNOWN_MACRO) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_MACRO_ARGUMENT) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_COMPILE_TIME_ASSERTION_FAILED) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_OPAQUE_TYPE_MISUSE) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_OPAQUE_FIELD_BY_VALUE) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_PARALLEL_CONSTRUCT_OUTSIDE_FORK_JOIN) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_SPAWN_NEEDS_CALL) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_PARTITION_SOURCE_NOT_ARRAY) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_WRITE_THROUGH_READ_ONLY_BORROW) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_RESERVED_MACRO_NAME) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_FUNCTION_TYPE_MISMATCH) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_UNKNOWN_TYPE_FUNCTION) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_RESULT_USE) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_OPERATOR_SIGNATURE_MISMATCH) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_RECURSIVE_TYPE) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_CYCLIC_TYPE_ALIAS) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_UNKNOWN_FIELD) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_EMPTY_ENUM) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_UNKNOWN_ENUM_VARIANT) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_BOUND_OPERATION_NOT_GIVEN) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_OVERLAPPING_IMPLEMENTATION) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_USE_OF_MOVED_VALUE) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_VALUE_MOVED_AGAIN) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_VALUE_CHANGED_WHILE_BORROWED) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_CONFLICTING_PARALLEL_ACCESS) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_USE_OF_PARTIALLY_MOVED_VALUE) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_PARTITION_BODY_WRITES_OUTER_NAME) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_PARTITION_SOURCE_USED_IN_BODY) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_MISSING_FIELD) || (code == MAREA_SEMA_DIAGNOSTIC_CODE_ELEMENT_WITHOUT_MEASURED_LAYOUT) || ((code >= MAREA_SEMA_DIAGNOSTIC_CODE_PRIVATE_SYMBOL_ACCESS) && (code <= MAREA_SEMA_DIAGNOSTIC_CODE_PRIVATE_FIELD_ACCESS)) || ((code >= MAREA_SEMA_DIAGNOSTIC_CODE_UNIMPORTED_NAMESPACE) && (code <= MAREA_SEMA_DIAGNOSTIC_CODE_RESERVED_NAMESPACE_ROOT)) || ((code >= MAREA_SEMA_DIAGNOSTIC_CODE_BACKEND_UNAVAILABLE) && (code <= MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_BUILD_VALUE))) {
             return true;
         }
 
@@ -229,22 +225,21 @@ namespace
         return result.empty() ? "none" : result;
     }
 
-    MAREA_SemaImportResult MAREA_resolveLibrary(const std::string &text)
-    {
-        const auto STARTS{ [&text](const std::string &prefix) { return text.compare(0, prefix.size(), prefix) == 0; } };
-
-        const bool EXTERNAL{ STARTS("collections.") || STARTS("concurrency.") || STARTS("arenas.") || (text == "text") || STARTS("c.") };
-
-        return EXTERNAL ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
-    }
-
     MAREA_RunResult MAREA_run(const std::string &source)
     {
         MAREA_RunResult result;
 
-        MAREA_SemaFixture fixture([](const std::string &text, const MAREA_AstNode **) { return MAREA_resolveLibrary(text); });
+        MAREA_SemaFixture fixture([](const std::string &text, const MAREA_AstNode **outRoot) { return MAREA_resolveLibrary(text, outRoot); });
 
-        result.except = fixture.MAREA_sema(source, "main.marea");
+        MAREA_IGNORE(MAREA_SemaContextSetTypeRegistry(fixture.context, MAREA_buildLibraryRegistry(fixture.parser.lexer.arena)));
+
+        const std::string SHIPPED_PATH{ MAREA_shippedPathOf(source) };
+
+        if (!SHIPPED_PATH.empty()) {
+            MAREA_IGNORE(MAREA_SemaContextSetShippedLibrarySource(fixture.context, MAREA_BOOLEAN_TRUE));
+        }
+
+        result.except = fixture.MAREA_sema(source, SHIPPED_PATH.empty() ? "main.marea" : SHIPPED_PATH);
 
         result.errorCount = fixture.MAREA_errorCount();
 
@@ -414,34 +409,6 @@ namespace
         return failures;
     }
 
-    std::string MAREA_readFile(const std::filesystem::path &path)
-    {
-        std::ifstream stream(path, std::ios::binary);
-
-        std::ostringstream buffer;
-
-        buffer << stream.rdbuf();
-
-        return buffer.str();
-    }
-
-    std::vector<MAREA_ItemFile> MAREA_collectItems()
-    {
-        std::vector<MAREA_ItemFile> result;
-
-        const std::filesystem::path ROOT{ MAREA_TESTS_LANGUAGE_DIRECTORY };
-
-        for (const std::filesystem::directory_entry &entry : std::filesystem::recursive_directory_iterator(ROOT)) {
-            if (entry.is_regular_file() && (entry.path().extension() == ".marea")) {
-                result.push_back({ std::filesystem::relative(entry.path(), ROOT).generic_string(), MAREA_readFile(entry.path()) });
-            }
-        }
-
-        std::sort(result.begin(), result.end(), [](const MAREA_ItemFile &left, const MAREA_ItemFile &right) { return left.relativePath < right.relativePath; });
-
-        return result;
-    }
-
     std::string MAREA_readDocument()
     {
         return MAREA_readFile(std::filesystem::path(MAREA_TESTS_LANGUAGE_DIRECTORY).parent_path().parent_path() / "docs" / "language" / "marea-language.md");
@@ -521,6 +488,21 @@ TEST(MAREALanguageCatalogue, AcceptItemPassesAndAnErroringProgramFails)
     const MAREA_ItemFile BAD{ "accept/seed/L-SEED-002.marea", "-- expect: ok\n" + BAD_PROGRAM };
 
     EXPECT_TRUE(MAREA_mentions(MAREA_checkItem("accept", BAD), BAD.relativePath)) << "An accept item with an error must fail and name its file.";
+}
+
+TEST(MAREALanguageCatalogue, ShippedItemIsCheckedAsAShippedSource)
+{
+    GTEST_COUT << "Validating the line '-- shipped: <path>' checks an item as a source file that the language ships." << std::endl;
+
+    const std::string PROGRAM{ "namespace marea.tools;\n" };
+
+    const MAREA_ItemFile SHIPPED{ "accept/seed/L-SEED-001.marea", "-- expect: ok\n-- shipped: marea/tools.marea\n" + PROGRAM };
+
+    EXPECT_TRUE(MAREA_checkItem("accept", SHIPPED).empty()) << "A shipped item may declare a namespace under marea.";
+
+    const MAREA_ItemFile PROJECT{ "reject/seed/L-SEED-002.marea", "-- expect: 3002 @2, 3081 @2\n" + PROGRAM };
+
+    EXPECT_TRUE(MAREA_checkItem("reject", PROJECT).empty()) << "An item with no shipped line stays a file of the project.";
 }
 
 TEST(MAREALanguageCatalogue, RejectItemChecksTheCodeAndTheLine)

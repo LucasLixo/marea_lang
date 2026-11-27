@@ -100,3 +100,24 @@ TEST(MAREASemaCondition, SwitchSubjectIsNotACondition)
 
     EXPECT_TRUE(MAREA_codesOf(MAREA_function("switch i case 1 then return; end")).empty()) << "An integer switch subject must raise nothing.";
 }
+
+TEST(MAREASemaCondition, ConditionOfAKnownTypeThatIsNotBooleanIsRejected)
+{
+    GTEST_COUT << "Validating a condition of a structure, an enum or a field that is not a boolean." << std::endl;
+
+    const std::string HEAD{ "structure Point x: sinteger32; ok: boolean; end enum Color Red; Green; end " };
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "function f(p: Point) while p do return; end end"), Codes{ CONDITION }) << "A structure must raise 3043.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "function f(c: Color) if c then return; end end"), Codes{ CONDITION }) << "An enum must raise 3043.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "function f() while Point { x = 1, ok = true } do return; end end"), Codes{ CONDITION }) << "A struct literal must raise 3043.";
+
+    EXPECT_EQ(MAREA_codesOf(HEAD + "function f(p: Point) while p.x do return; end end"), Codes{ CONDITION }) << "A sinteger32 field must raise 3043.";
+
+    EXPECT_EQ(MAREA_codesOf("require demo.slice; function f(v: demo.slice<boolean>) while v do return; end end"), Codes{ CONDITION }) << "A view must raise 3043.";
+
+    EXPECT_TRUE(MAREA_codesOf(HEAD + "function f(p: Point) while p.ok do return; end end").empty()) << "A boolean field must raise nothing.";
+
+    EXPECT_TRUE(MAREA_codesOf("function f<Item>(value: Item) while value do return; end end").empty()) << "A generic value must raise nothing.";
+}

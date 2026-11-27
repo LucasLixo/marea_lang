@@ -6,27 +6,28 @@
 --   1. fork_join ... end         the block. All started workers end before the "end".
 --   2. partition ... as part     cuts the value in disjoint parts, one body run for each part.
 --                                "mutable" gives each body exclusive write access to its part.
---   3. spawn call                starts one worker. It gives a task<T> with the result.
+--   3. spawn call                starts one worker. It gives a marea.tasks.Task<T> with the result.
 -- "part" is a reference that lives only in the body. A task is an owner, so the function can
 -- keep it in a local that was declared before the block: it goes up to the outer scope.
 -- The checker accepts a spawn only when its arguments are parts, or read-only data.
 
 namespace parallel.scaling;
 
-import c.array;
-import c.slice;
-import c.task;
+require marea.array;
+require marea.vector;
+require c.memory;
+require marea.tasks;
 
 constant WORKER_COUNT: sinteger32 = 4;
 
 -- A worker is a plain function. It has no knowledge of threads.
-function scale_slice(#[semantics = reference_mutable] part: slice<float32>, factor: float32)
+function scale_slice(#[semantics = reference_mutable] part: c.memory.Slice<float32>, factor: float32)
     for each value in mutable part do
         value *= factor;
     end
 end
 
-function sum_slice(part: slice<float32>): float32
+function sum_slice(part: c.memory.Slice<float32>): float32
     local total: float32 = 0.0;
     for each value in part do
         total += value;
@@ -35,7 +36,7 @@ function sum_slice(part: slice<float32>): float32
 end
 
 #[visibility = public]
-function scale_all(#[semantics = reference_mutable] values: c.array<float32>, factor: float32)
+function scale_all(#[semantics = reference_mutable] values: marea.array.Array<float32, 4>, factor: float32)
     fork_join
         partition mutable values into WORKER_COUNT as part do
             spawn scale_slice(part, factor);
@@ -44,8 +45,8 @@ function scale_all(#[semantics = reference_mutable] values: c.array<float32>, fa
 end
 
 #[visibility = public]
-function sum_all(values: c.array<float32>): float32
-    local tasks: c.array<task<float32>> = c.array<task<float32>>{};
+function sum_all(values: marea.array.Array<float32, 4>): float32
+    local tasks: marea.vector.Vector<marea.tasks.Task<float32>> = marea.vector.Vector<marea.tasks.Task<float32>>{};
     fork_join
         partition values into WORKER_COUNT as part do
             tasks.append(spawn sum_slice(part));

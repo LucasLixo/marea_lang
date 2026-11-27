@@ -15,7 +15,7 @@ namespace
             return (text.compare(0, 12, "collections.") == 0) ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
         });
 
-        if (fixture.MAREA_lower("namespace main; import collections.table; " + prefix + " constant VALUE: " + type + " = " + expression + ";") != MAREA_IR_EXCEPT_SUCCESS) {
+        if (fixture.MAREA_lower("namespace main; import collections.table as table; " + prefix + " constant VALUE: " + type + " = " + expression + ";") != MAREA_IR_EXCEPT_SUCCESS) {
             return "<lower failed>";
         }
 
@@ -165,21 +165,21 @@ TEST(MAREAIrExpressions, IndexAccessKeepsTargetAndIndex)
 {
     GTEST_COUT << "Validating an index access keeps the lowered target and the lowered index." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerInitializer("constant TABLE: array<sinteger32, 3> = array<sinteger32, 3>{ 1, 2, 3 };", "sinteger32", "TABLE[1]"), "(INDEX_ACCESS (IDENTIFIER TABLE) (INTEGER_LITERAL 1))") << "An index access must keep both operands.";
+    EXPECT_EQ(MAREA_lowerInitializer("constant TABLE: demo.array<sinteger32, 3> = demo.array<sinteger32, 3>{ 1, 2, 3 };", "sinteger32", "TABLE[1]"), "(INDEX_ACCESS (IDENTIFIER TABLE) (INTEGER_LITERAL 1))") << "An index access must keep both operands.";
 }
 
 TEST(MAREAIrExpressions, ArrayLiteralKeepsValueEntries)
 {
     GTEST_COUT << "Validating a literal of values keeps one VALUE_ENTRY per value." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerInitializer("", "array<sinteger32, 2>", "array<sinteger32, 2>{ 5, 6 }"), "(LITERAL_VALUE :array (VALUE_ENTRY (INTEGER_LITERAL 5)) (VALUE_ENTRY (INTEGER_LITERAL 6)))") << "Each value must be a VALUE_ENTRY.";
+    EXPECT_EQ(MAREA_lowerInitializer("", "demo.array<sinteger32, 2>", "demo.array<sinteger32, 2>{ 5, 6 }"), "(LITERAL_VALUE :demo.array (VALUE_ENTRY (INTEGER_LITERAL 5)) (VALUE_ENTRY (INTEGER_LITERAL 6)))") << "Each value must be a VALUE_ENTRY.";
 }
 
 TEST(MAREAIrExpressions, IndexedLiteralKeepsIndexEntries)
 {
     GTEST_COUT << "Validating a literal of keyed values keeps one INDEX_ENTRY per key and value." << std::endl;
 
-    EXPECT_EQ(MAREA_lowerInitializer("", "table<string, sinteger32>", "table<string, sinteger32>{ [\"a\"] = 1 }"), "(LITERAL_VALUE :table (INDEX_ENTRY (STRING_LITERAL \"a\") (INTEGER_LITERAL 1)))") << "A keyed entry must keep its key and value.";
+    EXPECT_EQ(MAREA_lowerInitializer("", "table<string, sinteger32>", "table<string, sinteger32>{ [\"a\"] = 1 }"), "(LITERAL_VALUE :collections.table (INDEX_ENTRY (STRING_LITERAL \"a\") (INTEGER_LITERAL 1)))") << "A keyed entry must keep its key and value.";
 }
 
 TEST(MAREAIrExpressions, EnumVariantFieldKeepsItsInitializer)

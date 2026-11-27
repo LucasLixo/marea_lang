@@ -1,0 +1,18 @@
+-- expect: 3085 @13
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An export key on an implementation block.
+
+namespace main;
+
+structure S
+    x: sinteger32;
+end
+
+#[export = "label"]
+implementation S
+    function get(self: S): sinteger32
+        return 1;
+    end
+end

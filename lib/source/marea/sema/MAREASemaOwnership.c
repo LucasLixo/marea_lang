@@ -21,46 +21,6 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsIdentifier(const MAREA_AstNode *node)
     return ((node != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(node) == MAREA_AST_KIND_IDENTIFIER)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
-// INFO: a library storage type is written exactly c.array, c.vector, c.table, c.owned or c.task; c.slice and c.pointer are a view and an address, so they stay by value.
-static MAREA_Boolean MAREA_CALL MAREA_G_IsLibraryStorageType(const MAREA_AstNode *type)
-{
-    static const MAREA_Character8 *const STORAGE[] = { "array", "vector", "table", "owned", "task" };
-
-    if ((type == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(type) != MAREA_AST_KIND_NAMED_TYPE)) {
-        return MAREA_BOOLEAN_FALSE;
-    }
-
-    const MAREA_AstNode *name = MAREA_SemaChildAt(type, 0);
-
-    if ((name == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(name) != MAREA_AST_KIND_QUALIFIED_NAME) || (MAREA_AstNodeGetChildCount(name) != 2)) {
-        return MAREA_BOOLEAN_FALSE;
-    }
-
-    const MAREA_AstNode *first = MAREA_SemaChildAt(name, 0);
-
-    const MAREA_AstNode *second = MAREA_SemaChildAt(name, 1);
-
-    if ((MAREA_G_IsIdentifier(first) == MAREA_BOOLEAN_FALSE) || (MAREA_G_IsIdentifier(second) == MAREA_BOOLEAN_FALSE)) {
-        return MAREA_BOOLEAN_FALSE;
-    }
-
-    if ((MAREA_AstNodeGetTextLength(first) != 1) || (MAREA_AstNodeGetText(first)[0] != 'c')) {
-        return MAREA_BOOLEAN_FALSE;
-    }
-
-    const MAREA_Character8 *text = MAREA_AstNodeGetText(second);
-
-    const MAREA_IntegerSize length = MAREA_AstNodeGetTextLength(second);
-
-    for (MAREA_IntegerSize index = 0; index < MAREA_ARRAY_SIZE(STORAGE); ++index) {
-        if ((strlen(STORAGE[index]) == length) && (memcmp(STORAGE[index], text, length) == 0)) {
-            return MAREA_BOOLEAN_TRUE;
-        }
-    }
-
-    return MAREA_BOOLEAN_FALSE;
-}
-
 // INFO: a type that sema cannot see is treated as by value when the caller passes unknownIsValue, so it is never guessed.
 static MAREA_Boolean MAREA_CALL MAREA_G_IsByValue(const MAREA_SemaContext *context, const MAREA_AstNode *type, MAREA_Boolean unknownIsValue)
 {
@@ -78,7 +38,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsByValue(const MAREA_SemaContext *conte
         // INFO: an enum is always by value, the one documented copy-contract exception; the retired "value" key exempts no other type.
         return (MAREA_AstNodeGetKind(declaration) == MAREA_AST_KIND_ENUM_DECLARATION) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
     case MAREA_SEMA_TYPE_CLASS_EXTERNAL:
-        return ((unknownIsValue == MAREA_BOOLEAN_TRUE) && (MAREA_G_IsLibraryStorageType(type) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_FALSE : unknownIsValue;
+        return unknownIsValue;
     default:
         return MAREA_BOOLEAN_FALSE;
     }
@@ -113,6 +73,13 @@ MAREA_SemaParameterSemantics MAREA_CALL MAREA_SemaGetParameterSemantics(const MA
     }
 
     const MAREA_AstNode *type = MAREA_SemaChildAt(parameter, 1);
+
+    // INFO: an inline run is copied by an assignment, but a parameter of it is a read-only borrow, so a large one is not copied by a call.
+    MAREA_SemaInlineRun run = { 0 };
+
+    if ((MAREA_SemaInlineRunOfType(context, type, &run) == MAREA_BOOLEAN_TRUE) && (run.isGrowable == MAREA_BOOLEAN_FALSE)) {
+        return MAREA_SEMA_PARAMETER_SEMANTICS_REFERENCE_READ_ONLY;
+    }
 
     // INFO: the default by type class: a primitive or the one documented by-value exception (an enum) is VALUE_READ_ONLY, a move-in type (owned, task, vector) keeps REFERENCE_MUTABLE, anything else is a read-only borrow.
     if (MAREA_G_IsByValue(context, type, MAREA_BOOLEAN_FALSE) == MAREA_BOOLEAN_TRUE) {
@@ -193,7 +160,10 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaBindReferences(MAREA_SemaContext *context,
                 break;
             }
 
-            const MAREA_SemaExcept RESULT = MAREA_G_PushReference(context, child, node);
+            // INFO: with two names the first one is the key, an index held by value, which is no reference: it is pushed with no binding so that it hides an outer reference of the same name.
+            const MAREA_Boolean IS_KEY = ((index == 0) && (COUNT == 4)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+
+            const MAREA_SemaExcept RESULT = MAREA_G_PushReference(context, child, (IS_KEY == MAREA_BOOLEAN_TRUE) ? MAREA_NULLPTR : node);
 
             if (RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
                 return RESULT;
@@ -271,7 +241,22 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_PushReadOnly(MAREA_SemaContext *conte
     return MAREA_SemaTableAppend(context, &context->readOnly, (MAREA_SemaName){ .text = MAREA_AstNodeGetText(name), .declaration = (readOnly == MAREA_BOOLEAN_TRUE) ? binding : MAREA_NULLPTR, .length = MAREA_AstNodeGetTextLength(name), .kind = MAREA_SEMA_NAME_KIND_DECLARATION });
 }
 
-static MAREA_Boolean MAREA_CALL MAREA_G_IsExistingValue(const MAREA_AstNode *expression);
+// INFO: a with over a name, a field or an element has the mode of that place; a call or a literal gives a new value, which has no root name.
+static MAREA_Boolean MAREA_CALL MAREA_G_IsReadOnlySource(const MAREA_SemaContext *context, const MAREA_AstNode *source)
+{
+    const MAREA_AstNode *root = MAREA_G_RootOf(source);
+
+    if (root == MAREA_NULLPTR) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    // INFO: a root that is no local is a constant, a type or a namespace, which has no storage to write.
+    if (MAREA_SemaLocalFind(context, MAREA_AstNodeGetText(root), MAREA_AstNodeGetTextLength(root)) == MAREA_NULLPTR) {
+        return MAREA_BOOLEAN_TRUE;
+    }
+
+    return MAREA_SemaIsReadOnly(context, source);
+}
 
 MAREA_SemaExcept MAREA_CALL MAREA_SemaBindReadOnly(MAREA_SemaContext *context, const MAREA_AstNode *node)
 {
@@ -333,8 +318,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaBindReadOnly(MAREA_SemaContext *context, c
     }
 
     if (KIND == MAREA_AST_KIND_WITH_STATEMENT) {
-        // INFO: a with over an existing value is a borrowed view; a with over a call holds a value that the call returned, so it may be written.
-        return MAREA_G_PushReadOnly(context, MAREA_SemaChildAt(node, 1), node, MAREA_G_IsExistingValue(MAREA_SemaChildAt(node, 0)));
+        return MAREA_G_PushReadOnly(context, MAREA_SemaChildAt(node, 1), node, MAREA_G_IsReadOnlySource(context, MAREA_SemaChildAt(node, 0)));
     }
 
     return MAREA_SEMA_EXCEPT_SUCCESS;
@@ -458,6 +442,13 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckAppendArguments(MAREA_SemaContex
             continue;
         }
 
+        // INFO: a value of a type that is copied is no reference once it is stored; a type that sema cannot see stays rejected.
+        const MAREA_AstNode *type = MAREA_SemaInferType(context, argument);
+
+        if ((type != MAREA_NULLPTR) && (MAREA_G_IsByValue(context, type, MAREA_BOOLEAN_FALSE) == MAREA_BOOLEAN_TRUE)) {
+            continue;
+        }
+
         const MAREA_SemaExcept RESULT = MAREA_G_ReportEscape(context, argument, "a reference cannot be stored in a vector:");
 
         if (RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
@@ -547,6 +538,8 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckOwnership(MAREA_SemaContext *context,
     }
 
     switch (MAREA_AstNodeGetKind(node)) {
+    case MAREA_AST_KIND_UNARY_EXPRESSION:
+        return MAREA_SemaCheckGrowableRunCopy(context, node);
     case MAREA_AST_KIND_PARAMETER:
         return MAREA_G_CheckParameter(context, node);
     case MAREA_AST_KIND_RETURN_STATEMENT:
@@ -809,14 +802,10 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckOwnedArguments(MAREA_SemaContext *con
             continue;
         }
 
-        const MAREA_AstNode *declaration = MAREA_NULLPTR;
+        // INFO: only a type with the owner role is checked; a vector or task parameter can be an explicit borrow, so it is left alone.
+        const MAREA_TypeDescriptor *descriptor = MAREA_NULLPTR;
 
-        const MAREA_Character8 *name = MAREA_NULLPTR;
-
-        MAREA_IntegerSize length = 0;
-
-        // INFO: only owned is checked; a vector or task parameter can be an explicit borrow, so it is left alone.
-        if ((MAREA_SemaClassifyType(context, MAREA_SemaChildAt(parameter, 1), &declaration, &name, &length) != MAREA_SEMA_TYPE_CLASS_MOVE_BUILTIN) || (length != 5) || (memcmp(name, "owned", 5) != 0)) {
+        if ((MAREA_SemaDescriptorOfType(context, MAREA_SemaChildAt(parameter, 1), &descriptor) == MAREA_BOOLEAN_FALSE) || ((descriptor->roles & MAREA_TYPE_ROLE_OWNER) == MAREA_TYPE_ROLE_NONE)) {
             continue;
         }
 

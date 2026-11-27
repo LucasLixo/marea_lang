@@ -1,0 +1,14 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A do-while loop whose condition reads a name of the outer scope.
+
+namespace main;
+
+function run()
+    local index: sinteger32 = 0;
+    do
+        index += 1;
+    while index < 3 end
+end

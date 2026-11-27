@@ -1,0 +1,19 @@
+-- expect: 3070 @18
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An owner is read after it moved.
+
+namespace main;
+
+require marea.memory;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+function check(point: marea.memory.Owned<Point>)
+    local other: marea.memory.Owned<Point> = move point;
+    local first: sinteger32 = point.x;
+end

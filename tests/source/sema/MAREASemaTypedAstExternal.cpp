@@ -162,6 +162,54 @@ namespace
     }
 } // namespace
 
+TEST(MAREASemaTypedAstExternal, OnlyACallOfAHostOrLibraryNameIsAnExternalCall)
+{
+    GTEST_COUT << "Validating a call is external only when a resolver answers EXTERNAL for the namespace of its callee, in every way of writing it." << std::endl;
+
+    MAREA_ParseFixture library;
+
+    ASSERT_EQ(library.MAREA_parse("namespace util.tools; #[visibility = public] function value(): sinteger32 return 1; end"), MAREA_PARSE_EXCEPT_SUCCESS) << "The unit must parse.";
+
+    const MAREA_AstNode *libraryRoot{ library.root };
+
+    MAREA_ExternalFixture fixture(
+        [libraryRoot](const std::string &text, const MAREA_AstNode **outRoot) {
+            if (text == "util.tools") {
+                *outRoot = libraryRoot;
+
+                return MAREA_SEMA_IMPORT_RESULT_FOUND;
+            }
+
+            const bool HOST{ (text == "demo") || (text == "demo.host") || (text == "demo.lib") || (text == "demo.one") || (text == "demo.one.add") || (text == "demo.list") || (text == "demo.real") };
+
+            return HOST ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
+        },
+        MAREA_powOnly());
+
+    ASSERT_TRUE(fixture.MAREA_build("namespace main; import util.tools; import util.tools as tools; require demo.host; require demo.lib as lib; require demo.one.add as plus; require demo.list { sub as minus }; require demo.real.add as sum; require demo.real.Handle as handle; "
+                                    "structure P x: sinteger32; end type Q = P; function helper() end "
+                                    "implementation P function make() end function again() Self.make(); end end "
+                                    "function f() demo.host.run(); lib.run(); plus(1); minus(); sum(); handle.make(); util.tools.value(); tools.value(); helper(); main.helper(); Q.make(); P.make(); (demo.host.run)(); end "
+                                    "function g(plus: function()) plus(); end"))
+        << "The source must check with zero errors and build: " << ::testing::PrintToString(fixture.MAREA_codes());
+
+    std::vector<const MAREA_SemaTypedNode *> calls;
+
+    MAREA_collect(fixture.root, MAREA_AST_KIND_CALL_EXPRESSION, calls);
+
+    std::vector<bool> external;
+
+    for (const MAREA_SemaTypedNode *call : calls) {
+        external.push_back(MAREA_SemaTypedNodeIsExternalCall(call));
+    }
+
+    EXPECT_EQ(external, (std::vector<bool>{ false, true, true, true, true, true, true, false, false, false, false, false, false, true, false })) << "Self.make; the six host forms; two project calls; helper, main.helper, Q.make, P.make; a parenthesized host callee; the parameter named like an alias.";
+
+    EXPECT_FALSE(MAREA_SemaTypedNodeIsExternalCall(fixture.root)) << "A node that is no call is not an external call.";
+
+    EXPECT_FALSE(MAREA_SemaTypedNodeIsExternalCall(nullptr)) << "A null node is not an external call.";
+}
+
 TEST(MAREASemaTypedAstExternal, ImportedNameOfAKnownExternalSignatureIsTypedWithItsResult)
 {
     GTEST_COUT << "Validating a call of an imported name whose EXTERNAL signature the host knows is typed with its declared result." << std::endl;
@@ -183,13 +231,63 @@ TEST(MAREASemaTypedAstExternal, MemberAccessFormOfAnExternalCallIsTypedTheSameWa
 
     MAREA_ExternalFixture fixture(MAREA_externalCNamespace(), MAREA_powOnly());
 
-    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nimport c.math;\nfunction f(): float64 return math.pow(2.0, 10.0); end\n")) << "The source must check with zero errors and build.";
+    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nimport c.math as math;\nfunction f(): float64 return math.pow(2.0, 10.0); end\n")) << "The source must check with zero errors and build.";
 
     const MAREA_SemaTypedNode *call{ MAREA_nth(fixture, MAREA_AST_KIND_CALL_EXPRESSION, 0) };
 
     ASSERT_NE(call, nullptr);
 
     EXPECT_EQ(MAREA_typeOf(call), "float64") << "The member-access call must be typed with the declared result of the signature.";
+}
+
+TEST(MAREASemaTypedAstExternal, FullPathFormOfAnExternalCallIsTypedTheSameWay)
+{
+    GTEST_COUT << "Validating a call written with the full path of an EXTERNAL namespace is typed with the declared result, and that the inner chain is a qualifier." << std::endl;
+
+    MAREA_ExternalFixture fixture(MAREA_externalCNamespace(), MAREA_powOnly());
+
+    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nrequire c.math;\nfunction f(): float64 return c.math.pow(2.0, 10.0); end\n")) << "The source must check with zero errors and build.";
+
+    const MAREA_SemaTypedNode *call{ MAREA_nth(fixture, MAREA_AST_KIND_CALL_EXPRESSION, 0) };
+
+    ASSERT_NE(call, nullptr);
+
+    EXPECT_EQ(MAREA_typeOf(call), "float64") << "The full-path call must be typed with the declared result of the signature.";
+
+    const MAREA_SemaTypedNode *chain{ MAREA_nth(fixture, MAREA_AST_KIND_MEMBER_ACCESS, 1) };
+
+    ASSERT_NE(chain, nullptr);
+
+    EXPECT_TRUE(MAREA_SemaTypedNodeIsQualifier(chain)) << "The chain c.math before the member must be a qualifier, not a value.";
+}
+
+TEST(MAREASemaTypedAstExternal, FullPathOfAProjectNamespaceIsTypedFromItsTree)
+{
+    GTEST_COUT << "Validating a call written with the full path of a FOUND namespace takes the result type of the function of that tree." << std::endl;
+
+    MAREA_ParseFixture library;
+
+    ASSERT_EQ(library.MAREA_parse("namespace util.tools; #[visibility = public] function twice(value: sinteger32): sinteger32 return value * 2; end"), MAREA_PARSE_EXCEPT_SUCCESS) << "The library must parse.";
+
+    const MAREA_AstNode *libraryRoot{ library.root };
+
+    MAREA_ExternalFixture fixture([libraryRoot](const std::string &text, const MAREA_AstNode **outRoot) {
+        if (text == "util.tools") {
+            *outRoot = libraryRoot;
+
+            return MAREA_SEMA_IMPORT_RESULT_FOUND;
+        }
+
+        return MAREA_SEMA_IMPORT_RESULT_NOT_FOUND; },
+                                  MAREA_powOnly());
+
+    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nimport util.tools;\nfunction f(): sinteger32 return util.tools.twice(2); end\n")) << "The source must check with zero errors and build.";
+
+    const MAREA_SemaTypedNode *call{ MAREA_nth(fixture, MAREA_AST_KIND_CALL_EXPRESSION, 0) };
+
+    ASSERT_NE(call, nullptr);
+
+    EXPECT_EQ(MAREA_typeOf(call), "sinteger32") << "The full-path call must take the result type of the function.";
 }
 
 TEST(MAREASemaTypedAstExternal, WrongArgumentCountRaisesArgumentCountMismatch)
@@ -214,13 +312,90 @@ TEST(MAREASemaTypedAstExternal, WrongArgumentTypeRaisesTypeMismatch)
     EXPECT_EQ(fixture.MAREA_codes(), std::vector<MAREA_Uinteger32>{ MAREA_UINTEGER_32(3011) }) << "An argument of the wrong type must raise TYPE_MISMATCH and nothing else.";
 }
 
+TEST(MAREASemaTypedAstExternal, StructureArgumentFitsTheStructureTheSignatureNames)
+{
+    GTEST_COUT << "Validating a structure value fits an external parameter that names its structure, and no other name." << std::endl;
+
+    static const MAREA_SemaSignatureParameter PARAMETERS[1] = { { "Pair", 4 } };
+
+    static const MAREA_SemaSignature SIGNATURE{ PARAMETERS, 1, "Pair", 4 };
+
+    const MAREA_SignatureCallback CALLBACK{ [](const std::string &, const std::string &, const MAREA_SemaSignature **outSignature) {
+        *outSignature = &SIGNATURE;
+
+        return MAREA_SEMA_IMPORT_RESULT_FOUND;
+    } };
+
+    MAREA_ExternalFixture good(MAREA_externalCNamespace(), CALLBACK);
+
+    ASSERT_TRUE(good.MAREA_build("namespace main;\nrequire c.host as host;\nstructure Pair x: sinteger32; end\nfunction f(): sinteger32 local a: Pair = Pair{ x = 1 }; local b: Pair = host.copy_of(a); local c: Pair = host.copy_of(Pair{ x = 2 }); return b.x + c.x; end\n")) << "A value of the named structure must be accepted.";
+
+    EXPECT_EQ(MAREA_typeOf(MAREA_nth(good, MAREA_AST_KIND_CALL_EXPRESSION, 0)), "Pair") << "The call must take the structure result of the signature.";
+
+    MAREA_ExternalFixture bad(MAREA_externalCNamespace(), CALLBACK);
+
+    EXPECT_EQ(bad.MAREA_check("namespace main;\nrequire c.host as host;\nstructure Other x: sinteger32; end\nfunction f() local a: Other = Other{ x = 1 }; host.copy_of(a); end\n"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check itself must not fail.";
+
+    EXPECT_EQ(bad.MAREA_codes(), std::vector<MAREA_Uinteger32>{ MAREA_UINTEGER_32(3011) }) << "A value of another structure must raise TYPE_MISMATCH and nothing else.";
+}
+
+TEST(MAREASemaTypedAstExternal, ALiteralArgumentTakesTheTypeOfTheExternalParameter)
+{
+    GTEST_COUT << "Validating a number literal argument of a call with an external signature is typed with the parameter, through a member access and through an imported name." << std::endl;
+
+    static const MAREA_SemaSignatureParameter PARAMETERS[3] = { { "uinteger64", 10 }, { "sinteger8", 9 }, { "float32", 7 } };
+
+    static const MAREA_SemaSignature SIGNATURE{ PARAMETERS, 3, "float64", 7 };
+
+    const MAREA_SignatureCallback CALLBACK{ [](const std::string &, const std::string &, const MAREA_SemaSignature **outSignature) {
+        *outSignature = &SIGNATURE;
+
+        return MAREA_SEMA_IMPORT_RESULT_FOUND;
+    } };
+
+    for (const char *source : { "namespace main;\nrequire c.host as host;\nfunction f(): float64 return host.wide(5000000000, -(1), 2); end\n", "namespace main;\nimport c.host.wide as wide;\nfunction f(): float64 return wide(5000000000, -(1), 2); end\n" }) {
+        MAREA_ExternalFixture fixture(MAREA_externalCNamespace(), CALLBACK);
+
+        ASSERT_TRUE(fixture.MAREA_build(source)) << source;
+
+        EXPECT_EQ(MAREA_typeOf(MAREA_nth(fixture, MAREA_AST_KIND_INTEGER_LITERAL, 0)), "uinteger64") << "The first literal takes the first parameter.";
+
+        EXPECT_EQ(MAREA_typeOf(MAREA_nth(fixture, MAREA_AST_KIND_INTEGER_LITERAL, 1)), "sinteger8") << "The literal inside the minus takes the second parameter.";
+
+        EXPECT_EQ(MAREA_typeOf(MAREA_nth(fixture, MAREA_AST_KIND_INTEGER_LITERAL, 2)), "float32") << "An integer literal for a float parameter is a float32.";
+    }
+}
+
+TEST(MAREASemaTypedAstExternal, ANumberLiteralDoesNotFitAStructureParameter)
+{
+    GTEST_COUT << "Validating a number literal for an external parameter that names a structure raises TYPE_MISMATCH." << std::endl;
+
+    static const MAREA_SemaSignatureParameter PARAMETERS[1] = { { "Pair", 4 } };
+
+    static const MAREA_SemaSignature SIGNATURE{ PARAMETERS, 1, "sinteger32", 10 };
+
+    const MAREA_SignatureCallback CALLBACK{ [](const std::string &, const std::string &, const MAREA_SemaSignature **outSignature) {
+        *outSignature = &SIGNATURE;
+
+        return MAREA_SEMA_IMPORT_RESULT_FOUND;
+    } };
+
+    for (const char *source : { "namespace main;\nrequire c.host as host;\nstructure Pair x: sinteger32; end\nfunction f() host.use(5); end\n", "namespace main;\nrequire c.host as host;\nstructure Pair x: sinteger32; end\nfunction f() host.use(1.5); end\n" }) {
+        MAREA_ExternalFixture fixture(MAREA_externalCNamespace(), CALLBACK);
+
+        EXPECT_EQ(fixture.MAREA_check(source), MAREA_SEMA_EXCEPT_SUCCESS) << "The check itself must not fail.";
+
+        EXPECT_EQ(fixture.MAREA_codes(), std::vector<MAREA_Uinteger32>{ MAREA_UINTEGER_32(3011) }) << source;
+    }
+}
+
 TEST(MAREASemaTypedAstExternal, MemberTheHostDoesNotKnowStaysOpaque)
 {
     GTEST_COUT << "Validating a member the signature function answers NOT_FOUND for stays exactly as opaque as with no signature function at all." << std::endl;
 
     MAREA_ExternalFixture fixture(MAREA_externalCNamespace(), MAREA_powOnly());
 
-    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nimport c.stdio;\nfunction f(text: string): sinteger32 return stdio.puts(text); end\n")) << "The source must check with zero errors and build.";
+    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nimport c.stdio as stdio;\nfunction f(text: string): sinteger32 return stdio.puts(text); end\n")) << "The source must check with zero errors and build.";
 
     const MAREA_SemaTypedNode *call{ MAREA_nth(fixture, MAREA_AST_KIND_CALL_EXPRESSION, 0) };
 

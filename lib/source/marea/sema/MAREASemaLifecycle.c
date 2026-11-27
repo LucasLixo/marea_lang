@@ -346,13 +346,19 @@ static const MAREA_AstNode *MAREA_CALL MAREA_G_ImplementedDeclaration(const MARE
     return ((entry != MAREA_NULLPTR) && (entry->kind == MAREA_SEMA_NAME_KIND_DECLARATION)) ? entry->declaration : MAREA_NULLPTR;
 }
 
-const MAREA_AstNode *MAREA_CALL MAREA_SemaFindConstructOperator(const MAREA_SemaContext *context, const MAREA_AstNode *typeDeclaration)
+const MAREA_AstNode *MAREA_CALL MAREA_SemaFindOperatorFunction(const MAREA_SemaContext *context, const MAREA_AstNode *typeDeclaration, const MAREA_Character8 *token, MAREA_IntegerSize tokenLength, MAREA_IntegerSize *outCount)
 {
-    if ((context == MAREA_NULLPTR) || (typeDeclaration == MAREA_NULLPTR) || (context->root == MAREA_NULLPTR)) {
+    if (outCount != MAREA_NULLPTR) {
+        *outCount = 0;
+    }
+
+    if ((context == MAREA_NULLPTR) || (typeDeclaration == MAREA_NULLPTR) || (token == MAREA_NULLPTR) || (context->root == MAREA_NULLPTR)) {
         return MAREA_NULLPTR;
     }
 
     const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(context->root);
+
+    const MAREA_AstNode *found = MAREA_NULLPTR;
 
     for (MAREA_IntegerSize current = 0; current < COUNT; ++current) {
         const MAREA_AstNode *implementation = MAREA_SemaChildAt(context->root, current);
@@ -366,13 +372,30 @@ const MAREA_AstNode *MAREA_CALL MAREA_SemaFindConstructOperator(const MAREA_Sema
         for (MAREA_IntegerSize index = 0; index < MEMBER_COUNT; ++index) {
             const MAREA_AstNode *member = MAREA_SemaChildAt(implementation, index);
 
-            if (MAREA_G_KindOf(member) == MAREA_G_LIFECYCLE_KIND_CONSTRUCT) {
-                return member;
+            if ((member == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(member) != MAREA_AST_KIND_FUNCTION_DECLARATION)) {
+                continue;
+            }
+
+            const MAREA_AstNode *item = MAREA_SemaAttributeFind(MAREA_NULLPTR, member, "operator");
+
+            if (MAREA_G_IsQuoted(MAREA_SemaChildAt(item, 1), token, tokenLength) == MAREA_BOOLEAN_FALSE) {
+                continue;
+            }
+
+            found = (found == MAREA_NULLPTR) ? member : found;
+
+            if (outCount != MAREA_NULLPTR) {
+                *outCount += 1;
             }
         }
     }
 
-    return MAREA_NULLPTR;
+    return found;
+}
+
+const MAREA_AstNode *MAREA_CALL MAREA_SemaFindConstructOperator(const MAREA_SemaContext *context, const MAREA_AstNode *typeDeclaration)
+{
+    return MAREA_SemaFindOperatorFunction(context, typeDeclaration, "construct", strlen("construct"), MAREA_NULLPTR);
 }
 
 // INFO: the one plain name segment of an inferred type, or null for a path, a function type or an unknown type.

@@ -1,0 +1,21 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- for each in mutable writes each element in place through a write borrow.
+
+namespace main;
+
+require marea.array;
+
+function scale(#[semantics = reference_mutable] values: marea.array.Array<sinteger32, 4>, factor: sinteger32)
+    for each value in mutable values do
+        value *= factor;
+    end
+end
+
+function check(factor: sinteger32): sinteger32
+    local values: marea.array.Array<sinteger32, 4> = marea.array.Array<sinteger32, 4>{ 1, 2, 3, 4 };
+    scale(values, factor);
+    return values[0] + values[3];
+end

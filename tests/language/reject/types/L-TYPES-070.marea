@@ -1,0 +1,16 @@
+-- expect: 3011 @11
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A switch arm whose value has another type than the switch value.
+
+namespace main;
+
+function name(value: sinteger32): sinteger32
+    switch value
+        case "one" then
+            return 1;
+        default then
+            return 0;
+    end
+end

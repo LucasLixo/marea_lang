@@ -1,10 +1,11 @@
--- expect: 3073 @21
+-- expect: 3073 @22
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
 -- An element is written while a for each reads the vector.
 
 namespace main;
+require demo.vector;
 
 structure Point
     x: sinteger32;
@@ -16,7 +17,7 @@ structure Box
     count: sinteger32;
 end
 
-function check(#[semantics = reference_mutable] points: vector<Point>): sinteger32
+function check(#[semantics = reference_mutable] points: demo.vector<Point>): sinteger32
     for each item in points do
         points[0] = Point{ x = 1, y = 1 };
     end

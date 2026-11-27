@@ -9,6 +9,7 @@
     #include "marea/base/MAREADiagnostic.h"
     #include "marea/base/MAREAMacros.h"
     #include "marea/base/MAREASourcePosition.h"
+    #include "marea/base/MAREATypeRegistry.h"
 
     #include "marea/lex/MAREALexer.h"
     #include "marea/lex/MAREAToken.h"
@@ -25,5 +26,10 @@
     #include "marea/ir/MAREAIrKind.h"
     #include "marea/ir/MAREAIrNode.h"
     #include "marea/ir/MAREAIrLayout.h"
+
+    #include "marea/bytecode/MAREABytecode.h"
+    #include "marea/bytecode/MAREABytecodeFormat.h"
+    #include "marea/bytecode/MAREABytecodeGenerate.h"
+    #include "marea/bytecode/MAREABytecodeOpcode.h"
 
 #endif

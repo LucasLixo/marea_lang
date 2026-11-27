@@ -3,23 +3,23 @@
 
 -- Step 12: namespaces, the user side.
 -- Order of a file: namespace, file attributes, imports, constants, types, functions.
--- Imports come right after the namespace. The last part of the name is the local name.
--- "as" renames what an import brings, a namespace or one symbol.
--- Reserved namespace: c.* is for C libraries. A project folder named c is an error, and a file
--- cannot declare it. The language has no standard library, so no other name is reserved.
+-- Imports come right after the namespace. An import or a require binds no name: the use
+-- writes the full path. "as" is the only way to a short name, for a namespace or one symbol.
+-- "import" brings a file of the project, "require" brings a name that the host registered.
+-- Reserved first segments: c and marea are for the registered libraries. A file of the project
+-- cannot declare a namespace under them unless the host registered that name.
 
 namespace namespaces.consumer;
 
-import c.stdio;                              -- C library: used as stdio.puts(...)
-import text;                                 -- a library (C or Marea): used as text.length(...)
-import namespaces.library;                   -- used as library.greet(...)
-import namespaces.library as lib;            -- same namespace, local name lib
-import namespaces.library.greet as welcome;  -- one symbol, local name welcome
+require demo.io;                             -- registered by the host: used as demo.io.puts(...)
+import namespaces.library;                   -- a file of the project: used as namespaces.library.greet(...)
+import namespaces.library as lib;            -- same namespace, short name lib
+import namespaces.library.greet as welcome;  -- one symbol, short name welcome
 
 #[visibility = public]
 function show_imports(): sinteger32
-    stdio.puts(library.greet("one"));
-    stdio.puts(lib.greet("two"));
-    stdio.puts(welcome("three"));
+    demo.io.puts(namespaces.library.greet("one"));
+    demo.io.puts(lib.greet("two"));
+    demo.io.puts(welcome("three"));
     return 0;
 end

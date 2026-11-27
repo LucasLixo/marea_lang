@@ -1,0 +1,14 @@
+-- expect: 3011 @13
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- fill takes a value of the element type.
+
+namespace main;
+
+require marea.array;
+
+function check()
+    local values: marea.array.Array<sinteger32, 4> = marea.array.Array<sinteger32, 4>{};
+    values.fill(true);
+end

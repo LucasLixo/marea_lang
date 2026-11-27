@@ -63,7 +63,7 @@ TEST(MAREASemaFunctionOrder, ImportedFunctionIsFine)
 
     MAREA_SemaFixture fixture([](const std::string &, const MAREA_AstNode **) { return MAREA_SEMA_IMPORT_RESULT_EXTERNAL; });
 
-    MAREA_IGNORE(fixture.MAREA_sema("namespace main; import c.lib { work }; function first(): sinteger32 return work(); end"));
+    MAREA_IGNORE(fixture.MAREA_sema("namespace main; import c.lib { work as work }; function first(): sinteger32 return work(); end"));
 
     EXPECT_TRUE(fixture.MAREA_semaCodes().empty()) << "An imported function must raise nothing.";
 }

@@ -59,8 +59,8 @@ MAREA_BUILD_MODE = "Debug"
 # [tasks."test:marea"] below builds marea_tests and runs it through ctest.
 
 [tasks."dev:ascii-check"]
-description = "Check every tracked text file for non-ASCII bytes (AGENTS.md's ASCII-only rule) - wraps tools/marea-ascii-check."
-run = 'git ls-files | while IFS= read -r f; do [ -f "$f" ] && printf "%s\n" "$f"; done | xargs -r lua ./tools/marea-ascii-check/main.lua'
+description = "Check every tracked text file for non-ASCII bytes (AGENTS.md's ASCII-only rule) - wraps tools/marea-ascii-check. The fixture with_violations.txt holds non-ASCII bytes on purpose and is skipped."
+run = 'git ls-files | grep -v -x -F tools/marea-ascii-check/tests/fixtures/with_violations.txt | while IFS= read -r f; do [ -f "$f" ] && printf "%s\n" "$f"; done | xargs -r lua ./tools/marea-ascii-check/main.lua'
 dir = "{{config_root}}"
 
 [tasks."dev:build-catalog"]
@@ -144,7 +144,7 @@ dir = "{{config_root}}"
 
 [tasks."format:cpp-sources"]
 description = "Format every tracked .c/.h/.cpp/.hpp file in place with clang-format (.clang-format)"
-run = 'git ls-files -- "*.c" "*.h" "*.cpp" "*.hpp" | xargs -r clang-format -style=file -i'
+run = 'git ls-files -- "*.c" "*.h" "*.cpp" "*.hpp" | grep -v -x -F tools/marea-mcp/tests/fixtures/sample.c | xargs -r clang-format -style=file -i'
 dir = "{{config_root}}"
 
 [tasks."format:tool-scripts"]
@@ -158,9 +158,9 @@ run = 'git ls-files -- "CMakeLists.txt" "*.cmake" | xargs -r uvx gersemi -i'
 dir = "{{config_root}}"
 
 [tasks."format:check-sources"]
-description = "Read-only formatting check across every language (clang-format, StyLua, gersemi) - what CI runs"
+description = "Read-only formatting check across every language (clang-format, StyLua, gersemi) - what CI runs. The fixture tools/marea-mcp/tests/fixtures/sample.c is unformatted on purpose and is skipped."
 run = [
-    'git ls-files -- "*.c" "*.h" "*.cpp" "*.hpp" | xargs -r clang-format -style=file --dry-run --Werror',
+    'git ls-files -- "*.c" "*.h" "*.cpp" "*.hpp" | grep -v -x -F tools/marea-mcp/tests/fixtures/sample.c | xargs -r clang-format -style=file --dry-run --Werror',
     "stylua --check .",
     'git ls-files -- "CMakeLists.txt" "*.cmake" | xargs -r uvx gersemi --check',
 ]

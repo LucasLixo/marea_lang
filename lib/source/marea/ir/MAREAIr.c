@@ -38,6 +38,8 @@ MAREA_IrExcept MAREA_CALL MAREA_IrContextCreate(MAREA_Arena *arena, MAREA_Diagno
     context->aliases = MAREA_NULLPTR;
     context->aliasCount = MAREA_INTEGER_SIZE(0);
     context->loopCount = MAREA_INTEGER_SIZE(0);
+    context->switchCount = MAREA_INTEGER_SIZE(0);
+    context->returnCount = MAREA_INTEGER_SIZE(0);
 
     *outContext = context;
 
@@ -214,6 +216,22 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerUnitDeclarations(MAREA_IrContext *
         return created;
     }
 
+    // INFO: the module carries the full namespace of the unit, so the name of each of its top-level declarations is the namespace and the name. The text points into the source.
+    const MAREA_SemaTypedNode *namespaceItem = MAREA_IrTypedFindChild(typedRoot, MAREA_AST_KIND_NAMESPACE_DECLARATION);
+
+    const MAREA_SemaTypedNode *namespaceName = (namespaceItem == MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_IrTypedFindChild(namespaceItem, MAREA_AST_KIND_QUALIFIED_NAME);
+
+    if (namespaceName != MAREA_NULLPTR) {
+        const MAREA_Character8 *namespaceText = MAREA_NULLPTR;
+
+        MAREA_IntegerSize namespaceLength = MAREA_INTEGER_SIZE(0);
+
+        if (MAREA_IrAstQualifiedNameSpan(MAREA_SemaTypedNodeGetAstNode(namespaceName), &namespaceText, &namespaceLength) == MAREA_BOOLEAN_TRUE) {
+            module->text = namespaceText;
+            module->textLength = (MAREA_Uinteger32)namespaceLength;
+        }
+    }
+
     const MAREA_IntegerSize COUNT = MAREA_SemaTypedNodeGetChildCount(typedRoot);
 
     // INFO: room for one name per top-level item, so the list of dropped functions never grows.
@@ -311,7 +329,7 @@ MAREA_IrExcept MAREA_CALL MAREA_IrLowerCompilationUnit(MAREA_IrContext *context,
     }
 
     if (MAREA_AstNodeGetKind(MAREA_SemaTypedNodeGetAstNode(typedRoot)) != MAREA_AST_KIND_COMPILATION_UNIT) {
-        return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
+        return MAREA_IR_EXCEPT_ERROR_BAD_ROOT;
     }
 
     // INFO: the root and the alias table stay in the context only while the unit is lowered, so that a call can ask which names the unit binds and which names are aliases.

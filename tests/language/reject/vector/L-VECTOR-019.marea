@@ -1,0 +1,16 @@
+-- expect: 3073 @14
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- shrink_to_fit may move the storage that a for each walks.
+
+namespace main;
+
+require marea.vector;
+
+function check()
+    local values: marea.vector.Vector<sinteger32> = marea.vector.Vector<sinteger32>{ 1 };
+    for each value in values do
+        values.shrink_to_fit();
+    end
+end

@@ -23,6 +23,7 @@ MAREA_BEGIN_EXTERN_C
         MAREA_IR_EXCEPT_SUCCESS = MAREA_UINTEGER_8(0),
         MAREA_IR_EXCEPT_ERROR_NULL_POINTER = MAREA_UINTEGER_8(1),
         MAREA_IR_EXCEPT_ERROR_OUT_OF_MEMORY = MAREA_UINTEGER_8(2),
+        MAREA_IR_EXCEPT_ERROR_BAD_ROOT = MAREA_UINTEGER_8(3),
     } MAREA_IrExcept;
 
     /**
@@ -73,9 +74,9 @@ MAREA_BEGIN_EXTERN_C
      * @param typedRoot COMPILATION_UNIT typed node from MAREA_SemaBuildTypedAst. Must not be null, and
      * must shadow a COMPILATION_UNIT node.
      * @param outModule Receives the module root, valid for the arena lifetime. Must not be null.
-     * @return MAREA_IR_EXCEPT_SUCCESS, MAREA_IR_EXCEPT_ERROR_NULL_POINTER when an argument is null or
-     * typedRoot is not a COMPILATION_UNIT, or MAREA_IR_EXCEPT_ERROR_OUT_OF_MEMORY when the arena cannot
-     * grow.
+     * @return MAREA_IR_EXCEPT_SUCCESS, MAREA_IR_EXCEPT_ERROR_NULL_POINTER when an argument is null,
+     * MAREA_IR_EXCEPT_ERROR_BAD_ROOT when typedRoot is not a COMPILATION_UNIT, or
+     * MAREA_IR_EXCEPT_ERROR_OUT_OF_MEMORY when the arena cannot grow.
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_IrExcept MAREA_CALL MAREA_IrLowerCompilationUnit(MAREA_IrContext * context, const MAREA_SemaTypedNode *typedRoot, const MAREA_IrNode **outModule);
 

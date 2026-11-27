@@ -1,0 +1,16 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A do-while loop with a break and a continue in its body.
+
+namespace main;
+
+function run(flag: boolean)
+    do
+        if flag then
+            continue;
+        end
+        break;
+    while flag end
+end

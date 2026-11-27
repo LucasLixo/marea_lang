@@ -5,6 +5,7 @@
 -- An array of primitives is copied by assignment.
 
 namespace main;
+require demo.array;
 
 structure Point
     x: sinteger32;
@@ -16,7 +17,7 @@ structure Box
     count: sinteger32;
 end
 
-function check(values: array<sinteger32, 4>): sinteger32
-    local second: array<sinteger32, 4> = values;
+function check(values: demo.array<sinteger32, 4>): sinteger32
+    local second: demo.array<sinteger32, 4> = values;
     return 1;
 end

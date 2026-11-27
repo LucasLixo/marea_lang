@@ -1,0 +1,12 @@
+-- expect: 3084 @9
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A backend key in a file that is not marea.math.
+
+namespace main;
+
+#![backend = auto]
+
+function run()
+end

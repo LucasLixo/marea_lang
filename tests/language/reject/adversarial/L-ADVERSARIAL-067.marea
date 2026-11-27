@@ -1,4 +1,4 @@
--- expect: 3014 @21
+-- expect: 3014 @22
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
@@ -6,6 +6,7 @@
 -- Mutant of L-OWNERSHIP-031: one type argument of a local array is narrowed.
 
 namespace main;
+require demo.array;
 
 structure Point
     x: sinteger32;
@@ -17,8 +18,8 @@ structure Box
     count: sinteger32;
 end
 
-function check(values: array<sinteger32, 4>): sinteger32
-    local second: array<sinteger8, 4> = values;
+function check(values: demo.array<sinteger32, 4>): sinteger32
+    local second: demo.array<sinteger8, 4> = values;
     return 1;
 end
 

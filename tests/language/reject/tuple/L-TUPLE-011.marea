@@ -1,0 +1,13 @@
+-- expect: 3087 @12
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A tuple literal holds fewer values than the elements.
+
+namespace main;
+
+require marea.tuple;
+
+function check()
+    local pair: marea.tuple.Tuple<sinteger32, sinteger32> = marea.tuple.Tuple<sinteger32, sinteger32>{ 1 };
+end

@@ -27,7 +27,7 @@ namespace
     // INFO: the statement runs in a function with a boolean parameter ok and an integer parameter count.
     Codes MAREA_codesOfStatement(const std::string &statement)
     {
-        return MAREA_codesOfProgram("namespace main;\nfunction check(ok: boolean, count: sinteger32)\n" + statement + "\nend\n");
+        return MAREA_codesOfProgram("namespace main;\nrequire c.array;\nfunction check(ok: boolean, count: sinteger32)\n" + statement + "\nend\n");
     }
 
     std::vector<std::string> MAREA_messagesOfStatement(const std::string &statement)
@@ -36,7 +36,7 @@ namespace
 
         std::vector<std::string> messages;
 
-        if (fixture.MAREA_sema("namespace main;\nfunction check(ok: boolean, count: sinteger32)\n" + statement + "\nend\n") != MAREA_SEMA_EXCEPT_SUCCESS) {
+        if (fixture.MAREA_sema("namespace main;\nrequire c.array;\nfunction check(ok: boolean, count: sinteger32)\n" + statement + "\nend\n") != MAREA_SEMA_EXCEPT_SUCCESS) {
             return messages;
         }
 
@@ -177,18 +177,19 @@ TEST(MAREASemaMacros, PlaceMacrosTakeNoArgument)
 
     EXPECT_EQ(MAREA_codesOfStatement("local text: string = namespace!();"), Codes{});
     EXPECT_EQ(MAREA_codesOfStatement("local text: string = file!();"), Codes{});
-    EXPECT_EQ(MAREA_codesOfStatement("local number: sinteger32 = line!();"), Codes{});
+    EXPECT_EQ(MAREA_codesOfStatement("local number: uinteger32 = line!();"), Codes{});
     EXPECT_EQ(MAREA_codesOfStatement("local text: string = namespace!(1);"), Codes{ INVALID_ARGUMENT });
-    EXPECT_EQ(MAREA_codesOfStatement("local number: sinteger32 = line!(1);"), Codes{ INVALID_ARGUMENT });
+    EXPECT_EQ(MAREA_codesOfStatement("local number: uinteger32 = line!(1);"), Codes{ INVALID_ARGUMENT });
     EXPECT_EQ(MAREA_codesOfStatement("local text: string = file!(\"x\");"), Codes{ INVALID_ARGUMENT });
 }
 
-TEST(MAREASemaMacros, ACallOfAMacroThatSemaCannotTypeIsAccepted)
+TEST(MAREASemaMacros, AnArgumentThatIsNoLiteralIsJudgedByItsType)
 {
-    GTEST_COUT << "Validating that a non-literal argument of the wrong kind stays unknown and is accepted." << std::endl;
+    GTEST_COUT << "Validating that an integer name is no condition and no format text." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOfStatement("assert!(count, \"x\");"), Codes{});
-    EXPECT_EQ(MAREA_codesOfStatement("print!(count);"), Codes{});
+    EXPECT_EQ(MAREA_codesOfStatement("assert!(count, \"x\");"), Codes{ INVALID_ARGUMENT });
+    EXPECT_EQ(MAREA_codesOfStatement("print!(count);"), Codes{ INVALID_ARGUMENT });
+    EXPECT_EQ(MAREA_codesOfStatement("assert!(unknown(), \"x\");"), Codes{}) << "A condition of an unknown type must be accepted.";
 }
 
 TEST(MAREASemaMacros, MacroValueMustFitItsTarget)
@@ -201,7 +202,7 @@ TEST(MAREASemaMacros, MacroValueMustFitItsTarget)
     EXPECT_EQ(MAREA_codesOfStatement("local text: string = include_text!(\"a.txt\");"), Codes{});
     EXPECT_EQ(MAREA_codesOfStatement("local text: string = namespace!();"), Codes{});
     EXPECT_EQ(MAREA_codesOfStatement("local text: string = file!();"), Codes{});
-    EXPECT_EQ(MAREA_codesOfStatement("local number: sinteger32 = line!();"), Codes{});
+    EXPECT_EQ(MAREA_codesOfStatement("local number: uinteger32 = line!();"), Codes{});
 }
 
 TEST(MAREASemaMacros, MacroResultReturnedMustFitTheReturnType)
@@ -225,4 +226,49 @@ TEST(MAREASemaMacros, MacroStatementIsNotAValueUse)
 
     EXPECT_EQ(MAREA_codesOfStatement("print!(\"x\");"), Codes{});
     EXPECT_EQ(MAREA_codesOfStatement("log!(info, \"x\");"), Codes{});
+}
+
+TEST(MAREASemaMacros, EveryPlaceholderValueMustBePrintable)
+{
+    GTEST_COUT << "Validating that a {} value of a type that cannot be printed raises INVALID_MACRO_ARGUMENT." << std::endl;
+
+    const std::string HEAD{ "namespace main; structure Point x: sinteger32; end enum Color Red; end " };
+
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "function f(p: Point) print!(\"{}\", p); end"), Codes{ INVALID_ARGUMENT });
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "function f(c: Color) log!(info, \"{}\", c); end"), Codes{ INVALID_ARGUMENT });
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "require demo.slice; function f(v: demo.slice<boolean>) local t: string = format!(\"{}\", v); end"), Codes{ INVALID_ARGUMENT });
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "function f(p: Point, a: boolean, b: character, c: string, d: float32) print!(\"{} {} {} {} {} {}\", a, b, c, d, p.x, 1.5); end"), Codes{});
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "function f<Item>(value: Item) print!(\"{}\", value); end"), Codes{});
+}
+
+TEST(MAREASemaMacros, ATextMustBeAStringLiteralAndAConditionABoolean)
+{
+    GTEST_COUT << "Validating that a text that is not a string literal and a condition that is not a boolean are rejected." << std::endl;
+
+    const std::string HEAD{ "namespace main; " };
+
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "function f(t: string) print!(t); end"), Codes{ INVALID_ARGUMENT });
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "function f(t: string) log!(info, t); end"), Codes{ INVALID_ARGUMENT });
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "function f(t: string) local s: string = include_text!(t); end"), Codes{ INVALID_ARGUMENT });
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "function f(t: string, ok: boolean) assert!(ok, t); end"), Codes{ INVALID_ARGUMENT });
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "function f(n: sinteger32) assert!(n, \"x\"); end"), Codes{ INVALID_ARGUMENT });
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "function f(n: sinteger32, ok: boolean) assert!(ok, \"x\"); debug_assert!(n > 0, \"x\"); end"), Codes{});
+}
+
+TEST(MAREASemaMacros, ADeclaredNameSlotCannotBeABuiltInMacroName)
+{
+    GTEST_COUT << "Validating RESERVED_MACRO_NAME for a parameter and for each loop name." << std::endl;
+
+    constexpr MAREA_Uinteger32 RESERVED{ MAREA_SEMA_DIAGNOSTIC_CODE_RESERVED_MACRO_NAME };
+
+    const std::string HEAD{ "namespace main; require c.array; " };
+
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "function f(print: sinteger32) end"), Codes{ RESERVED });
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "function f() for line in 0 .. 3 do end end"), Codes{ RESERVED });
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "function f(v: c.array<sinteger32, 4>) for each log in v do end end"), Codes{ RESERVED });
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "function f(v: c.array<sinteger32, 4>) for each file, item in v do end end"), Codes{ RESERVED });
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "function f(v: c.array<float32>) fork_join partition v into 2 as assert do end end end"), Codes{ RESERVED });
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "function f(v: sinteger32) with v as format do end end"), Codes{ RESERVED });
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "function f(printer: sinteger32) for lines in 0 .. 3 do end end"), Codes{}) << "A name that only holds a macro name must be accepted.";
+    EXPECT_EQ(MAREA_codesOfProgram("namespace main; import other { print };"), Codes{}) << "A member with no as binds no name.";
 }

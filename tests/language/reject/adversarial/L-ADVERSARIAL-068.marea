@@ -1,4 +1,4 @@
--- expect: 3014 @21
+-- expect: 3014 @22
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
@@ -6,6 +6,7 @@
 -- Mutant of L-OWNERSHIP-033: one type argument of a local vector is narrowed.
 
 namespace main;
+require demo.vector;
 
 structure Point
     x: sinteger32;
@@ -17,8 +18,8 @@ structure Box
     count: sinteger32;
 end
 
-function check(#[semantics = reference_read_only] values: vector<sinteger32>): sinteger32
-    local second: vector<sinteger8> = copy values;
+function check(#[semantics = reference_read_only] values: demo.vector<sinteger32>): sinteger32
+    local second: demo.vector<sinteger8> = copy values;
     return 1;
 end
 

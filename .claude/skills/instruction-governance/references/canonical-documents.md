@@ -8,7 +8,7 @@ Link map of every canonical agent-instruction document and the one subject each 
 
 | Document | Owned subject |
 | --- | --- |
-| [AGENTS.md](../../../../AGENTS.md) | Project description, language boundary, working model (commits through generate-commit, TDD, ASCII, copyright header), context economy, the two outcome logs, versioning, the table of skills |
+| [AGENTS.md](../../../../AGENTS.md) | Project description, a pointer to the compiler and language specifications under `docs/` (the specifications themselves are owned by those docs, not by this file), working model (commits through generate-commit, TDD, ASCII, copyright header), context economy, the two outcome logs, versioning, the table of skills |
 
 ## Skills
 
@@ -19,9 +19,9 @@ Link map of every canonical agent-instruction document and the one subject each 
 | [c-style](../../c-style/SKILL.md) | C11 conventions, the MAREA_ type and macro system, opaque structs with accessors, the C and Rust boundary |
 | [cmake-style](../../cmake-style/SKILL.md) | CMake layout, variables, options, targets, 3rdparty wiring and formatting |
 | [cpp-testing](../../cpp-testing/SKILL.md) | GoogleTest conventions under `tests/`, the quiet build and test commands, and TDD for C symbols |
-| [dispatch-applies](../../dispatch-applies/SKILL.md) | Running several existing applies in parallel worktrees and merging their PRs |
+| [dispatch-applies](../../dispatch-applies/SKILL.md) | Running several existing applies in parallel worktrees, one fresh agent per part, and merging their PRs |
 | [generate-apply](../../generate-apply/SKILL.md) | Apply files and parts, how a part is delegated and delivered (push, PR, merge), the apply list, the outcome logs (`temp/_LOG_APPLY_SUCCESS.md`, `temp/_LOG_APPLY_ERROR.md`), headings and retention |
-| [generate-commit](../../generate-commit/SKILL.md) | Commit mechanics, atomic grouping, the `metadata.yaml` bump and delegation to the shipper agent |
+| [generate-commit](../../generate-commit/SKILL.md) | Commit mechanics, atomic grouping, the `metadata.yaml` bump |
 | [generate-handoff](../../generate-handoff/SKILL.md) | Handoff dependency graph and handoff logs |
 | [generate-issue](../../generate-issue/SKILL.md) | Creating one GitHub issue from `.github/ISSUE_TEMPLATE` and its report |
 | [instruction-governance](../SKILL.md) | Changes to skills (workflow skills included) and to AGENTS.md: comparison, conflict handling, cross-references, when a skill is written in parts, and the manual validation checks |

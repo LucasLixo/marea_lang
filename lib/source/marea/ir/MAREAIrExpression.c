@@ -218,6 +218,67 @@ static const MAREA_SemaTypedNode *MAREA_CALL MAREA_G_FindImplementedFunction(con
     return MAREA_NULLPTR;
 }
 
+// INFO: the name of the type that the implementation block holding the function being lowered is written for, or false when the function is not in a block.
+static MAREA_Boolean MAREA_CALL MAREA_G_EnclosingImplementedType(const MAREA_IrContext *context, const MAREA_Character8 **outName, MAREA_IntegerSize *outLength)
+{
+    if (context->function == MAREA_NULLPTR) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_IntegerSize COUNT = MAREA_SemaTypedNodeGetChildCount(context->unit);
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < COUNT; index = (index + MAREA_INTEGER_SIZE(1))) {
+        const MAREA_SemaTypedNode *block = MAREA_IrTypedChildAt(context->unit, index);
+
+        if (MAREA_IrTypedKind(block) != MAREA_AST_KIND_IMPLEMENTATION_DECLARATION) {
+            continue;
+        }
+
+        const MAREA_IntegerSize MEMBER_COUNT = MAREA_SemaTypedNodeGetChildCount(block);
+
+        for (MAREA_IntegerSize memberIndex = MAREA_INTEGER_SIZE(0); memberIndex < MEMBER_COUNT; memberIndex = (memberIndex + MAREA_INTEGER_SIZE(1))) {
+            if (MAREA_IrTypedChildAt(block, memberIndex) != context->function) {
+                continue;
+            }
+
+            const MAREA_SemaTypedNode *typeNode = MAREA_IrTypedFindChild(block, MAREA_AST_KIND_NAMED_TYPE);
+
+            return ((typeNode != MAREA_NULLPTR) && (MAREA_IrAstTypeName(MAREA_SemaTypedNodeGetAstNode(typeNode), outName, outLength) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+        }
+    }
+
+    return MAREA_BOOLEAN_FALSE;
+}
+
+// INFO: the type that the receiver of a static call stands for: the type of the enclosing implementation for Self, else the type a local alias names, else the name as written. A name of an import is its full path and finds no block of this unit.
+static MAREA_Boolean MAREA_CALL MAREA_G_StaticReceiverType(MAREA_IrContext *context, const MAREA_Character8 **ioName, MAREA_IntegerSize *ioLength)
+{
+    if ((*ioLength == MAREA_INTEGER_SIZE(4)) && (memcmp(*ioName, "Self", MAREA_INTEGER_SIZE(4)) == 0)) {
+        return MAREA_G_EnclosingImplementedType(context, ioName, ioLength);
+    }
+
+    return (MAREA_IrAliasType(context, *ioName, *ioLength, ioName, ioLength) == MAREA_IR_EXCEPT_SUCCESS) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
+// INFO: true when the identifier has no resolved type, no parameter or local of the enclosing function declares it, and a local type alias of the unit has its name.
+static MAREA_Boolean MAREA_CALL MAREA_G_IsLocalTypeAliasName(const MAREA_IrContext *context, const MAREA_SemaTypedNode *identifier)
+{
+    const MAREA_Character8 *typeText = MAREA_NULLPTR;
+    MAREA_IntegerSize typeLength = MAREA_INTEGER_SIZE(0);
+
+    if (MAREA_SemaTypedNodeGetResolvedType(identifier, &typeText, &typeLength) == MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_AstNode *ast = MAREA_SemaTypedNodeGetAstNode(identifier);
+
+    if ((context->function != MAREA_NULLPTR) && (MAREA_IrFunctionDeclares(context->function, MAREA_AstNodeGetText(ast), MAREA_AstNodeGetTextLength(ast), MAREA_AstNodeGetPosition(ast).offset) == MAREA_BOOLEAN_TRUE)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    return MAREA_IrAliasIsLocalType(context, MAREA_AstNodeGetText(ast), MAREA_AstNodeGetTextLength(ast));
+}
+
 // INFO: a call through a member access, recv.name(...) or Type.name(...), finds name in the implementation blocks of the unit. A type name written before the member is a static call and passes every parameter. A value is a method call: its type must be a plain name, with no type argument, and the function must start with self, which the receiver supplies, so one parameter is skipped. A receiver of another unit has no implementation here, so it fills nothing.
 static const MAREA_SemaTypedNode *MAREA_CALL MAREA_G_FindMemberFunction(const MAREA_IrContext *context, const MAREA_SemaTypedNode *callee, MAREA_IntegerSize *outSkipped)
 {
@@ -232,13 +293,25 @@ static const MAREA_SemaTypedNode *MAREA_CALL MAREA_G_FindMemberFunction(const MA
     const MAREA_Character8 *typeName = MAREA_NULLPTR;
     MAREA_IntegerSize typeNameLength = MAREA_INTEGER_SIZE(0);
 
-    const MAREA_Boolean IS_STATIC = MAREA_SemaTypedNodeIsQualifier(receiver);
+    MAREA_Boolean isStatic = MAREA_SemaTypedNodeIsQualifier(receiver);
+
+    // INFO: sema does not mark the name of a local type alias as a qualifier, so a bare name with no type of its own, that no parameter or local of the function declares and that a local alias stands for, is a type name too.
+    if ((isStatic == MAREA_BOOLEAN_FALSE) && (MAREA_IrTypedKind(receiver) == MAREA_AST_KIND_IDENTIFIER) && (MAREA_G_IsLocalTypeAliasName(context, receiver) == MAREA_BOOLEAN_TRUE)) {
+        isStatic = MAREA_BOOLEAN_TRUE;
+    }
+
+    const MAREA_Boolean IS_STATIC = isStatic;
 
     if (IS_STATIC == MAREA_BOOLEAN_TRUE) {
         const MAREA_AstNode *receiverAst = MAREA_SemaTypedNodeGetAstNode(receiver);
 
         typeName = MAREA_AstNodeGetText(receiverAst);
         typeNameLength = MAREA_AstNodeGetTextLength(receiverAst);
+
+        // INFO: Self names the type of the implementation that holds the call, and a local type alias stands for the type it names. A failed lookup fills nothing.
+        if (MAREA_G_StaticReceiverType(context, &typeName, &typeNameLength) == MAREA_BOOLEAN_FALSE) {
+            return MAREA_NULLPTR;
+        }
     } else if ((MAREA_SemaTypedNodeGetResolvedType(receiver, &typeName, &typeNameLength) != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) || (typeName == MAREA_NULLPTR) || (memchr(typeName, '<', typeNameLength) != MAREA_NULLPTR)) {
         return MAREA_NULLPTR;
     }
@@ -487,6 +560,8 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerCall(MAREA_IrContext *context, con
         return result;
     }
 
+    node->externalCall = MAREA_SemaTypedNodeIsExternalCall(typed);
+
     MAREA_IrNode *loweredCallee = MAREA_NULLPTR;
 
     result = MAREA_G_LowerTyped(context, callee, MAREA_BOOLEAN_TRUE, &loweredCallee);
@@ -697,6 +772,165 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerFieldEntry(MAREA_IrContext *contex
     return MAREA_IR_EXCEPT_SUCCESS;
 }
 
+// INFO: the one built-in macro that the IR keeps for a later stage, next to the macros of a shipped library: its value comes from the build, which the IR never reads.
+static const MAREA_Character8 MAREA_G_BuildValueName[] = "build_value";
+
+// INFO: the bytes travel in the text of the node as hexadecimal digits, so the ir stays serializable text, and the path of the file is the one child.
+static MAREA_IrExcept MAREA_CALL MAREA_G_LowerIncludedBytes(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, const MAREA_SemaIncludedFile *included, MAREA_IrNode **outNode)
+{
+    static const MAREA_Character8 DIGITS[] = "0123456789abcdef";
+
+    MAREA_IrNode *node = MAREA_NULLPTR;
+    MAREA_IrNode *path = MAREA_NULLPTR;
+
+    MAREA_IrExcept result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_INCLUDED_BYTES, MAREA_SemaTypedNodeGetAstNode(typed), &node);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_STRING_LITERAL, MAREA_SemaTypedNodeGetAstNode(typed), &path);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    MAREA_Null memory = MAREA_NULLPTR;
+
+    if (MAREA_ArenaAllocate(context->arena, ((included->size * MAREA_INTEGER_SIZE(2)) + MAREA_INTEGER_SIZE(1)), MAREA_INTEGER_SIZE(1), &memory) != MAREA_ARENA_EXCEPT_SUCCESS) {
+        return MAREA_IR_EXCEPT_ERROR_OUT_OF_MEMORY;
+    }
+
+    MAREA_Character8 *text = memory;
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < included->size; index = (index + MAREA_INTEGER_SIZE(1))) {
+        text[(index * MAREA_INTEGER_SIZE(2))] = DIGITS[(included->bytes[index] >> 4)];
+        text[((index * MAREA_INTEGER_SIZE(2)) + MAREA_INTEGER_SIZE(1))] = DIGITS[(included->bytes[index] & 15)];
+    }
+
+    text[(included->size * MAREA_INTEGER_SIZE(2))] = '\0';
+
+    node->text = text;
+    node->textLength = (MAREA_Uinteger32)(included->size * MAREA_INTEGER_SIZE(2));
+    node->flags = MAREA_UINTEGER_32(0);
+
+    path->text = included->path;
+    path->textLength = (MAREA_Uinteger32)included->pathLength;
+    path->flags = MAREA_UINTEGER_32(0);
+
+    result = MAREA_IrNodeAppendChild(context, node, path);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    MAREA_Boolean typedResult = MAREA_BOOLEAN_FALSE;
+
+    result = MAREA_IrNodeSetResolvedTypeFromTyped(context, node, typed, &typedResult);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    *outNode = node;
+
+    return MAREA_IR_EXCEPT_SUCCESS;
+}
+
+MAREA_IrExcept MAREA_CALL MAREA_IrLowerMacroCall(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_Boolean *outHandled, MAREA_IrNode **outNode)
+{
+    if ((context == MAREA_NULLPTR) || (typed == MAREA_NULLPTR) || (outHandled == MAREA_NULLPTR) || (outNode == MAREA_NULLPTR)) {
+        return MAREA_IR_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    *outHandled = MAREA_BOOLEAN_FALSE;
+    *outNode = MAREA_NULLPTR;
+
+    const MAREA_SemaIncludedFile *included = MAREA_SemaTypedNodeGetIncludedFile(typed);
+
+    if (included != MAREA_NULLPTR) {
+        *outHandled = MAREA_BOOLEAN_TRUE;
+
+        return MAREA_G_LowerIncludedBytes(context, typed, included, outNode);
+    }
+
+    const MAREA_SemaTypedNode *name = MAREA_IrTypedChildAt(typed, MAREA_INTEGER_SIZE(0));
+
+    if (name == MAREA_NULLPTR) {
+        return MAREA_IR_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_Character8 *text = MAREA_NULLPTR;
+    MAREA_IntegerSize length = MAREA_INTEGER_SIZE(0);
+
+    if (MAREA_IrTypedKind(name) == MAREA_AST_KIND_QUALIFIED_NAME) {
+        // INFO: a call with a qualified name is a macro that a library registered; sema has already checked the name, the arguments and the expansion. An alias of a namespace is replaced by the namespace it stands for.
+        if (MAREA_IrAstQualifiedNameSpan(MAREA_SemaTypedNodeGetAstNode(name), &text, &length) == MAREA_BOOLEAN_FALSE) {
+            return MAREA_IR_EXCEPT_SUCCESS;
+        }
+
+        const MAREA_IrExcept ALIASED = MAREA_IrAliasType(context, text, length, &text, &length);
+
+        if (ALIASED != MAREA_IR_EXCEPT_SUCCESS) {
+            return ALIASED;
+        }
+    } else if (MAREA_IrTypedKind(name) == MAREA_AST_KIND_IDENTIFIER) {
+        text = MAREA_AstNodeGetText(MAREA_SemaTypedNodeGetAstNode(name));
+        length = MAREA_AstNodeGetTextLength(MAREA_SemaTypedNodeGetAstNode(name));
+
+        if ((length != strlen(MAREA_G_BuildValueName)) || (memcmp(text, MAREA_G_BuildValueName, length) != 0)) {
+            return MAREA_IR_EXCEPT_SUCCESS;
+        }
+    } else {
+        return MAREA_IR_EXCEPT_SUCCESS;
+    }
+
+    *outHandled = MAREA_BOOLEAN_TRUE;
+
+    MAREA_IrNode *node = MAREA_NULLPTR;
+
+    MAREA_IrExcept result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_MACRO_CALL, MAREA_SemaTypedNodeGetAstNode(typed), &node);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    node->text = text;
+    node->textLength = (MAREA_Uinteger32)length;
+    node->flags = MAREA_UINTEGER_32(0);
+
+    const MAREA_SemaTypedNode *arguments = MAREA_IrTypedFindChild(typed, MAREA_AST_KIND_ARGUMENT_LIST);
+
+    MAREA_IrNode *loweredArguments = MAREA_NULLPTR;
+
+    if (arguments != MAREA_NULLPTR) {
+        result = MAREA_IrLowerExpression(context, arguments, &loweredArguments);
+
+        // INFO: a gap in an argument already raised its diagnostic, and the call is left out.
+        if ((result != MAREA_IR_EXCEPT_SUCCESS) || (loweredArguments == MAREA_NULLPTR)) {
+            return result;
+        }
+
+        result = MAREA_IrNodeAppendChild(context, node, loweredArguments);
+
+        if (result != MAREA_IR_EXCEPT_SUCCESS) {
+            return result;
+        }
+    }
+
+    MAREA_Boolean typedResult = MAREA_BOOLEAN_FALSE;
+
+    result = MAREA_IrNodeSetResolvedTypeFromTyped(context, node, typed, &typedResult);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    *outNode = node;
+
+    return MAREA_IR_EXCEPT_SUCCESS;
+}
+
 static MAREA_IrExcept MAREA_CALL MAREA_G_LowerExpressionKind(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode)
 {
     switch (MAREA_IrTypedKind(typed)) {
@@ -743,7 +977,17 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerExpressionKind(MAREA_IrContext *co
     case MAREA_AST_KIND_GENERIC_NAME:
         return MAREA_G_RaiseGeneric(context, typed, "A generic name is not supported by the IR yet.");
     case MAREA_AST_KIND_MACRO_CALL:
+    {
+        MAREA_Boolean handled = MAREA_BOOLEAN_FALSE;
+
+        const MAREA_IrExcept KEPT = MAREA_IrLowerMacroCall(context, typed, &handled, outNode);
+
+        if ((KEPT != MAREA_IR_EXCEPT_SUCCESS) || (handled == MAREA_BOOLEAN_TRUE)) {
+            return KEPT;
+        }
+
         return MAREA_IrRaise(context, MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_MACRO, MAREA_SemaTypedNodeGetAstNode(typed), "A macro call inside an expression is not supported by the IR yet.", MAREA_NULLPTR, MAREA_INTEGER_SIZE(0));
+    }
     default:
         return MAREA_IR_EXCEPT_SUCCESS;
     }

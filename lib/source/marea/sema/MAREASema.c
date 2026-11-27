@@ -34,6 +34,13 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaContextCreate(MAREA_Arena *arena, MAREA_Di
     context->arena = arena;
     context->sink = sink;
     context->resolver = resolver;
+    context->requireResolver = MAREA_NULLPTR;
+    context->typeRegistry = MAREA_NULLPTR;
+    context->target = MAREA_NULLPTR;
+    context->settings = MAREA_NULLPTR;
+    context->includeResolver = MAREA_NULLPTR;
+    context->shippedLibrarySource = MAREA_BOOLEAN_FALSE;
+    context->covers = (MAREA_SemaCoverTable){ 0 };
     context->names = (MAREA_SemaNameTable){ 0 };
     context->generics = (MAREA_SemaNameTable){ 0 };
     context->locals = (MAREA_SemaNameTable){ 0 };
@@ -43,6 +50,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaContextCreate(MAREA_Arena *arena, MAREA_Di
     context->forkBody = MAREA_NULLPTR;
     context->captureLocalBase = 0;
     context->localStart = 0;
+    context->localStartBinders = 0;
     context->functionLocalStart = 0;
     context->root = MAREA_NULLPTR;
     context->function = MAREA_NULLPTR;
@@ -88,6 +96,105 @@ MAREA_SemaImportResolver *MAREA_CALL MAREA_SemaContextGetImportResolver(const MA
     return context->resolver;
 }
 
+MAREA_SemaExcept MAREA_CALL MAREA_SemaContextSetRequireResolver(MAREA_SemaContext *context, MAREA_SemaImportResolver *registry)
+{
+    if (context == MAREA_NULLPTR) {
+        return MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    context->requireResolver = registry;
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
+MAREA_SemaImportResolver *MAREA_CALL MAREA_SemaContextGetRequireResolver(const MAREA_SemaContext *context)
+{
+    if (context == MAREA_NULLPTR) {
+        return MAREA_NULLPTR;
+    }
+
+    return context->requireResolver;
+}
+
+MAREA_SemaExcept MAREA_CALL MAREA_SemaContextSetTypeRegistry(MAREA_SemaContext *context, const MAREA_TypeRegistry *registry)
+{
+    if (context == MAREA_NULLPTR) {
+        return MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    context->typeRegistry = registry;
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
+const MAREA_TypeRegistry *MAREA_CALL MAREA_SemaContextGetTypeRegistry(const MAREA_SemaContext *context)
+{
+    if (context == MAREA_NULLPTR) {
+        return MAREA_NULLPTR;
+    }
+
+    return context->typeRegistry;
+}
+
+MAREA_SemaExcept MAREA_CALL MAREA_SemaContextSetTarget(MAREA_SemaContext *context, const MAREA_SemaTarget *target)
+{
+    if (context == MAREA_NULLPTR) {
+        return MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    context->target = target;
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
+const MAREA_SemaTarget *MAREA_CALL MAREA_SemaContextGetTarget(const MAREA_SemaContext *context)
+{
+    return (context == MAREA_NULLPTR) ? MAREA_NULLPTR : context->target;
+}
+
+MAREA_SemaExcept MAREA_CALL MAREA_SemaContextSetShippedLibrarySource(MAREA_SemaContext *context, MAREA_Boolean value)
+{
+    if (context == MAREA_NULLPTR) {
+        return MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    context->shippedLibrarySource = value;
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
+MAREA_SemaExcept MAREA_CALL MAREA_SemaContextSetSettings(MAREA_SemaContext *context, const MAREA_SemaSettings *settings)
+{
+    if (context == MAREA_NULLPTR) {
+        return MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    context->settings = settings;
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
+const MAREA_SemaSettings *MAREA_CALL MAREA_SemaContextGetSettings(const MAREA_SemaContext *context)
+{
+    return (context == MAREA_NULLPTR) ? MAREA_NULLPTR : context->settings;
+}
+
+MAREA_SemaExcept MAREA_CALL MAREA_SemaContextSetIncludeResolver(MAREA_SemaContext *context, const MAREA_SemaIncludeResolver *resolver)
+{
+    if (context == MAREA_NULLPTR) {
+        return MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    context->includeResolver = resolver;
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
+const MAREA_SemaIncludeResolver *MAREA_CALL MAREA_SemaContextGetIncludeResolver(const MAREA_SemaContext *context)
+{
+    return (context == MAREA_NULLPTR) ? MAREA_NULLPTR : context->includeResolver;
+}
+
 void MAREA_CALL MAREA_SemaReport(MAREA_SemaContext *context, MAREA_SemaDiagnosticCode code, MAREA_SourcePosition position, const MAREA_Character8 *message)
 {
     MAREA_IGNORE(MAREA_DiagnosticSinkAdd(context->sink, (MAREA_Uinteger32)code, MAREA_DIAGNOSTIC_SEVERITY_ERROR, position, message));
@@ -116,6 +223,43 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaReportNamed(MAREA_SemaContext *context, MA
     memcpy((message + prefixLength + MAREA_INTEGER_SIZE(2)), name, nameLength);
     message[(prefixLength + nameLength + MAREA_INTEGER_SIZE(2))] = '\'';
     message[(prefixLength + nameLength + MAREA_INTEGER_SIZE(3))] = '\0';
+
+    MAREA_SemaReport(context, code, position, message);
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
+// INFO: the message is the parts written one after the other, built in the arena of the context.
+MAREA_SemaExcept MAREA_CALL MAREA_SemaReportParts(MAREA_SemaContext *context, MAREA_SemaDiagnosticCode code, MAREA_SourcePosition position, const MAREA_Character8 *const *parts, const MAREA_IntegerSize *lengths, MAREA_IntegerSize count)
+{
+    MAREA_IntegerSize total = 1;
+
+    for (MAREA_IntegerSize index = 0; index < count; ++index) {
+        // ERROR: a total that does not fit in MAREA_IntegerSize would allocate a small block and then copy past it.
+        if (lengths[index] > (MAREA_INTEGER_SIZE_MAXIMUM - total)) {
+            return MAREA_SEMA_EXCEPT_ERROR_OUT_OF_MEMORY;
+        }
+
+        total += lengths[index];
+    }
+
+    MAREA_Null memory = MAREA_NULLPTR;
+
+    if (MAREA_ArenaAllocate(context->arena, total, MAREA_ALIGNOF(MAREA_Character8), &memory) != MAREA_ARENA_EXCEPT_SUCCESS) {
+        return MAREA_SEMA_EXCEPT_ERROR_OUT_OF_MEMORY;
+    }
+
+    MAREA_Character8 *message = memory;
+
+    MAREA_IntegerSize used = 0;
+
+    for (MAREA_IntegerSize index = 0; index < count; ++index) {
+        memcpy((message + used), parts[index], lengths[index]);
+
+        used += lengths[index];
+    }
+
+    message[used] = '\0';
 
     MAREA_SemaReport(context, code, position, message);
 
@@ -176,6 +320,10 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaVisit(MAREA_SemaContext *context, const MA
     }
 
     if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
+        result = MAREA_SemaCheckBinderNames(context, node);
+    }
+
+    if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
         result = MAREA_SemaCheckOwnership(context, node);
     }
 
@@ -188,7 +336,20 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaVisit(MAREA_SemaContext *context, const MA
     }
 
     if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
-        result = MAREA_SemaCheckExpressions(context, node);
+        MAREA_IntegerSize binderFirst = 0;
+
+        MAREA_IntegerSize binderEnd = 0;
+
+        // INFO: the expressions of a statement that declares a name are its header, which does not see that name.
+        if (MAREA_SemaBinderRange(node, &binderFirst, &binderEnd) == MAREA_BOOLEAN_TRUE) {
+            const MAREA_SemaBinderWindow WINDOW = MAREA_SemaHideBinders(context, mark);
+
+            result = MAREA_SemaCheckExpressions(context, node);
+
+            MAREA_SemaShowBinders(context, WINDOW);
+        } else {
+            result = MAREA_SemaCheckExpressions(context, node);
+        }
     }
 
     if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
@@ -215,8 +376,24 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaVisit(MAREA_SemaContext *context, const MA
         if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
             result = MAREA_SemaInstantiationEnter(context, node, &entered);
         }
-    } else if ((kind == MAREA_AST_KIND_MEMBER_ACCESS) || (kind == MAREA_AST_KIND_LITERAL_VALUE)) {
+    } else if (kind == MAREA_AST_KIND_MEMBER_ACCESS) {
         result = MAREA_SemaCheckVisibility(context, node);
+    } else if (kind == MAREA_AST_KIND_LITERAL_VALUE) {
+        result = MAREA_SemaCheckVisibility(context, node);
+
+        if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
+            result = MAREA_SemaCheckInlineRunLiteral(context, node);
+        }
+
+        if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
+            result = MAREA_SemaCheckTupleLiteral(context, node);
+        }
+    } else if (kind == MAREA_AST_KIND_INDEX_ACCESS) {
+        result = MAREA_SemaCheckInlineRunIndex(context, node);
+
+        if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
+            result = MAREA_SemaCheckTupleIndex(context, node);
+        }
     } else if (kind == MAREA_AST_KIND_FIELD_DECLARATION) {
         result = MAREA_SemaCheckOpaqueField(context, node);
     } else if (kind == MAREA_AST_KIND_WHERE_CLAUSE) {
@@ -255,7 +432,15 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaVisit(MAREA_SemaContext *context, const MA
         context->parent = node;
         context->parentIndex = index;
 
-        result = MAREA_SemaVisit(context, child);
+        if (MAREA_SemaIsBinderHeader(node, index) == MAREA_BOOLEAN_TRUE) {
+            const MAREA_SemaBinderWindow WINDOW = MAREA_SemaHideBinders(context, mark);
+
+            result = MAREA_SemaVisit(context, child);
+
+            MAREA_SemaShowBinders(context, WINDOW);
+        } else {
+            result = MAREA_SemaVisit(context, child);
+        }
 
         if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
             result = MAREA_SemaMoveChildLeave(context, node, child, &moveFrame);
@@ -293,6 +478,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckCompilationUnit(MAREA_SemaContext *co
         return MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER;
     }
 
+    context->covers = (MAREA_SemaCoverTable){ 0 };
     context->names = (MAREA_SemaNameTable){ 0 };
     context->generics = (MAREA_SemaNameTable){ 0 };
     context->locals = (MAREA_SemaNameTable){ 0 };

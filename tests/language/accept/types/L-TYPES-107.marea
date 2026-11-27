@@ -5,7 +5,8 @@
 -- A generic structure with a value parameter.
 
 namespace main;
+require demo.array;
 
 structure Buffer<Item, constant Count: sinteger32>
-    items: array<Item, Count>;
+    items: demo.array<Item, Count>;
 end

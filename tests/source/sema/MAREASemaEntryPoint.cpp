@@ -25,7 +25,7 @@ TEST(MAREASemaEntryPoint, ExactSignatureIsAccepted)
 {
     GTEST_COUT << "Validating the former fixed main signature raises nothing." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("namespace main; function main(arguments: c.array<string>): sinteger32 return 0; end").empty()) << "The former signature must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("namespace main; require c.array; function main(arguments: c.array<string>): sinteger32 return 0; end").empty()) << "The former signature must raise nothing.";
 }
 
 TEST(MAREASemaEntryPoint, SameSignatureInAnotherNamespaceIsNotChecked)
@@ -39,7 +39,7 @@ TEST(MAREASemaEntryPoint, AnyParameterTypeIsAccepted)
 {
     GTEST_COUT << "Validating a main with any parameter type raises nothing." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("namespace main; function main(arguments: c.array<sinteger32>): sinteger32 return 0; end").empty()) << "Another element type must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("namespace main; require c.array; function main(arguments: c.array<sinteger32>): sinteger32 return 0; end").empty()) << "Another element type must raise nothing.";
 
     EXPECT_TRUE(MAREA_codesOf("namespace main; function main(arguments: string): sinteger32 return 0; end").empty()) << "Another type must raise nothing.";
 }
@@ -48,18 +48,18 @@ TEST(MAREASemaEntryPoint, ParameterFlagIsAccepted)
 {
     GTEST_COUT << "Validating a semantics attribute on a main parameter raises nothing." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("namespace main; function main(arguments: c.array<string>): sinteger32 return 0; end").empty()) << "The non-primitive default (reference_read_only) must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("namespace main; require c.array; function main(arguments: c.array<string>): sinteger32 return 0; end").empty()) << "The non-primitive default (reference_read_only) must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("namespace main; function main(#[semantics = reference_read_only] arguments: c.array<string>): sinteger32 return 0; end").empty()) << "An explicit reference_read_only must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("namespace main; require c.array; function main(#[semantics = reference_read_only] arguments: c.array<string>): sinteger32 return 0; end").empty()) << "An explicit reference_read_only must raise nothing.";
 }
 
 TEST(MAREASemaEntryPoint, AnyReturnTypeIsAccepted)
 {
     GTEST_COUT << "Validating a main with another or no return type raises nothing." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf("namespace main; function main(arguments: c.array<string>): sinteger64 return 0; end").empty()) << "Another return type must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("namespace main; require c.array; function main(arguments: c.array<string>): sinteger64 return 0; end").empty()) << "Another return type must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("namespace main; function main(arguments: c.array<string>) end").empty()) << "A missing return type must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("namespace main; require c.array; function main(arguments: c.array<string>) end").empty()) << "A missing return type must raise nothing.";
 }
 
 TEST(MAREASemaEntryPoint, AnyParameterCountOrNameIsAccepted)
@@ -68,9 +68,9 @@ TEST(MAREASemaEntryPoint, AnyParameterCountOrNameIsAccepted)
 
     EXPECT_TRUE(MAREA_codesOf("namespace main; function main(): sinteger32 return 0; end").empty()) << "No parameter must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("namespace main; function main(arguments: c.array<string>, extra: sinteger32): sinteger32 return 0; end").empty()) << "Two parameters must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("namespace main; require c.array; function main(arguments: c.array<string>, extra: sinteger32): sinteger32 return 0; end").empty()) << "Two parameters must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf("namespace main; function main(args: c.array<string>): sinteger32 return 0; end").empty()) << "Another parameter name must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf("namespace main; require c.array; function main(args: c.array<string>): sinteger32 return 0; end").empty()) << "Another parameter name must raise nothing.";
 }
 
 TEST(MAREASemaEntryPoint, NamespaceWithoutMainIsAccepted)

@@ -1,0 +1,12 @@
+-- expect: 3014 @11
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An arena takes no type argument.
+
+namespace main;
+
+require marea.memory;
+
+function check(arena: marea.memory.Arena<uinteger8>)
+end

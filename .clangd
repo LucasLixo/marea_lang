@@ -128,3 +128,12 @@ Diagnostics:
             # Functions with internal linkage (static in .c/.cpp)
             readability-identifier-naming.StaticFunctionCase: CamelCase
             readability-identifier-naming.StaticFunctionPrefix: 'MAREA_G_'
+
+---
+# The tests keep the names of GoogleTest (TEST suites, fixtures, a test double that replaces a libc
+# function), so the identifier naming check does not run there.
+If:
+    PathMatch: tests/.*
+Diagnostics:
+    ClangTidy:
+        Remove: readability-identifier-naming

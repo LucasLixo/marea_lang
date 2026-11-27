@@ -1,0 +1,11 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A plain key and a when item on the same key.
+
+namespace main;
+
+#[inline = force, when(operating_system = "linux", inline = never)]
+function run()
+end

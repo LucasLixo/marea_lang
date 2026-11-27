@@ -1,0 +1,10 @@
+-- expect: 3085 @9
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An inline key on a top-level constant.
+
+namespace main;
+
+#[inline = force]
+constant LIMIT: sinteger32 = 1;

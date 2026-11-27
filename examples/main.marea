@@ -11,32 +11,36 @@
 --   macros/      builtin
 --   memory/      regions
 --   parallel/    scaling
--- The names array, table, slice, task, text and arenas are libraries written in C or in Marea.
--- The language has no standard library, and "c" is the only reserved namespace.
+-- The names array, slice and task are libraries written in C or in Marea.
+-- The language has no standard library. "c" and "marea" are the reserved first segments:
+-- "c" holds the abstractions of the libc and "marea" holds the libraries of the language.
+-- A name of another namespace is written with its full path, and an import or a require
+-- must cover it. A short name exists only through "as".
 -- main is the last function of the file.
 
 namespace main;
 
-import collections.array;
+require marea.array;
+require marea.vector;
 import basics.control_flow;
 import basics.functions;
 import basics.blocks;
 import basics.ownership;
-import types.structures;
+import types.structures as structures;
 import namespaces.consumer;
 import memory.regions;
 import parallel.scaling;
 
 #[visibility = public]
-function main(arguments: c.array<string>): sinteger32
-    local level: string = control_flow.classify(75);
+function main(arguments: marea.vector.Vector<string>): sinteger32
+    local level: string = basics.control_flow.classify(75);
     local shape: structures.Shape = structures.make_square(2.0);
-    local total: sinteger32 = functions.show_functions() + blocks.show_blocks();
-    local imported: sinteger32 = consumer.show_imports();
-    local length: sinteger32 = regions.show_regions();
-    local owned_total: float64 = ownership.show_ownership();
-    local values: c.array<float32> = c.array<float32>{ 1.0, 2.0, 3.0, 4.0 };
-    scaling.scale_all(values, 2.0);
-    local sum: float32 = scaling.sum_all(values);
+    local total: sinteger32 = basics.functions.show_functions() + basics.blocks.show_blocks();
+    local imported: sinteger32 = namespaces.consumer.show_imports();
+    local length: sinteger32 = memory.regions.show_regions();
+    local owned_total: float64 = basics.ownership.show_ownership();
+    local values: marea.array.Array<float32, 4> = marea.array.Array<float32, 4>{ 1.0, 2.0, 3.0, 4.0 };
+    parallel.scaling.scale_all(values, 2.0);
+    local sum: float32 = parallel.scaling.sum_all(values);
     return total + imported + length;
 end

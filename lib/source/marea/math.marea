@@ -1,0 +1,798 @@
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- The library marea.math, as the language ships it. Each structure has the layout of C, the same as its type in
+-- the marea/base/MAREAMath*.h headers. A padding field holds zero.
+
+namespace marea.math;
+
+-- The default backend of every function of this file: the best one the real build target gives (intrinsics, then
+-- vector_extension, then scalar), through MareaTargetDescriptionDetectHost's feature detection. No function below
+-- needs an explicit backend or when override yet: nothing in the ported reference material forces one away from
+-- auto.
+#![backend = auto]
+
+#[visibility = public, layout = c, align = 16]
+structure Vector2Float32
+    x: float32;
+    y: float32;
+    padding0: float32;
+    padding1: float32;
+end
+
+#[visibility = public, layout = c, align = 16]
+structure Vector3Float32
+    x: float32;
+    y: float32;
+    z: float32;
+    padding: float32;
+end
+
+#[visibility = public, layout = c, align = 16]
+structure Vector4Float32
+    x: float32;
+    y: float32;
+    z: float32;
+    w: float32;
+end
+
+#[visibility = public, layout = c, align = 16]
+structure Vector2Sinteger32
+    x: sinteger32;
+    y: sinteger32;
+    padding0: sinteger32;
+    padding1: sinteger32;
+end
+
+#[visibility = public, layout = c, align = 16]
+structure Vector3Sinteger32
+    x: sinteger32;
+    y: sinteger32;
+    z: sinteger32;
+    padding: sinteger32;
+end
+
+#[visibility = public, layout = c, align = 16]
+structure Vector4Sinteger32
+    x: sinteger32;
+    y: sinteger32;
+    z: sinteger32;
+    w: sinteger32;
+end
+
+#[visibility = public, layout = c, align = 4]
+structure Vector2Boolean
+    x: boolean;
+    y: boolean;
+    padding0: boolean;
+    padding1: boolean;
+end
+
+#[visibility = public, layout = c, align = 4]
+structure Vector3Boolean
+    x: boolean;
+    y: boolean;
+    z: boolean;
+    padding: boolean;
+end
+
+#[visibility = public, layout = c, align = 4]
+structure Vector4Boolean
+    x: boolean;
+    y: boolean;
+    z: boolean;
+    w: boolean;
+end
+
+-- A matrix holds its columns. The quaternion holds x, y, z and w.
+
+#[visibility = public, layout = c, align = 16]
+structure Matrix2x2Float32
+    column0: Vector2Float32;
+    column1: Vector2Float32;
+end
+
+#[visibility = public, layout = c, align = 16]
+structure Matrix3x3Float32
+    column0: Vector3Float32;
+    column1: Vector3Float32;
+    column2: Vector3Float32;
+end
+
+#[visibility = public, layout = c, align = 16]
+structure Matrix4x4Float32
+    column0: Vector4Float32;
+    column1: Vector4Float32;
+    column2: Vector4Float32;
+    column3: Vector4Float32;
+end
+
+#[visibility = public, layout = c, align = 16]
+structure Matrix2x2Sinteger32
+    column0: Vector2Sinteger32;
+    column1: Vector2Sinteger32;
+end
+
+#[visibility = public, layout = c, align = 16]
+structure Matrix3x3Sinteger32
+    column0: Vector3Sinteger32;
+    column1: Vector3Sinteger32;
+    column2: Vector3Sinteger32;
+end
+
+#[visibility = public, layout = c, align = 16]
+structure Matrix4x4Sinteger32
+    column0: Vector4Sinteger32;
+    column1: Vector4Sinteger32;
+    column2: Vector4Sinteger32;
+    column3: Vector4Sinteger32;
+end
+
+#[visibility = public, layout = c, align = 4]
+structure Matrix2x2Boolean
+    column0: Vector2Boolean;
+    column1: Vector2Boolean;
+end
+
+#[visibility = public, layout = c, align = 4]
+structure Matrix3x3Boolean
+    column0: Vector3Boolean;
+    column1: Vector3Boolean;
+    column2: Vector3Boolean;
+end
+
+#[visibility = public, layout = c, align = 4]
+structure Matrix4x4Boolean
+    column0: Vector4Boolean;
+    column1: Vector4Boolean;
+    column2: Vector4Boolean;
+    column3: Vector4Boolean;
+end
+
+#[visibility = public, layout = c, align = 16]
+structure QuaternionFloat32
+    x: float32;
+    y: float32;
+    z: float32;
+    w: float32;
+end
+
+-- The arithmetic operators call the C functions that the language registers under marea.math. The comparisons and the
+-- index have no C function, so their bodies are Marea code. Two booleans take no == in this language, so the vectors
+-- of boolean compare with and, or and not. A matrix compares its columns, and its index gives a column. The operator *
+-- of a matrix or of the quaternion is the product, not a product of the lanes. The padding is not part of the value.
+
+implementation Vector2Float32
+    #[operator = "+"]
+    function add(self: Self, other: Self): Self
+        return marea.math.add_vector2_float32(self, other);
+    end
+
+    #[operator = "-"]
+    function subtract(self: Self, other: Self): Self
+        return marea.math.subtract_vector2_float32(self, other);
+    end
+
+    #[operator = "*"]
+    function multiply(self: Self, other: Self): Self
+        return marea.math.multiply_vector2_float32(self, other);
+    end
+
+    #[operator = "/"]
+    function divide(self: Self, other: Self): Self
+        return marea.math.divide_vector2_float32(self, other);
+    end
+
+    #[operator = "=="]
+    function equals(self: Self, other: Self): boolean
+        return self.x == other.x and self.y == other.y;
+    end
+
+    #[operator = "!="]
+    function not_equals(self: Self, other: Self): boolean
+        return self.x != other.x or self.y != other.y;
+    end
+
+    #[operator = "[]"]
+    function at(self: Self, index: uinteger64): float32
+        if index == 0 then
+            return self.x;
+        end
+        if index == 1 then
+            return self.y;
+        end
+        unreachable!();
+    end
+end
+
+implementation Vector3Float32
+    #[operator = "+"]
+    function add(self: Self, other: Self): Self
+        return marea.math.add_vector3_float32(self, other);
+    end
+
+    #[operator = "-"]
+    function subtract(self: Self, other: Self): Self
+        return marea.math.subtract_vector3_float32(self, other);
+    end
+
+    #[operator = "*"]
+    function multiply(self: Self, other: Self): Self
+        return marea.math.multiply_vector3_float32(self, other);
+    end
+
+    #[operator = "/"]
+    function divide(self: Self, other: Self): Self
+        return marea.math.divide_vector3_float32(self, other);
+    end
+
+    #[operator = "=="]
+    function equals(self: Self, other: Self): boolean
+        return self.x == other.x and self.y == other.y and self.z == other.z;
+    end
+
+    #[operator = "!="]
+    function not_equals(self: Self, other: Self): boolean
+        return self.x != other.x or self.y != other.y or self.z != other.z;
+    end
+
+    #[operator = "[]"]
+    function at(self: Self, index: uinteger64): float32
+        if index == 0 then
+            return self.x;
+        end
+        if index == 1 then
+            return self.y;
+        end
+        if index == 2 then
+            return self.z;
+        end
+        unreachable!();
+    end
+end
+
+implementation Vector4Float32
+    #[operator = "+"]
+    function add(self: Self, other: Self): Self
+        return marea.math.add_vector4_float32(self, other);
+    end
+
+    #[operator = "-"]
+    function subtract(self: Self, other: Self): Self
+        return marea.math.subtract_vector4_float32(self, other);
+    end
+
+    #[operator = "*"]
+    function multiply(self: Self, other: Self): Self
+        return marea.math.multiply_vector4_float32(self, other);
+    end
+
+    #[operator = "/"]
+    function divide(self: Self, other: Self): Self
+        return marea.math.divide_vector4_float32(self, other);
+    end
+
+    #[operator = "=="]
+    function equals(self: Self, other: Self): boolean
+        return self.x == other.x and self.y == other.y and self.z == other.z and self.w == other.w;
+    end
+
+    #[operator = "!="]
+    function not_equals(self: Self, other: Self): boolean
+        return self.x != other.x or self.y != other.y or self.z != other.z or self.w != other.w;
+    end
+
+    #[operator = "[]"]
+    function at(self: Self, index: uinteger64): float32
+        if index == 0 then
+            return self.x;
+        end
+        if index == 1 then
+            return self.y;
+        end
+        if index == 2 then
+            return self.z;
+        end
+        if index == 3 then
+            return self.w;
+        end
+        unreachable!();
+    end
+end
+
+implementation Vector2Sinteger32
+    #[operator = "+"]
+    function add(self: Self, other: Self): Self
+        return marea.math.add_vector2_sinteger32(self, other);
+    end
+
+    #[operator = "-"]
+    function subtract(self: Self, other: Self): Self
+        return marea.math.subtract_vector2_sinteger32(self, other);
+    end
+
+    #[operator = "*"]
+    function multiply(self: Self, other: Self): Self
+        return marea.math.multiply_vector2_sinteger32(self, other);
+    end
+
+    #[operator = "/"]
+    function divide(self: Self, other: Self): Self
+        return marea.math.divide_vector2_sinteger32(self, other);
+    end
+
+    #[operator = "=="]
+    function equals(self: Self, other: Self): boolean
+        return self.x == other.x and self.y == other.y;
+    end
+
+    #[operator = "!="]
+    function not_equals(self: Self, other: Self): boolean
+        return self.x != other.x or self.y != other.y;
+    end
+
+    #[operator = "[]"]
+    function at(self: Self, index: uinteger64): sinteger32
+        if index == 0 then
+            return self.x;
+        end
+        if index == 1 then
+            return self.y;
+        end
+        unreachable!();
+    end
+end
+
+implementation Vector3Sinteger32
+    #[operator = "+"]
+    function add(self: Self, other: Self): Self
+        return marea.math.add_vector3_sinteger32(self, other);
+    end
+
+    #[operator = "-"]
+    function subtract(self: Self, other: Self): Self
+        return marea.math.subtract_vector3_sinteger32(self, other);
+    end
+
+    #[operator = "*"]
+    function multiply(self: Self, other: Self): Self
+        return marea.math.multiply_vector3_sinteger32(self, other);
+    end
+
+    #[operator = "/"]
+    function divide(self: Self, other: Self): Self
+        return marea.math.divide_vector3_sinteger32(self, other);
+    end
+
+    #[operator = "=="]
+    function equals(self: Self, other: Self): boolean
+        return self.x == other.x and self.y == other.y and self.z == other.z;
+    end
+
+    #[operator = "!="]
+    function not_equals(self: Self, other: Self): boolean
+        return self.x != other.x or self.y != other.y or self.z != other.z;
+    end
+
+    #[operator = "[]"]
+    function at(self: Self, index: uinteger64): sinteger32
+        if index == 0 then
+            return self.x;
+        end
+        if index == 1 then
+            return self.y;
+        end
+        if index == 2 then
+            return self.z;
+        end
+        unreachable!();
+    end
+end
+
+implementation Vector4Sinteger32
+    #[operator = "+"]
+    function add(self: Self, other: Self): Self
+        return marea.math.add_vector4_sinteger32(self, other);
+    end
+
+    #[operator = "-"]
+    function subtract(self: Self, other: Self): Self
+        return marea.math.subtract_vector4_sinteger32(self, other);
+    end
+
+    #[operator = "*"]
+    function multiply(self: Self, other: Self): Self
+        return marea.math.multiply_vector4_sinteger32(self, other);
+    end
+
+    #[operator = "/"]
+    function divide(self: Self, other: Self): Self
+        return marea.math.divide_vector4_sinteger32(self, other);
+    end
+
+    #[operator = "=="]
+    function equals(self: Self, other: Self): boolean
+        return self.x == other.x and self.y == other.y and self.z == other.z and self.w == other.w;
+    end
+
+    #[operator = "!="]
+    function not_equals(self: Self, other: Self): boolean
+        return self.x != other.x or self.y != other.y or self.z != other.z or self.w != other.w;
+    end
+
+    #[operator = "[]"]
+    function at(self: Self, index: uinteger64): sinteger32
+        if index == 0 then
+            return self.x;
+        end
+        if index == 1 then
+            return self.y;
+        end
+        if index == 2 then
+            return self.z;
+        end
+        if index == 3 then
+            return self.w;
+        end
+        unreachable!();
+    end
+end
+
+implementation Vector2Boolean
+    #[operator = "=="]
+    function equals(self: Self, other: Self): boolean
+        return ((self.x and other.x) or (not self.x and not other.x)) and ((self.y and other.y) or (not self.y and not other.y));
+    end
+
+    #[operator = "!="]
+    function not_equals(self: Self, other: Self): boolean
+        return (self.x and not other.x) or (not self.x and other.x) or (self.y and not other.y) or (not self.y and other.y);
+    end
+
+    #[operator = "[]"]
+    function at(self: Self, index: uinteger64): boolean
+        if index == 0 then
+            return self.x;
+        end
+        if index == 1 then
+            return self.y;
+        end
+        unreachable!();
+    end
+end
+
+implementation Vector3Boolean
+    #[operator = "=="]
+    function equals(self: Self, other: Self): boolean
+        return ((self.x and other.x) or (not self.x and not other.x)) and ((self.y and other.y) or (not self.y and not other.y)) and ((self.z and other.z) or (not self.z and not other.z));
+    end
+
+    #[operator = "!="]
+    function not_equals(self: Self, other: Self): boolean
+        return (self.x and not other.x) or (not self.x and other.x) or (self.y and not other.y) or (not self.y and other.y) or (self.z and not other.z) or (not self.z and other.z);
+    end
+
+    #[operator = "[]"]
+    function at(self: Self, index: uinteger64): boolean
+        if index == 0 then
+            return self.x;
+        end
+        if index == 1 then
+            return self.y;
+        end
+        if index == 2 then
+            return self.z;
+        end
+        unreachable!();
+    end
+end
+
+implementation Vector4Boolean
+    #[operator = "=="]
+    function equals(self: Self, other: Self): boolean
+        return ((self.x and other.x) or (not self.x and not other.x)) and ((self.y and other.y) or (not self.y and not other.y)) and ((self.z and other.z) or (not self.z and not other.z)) and ((self.w and other.w) or (not self.w and not other.w));
+    end
+
+    #[operator = "!="]
+    function not_equals(self: Self, other: Self): boolean
+        return (self.x and not other.x) or (not self.x and other.x) or (self.y and not other.y) or (not self.y and other.y) or (self.z and not other.z) or (not self.z and other.z) or (self.w and not other.w) or (not self.w and other.w);
+    end
+
+    #[operator = "[]"]
+    function at(self: Self, index: uinteger64): boolean
+        if index == 0 then
+            return self.x;
+        end
+        if index == 1 then
+            return self.y;
+        end
+        if index == 2 then
+            return self.z;
+        end
+        if index == 3 then
+            return self.w;
+        end
+        unreachable!();
+    end
+end
+
+implementation Matrix2x2Float32
+    #[operator = "*"]
+    function multiply(self: Self, other: Self): Self
+        return marea.math.multiply_matrix2x2_float32(self, other);
+    end
+
+    #[operator = "=="]
+    function equals(self: Self, other: Self): boolean
+        return self.column0 == other.column0 and self.column1 == other.column1;
+    end
+
+    #[operator = "!="]
+    function not_equals(self: Self, other: Self): boolean
+        return self.column0 != other.column0 or self.column1 != other.column1;
+    end
+
+    #[operator = "[]"]
+    function at(self: Self, index: uinteger64): Vector2Float32
+        if index == 0 then
+            return self.column0;
+        end
+        if index == 1 then
+            return self.column1;
+        end
+        unreachable!();
+    end
+end
+
+implementation Matrix3x3Float32
+    #[operator = "*"]
+    function multiply(self: Self, other: Self): Self
+        return marea.math.multiply_matrix3x3_float32(self, other);
+    end
+
+    #[operator = "=="]
+    function equals(self: Self, other: Self): boolean
+        return self.column0 == other.column0 and self.column1 == other.column1 and self.column2 == other.column2;
+    end
+
+    #[operator = "!="]
+    function not_equals(self: Self, other: Self): boolean
+        return self.column0 != other.column0 or self.column1 != other.column1 or self.column2 != other.column2;
+    end
+
+    #[operator = "[]"]
+    function at(self: Self, index: uinteger64): Vector3Float32
+        if index == 0 then
+            return self.column0;
+        end
+        if index == 1 then
+            return self.column1;
+        end
+        if index == 2 then
+            return self.column2;
+        end
+        unreachable!();
+    end
+end
+
+implementation Matrix4x4Float32
+    #[operator = "*"]
+    function multiply(self: Self, other: Self): Self
+        return marea.math.multiply_matrix4x4_float32(self, other);
+    end
+
+    #[operator = "=="]
+    function equals(self: Self, other: Self): boolean
+        return self.column0 == other.column0 and self.column1 == other.column1 and self.column2 == other.column2 and self.column3 == other.column3;
+    end
+
+    #[operator = "!="]
+    function not_equals(self: Self, other: Self): boolean
+        return self.column0 != other.column0 or self.column1 != other.column1 or self.column2 != other.column2 or self.column3 != other.column3;
+    end
+
+    #[operator = "[]"]
+    function at(self: Self, index: uinteger64): Vector4Float32
+        if index == 0 then
+            return self.column0;
+        end
+        if index == 1 then
+            return self.column1;
+        end
+        if index == 2 then
+            return self.column2;
+        end
+        if index == 3 then
+            return self.column3;
+        end
+        unreachable!();
+    end
+end
+
+implementation Matrix2x2Sinteger32
+    #[operator = "*"]
+    function multiply(self: Self, other: Self): Self
+        return marea.math.multiply_matrix2x2_sinteger32(self, other);
+    end
+
+    #[operator = "=="]
+    function equals(self: Self, other: Self): boolean
+        return self.column0 == other.column0 and self.column1 == other.column1;
+    end
+
+    #[operator = "!="]
+    function not_equals(self: Self, other: Self): boolean
+        return self.column0 != other.column0 or self.column1 != other.column1;
+    end
+
+    #[operator = "[]"]
+    function at(self: Self, index: uinteger64): Vector2Sinteger32
+        if index == 0 then
+            return self.column0;
+        end
+        if index == 1 then
+            return self.column1;
+        end
+        unreachable!();
+    end
+end
+
+implementation Matrix3x3Sinteger32
+    #[operator = "*"]
+    function multiply(self: Self, other: Self): Self
+        return marea.math.multiply_matrix3x3_sinteger32(self, other);
+    end
+
+    #[operator = "=="]
+    function equals(self: Self, other: Self): boolean
+        return self.column0 == other.column0 and self.column1 == other.column1 and self.column2 == other.column2;
+    end
+
+    #[operator = "!="]
+    function not_equals(self: Self, other: Self): boolean
+        return self.column0 != other.column0 or self.column1 != other.column1 or self.column2 != other.column2;
+    end
+
+    #[operator = "[]"]
+    function at(self: Self, index: uinteger64): Vector3Sinteger32
+        if index == 0 then
+            return self.column0;
+        end
+        if index == 1 then
+            return self.column1;
+        end
+        if index == 2 then
+            return self.column2;
+        end
+        unreachable!();
+    end
+end
+
+implementation Matrix4x4Sinteger32
+    #[operator = "*"]
+    function multiply(self: Self, other: Self): Self
+        return marea.math.multiply_matrix4x4_sinteger32(self, other);
+    end
+
+    #[operator = "=="]
+    function equals(self: Self, other: Self): boolean
+        return self.column0 == other.column0 and self.column1 == other.column1 and self.column2 == other.column2 and self.column3 == other.column3;
+    end
+
+    #[operator = "!="]
+    function not_equals(self: Self, other: Self): boolean
+        return self.column0 != other.column0 or self.column1 != other.column1 or self.column2 != other.column2 or self.column3 != other.column3;
+    end
+
+    #[operator = "[]"]
+    function at(self: Self, index: uinteger64): Vector4Sinteger32
+        if index == 0 then
+            return self.column0;
+        end
+        if index == 1 then
+            return self.column1;
+        end
+        if index == 2 then
+            return self.column2;
+        end
+        if index == 3 then
+            return self.column3;
+        end
+        unreachable!();
+    end
+end
+
+implementation Matrix2x2Boolean
+    #[operator = "=="]
+    function equals(self: Self, other: Self): boolean
+        return self.column0 == other.column0 and self.column1 == other.column1;
+    end
+
+    #[operator = "!="]
+    function not_equals(self: Self, other: Self): boolean
+        return self.column0 != other.column0 or self.column1 != other.column1;
+    end
+
+    #[operator = "[]"]
+    function at(self: Self, index: uinteger64): Vector2Boolean
+        if index == 0 then
+            return self.column0;
+        end
+        if index == 1 then
+            return self.column1;
+        end
+        unreachable!();
+    end
+end
+
+implementation Matrix3x3Boolean
+    #[operator = "=="]
+    function equals(self: Self, other: Self): boolean
+        return self.column0 == other.column0 and self.column1 == other.column1 and self.column2 == other.column2;
+    end
+
+    #[operator = "!="]
+    function not_equals(self: Self, other: Self): boolean
+        return self.column0 != other.column0 or self.column1 != other.column1 or self.column2 != other.column2;
+    end
+
+    #[operator = "[]"]
+    function at(self: Self, index: uinteger64): Vector3Boolean
+        if index == 0 then
+            return self.column0;
+        end
+        if index == 1 then
+            return self.column1;
+        end
+        if index == 2 then
+            return self.column2;
+        end
+        unreachable!();
+    end
+end
+
+implementation Matrix4x4Boolean
+    #[operator = "=="]
+    function equals(self: Self, other: Self): boolean
+        return self.column0 == other.column0 and self.column1 == other.column1 and self.column2 == other.column2 and self.column3 == other.column3;
+    end
+
+    #[operator = "!="]
+    function not_equals(self: Self, other: Self): boolean
+        return self.column0 != other.column0 or self.column1 != other.column1 or self.column2 != other.column2 or self.column3 != other.column3;
+    end
+
+    #[operator = "[]"]
+    function at(self: Self, index: uinteger64): Vector4Boolean
+        if index == 0 then
+            return self.column0;
+        end
+        if index == 1 then
+            return self.column1;
+        end
+        if index == 2 then
+            return self.column2;
+        end
+        if index == 3 then
+            return self.column3;
+        end
+        unreachable!();
+    end
+end
+
+implementation QuaternionFloat32
+    #[operator = "*"]
+    function multiply(self: Self, other: Self): Self
+        return marea.math.multiply_quaternion_float32(self, other);
+    end
+
+    #[operator = "=="]
+    function equals(self: Self, other: Self): boolean
+        return self.x == other.x and self.y == other.y and self.z == other.z and self.w == other.w;
+    end
+
+    #[operator = "!="]
+    function not_equals(self: Self, other: Self): boolean
+        return self.x != other.x or self.y != other.y or self.z != other.z or self.w != other.w;
+    end
+end

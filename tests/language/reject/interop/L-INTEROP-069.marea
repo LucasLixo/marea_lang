@@ -1,0 +1,11 @@
+-- expect: 3078 @10
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A qualified macro call of a library that no require covers.
+
+namespace main;
+
+function run()
+    marea.array.include_bytes!("x.bin");
+end

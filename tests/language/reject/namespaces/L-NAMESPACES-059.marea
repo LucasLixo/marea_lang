@@ -2,11 +2,11 @@
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- The same member twice in one import list.
+-- The same member twice in one require list.
 
 namespace main;
 
-import c.math { pow, pow };
+require c.math { pow as pow, pow as pow };
 
 function check()
     local v: sinteger32 = 1;

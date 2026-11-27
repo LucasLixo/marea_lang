@@ -1,0 +1,19 @@
+-- expect: 3011 @18
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A field of a structure type given to a primitive parameter.
+
+namespace main;
+structure Point
+    x: sinteger32;
+end
+structure Holder
+    inner: Point;
+end
+function take(value: sinteger32)
+end
+
+function run(holder: Holder)
+    take(holder.inner);
+end

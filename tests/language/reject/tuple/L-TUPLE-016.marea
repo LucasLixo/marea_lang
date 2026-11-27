@@ -1,0 +1,14 @@
+-- expect: 3090 @12
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- for each walks a tuple, which is not a collection.
+
+namespace main;
+
+require marea.tuple;
+
+function check(pair: marea.tuple.Tuple<sinteger32, sinteger32>)
+    for each value in pair do
+    end
+end

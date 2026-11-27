@@ -1,10 +1,11 @@
--- expect: 3071 @40
+-- expect: 3071 @41
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
 -- A generic function moves its argument twice.
 
 namespace main;
+require demo.owned;
 
 structure Point
     x: sinteger32;
@@ -28,14 +29,14 @@ function write_point(#[semantics = reference_mutable] point: Point)
     point.x = 1;
 end
 
-function take_point(point: owned<Point>): sinteger32
+function take_point(point: demo.owned<Point>): sinteger32
     return point.x;
 end
 
-function sink<Item>(value: owned<Item>) where Item: Movable
+function sink<Item>(value: demo.owned<Item>) where Item: Movable
 end
 
-function twice<Item>(value: owned<Item>) where Item: Movable
+function twice<Item>(value: demo.owned<Item>) where Item: Movable
     sink(move value);
     sink(move value);
 end

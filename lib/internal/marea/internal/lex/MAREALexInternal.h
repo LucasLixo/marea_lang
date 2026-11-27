@@ -56,7 +56,7 @@ typedef struct MAREA_LexCursor
  * @param offsetFromCurrent How many bytes past the current position to read.
  * @return The byte value (0-255), or -1 when the position is at or past the end of source.
  */
-MAREA_Sinteger32 MAREA_CALL MAREA_LexCursorPeek(const MAREA_LexCursor *cursor, MAREA_IntegerSize offsetFromCurrent);
+MAREA_EXTERN_DECL MAREA_Sinteger32 MAREA_CALL MAREA_LexCursorPeek(const MAREA_LexCursor *cursor, MAREA_IntegerSize offsetFromCurrent);
 
 /**
  * @brief Returns whether the cursor has consumed every byte of source.
@@ -64,14 +64,14 @@ MAREA_Sinteger32 MAREA_CALL MAREA_LexCursorPeek(const MAREA_LexCursor *cursor, M
  * @return MAREA_BOOLEAN_TRUE when the cursor is at or past the end of source, else
  * MAREA_BOOLEAN_FALSE.
  */
-MAREA_Boolean MAREA_CALL MAREA_LexCursorIsAtEnd(const MAREA_LexCursor *cursor);
+MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_LexCursorIsAtEnd(const MAREA_LexCursor *cursor);
 
 /**
  * @brief Consumes exactly one byte, updating offset, line and column: a line feed starts a new
  * line and resets the column, any other byte advances the column by one.
  * @param cursor Cursor to advance. Must not be null. Must not already be at the end.
  */
-void MAREA_CALL MAREA_LexCursorAdvance(MAREA_LexCursor *cursor);
+MAREA_EXTERN_DECL void MAREA_CALL MAREA_LexCursorAdvance(MAREA_LexCursor *cursor);
 
 /**
  * @brief Builds the source position of a span that starts where startOffset, startLine and
@@ -82,7 +82,7 @@ void MAREA_CALL MAREA_LexCursorAdvance(MAREA_LexCursor *cursor);
  * @param startColumn Column the span started at.
  * @return The resulting MAREA_SourcePosition, by value.
  */
-MAREA_SourcePosition MAREA_CALL MAREA_LexCursorMakePosition(const MAREA_LexCursor *cursor, MAREA_IntegerSize startOffset, MAREA_Uinteger32 startLine, MAREA_Uinteger32 startColumn);
+MAREA_EXTERN_DECL MAREA_SourcePosition MAREA_CALL MAREA_LexCursorMakePosition(const MAREA_LexCursor *cursor, MAREA_IntegerSize startOffset, MAREA_Uinteger32 startLine, MAREA_Uinteger32 startColumn);
 
 /**
  * @brief Appends a diagnostic to the cursor's context sink at the given position.
@@ -90,8 +90,11 @@ MAREA_SourcePosition MAREA_CALL MAREA_LexCursorMakePosition(const MAREA_LexCurso
  * @param code Lexer diagnostic code.
  * @param position Position the diagnostic refers to.
  * @param message NUL-terminated message, copied by the sink. Must not be null.
+ * @return MAREA_LEX_EXCEPT_SUCCESS, or MAREA_LEX_EXCEPT_ERROR_OUT_OF_MEMORY when the sink cannot store
+ * the diagnostic. The caller must stop lexing and pass the value up, so a lost diagnostic never
+ * looks like a clean run.
  */
-void MAREA_CALL MAREA_LexCursorReportDiagnostic(const MAREA_LexCursor *cursor, MAREA_LexDiagnosticCode code, MAREA_SourcePosition position, const MAREA_Character8 *message);
+MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_LexExcept MAREA_CALL MAREA_LexCursorReportDiagnostic(const MAREA_LexCursor *cursor, MAREA_LexDiagnosticCode code, MAREA_SourcePosition position, const MAREA_Character8 *message);
 
 /**
  * @brief Appends a token to the list, growing its backing array by doubling when full.
@@ -103,7 +106,7 @@ void MAREA_CALL MAREA_LexCursorReportDiagnostic(const MAREA_LexCursor *cursor, M
  * @return MAREA_LEX_EXCEPT_SUCCESS, or MAREA_LEX_EXCEPT_ERROR_OUT_OF_MEMORY when growing the
  * list fails.
  */
-MAREA_LexExcept MAREA_CALL MAREA_LexTokenListAppend(MAREA_TokenList *list, MAREA_TokenKind kind, const MAREA_Character8 *text, MAREA_Uinteger32 length, MAREA_SourcePosition position);
+MAREA_EXTERN_DECL MAREA_LexExcept MAREA_CALL MAREA_LexTokenListAppend(MAREA_TokenList *list, MAREA_TokenKind kind, const MAREA_Character8 *text, MAREA_Uinteger32 length, MAREA_SourcePosition position);
 
 /**
  * @brief Returns whether byte is an ASCII hexadecimal digit (0-9, a-f or A-F). Shared by the
@@ -111,7 +114,33 @@ MAREA_LexExcept MAREA_CALL MAREA_LexTokenListAppend(MAREA_TokenList *list, MAREA
  * @param byte Byte value to classify, as returned by MAREA_LexCursorPeek.
  * @return MAREA_BOOLEAN_TRUE when byte is a hexadecimal digit, else MAREA_BOOLEAN_FALSE.
  */
-MAREA_Boolean MAREA_CALL MAREA_LexIsHexDigit(MAREA_Sinteger32 byte);
+MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_LexIsHexDigit(MAREA_Sinteger32 byte);
+
+/**
+ * @brief Returns whether byte may not appear unescaped in a string or character literal: a byte of 0x80
+ * or above, a control byte other than tab, and the delete byte. Shared by the string and character
+ * scanners.
+ * @param byte Byte value to classify, as returned by MAREA_LexCursorPeek.
+ * @return MAREA_BOOLEAN_TRUE when byte is a bad literal byte, else MAREA_BOOLEAN_FALSE.
+ */
+MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_LexIsBadLiteralByte(MAREA_Sinteger32 byte);
+
+/**
+ * @brief Reads the escape that follows a backslash the caller already consumed, and reports a bad one.
+ * The literal goes on either way: the cursor moves past a valid escape, past the one wrong byte of an
+ * invalid escape (but never past a line end), and past the letter x of a bad hex escape. Shared by the
+ * string and character scanners.
+ * @param cursor Cursor positioned at the byte after the backslash. Must not be null, and must not be at
+ * the end of the source.
+ * @param startOffset Byte offset where the literal started.
+ * @param startLine Line where the literal started.
+ * @param startColumn Column where the literal started.
+ * @param allowSingleQuote MAREA_BOOLEAN_TRUE for a character literal, where the escape \' is valid;
+ * MAREA_BOOLEAN_FALSE for a string literal.
+ * @return MAREA_LEX_EXCEPT_SUCCESS, or MAREA_LEX_EXCEPT_ERROR_OUT_OF_MEMORY when the sink cannot store
+ * the diagnostic of a bad escape.
+ */
+MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_LexExcept MAREA_CALL MAREA_LexScanEscape(MAREA_LexCursor *cursor, MAREA_IntegerSize startOffset, MAREA_Uinteger32 startLine, MAREA_Uinteger32 startColumn, MAREA_Boolean allowSingleQuote);
 
 /**
  * @brief Scans a number literal (decimal, 0x hexadecimal or 0b binary, with an optional float
@@ -122,7 +151,7 @@ MAREA_Boolean MAREA_CALL MAREA_LexIsHexDigit(MAREA_Sinteger32 byte);
  * @param list List to append the resulting token to. Must not be null.
  * @return MAREA_LEX_EXCEPT_SUCCESS, or MAREA_LEX_EXCEPT_ERROR_OUT_OF_MEMORY when appending fails.
  */
-MAREA_LexExcept MAREA_CALL MAREA_LexScanNumber(MAREA_LexCursor *cursor, MAREA_TokenList *list);
+MAREA_EXTERN_DECL MAREA_LexExcept MAREA_CALL MAREA_LexScanNumber(MAREA_LexCursor *cursor, MAREA_TokenList *list);
 
 /**
  * @brief Scans a string literal starting at the cursor's opening quote, and appends the
@@ -134,7 +163,7 @@ MAREA_LexExcept MAREA_CALL MAREA_LexScanNumber(MAREA_LexCursor *cursor, MAREA_To
  * @param list List to append the resulting token to. Must not be null.
  * @return MAREA_LEX_EXCEPT_SUCCESS, or MAREA_LEX_EXCEPT_ERROR_OUT_OF_MEMORY when appending fails.
  */
-MAREA_LexExcept MAREA_CALL MAREA_LexScanString(MAREA_LexCursor *cursor, MAREA_TokenList *list);
+MAREA_EXTERN_DECL MAREA_LexExcept MAREA_CALL MAREA_LexScanString(MAREA_LexCursor *cursor, MAREA_TokenList *list);
 
 /**
  * @brief Scans a character literal starting at the cursor's opening single quote, and appends the
@@ -148,6 +177,6 @@ MAREA_LexExcept MAREA_CALL MAREA_LexScanString(MAREA_LexCursor *cursor, MAREA_To
  * @param list List to append the resulting token to. Must not be null.
  * @return MAREA_LEX_EXCEPT_SUCCESS, or MAREA_LEX_EXCEPT_ERROR_OUT_OF_MEMORY when appending fails.
  */
-MAREA_LexExcept MAREA_CALL MAREA_LexScanCharacter(MAREA_LexCursor *cursor, MAREA_TokenList *list);
+MAREA_EXTERN_DECL MAREA_LexExcept MAREA_CALL MAREA_LexScanCharacter(MAREA_LexCursor *cursor, MAREA_TokenList *list);
 
 #endif /* MAREA_INTERNAL_LEX_MAREALEXINTERNAL_H */

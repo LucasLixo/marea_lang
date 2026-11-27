@@ -51,9 +51,13 @@ MAREA_SourcePosition MAREA_CALL MAREA_LexCursorMakePosition(const MAREA_LexCurso
     return position;
 }
 
-void MAREA_CALL MAREA_LexCursorReportDiagnostic(const MAREA_LexCursor *cursor, MAREA_LexDiagnosticCode code, MAREA_SourcePosition position, const MAREA_Character8 *message)
+MAREA_LexExcept MAREA_CALL MAREA_LexCursorReportDiagnostic(const MAREA_LexCursor *cursor, MAREA_LexDiagnosticCode code, MAREA_SourcePosition position, const MAREA_Character8 *message)
 {
-    MAREA_IGNORE(MAREA_DiagnosticSinkAdd(MAREA_LexContextGetDiagnostics(cursor->context), (MAREA_Uinteger32)code, MAREA_DIAGNOSTIC_SEVERITY_ERROR, position, message));
+    if (MAREA_DiagnosticSinkAdd(MAREA_LexContextGetDiagnostics(cursor->context), (MAREA_Uinteger32)code, MAREA_DIAGNOSTIC_SEVERITY_ERROR, position, message) != MAREA_DIAGNOSTIC_EXCEPT_SUCCESS) {
+        return MAREA_LEX_EXCEPT_ERROR_OUT_OF_MEMORY;
+    }
+
+    return MAREA_LEX_EXCEPT_SUCCESS;
 }
 
 static MAREA_LexExcept MAREA_CALL MAREA_G_LexTokenListGrow(MAREA_TokenList *list)
@@ -462,7 +466,11 @@ MAREA_LexExcept MAREA_CALL MAREA_LexTokenize(MAREA_LexContext *context, const MA
 
         const MAREA_SourcePosition BAD_BYTE_POSITION = MAREA_LexCursorMakePosition(&cursor, START_OFFSET, START_LINE, START_COLUMN);
 
-        MAREA_LexCursorReportDiagnostic(&cursor, MAREA_LEX_DIAGNOSTIC_CODE_UNKNOWN_BYTE, BAD_BYTE_POSITION, "unexpected byte in source");
+        const MAREA_LexExcept reportResult = MAREA_LexCursorReportDiagnostic(&cursor, MAREA_LEX_DIAGNOSTIC_CODE_UNKNOWN_BYTE, BAD_BYTE_POSITION, "unexpected byte in source");
+
+        if (reportResult != MAREA_LEX_EXCEPT_SUCCESS) {
+            return reportResult;
+        }
 
         const MAREA_LexExcept appendResult = MAREA_LexTokenListAppend(list, MAREA_TOKEN_KIND_ERROR, &source[START_OFFSET], MAREA_UINTEGER_32(1), BAD_BYTE_POSITION);
 

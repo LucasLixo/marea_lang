@@ -1,0 +1,3 @@
+#!/bin/sh
+# Stand-in for the real marea-bc tool (marea-cc-and-bc-tools has not built it yet): echoes its arguments and exits 0
+echo "marea-bc $@"

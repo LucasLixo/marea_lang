@@ -5,8 +5,9 @@
 -- An owner of an opaque type held in a local and passed as a borrow.
 
 namespace main;
+require demo.owned;
 
-import c.vulkan;
+require c.vulkan as vulkan;
 
 opaque structure Texture;
 
@@ -15,6 +16,6 @@ function present(texture: Texture)
 end
 
 function show()
-    local texture: owned<Texture> = vulkan.create_texture();
+    local texture: demo.owned<Texture> = vulkan.create_texture();
     present(texture);
 end

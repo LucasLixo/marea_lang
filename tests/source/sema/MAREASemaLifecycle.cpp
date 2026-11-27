@@ -15,6 +15,8 @@ namespace
     constexpr MAREA_Uinteger32 OPERATOR_MISMATCH{ MAREA_SEMA_DIAGNOSTIC_CODE_OPERATOR_SIGNATURE_MISMATCH };
     constexpr MAREA_Uinteger32 UNDECLARED{ MAREA_SEMA_DIAGNOSTIC_CODE_UNDECLARED_NAME };
     constexpr MAREA_Uinteger32 DEFAULT_BEFORE_REQUIRED{ MAREA_SEMA_DIAGNOSTIC_CODE_DEFAULT_PARAMETER_BEFORE_REQUIRED };
+    // INFO: operator on a free function is also a misplaced attribute by the placement matrix.
+    constexpr MAREA_Uinteger32 MISPLACED{ MAREA_SEMA_DIAGNOSTIC_CODE_MISPLACED_ATTRIBUTE };
 
     const std::string POINT{ "structure Point x: sinteger32; end " };
 
@@ -89,9 +91,9 @@ TEST(MAREASemaLifecycle, TopLevelFunctionNeedsAnImplementation)
 {
     GTEST_COUT << "Validating a lifecycle function outside an implementation is rejected." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf("#[operator = \"construct\"] function make() end"), Codes{ NEEDS_CONCRETE_TYPE }) << "A top level construct must raise NEEDS_CONCRETE_TYPE.";
+    EXPECT_EQ(MAREA_codesOf("#[operator = \"construct\"] function make() end"), (Codes{ MISPLACED, NEEDS_CONCRETE_TYPE })) << "A top level construct must raise NEEDS_CONCRETE_TYPE.";
 
-    EXPECT_EQ(MAREA_codesOf("#[operator = \"destroy\"] function drop() end"), Codes{ NEEDS_CONCRETE_TYPE }) << "A top level destroy must raise NEEDS_CONCRETE_TYPE.";
+    EXPECT_EQ(MAREA_codesOf("#[operator = \"destroy\"] function drop() end"), (Codes{ MISPLACED, NEEDS_CONCRETE_TYPE })) << "A top level destroy must raise NEEDS_CONCRETE_TYPE.";
 }
 
 TEST(MAREASemaLifecycle, GenericImplementationIsRejected)
@@ -125,7 +127,7 @@ TEST(MAREASemaLifecycle, DirectCallByNameIsRejected)
 
     EXPECT_EQ(MAREA_codesOf(TYPE + "function run() drop(); end"), (Codes{ UNDECLARED, CALLED_DIRECTLY })) << "A call of destroy by name must raise CALLED_DIRECTLY.";
 
-    EXPECT_EQ(MAREA_codesOf("#[operator = \"destroy\"] function drop() end function run() drop(); end"), (Codes{ NEEDS_CONCRETE_TYPE, CALLED_DIRECTLY })) << "A call of a top level lifecycle function must raise CALLED_DIRECTLY.";
+    EXPECT_EQ(MAREA_codesOf("#[operator = \"destroy\"] function drop() end function run() drop(); end"), (Codes{ MISPLACED, NEEDS_CONCRETE_TYPE, CALLED_DIRECTLY })) << "A call of a top level lifecycle function must raise CALLED_DIRECTLY.";
 }
 
 TEST(MAREASemaLifecycle, DirectCallByStaticFormIsRejected)

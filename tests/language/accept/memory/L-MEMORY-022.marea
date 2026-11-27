@@ -5,6 +5,7 @@
 -- A partition body spawns a worker on its part.
 
 namespace main;
+require demo.slice;
 
 structure Point
     x: sinteger32;
@@ -16,10 +17,10 @@ structure Box
     count: sinteger32;
 end
 
-function scale_part(#[semantics = reference_mutable] part: slice<float32>, factor: float32)
+function scale_part(#[semantics = reference_mutable] part: demo.slice<float32>, factor: float32)
 end
 
-function scale_all(values: slice<float32>, factor: float32)
+function scale_all(values: demo.slice<float32>, factor: float32)
     fork_join
         partition mutable values into 4 as part do
             spawn scale_part(part, factor);

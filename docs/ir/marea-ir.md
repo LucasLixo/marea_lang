@@ -34,9 +34,9 @@ MAREA_IrModuleFindLayout(module, "Point", 5, &layout);
 MAREA_IrLayoutGetSize(layout, &size);                      /* ERROR_UNDECIDED when sema did not measure it */
 ```
 
-`MAREA_IrLowerCompilationUnit` returns `MAREA_IR_EXCEPT_ERROR_NULL_POINTER` for a null argument or for
-a typed root whose AST node is not a `COMPILATION_UNIT`, and `MAREA_IR_EXCEPT_ERROR_OUT_OF_MEMORY`
-when the arena cannot grow. A construct that cannot be lowered is not an error code: it is a
+`MAREA_IrLowerCompilationUnit` returns `MAREA_IR_EXCEPT_ERROR_NULL_POINTER` for a null argument,
+`MAREA_IR_EXCEPT_ERROR_BAD_ROOT` for a typed root whose AST node is not a `COMPILATION_UNIT`, and
+`MAREA_IR_EXCEPT_ERROR_OUT_OF_MEMORY` when the arena cannot grow. A construct that cannot be lowered is not an error code: it is a
 diagnostic in the sink, and the call still returns `MAREA_IR_EXCEPT_SUCCESS`. Every ir diagnostic is
 an error, and only three codes exist, 4004, 4005 and 4006 (4001 to 4003 are retired, see Diagnostics). The tree stays
 valid for the lifetime of the arena.
@@ -57,8 +57,15 @@ resolved type and an ordered list of children. The accessors mirror `MAREAAst.h`
 | `MAREA_IrNodeGetChildCount`, `MAREA_IrNodeGetChildAt` | The children. An index out of range returns `MAREA_IR_NODE_EXCEPT_ERROR_OUT_OF_RANGE`. |
 | `MAREA_IrNodeGetTypeName`, `MAREA_IrNodeGetTypeNameLength` | The type name, not NUL terminated. Null or none gives null and 0. |
 | `MAREA_IrNodeGetResolvedType`, `MAREA_IrNodeGetResolvedTypeLength` | The full resolved type, not NUL terminated. Null or none gives null and 0. |
+| `MAREA_IrNodeIsExternalCall` | True for a `CALL_EXPRESSION` of a name that the host or a library registered. Null returns false. |
 
 `MAREA_IrKindGetName` returns the stable upper-case kind name, or `UNKNOWN` for a value out of range.
+
+**External calls.** A `CALL_EXPRESSION` keeps the answer of `MAREA_SemaTypedNodeIsExternalCall` (see the sema doc,
+"External calls"): its callee names a member of a namespace that a resolver answers `EXTERNAL`, so the host or a
+library registered the name. The IR has no import or require node, so a backend cannot tell such a call from a call
+into another unit, through `Self` or through a local type alias in any other way. The other calls (a built-in or a
+static call on a written type, see Type operands) are never external.
 
 The type name is the head of the written type and stays as it was: `array` for `array<sinteger32,4>`. The resolved
 type is the full canonical text that `MAREA_SemaTypedNodeGetResolvedType` gives (see the sema doc, "Resolved type"),
@@ -69,7 +76,7 @@ from the source (`IDENTIFIER`, the five literals, `BINARY_EXPRESSION`, `UNARY_EX
 `LOCAL_DECLARATION`, `FIELD_DECLARATION`, `VARIANT_FIELD`, `CONSTANT_DECLARATION` and `FUNCTION_DECLARATION` with a
 written type. A name that only qualifies a member (`Planet` in `Planet.Earth`) has none and is not a gap. The nodes
 that the ir invents carry one too: the hidden locals
-`$lastN` (the type of the last bound), `$switch` (the type of the scrutinee) and `$return` (the type of the returned
+`$lastN` (the type of the last bound), `$switchN` (the type of the scrutinee) and `$returnN` (the type of the returned
 value) have the type they hold, and every `IDENTIFIER` that reads one shares it; the loop variable of a for-range loop
 has the type sema gave its name (else the type of the first value), and the step literal `1` its type; a
 `FOR_EACH_STATEMENT` has the type sema gave its value name, and its key the type sema gave it (see For-each
@@ -107,7 +114,7 @@ follows the same rule, and a `TYPE_NAME` or a `BUILTIN_NAME` has no type name: i
 The loop variable and `$lastN` of a for-range loop, a `FOR_EACH_STATEMENT` (its value) and the key of a for-each loop
 have no written type, so their type name is the head of their resolved type, the text before the first type
 argument (see For-range desugaring and For-each lowering); a function type has none. The other hidden locals
-(`$switch`, `$return`) keep no type name.
+(`$switchN`, `$returnN`) keep no type name.
 The head name is all the type name keeps, by design. The type arguments and a function type are not lost on a
 declaration: the same node carries the full type as its resolved type (`array<sinteger32,4>`,
 `function(sinteger32):sinteger32`), read from sema, and the text dump prints it as `resolved=` next to `type=`. A
@@ -122,7 +129,7 @@ default the language spec sets for a tag with no written type.
 ## Kinds and what is erased
 
 The kind set keeps the name and the child layout of the AST kind it comes from, except `MODULE` (the
-root), `UNREACHABLE_STATEMENT`, `TYPE_NAME` and `BUILTIN_NAME`, and the name of `PARTITION_STATEMENT`, `WITH_STATEMENT`
+root, which holds the namespace of the unit as its text), `UNREACHABLE_STATEMENT`, `TYPE_NAME` and `BUILTIN_NAME`, `BACKEND_ATTRIBUTE`, `MACRO_CALL`, and the name of `PARTITION_STATEMENT`, `WITH_STATEMENT`
 and `FOR_EACH_STATEMENT`, which is the text of the node (see Fork-join lowering, For-each lowering and Type
 operands). The kinds are: `MODULE`, `CONSTANT_DECLARATION`,
 `STRUCTURE_DECLARATION`, `FIELD_DECLARATION`, `ENUM_DECLARATION`, `VARIANT_DECLARATION`,
@@ -267,10 +274,12 @@ loop body, a branch, an `if`, a `do ... end` scope) gets the destroys of its own
   outside its own loop. The inner block wraps first, so the destroys of the inner locals run before those of the
   outer ones. For a for-range `continue` the destroys stand in front of the step.
 - **Value of a return.** A `return` with a value is wrapped as `BLOCK(LOCAL_DECLARATION $return (value), destroy...,
-  RETURN_STATEMENT(IDENTIFIER $return))`, so the value is read before any destroy runs and `return b.size;` never
-  reads a destroyed `b`. The hidden local `$return` has no type name and no flag, like `$switch`, and its resolved type
+  RETURN_STATEMENT(IDENTIFIER $return0))`, so the value is read before any destroy runs and `return b.size;` never
+  reads a destroyed `b`. The hidden local is named `$return` and its number in the function (`$return0`, `$return1`, in
+  the order the values are hoisted, the count starting again at zero in each function), so two hoisted values never
+  share a name. It has no type name and no flag, like `$switchN`, and its resolved type
   is the resolved type of the value it holds. A `return` through two destructible scopes hoists once: the outer wrap
-  sees the value `IDENTIFIER $return` and does not declare it again, so the outer destroys stand between the inner
+  sees the value `IDENTIFIER $returnN` and does not declare it again, so the outer destroys stand between the inner
   destroys and the `return`. A `return` with no value, a `break` and a `continue` are wrapped as before, with no
   hidden local.
 - **Moved-from locals.** A local that `move x` names anywhere in its own block is never destroyed at any exit of that
@@ -287,9 +296,14 @@ local a: Box = Box(); local b: Box = Box();
 ```
 local a: Box = Box(); return a.x;
 (BLOCK (LOCAL_DECLARATION a :Box (CONSTRUCT_CALL :Box (ARGUMENT_LIST)))
-       (BLOCK (LOCAL_DECLARATION $return (MEMBER_ACCESS (IDENTIFIER a) (IDENTIFIER x)))
-              (DESTROY_CALL Box.drop (IDENTIFIER a)) (RETURN_STATEMENT (IDENTIFIER $return))))
+       (BLOCK (LOCAL_DECLARATION $return0 (MEMBER_ACCESS (IDENTIFIER a) (IDENTIFIER x)))
+              (DESTROY_CALL Box.drop (IDENTIFIER a)) (RETURN_STATEMENT (IDENTIFIER $return0))))
 ```
+
+**Arrays.** A local whose type is an inline run (a type with two arguments whose last one is a literal count) of a type
+with a destroy operator is destroyed too: its `DESTROY_CALL` names the operator of the innermost element and the local,
+and a backend calls it once for each element. The ir writes no destroy for a vector or for the elements in it: a
+backend destroys them, and finds the operator of an element by `MAREA_IrNodeIsDestroyOperator`.
 
 ## For-range desugaring
 
@@ -327,7 +341,8 @@ before the loops in its body (`$last0`, `$last1`, ...). So two for-range loops o
 name of their hidden bound, whether one stands in the other or they follow each other, and a backend that keys the
 locals of a function by name alone keeps them apart. The count starts again at zero in each function, so a function
 lowers the same wherever it stands in the unit. The step of a loop, also the one a `continue` gets, reads the bound of
-its own loop. Only the hidden bound of a for-range loop is numbered: `$switch` and `$return` are not (see Gaps).
+its own loop. The hidden locals of a `switch` (`$switchN`) and of a hoisted return value (`$returnN`) are numbered the
+same way, one counter for each kind in each function, so no two of one function share a name.
 
 The step leaves the loop at the last value before it adds one. So the increment never runs past `last`,
 and a loop whose `last` is the maximum of its integer type still ends. A range with `first` greater
@@ -344,21 +359,23 @@ loop and stays as it is (the nested for-range loop adds its own step and its own
 
 ```
 BLOCK
-  LOCAL_DECLARATION "$switch"                -- child: value
+  LOCAL_DECLARATION "$switchN"               -- child: value
   IF_STATEMENT                               -- the first case
-    BINARY_EXPRESSION op=EQUAL_EQUAL         -- children: IDENTIFIER "$switch", the lowered a
+    BINARY_EXPRESSION op=EQUAL_EQUAL         -- children: IDENTIFIER "$switchN", the lowered a
     BLOCK                                    -- the lowered A
     ELSEIF_CLAUSE                            -- each case after the first
       BINARY_EXPRESSION op=KEYWORD_OR        -- two values: the two tests joined, grouped to the left
-        BINARY_EXPRESSION op=EQUAL_EQUAL     -- IDENTIFIER "$switch", the lowered b
-        BINARY_EXPRESSION op=EQUAL_EQUAL     -- IDENTIFIER "$switch", the lowered c
+        BINARY_EXPRESSION op=EQUAL_EQUAL     -- IDENTIFIER "$switchN", the lowered b
+        BINARY_EXPRESSION op=EQUAL_EQUAL     -- IDENTIFIER "$switchN", the lowered c
       BLOCK                                  -- the lowered B
     ELSE_CLAUSE                              -- the default arm
       BLOCK                                  -- the lowered C
 ```
 
-The scrutinee is lowered once, into `$switch`, which is set before the first test; no case evaluates it
-again. The name `$switch` cannot be a source identifier, so it never clashes with a user name, and the
+The scrutinee is lowered once, into `$switchN`, which is set before the first test; no case evaluates it
+again. N is the number of the switch in its function, the outer one first (`$switch0`, then the switch of an arm
+`$switch1`), and it starts again at zero in each function. The name cannot be a source identifier, so it never
+clashes with a user name, and the
 hidden local has no type name and no flag, but its resolved type is that of the scrutinee, shared by every read of
 it; each case test is `boolean`. An arm does not fall through, so an if chain is exact. The
 tests run in source order and the first one that holds runs its block.
@@ -384,7 +401,7 @@ tests run in source order and the first one that holds runs its block.
   is positioned at its case value, the `IF_STATEMENT` or `ELSEIF_CLAUSE` at its arm.
 - A `break` or `continue` in an arm targets the enclosing loop, as it does in an `if`. A `continue` that
   targets a for-range loop still gets the step in front of it, also inside an arm. A nested `switch` has its
-  own `BLOCK` and its own `$switch`, so two never mix.
+  own `BLOCK` and its own `$switchN`, so two never mix.
 - A gap inside the scrutinee, a case value or an arm drops the declaration whole, as everywhere else.
 
 ## For-each lowering
@@ -469,14 +486,64 @@ UNARY_EXPRESSION op=KEYWORD_SPAWN            -- child: the call; the one form of
   block, and a `continue` that targets a for-range loop still gets the step in front of it.
 - A gap inside any child drops the declaration whole and is reported once, as everywhere else.
 
+## Do-while lowering
+
+`do body while cond end` has no IR kind of its own, because the IR has only the `while` loop. It lowers to:
+
+```
+WHILE_STATEMENT
+  BOOLEAN_LITERAL "true"
+  BLOCK
+    BLOCK                      -- the body, in its own scope
+    IF_STATEMENT               -- the test that leaves
+      UNARY_EXPRESSION op=KEYWORD_NOT   -- child: the lowered condition
+      BLOCK
+        BREAK_STATEMENT
+```
+
+The body runs first, in its own `BLOCK`, so a name of the body ends before the test and the condition cannot read it. A
+`continue` that targets this loop goes to the test, as in C: it becomes `BLOCK(IF_STATEMENT(NOT cond, BREAK), CONTINUE)`.
+The walk that finds these `continue` statements stops at a nested `while` or `for each` (and at a nested do-while,
+which is a `while` by then), because a `continue` inside it targets that loop. A `break` stays a `break`, and a
+`return` stays a `return`. The condition is lowered again from the typed tree at the end of the body and at each
+`continue`, so no node is used in two places, and a gap in it is reported once and drops the declaration whole. A
+destructible local of the body is destroyed before the test at a `continue`, as at any other exit of its block.
+
+## Backend
+
+A function in a file whose namespace is `marea.math` or below has a backend, resolved by `sema` against the target
+description of the caller (see the sema doc, "Backend"): the attribute of the function over the attribute of the file,
+a `when` item that holds over a plain item, and `auto` replaced by the best backend the target gives. The IR reads it
+from the typed tree (`MAREA_SemaTypedNodeGetBackend`) and keeps it as the last child of the `FUNCTION_DECLARATION`,
+after the body: `BACKEND_ATTRIBUTE` with the member as its text (`scalar`, `vector_extension` or `intrinsics`, never
+`auto`). The first two children of a function keep their places, and a function with no backend has no such child. The
+dump shows it on its own line (`BACKEND_ATTRIBUTE "scalar"`). The IR reads no attribute and no target.
+
+## Macros
+
+Two kinds of macro are kept for a later stage, because their value comes from the build or from the library, which the
+IR never reads. `build_value!("NAME", Type, default)` and a macro that a shipped library registers (a call with a
+qualified name, `marea.array.include_bytes!("file")`, or through the alias of a require) lower to `MACRO_CALL`: the text
+is the name (the alias of a namespace is replaced by the namespace, so the name is the full path), and the one child is
+the `ARGUMENT_LIST` of the lowered arguments, in the order written. In a statement the call is the one child of an
+`EXPRESSION_STATEMENT`. Sema gives the call no resolved type, so the node has none; the declaration around it carries
+the type. Every other built-in macro still raises 4005, and `unreachable!()` as a statement is `UNREACHABLE_STATEMENT`.
+
+A macro that gives the bytes of a file (`include_bytes!`) lowers to `INCLUDED_BYTES` instead when the include resolver
+gave them: the text is two lowercase hexadecimal digits for each byte, the one child is a `STRING_LITERAL` with the path
+of the file, and the resolved type is the array (`marea.array.Array<uinteger8,12>`).
+
 ## Aliases
 
-The IR lowers every alias to the original name, so a backend sees no alias. `MAREA_IrLowerCompilationUnit` builds
-one alias table from the unit before it lowers a declaration:
+The IR lowers every alias to the full path it stands for, so a backend sees no alias and no two namespaces share a
+lowered name. `MAREA_IrLowerCompilationUnit` builds one alias table from the unit before it lowers a declaration. An
+`import` and a `require` have the same shape, and both are read:
 
-- A whole-path alias (`import a.b.c as d;`) stands for the last segment of its path (`c`).
-- A member alias (`import a.b { f as g, Color.red as Crimson };`) stands for the member path as written (`f`,
-  `Color.red`). A two-part path is joined with a dot in the arena. A member without `as` is not an alias.
+- A whole-path alias (`import a.b.c as d;`, `require a.b as d;`) stands for the full path (`a.b.c`), a namespace or one
+  symbol. An import or a require with no `as` binds no name, and the source writes the full path, which is kept as
+  written.
+- A member alias (`import a.b { f as g, Color.red as Crimson };`) stands for the namespace of the import, then the member
+  path as written (`a.b.f`, `a.b.Color.red`). A member without `as` is not an alias.
 - A local type alias without generic parameters (`type Name = Other;`, `type Name = Other<sinteger32>;`) stands for
   the written head type name; the type arguments are not kept, as on any written type. An alias of a function type
   (`type Callback = function(v: sinteger32): boolean;`) lowers to no type name, as the written function type does.
@@ -484,22 +551,30 @@ one alias table from the unit before it lowers a declaration:
   table and keeps raising 4004. A `TYPE_NAME` operand (a built-in or static call argument) named by an alias that
   carries type arguments or names a function type raises 4004, because the lowered name would lose them.
 
+The `MODULE` node carries the full namespace of its unit as its text (`MODULE "a.one"` in the dump), so the name of a
+top-level declaration of the unit is that namespace and the name, and a reference of the unit to its own declaration
+stays the bare name. A name of another namespace is always written with its full path in the IR, so two modules that
+each export `greet` are `a.one.greet` and `b.two.greet`. The text of the module is empty only when the unit has no
+namespace declaration.
+
 The rules:
 
 - An `IDENTIFIER` that is read as a value (a call, a constant, a variant, a name in an expression) and is an import
-  alias lowers to an `IDENTIFIER` with the original text. The head of a member chain or of a `QUALIFIED_NAME`
-  expression is such a name (`lst.push` becomes `list.push`). The name after the dot, a field entry name and a
-  declaration name are never rewritten.
-- A written type name is the original in every place the IR keeps one: the type name of a field, a parameter, a
+  alias lowers to an `IDENTIFIER` with the full path. The head of a member chain or of a `QUALIFIED_NAME`
+  expression is such a name (`lst.push` becomes `collections.list.push`, as a member chain whose head is
+  `collections.list`). The name after the dot, a field entry name and a declaration name are never rewritten.
+- A written type name is the full path in every place the IR keeps one: the type name of a field, a parameter, a
   local, a constant, a function, a struct literal, a call result, the `TYPE_NAME` operand of a built-in or of a
   static call, and the qualifier of the methods of an `implementation`. The head of a dotted type name that is a
-  namespace alias is replaced (`lst.Item` becomes `list.Item`).
+  namespace alias is replaced (`lst.Item` becomes `collections.list.Item`). The resolved type of sema spells an imported
+  type with its last segments (`Item`, `structures.Shape`), so the type name of such a declaration ends with the head of
+  its resolved type, and is no longer equal to it.
 - A parameter or a local of the function that is lowered, with the name of an alias, hides the alias in that
-  function, from its own declaration onward: a reference before the declaration still lowers to the original
+  function, from its own declaration onward: a reference before the declaration still lowers to the full path
   (see Gaps).
 - The built-in lookup (`size_of`, `align_of`, `convert`) counts the local names of a member list: an alias or a
   member with the built-in name binds it, the original of an alias does not.
-- `import` and `type` declarations still make no node, so a dump holds no alias text.
+- `import`, `require` and `type` declarations still make no node, so a dump holds no alias text.
 
 ## Type operands
 
@@ -546,8 +621,12 @@ CALL_EXPRESSION                              -- a static call on a written type:
   generic parameters, as a structure or a type alias, is a user generic and keeps raising 4004: its declaration
   is left out of the module, so the call would point at nothing. Any other head, a built-in type such as `vector`
   or a type of another namespace such as `array`, lowers. A head with a dot is a type of another namespace.
-- A type argument that is a function type is not lowered, because a `TYPE_NAME` cannot hold its parameters and its
-  result. It raises 4004 once, and the declaration that holds it is left out, as for any gap.
+- A type argument that is a function type is a `TYPE_NAME` with the text `function` (a keyword, so no written type has
+  that name). Its first child is always a `PARAMETER_LIST` of the parameter types, each a `TYPE_NAME` (the parameter
+  names are not kept), empty for a function with no parameter; its second child is the result type when there is one.
+  A function type can hold a function type. `size_of<function(n: sinteger32): boolean>()` lowers to
+  `BUILTIN_NAME size_of` with the child `TYPE_NAME function` that holds `PARAMETER_LIST (TYPE_NAME sinteger32)` and
+  `TYPE_NAME boolean`.
 - A gap in an argument of the call, or in a type argument, drops the declaration whole and is reported once.
 - The nodes take their position from what they were written from: the `TYPE_NAME` from the written type, the
   `BUILTIN_NAME` from the callee name.
@@ -580,10 +659,13 @@ those of `sema`.
   write the output. A later change that lets `sema` measure such a type turns the entry into a measured one with no change
   of the format. The reasons are those of `sema`: `library_type`, `generic`, `function_type`, `opaque`,
   `invalid_attribute`, `too_deep` and `unresolved`.
-- **A structure that holds a library type is undecided on purpose.** `string`, `array`, `vector`, `pointer`, `slice`,
-  `task`, `owned` and any `c.` type get their layout from the library, not from the language, so `sema` does not measure
-  them and the structure or enum that holds one is undecided with the reason `library_type`. A holder of an undecided
+- **A structure that holds a library type is undecided on purpose.** `string`, `pointer`, `slice`, `task`, `owned`, any
+  `c.` type and any library type that is no run and no tuple get their layout from the library, not from the language, so `sema` does
+  not measure them and the structure or enum that holds one is undecided with the reason `library_type`. A holder of an undecided
   type takes its reason.
+- **A tuple has no entry of its own.** A structure that holds one is measured, and a backend computes the offsets of the
+  elements by the layout of C. An index of a tuple stays an `INDEX_ACCESS` with an integer literal, whose resolved type
+  is the one of the element.
 - **An opaque structure has an entry** (it lowers to a `STRUCTURE_DECLARATION` with no field). `sema` records no layout
   for an `OPAQUE_DECLARATION`, so the entry is undecided with the reason `opaque` and no member: its layout belongs to C.
   This reason is the one choice the `ir` makes; it is not a computed value.
@@ -595,15 +677,15 @@ those of `sema`.
 
 `MAREA_IrModuleDump` writes the tree as stable text into the arena, one node per line, in the same
 shape as `MAREA_AstDump`. A line is the kind name indented two spaces per depth, then the text in
-double quotes when present, then `type=NAME` when the node has a type name, then `resolved=TEXT` when it has a resolved type (the text has no
-space in its canonical spelling, so it needs no quoting), then `op=OPERATOR` when it has an operator, then `flags=NUMBER` when the flags are not zero. In the text, `"` and `\` get a
+double quotes when present (for the `MODULE` line, the namespace of the unit), then `type=NAME` when the node has a type name, then `resolved=TEXT` when it has a resolved type (the text has no
+space in its canonical spelling, so it needs no quoting), then `op=OPERATOR` when it has an operator, then `flags=NUMBER` when the flags are not zero, then `external` for an external call, then `destroy` for the function of a destroy operator (`MAREA_IrNodeIsDestroyOperator`). In the text, `"` and `\` get a
 backslash and a byte below 0x20 or above 0x7E is written as `\xHH`. The result is NUL terminated;
 `outLength` does not count the NUL. It returns `ERROR_NULL_POINTER` for a null argument and
 `ERROR_OUT_OF_MEMORY` when the arena cannot grow. The walk uses an explicit stack held in the arena, so
 call-stack use does not depend on the tree depth; a deep tree costs arena memory only.
 
 ```
-MODULE
+MODULE "main"
   STRUCTURE_DECLARATION "Point"
     FIELD_DECLARATION "x" type=float64 resolved=float64
   FUNCTION_DECLARATION "f" type=sinteger32 resolved=sinteger32
@@ -639,7 +721,7 @@ Lowering the same unit twice gives byte-identical text.
 ## Constructs the IR cannot lower
 
 Three constructs raise an error diagnostic and make no node: a generic (except the calls of Type operands), a macro
-other than a statement `unreachable!()`, and an expression that sema gave no type and that is not untyped on purpose
+other than a statement `unreachable!()`, `build_value!` and a macro of a library, and an expression that sema gave no type and that is not untyped on purpose
 (see Node model). The declaration that holds the gap is left
 out of the module whole, never in part: a gap in a function body drops that function, a gap in a
 variant default drops the enum, a gap in a constant initializer drops the constant. Lowering then
@@ -667,8 +749,8 @@ now (see Type operands).
 
 | Code | Name | Example |
 |---|---|---|
-| 4004 | `UNINSTANTIATED_GENERIC` | a generic function, structure or `implementation`; a call with explicit type arguments that is not a built-in call (`identity<sinteger32>(5)`); a call whose result type is an unbound generic; a `GENERIC_NAME` that is not the receiver of a call, or whose head is a generic type of the unit; a function type as the type argument of a built-in or a static call; a call whose callee is the bare name of a function of the unit that was left out of the module, also when the callee is declared after the caller (the call and its top-level declaration are dropped, and the callers of a dropped function raise in turn). `size_of<T>()`, `align_of<T>()`, `convert<T>(x)` and `array<sinteger32>.filled(8, 0)` raise nothing. |
-| 4005 | `UNSUPPORTED_MACRO` | `print!("hi");`, a module-level `static_assert!(true);`, a macro call inside an expression. `unreachable!();` as a statement is lowered and raises nothing. |
+| 4004 | `UNINSTANTIATED_GENERIC` | a generic function, structure or `implementation`; a call with explicit type arguments that is not a built-in call (`identity<sinteger32>(5)`); a call whose result type is an unbound generic; a `GENERIC_NAME` that is not the receiver of a call, or whose head is a generic type of the unit; a call whose callee is the bare name of a function of the unit that was left out of the module, also when the callee is declared after the caller (the call and its top-level declaration are dropped, and the callers of a dropped function raise in turn). `size_of<T>()`, `align_of<T>()`, `convert<T>(x)` and `array<sinteger32>.filled(8, 0)` raise nothing. |
+| 4005 | `UNSUPPORTED_MACRO` | `print!("hi");`, a module-level `static_assert!(true);`, a macro call inside an expression (not `build_value!` and not the macro of a library, which lower to `MACRO_CALL`). `unreachable!();` as a statement is lowered and raises nothing. |
 | 4006 | `UNTYPED_EXPRESSION` | an expression for which `MAREA_SemaTypedNodeGetResolvedType` gives no type and that is not untyped on purpose (see Node model): `stdio.value` read as a value (not called) from an `EXTERNAL` namespace. It is raised once, at the position of the expression, and the declaration that holds it is left out whole. A name that only qualifies a member raises nothing. |
 
 The codes 4001, 4002 and 4003 are retired: `fork_join`, `switch` and `for each` are lowered. The numbers have no
@@ -687,8 +769,8 @@ Each diagnostic carries the position of the construct that raised it. The messag
   nodes that the ir invents are typed, except the step `ASSIGNMENT` and the `DESTROY_CALL`, which are statements.
 - The zero-default rule (see Zero-default creation) has no node in the ir: a `LOCAL_DECLARATION` with no written
   initializer is rejected by sema (3065) and a struct literal that omits a field is rejected by sema (3077). Four
-  creation paths the language spec names are not lowered yet, because they need a backend to exist first: the zero fill of `Type(args)` before `construct` (the call itself is a `CONSTRUCT_CALL` now), `array<T, N>`
-  elements, `owned<T>` storage and a `convert` result that exposes padding. A `PARAMETER`, a `CONSTANT_DECLARATION`
+  creation paths the language spec names are not lowered yet, because they need a backend to exist first: the zero fill of `Type(args)` before `construct` (the call itself is a `CONSTRUCT_CALL` now),
+  `owned<T>` storage and a `convert` result that exposes padding. A `PARAMETER`, a `CONSTANT_DECLARATION`
   and a `VARIANT_FIELD` with no value are outside the rule on purpose (see Zero-default creation), not an
   oversight.
 - A `FOR_EACH_STATEMENT` does not say how its collection is walked, or what the key is for it beyond its type. The
@@ -700,10 +782,6 @@ Each diagnostic carries the position of the construct that raised it. The messag
 - A for-each loop has no hidden locals (`$each`, `$count`, `$index`) and no step: the walk is one node. A backend
   that wants a counted loop builds it from the type of the collection. A desugaring to hidden locals would be a new
   IR form, a decision not taken yet.
-- The hidden bound of a for-range loop is numbered, but `$switch` and `$return` are not: two `switch` statements
-  that nest, or a `return` hoisted in an outer scope after an inner one, declare the same name in nested `BLOCK`
-  scopes of one function. A backend that keys the locals of a function by name alone must still scope them by
-  `BLOCK`, or the ir must number these names the same way. No backend needs it yet.
 - `MAREA_G_LowerSwitch` keeps only the last `default` arm and drops the others with no diagnostic. This
   is defensive code that no accepted program reaches. Sema rejects a second `default` arm, and a repeated `case` value, with
   `DUPLICATE_SWITCH_ARM` (3025, issue #50, PR #51), and `MAREA_SemaBuildTypedAst`, the only input of the IR,
@@ -720,41 +798,40 @@ Each diagnostic carries the position of the construct that raised it. The messag
   IR. The unit is checked for a function or an import with the same name, but not for a parameter or a local, and
   the IR cannot see what another file declares: an imported function that shares a built-in name is taken as the
   built-in when the import does not bind that name.
-- A function type as a type argument of a built-in or of a static call is not lowered and raises 4004, because a
-  `TYPE_NAME` has no place for its parameters and its result. A `GENERIC_NAME` that is not the receiver of a call
-  (`array<sinteger32>.LIMIT`) also raises 4004.
+- A `GENERIC_NAME` that is not the receiver of a call (`array<sinteger32>.LIMIT`) raises 4004.
 - A static call on a generic type of another namespace lowers, but a call of a generic function of another
   namespace with explicit type arguments (`other.maximum<sinteger32>(1, 2)`) still raises 4004: only the three
   built-ins have a call form with a type argument on the function.
 - `LOCAL_DECLARATION` never carries the `MUTABLE` flag, except the hidden loop variable of a for-range loop: the
   AST has no write-target flag for a local.
-- There is no linking between modules: an imported name is lowered to its original name, but the IR does not look
-  at the namespace that holds it.
+- There is no linking between modules: the IR lowers one unit, names the module by its namespace and writes every name of
+  another namespace with its full path, but it never reads the other unit. A call through an import has no default
+  filled (see below), and the layout of a type of another namespace is not in the table.
 - A local hides an import alias from its declaration to the end of the function, also after the end of the nested
   block that holds it, because the check compares source offsets and does not track block scope. Sema does not
   reject such a shadow.
-- Two members with the same original name in two namespaces keep the same lowered name; the IR does not add the
-  namespace. A backend that needs it must read the import itself.
 - The tree builder and the lowering of a nested type argument are recursive. A very deep tree needs a large stack;
   no test goes deeper than the example programs. The dump is not part of this gap: it walks an explicit stack.
-- `MAREA_IrLowerCompilationUnit` reports a root that is not a `COMPILATION_UNIT` with
-  `MAREA_IR_EXCEPT_ERROR_NULL_POINTER`, because the except set has no other fitting value.
 - A call fills an omitted defaulted argument only when the ir finds the parameter list of its callee in the same
   unit: a bare `IDENTIFIER` naming a `FUNCTION_DECLARATION`, or a member access on a type (static call) or on a
   value of a plain type (method call) whose function is in an `implementation` block of the unit (see Node model).
   A call through an import or a namespace alias (`other.add(1)`, or a member alias) is not filled, even when sema
   accepted the omission: the callee is declared in another unit, the typed tree of this unit does not hold its
-  parameter list, and the ir links no module. Nor is a call of `Self.name(...)`, a static call whose receiver is a
-  local type alias (`Alias.make(1)`; a value of an aliased type is found, because sema spells its type in full), a method of a receiver with type
-  arguments, or a function reached only through a value of a function type (it has no default). Such a call keeps
+  parameter list, and the ir links no module. Nor is a method of a receiver with type
+  arguments, or a function reached only through a value of a function type (it has no default). A call of `Self.name(...)`
+  and a static call whose receiver is a local type alias (`Alias.make(1)`) are filled, since the IR finds the type of the
+  enclosing `implementation` or follows the alias. Filling a call through an import needs sema to carry the parameter
+  defaults of an imported function in the typed tree of the caller, which it does not yet. Such a call keeps
   the arguments the source wrote, with no gap and no diagnostic, so it lowers with fewer arguments than the
   callee's parameter list names. Sema checks the argument count only for a bare name of the unit and for a type
   construction, so it does not reject a call through a member access that writes too few arguments for a
   function that has no default; the ir does not check it either.
 - The layout table (see Layout table) is as complete as `sema` makes it, and holds only what the unit declares. A
-  structure or enum that holds a library type (`string`, `array`, `vector`, `pointer`, `slice`, `task`, `owned`, a `c.`
-  type) is undecided with the reason `library_type`, on purpose: the layout of those types belongs to the library, so
-  the `ir` gives no number for them and a backend must not guess one. The same holds for a function-type field, an
+  structure or enum that holds a library type that no descriptor measures (`string`, a type whose descriptor is not an inline
+  run, a growable run or a tuple) is undecided with the reason `library_type`, on purpose: the layout of those types belongs to the library, so
+  the `ir` gives no number for them and a backend must not guess one. An inline run that a descriptor of the registry
+  describes (`marea.array.Array<sinteger32, 4>`) is measured by `sema` from the descriptor, and the table copies the
+  numbers (the IR has no descriptor of its own). The same holds for a function-type field, an
   invalid `align`, a chain of structures deeper than `sema` measures, and an enum bound by an import (its types
   belong to another file). The `ir` reads no layout across modules: a structure of another namespace has no entry here.
 - `layout = marea` is measured as `layout = c`: `sema` reserves the value for a later reorder of the fields, and the
@@ -762,3 +839,20 @@ Each diagnostic carries the position of the construct that raised it. The messag
 - A field typed by an alias of a function type gets the reason `library_type` from `sema`, not `function_type`, because
   `sema` does not look through the alias when it classifies the field. The entry is undecided either way; the `ir` keeps
   the reason as `sema` gives it.
+- A file of `marea.math` cannot be typed through the project path yet: a file under the root `marea` is always
+  `RESERVED_NAMESPACE_ROOT` for sema, so no program reaches the IR with a backend through `MAREA_SemaBuildTypedAst`. The
+  `BACKEND_ATTRIBUTE` is proven by tests that set the stored backend on the typed node of an ordinary file, and the
+  resolution is proven by tests that call the internal function of sema. A real run needs a shipped-file entry of sema.
+- A `MACRO_CALL` has no resolved type, because sema gives none to a macro call. The type of a `build_value!` call is the
+  second argument, and the type of a library macro is the type of the declaration around it. A qualified macro at module
+  level cannot reach the IR (sema rejects it), and the code that reads its name there was checked only by reading.
+  `print!`, `format!`, `log!`, `assert!` and the other built-in macros are still 4005: they need a runtime that does not
+  exist, and `include_bytes!` and `include_text!` with a bare name are the placeholders of sema.
+- The built-in lookup of the type operands counts an import or a member list as a binder of its last segment, as before
+  the rule that an import binds no name; it only keeps a user call of that name away from the built-in, which is the safe
+  side, but it is stale.
+- The resolved type of sema spells an imported type with its last segments, while the type name of a declaration is the
+  full path now, so the two do not start alike (`type=types.structures.Shape resolved=structures.Shape`). A backend reads
+  the resolved type for the type and the type name for the path, and must match them by the end of the name.
+- A generic function or structure (B7) is still not instantiated and raises 4004, as decided; a generic call across
+  namespaces needs it first.

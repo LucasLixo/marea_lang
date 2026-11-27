@@ -11,7 +11,7 @@
 --   #[semantics = reference_mutable]               an exclusive write borrow, written on purpose
 --   #[semantics = value_read_only]                 legal only on a primitive; a copy, same as no
 --                                                  attribute there
---   owned<T>                     the call takes the owner: the caller writes "move"
+--   c.memory.Owned<T>                     the call takes the owner: the caller writes "move"
 -- Assignment: "=" copies a primitive and an enum. For any other type, when the right
 -- side is an existing name, field or element, it is "copy x" (a second owner) or "move x" (the
 -- new owner, the old name ends). Plain "=" there is an error, and the message names both
@@ -20,6 +20,8 @@
 -- scope of the caller. Data only goes up, to a scope that contains the current one.
 
 namespace basics.ownership;
+
+require c.memory;
 
 -- A small structure. Even holding only two numbers, it is not a primitive or an enum, so it is
 -- still borrowed, copied on purpose with "copy", or moved with "move" like any other structure.
@@ -66,8 +68,8 @@ function make_shape(width: float64, height: float64): Shape
     return result;
 end
 
--- owned<Shape>: the call takes the owner. The caller writes "move".
-function consume(shape: owned<Shape>): float64
+-- c.memory.Owned<Shape>: the call takes the owner. The caller writes "move".
+function consume(shape: c.memory.Owned<Shape>): float64
     return area(shape);
 end
 
@@ -79,7 +81,7 @@ function show_ownership(): float64
     local point: Point = copy first.center; -- Point is a structure: "copy" makes a second owner
     move_right(point, 1.5);
     local total: float64 = area(first);     -- a borrow, first stays valid
-    local moved: owned<Shape> = move second;
+    local moved: c.memory.Owned<Shape> = move second;
     total += consume(move moved);           -- moved ends here
     return total;
 end

@@ -19,6 +19,9 @@ typedef enum MAREA_G_ShapeKind
     MAREA_G_SHAPE_KIND_GENERIC = MAREA_UINTEGER_8(7),
     MAREA_G_SHAPE_KIND_BUILTIN = MAREA_UINTEGER_8(8),
     MAREA_G_SHAPE_KIND_NONE = MAREA_UINTEGER_8(9),
+    MAREA_G_SHAPE_KIND_REGISTERED = MAREA_UINTEGER_8(10),
+    MAREA_G_SHAPE_KIND_VIEW = MAREA_UINTEGER_8(11),
+    MAREA_G_SHAPE_KIND_FUNCTION = MAREA_UINTEGER_8(12),
 } MAREA_G_ShapeKind;
 
 // INFO: what sema knows of the type of an expression. A literal number fits any type of its family, a primitive carries its name.
@@ -88,6 +91,60 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_AppendLocal(MAREA_SemaContext *contex
 
     // INFO: the entry has the given type or none, so a name that it hides is never typed from an outer local of the same name.
     return MAREA_SemaTableAppend(context, &context->locals, (MAREA_SemaName){ .text = MAREA_AstNodeGetText(name), .declaration = type, .length = MAREA_AstNodeGetTextLength(name), .kind = MAREA_SEMA_NAME_KIND_DECLARATION });
+}
+
+MAREA_Boolean MAREA_CALL MAREA_SemaBinderRange(const MAREA_AstNode *node, MAREA_IntegerSize *outFirst, MAREA_IntegerSize *outEnd)
+{
+    if ((node == MAREA_NULLPTR) || (outFirst == MAREA_NULLPTR) || (outEnd == MAREA_NULLPTR)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(node);
+
+    // INFO: the places of the names that a statement declares. A for each has its variables before the collection and the body.
+    switch (MAREA_AstNodeGetKind(node)) {
+    case MAREA_AST_KIND_FOR_RANGE_STATEMENT:
+        *outFirst = 0;
+        *outEnd = 1;
+        break;
+    case MAREA_AST_KIND_FOR_EACH_STATEMENT:
+        *outFirst = 0;
+        *outEnd = (COUNT > 2) ? (COUNT - 2) : 0;
+        break;
+    case MAREA_AST_KIND_PARTITION_STATEMENT:
+        *outFirst = 2;
+        *outEnd = 3;
+        break;
+    case MAREA_AST_KIND_WITH_STATEMENT:
+        *outFirst = 1;
+        *outEnd = 2;
+        break;
+    default:
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    return MAREA_BOOLEAN_TRUE;
+}
+
+MAREA_IntegerSize MAREA_CALL MAREA_SemaBinderCount(const MAREA_AstNode *node)
+{
+    MAREA_IntegerSize first = 0;
+
+    MAREA_IntegerSize end = 0;
+
+    if (MAREA_SemaBinderRange(node, &first, &end) == MAREA_BOOLEAN_FALSE) {
+        return 0;
+    }
+
+    MAREA_IntegerSize binders = 0;
+
+    for (MAREA_IntegerSize index = first; index < end; ++index) {
+        if (MAREA_G_IsKind(MAREA_SemaChildAt(node, index), MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_TRUE) {
+            ++binders;
+        }
+    }
+
+    return binders;
 }
 
 MAREA_SemaExcept MAREA_CALL MAREA_SemaDeclareBinders(MAREA_SemaContext *context, const MAREA_AstNode *node)
@@ -183,8 +240,8 @@ static MAREA_Boolean MAREA_CALL MAREA_G_SameName(const MAREA_G_Shape *left, cons
     return MAREA_SemaTextEquals(left->name, left->length, right->name, right->length);
 }
 
-// INFO: the target is always a primitive. An enum, a library type, a generic parameter and an owned, task or vector value are known but never compared: their conversion rule is not decided, so each fits and a type is never guessed. A shape that sema does not know fits too.
-// INFO: an unknown shape and the four known but undecided shapes (enum, library type, generic parameter, owned, task and vector value) have no conversion rule in sema.
+// INFO: the target is a primitive, a view or a raw pointer. An enum, a library type, a generic parameter and an owned, task or vector value have no conversion rule, so each fits and a type is never guessed.
+// INFO: the shapes that have no conversion rule for convert<T>(x): an unknown shape, the known but undecided shapes, and a view or a raw pointer.
 static MAREA_Boolean MAREA_CALL MAREA_G_IsUndecided(const MAREA_G_Shape *shape)
 {
     switch (shape->kind) {
@@ -193,14 +250,37 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsUndecided(const MAREA_G_Shape *shape)
     case MAREA_G_SHAPE_KIND_LIBRARY:
     case MAREA_G_SHAPE_KIND_GENERIC:
     case MAREA_G_SHAPE_KIND_BUILTIN:
+    case MAREA_G_SHAPE_KIND_VIEW:
+    case MAREA_G_SHAPE_KIND_FUNCTION:
         return MAREA_BOOLEAN_TRUE;
     default:
         return MAREA_BOOLEAN_FALSE;
     }
 }
 
+// INFO: a view and a raw pointer take only a value of their own kind. The type arguments and the head are compared before this.
+static MAREA_Boolean MAREA_CALL MAREA_G_FitsView(const MAREA_G_Shape *actual)
+{
+    switch (actual->kind) {
+    case MAREA_G_SHAPE_KIND_INTEGER_LITERAL:
+    case MAREA_G_SHAPE_KIND_FLOAT_LITERAL:
+    case MAREA_G_SHAPE_KIND_PRIMITIVE:
+    case MAREA_G_SHAPE_KIND_STRUCTURE:
+    case MAREA_G_SHAPE_KIND_ENUM:
+    case MAREA_G_SHAPE_KIND_NONE:
+    case MAREA_G_SHAPE_KIND_FUNCTION:
+        return MAREA_BOOLEAN_FALSE;
+    default:
+        return MAREA_BOOLEAN_TRUE;
+    }
+}
+
 static MAREA_Boolean MAREA_CALL MAREA_G_Fits(const MAREA_G_Shape *target, const MAREA_G_Shape *actual)
 {
+    if (target->kind == MAREA_G_SHAPE_KIND_VIEW) {
+        return MAREA_G_FitsView(actual);
+    }
+
     switch (actual->kind) {
     case MAREA_G_SHAPE_KIND_INTEGER_LITERAL:
         return MAREA_G_IsNumberName(target);
@@ -209,8 +289,11 @@ static MAREA_Boolean MAREA_CALL MAREA_G_Fits(const MAREA_G_Shape *target, const 
     case MAREA_G_SHAPE_KIND_PRIMITIVE:
         return MAREA_G_SameName(target, actual);
     case MAREA_G_SHAPE_KIND_STRUCTURE:
-    // INFO: a macro with no value gives nothing, so it fits no type.
+    // INFO: a macro with no value gives nothing, so it fits no type. The value of a macro that a library registers is a library type, so it fits no primitive.
     case MAREA_G_SHAPE_KIND_NONE:
+    case MAREA_G_SHAPE_KIND_REGISTERED:
+    case MAREA_G_SHAPE_KIND_VIEW:
+    case MAREA_G_SHAPE_KIND_FUNCTION:
         return MAREA_BOOLEAN_FALSE;
     case MAREA_G_SHAPE_KIND_ENUM:
     case MAREA_G_SHAPE_KIND_LIBRARY:
@@ -221,8 +304,8 @@ static MAREA_Boolean MAREA_CALL MAREA_G_Fits(const MAREA_G_Shape *target, const 
     }
 }
 
-// INFO: pointer, slice and a function type are not classified yet and stay unknown. An enum is a plain integer and its conversion rule is not decided.
-static MAREA_G_ShapeKind MAREA_CALL MAREA_G_ShapeKindOfClass(MAREA_SemaTypeClass typeClass, const MAREA_AstNode *declaration, const MAREA_Character8 *name, MAREA_IntegerSize length)
+// INFO: a registered type with the view role or the raw pointer role is a VIEW shape; its element type is the first type argument, which MAREA_SemaInferType reads. A function type is classified before this. An enum is a plain integer and its conversion rule is not decided.
+static MAREA_G_ShapeKind MAREA_CALL MAREA_G_ShapeKindOfClass(const MAREA_SemaContext *context, const MAREA_AstNode *type, MAREA_SemaTypeClass typeClass, const MAREA_AstNode *declaration)
 {
     switch (typeClass) {
     case MAREA_SEMA_TYPE_CLASS_USER:
@@ -235,19 +318,37 @@ static MAREA_G_ShapeKind MAREA_CALL MAREA_G_ShapeKindOfClass(MAREA_SemaTypeClass
         return MAREA_G_SHAPE_KIND_LIBRARY;
     case MAREA_SEMA_TYPE_CLASS_GENERIC:
         return MAREA_G_SHAPE_KIND_GENERIC;
+    case MAREA_SEMA_TYPE_CLASS_TUPLE:
     case MAREA_SEMA_TYPE_CLASS_MOVE_BUILTIN:
         return MAREA_G_SHAPE_KIND_BUILTIN;
     case MAREA_SEMA_TYPE_CLASS_COPY_BUILTIN:
-        return (MAREA_G_TextIs(name, length, "array") == MAREA_BOOLEAN_TRUE) ? MAREA_G_SHAPE_KIND_BUILTIN : MAREA_G_SHAPE_KIND_UNKNOWN;
+    {
+        // INFO: a copied inline run (an index-protocol type with no handle role) is a built-in shape.
+        const MAREA_TypeDescriptor *descriptor = MAREA_NULLPTR;
+
+        if (MAREA_SemaDescriptorOfType(context, type, &descriptor) == MAREA_BOOLEAN_FALSE) {
+            return MAREA_G_SHAPE_KIND_UNKNOWN;
+        }
+
+        if ((descriptor->roles & (MAREA_TYPE_ROLE_VIEW | MAREA_TYPE_ROLE_RAW_POINTER)) != MAREA_TYPE_ROLE_NONE) {
+            return MAREA_G_SHAPE_KIND_VIEW;
+        }
+
+        return ((descriptor->hasIndexProtocol == MAREA_BOOLEAN_TRUE) && (descriptor->roles == MAREA_TYPE_ROLE_NONE)) ? MAREA_G_SHAPE_KIND_BUILTIN : MAREA_G_SHAPE_KIND_UNKNOWN;
+    }
     default:
         return MAREA_G_SHAPE_KIND_UNKNOWN;
     }
 }
 
-static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOfType(const MAREA_SemaContext *context, const MAREA_AstNode *type, MAREA_Boolean allowNonPrimitive)
+static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOfType(const MAREA_SemaContext *context, const MAREA_AstNode *type)
 {
     if (MAREA_G_IsType(type) == MAREA_BOOLEAN_FALSE) {
         return MAREA_G_ShapeUnknown();
+    }
+
+    if (MAREA_SemaResolveFunctionType(context, type) != MAREA_NULLPTR) {
+        return MAREA_G_ShapeMake(MAREA_G_SHAPE_KIND_FUNCTION, "function", strlen("function"));
     }
 
     const MAREA_AstNode *declaration = MAREA_NULLPTR;
@@ -262,12 +363,7 @@ static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOfType(const MAREA_SemaContext *con
         return MAREA_G_ShapeMake(MAREA_G_SHAPE_KIND_PRIMITIVE, name, length);
     }
 
-    // INFO: a non-primitive is classified only where the type is written in the scope of the expression, so a field or a constant type stays unknown.
-    if (allowNonPrimitive == MAREA_BOOLEAN_FALSE) {
-        return MAREA_G_ShapeUnknown();
-    }
-
-    const MAREA_G_ShapeKind kind = MAREA_G_ShapeKindOfClass(typeClass, declaration, name, length);
+    const MAREA_G_ShapeKind kind = MAREA_G_ShapeKindOfClass(context, type, typeClass, declaration);
 
     if (kind == MAREA_G_SHAPE_KIND_UNKNOWN) {
         return MAREA_G_ShapeUnknown();
@@ -278,6 +374,14 @@ static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOfType(const MAREA_SemaContext *con
     shape.declaration = declaration;
 
     return shape;
+}
+
+// INFO: a bare generic name has the shape of its bound type, and Self the shape of the implemented type.
+static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOfWritten(const MAREA_SemaContext *context, MAREA_SemaWrittenType *written)
+{
+    MAREA_SemaResolveWrittenType(context, written);
+
+    return MAREA_G_ShapeOfType(context, written->type);
 }
 
 static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOf(const MAREA_SemaContext *context, const MAREA_AstNode *expression, MAREA_Uinteger32 depth);
@@ -302,24 +406,19 @@ static const MAREA_AstNode *MAREA_CALL MAREA_G_FindImplementationConstant(const 
     return MAREA_NULLPTR;
 }
 
-static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOfName(const MAREA_SemaContext *context, const MAREA_AstNode *name)
+// INFO: inside an implementation block, a constant of the block shadows a top-level constant of the same name.
+const MAREA_AstNode *MAREA_CALL MAREA_SemaFindConstant(const MAREA_SemaContext *context, const MAREA_AstNode *name)
 {
-    const MAREA_SemaName *local = MAREA_G_FindLocal(context, name);
-
-    if (local != MAREA_NULLPTR) {
-        return MAREA_G_ShapeOfType(context, local->declaration, MAREA_BOOLEAN_TRUE);
-    }
-
-    // INFO: inside an implementation block, a constant of the block shadows a top-level constant of the same name.
     const MAREA_AstNode *inner = MAREA_G_FindImplementationConstant(context, name);
 
-    const MAREA_AstNode *constant = (inner != MAREA_NULLPTR) ? inner : MAREA_G_FindDeclaration(context, name, MAREA_AST_KIND_CONSTANT_DECLARATION);
+    return (inner != MAREA_NULLPTR) ? inner : MAREA_G_FindDeclaration(context, name, MAREA_AST_KIND_CONSTANT_DECLARATION);
+}
 
-    if (constant == MAREA_NULLPTR) {
-        return MAREA_G_ShapeUnknown();
-    }
+static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOfDeclared(const MAREA_SemaContext *context, const MAREA_AstNode *expression)
+{
+    MAREA_SemaWrittenType written;
 
-    return MAREA_G_ShapeOfType(context, MAREA_SemaChildAt(constant, (MAREA_AstNodeGetChildCount(constant) - 2)), MAREA_BOOLEAN_FALSE);
+    return (MAREA_SemaWrittenTypeOf(context, expression, &written) == MAREA_BOOLEAN_TRUE) ? MAREA_G_ShapeOfWritten(context, &written) : MAREA_G_ShapeUnknown();
 }
 
 // INFO: a built-in conversion is convert<T>(x) with one type argument and one argument, where the unit binds no name convert of its own. A local, a function or an import with that name makes it a plain call, as the IR reads it. Returns the type argument, or null.
@@ -348,28 +447,39 @@ static const MAREA_AstNode *MAREA_CALL MAREA_G_ConvertTarget(const MAREA_SemaCon
     return (MAREA_G_IsType(target) == MAREA_BOOLEAN_TRUE) ? target : MAREA_NULLPTR;
 }
 
-// INFO: a call has a known result only for a plain function of the file with no generic parameter, never for a name that a local hides. The result of convert<T>(x) is T.
+// INFO: a call on the name of a structure or an enum is a construction, so it has that type. Every other call has the written result of its callee, and convert<T>(x) is T.
 static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOfCall(const MAREA_SemaContext *context, const MAREA_AstNode *call)
 {
-    const MAREA_AstNode *convertTarget = MAREA_G_ConvertTarget(context, call);
-
-    if (convertTarget != MAREA_NULLPTR) {
-        return MAREA_G_ShapeOfType(context, convertTarget, MAREA_BOOLEAN_TRUE);
-    }
-
     const MAREA_AstNode *callee = MAREA_SemaChildAt(call, 0);
 
-    if ((MAREA_G_IsKind(callee, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_FALSE) || (MAREA_G_FindLocal(context, callee) != MAREA_NULLPTR)) {
-        return MAREA_G_ShapeUnknown();
+    if ((MAREA_G_IsKind(callee, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_TRUE) && (MAREA_G_FindLocal(context, callee) == MAREA_NULLPTR)) {
+        const MAREA_AstNode *structure = MAREA_G_FindDeclaration(context, callee, MAREA_AST_KIND_STRUCTURE_DECLARATION);
+
+        const MAREA_AstNode *declaration = (structure != MAREA_NULLPTR) ? structure : MAREA_G_FindDeclaration(context, callee, MAREA_AST_KIND_ENUM_DECLARATION);
+
+        if (declaration != MAREA_NULLPTR) {
+            MAREA_G_Shape shape = MAREA_G_ShapeMake((structure != MAREA_NULLPTR) ? MAREA_G_SHAPE_KIND_STRUCTURE : MAREA_G_SHAPE_KIND_ENUM, MAREA_AstNodeGetText(callee), MAREA_AstNodeGetTextLength(callee));
+
+            shape.declaration = declaration;
+
+            return shape;
+        }
     }
 
-    const MAREA_AstNode *function = MAREA_G_FindDeclaration(context, callee, MAREA_AST_KIND_FUNCTION_DECLARATION);
+    // INFO: the count of an inline run is a uinteger64 and its empty test a boolean.
+    MAREA_SemaInlineRunCall runCall;
 
-    if ((function == MAREA_NULLPTR) || (MAREA_G_FindChild(function, MAREA_AST_KIND_GENERIC_PARAMETERS) != MAREA_NULLPTR)) {
-        return MAREA_G_ShapeUnknown();
+    if (MAREA_SemaInlineRunCallOf(context, call, &runCall) == MAREA_BOOLEAN_TRUE) {
+        if ((runCall.member == MAREA_SEMA_INLINE_RUN_MEMBER_SIZE) || (runCall.member == MAREA_SEMA_INLINE_RUN_MEMBER_MAX_SIZE) || (runCall.member == MAREA_SEMA_INLINE_RUN_MEMBER_CAPACITY)) {
+            return MAREA_G_ShapeMake(MAREA_G_SHAPE_KIND_PRIMITIVE, "uinteger64", strlen("uinteger64"));
+        }
+
+        if (runCall.member == MAREA_SEMA_INLINE_RUN_MEMBER_EMPTY) {
+            return MAREA_G_ShapeMake(MAREA_G_SHAPE_KIND_PRIMITIVE, "boolean", strlen("boolean"));
+        }
     }
 
-    return MAREA_G_ShapeOfType(context, MAREA_SemaReturnType(function), MAREA_BOOLEAN_TRUE);
+    return MAREA_G_ShapeOfDeclared(context, call);
 }
 
 // INFO: only a literal or a primitive is compared. Any other shape is accepted, because an operator may be declared for a structure or a library type and sema does not decide the other types.
@@ -470,15 +580,27 @@ static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOfUnary(const MAREA_SemaContext *co
     return MAREA_G_ShapeUnknown();
 }
 
-// INFO: a member or an index access is trusted only when its type is a primitive, because the field type of a generic structure is written in the scope of the structure.
-static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOfAccess(const MAREA_SemaContext *context, const MAREA_AstNode *expression)
+// INFO: a build_value call has the type of its second argument and a registered macro has the result type of its descriptor. A built-in macro gives no value, a string, a uinteger32, or a type that sema does not know. A name that no macro has is unknown, and MAREA_SemaCheckMacro reports it.
+static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOfMacro(const MAREA_SemaContext *context, const MAREA_AstNode *call)
 {
-    return MAREA_G_ShapeOfType(context, MAREA_SemaInferType(context, expression), MAREA_BOOLEAN_FALSE);
-}
+    const MAREA_SemaMacroType TYPE = MAREA_SemaMacroTypeOf(context, call);
 
-// INFO: a built-in macro gives no value, a string, or a type that sema does not know. A name that no macro has is unknown, and MAREA_SemaCheckMacro reports it.
-static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOfMacro(const MAREA_AstNode *call)
-{
+    if (TYPE.kind == MAREA_SEMA_MACRO_TYPE_KIND_PRIMITIVE) {
+        return MAREA_G_ShapeMake(MAREA_G_SHAPE_KIND_PRIMITIVE, TYPE.name, TYPE.length);
+    }
+
+    if (TYPE.kind == MAREA_SEMA_MACRO_TYPE_KIND_ENUM) {
+        MAREA_G_Shape shape = MAREA_G_ShapeMake(MAREA_G_SHAPE_KIND_ENUM, TYPE.name, TYPE.length);
+
+        shape.declaration = TYPE.declaration;
+
+        return shape;
+    }
+
+    if (TYPE.kind == MAREA_SEMA_MACRO_TYPE_KIND_REGISTERED) {
+        return MAREA_G_ShapeMake(MAREA_G_SHAPE_KIND_REGISTERED, TYPE.name, TYPE.length);
+    }
+
     const MAREA_AstNode *name = MAREA_SemaChildAt(call, 0);
 
     if ((name == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(name) != MAREA_AST_KIND_IDENTIFIER)) {
@@ -490,6 +612,8 @@ static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOfMacro(const MAREA_AstNode *call)
         return MAREA_G_ShapeMake(MAREA_G_SHAPE_KIND_NONE, MAREA_NULLPTR, 0);
     case MAREA_SEMA_MACRO_VALUE_STRING:
         return MAREA_G_ShapePrimitive("string");
+    case MAREA_SEMA_MACRO_VALUE_UINTEGER_32:
+        return MAREA_G_ShapePrimitive("uinteger32");
     default:
         return MAREA_G_ShapeUnknown();
     }
@@ -517,16 +641,16 @@ static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOf(const MAREA_SemaContext *context
     case MAREA_AST_KIND_PARENTHESIZED_EXPRESSION:
         return MAREA_G_ShapeOf(context, MAREA_SemaChildAt(expression, 0), (depth + 1));
     case MAREA_AST_KIND_IDENTIFIER:
-        return MAREA_G_ShapeOfName(context, expression);
+        return MAREA_G_ShapeOfDeclared(context, expression);
     case MAREA_AST_KIND_MEMBER_ACCESS:
     case MAREA_AST_KIND_INDEX_ACCESS:
-        return MAREA_G_ShapeOfAccess(context, expression);
+        return MAREA_G_ShapeOfDeclared(context, expression);
     case MAREA_AST_KIND_LITERAL_VALUE:
-        return MAREA_G_ShapeOfType(context, MAREA_SemaChildAt(expression, 0), MAREA_BOOLEAN_TRUE);
+        return MAREA_G_ShapeOfDeclared(context, expression);
     case MAREA_AST_KIND_CALL_EXPRESSION:
         return MAREA_G_ShapeOfCall(context, expression);
     case MAREA_AST_KIND_MACRO_CALL:
-        return MAREA_G_ShapeOfMacro(expression);
+        return MAREA_G_ShapeOfMacro(context, expression);
     case MAREA_AST_KIND_BINARY_EXPRESSION:
         return MAREA_G_ShapeOfBinary(context, expression, depth);
     case MAREA_AST_KIND_UNARY_EXPRESSION:
@@ -536,36 +660,108 @@ static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOf(const MAREA_SemaContext *context
     }
 }
 
-static MAREA_Boolean MAREA_CALL MAREA_G_IsLiteralKind(MAREA_AstKind kind)
+// INFO: a value of a shape that is surely no function.
+static MAREA_Boolean MAREA_CALL MAREA_G_IsNoFunction(const MAREA_G_Shape *shape)
 {
-    return ((kind == MAREA_AST_KIND_INTEGER_LITERAL) || (kind == MAREA_AST_KIND_FLOAT_LITERAL) || (kind == MAREA_AST_KIND_STRING_LITERAL) || (kind == MAREA_AST_KIND_CHARACTER_LITERAL) || (kind == MAREA_AST_KIND_BOOLEAN_LITERAL)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+    switch (shape->kind) {
+    case MAREA_G_SHAPE_KIND_INTEGER_LITERAL:
+    case MAREA_G_SHAPE_KIND_FLOAT_LITERAL:
+    case MAREA_G_SHAPE_KIND_PRIMITIVE:
+    case MAREA_G_SHAPE_KIND_STRUCTURE:
+    case MAREA_G_SHAPE_KIND_ENUM:
+    case MAREA_G_SHAPE_KIND_VIEW:
+    case MAREA_G_SHAPE_KIND_NONE:
+    case MAREA_G_SHAPE_KIND_REGISTERED:
+        return MAREA_BOOLEAN_TRUE;
+    default:
+        return MAREA_BOOLEAN_FALSE;
+    }
 }
 
-// INFO: a value for a function type target. A literal is a mismatch (TYPE_MISMATCH) and a bare name of a function of the
-// file, not hidden by a local, must have the signature of the function type (FUNCTION_TYPE_MISMATCH). Any other value is accepted.
-static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckFunctionTypeFit(MAREA_SemaContext *context, const MAREA_AstNode *functionType, const MAREA_AstNode *expression)
+// INFO: a value for a function type target. A bare name of a function of the file, not hidden by a local, must have the
+// signature of the function type, and so must a value that has a written function type (FUNCTION_TYPE_MISMATCH). A value
+// that is surely no function is TYPE_MISMATCH. Any other value is accepted.
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckFunctionTypeFit(MAREA_SemaContext *context, const MAREA_SemaWrittenType *target, const MAREA_AstNode *expression)
 {
-    const MAREA_AstKind KIND = MAREA_AstNodeGetKind(expression);
+    if (MAREA_G_IsKind(expression, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_TRUE) {
+        const MAREA_Character8 *name = MAREA_AstNodeGetText(expression);
 
-    if (MAREA_G_IsLiteralKind(KIND) == MAREA_BOOLEAN_TRUE) {
-        return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH, MAREA_AstNodeGetPosition(expression), "value does not fit the type", "function", strlen("function"));
+        const MAREA_IntegerSize LENGTH = MAREA_AstNodeGetTextLength(expression);
+
+        const MAREA_AstNode *function = MAREA_G_FindDeclaration(context, expression, MAREA_AST_KIND_FUNCTION_DECLARATION);
+
+        if ((function != MAREA_NULLPTR) && (MAREA_SemaLocalFind(context, name, LENGTH) == MAREA_NULLPTR)) {
+            return (MAREA_SemaFunctionFitsFunctionType(context, function, target->type, &target->bindings) == MAREA_BOOLEAN_TRUE) ? MAREA_SEMA_EXCEPT_SUCCESS : MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_FUNCTION_TYPE_MISMATCH, MAREA_AstNodeGetPosition(expression), "function signature does not fit the function type:", name, LENGTH);
+        }
     }
 
-    if (KIND != MAREA_AST_KIND_IDENTIFIER) {
+    MAREA_SemaWrittenType value;
+
+    if (MAREA_SemaWrittenTypeOf(context, expression, &value) == MAREA_BOOLEAN_TRUE) {
+        MAREA_SemaResolveWrittenType(context, &value);
+
+        value.type = MAREA_SemaResolveFunctionType(context, value.type);
+
+        if (value.type != MAREA_NULLPTR) {
+            return (MAREA_SemaFunctionTypesFit(context, target, &value) == MAREA_BOOLEAN_TRUE) ? MAREA_SEMA_EXCEPT_SUCCESS : MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_FUNCTION_TYPE_MISMATCH, MAREA_AstNodeGetPosition(expression), "the signature of the value does not fit the", "function type", strlen("function type"));
+        }
+    }
+
+    const MAREA_G_Shape actual = MAREA_G_ShapeOf(context, expression, 0);
+
+    if (MAREA_G_IsNoFunction(&actual) == MAREA_BOOLEAN_FALSE) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
-    const MAREA_Character8 *name = MAREA_AstNodeGetText(expression);
+    return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH, MAREA_AstNodeGetPosition(expression), "value does not fit the type", "function", strlen("function"));
+}
 
-    const MAREA_IntegerSize LENGTH = MAREA_AstNodeGetTextLength(expression);
+MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckWrittenFit(MAREA_SemaContext *context, const MAREA_SemaWrittenType *target, const MAREA_AstNode *expression)
+{
+    if ((context == MAREA_NULLPTR) || (target == MAREA_NULLPTR)) {
+        return MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER;
+    }
 
-    const MAREA_AstNode *function = MAREA_G_FindDeclaration(context, expression, MAREA_AST_KIND_FUNCTION_DECLARATION);
+    MAREA_SemaWrittenType resolved = *target;
 
-    if ((function == MAREA_NULLPTR) || (MAREA_SemaLocalFind(context, name, LENGTH) != MAREA_NULLPTR) || (MAREA_SemaFunctionFitsFunctionType(context, function, functionType) == MAREA_BOOLEAN_TRUE)) {
+    // INFO: a bare generic name is compared as its bound type, and not at all while nothing bound it.
+    MAREA_SemaResolveWrittenType(context, &resolved);
+
+    const MAREA_AstNode *type = resolved.type;
+
+    if ((type == MAREA_NULLPTR) || (expression == MAREA_NULLPTR)) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
-    return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_FUNCTION_TYPE_MISMATCH, MAREA_AstNodeGetPosition(expression), "function signature does not fit the function type:", name, LENGTH);
+    MAREA_SemaWrittenType functionTarget = resolved;
+
+    functionTarget.type = MAREA_SemaResolveFunctionType(context, type);
+
+    if (functionTarget.type != MAREA_NULLPTR) {
+        return MAREA_G_CheckFunctionTypeFit(context, &functionTarget, expression);
+    }
+
+    if (MAREA_SemaTypeArgumentsDiffer(context, &resolved, expression) == MAREA_BOOLEAN_TRUE) {
+        const MAREA_AstNode *head = MAREA_SemaChildAt(MAREA_SemaChildAt(type, 0), 0);
+
+        return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_GENERIC_ARGUMENT_MISMATCH, MAREA_AstNodeGetPosition(expression), "type arguments differ from the declared type of", MAREA_AstNodeGetText(head), MAREA_AstNodeGetTextLength(head));
+    }
+
+    const MAREA_G_Shape shape = MAREA_G_ShapeOfType(context, type);
+
+    if ((shape.kind != MAREA_G_SHAPE_KIND_PRIMITIVE) && (shape.kind != MAREA_G_SHAPE_KIND_VIEW)) {
+        // INFO: a library type that a macro of a library gives is compared by its type arguments, the element type and the count.
+        return MAREA_SemaCheckMacroResultFit(context, type, expression);
+    }
+
+    const MAREA_G_Shape actual = MAREA_G_ShapeOf(context, expression, 0);
+
+    if (MAREA_G_Fits(&shape, &actual) == MAREA_BOOLEAN_TRUE) {
+        // INFO: a division of the lowest signed value by -1 is checked against the declared type that holds it.
+        return MAREA_SemaCheckSignedDivision(context, type, expression);
+    }
+
+    return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH, MAREA_AstNodeGetPosition(expression), "value does not fit the type", shape.name, shape.length);
 }
 
 MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressionFit(MAREA_SemaContext *context, const MAREA_AstNode *type, const MAREA_AstNode *expression)
@@ -574,36 +770,9 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressionFit(MAREA_SemaContext *cont
         return MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER;
     }
 
-    if ((type == MAREA_NULLPTR) || (expression == MAREA_NULLPTR)) {
-        return MAREA_SEMA_EXCEPT_SUCCESS;
-    }
+    const MAREA_SemaWrittenType TARGET = { .type = type, .bindings = { .count = 0 } };
 
-    const MAREA_AstNode *functionType = MAREA_SemaResolveFunctionType(context, type);
-
-    if (functionType != MAREA_NULLPTR) {
-        return MAREA_G_CheckFunctionTypeFit(context, functionType, expression);
-    }
-
-    if (MAREA_SemaTypeArgumentsDiffer(context, type, expression) == MAREA_BOOLEAN_TRUE) {
-        const MAREA_AstNode *head = MAREA_SemaChildAt(MAREA_SemaChildAt(type, 0), 0);
-
-        return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_GENERIC_ARGUMENT_MISMATCH, MAREA_AstNodeGetPosition(expression), "type arguments differ from the declared type of", MAREA_AstNodeGetText(head), MAREA_AstNodeGetTextLength(head));
-    }
-
-    const MAREA_G_Shape target = MAREA_G_ShapeOfType(context, type, MAREA_BOOLEAN_FALSE);
-
-    if (target.kind != MAREA_G_SHAPE_KIND_PRIMITIVE) {
-        return MAREA_SEMA_EXCEPT_SUCCESS;
-    }
-
-    const MAREA_G_Shape actual = MAREA_G_ShapeOf(context, expression, 0);
-
-    if (MAREA_G_Fits(&target, &actual) == MAREA_BOOLEAN_TRUE) {
-        // INFO: a division of the lowest signed value by -1 is checked against the declared type that holds it.
-        return MAREA_SemaCheckSignedDivision(context, type, expression);
-    }
-
-    return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH, MAREA_AstNodeGetPosition(expression), "value does not fit the type", target.name, target.length);
+    return MAREA_SemaCheckWrittenFit(context, &TARGET, expression);
 }
 
 MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressionFitsPrimitive(MAREA_SemaContext *context, const MAREA_Character8 *primitiveName, MAREA_IntegerSize primitiveLength, const MAREA_AstNode *expression)
@@ -620,7 +789,21 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressionFitsPrimitive(MAREA_SemaCon
 
     const MAREA_G_Shape actual = MAREA_G_ShapeOf(context, expression, 0);
 
-    if (MAREA_G_Fits(&target, &actual) == MAREA_BOOLEAN_TRUE) {
+    // INFO: a host signature may name a structure of the unit, and a value of that structure fits its own name.
+    if ((actual.kind == MAREA_G_SHAPE_KIND_STRUCTURE) && (MAREA_G_SameName(&target, &actual) == MAREA_BOOLEAN_TRUE)) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    // INFO: a host signature may name a view, a raw pointer or a function type, and sema does not compare the text of that name.
+    if (((actual.kind == MAREA_G_SHAPE_KIND_VIEW) || (actual.kind == MAREA_G_SHAPE_KIND_FUNCTION)) && (MAREA_SemaIsPrimitiveTypeName(primitiveName, primitiveLength) == MAREA_BOOLEAN_FALSE)) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    // INFO: a number literal is a value of a primitive only, never of a type that a signature names.
+    const MAREA_Boolean NUMBER_LITERAL = ((actual.kind == MAREA_G_SHAPE_KIND_INTEGER_LITERAL) || (actual.kind == MAREA_G_SHAPE_KIND_FLOAT_LITERAL));
+    const MAREA_Boolean OTHER_NAME = (NUMBER_LITERAL && (MAREA_SemaIsPrimitiveTypeName(primitiveName, primitiveLength) == MAREA_BOOLEAN_FALSE));
+
+    if ((OTHER_NAME == MAREA_BOOLEAN_FALSE) && (MAREA_G_Fits(&target, &actual) == MAREA_BOOLEAN_TRUE)) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
@@ -644,7 +827,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_PrimitiveOfShape(const MAREA_G_Shape *sh
 
 MAREA_Boolean MAREA_CALL MAREA_SemaPrimitiveOfType(const MAREA_SemaContext *context, const MAREA_AstNode *type, const MAREA_Character8 **outName, MAREA_IntegerSize *outLength)
 {
-    const MAREA_G_Shape shape = MAREA_G_ShapeOfType(context, type, MAREA_BOOLEAN_FALSE);
+    const MAREA_G_Shape shape = MAREA_G_ShapeOfType(context, type);
 
     return MAREA_G_PrimitiveOfShape(&shape, outName, outLength);
 }
@@ -656,20 +839,80 @@ MAREA_Boolean MAREA_CALL MAREA_SemaPrimitiveOfExpression(const MAREA_SemaContext
     return MAREA_G_PrimitiveOfShape(&shape, outName, outLength);
 }
 
+MAREA_Boolean MAREA_CALL MAREA_SemaIsSurelyNotBoolean(const MAREA_SemaContext *context, const MAREA_AstNode *expression, const MAREA_Character8 **outName, MAREA_IntegerSize *outLength)
+{
+    const MAREA_G_Shape shape = MAREA_G_ShapeOf(context, expression, 0);
+
+    *outName = (shape.name == MAREA_NULLPTR) ? "another type" : shape.name;
+    *outLength = (shape.name == MAREA_NULLPTR) ? strlen("another type") : shape.length;
+
+    switch (shape.kind) {
+    case MAREA_G_SHAPE_KIND_PRIMITIVE:
+        return (MAREA_G_TextIs(shape.name, shape.length, "boolean") == MAREA_BOOLEAN_TRUE) ? MAREA_BOOLEAN_FALSE : MAREA_BOOLEAN_TRUE;
+    // INFO: an unknown shape, a generic parameter and a library type may still be a boolean.
+    case MAREA_G_SHAPE_KIND_UNKNOWN:
+    case MAREA_G_SHAPE_KIND_GENERIC:
+    case MAREA_G_SHAPE_KIND_LIBRARY:
+        return MAREA_BOOLEAN_FALSE;
+    default:
+        return MAREA_BOOLEAN_TRUE;
+    }
+}
+
+MAREA_Boolean MAREA_CALL MAREA_SemaIsSurelyNotPrintable(const MAREA_SemaContext *context, const MAREA_AstNode *expression)
+{
+    const MAREA_G_Shape shape = MAREA_G_ShapeOf(context, expression, 0);
+
+    switch (shape.kind) {
+    case MAREA_G_SHAPE_KIND_STRUCTURE:
+    case MAREA_G_SHAPE_KIND_ENUM:
+    case MAREA_G_SHAPE_KIND_BUILTIN:
+    case MAREA_G_SHAPE_KIND_NONE:
+    case MAREA_G_SHAPE_KIND_REGISTERED:
+    case MAREA_G_SHAPE_KIND_VIEW:
+    case MAREA_G_SHAPE_KIND_FUNCTION:
+        return MAREA_BOOLEAN_TRUE;
+    // INFO: a literal and a primitive print, and an unknown shape, a generic parameter and a library type may print.
+    default:
+        return MAREA_BOOLEAN_FALSE;
+    }
+}
+
+// INFO: a registered type has an array shape when it has an index or gives a partition part; an owner holds a value that sema does not unwrap, so it is accepted.
+static MAREA_Boolean MAREA_CALL MAREA_G_IsRegisteredNotArray(const MAREA_SemaContext *context, const MAREA_AstNode *expression)
+{
+    MAREA_SemaWrittenType written;
+
+    if (MAREA_SemaWrittenTypeOf(context, expression, &written) == MAREA_BOOLEAN_FALSE) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    MAREA_SemaResolveWrittenType(context, &written);
+
+    const MAREA_TypeDescriptor *descriptor = MAREA_NULLPTR;
+
+    if (MAREA_SemaDescriptorOfType(context, written.type, &descriptor) == MAREA_BOOLEAN_FALSE) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    return ((descriptor->hasIndexProtocol == MAREA_BOOLEAN_FALSE) && ((descriptor->roles & (MAREA_TYPE_ROLE_PARTITION_PART | MAREA_TYPE_ROLE_OWNER)) == MAREA_TYPE_ROLE_NONE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
 MAREA_Boolean MAREA_CALL MAREA_SemaExpressionIsKnownNotArray(const MAREA_SemaContext *context, const MAREA_AstNode *expression)
 {
     const MAREA_G_Shape shape = MAREA_G_ShapeOf(context, expression, 0);
 
-    // INFO: any other shape, UNKNOWN included, is accepted: a slice, a pointer, a library type and a call result are a Gap.
+    // INFO: a type that sema cannot trace to a registered descriptor is accepted, so a shape is never guessed.
     switch (shape.kind) {
     case MAREA_G_SHAPE_KIND_INTEGER_LITERAL:
     case MAREA_G_SHAPE_KIND_FLOAT_LITERAL:
     case MAREA_G_SHAPE_KIND_PRIMITIVE:
     case MAREA_G_SHAPE_KIND_STRUCTURE:
     case MAREA_G_SHAPE_KIND_ENUM:
+    case MAREA_G_SHAPE_KIND_FUNCTION:
         return MAREA_BOOLEAN_TRUE;
     default:
-        return MAREA_BOOLEAN_FALSE;
+        return MAREA_G_IsRegisteredNotArray(context, expression);
     }
 }
 
@@ -731,20 +974,12 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckPair(MAREA_SemaContext *context,
     return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH, position, prefix, known->name, known->length);
 }
 
-// INFO: an opaque structure has no known layout. Only a bare name, or one in parentheses, whose written type is an opaque declaration is classified.
+// INFO: an opaque structure has no known layout. Only a bare name, or one in parentheses, whose written type stands for an opaque declaration, of this file or of a FOUND namespace, is classified.
 static MAREA_Boolean MAREA_CALL MAREA_G_IsOpaqueType(const MAREA_SemaContext *context, const MAREA_AstNode *type)
 {
-    if (MAREA_G_IsType(type) == MAREA_BOOLEAN_FALSE) {
-        return MAREA_BOOLEAN_FALSE;
-    }
+    MAREA_SemaTypeTarget target = { .type = MAREA_NULLPTR, .declaration = MAREA_NULLPTR, .root = MAREA_NULLPTR };
 
-    const MAREA_AstNode *declaration = MAREA_NULLPTR;
-
-    const MAREA_Character8 *name = MAREA_NULLPTR;
-
-    MAREA_IntegerSize length = 0;
-
-    return ((MAREA_SemaClassifyType(context, type, &declaration, &name, &length) == MAREA_SEMA_TYPE_CLASS_USER) && (MAREA_G_IsKind(declaration, MAREA_AST_KIND_OPAQUE_DECLARATION) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+    return ((MAREA_SemaFindTypeTarget(context, type, MAREA_NULLPTR, &target) == MAREA_BOOLEAN_TRUE) && (MAREA_G_IsKind(target.declaration, MAREA_AST_KIND_OPAQUE_DECLARATION) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
 static MAREA_Boolean MAREA_CALL MAREA_G_IsOpaqueName(const MAREA_SemaContext *context, const MAREA_AstNode *expression)
@@ -770,6 +1005,117 @@ static MAREA_Boolean MAREA_CALL MAREA_G_HasGenericSide(const MAREA_G_Shape *left
     return ((left->kind == MAREA_G_SHAPE_KIND_GENERIC) || (right->kind == MAREA_G_SHAPE_KIND_GENERIC)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
+static const MAREA_Character8 *MAREA_CALL MAREA_G_OperatorText(MAREA_TokenKind operatorKind)
+{
+    switch (operatorKind) {
+    case MAREA_TOKEN_KIND_PLUS:
+        return "+";
+    case MAREA_TOKEN_KIND_MINUS:
+        return "-";
+    case MAREA_TOKEN_KIND_STAR:
+        return "*";
+    case MAREA_TOKEN_KIND_SLASH:
+        return "/";
+    case MAREA_TOKEN_KIND_PERCENT:
+        return "%";
+    case MAREA_TOKEN_KIND_STAR_STAR:
+        return "**";
+    case MAREA_TOKEN_KIND_PLUS_PERCENT:
+        return "+%";
+    case MAREA_TOKEN_KIND_MINUS_PERCENT:
+        return "-%";
+    case MAREA_TOKEN_KIND_STAR_PERCENT:
+        return "*%";
+    case MAREA_TOKEN_KIND_PLUS_PIPE:
+        return "+|";
+    case MAREA_TOKEN_KIND_MINUS_PIPE:
+        return "-|";
+    case MAREA_TOKEN_KIND_STAR_PIPE:
+        return "*|";
+    case MAREA_TOKEN_KIND_AMPERSAND:
+        return "&";
+    case MAREA_TOKEN_KIND_PIPE:
+        return "|";
+    case MAREA_TOKEN_KIND_CARET:
+        return "^";
+    case MAREA_TOKEN_KIND_SHIFT_LEFT:
+        return "<<";
+    case MAREA_TOKEN_KIND_SHIFT_RIGHT:
+        return ">>";
+    case MAREA_TOKEN_KIND_EQUAL_EQUAL:
+        return "==";
+    case MAREA_TOKEN_KIND_BANG_EQUAL:
+        return "!=";
+    case MAREA_TOKEN_KIND_LESS:
+        return "<";
+    case MAREA_TOKEN_KIND_LESS_EQUAL:
+        return "<=";
+    case MAREA_TOKEN_KIND_GREATER:
+        return ">";
+    case MAREA_TOKEN_KIND_GREATER_EQUAL:
+        return ">=";
+    default:
+        return MAREA_NULLPTR;
+    }
+}
+
+// INFO: tells whether a value surely does not fit the type of an operator parameter. A shape that sema does not know fits.
+static MAREA_Boolean MAREA_CALL MAREA_G_IsWrongOperand(const MAREA_G_Shape *target, const MAREA_G_Shape *actual)
+{
+    if ((target->kind == MAREA_G_SHAPE_KIND_PRIMITIVE) || (target->kind == MAREA_G_SHAPE_KIND_VIEW)) {
+        return (MAREA_G_Fits(target, actual) == MAREA_BOOLEAN_TRUE) ? MAREA_BOOLEAN_FALSE : MAREA_BOOLEAN_TRUE;
+    }
+
+    if ((target->kind != MAREA_G_SHAPE_KIND_STRUCTURE) && (target->kind != MAREA_G_SHAPE_KIND_ENUM)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    if (MAREA_G_IsComparable(actual) == MAREA_BOOLEAN_TRUE) {
+        return MAREA_BOOLEAN_TRUE;
+    }
+
+    return (((actual->kind == MAREA_G_SHAPE_KIND_STRUCTURE) || (actual->kind == MAREA_G_SHAPE_KIND_ENUM)) && (actual->declaration != target->declaration)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
+// INFO: an operator of a structure or an enum is the function that an implementation marks with it, so the right side must fit its second parameter. With more than one, sema does not choose and accepts. outDeclared says that such a function governs the operator, so no built-in operand rule applies.
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckDeclaredOperator(MAREA_SemaContext *context, const MAREA_AstNode *expression, const MAREA_G_Shape *left, const MAREA_G_Shape *right, MAREA_Boolean *outDeclared)
+{
+    *outDeclared = MAREA_BOOLEAN_FALSE;
+
+    const MAREA_Character8 *token = MAREA_G_OperatorText(MAREA_AstNodeGetOperator(expression));
+
+    if (((left->kind != MAREA_G_SHAPE_KIND_STRUCTURE) && (left->kind != MAREA_G_SHAPE_KIND_ENUM)) || (left->declaration == MAREA_NULLPTR) || (token == MAREA_NULLPTR)) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    MAREA_IntegerSize count = 0;
+
+    const MAREA_AstNode *function = MAREA_SemaFindOperatorFunction(context, left->declaration, token, strlen(token), &count);
+
+    *outDeclared = (count > 0) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+
+    const MAREA_AstNode *parameters = (count == 1) ? MAREA_G_FindChild(function, MAREA_AST_KIND_PARAMETER_LIST) : MAREA_NULLPTR;
+
+    if ((parameters == MAREA_NULLPTR) || (MAREA_AstNodeGetChildCount(parameters) != 2)) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_AstNode *type = MAREA_SemaChildAt(MAREA_SemaChildAt(parameters, 1), 1);
+
+    const MAREA_AstNode *segment = MAREA_SemaChildAt(MAREA_SemaChildAt(type, 0), 0);
+
+    // INFO: Self is the type of the left side, as the function is a member of that type.
+    const MAREA_Boolean IS_SELF = ((segment != MAREA_NULLPTR) && (MAREA_G_TextIs(MAREA_AstNodeGetText(segment), MAREA_AstNodeGetTextLength(segment), "Self") == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+
+    const MAREA_G_Shape target = (IS_SELF == MAREA_BOOLEAN_TRUE) ? *left : MAREA_G_ShapeOfType(context, type);
+
+    if (MAREA_G_IsWrongOperand(&target, right) == MAREA_BOOLEAN_FALSE) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH, MAREA_AstNodeGetPosition(expression), "the right operand does not fit the declared operator", token, strlen(token));
+}
+
 // INFO: the operand rule runs only when the two sides agree in type, so one node never carries TYPE_MISMATCH and an operand code together.
 static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckOperands(MAREA_SemaContext *context, const MAREA_AstNode *expression)
 {
@@ -781,6 +1127,14 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckOperands(MAREA_SemaContext *cont
         MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_OPAQUE_TYPE_MISUSE, MAREA_AstNodeGetPosition(expression), "an operator cannot take an opaque operand");
 
         return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    MAREA_Boolean isTuple = MAREA_BOOLEAN_FALSE;
+
+    const MAREA_SemaExcept TUPLE_RESULT = MAREA_SemaCheckTupleOperands(context, expression, &isTuple);
+
+    if ((TUPLE_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) || (isTuple == MAREA_BOOLEAN_TRUE)) {
+        return TUPLE_RESULT;
     }
 
     const MAREA_G_Shape left = MAREA_G_ShapeOf(context, leftNode, 0);
@@ -799,6 +1153,14 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckOperands(MAREA_SemaContext *cont
 
     if ((result != MAREA_SEMA_EXCEPT_SUCCESS) || (MAREA_G_OperandsAgree(&left, &right) == MAREA_BOOLEAN_FALSE)) {
         return result;
+    }
+
+    MAREA_Boolean declared = MAREA_BOOLEAN_FALSE;
+
+    const MAREA_SemaExcept DECLARED = MAREA_G_CheckDeclaredOperator(context, expression, &left, &right, &declared);
+
+    if ((DECLARED != MAREA_SEMA_EXCEPT_SUCCESS) || (declared == MAREA_BOOLEAN_TRUE)) {
+        return DECLARED;
     }
 
     const MAREA_SemaExcept OPERAND = MAREA_SemaCheckOperatorOperands(context, operatorKind, leftNode, rightNode, MAREA_AstNodeGetPosition(expression));
@@ -873,7 +1235,7 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckConvert(MAREA_SemaContext *conte
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
-    const MAREA_G_Shape target = MAREA_G_ShapeOfType(context, targetType, MAREA_BOOLEAN_TRUE);
+    const MAREA_G_Shape target = MAREA_G_ShapeOfType(context, targetType);
 
     const MAREA_G_Shape operand = MAREA_G_ShapeOf(context, MAREA_SemaChildAt(MAREA_SemaChildAt(call, 2), 0), 0);
 
@@ -895,14 +1257,14 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsNamespaceRoot(const MAREA_SemaContext 
     return ((first != MAREA_NULLPTR) && (MAREA_G_NodeTextIs(first, name) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
-// INFO: c is the reserved namespace of C, size_of, align_of and convert are the built-in calls and Self is the type of an implementation block.
+// INFO: size_of, align_of and convert are the built-in calls and Self is the type of an implementation block. c is no built-in name: it is a reserved first segment of a full path.
 static MAREA_Boolean MAREA_CALL MAREA_G_IsBuiltInName(const MAREA_AstNode *name)
 {
     const MAREA_Character8 *text = MAREA_AstNodeGetText(name);
 
     const MAREA_IntegerSize length = MAREA_AstNodeGetTextLength(name);
 
-    return ((MAREA_G_TextIs(text, length, "c") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextIs(text, length, "convert") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextIs(text, length, "size_of") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextIs(text, length, "align_of") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextIs(text, length, "Self") == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+    return ((MAREA_G_TextIs(text, length, "convert") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextIs(text, length, "size_of") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextIs(text, length, "align_of") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextIs(text, length, "Self") == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
 static MAREA_Boolean MAREA_CALL MAREA_G_IsDeclaredName(const MAREA_SemaContext *context, const MAREA_AstNode *name)
@@ -912,6 +1274,51 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsDeclaredName(const MAREA_SemaContext *
     }
 
     return ((MAREA_G_IsBuiltInName(name) == MAREA_BOOLEAN_TRUE) || (MAREA_G_IsNamespaceRoot(context, name) == MAREA_BOOLEAN_TRUE) || (MAREA_G_FindImplementationConstant(context, name) != MAREA_NULLPTR)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
+// INFO: a chain whose first name no declaration of the file binds is a full path into another namespace. A cover must reach it: with one the chain is accepted whole, without one it is UNIMPORTED_NAMESPACE, and a chain that no resolver knows is left to the check of the name.
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckFullPath(MAREA_SemaContext *context, const MAREA_AstNode *chain, MAREA_Boolean *outHandled)
+{
+    *outHandled = MAREA_BOOLEAN_FALSE;
+
+    const MAREA_Character8 *text = MAREA_NULLPTR;
+
+    MAREA_IntegerSize length = 0;
+
+    const MAREA_AstNode *head = MAREA_NULLPTR;
+
+    const MAREA_SemaExcept JOIN_RESULT = MAREA_SemaChainJoin(context, chain, &text, &length, &head);
+
+    if ((JOIN_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) || (text == MAREA_NULLPTR) || (head == chain) || (MAREA_G_IsDeclaredName(context, head) == MAREA_BOOLEAN_TRUE)) {
+        return JOIN_RESULT;
+    }
+
+    MAREA_SemaPathStatus status = MAREA_SEMA_PATH_STATUS_NOT_A_PATH;
+
+    const MAREA_SemaExcept CLASSIFY_RESULT = MAREA_SemaClassifyPath(context, text, length, MAREA_BOOLEAN_TRUE, &status, MAREA_NULLPTR, MAREA_NULLPTR);
+
+    if (CLASSIFY_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+        return CLASSIFY_RESULT;
+    }
+
+    if (status == MAREA_SEMA_PATH_STATUS_COVERED) {
+        *outHandled = MAREA_BOOLEAN_TRUE;
+
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    if (status == MAREA_SEMA_PATH_STATUS_UNIMPORTED) {
+        *outHandled = MAREA_BOOLEAN_TRUE;
+
+        return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_UNIMPORTED_NAMESPACE, MAREA_AstNodeGetPosition(head), "a namespace that no import or require covers:", text, length);
+    }
+
+    // INFO: a chain under a path that an import or a require names, with no resolver that knows it, is the fault of that declaration, which already reported it.
+    if ((status == MAREA_SEMA_PATH_STATUS_UNKNOWN) && (MAREA_SemaPathIsCovered(context, text, length) == MAREA_BOOLEAN_TRUE)) {
+        *outHandled = MAREA_BOOLEAN_TRUE;
+    }
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
 }
 
 // INFO: a name is declared before it is used, so a bare name that stands for a function of this file that starts after the use is not yet declared. A local of the same name hides the function, and a constant initializer has no function, so it keeps its freedom.
@@ -1113,13 +1520,13 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckFieldName(MAREA_SemaContext *con
     return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_UNKNOWN_FIELD, MAREA_AstNodeGetPosition(access), "structure has no field", MAREA_AstNodeGetText(member), MAREA_AstNodeGetTextLength(member));
 }
 
-// INFO: true when an implementation block of this file for the enum declares a function or a constant with the name.
-static MAREA_Boolean MAREA_CALL MAREA_G_EnumHasImplementedMember(const MAREA_SemaContext *context, const MAREA_AstNode *enumeration, const MAREA_Character8 *name, MAREA_IntegerSize length)
+// INFO: true when an implementation block of the tree of the enum declares a function or a constant with the name.
+static MAREA_Boolean MAREA_CALL MAREA_G_EnumHasImplementedMember(const MAREA_AstNode *root, const MAREA_AstNode *enumeration, const MAREA_Character8 *name, MAREA_IntegerSize length)
 {
     const MAREA_AstNode *enumerationName = MAREA_G_FindChild(enumeration, MAREA_AST_KIND_IDENTIFIER);
 
-    for (MAREA_IntegerSize block = 0; ((enumerationName != MAREA_NULLPTR) && (block < MAREA_AstNodeGetChildCount(context->root))); ++block) {
-        const MAREA_AstNode *implementation = MAREA_SemaChildAt(context->root, block);
+    for (MAREA_IntegerSize block = 0; ((enumerationName != MAREA_NULLPTR) && (block < MAREA_AstNodeGetChildCount(root))); ++block) {
+        const MAREA_AstNode *implementation = MAREA_SemaChildAt(root, block);
 
         const MAREA_AstNode *implemented = (MAREA_G_IsKind(implementation, MAREA_AST_KIND_IMPLEMENTATION_DECLARATION) == MAREA_BOOLEAN_TRUE) ? MAREA_G_FindChild(implementation, MAREA_AST_KIND_NAMED_TYPE) : MAREA_NULLPTR;
 
@@ -1145,20 +1552,28 @@ static MAREA_Boolean MAREA_CALL MAREA_G_EnumHasImplementedMember(const MAREA_Sem
     return MAREA_BOOLEAN_FALSE;
 }
 
-// INFO: Enum.Name of an enum of this file must name a variant, or a function or a constant that an implementation block of this file gives the enum. A local that hides the enum name, and an enum of another file, are not checked. A method callee is a MEMBER_ACCESS too, so the call case does not give its callee to this check.
+// INFO: Enum.Name must name a variant, or a function or a constant that an implementation block gives the enum. The enum may be of this file, of a FOUND namespace or imported, and its blocks are in its own tree. A local that hides the enum name is not checked. A method callee is a MEMBER_ACCESS too, so the call case does not give its callee to this check.
 static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckEnumVariant(MAREA_SemaContext *context, const MAREA_AstNode *access)
 {
     const MAREA_AstNode *base = MAREA_SemaChildAt(access, 0);
 
     const MAREA_AstNode *member = MAREA_SemaChildAt(access, 1);
 
-    if ((MAREA_G_IsKind(base, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_FALSE) || (member == MAREA_NULLPTR) || (MAREA_G_FindLocal(context, base) != MAREA_NULLPTR)) {
+    if (member == MAREA_NULLPTR) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
-    const MAREA_AstNode *enumeration = MAREA_G_FindDeclaration(context, base, MAREA_AST_KIND_ENUM_DECLARATION);
+    MAREA_SemaTypeTarget target = { .type = MAREA_NULLPTR, .declaration = MAREA_NULLPTR, .root = MAREA_NULLPTR };
 
-    if ((enumeration == MAREA_NULLPTR) || (MAREA_SemaEnumHasVariant(enumeration, MAREA_AstNodeGetText(member), MAREA_AstNodeGetTextLength(member)) == MAREA_BOOLEAN_TRUE) || (MAREA_G_EnumHasImplementedMember(context, enumeration, MAREA_AstNodeGetText(member), MAREA_AstNodeGetTextLength(member)) == MAREA_BOOLEAN_TRUE)) {
+    const MAREA_SemaExcept TARGET_RESULT = MAREA_SemaFindNamedTarget(context, base, &target);
+
+    if ((TARGET_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) || (MAREA_G_IsKind(target.declaration, MAREA_AST_KIND_ENUM_DECLARATION) == MAREA_BOOLEAN_FALSE)) {
+        return TARGET_RESULT;
+    }
+
+    const MAREA_AstNode *root = (target.root != MAREA_NULLPTR) ? target.root : context->root;
+
+    if ((MAREA_SemaEnumHasVariant(target.declaration, MAREA_AstNodeGetText(member), MAREA_AstNodeGetTextLength(member)) == MAREA_BOOLEAN_TRUE) || (MAREA_G_EnumHasImplementedMember(root, target.declaration, MAREA_AstNodeGetText(member), MAREA_AstNodeGetTextLength(member)) == MAREA_BOOLEAN_TRUE)) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
@@ -1215,7 +1630,17 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckValue(MAREA_SemaContext *context
 
         const MAREA_Boolean METHOD_CALLEE = ((callee != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(callee) == MAREA_AST_KIND_MEMBER_ACCESS) && (MAREA_G_IsOpaqueName(context, MAREA_SemaChildAt(callee, 0)) == MAREA_BOOLEAN_FALSE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 
-        MAREA_SemaExcept result = (METHOD_CALLEE == MAREA_BOOLEAN_TRUE) ? MAREA_G_CheckValue(context, MAREA_SemaChildAt(callee, 0), (depth + 1), checkNames) : MAREA_G_CheckValue(context, callee, (depth + 1), checkNames);
+        MAREA_Boolean fullPath = MAREA_BOOLEAN_FALSE;
+
+        MAREA_SemaExcept result = MAREA_SEMA_EXCEPT_SUCCESS;
+
+        if ((checkNames == MAREA_BOOLEAN_TRUE) && (callee != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(callee) == MAREA_AST_KIND_MEMBER_ACCESS)) {
+            result = MAREA_G_CheckFullPath(context, callee, &fullPath);
+        }
+
+        if ((result == MAREA_SEMA_EXCEPT_SUCCESS) && (fullPath == MAREA_BOOLEAN_FALSE)) {
+            result = (METHOD_CALLEE == MAREA_BOOLEAN_TRUE) ? MAREA_G_CheckValue(context, MAREA_SemaChildAt(callee, 0), (depth + 1), checkNames) : MAREA_G_CheckValue(context, callee, (depth + 1), checkNames);
+        }
 
         if ((result == MAREA_SEMA_EXCEPT_SUCCESS) && (MAREA_AstNodeGetChildCount(expression) > 1)) {
             result = MAREA_G_CheckValueOfChildren(context, expression, 1, depth, checkNames);
@@ -1261,6 +1686,17 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckValue(MAREA_SemaContext *context
     {
         // INFO: the name that starts a member chain is checked like any other name, so a namespace that no import binds, or that only its original name reaches through an alias, is undeclared.
         const MAREA_AstNode *base = MAREA_SemaChildAt(expression, 0);
+
+        if (checkNames == MAREA_BOOLEAN_TRUE) {
+            MAREA_Boolean fullPath = MAREA_BOOLEAN_FALSE;
+
+            const MAREA_SemaExcept PATH_RESULT = MAREA_G_CheckFullPath(context, expression, &fullPath);
+
+            if ((PATH_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) || (fullPath == MAREA_BOOLEAN_TRUE)) {
+                // INFO: a full path names the enum with every segment, so its variant is read here.
+                return (PATH_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) ? PATH_RESULT : MAREA_G_CheckEnumVariant(context, expression);
+            }
+        }
 
         if (MAREA_G_IsOpaqueName(context, base) == MAREA_BOOLEAN_TRUE) {
             MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_OPAQUE_TYPE_MISUSE, MAREA_AstNodeGetPosition(expression), "an opaque type has no fields");
@@ -1317,6 +1753,99 @@ static MAREA_Boolean MAREA_CALL MAREA_G_HasErrorNode(const MAREA_AstNode *node, 
     return MAREA_BOOLEAN_FALSE;
 }
 
+// INFO: Enum.Name of a variant of an enum of this file is a value of that enum.
+static MAREA_G_Shape MAREA_CALL MAREA_G_ShapeOfCase(const MAREA_SemaContext *context, const MAREA_AstNode *value)
+{
+    const MAREA_AstNode *base = (MAREA_G_IsKind(value, MAREA_AST_KIND_MEMBER_ACCESS) == MAREA_BOOLEAN_TRUE) ? MAREA_SemaChildAt(value, 0) : MAREA_NULLPTR;
+
+    const MAREA_AstNode *member = (base == MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_SemaChildAt(value, 1);
+
+    if ((member != MAREA_NULLPTR) && (MAREA_G_IsKind(base, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_TRUE) && (MAREA_G_FindLocal(context, base) == MAREA_NULLPTR)) {
+        const MAREA_AstNode *enumeration = MAREA_G_FindDeclaration(context, base, MAREA_AST_KIND_ENUM_DECLARATION);
+
+        if ((enumeration != MAREA_NULLPTR) && (MAREA_SemaEnumHasVariant(enumeration, MAREA_AstNodeGetText(member), MAREA_AstNodeGetTextLength(member)) == MAREA_BOOLEAN_TRUE)) {
+            MAREA_G_Shape shape = MAREA_G_ShapeMake(MAREA_G_SHAPE_KIND_ENUM, MAREA_AstNodeGetText(base), MAREA_AstNodeGetTextLength(base));
+
+            shape.declaration = enumeration;
+
+            return shape;
+        }
+    }
+
+    return MAREA_G_ShapeOf(context, value, 0);
+}
+
+// INFO: each value of a case has the type of the switch value. Only a switch over a primitive or an enum is judged.
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckCases(MAREA_SemaContext *context, const MAREA_AstNode *statement)
+{
+    const MAREA_G_Shape target = MAREA_G_ShapeOf(context, MAREA_SemaChildAt(statement, 0), 0);
+
+    if ((target.kind != MAREA_G_SHAPE_KIND_PRIMITIVE) && (target.kind != MAREA_G_SHAPE_KIND_ENUM)) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    for (MAREA_IntegerSize index = 1; index < MAREA_AstNodeGetChildCount(statement); ++index) {
+        const MAREA_AstNode *arm = MAREA_SemaChildAt(statement, index);
+
+        if (MAREA_G_IsKind(arm, MAREA_AST_KIND_SWITCH_ARM) == MAREA_BOOLEAN_FALSE) {
+            continue;
+        }
+
+        // INFO: the last child of an arm is its block.
+        for (MAREA_IntegerSize valueIndex = 0; (valueIndex + 1) < MAREA_AstNodeGetChildCount(arm); ++valueIndex) {
+            const MAREA_AstNode *value = MAREA_SemaChildAt(arm, valueIndex);
+
+            const MAREA_G_Shape actual = MAREA_G_ShapeOfCase(context, value);
+
+            const MAREA_Boolean ENUM_FOR_PRIMITIVE = ((target.kind == MAREA_G_SHAPE_KIND_PRIMITIVE) && (actual.kind == MAREA_G_SHAPE_KIND_ENUM)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+
+            if ((ENUM_FOR_PRIMITIVE == MAREA_BOOLEAN_FALSE) && (MAREA_G_IsWrongOperand(&target, &actual) == MAREA_BOOLEAN_FALSE)) {
+                continue;
+            }
+
+            const MAREA_SemaExcept RESULT = MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH, MAREA_AstNodeGetPosition(value), "a case value does not fit the type of the switch value", target.name, target.length);
+
+            if (RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+                return RESULT;
+            }
+        }
+    }
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
+// INFO: a value that is known and is no number.
+static MAREA_Boolean MAREA_CALL MAREA_G_IsNoNumber(const MAREA_G_Shape *shape)
+{
+    if ((shape->kind == MAREA_G_SHAPE_KIND_UNKNOWN) || (shape->kind == MAREA_G_SHAPE_KIND_GENERIC) || (shape->kind == MAREA_G_SHAPE_KIND_LIBRARY)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    return (MAREA_G_IsNumber(shape) == MAREA_BOOLEAN_TRUE) ? MAREA_BOOLEAN_FALSE : MAREA_BOOLEAN_TRUE;
+}
+
+// INFO: the two bounds of a for range are numbers of one type, which is the type of the loop name.
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckRange(MAREA_SemaContext *context, const MAREA_AstNode *first, const MAREA_AstNode *last)
+{
+    const MAREA_G_Shape lower = MAREA_G_ShapeOf(context, first, 0);
+
+    const MAREA_G_Shape upper = MAREA_G_ShapeOf(context, last, 0);
+
+    const MAREA_AstNode *wrong = (MAREA_G_IsNoNumber(&lower) == MAREA_BOOLEAN_TRUE) ? first : ((MAREA_G_IsNoNumber(&upper) == MAREA_BOOLEAN_TRUE) ? last : MAREA_NULLPTR);
+
+    if ((wrong == MAREA_NULLPTR) && (MAREA_G_OperandsAgree(&lower, &upper) == MAREA_BOOLEAN_FALSE)) {
+        wrong = last;
+    }
+
+    if (wrong == MAREA_NULLPTR) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH, MAREA_AstNodeGetPosition(wrong), "the bounds of a for range need one number type");
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
 MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressions(MAREA_SemaContext *context, const MAREA_AstNode *node)
 {
     if ((context == MAREA_NULLPTR) || (node == MAREA_NULLPTR)) {
@@ -1343,12 +1872,9 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressions(MAREA_SemaContext *contex
         return MAREA_SemaCheckLiteralFields(context, node);
     case MAREA_AST_KIND_LOCAL_DECLARATION:
     {
-        const MAREA_SemaExcept pointerResult = MAREA_SemaCheckRawPointerLocal(context, node);
-
-        if (pointerResult != MAREA_SEMA_EXCEPT_SUCCESS) {
-            return pointerResult;
-        }
-
+        // INFO: the raw pointer role check runs once per written NAMED_TYPE (MAREA_SemaCheckNamedType,
+        // MAREASemaType.c), which this local's own type node reaches through the recursive visit below;
+        // no separate call is needed here.
         const MAREA_SemaExcept initializerResult = MAREA_SemaCheckLocalInitializer(context, node);
 
         if (initializerResult != MAREA_SEMA_EXCEPT_SUCCESS) {
@@ -1407,14 +1933,22 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressions(MAREA_SemaContext *contex
     {
         const MAREA_SemaExcept firstResult = MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, 1), 0, MAREA_BOOLEAN_TRUE);
 
-        return (firstResult != MAREA_SEMA_EXCEPT_SUCCESS) ? firstResult : MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, 2), 0, MAREA_BOOLEAN_TRUE);
+        if (firstResult != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return firstResult;
+        }
+
+        const MAREA_SemaExcept lastResult = MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, 2), 0, MAREA_BOOLEAN_TRUE);
+
+        return (lastResult != MAREA_SEMA_EXCEPT_SUCCESS) ? lastResult : MAREA_G_CheckRange(context, MAREA_SemaChildAt(node, 1), MAREA_SemaChildAt(node, 2));
     }
     case MAREA_AST_KIND_FOR_EACH_STATEMENT:
     {
         // INFO: the children are the variables, the collection and the body, so the collection is the child before the last.
         const MAREA_IntegerSize count = MAREA_AstNodeGetChildCount(node);
 
-        return (count < 3) ? MAREA_SEMA_EXCEPT_SUCCESS : MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, (count - 2)), 0, MAREA_BOOLEAN_TRUE);
+        const MAREA_SemaExcept VALUE_RESULT = (count < 3) ? MAREA_SEMA_EXCEPT_SUCCESS : MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, (count - 2)), 0, MAREA_BOOLEAN_TRUE);
+
+        return (VALUE_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) ? VALUE_RESULT : MAREA_SemaCheckTupleForEach(context, node);
     }
     case MAREA_AST_KIND_WITH_STATEMENT:
         return MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, 0), 0, MAREA_BOOLEAN_TRUE);
@@ -1432,9 +1966,21 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressions(MAREA_SemaContext *contex
 
         return (namesResult != MAREA_SEMA_EXCEPT_SUCCESS) ? namesResult : MAREA_SemaCheckCondition(context, MAREA_SemaChildAt(node, 0));
     }
+    case MAREA_AST_KIND_DO_WHILE_STATEMENT:
+    {
+        // INFO: the condition is the second child, after the body. This check runs before the body is visited, so a name that the body declares is not yet a local and the condition cannot read it.
+        const MAREA_SemaExcept namesResult = MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, 1), 0, MAREA_BOOLEAN_TRUE);
+
+        return (namesResult != MAREA_SEMA_EXCEPT_SUCCESS) ? namesResult : MAREA_SemaCheckCondition(context, MAREA_SemaChildAt(node, 1));
+    }
     case MAREA_AST_KIND_EXPRESSION_STATEMENT:
-    case MAREA_AST_KIND_SWITCH_STATEMENT:
         return MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, 0), 0, MAREA_BOOLEAN_TRUE);
+    case MAREA_AST_KIND_SWITCH_STATEMENT:
+    {
+        const MAREA_SemaExcept namesResult = MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, 0), 0, MAREA_BOOLEAN_TRUE);
+
+        return (namesResult != MAREA_SEMA_EXCEPT_SUCCESS) ? namesResult : MAREA_G_CheckCases(context, node);
+    }
     case MAREA_AST_KIND_RETURN_STATEMENT:
     {
         const MAREA_SemaExcept namesResult = MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, 0), 0, MAREA_BOOLEAN_TRUE);

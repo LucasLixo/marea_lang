@@ -14,13 +14,13 @@
 
 namespace attributes.layout;
 
-import collections.array;
+require marea.array;
 
 -- 16 bytes align: a SIMD load or a GPU uniform buffer can read it without a split.
 #[visibility = public, layout = c, align = 16]
 structure Light
-    position: array<float32, 4>;
-    color: array<float32, 4>;
+    position: marea.array.Array<float32, 4>;
+    color: marea.array.Array<float32, 4>;
 end
 
 -- A header read from a file or a network: no padding at all.
@@ -37,7 +37,7 @@ end
 structure Uniforms
     time: float32;
     #[align = 16]
-    matrix: array<float32, 16>;
+    matrix: marea.array.Array<float32, 16>;
 end
 
 constant LIGHT_SIZE: uinteger64 = size_of<Light>();       -- 32

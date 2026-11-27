@@ -1,0 +1,15 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A tuple element is read and written by a constant index.
+
+namespace main;
+
+require marea.tuple;
+
+function check(): sinteger32
+    local pair: marea.tuple.Tuple<sinteger32, sinteger32> = marea.tuple.Tuple<sinteger32, sinteger32>{ 1, 2 };
+    pair[0] = 5;
+    return (pair[0] * 10) + pair[1];
+end

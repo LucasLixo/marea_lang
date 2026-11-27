@@ -4,65 +4,60 @@ Part of the [dispatch-applies](../SKILL.md) skill. This file is a complete promp
 
 ## Rules for this step
 
-- Send all Agent calls of the round in the same turn, each with `isolation: "worktree"`.
-- If the first worker reports that worktrees do not build, do not launch the rest.
+- One worktree per apply, one fresh `general-purpose` agent per slot, never two agents of one apply at once.
+- Never pass `isolation` to the agent: it would give each part a new, empty worktree.
+- Start the first slot of every apply of the round in the same turn; start the next slot of an apply
+  when its previous one reports.
+- If the first worker reports that worktrees do not build, start no other apply.
 
-No fixed number is correct for every machine or every apply - a round of full CMake
-rebuilds and a round of doc-only edits do not cost the same. Before picking how many workers run
-at once, check `nproc` and free memory, and weigh what the named applies' own `## Verification`
-sections actually build. A commonly reasonable default is **3 concurrent worktree-isolated
-workers**; go lower if the applies are build-heavy and the machine is small, higher only if they
-are light (docs, single-file edits) and the machine has room. Never launch more workers than there
-are arguments. If the FIRST worker's report says worktrees do not build at all on this machine, do
-not launch the rest - report the error verbatim instead of guessing around it.
+**Concurrency.** Check `nproc` and free memory, and weigh what the applies' `## Verification`
+sections build. **3 applies at once** is a reasonable default; lower for build-heavy applies on a
+small machine, higher only for light ones.
 
-Launch one isolated agent per apply (parallel calls in the same turn), each with `isolation:
-"worktree"` and this prompt, `<slug>` filled in:
+**Worktrees.** From the main checkout, for each apply: `git fetch`, then
+`git worktree add --detach .claude/worktrees/<slug> origin/<its base>`. The base is `<base>`, or the
+root branch of its handoff when that exists.
+
+**Slots.** Take the apply's `## Parts` table without the LAST part. Each part that carries the
+task's own Steps is one slot. The setup part joins the first of these slots and the open-pr part
+joins the last one, so no agent starts only for a short part.
+
+**The prompt of each slot**, with every `<...>` filled in:
 
 """
-You execute ONE apply of this repository. Read `<absolute path to AGENTS.md>` and
-`<absolute path to temp/_APPLY/<slug>.apply.md>` (the index - follow its own "## How to run") and
-the skills it cites under `<absolute path to .claude/skills/>`. The index points at ordered part
-files under `<absolute path to temp/_APPLY/_PART/<slug>/>`; open and run them one at a time, in
-order, exactly as the index says. You run in an ISOLATED WORKTREE.
+You run <the part files of this slot, absolute paths> of ONE apply of this repository, and no other
+part. Do not open the next part: another agent runs it.
+Your worktree is `<absolute worktree path>`. Start EVERY shell command with `cd <that path> &&` and
+read and edit only files under it, except the ones under `temp/` named here. Read `AGENTS.md` of the
+worktree, the apply's index `<absolute path>` (its Context, Conventions, Files and Do not touch) and
+the skills your parts cite.
+Earlier parts reported: <their reports, pasted; "nothing, you are first" for the first slot>.
 
-Pipeline overrides:
-(1) First `mise trust`, then `mise run setup:git-modules` to initialize the submodules (today
-    only `3rdparty/GoogleTest`; never hand-roll `git submodule update`). Then build as the apply's
-    `## Verification` says (by default `mise run dev:quiet-test`). If the worktree will not build, STOP and report the exact
-    error - do not improvise around it.
-(2) If this apply's `handoff:` field is empty: run its parts up through the one that opens the PR
-    against `<base>` (the standalone variant's `open-pr` part) - but never the LAST part. If it is
-    filled: <either "a root issue/branch already exist - #<root-n> / `<root-branch>`, pushed; do
-    not create them, branch from `<root-branch>` and open your PR against it" or, for the one
-    worker chosen to go first, "no root exists yet for this handoff - create it per your apply's
-    own `setup` part, from `<base>`, and push it empty before doing anything else">. Either way,
-    run the parts only through the one that opens the PR - do NOT open the apply's LAST part: it
-    is the one that merges, closes your issue, and cleans up branches, and it is always the
-    orchestrator's, never yours.
-(3) Do not edit anything under `temp/` - it does not exist in your worktree, and several workers
-    editing it at once would corrupt it. Everything you would have written there goes in your
-    final report instead.
-(4) Commit only through the `generate-commit` skill, never a hand-written `git commit`. The skill
-    bumps `metadata.yaml` on your own branch with each commit; do not edit it by hand. Its grouping
-    rule already keeps out any path that was dirty in the main checkout before you started (a
-    submodule pointer, a build output); do not fight it.
-(5) Follow the repository rules and the skills the apply cites (TDD, ASCII, the copyright header
-    on a new file). Verify the apply's own claims against the real code; correct the minimum
-    needed and report every deviation. Never declare success without having seen a command's
-    real output.
+Overrides:
+(1) The worktree starts detached at `origin/<its base>`. Do not switch to or pull `<base>` or the root
+    branch; make the issue branch with `git switch -c <label>/<n> origin/<its base>`.
+(2) In the first slot only: `mise trust`, then `mise run setup:git-modules`, then the build of the
+    apply's `## Verification` (by default `mise run dev:quiet-test`). If it will not build, STOP and
+    report the exact error.
+(3) <only for a handoff with no root yet, first slot of the one apply chosen to go first: "create the
+    root issue and branch as your setup part says, from `origin/<base>`, and push it empty first">
+(4) Do not edit anything under `temp/`. Report what you would have written there.
+(5) Commit only through the `generate-commit` skill; leave the tree clean. Never merge.
+(6) Follow the repository rules and the skills (TDD, ASCII, copyright header). Verify the apply's own
+    claims against the real code, correct the minimum needed and report every deviation. Never
+    declare success without having seen a command's real output.
 
-Final report, SHORT: root issue/branch if you created them; your own issue, branch, and PR (with
-its state); every commit (hash and subject); the bump kind and commit count and the final
-`metadata.yaml` line (both only when the file exists); each verification's result with real counts (say plainly what failed or did
-not run); every deviation from the plan; and anything the next apply in this handoff needs to
-know.
+Report at most 15 lines: root issue and branch if you created them; issue, branch and PR; commits
+(hash and subject); each check with its real counts; deviations; what the next part needs.
 """
+
+When a worker reports, check that `git -C <worktree> status --porcelain` is empty before you start
+the next slot. Give the next one every earlier report of that apply.
 
 ## Done when
 
 - `nproc` and free memory were checked and the concurrency was chosen.
-- One worker per apply was launched with the worker prompt, `<slug>` filled in.
-- Every worker of the round has reported.
+- Each apply has its own worktree, and each of its slots ran in a fresh agent, in order.
+- Every apply of the round either reported its PR or stopped with a reported reason.
 
 Next: [steps/04-merge-phase.md](04-merge-phase.md)
