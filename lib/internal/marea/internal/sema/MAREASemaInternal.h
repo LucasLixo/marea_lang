@@ -2267,6 +2267,70 @@ MAREA_BEGIN_EXTERN_C
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaMacroIncludedFile(const MAREA_SemaContext *context, const MAREA_AstNode *call, const MAREA_SemaIncludedFile **outFile);
 
+    /**
+     * @brief Reads a written type as a tuple.
+     * @param outArguments Receives the TYPE_ARGUMENTS node, or null when the type writes none. May be null.
+     * @return MAREA_BOOLEAN_TRUE when the type is a tuple.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaTupleOfType(const MAREA_SemaContext *context, const MAREA_AstNode *type, const MAREA_AstNode **outArguments);
+
+    /**
+     * @brief The written type of the element that a constant index of a tuple names.
+     * @return The type, or null when the type is no tuple or the key is no integer literal below the arity.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_AstNode *MAREA_CALL MAREA_SemaTupleElement(const MAREA_SemaContext *context, const MAREA_AstNode *type, const MAREA_AstNode *key);
+
+    /**
+     * @brief Reports a written tuple type whose arity is outside the limits, or that holds an element with no layout.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS or MAREA_SEMA_EXCEPT_ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckTupleType(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
+     * @brief Reports an index of a tuple that is no integer literal, or that is not below its arity.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckTupleIndex(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
+     * @brief Checks the entries of a LITERAL_VALUE of a tuple: their count, their types, and copy or move for a
+     * value that exists and is not held by value. A literal with no entry is the zero value.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckTupleLiteral(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
+     * @brief Checks a method call whose receiver is a tuple: swap is the only one.
+     * @param outHandled Receives MAREA_BOOLEAN_TRUE when the receiver is a tuple. Must not be null.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckTupleCall(MAREA_SemaContext * context, const MAREA_AstNode *node, MAREA_Boolean * outHandled);
+
+    /**
+     * @brief Checks a binary expression with a tuple on a side: only == and != of two tuples of one type, whose
+     * elements are primitives, enums or tuples of these.
+     * @param outHandled Receives MAREA_BOOLEAN_TRUE when a side is a tuple. Must not be null.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckTupleOperands(MAREA_SemaContext * context, const MAREA_AstNode *expression, MAREA_Boolean * outHandled);
+
+    /**
+     * @brief Reports a for each whose collection is a tuple.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckTupleForEach(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
+     * @brief Tells whether every element of a written tuple type meets the contract Copyable.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaTupleIsCopyable(const MAREA_SemaContext *context, const MAREA_AstNode *type);
+
+    /**
+     * @brief Tells whether a type can be held by value in a holder with the given roles.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaHasKnownLayout(const MAREA_SemaContext *context, const MAREA_AstNode *type, MAREA_TypeRole holderRoles);
+
+    /**
+     * @brief Tells whether a place needs storage of this function that is not a read-only borrow, and reports the
+     * write of a member that is named name when it does not.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckWritablePlace(MAREA_SemaContext * context, const MAREA_AstNode *place, const MAREA_AstNode *name);
+
 MAREA_END_EXTERN_C
 
 #endif /* MAREA_INTERNAL_SEMA_MAREASEMAINTERNAL_H */

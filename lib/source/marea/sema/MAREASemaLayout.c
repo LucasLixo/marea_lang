@@ -74,6 +74,7 @@ typedef enum MAREA_G_ShapeKind
     MAREA_G_SHAPE_KIND_STRUCTURE = MAREA_UINTEGER_8(1),
     MAREA_G_SHAPE_KIND_ENUM = MAREA_UINTEGER_8(2),
     MAREA_G_SHAPE_KIND_UNDECIDED = MAREA_UINTEGER_8(3),
+    MAREA_G_SHAPE_KIND_TUPLE = MAREA_UINTEGER_8(4),
 } MAREA_G_ShapeKind;
 
 typedef struct MAREA_G_FieldShape
@@ -81,6 +82,8 @@ typedef struct MAREA_G_FieldShape
     const MAREA_Character8 *name;
     MAREA_IntegerSize length;
     const MAREA_AstNode *declaration;
+    // INFO: the type arguments of a tuple, whose elements are measured as the fields of a structure.
+    const MAREA_AstNode *tupleArguments;
     MAREA_Uinteger64 size;
     MAREA_Uinteger64 alignment;
     MAREA_Uinteger64 explicitAlignment;
@@ -145,6 +148,7 @@ static void MAREA_CALL MAREA_G_ClassifyType(const MAREA_SemaContext *context, co
     outShape->name = MAREA_NULLPTR;
     outShape->length = 0;
     outShape->declaration = MAREA_NULLPTR;
+    outShape->tupleArguments = MAREA_NULLPTR;
     outShape->size = 0;
     outShape->alignment = 0;
     outShape->kind = MAREA_G_SHAPE_KIND_UNDECIDED;
@@ -154,6 +158,18 @@ static void MAREA_CALL MAREA_G_ClassifyType(const MAREA_SemaContext *context, co
 
     if (MAREA_G_IsKind(type, MAREA_AST_KIND_FUNCTION_TYPE) == MAREA_BOOLEAN_TRUE) {
         outShape->reason = MAREA_SEMA_MEASURE_REASON_FUNCTION_TYPE;
+
+        return;
+    }
+
+    const MAREA_AstNode *tupleArguments = MAREA_NULLPTR;
+
+    if (MAREA_SemaTupleOfType(context, type, &tupleArguments) == MAREA_BOOLEAN_TRUE) {
+        if (tupleArguments != MAREA_NULLPTR) {
+            outShape->kind = MAREA_G_SHAPE_KIND_TUPLE;
+            outShape->reason = MAREA_SEMA_MEASURE_REASON_NONE;
+            outShape->tupleArguments = tupleArguments;
+        }
 
         return;
     }
@@ -293,6 +309,8 @@ static MAREA_Uinteger64 MAREA_CALL MAREA_G_Place(MAREA_G_Cursor *cursor, MAREA_U
 
 static void MAREA_CALL MAREA_G_MeasureDeclaration(MAREA_G_State *state, const MAREA_AstNode *declaration, MAREA_Uinteger64 depth, MAREA_Uinteger64 *slots, MAREA_G_Measure *outMeasure);
 
+static void MAREA_CALL MAREA_G_MeasureTuple(MAREA_G_State *state, const MAREA_AstNode *arguments, MAREA_Uinteger64 depth, MAREA_G_Measure *outMeasure);
+
 // INFO: puts a member of a given shape in the parent. A structure or an enum held by value is measured one level deeper. Returns false, with the reason in the parent, when the member is not decided.
 static MAREA_Boolean MAREA_CALL MAREA_G_PlaceShape(MAREA_G_State *state, MAREA_G_Measure *parent, MAREA_G_Cursor *cursor, const MAREA_G_FieldShape *shape, MAREA_Uinteger64 depth, MAREA_Uinteger64 *outOffset)
 {
@@ -309,7 +327,11 @@ static MAREA_Boolean MAREA_CALL MAREA_G_PlaceShape(MAREA_G_State *state, MAREA_G
     if (shape->kind != MAREA_G_SHAPE_KIND_PRIMITIVE) {
         MAREA_G_Measure inner = { 0 };
 
-        MAREA_G_MeasureDeclaration(state, shape->declaration, (depth + 1), MAREA_NULLPTR, &inner);
+        if (shape->kind == MAREA_G_SHAPE_KIND_TUPLE) {
+            MAREA_G_MeasureTuple(state, shape->tupleArguments, (depth + 1), &inner);
+        } else {
+            MAREA_G_MeasureDeclaration(state, shape->declaration, (depth + 1), MAREA_NULLPTR, &inner);
+        }
 
         if (inner.reason != MAREA_SEMA_MEASURE_REASON_NONE) {
             parent->reason = inner.reason;
@@ -321,7 +343,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_PlaceShape(MAREA_G_State *state, MAREA_G
         natural = inner.alignment;
 
         // INFO: the convert check compares primitives and structures only, and only a c structure inside a c structure has a size to compare.
-        if ((shape->kind == MAREA_G_SHAPE_KIND_ENUM) || (inner.comparable == MAREA_BOOLEAN_FALSE) || ((parent->cLayout == MAREA_BOOLEAN_TRUE) && (inner.cLayout == MAREA_BOOLEAN_FALSE))) {
+        if ((shape->kind == MAREA_G_SHAPE_KIND_ENUM) || (shape->kind == MAREA_G_SHAPE_KIND_TUPLE) || (inner.comparable == MAREA_BOOLEAN_FALSE) || ((parent->cLayout == MAREA_BOOLEAN_TRUE) && (inner.cLayout == MAREA_BOOLEAN_FALSE))) {
             parent->comparable = MAREA_BOOLEAN_FALSE;
         }
     }
@@ -374,6 +396,43 @@ static void MAREA_CALL MAREA_G_MeasureStructure(MAREA_G_State *state, const MARE
     }
 
     outMeasure->alignment = (align > cursor.alignment) ? align : cursor.alignment;
+    outMeasure->size = MAREA_G_RoundUp(cursor.offset, outMeasure->alignment);
+}
+
+// INFO: a tuple is an anonymous structure with the layout of C: each element at the next multiple of its alignment and the size rounded to the largest one. The first element that is not decided gives the reason.
+static void MAREA_CALL MAREA_G_MeasureTuple(MAREA_G_State *state, const MAREA_AstNode *arguments, MAREA_Uinteger64 depth, MAREA_G_Measure *outMeasure)
+{
+    outMeasure->size = 0;
+    outMeasure->alignment = 1;
+    outMeasure->tagSize = 0;
+    outMeasure->memberCount = MAREA_AstNodeGetChildCount(arguments);
+    outMeasure->reason = MAREA_SEMA_MEASURE_REASON_NONE;
+    outMeasure->cLayout = MAREA_BOOLEAN_TRUE;
+    outMeasure->comparable = MAREA_BOOLEAN_FALSE;
+
+    if ((depth > MAREA_G_DEPTH_LIMIT) || (state->remaining == 0)) {
+        outMeasure->reason = MAREA_SEMA_MEASURE_REASON_TOO_DEEP;
+
+        return;
+    }
+
+    state->remaining -= 1;
+
+    MAREA_G_Cursor cursor = { .offset = 0, .alignment = 1, .pack = 0 };
+
+    for (MAREA_IntegerSize index = 0; index < MAREA_AstNodeGetChildCount(arguments); ++index) {
+        MAREA_G_FieldShape shape = { 0 };
+
+        MAREA_Uinteger64 offset = 0;
+
+        MAREA_G_ClassifyType(state->context, MAREA_SemaChildAt(arguments, index), 0, &shape);
+
+        if (MAREA_G_PlaceShape(state, outMeasure, &cursor, &shape, depth, &offset) == MAREA_BOOLEAN_FALSE) {
+            return;
+        }
+    }
+
+    outMeasure->alignment = cursor.alignment;
     outMeasure->size = MAREA_G_RoundUp(cursor.offset, outMeasure->alignment);
 }
 
@@ -567,7 +626,7 @@ MAREA_Boolean MAREA_CALL MAREA_SemaMeasureWrittenType(const MAREA_SemaContext *c
         return MAREA_BOOLEAN_TRUE;
     }
 
-    if ((shape.kind != MAREA_G_SHAPE_KIND_STRUCTURE) && (shape.kind != MAREA_G_SHAPE_KIND_ENUM)) {
+    if ((shape.kind != MAREA_G_SHAPE_KIND_STRUCTURE) && (shape.kind != MAREA_G_SHAPE_KIND_ENUM) && (shape.kind != MAREA_G_SHAPE_KIND_TUPLE)) {
         return MAREA_BOOLEAN_FALSE;
     }
 
@@ -575,7 +634,11 @@ MAREA_Boolean MAREA_CALL MAREA_SemaMeasureWrittenType(const MAREA_SemaContext *c
 
     MAREA_G_Measure measure = { 0 };
 
-    MAREA_G_MeasureDeclaration(&state, shape.declaration, 0, MAREA_NULLPTR, &measure);
+    if (shape.kind == MAREA_G_SHAPE_KIND_TUPLE) {
+        MAREA_G_MeasureTuple(&state, shape.tupleArguments, 0, &measure);
+    } else {
+        MAREA_G_MeasureDeclaration(&state, shape.declaration, 0, MAREA_NULLPTR, &measure);
+    }
 
     if (measure.reason != MAREA_SEMA_MEASURE_REASON_NONE) {
         return MAREA_BOOLEAN_FALSE;

@@ -141,7 +141,7 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_Report(MAREA_SemaContext *context, MA
 }
 
 // INFO: the member writes its receiver or its argument, so the place needs storage of this function that is not a read-only borrow.
-static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckWritable(MAREA_SemaContext *context, const MAREA_AstNode *place, const MAREA_AstNode *name)
+MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckWritablePlace(MAREA_SemaContext *context, const MAREA_AstNode *place, const MAREA_AstNode *name)
 {
     const MAREA_AstNode *root = place;
 
@@ -228,7 +228,7 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckSwapArgument(MAREA_SemaContext *
         return MAREA_G_Report(context, MAREA_SEMA_DIAGNOSTIC_CODE_EXCLUSIVE_BORROW_CONFLICT, node, "two write borrows of one value are passed to", call->name);
     }
 
-    return MAREA_G_CheckWritable(context, argument, call->name);
+    return MAREA_SemaCheckWritablePlace(context, argument, call->name);
 }
 
 MAREA_Boolean MAREA_CALL MAREA_SemaInlineRunIsShipped(const MAREA_SemaContext *context, const MAREA_AstNode *type)
@@ -286,7 +286,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckInlineRunCall(MAREA_SemaContext *cont
     }
 
     if (MAREA_G_ChangesReceiver(call.member) == MAREA_BOOLEAN_TRUE) {
-        const MAREA_SemaExcept WRITABLE = MAREA_G_CheckWritable(context, call.receiver, call.name);
+        const MAREA_SemaExcept WRITABLE = MAREA_SemaCheckWritablePlace(context, call.receiver, call.name);
 
         if (WRITABLE != MAREA_SEMA_EXCEPT_SUCCESS) {
             return WRITABLE;
@@ -326,7 +326,18 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckGrowableRunCopy(MAREA_SemaContext *co
 
     MAREA_SemaInlineRun run = { 0 };
 
-    if ((MAREA_SemaInlineRunOfValue(context, MAREA_SemaChildAt(node, 0), &written, &run) == MAREA_BOOLEAN_FALSE) || (run.isGrowable == MAREA_BOOLEAN_FALSE) || (run.element == MAREA_NULLPTR) || (written.bindings.count != 0) || (MAREA_SemaIsCopyable(context, run.element) == MAREA_BOOLEAN_TRUE)) {
+    const MAREA_Boolean IS_RUN = MAREA_SemaInlineRunOfValue(context, MAREA_SemaChildAt(node, 0), &written, &run);
+
+    // INFO: a tuple is copied element by element, so each of its elements has to be Copyable.
+    if ((written.type != MAREA_NULLPTR) && (written.bindings.count == 0) && (MAREA_SemaTupleOfType(context, written.type, MAREA_NULLPTR) == MAREA_BOOLEAN_TRUE)) {
+        if (MAREA_SemaTupleIsCopyable(context, written.type) == MAREA_BOOLEAN_FALSE) {
+            MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_CONTRACT_NOT_SATISFIED, MAREA_AstNodeGetPosition(node), "a copy of a tuple needs every element type to be Copyable");
+        }
+
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    if ((IS_RUN == MAREA_BOOLEAN_FALSE) || (run.isGrowable == MAREA_BOOLEAN_FALSE) || (run.element == MAREA_NULLPTR) || (written.bindings.count != 0) || (MAREA_SemaIsCopyable(context, run.element) == MAREA_BOOLEAN_TRUE)) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 

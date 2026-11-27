@@ -362,6 +362,19 @@ static MAREA_Boolean MAREA_CALL MAREA_G_HoldsTarget(MAREA_G_ValueWalk *walk, con
 
     const MAREA_TypeDescriptor *descriptor = MAREA_NULLPTR;
 
+    const MAREA_AstNode *parts = MAREA_NULLPTR;
+
+    // INFO: a tuple holds each of its elements, as a structure holds its fields.
+    if (MAREA_SemaTupleOfType(walk->context, type, &parts) == MAREA_BOOLEAN_TRUE) {
+        for (MAREA_IntegerSize index = 0; (parts != MAREA_NULLPTR) && (index < MAREA_AstNodeGetChildCount(parts)); ++index) {
+            if (MAREA_G_HoldsTarget(walk, MAREA_SemaChildAt(parts, index), scope, (depth + 1)) == MAREA_BOOLEAN_TRUE) {
+                return MAREA_BOOLEAN_TRUE;
+            }
+        }
+
+        return MAREA_BOOLEAN_FALSE;
+    }
+
     if (MAREA_SemaDescriptorOfType(walk->context, type, &descriptor) == MAREA_BOOLEAN_TRUE) {
         const MAREA_AstNode *arguments = ((descriptor->hasIndexProtocol == MAREA_BOOLEAN_TRUE) && (descriptor->roles == MAREA_TYPE_ROLE_NONE) && (descriptor->ownershipClass == MAREA_TYPE_OWNERSHIP_CLASS_COPY)) ? MAREA_G_FindKind(type, MAREA_AST_KIND_TYPE_ARGUMENTS) : MAREA_NULLPTR;
 

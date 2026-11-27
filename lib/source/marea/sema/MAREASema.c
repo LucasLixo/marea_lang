@@ -372,8 +372,16 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaVisit(MAREA_SemaContext *context, const MA
         if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
             result = MAREA_SemaCheckInlineRunLiteral(context, node);
         }
+
+        if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
+            result = MAREA_SemaCheckTupleLiteral(context, node);
+        }
     } else if (kind == MAREA_AST_KIND_INDEX_ACCESS) {
         result = MAREA_SemaCheckInlineRunIndex(context, node);
+
+        if (result == MAREA_SEMA_EXCEPT_SUCCESS) {
+            result = MAREA_SemaCheckTupleIndex(context, node);
+        }
     } else if (kind == MAREA_AST_KIND_FIELD_DECLARATION) {
         result = MAREA_SemaCheckOpaqueField(context, node);
     } else if (kind == MAREA_AST_KIND_WHERE_CLAUSE) {

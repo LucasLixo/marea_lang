@@ -130,6 +130,10 @@ MAREA_BEGIN_EXTERN_C
         MAREA_SEMA_DIAGNOSTIC_CODE_LITERAL_COUNT_MISMATCH = MAREA_UINTEGER_32(3087),
         // INFO: a constant index of an array that is not below its count.
         MAREA_SEMA_DIAGNOSTIC_CODE_CONSTANT_INDEX_OUT_OF_RANGE = MAREA_UINTEGER_32(3088),
+        // INFO: an index of a tuple that is no integer literal, so the type of the element is not known.
+        MAREA_SEMA_DIAGNOSTIC_CODE_TUPLE_INDEX_NOT_CONSTANT = MAREA_UINTEGER_32(3089),
+        // INFO: a for each over a tuple, whose elements have different types.
+        MAREA_SEMA_DIAGNOSTIC_CODE_NOT_ITERABLE = MAREA_UINTEGER_32(3090),
     } MAREA_SemaDiagnosticCode;
 
     /**

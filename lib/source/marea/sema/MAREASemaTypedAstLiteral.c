@@ -316,6 +316,8 @@ static void MAREA_CALL MAREA_G_ApplyLiteralValue(const MAREA_SemaContext *contex
 
     const MAREA_AstNode *element = ((IS_STRUCTURE == MAREA_BOOLEAN_FALSE) && ((CLASS == MAREA_SEMA_TYPE_CLASS_COPY_BUILTIN) || (CLASS == MAREA_SEMA_TYPE_CLASS_MOVE_BUILTIN)) && (MAREA_G_IsElementContainer(context, type) == MAREA_BOOLEAN_TRUE) && (MAREA_G_IsType(firstArgument) == MAREA_BOOLEAN_TRUE)) ? firstArgument : MAREA_NULLPTR;
 
+    const MAREA_Boolean IS_TUPLE = MAREA_SemaTupleOfType(context, type, MAREA_NULLPTR);
+
     for (MAREA_IntegerSize index = 1; index < built->childCount; ++index) {
         const MAREA_SemaTypedNode *entry = built->children[index];
 
@@ -331,9 +333,13 @@ static void MAREA_CALL MAREA_G_ApplyLiteralValue(const MAREA_SemaContext *contex
 
             break;
         case MAREA_AST_KIND_VALUE_ENTRY:
-            MAREA_G_ApplyType(context, MAREA_G_ChildAt(entry, 0), element);
+        {
+            // INFO: a value of a tuple literal takes the type of the element at its place.
+            const MAREA_AstNode *part = ((IS_TUPLE == MAREA_BOOLEAN_TRUE) && (arguments != MAREA_NULLPTR) && ((index - 1) < MAREA_AstNodeGetChildCount(arguments))) ? MAREA_SemaChildAt(arguments, (index - 1)) : element;
 
+            MAREA_G_ApplyType(context, MAREA_G_ChildAt(entry, 0), part);
             break;
+        }
         case MAREA_AST_KIND_INDEX_ENTRY:
             MAREA_G_ApplyType(context, MAREA_G_ChildAt(entry, 1), element);
 

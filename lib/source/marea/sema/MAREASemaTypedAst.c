@@ -129,6 +129,12 @@ static const MAREA_AstNode *MAREA_CALL MAREA_G_InferTypedResultType(MAREA_SemaCo
 
         const MAREA_TypeDescriptor *descriptor = MAREA_NULLPTR;
 
+        const MAREA_AstNode *part = MAREA_SemaTupleElement(context, base, MAREA_SemaChildAt(expression, 1));
+
+        if (part != MAREA_NULLPTR) {
+            return (MAREA_G_TypedAstIsType(part) == MAREA_BOOLEAN_TRUE) ? part : MAREA_NULLPTR;
+        }
+
         const MAREA_Boolean HAS_ELEMENT = ((MAREA_SemaDescriptorOfType(context, base, &descriptor) == MAREA_BOOLEAN_TRUE) && ((descriptor->hasIndexProtocol == MAREA_BOOLEAN_TRUE) || ((descriptor->roles & MAREA_TYPE_ROLE_RAW_POINTER) != MAREA_TYPE_ROLE_NONE))) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 
         if (HAS_ELEMENT == MAREA_BOOLEAN_FALSE) {

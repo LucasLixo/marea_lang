@@ -318,6 +318,7 @@ static MAREA_G_ShapeKind MAREA_CALL MAREA_G_ShapeKindOfClass(const MAREA_SemaCon
         return MAREA_G_SHAPE_KIND_LIBRARY;
     case MAREA_SEMA_TYPE_CLASS_GENERIC:
         return MAREA_G_SHAPE_KIND_GENERIC;
+    case MAREA_SEMA_TYPE_CLASS_TUPLE:
     case MAREA_SEMA_TYPE_CLASS_MOVE_BUILTIN:
         return MAREA_G_SHAPE_KIND_BUILTIN;
     case MAREA_SEMA_TYPE_CLASS_COPY_BUILTIN:
@@ -1126,6 +1127,14 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckOperands(MAREA_SemaContext *cont
         MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_OPAQUE_TYPE_MISUSE, MAREA_AstNodeGetPosition(expression), "an operator cannot take an opaque operand");
 
         return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    MAREA_Boolean isTuple = MAREA_BOOLEAN_FALSE;
+
+    const MAREA_SemaExcept TUPLE_RESULT = MAREA_SemaCheckTupleOperands(context, expression, &isTuple);
+
+    if ((TUPLE_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) || (isTuple == MAREA_BOOLEAN_TRUE)) {
+        return TUPLE_RESULT;
     }
 
     const MAREA_G_Shape left = MAREA_G_ShapeOf(context, leftNode, 0);
@@ -1937,7 +1946,9 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckExpressions(MAREA_SemaContext *contex
         // INFO: the children are the variables, the collection and the body, so the collection is the child before the last.
         const MAREA_IntegerSize count = MAREA_AstNodeGetChildCount(node);
 
-        return (count < 3) ? MAREA_SEMA_EXCEPT_SUCCESS : MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, (count - 2)), 0, MAREA_BOOLEAN_TRUE);
+        const MAREA_SemaExcept VALUE_RESULT = (count < 3) ? MAREA_SEMA_EXCEPT_SUCCESS : MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, (count - 2)), 0, MAREA_BOOLEAN_TRUE);
+
+        return (VALUE_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) ? VALUE_RESULT : MAREA_SemaCheckTupleForEach(context, node);
     }
     case MAREA_AST_KIND_WITH_STATEMENT:
         return MAREA_G_CheckValue(context, MAREA_SemaChildAt(node, 0), 0, MAREA_BOOLEAN_TRUE);

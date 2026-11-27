@@ -13,7 +13,8 @@ MAREA_BEGIN_EXTERN_C
 
     /**
      * @brief How the checks treat a type: a built-in primitive, a built-in that copies or moves, an
-     * unbound generic parameter, a user structure or enum, or a type from outside the language core.
+     * unbound generic parameter, a user structure or enum, a type from outside the language core, or a
+     * tuple, which follows the rules of a structure.
      */
     typedef enum MAREA_SemaTypeClass
     {
@@ -23,6 +24,7 @@ MAREA_BEGIN_EXTERN_C
         MAREA_SEMA_TYPE_CLASS_GENERIC = MAREA_UINTEGER_8(3),
         MAREA_SEMA_TYPE_CLASS_USER = MAREA_UINTEGER_8(4),
         MAREA_SEMA_TYPE_CLASS_EXTERNAL = MAREA_UINTEGER_8(5),
+        MAREA_SEMA_TYPE_CLASS_TUPLE = MAREA_UINTEGER_8(6),
     } MAREA_SemaTypeClass;
 
     /**
