@@ -346,7 +346,8 @@ by value in a run that is no view is `ELEMENT_WITHOUT_MEASURED_LAYOUT` (3082).
 `_MAREA_TUPLE`, `_C_MEMORY`, `_C_THREADS`, `_C_CHARACTER`, `_C_STRING`, `_MAREA_MATH`), combined with bitwise or; `MAREA_LIBRARY_MASK_DEFAULT` turns every one on.
 A library whose bit is off registers nothing, so every name of it is unknown to sema and a `require` of it is
 `UNRESOLVED_REQUIRE`. The types of `marea.math` are structures of its source file, so its bit only decides whether its
-C functions are registered: sema reads the types from the tree that the resolver gives. A library declares the libraries it depends on (`MAREA_TypeRegistryAddDependency`); a library that is on
+C functions are registered: sema reads the types from the tree that the resolver gives. `marea.math` declares no
+dependency: with each other library off, all its names are registered. A library declares the libraries it depends on (`MAREA_TypeRegistryAddDependency`); a library that is on
 with a dependency that is off is a configuration error, `MAREA_TYPE_REGISTRY_EXCEPT_ERROR_MISSING_DEPENDENCY`, never a silent
 pass. A macro that returns a library type belongs to the library that owns the type (decision 53 of the 2026-11-24 plan):
 `include_bytes!` returns `marea.array.Array<uinteger8, N>`, so it is a macro of `marea.array`, called as
@@ -1487,10 +1488,12 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
   Backend rows that need a library that does not exist yet (`marea.math`) are proven by files written in the tests under that
   namespace. A project file under the root `marea` is always `RESERVED_NAMESPACE_ROOT`; the shipped source of
   `marea.math` passes the checks of sema with the shipped library source input.
-- `marea.math` is checked by sema, and its C functions run only from C. The matrices and the quaternion of its source
-  file have no operator and no C function. No backend lowers a structure of another
-  namespace, so a program cannot run a vector of `marea.math`: the `vm` and `cgen` refuse a local or a parameter of such
-  a type. The ir raises 4006 for an operator applied to a value of such a type.
+- `marea.math` is checked by sema, and its C functions run only from C. No backend lowers a structure of another
+  namespace, so a program cannot run a vector, a matrix or a quaternion of `marea.math`: the `vm` and `cgen` refuse a
+  local or a parameter of such a type. The ir raises 4006 for an operator applied to a value of such a type. A matrix and
+  the quaternion have no `+`, `-` or `/`, and a matrix has no operator for its product with a vector: a program calls
+  `multiply_matrixNxN_vectorN_*`. Sema accepts an operator that an imported structure does not declare, so the accept
+  items of `marea.math` do not prove that its operators exist.
 - The result of a registered function is not compared with the declared type of its place, as for any `EXTERNAL`
   member. No caller input gives the signatures of `marea.math` outside the tests.
 - The IR lowers `build_value!`, a macro with a qualified name and `do ... while` now (see the ir doc, "Macros" and "Do-while
