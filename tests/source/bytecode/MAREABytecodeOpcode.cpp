@@ -111,5 +111,7 @@ TEST(MAREABytecodeOpcode, NumberKindsAndTrapCodesHaveFixedValues)
 
     EXPECT_EQ(MAREA_BYTECODE_TRAP_CODE_INDEX_OUT_OF_BOUNDS, 8U) << "An index out of range must be 8.";
 
-    EXPECT_EQ(MAREA_BYTECODE_TRAP_CODE_COUNT, 12U) << "There must be twelve codes with the one for no trap.";
+    EXPECT_EQ(MAREA_BYTECODE_TRAP_CODE_TASK_NOT_COMPLETED, 12U) << "A task read before it completed must be 12, the same code as MAREA_HOST_TRAP_TASK_NOT_COMPLETED.";
+
+    EXPECT_EQ(MAREA_BYTECODE_TRAP_CODE_COUNT, 13U) << "There must be thirteen codes with the one for no trap.";
 }
