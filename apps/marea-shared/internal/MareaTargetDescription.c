@@ -51,6 +51,32 @@ static const MAREA_Character8 *MareaTargetDescriptionEndianness(void)
 #endif
 }
 
+// INFO: one feature name per detected ISA extension, read by marea.math's backend/when checks
+// (MAREA_G_TargetHasFeature, lib/source/marea/sema/MAREASemaAttribute.c). Static storage: the caller keeps the
+// pointer only for the life of one target description, never past it.
+static const MAREA_Character8 *const MAREA_G_TargetFeatureSse2[] = { "sse2" };
+static const MAREA_Character8 *const MAREA_G_TargetFeatureNeon[] = { "neon" };
+
+// INFO: sse2 is part of the x86_64 baseline, so the compiler always defines __SSE2__ there; _M_X64 covers MSVC,
+// which gives no such macro.
+static MAREA_Boolean MareaTargetDescriptionHasSse2(void)
+{
+#if defined(__SSE2__) || defined(_M_X64)
+    return MAREA_BOOLEAN_TRUE;
+#else
+    return MAREA_BOOLEAN_FALSE;
+#endif
+}
+
+static MAREA_Boolean MareaTargetDescriptionHasNeon(void)
+{
+#if defined(__ARM_NEON) || defined(__ARM_NEON__)
+    return MAREA_BOOLEAN_TRUE;
+#else
+    return MAREA_BOOLEAN_FALSE;
+#endif
+}
+
 void MareaTargetDescriptionDetectHost(MAREA_SemaTarget *target)
 {
     if (target == NULL) {
@@ -61,7 +87,17 @@ void MareaTargetDescriptionDetectHost(MAREA_SemaTarget *target)
     target->operatingSystem = MareaTargetDescriptionOperatingSystem();
     target->compiler = MareaTargetDescriptionCompiler();
     target->endianness = MareaTargetDescriptionEndianness();
-    target->features = NULL;
-    target->featureCount = 0;
+
+    if (MareaTargetDescriptionHasSse2() == MAREA_BOOLEAN_TRUE) {
+        target->features = MAREA_G_TargetFeatureSse2;
+        target->featureCount = (MAREA_IntegerSize)(sizeof(MAREA_G_TargetFeatureSse2) / sizeof(MAREA_G_TargetFeatureSse2[0]));
+    } else if (MareaTargetDescriptionHasNeon() == MAREA_BOOLEAN_TRUE) {
+        target->features = MAREA_G_TargetFeatureNeon;
+        target->featureCount = (MAREA_IntegerSize)(sizeof(MAREA_G_TargetFeatureNeon) / sizeof(MAREA_G_TargetFeatureNeon[0]));
+    } else {
+        target->features = NULL;
+        target->featureCount = 0;
+    }
+
     target->pointerWidth = (MAREA_Uinteger32)(sizeof(void *) * 8);
 }
