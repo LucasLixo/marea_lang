@@ -181,3 +181,59 @@ TEST(MAREASemaOperatorOperand, UndeclaredOperatorOnAStructureIsRejected)
 
     EXPECT_EQ(MAREA_codesOf(POINT + "function f(a: Point, b: Point) local c: Point = a / b; end"), Codes{ UNDECLARED }) << "An undeclared / on a structure must raise 3091.";
 }
+
+TEST(MAREASemaOperatorOperand, UndeclaredIndexOnAStructureIsRejected)
+{
+    GTEST_COUT << "Validating that an index on a structure of the file with no declared [] raises UNDECLARED_OPERATOR." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function f(a: Point) local c: float32 = a[0]; end"), Codes{ UNDECLARED }) << "A read through an undeclared [] must raise 3091.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "function f(#[semantics = reference_mutable] a: Point) a[0] = 1.0; end"), Codes{ UNDECLARED }) << "A write through an undeclared [] must raise 3091.";
+
+    EXPECT_EQ(MAREA_codesOf(POINT + "structure Holder point: Point; end function f(h: Holder) local c: float32 = h.point[0]; end"), Codes{ UNDECLARED }) << "An index on a field of a structure type must raise 3091.";
+
+    EXPECT_EQ(MAREA_codesOf("structure Own x: float32; end implementation Own function first(self: Self): float32 return self[0]; end end"), Codes{ UNDECLARED }) << "An index on self must raise 3091.";
+
+    EXPECT_TRUE(MAREA_codesOf("structure Row x: float32; end implementation Row #[operator = \"[]\"] function at(self: Self, index: uinteger64): float32 return self.x; end end function f(a: Row) local c: float32 = a[0]; end").empty()) << "A declared [] must raise nothing.";
+}
+
+TEST(MAREASemaOperatorOperand, UndeclaredIndexOnAnImportedStructureIsRejected)
+{
+    GTEST_COUT << "Validating that an index on a structure of a FOUND namespace follows the [] of its own tree." << std::endl;
+
+    MAREA_ParseFixture library;
+
+    ASSERT_EQ(library.MAREA_parse("namespace shapes; structure Bare x: float32; end structure Row x: float32; end implementation Row #[operator = \"[]\"] function at(self: Self, index: uinteger64): float32 return self.x; end end type Plain = Bare; structure Holder bare: Bare; row: Row; plain: Plain; cells: Cells; end type Cells = marea.array.Array<float32, 2>;"), MAREA_PARSE_EXCEPT_SUCCESS) << "The imported tree must parse.";
+
+    const auto codesOf{ [&library](const std::string &body) {
+        MAREA_SemaFixture fixture([&library](const std::string &text, const MAREA_AstNode **outRoot) {
+            if (text != "shapes") {
+                return MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
+            }
+
+            *outRoot = library.root;
+
+            return MAREA_SEMA_IMPORT_RESULT_FOUND;
+        });
+
+        if (fixture.MAREA_sema("namespace main; require shapes as shapes; " + body) != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return Codes{ 0 };
+        }
+
+        return fixture.MAREA_semaCodes();
+    } };
+
+    EXPECT_EQ(codesOf("function f(a: shapes.Bare) local c: float32 = a[0]; end"), Codes{ UNDECLARED }) << "An imported structure with no [] must raise 3091.";
+
+    EXPECT_EQ(codesOf("function f(h: shapes.Holder) local c: float32 = h.bare[0]; end"), Codes{ UNDECLARED }) << "A field of an imported structure with no [] must raise 3091.";
+
+    EXPECT_TRUE(codesOf("function f(a: shapes.Row, h: shapes.Holder) local c: float32 = a[0]; local d: float32 = h.row[0]; end").empty()) << "An imported structure with a declared [] must raise nothing.";
+
+    EXPECT_TRUE(codesOf("structure Bare x: float32; end implementation Bare #[operator = \"[]\"] function at(self: Self, index: uinteger64): float32 return self.x; end end function f(h: shapes.Holder, own: Bare) local c: float32 = own[0]; end").empty()) << "A structure of the file with a declared [] must raise nothing beside an imported one of the same name.";
+
+    EXPECT_TRUE(codesOf("structure Plain x: float32; end implementation Plain #[operator = \"[]\"] function at(self: Self, index: uinteger64): float32 return self.x; end end function f(h: shapes.Holder) local c: float32 = h.row[0]; end").empty()) << "A name of the file must not stand for a name of the imported tree.";
+
+    EXPECT_EQ(codesOf("structure Plain x: float32; end implementation Plain #[operator = \"[]\"] function at(self: Self, index: uinteger64): float32 return self.x; end end function f(h: shapes.Holder) local c: float32 = h.plain[0]; end"), Codes{ UNDECLARED }) << "An alias of the imported tree must be read in that tree.";
+
+    EXPECT_TRUE(codesOf("structure Cells x: float32; end function f(h: shapes.Holder) local c: float32 = h.cells[0]; end").empty()) << "A library type behind an imported alias must not stand for a structure of the file.";
+}

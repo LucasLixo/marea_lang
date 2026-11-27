@@ -393,6 +393,46 @@ const MAREA_AstNode *MAREA_CALL MAREA_SemaFindOperatorFunction(const MAREA_SemaC
     return found;
 }
 
+MAREA_Boolean MAREA_CALL MAREA_SemaTreeDeclaresOperator(const MAREA_AstNode *root, const MAREA_AstNode *typeDeclaration, const MAREA_Character8 *token, MAREA_IntegerSize tokenLength)
+{
+    const MAREA_Character8 *typeName = MAREA_NULLPTR;
+
+    MAREA_IntegerSize typeLength = 0;
+
+    if ((root == MAREA_NULLPTR) || (token == MAREA_NULLPTR) || (MAREA_SemaDeclarationName(typeDeclaration, &typeName, &typeLength) == MAREA_BOOLEAN_FALSE)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(root);
+
+    for (MAREA_IntegerSize current = 0; current < COUNT; ++current) {
+        const MAREA_AstNode *implementation = MAREA_SemaChildAt(root, current);
+
+        if ((implementation == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(implementation) != MAREA_AST_KIND_IMPLEMENTATION_DECLARATION)) {
+            continue;
+        }
+
+        const MAREA_AstNode *name = MAREA_G_TypeName(implementation);
+
+        // INFO: the name table holds the file of the run only, so a type of another tree is matched by its name.
+        if ((name == MAREA_NULLPTR) || (MAREA_SemaTextEquals(MAREA_AstNodeGetText(name), MAREA_AstNodeGetTextLength(name), typeName, typeLength) == MAREA_BOOLEAN_FALSE)) {
+            continue;
+        }
+
+        const MAREA_IntegerSize MEMBER_COUNT = MAREA_AstNodeGetChildCount(implementation);
+
+        for (MAREA_IntegerSize index = 0; index < MEMBER_COUNT; ++index) {
+            const MAREA_AstNode *item = MAREA_SemaAttributeFind(MAREA_NULLPTR, MAREA_SemaChildAt(implementation, index), "operator");
+
+            if (MAREA_G_IsQuoted(MAREA_SemaChildAt(item, 1), token, tokenLength) == MAREA_BOOLEAN_TRUE) {
+                return MAREA_BOOLEAN_TRUE;
+            }
+        }
+    }
+
+    return MAREA_BOOLEAN_FALSE;
+}
+
 const MAREA_AstNode *MAREA_CALL MAREA_SemaFindConstructOperator(const MAREA_SemaContext *context, const MAREA_AstNode *typeDeclaration)
 {
     return MAREA_SemaFindOperatorFunction(context, typeDeclaration, "construct", strlen("construct"), MAREA_NULLPTR);

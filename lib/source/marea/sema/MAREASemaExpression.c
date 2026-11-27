@@ -1123,6 +1123,42 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckDeclaredOperator(MAREA_SemaConte
     return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH, MAREA_AstNodeGetPosition(expression), "the right operand does not fit the declared operator", token, strlen(token));
 }
 
+// INFO: an index on a structure is the function that an implementation marks with "[]". A structure of another namespace keeps that function in its own tree.
+MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckIndexOperator(MAREA_SemaContext *context, const MAREA_AstNode *node)
+{
+    if ((context == MAREA_NULLPTR) || (node == MAREA_NULLPTR)) {
+        return MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    const MAREA_AstNode *base = MAREA_SemaChildAt(node, 0);
+
+    MAREA_SemaTypeTarget target = { .type = MAREA_NULLPTR, .declaration = MAREA_NULLPTR, .root = MAREA_NULLPTR };
+
+    const MAREA_SemaExcept RESULT = MAREA_SemaFindValueTarget(context, base, &target);
+
+    if (RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+        return RESULT;
+    }
+
+    const MAREA_Character8 *token = "[]";
+
+    MAREA_IntegerSize count = 0;
+
+    if ((target.root != MAREA_NULLPTR) && (MAREA_G_IsKind(target.declaration, MAREA_AST_KIND_STRUCTURE_DECLARATION) == MAREA_BOOLEAN_TRUE)) {
+        count = (MAREA_SemaTreeDeclaresOperator(target.root, target.declaration, token, strlen(token)) == MAREA_BOOLEAN_TRUE) ? MAREA_INTEGER_SIZE(1) : MAREA_INTEGER_SIZE(0);
+    } else {
+        const MAREA_G_Shape shape = MAREA_G_ShapeOf(context, base, 0);
+
+        if ((shape.kind != MAREA_G_SHAPE_KIND_STRUCTURE) || (shape.declaration == MAREA_NULLPTR)) {
+            return MAREA_SEMA_EXCEPT_SUCCESS;
+        }
+
+        MAREA_IGNORE(MAREA_SemaFindOperatorFunction(context, shape.declaration, token, strlen(token), &count));
+    }
+
+    return (count > 0) ? MAREA_SEMA_EXCEPT_SUCCESS : MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_UNDECLARED_OPERATOR, MAREA_AstNodeGetPosition(node), "no implementation declares the operator", token, strlen(token));
+}
+
 // INFO: the operand rule runs only when the two sides agree in type, so one node never carries TYPE_MISMATCH and an operand code together.
 static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckOperands(MAREA_SemaContext *context, const MAREA_AstNode *expression)
 {

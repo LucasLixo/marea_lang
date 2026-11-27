@@ -651,6 +651,26 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_ValueType(MAREA_SemaContext *context,
     }
 }
 
+MAREA_SemaExcept MAREA_CALL MAREA_SemaFindValueTarget(MAREA_SemaContext *context, const MAREA_AstNode *expression, MAREA_SemaTypeTarget *outTarget)
+{
+    if ((context == MAREA_NULLPTR) || (outTarget == MAREA_NULLPTR)) {
+        return MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    MAREA_SemaTypeTarget value = { .type = MAREA_NULLPTR, .declaration = MAREA_NULLPTR, .root = MAREA_NULLPTR };
+
+    const MAREA_SemaExcept RESULT = MAREA_G_ValueType(context, expression, 0, &value);
+
+    // INFO: a result that is Self already carries its declaration and has no written type to follow.
+    if (value.declaration != MAREA_NULLPTR) {
+        *outTarget = value;
+    } else {
+        MAREA_IGNORE(MAREA_SemaFindTypeTarget(context, value.type, value.root, outTarget));
+    }
+
+    return RESULT;
+}
+
 // INFO: a structure of another namespace that has an explicitly private field. A private structure that the file of the run names is the business of the type rule.
 static MAREA_Boolean MAREA_CALL MAREA_G_IsPrivateField(const MAREA_SemaTypeTarget *structure, MAREA_Boolean writtenHere, const MAREA_Character8 *fieldName, MAREA_IntegerSize fieldLength)
 {

@@ -857,6 +857,7 @@ Function declaration and call, parameters and defaults, the result and `return v
 | L-TYPES-222 | A variant that an enum of another namespace does not have | 3048 @12 |
 | L-TYPES-223 | A method call of a function that a type of another namespace does not have | 3049 @12 |
 | L-TYPES-224 | A structure with no declared operator used with a binary operator | 3091 @17 |
+| L-TYPES-225 | A structure with no declared index operator used with an index | 3091 @17 |
 | L-TYPES-070 | a switch arm whose value has another type than the switch value | 3011 @11 |
 | L-TYPES-071 | a case value of a variant of another enum | 3011 @21 |
 | L-TYPES-147 | a for range with a bound of another type | 3011 @10 |
@@ -1570,9 +1571,9 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | parallel | 20 | 41 | 0 |
 | seed | 1 | 2 | 0 |
 | tuple | 8 | 17 | 0 |
-| types | 62 | 155 | 0 |
+| types | 62 | 156 | 0 |
 | vector | 13 | 14 | 1 |
-| total | 327 | 655 | 12 |
+| total | 327 | 656 | 12 |
 
 ## Parity
 

@@ -814,6 +814,11 @@ compare by ordinal with no declared operator needed. When exactly one function d
 not fit is `TYPE_MISMATCH` (3011) at the expression; a value of an unknown type fits. When more than one function
 declares it, sema does not choose and accepts.
 
+**A declared index.** An index access on a **structure**, read or written, needs a function with
+`#[operator = "[]"]`, else it is `UNDECLARED_OPERATOR` (3091) at the access. The structure may be of the file or of a
+`FOUND` namespace; the implementations of the tree that declares it are the ones read. A value whose type sema does
+not see is accepted, and the key is not compared with the second parameter of the function.
+
 **Raw pointer.** A written type whose descriptor has the raw pointer role (a local, a parameter, a result, a field, an alias or a type
 argument) is `RAW_POINTER_OUTSIDE_UNSAFE` (3041) unless an `unsafe ... end` block encloses it. A type alias, of this file or of a `FOUND` namespace, is
 read as the type that it stands for, so each use of an alias of a raw pointer is 3041 too. A block nested in the `unsafe` block is enclosed too; the block ends the cover at its `end`. The context
@@ -1438,7 +1443,7 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 | 3088 | `CONSTANT_INDEX_OUT_OF_RANGE` | `values[4]` when `values` holds 4 elements, `pair[2]` for a tuple of two |
 | 3089 | `TUPLE_INDEX_NOT_CONSTANT` | `pair[index]` when `pair` is a tuple |
 | 3090 | `NOT_ITERABLE` | `for each value in pair do` when `pair` is a tuple |
-| 3091 | `UNDECLARED_OPERATOR` | `a - 1` on a structure `Point` whose implementations declare no `#[operator = "-"]` function |
+| 3091 | `UNDECLARED_OPERATOR` | `a - 1` on a structure `Point` whose implementations declare no `#[operator = "-"]` function, `a[0]` on one that declares no `#[operator = "[]"]` function |
 
 ## Gaps
 
@@ -1503,8 +1508,9 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
   namespace, so a program cannot run a vector, a matrix or a quaternion of `marea.math`: the `vm` and `cgen` refuse a
   local or a parameter of such a type. The ir raises 4006 for an operator applied to a value of such a type. A matrix and
   the quaternion have no `+`, `-` or `/`, and a matrix has no operator for its product with a vector: a program calls
-  `multiply_matrixNxN_vectorN_*`. Sema accepts an operator that an imported structure does not declare, so the accept
-  items of `marea.math` do not prove that its operators exist.
+  `multiply_matrixNxN_vectorN_*`. Sema rejects an index that an imported structure does not declare, but it accepts a
+  binary operator that such a structure does not declare, so the accept items of `marea.math` do not prove that its
+  binary operators exist.
 - The result of a registered function is not compared with the declared type of its place, as for any `EXTERNAL`
   member. No caller input gives the signatures of `marea.math` outside the tests.
 - The IR lowers `build_value!`, a macro with a qualified name and `do ... while` now (see the ir doc, "Macros" and "Do-while
