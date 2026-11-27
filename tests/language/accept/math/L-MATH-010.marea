@@ -1,0 +1,28 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- The matrices of boolean take the equality and the index of a column.
+
+namespace main;
+
+require marea.math as math;
+require marea.math { Matrix2x2Boolean, Vector2Boolean, Matrix3x3Boolean, Vector3Boolean, Matrix4x4Boolean, Vector4Boolean };
+
+function check2(left: math.Matrix2x2Boolean, right: math.Matrix2x2Boolean)
+    local equal: boolean = left == right;
+    local different: boolean = left != right;
+    local first: math.Vector2Boolean = left[0];
+end
+
+function check3(left: math.Matrix3x3Boolean, right: math.Matrix3x3Boolean)
+    local equal: boolean = left == right;
+    local different: boolean = left != right;
+    local first: math.Vector3Boolean = left[0];
+end
+
+function check4(left: math.Matrix4x4Boolean, right: math.Matrix4x4Boolean)
+    local equal: boolean = left == right;
+    local different: boolean = left != right;
+    local first: math.Vector4Boolean = left[0];
+end
