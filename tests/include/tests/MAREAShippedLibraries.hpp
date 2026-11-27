@@ -10,6 +10,10 @@
 
     #include "marea/base/MAREAArrayLibrary.h"
 
+    #include "marea/base/MAREACMemoryLibrary.h"
+
+    #include "marea/base/MAREAMemoryLibrary.h"
+
     #include "marea/base/MAREATupleLibrary.h"
 
     #include "marea/base/MAREAVectorLibrary.h"
@@ -27,6 +31,16 @@ inline bool MAREA_registerVectorLibrary(MAREA_TypeRegistry *registry)
 inline bool MAREA_registerTupleLibrary(MAREA_TypeRegistry *registry)
 {
     return MAREA_TupleLibraryRegister(registry) == MAREA_TYPE_REGISTRY_EXCEPT_SUCCESS;
+}
+
+inline bool MAREA_registerCMemoryLibrary(MAREA_TypeRegistry *registry)
+{
+    return MAREA_CMemoryLibraryRegister(registry) == MAREA_TYPE_REGISTRY_EXCEPT_SUCCESS;
+}
+
+inline bool MAREA_registerMemoryLibrary(MAREA_TypeRegistry *registry)
+{
+    return MAREA_MemoryLibraryRegister(registry) == MAREA_TYPE_REGISTRY_EXCEPT_SUCCESS;
 }
 
 // INFO: the registry of the shipped container libraries alone, with the mask that the test gives.
