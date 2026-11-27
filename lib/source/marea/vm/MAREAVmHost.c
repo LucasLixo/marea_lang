@@ -11,6 +11,7 @@
 #include <string.h>
 
 // INFO: a trap that a host function raises is the vm trap of the same name.
+MAREA_STATIC_ASSERT((MAREA_Uinteger8)MAREA_HOST_TRAP_DIVISION_BY_ZERO == (MAREA_Uinteger8)MAREA_BYTECODE_TRAP_CODE_DIVISION_BY_ZERO, "A host trap must be the vm trap of the same name:");
 MAREA_STATIC_ASSERT((MAREA_Uinteger8)MAREA_HOST_TRAP_OUT_OF_MEMORY == (MAREA_Uinteger8)MAREA_BYTECODE_TRAP_CODE_OUT_OF_MEMORY, "A host trap must be the vm trap of the same name:");
 
 // INFO: a register holds an address as the bit pattern of a pointer, the same rule the composite opcodes follow.

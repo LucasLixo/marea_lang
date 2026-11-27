@@ -42,6 +42,10 @@ The first line is the header. It has one of three forms:
 | `-- expect: <code> @<line>[, <code> @<line>]` | `reject` | The diagnostics are exactly these codes, in the order the compiler gives them, each on its 1-based source line. |
 | `-- gap: #<issue> <code>` | `known_gap` | The program is accepted today, but the language should give `<code>`. `<code>` is `NEW` when no code exists yet. |
 
+An item with `-- shipped: <path>` as its second line is a source file that the language ships: the runner checks it with
+that path (in place of `main.marea`) and with the shipped library source input of sema, so it may declare a namespace
+under `c` or `marea`. The parity test does not run such an item.
+
 A `known_gap` item has `-- rule: reject` or `-- rule: accept` as its second line: the outcome the language has
 decided. A `-- rule:` line in another class is an error. The copyright header follows, then the program.
 
@@ -1472,6 +1476,28 @@ to is not checked by sema (see the sema doc, Gaps).
 | L-ADVERSARIAL-060 | Mutant of L-OWNERSHIP-127: copy is swapped for move on a borrow appended to a vector | gap: #200 NEW, rule: reject |
 | L-ADVERSARIAL-066 | Mutant of L-TYPES-075: copy is swapped for move in a generic return of a borrow | gap: #200 NEW, rule: reject |
 
+## Math
+
+The vector types of `marea.math`, their operators and their operations. The items sit in
+`tests/language/<class>/math/`. The runner answers the require of `marea.math` with the tree of the shipped source
+file, `lib/source/marea/math.marea`.
+
+### Math: accept
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-MATH-001 | A shipped file of `marea.math` declares the nine vector types with the layout of C and their measured size and alignment | ok |
+| L-MATH-002 | The vectors of float32 take the arithmetic, the equality and the index operators | ok |
+| L-MATH-003 | The vectors of sinteger32 take the arithmetic, the equality and the index operators | ok |
+| L-MATH-004 | The vectors of boolean take the equality and the index operators | ok |
+| L-MATH-005 | One call of each family of the vector operations | ok |
+
+### Math: reject
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-MATH-006 | A file of the project cannot declare a namespace under marea | 3002 @7, 3081 @7 |
+
 ## Examples and coverage
 
 The 23 files under `examples/` are the programs the project shows. 20 of them have an accept item in
@@ -1529,6 +1555,7 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | examples | 20 | 0 | 0 |
 | functions | 19 | 54 | 0 |
 | interop | 18 | 38 | 0 |
+| math | 5 | 1 | 0 |
 | memory | 18 | 23 | 0 |
 | namespaces | 23 | 46 | 0 |
 | ownership | 67 | 78 | 2 |
@@ -1537,7 +1564,7 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | tuple | 8 | 17 | 0 |
 | types | 62 | 154 | 0 |
 | vector | 13 | 14 | 1 |
-| total | 317 | 652 | 12 |
+| total | 322 | 653 | 12 |
 
 ## Parity
 

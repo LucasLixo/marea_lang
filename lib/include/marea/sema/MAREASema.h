@@ -309,6 +309,17 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_SemaTarget *MAREA_CALL MAREA_SemaContextGetTarget(const MAREA_SemaContext *context);
 
     /**
+     * @brief Says that the compilation unit is a source file that the language ships. Sema then lets the namespace
+     * declaration of the unit start with the reserved segment c or marea. No other rule changes, and an import or a
+     * require is checked as before. The default is false: a file of the project must never set this input, only the
+     * caller that checks a file of a shipped library does.
+     * @param context Context to change. Must not be null.
+     * @param value MAREA_BOOLEAN_TRUE for a shipped file, MAREA_BOOLEAN_FALSE for a file of the project.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, or MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER when context is null.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaContextSetShippedLibrarySource(MAREA_SemaContext * context, MAREA_Boolean value);
+
+    /**
      * @brief Sets the build settings that build_value! reads. A context with none gives every
      * build_value! call its default.
      * @param context Context to change. Must not be null.

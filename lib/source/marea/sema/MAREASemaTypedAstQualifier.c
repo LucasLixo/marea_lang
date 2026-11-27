@@ -95,6 +95,24 @@ static const MAREA_AstNode *MAREA_CALL MAREA_G_FindVisibleValue(const MAREA_AstN
     return MAREA_NULLPTR;
 }
 
+// INFO: true when a namespace tree has a top-level declaration of a name, private or not.
+static MAREA_Boolean MAREA_CALL MAREA_G_Declares(const MAREA_AstNode *root, const MAREA_Character8 *name, MAREA_IntegerSize nameLength)
+{
+    const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(root);
+
+    for (MAREA_IntegerSize index = 0; index < COUNT; ++index) {
+        const MAREA_Character8 *declarationName = MAREA_NULLPTR;
+
+        MAREA_IntegerSize declarationLength = 0;
+
+        if ((MAREA_SemaDeclarationName(MAREA_SemaChildAt(root, index), &declarationName, &declarationLength) == MAREA_BOOLEAN_TRUE) && (MAREA_SemaTextEquals(declarationName, declarationLength, name, nameLength) == MAREA_BOOLEAN_TRUE)) {
+            return MAREA_BOOLEAN_TRUE;
+        }
+    }
+
+    return MAREA_BOOLEAN_FALSE;
+}
+
 static MAREA_SemaTypeFrame *MAREA_CALL MAREA_G_NewFrame(MAREA_SemaContext *context)
 {
     MAREA_Null memory = MAREA_NULLPTR;
@@ -331,7 +349,20 @@ MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedAstIsExternalCallee(MAREA_Sem
     }
 
     if (MAREA_G_IsKind(inner, MAREA_AST_KIND_MEMBER_ACCESS) == MAREA_BOOLEAN_TRUE) {
-        return MAREA_G_IsExternalChain(context, inner, outExternal);
+        const MAREA_SemaTypedAstExcept CHAIN = MAREA_G_IsExternalChain(context, inner, outExternal);
+
+        if ((CHAIN != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) || (*outExternal == MAREA_BOOLEAN_TRUE)) {
+            return CHAIN;
+        }
+
+        // INFO: a registered function of a shipped library that has a source file is external too.
+        const MAREA_SemaSignature *signature = MAREA_NULLPTR;
+
+        const MAREA_SemaTypedAstExcept REGISTERED = MAREA_SemaTypedAstExternalMemberSignature(context, MAREA_SemaChildAt(inner, 0), MAREA_SemaChildAt(inner, 1), &signature);
+
+        *outExternal = (signature != MAREA_NULLPTR) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+
+        return REGISTERED;
     }
 
     if ((MAREA_G_IsKind(inner, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_FALSE) || (MAREA_SemaLocalFind(context, MAREA_AstNodeGetText(inner), MAREA_AstNodeGetTextLength(inner)) != MAREA_NULLPTR)) {
@@ -343,12 +374,17 @@ MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedAstIsExternalCallee(MAREA_Sem
     return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
 }
 
-// INFO: asks the optional signature function of the resolver that knows the namespace for one member of a namespace already known to be EXTERNAL; a resolver with none, or an answer other than FOUND, leaves outSignature null.
+// INFO: asks the optional signature function of the resolver that knows the namespace for one member; a resolver with none, or an answer other than FOUND, leaves outSignature null.
 static void MAREA_CALL MAREA_G_QuerySignature(const MAREA_SemaContext *context, const MAREA_Character8 *namespaceText, MAREA_IntegerSize namespaceLength, const MAREA_Character8 *memberText, MAREA_IntegerSize memberLength, const MAREA_SemaSignature **outSignature)
 {
     *outSignature = MAREA_NULLPTR;
 
     const MAREA_SemaImportResolver *owner = MAREA_SemaResolverOf(context, namespaceText, namespaceLength);
+
+    // INFO: no resolver knows the namespace of the file by name alone, so the C side answers for it.
+    if (owner == MAREA_NULLPTR) {
+        owner = (context->requireResolver != MAREA_NULLPTR) ? context->requireResolver : context->resolver;
+    }
 
     if ((owner == MAREA_NULLPTR) || (owner->signature == MAREA_NULLPTR)) {
         return;
@@ -365,6 +401,73 @@ static void MAREA_CALL MAREA_G_QuerySignature(const MAREA_SemaContext *context, 
     }
 }
 
+// INFO: the root of the file when a text is the namespace that the file declares, else null.
+static const MAREA_AstNode *MAREA_CALL MAREA_G_OwnRoot(MAREA_SemaContext *context, const MAREA_Character8 *text, MAREA_IntegerSize length)
+{
+    const MAREA_IntegerSize COUNT = (context->root == MAREA_NULLPTR) ? MAREA_INTEGER_SIZE(0) : MAREA_AstNodeGetChildCount(context->root);
+
+    for (MAREA_IntegerSize index = 0; index < COUNT; ++index) {
+        const MAREA_AstNode *declaration = MAREA_SemaChildAt(context->root, index);
+
+        if (MAREA_G_IsKind(declaration, MAREA_AST_KIND_NAMESPACE_DECLARATION) == MAREA_BOOLEAN_FALSE) {
+            continue;
+        }
+
+        const MAREA_Character8 *own = MAREA_NULLPTR;
+
+        MAREA_IntegerSize ownLength = 0;
+
+        const MAREA_Boolean SAME = ((MAREA_SemaQualifiedNameJoin(context, MAREA_SemaChildAt(declaration, 0), &own, &ownLength) == MAREA_SEMA_EXCEPT_SUCCESS) && (MAREA_SemaTextEquals(own, ownLength, text, length) == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+
+        return (SAME == MAREA_BOOLEAN_TRUE) ? context->root : MAREA_NULLPTR;
+    }
+
+    return MAREA_NULLPTR;
+}
+
+// INFO: the namespace that a member access reads a member from: an alias or a covered path, or the full path of the namespace of the file, which needs no cover. Null for any other base.
+static MAREA_SemaTypedAstExcept MAREA_CALL MAREA_G_MemberNamespace(MAREA_SemaContext *context, const MAREA_AstNode *base, const MAREA_AstNode *member, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength)
+{
+    *outText = MAREA_NULLPTR;
+    *outLength = 0;
+
+    // INFO: the base is read exactly as MAREA_SemaTypedAstFoundMemberType reads it.
+    const MAREA_SemaName *entry = MAREA_NULLPTR;
+
+    if (MAREA_SemaBaseEntry(context, base, member, &entry) != MAREA_SEMA_EXCEPT_SUCCESS) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_OUT_OF_MEMORY;
+    }
+
+    if (entry != MAREA_NULLPTR) {
+        return (entry->kind == MAREA_SEMA_NAME_KIND_NAMESPACE) ? MAREA_SemaNamespaceOf(context, entry, outText, outLength) : MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_Character8 *text = MAREA_NULLPTR;
+
+    MAREA_IntegerSize length = 0;
+
+    const MAREA_AstNode *head = MAREA_NULLPTR;
+
+    if (MAREA_SemaChainJoin(context, base, &text, &length, &head) != MAREA_SEMA_EXCEPT_SUCCESS) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_OUT_OF_MEMORY;
+    }
+
+    if ((text == MAREA_NULLPTR) || (MAREA_SemaLocalFind(context, MAREA_AstNodeGetText(head), MAREA_AstNodeGetTextLength(head)) != MAREA_NULLPTR) || (MAREA_G_OwnRoot(context, text, length) == MAREA_NULLPTR)) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+    }
+
+    *outText = text;
+    *outLength = length;
+
+    return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+}
+
+// INFO: only a library that the language ships, under c or marea, has a source file and registered C functions in one namespace.
+static MAREA_Boolean MAREA_CALL MAREA_G_IsShippedNamespace(const MAREA_Character8 *text, MAREA_IntegerSize length)
+{
+    return (((length > MAREA_INTEGER_SIZE(2)) && (memcmp(text, "c.", MAREA_INTEGER_SIZE(2)) == 0)) || ((length > MAREA_INTEGER_SIZE(6)) && (memcmp(text, "marea.", MAREA_INTEGER_SIZE(6)) == 0))) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
 MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedAstExternalMemberSignature(MAREA_SemaContext *context, const MAREA_AstNode *base, const MAREA_AstNode *member, const MAREA_SemaSignature **outSignature)
 {
     if ((context == MAREA_NULLPTR) || (outSignature == MAREA_NULLPTR)) {
@@ -377,32 +480,34 @@ MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedAstExternalMemberSignature(MA
         return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
     }
 
-    // INFO: the base is read exactly as MAREA_SemaTypedAstFoundMemberType reads it.
-    const MAREA_SemaName *entry = MAREA_NULLPTR;
-
-    if (MAREA_SemaBaseEntry(context, base, member, &entry) != MAREA_SEMA_EXCEPT_SUCCESS) {
-        return MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_OUT_OF_MEMORY;
-    }
-
-    if ((entry == MAREA_NULLPTR) || (entry->kind != MAREA_SEMA_NAME_KIND_NAMESPACE)) {
-        return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
-    }
-
     const MAREA_Character8 *namespaceText = MAREA_NULLPTR;
 
     MAREA_IntegerSize namespaceLength = 0;
 
-    const MAREA_SemaTypedAstExcept JOINED = MAREA_SemaNamespaceOf(context, entry, &namespaceText, &namespaceLength);
+    const MAREA_SemaTypedAstExcept JOINED = MAREA_G_MemberNamespace(context, base, member, &namespaceText, &namespaceLength);
 
-    if (JOINED != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) {
+    if ((JOINED != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) || (namespaceText == MAREA_NULLPTR)) {
         return JOINED;
     }
 
+    const MAREA_Character8 *name = MAREA_AstNodeGetText(member);
+
+    const MAREA_IntegerSize NAME_LENGTH = MAREA_AstNodeGetTextLength(member);
+
+    // INFO: a member of a shipped library that its source file does not declare is a C function that the library registered.
     if (MAREA_G_IsExternalNamespace(context, namespaceText, namespaceLength) == MAREA_BOOLEAN_FALSE) {
-        return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+        const MAREA_AstNode *root = MAREA_G_OwnRoot(context, namespaceText, namespaceLength);
+
+        if (root == MAREA_NULLPTR) {
+            root = MAREA_SemaFoundRoot(context, namespaceText, namespaceLength);
+        }
+
+        if ((root == MAREA_NULLPTR) || (MAREA_G_IsShippedNamespace(namespaceText, namespaceLength) == MAREA_BOOLEAN_FALSE) || (MAREA_G_Declares(root, name, NAME_LENGTH) == MAREA_BOOLEAN_TRUE)) {
+            return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+        }
     }
 
-    MAREA_G_QuerySignature(context, namespaceText, namespaceLength, MAREA_AstNodeGetText(member), MAREA_AstNodeGetTextLength(member), outSignature);
+    MAREA_G_QuerySignature(context, namespaceText, namespaceLength, name, NAME_LENGTH, outSignature);
 
     return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
 }
@@ -491,6 +596,11 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsNamespaceChain(MAREA_SemaContext *cont
 
     if ((MAREA_SemaChainJoin(context, chain, &text, &length, MAREA_NULLPTR) != MAREA_SEMA_EXCEPT_SUCCESS) || (text == MAREA_NULLPTR)) {
         return MAREA_BOOLEAN_FALSE;
+    }
+
+    // INFO: the namespace of the file needs no cover, so its full path qualifies a member too.
+    if (MAREA_G_OwnRoot(context, text, length) != MAREA_NULLPTR) {
+        return MAREA_BOOLEAN_TRUE;
     }
 
     MAREA_SemaPathStatus status = MAREA_SEMA_PATH_STATUS_NOT_A_PATH;

@@ -175,6 +175,7 @@ MAREA_BEGIN_EXTERN_C
         MAREA_Uinteger32 partitionDepth;
         MAREA_Uinteger32 loopDepth;
         MAREA_Uinteger32 unsafeDepth;
+        MAREA_Boolean shippedLibrarySource;
     };
 
     /**
@@ -474,10 +475,10 @@ MAREA_BEGIN_EXTERN_C
 
     /**
      * @brief Gives the signature of a call whose callee is a member access on a namespace the resolver
-     * answers EXTERNAL for, when the resolver also carries a signature function and that function knows
-     * the member. Any other base, a namespace the resolver does not answer EXTERNAL for, or a member the
-     * signature function does not know, leaves outSignature null: the call stays as opaque as with no
-     * signature function at all.
+     * answers EXTERNAL for, or on a namespace under c or marea that has a tree (the namespace of the file too)
+     * that does not declare the member, when the resolver also carries a signature function and that function
+     * knows the member. Any other base or member leaves outSignature null: the call stays as opaque as with
+     * no signature function at all.
      * @param context Context the node is being built with. Must not be null.
      * @param base AST node on the left of the member access. May be null, which leaves outSignature null.
      * @param member IDENTIFIER on the right of the member access. May be null, which leaves outSignature null.

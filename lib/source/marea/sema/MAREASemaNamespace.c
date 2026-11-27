@@ -694,12 +694,15 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckImport(MAREA_SemaContext *contex
 }
 
 // INFO: c and marea are the reserved first segments of a namespace. A file of the project can never
-// declare a namespace under either one, unconditionally: the registry has no say here (the 2026-11-25
-// decision update, sema-no-library-descriptors-roles). Only the internal entry of the base registry
-// lets a shipped library's own C code register under these roots; a project file compiled the ordinary
-// way never reaches that entry.
+// declare a namespace under either one: the registry has no say here (the 2026-11-25 decision update,
+// sema-no-library-descriptors-roles). Only a file that the caller marks as a shipped library source may,
+// and the C code of a shipped library registers under these roots through the internal registry entry.
 static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckReservedRoot(MAREA_SemaContext *context, const MAREA_AstNode *qualifiedName)
 {
+    if (context->shippedLibrarySource == MAREA_BOOLEAN_TRUE) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
     if (MAREA_G_IsPlainName(qualifiedName) == MAREA_BOOLEAN_FALSE) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }

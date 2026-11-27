@@ -39,6 +39,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaContextCreate(MAREA_Arena *arena, MAREA_Di
     context->target = MAREA_NULLPTR;
     context->settings = MAREA_NULLPTR;
     context->includeResolver = MAREA_NULLPTR;
+    context->shippedLibrarySource = MAREA_BOOLEAN_FALSE;
     context->covers = (MAREA_SemaCoverTable){ 0 };
     context->names = (MAREA_SemaNameTable){ 0 };
     context->generics = (MAREA_SemaNameTable){ 0 };
@@ -149,6 +150,17 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaContextSetTarget(MAREA_SemaContext *contex
 const MAREA_SemaTarget *MAREA_CALL MAREA_SemaContextGetTarget(const MAREA_SemaContext *context)
 {
     return (context == MAREA_NULLPTR) ? MAREA_NULLPTR : context->target;
+}
+
+MAREA_SemaExcept MAREA_CALL MAREA_SemaContextSetShippedLibrarySource(MAREA_SemaContext *context, MAREA_Boolean value)
+{
+    if (context == MAREA_NULLPTR) {
+        return MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    context->shippedLibrarySource = value;
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
 }
 
 MAREA_SemaExcept MAREA_CALL MAREA_SemaContextSetSettings(MAREA_SemaContext *context, const MAREA_SemaSettings *settings)

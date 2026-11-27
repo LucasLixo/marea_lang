@@ -175,7 +175,9 @@ Every call gets a new `MAREA_HostContext` (`marea/base/MAREAHostContext.h`), so 
 `MAREA_HostContextAllocate` gives a zeroed block from the replaced `alloc` hook, or from the allocator of the vm, and
 `MAREA_HostContextFree` gives it back. A failed allocation is a result of the call, not a trap: the function raises
 `MAREA_HostContextRaiseTrap(context, MAREA_HOST_TRAP_OUT_OF_MEMORY)` and returns. A raised trap stops the run when
-the function returns, drops its result and is the trap `OUT_OF_MEMORY` of the run; nothing after the call runs. With
+the function returns, drops its result and is the trap `OUT_OF_MEMORY` of the run; nothing after the call runs. A
+function that divides, such as an integer vector division of `marea.math`, raises `MAREA_HOST_TRAP_DIVISION_BY_ZERO`,
+which is the trap of the division of the language. With
 one replaced hook only, a function that allocates or frees makes the call
 `MAREA_VM_EXCEPT_ERROR_UNPAIRED_ALLOCATOR`, as `alloc` and `free` do. A host function adds no frame to the call depth.
 
@@ -226,7 +228,7 @@ of `docs/bytecode/marea-bytecode.md`), and every other fault is a `MAREA_VmExcep
   signature that differ are undefined.
 - A binding has no form for a `character`, a `string`, an `enum` or a library type, as the bytecode stage cannot pass
   them yet, and a scalar write borrow does not exist.
-- The traps that a host function can raise are `MAREA_HostTrap`, which holds `OUT_OF_MEMORY` only.
+- The traps that a host function can raise are `MAREA_HostTrap`, which holds `DIVISION_BY_ZERO` and `OUT_OF_MEMORY` only.
 - A typed function reads a borrowed structure in the frame memory of the vm through a pointer of its own type, which
   relies on the vm being compiled apart from the host functions.
 - `fork_join` is sequential: there is no thread and no atomic in the vm.

@@ -153,7 +153,7 @@ TEST(MAREAHostContext, HostContextRaiseTrapKeepsTheFirstTrap)
 
     MAREA_HostContextRaiseTrap(&context, MAREA_HOST_TRAP_NONE);
 
-    MAREA_HostContextRaiseTrap(&context, static_cast<MAREA_HostTrap>(1));
+    MAREA_HostContextRaiseTrap(&context, static_cast<MAREA_HostTrap>(2));
 
     EXPECT_EQ(MAREA_HostContextGetTrap(&context), MAREA_HOST_TRAP_NONE) << "NONE and a value outside the enum leave no trap.";
 
@@ -166,6 +166,19 @@ TEST(MAREAHostContext, HostContextRaiseTrapKeepsTheFirstTrap)
     MAREA_HostContextRaiseTrap(nullptr, MAREA_HOST_TRAP_OUT_OF_MEMORY);
 
     EXPECT_EQ(MAREA_HostContextGetTrap(nullptr), MAREA_HOST_TRAP_NONE) << "A null context has no trap.";
+}
+
+TEST(MAREAHostContext, HostContextRaisesTheDivisionByZeroTrap)
+{
+    GTEST_COUT << "Validating a C function can raise the trap of a division by zero." << std::endl;
+
+    MAREA_HostContext context{ MAREA_contextOf(&MAREA_dirtyBlock, &MAREA_releaseBlock) };
+
+    MAREA_HostContextRaiseTrap(&context, MAREA_HOST_TRAP_DIVISION_BY_ZERO);
+
+    MAREA_HostContextRaiseTrap(&context, MAREA_HOST_TRAP_OUT_OF_MEMORY);
+
+    EXPECT_EQ(MAREA_HostContextGetTrap(&context), MAREA_HOST_TRAP_DIVISION_BY_ZERO) << "The first trap stays.";
 }
 
 TEST(MAREAHostContext, HostContextInitializeGivesTheContextOfOneCall)

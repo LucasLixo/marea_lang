@@ -12,11 +12,15 @@
 
     #include "marea/base/MAREACMemoryLibrary.h"
 
+    #include "marea/base/MAREAMathLibrary.h"
+
     #include "marea/base/MAREAMemoryLibrary.h"
 
     #include "marea/base/MAREATupleLibrary.h"
 
     #include "marea/base/MAREAVectorLibrary.h"
+
+    #include <filesystem>
 
 inline bool MAREA_registerArrayLibrary(MAREA_TypeRegistry *registry)
 {
@@ -26,6 +30,11 @@ inline bool MAREA_registerArrayLibrary(MAREA_TypeRegistry *registry)
 inline bool MAREA_registerVectorLibrary(MAREA_TypeRegistry *registry)
 {
     return MAREA_VectorLibraryRegister(registry) == MAREA_TYPE_REGISTRY_EXCEPT_SUCCESS;
+}
+
+inline bool MAREA_registerMathLibrary(MAREA_TypeRegistry *registry)
+{
+    return MAREA_MathLibraryRegister(registry) == MAREA_TYPE_REGISTRY_EXCEPT_SUCCESS;
 }
 
 inline bool MAREA_registerTupleLibrary(MAREA_TypeRegistry *registry)
@@ -41,6 +50,12 @@ inline bool MAREA_registerCMemoryLibrary(MAREA_TypeRegistry *registry)
 inline bool MAREA_registerMemoryLibrary(MAREA_TypeRegistry *registry)
 {
     return MAREA_MemoryLibraryRegister(registry) == MAREA_TYPE_REGISTRY_EXCEPT_SUCCESS;
+}
+
+// INFO: the one Marea source file of marea.math that the language ships. Its path below lib/source is the path of its namespace.
+inline std::filesystem::path MAREA_mathSourcePath()
+{
+    return std::filesystem::path(MAREA_TESTS_SEMA_SOURCE_DIRECTORY).parent_path() / "math.marea";
 }
 
 // INFO: the registry of the shipped container libraries alone, with the mask that the test gives.

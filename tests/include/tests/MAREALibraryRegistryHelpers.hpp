@@ -86,6 +86,7 @@ inline MAREA_TypeRegistry *MAREA_buildLibraryRegistry(MAREA_Arena *arena, MAREA_
     MAREA_IGNORE(MAREA_registerTupleLibrary(registry));
     MAREA_IGNORE(MAREA_registerCMemoryLibrary(registry));
     MAREA_IGNORE(MAREA_registerMemoryLibrary(registry));
+    MAREA_IGNORE(MAREA_registerMathLibrary(registry));
 
     MAREA_IntegerSize count{ 0 };
 

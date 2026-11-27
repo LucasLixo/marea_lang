@@ -76,8 +76,9 @@ no built-in name any more: `c.stdio.puts(x)` needs `require c.stdio;`.
 A wildcard cannot have an alias or a member list (a parse error). An alias named `c`, `marea`, a primitive type or a built-in
 macro is refused. One full path covered by an import and by a require (one path equal to, or below, the other) is
 `AMBIGUOUS_NAMESPACE` (3080), reported at the second declaration. A file of the project cannot declare a namespace that starts
-with `c` or `marea`: `RESERVED_NAMESPACE_ROOT` (3081) is unconditional, and no registry changes it. The two roots belong to the
-libraries the language ships, which reach the registry through its internal entry, never through a project file.
+with `c` or `marea`: `RESERVED_NAMESPACE_ROOT` (3081), and no registry changes it. The two roots belong to the
+libraries the language ships: their C code reaches the registry through its internal entry, and their Marea source is checked
+with the shipped library source input (see "Caller inputs").
 
 ### Two resolvers
 
@@ -142,9 +143,10 @@ void signature(void *userData, const char *namespaceText, size_t namespaceLength
                 MAREA_SemaImportResult *outResult, const MAREA_SemaSignature **outSignature);
 ```
 
-Sema calls it only for a call whose callee names a member of a namespace the resolve function answers
-`EXTERNAL` for - never for a `FOUND` or `NOT_FOUND` namespace, and never when no signature function is
-set. The member is read the same way for a member access with a full path (`c.stdio.puts(text)`: namespace `c.stdio`,
+Sema calls it for a call whose callee names a member of a namespace the resolve function answers
+`EXTERNAL` for, and for a registered function of a shipped library that has a source file (see "Registered
+functions of a shipped library"). It never calls it for any other `FOUND` or `NOT_FOUND` namespace, and never when no
+signature function is set. The member is read the same way for a member access with a full path (`c.stdio.puts(text)`: namespace `c.stdio`,
 member `puts`), for one through an alias (`require c.stdio as io;` then `io.puts(text)`) and for a bare name an alias bound
 to one member (`require c.math.pow as power;` then `power(...)`: namespace `c.math`, member `pow`, the original name, not
 the alias). A 3-segment `import a.b.c as d;` into an `EXTERNAL` namespace never resolves its own full joined path to
@@ -168,6 +170,24 @@ structure of that name fits it, and a value of any other structure is `TYPE_MISM
 parameter only, and in the typed tree it takes the type of that parameter, as for a function of the file. The call is then typed with the signature's
 result spelling. The member or name itself (`puts` before the call, `power` used with no call) stays
 untyped: only the call gets the signature's result.
+
+### Registered functions of a shipped library
+
+A shipped library, such as `marea.math`, has a source file and C functions in one namespace. The source file declares
+no form for a C function. A member of a namespace under `c` or `marea` that has a tree (the answer `FOUND`, or the
+namespace of the file that is checked) and that the tree does not declare is read as a registered function: sema asks
+the signature function for it. With the answer `FOUND` the call is typed and checked as a call of an `EXTERNAL`
+member, and it is an external call (see "External calls"). With no signature function, or with no signature for the
+member, nothing changes: the call has no type and gives no diagnostic. A project namespace is never read so.
+
+The source file calls the functions of its own namespace by the full path, which needs no cover:
+`return marea.math.add_vector3_float32(self, other);` in an operator of `lib/source/marea/math.marea`. The resolver
+that knows the namespace gives the signature; when no resolver knows it, the require resolver does, or the import
+resolver of a context with no require resolver. A bare name (`add_vector3_float32(self, other)`) is still
+`UNDECLARED_NAME`, and a member list of a require cannot name a registered function (`UNRESOLVED_IMPORT`).
+
+The caller gives the signatures; the registry holds the wrappers only. A signature writes a type of a library with
+its full path (`marea.math.Vector3Float32`), and in the file of that namespace sema compares it with the bare name.
 
 ### Members of a library type
 
@@ -285,6 +305,14 @@ the typed tree (`MAREA_SemaTypedNodeGetIncludedFile`) and its call has the array
 another number of bytes than the size, is `INVALID_MACRO_ARGUMENT`. With no load function the call is checked by the size
 alone and no backend can write its value.
 
+**Shipped library source.** `MAREA_SemaContextSetShippedLibrarySource(context, value)` says that the compilation unit is a
+source file that the language ships. With it, the namespace declaration of the unit may start with `c` or `marea`. It changes no
+other rule: an alias named `c` or `marea` is still refused, and an import or a require is checked as before. The default is
+false. Only the caller that checks a file of a shipped library sets it, never for a file of the project.
+
+**Where a shipped library is.** The C11 part is in `lib/include/marea/base/` and `lib/source/marea/base/`, in the base library.
+The Marea part is in `lib/source/<path of the namespace>.marea`: the source of `marea.math` is `lib/source/marea/math.marea`.
+
 ### Descriptors and roles
 
 Sema knows no library. A library registers type descriptors, and sema reads the roles and the ownership class of the
@@ -315,9 +343,10 @@ by value in a run that is no view is `ELEMENT_WITHOUT_MEASURED_LAYOUT` (3082).
 
 **Registry.** `MAREA_TypeRegistryCreate(arena, mask, &registry)` makes a registry. The mask is a plain input of the caller:
 `MAREA_LibraryFlag` is a bit-flag enum, one bit per shipped library (`MAREA_LIBRARY_FLAG_MAREA_ARRAY`, `_MAREA_VECTOR`,
-`_MAREA_TUPLE`, `_C_MEMORY`, `_C_THREADS`, `_C_CHARACTER`, `_C_STRING`, `_MAREA_MEMORY`), combined with bitwise or; `MAREA_LIBRARY_MASK_DEFAULT` turns every one on.
+`_MAREA_TUPLE`, `_C_MEMORY`, `_C_THREADS`, `_C_CHARACTER`, `_C_STRING`, `_MAREA_MEMORY`, `_MAREA_MATH`), combined with bitwise or; `MAREA_LIBRARY_MASK_DEFAULT` turns every one on.
 A library whose bit is off registers nothing, so every name of it is unknown to sema and a `require` of it is
-`UNRESOLVED_REQUIRE`. A library declares the libraries it depends on (`MAREA_TypeRegistryDeclareDependency`); a library that is on
+`UNRESOLVED_REQUIRE`. The types of `marea.math` are structures of its source file, so its bit only decides whether its
+C functions are registered: sema reads the types from the tree that the resolver gives. A library declares the libraries it depends on (`MAREA_TypeRegistryDeclareDependency`); a library that is on
 with a dependency that is off is a configuration error, `MAREA_TYPE_REGISTRY_EXCEPT_ERROR_MISSING_DEPENDENCY`, never a silent
 pass. A macro that returns a library type belongs to the library that owns the type (decision 53 of the 2026-11-24 plan):
 `include_bytes!` returns `marea.array.Array<uinteger8, N>`, so it is a macro of `marea.array`, called as
@@ -1166,11 +1195,12 @@ an `IDENTIFIER` is flagged: a dotted type name such as `c.array` is not an expre
 typed by the rules above (an enum variant, a constant or a static function of the file) or by the rule below.
 
 **External calls.** `MAREA_SemaTypedNodeIsExternalCall` is true for a `CALL_EXPRESSION` of a name that the host or a
-library registered: its callee names a member of a namespace that a resolver answers `EXTERNAL`. The callee is read in
+library registered: its callee names a member of a namespace that a resolver answers `EXTERNAL`, or a registered
+function of a shipped library that has a source file (see "Registered functions of a shipped library"). The callee is read in
 the scope of the call, through parentheses: a full path that a cover reaches (`c.math.pow`), a path through an alias of
 an import or a require (`io.puts`) and a bare name that an alias bound to one member (`power`). A call into a tree of
-the project (a `FOUND` namespace), through `Self`, through a local type alias, of a name of the file or of its own
-namespace, or of a local or a parameter (also one that hides an alias) is not one. The ir keeps the answer on the call,
+the project (a `FOUND` namespace), through `Self`, through a local type alias, of a declaration of the file or of its
+own namespace, or of a local or a parameter (also one that hides an alias) is not one. The ir keeps the answer on the call,
 and a backend sends only such a call to a C function.
 
 **Members of a FOUND namespace.** When the name on the left of a member access stands for a namespace that the
@@ -1393,7 +1423,7 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 | 3078 | `UNIMPORTED_NAMESPACE` | `c.stdio.puts(x);` with no `require` that reaches `c.stdio`; `function f(values: marea.array.Array<sinteger32, 4>) end` with no `require marea.array;` |
 | 3079 | `UNRESOLVED_REQUIRE` | `require nowhere.library;`, `require nowhere.*;`, or a `require` of a project file that only the import resolver knows (with a registry) |
 | 3080 | `AMBIGUOUS_NAMESPACE` | `import demo.io; require demo.*;`: one full path under both keywords |
-| 3081 | `RESERVED_NAMESPACE_ROOT` | `namespace marea.tools;` or `namespace c.tools;` in a project file, with no exception |
+| 3081 | `RESERVED_NAMESPACE_ROOT` | `namespace marea.tools;` or `namespace c.tools;` in a file with no shipped library source input |
 | 3082 | `ELEMENT_WITHOUT_MEASURED_LAYOUT` | `marea.array.Array<function(): sinteger32, 2>`: an element type with no measured layout held by value, at the element |
 | 3083 | `BACKEND_UNAVAILABLE` | `#![backend = intrinsics]` in `marea.math` with no target, or on `riscv64`, or with `msvc`; `#[when(architecture = "riscv64", backend = intrinsics)]` on `riscv64` |
 | 3084 | `ATTRIBUTE_NOT_ALLOWED_HERE` | `#![backend = auto]` or `#[backend = scalar]` in a file whose namespace is not `marea.math` or below |
@@ -1462,7 +1492,13 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 - The `auto` backend has the start rule only (decision 18): the table of the best backend per operation does not exist.
   Backend rows that need a library that does not exist yet (`marea.math`) are proven by files written in the tests under that
   namespace, and a project file under the root `marea` is always `RESERVED_NAMESPACE_ROOT`, so a shipped `marea.math` file
-  cannot pass the checks of sema clean until a shipped-file entry exists.
+  cannot pass the checks of sema clean until a shipped-file entry exists. The entry is the shipped library source input; the
+  source of `marea.math` does not hold all its types yet.
+- `marea.math` is checked by sema, and its C functions run only from C. No backend lowers a structure of another
+  namespace, so a program cannot run a vector of `marea.math`: the `vm` and `cgen` refuse a local or a parameter of such
+  a type. The ir raises 4006 for an operator applied to a value of such a type.
+- The result of a registered function is not compared with the declared type of its place, as for any `EXTERNAL`
+  member. No caller input gives the signatures of `marea.math` outside the tests.
 - The IR lowers `build_value!`, a macro with a qualified name and `do ... while` now (see the ir doc, "Macros" and "Do-while
   lowering"). A macro call that the IR lowers (`build_value!`, a qualified name) has no resolved type in the typed tree, so the IR
   reads the type from the declaration around it.

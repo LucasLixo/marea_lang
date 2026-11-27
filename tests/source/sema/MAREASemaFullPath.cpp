@@ -357,3 +357,60 @@ TEST(MAREASemaFullPath, AProjectFileRaisesReservedNamespaceRootEvenWhenTheRegist
 
     EXPECT_EQ(fixture.MAREA_semaCodes(), std::vector<MAREA_Uinteger32>{ RESERVED_ROOT }) << "A project file under marea must raise RESERVED_NAMESPACE_ROOT regardless of what the registry knows.";
 }
+
+TEST(MAREASemaFullPath, AShippedLibrarySourceMayDeclareAReservedRoot)
+{
+    GTEST_COUT << "Validating the shipped library source input exempts the namespace declaration of the unit from the reserved root rule." << std::endl;
+
+    MAREA_SemaFixture underMarea;
+
+    ASSERT_EQ(MAREA_SemaContextSetShippedLibrarySource(underMarea.context, MAREA_BOOLEAN_TRUE), MAREA_SEMA_EXCEPT_SUCCESS) << "The input must be set.";
+
+    ASSERT_EQ(underMarea.MAREA_sema("namespace marea.whatever;", "marea/whatever.marea"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+
+    EXPECT_TRUE(underMarea.MAREA_semaCodes().empty()) << "A shipped file may declare a namespace under marea.";
+
+    MAREA_SemaFixture underC;
+
+    ASSERT_EQ(MAREA_SemaContextSetShippedLibrarySource(underC.context, MAREA_BOOLEAN_TRUE), MAREA_SEMA_EXCEPT_SUCCESS) << "The input must be set.";
+
+    ASSERT_EQ(underC.MAREA_sema("namespace c.tools;", "c/tools.marea"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+
+    EXPECT_TRUE(underC.MAREA_semaCodes().empty()) << "A shipped file may declare a namespace under c.";
+}
+
+TEST(MAREASemaFullPath, TheShippedLibrarySourceInputIsOffByDefaultAndCanBeTurnedOff)
+{
+    GTEST_COUT << "Validating a context with the input off rejects a reserved root as before." << std::endl;
+
+    MAREA_SemaFixture untouched;
+
+    ASSERT_EQ(untouched.MAREA_sema("namespace marea.whatever;", "marea/whatever.marea"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+
+    EXPECT_EQ(untouched.MAREA_semaCodes(), std::vector<MAREA_Uinteger32>{ RESERVED_ROOT }) << "The default is a file of the project.";
+
+    MAREA_SemaFixture off;
+
+    ASSERT_EQ(MAREA_SemaContextSetShippedLibrarySource(off.context, MAREA_BOOLEAN_TRUE), MAREA_SEMA_EXCEPT_SUCCESS) << "The input must be set.";
+
+    ASSERT_EQ(MAREA_SemaContextSetShippedLibrarySource(off.context, MAREA_BOOLEAN_FALSE), MAREA_SEMA_EXCEPT_SUCCESS) << "The input must be cleared.";
+
+    ASSERT_EQ(off.MAREA_sema("namespace marea.whatever;", "marea/whatever.marea"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+
+    EXPECT_EQ(off.MAREA_semaCodes(), std::vector<MAREA_Uinteger32>{ RESERVED_ROOT }) << "An input that is cleared exempts nothing.";
+
+    EXPECT_EQ(MAREA_SemaContextSetShippedLibrarySource(nullptr, MAREA_BOOLEAN_TRUE), MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER) << "A null context is an error.";
+}
+
+TEST(MAREASemaFullPath, TheShippedLibrarySourceInputChangesNoOtherRule)
+{
+    GTEST_COUT << "Validating the shipped library source input leaves the reserved alias rule in place." << std::endl;
+
+    MAREA_SemaFixture fixture(MAREA_registry());
+
+    ASSERT_EQ(MAREA_SemaContextSetShippedLibrarySource(fixture.context, MAREA_BOOLEAN_TRUE), MAREA_SEMA_EXCEPT_SUCCESS) << "The input must be set.";
+
+    ASSERT_EQ(fixture.MAREA_sema("namespace marea.whatever; require demo.tools as marea;", "marea/whatever.marea"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+
+    EXPECT_EQ(fixture.MAREA_semaCodes(), std::vector<MAREA_Uinteger32>{ MAREA_SEMA_DIAGNOSTIC_CODE_NAME_ALREADY_DECLARED }) << "An alias named marea stays refused.";
+}

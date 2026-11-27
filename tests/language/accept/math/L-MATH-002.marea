@@ -1,0 +1,39 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- The vectors of float32 take the arithmetic, the equality and the index operators.
+
+namespace main;
+
+require marea.math as math;
+
+function check2(left: math.Vector2Float32, right: math.Vector2Float32)
+    local sum: math.Vector2Float32 = left + right;
+    local difference: math.Vector2Float32 = left - right;
+    local product: math.Vector2Float32 = left * right;
+    local quotient: math.Vector2Float32 = left / right;
+    local equal: boolean = left == right;
+    local different: boolean = left != right;
+    local first: float32 = left[0];
+end
+
+function check3(left: math.Vector3Float32, right: math.Vector3Float32)
+    local sum: math.Vector3Float32 = left + right;
+    local difference: math.Vector3Float32 = left - right;
+    local product: math.Vector3Float32 = left * right;
+    local quotient: math.Vector3Float32 = left / right;
+    local equal: boolean = left == right;
+    local different: boolean = left != right;
+    local first: float32 = left[0];
+end
+
+function check4(left: math.Vector4Float32, right: math.Vector4Float32)
+    local sum: math.Vector4Float32 = left + right;
+    local difference: math.Vector4Float32 = left - right;
+    local product: math.Vector4Float32 = left * right;
+    local quotient: math.Vector4Float32 = left / right;
+    local equal: boolean = left == right;
+    local different: boolean = left != right;
+    local first: float32 = left[0];
+end
