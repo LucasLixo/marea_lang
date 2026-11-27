@@ -136,29 +136,23 @@ TEST(MAREAMathVector2, MinimumMaximumClampAbsoluteSinteger32)
     MAREA_MATH_INTEGER_OPERATIONS(2).MAREA_checkMinimumMaximumClampAbsolute();
 }
 
-TEST(MAREAMathVector2, DivisionSinteger32ByZeroGivesZero)
+TEST(MAREAMathVector2, DivisionSinteger32ByZeroRaisesTheTrap)
 {
-    GTEST_COUT << "Validating an integer lane divided by zero gives zero." << std::endl;
+    GTEST_COUT << "Validating an integer lane divided by zero raises the trap of the language." << std::endl;
 
-    const auto OPERATIONS{ MAREA_MATH_INTEGER_OPERATIONS(2) };
-
-    MAREA_expectIntegers(OPERATIONS.MAREA_binary(OPERATIONS.divide, { 7, 9, 0, 0 }, { 0, 3, 0, 0 }), { 0, 3, 0, 0 }, 2, "divide by zero");
+    MAREA_MATH_INTEGER_OPERATIONS(2).MAREA_checkDivisionByZero();
 }
 
 TEST(MAREAMathVector2, DivisionSinteger32SmallestByMinusOneWraps)
 {
     GTEST_COUT << "Validating the smallest integer divided by minus one wraps." << std::endl;
 
-    const auto OPERATIONS{ MAREA_MATH_INTEGER_OPERATIONS(2) };
-
-    MAREA_expectIntegers(OPERATIONS.MAREA_binary(OPERATIONS.divide, { MAREA_MATH_SMALLEST, 7, 0, 0 }, { -1, 0, 0, 0 }), { MAREA_MATH_SMALLEST, 0, 0, 0 }, 2, "divide the smallest by minus one");
+    MAREA_MATH_INTEGER_OPERATIONS(2).MAREA_expectQuotient({ MAREA_MATH_SMALLEST, 7, 0, 0 }, { -1, 1, 0, 0 }, { MAREA_MATH_SMALLEST, 7, 0, 0 }, "divide the smallest by minus one");
 }
 
 TEST(MAREAMathVector2, DivisionSinteger32TruncatesTowardZero)
 {
     GTEST_COUT << "Validating the integer division truncates toward zero." << std::endl;
 
-    const auto OPERATIONS{ MAREA_MATH_INTEGER_OPERATIONS(2) };
-
-    MAREA_expectIntegers(OPERATIONS.MAREA_binary(OPERATIONS.divide, { 7, -7, 0, 0 }, { 2, 2, 0, 0 }), { 3, -3, 0, 0 }, 2, "divide with truncation");
+    MAREA_MATH_INTEGER_OPERATIONS(2).MAREA_expectQuotient({ 7, -7, 0, 0 }, { 2, 2, 0, 0 }, { 3, -3, 0, 0 }, "divide with truncation");
 }

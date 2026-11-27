@@ -3,6 +3,8 @@
 
 #include "tests/dependencies.hpp"
 
+#include "marea/base/MAREAHostContext.h"
+
 #include "marea/base/MAREAMathLibrary.h"
 
 #include "tests/MAREAShippedLibraries.hpp"
@@ -187,4 +189,29 @@ TEST(MAREAMathLibrary, WrapperReadsScalarsAndWritesScalarResults)
     SCALE(nullptr, scaleArguments.data(), scaled.data());
 
     EXPECT_EQ(scaled, (std::array<std::int32_t, 4>{ 3, -6, 9, -12 })) << "The wrapper must read the scalar factor.";
+}
+
+TEST(MAREAMathLibrary, WrapperOfAnIntegerDivisionRaisesTheTrap)
+{
+    GTEST_COUT << "Validating the registered integer division raises the trap through its context." << std::endl;
+
+    MAREA_ShippedRegistry registry;
+
+    ASSERT_EQ(MAREA_MathLibraryRegister(registry.registry), MAREA_TYPE_REGISTRY_EXCEPT_SUCCESS) << "The registration must succeed.";
+
+    const MAREA_HostFunction DIVIDE{ MAREA_findMath(registry, "divide_vector2_sinteger32") };
+
+    ASSERT_NE(DIVIDE, nullptr) << "The division must be registered.";
+
+    std::array<std::int32_t, 4> left{ 6, 8, 0, 0 };
+    std::array<std::int32_t, 4> right{ 2, 0, 0, 0 };
+    std::array<std::int32_t, 4> quotient{};
+    std::array<MAREA_Null, 2> arguments{ left.data(), right.data() };
+    MAREA_HostContext context{};
+
+    ASSERT_EQ(MAREA_HostContextInitialize(&context, nullptr, nullptr), MAREA_HOST_CONTEXT_EXCEPT_SUCCESS) << "The context must be made.";
+
+    DIVIDE(&context, arguments.data(), quotient.data());
+
+    EXPECT_EQ(MAREA_HostContextGetTrap(&context), MAREA_HOST_TRAP_DIVISION_BY_ZERO) << "A zero divisor must raise the trap.";
 }

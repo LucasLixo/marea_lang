@@ -58,6 +58,11 @@ function(MareaAddStageLibrary)
             PRIVATE "$<$<C_COMPILER_ID:Clang,AppleClang,GNU>:-Wall;-Wextra;-Wpedantic>"
         )
 
+        # The base library holds the math functions of marea.math, so a C program that links it needs libm too
+        if(UNIX AND PARAM_STAGE STREQUAL "base")
+            target_link_libraries(${TEMP_TARGET} PUBLIC m)
+        endif()
+
         foreach(TEMP_LINK IN LISTS PARAM_LINK)
             target_link_libraries(${TEMP_TARGET} PUBLIC marea::${TEMP_LINK}_${TEMP_KIND_LOWER})
         endforeach()

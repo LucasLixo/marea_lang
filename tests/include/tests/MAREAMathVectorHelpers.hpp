@@ -6,6 +6,8 @@
 
     #include "tests/dependencies.hpp"
 
+    #include "marea/base/MAREAHostContext.h"
+
     #include "marea/base/MAREAMathLibrary.h"
 
     #include <array>
@@ -557,12 +559,13 @@ template <typename Vector>
 struct MAREA_MathIntegerOperations
 {
     using Binary = void(MAREA_CALL *)(const Vector *, const Vector *, Vector *);
+    using Division = void(MAREA_CALL *)(MAREA_HostContext *, const Vector *, const Vector *, Vector *);
 
     std::size_t lanes;
     Binary add;
     Binary subtract;
     Binary multiply;
-    Binary divide;
+    Division divide;
     void(MAREA_CALL *scale)(const Vector *, MAREA_Sinteger32, Vector *);
     MAREA_Sinteger32(MAREA_CALL *dot)(const Vector *, const Vector *);
     Binary minimum;
@@ -586,6 +589,49 @@ struct MAREA_MathIntegerOperations
         operation(&LEFT, &RIGHT, &result);
 
         return result;
+    }
+
+    Vector MAREA_divide(const MAREA_IntegerLanes &left, const MAREA_IntegerLanes &right, MAREA_HostTrap &trap) const
+    {
+        const Vector LEFT{ MAREA_of(left) };
+
+        const Vector RIGHT{ MAREA_of(right) };
+
+        Vector result{ MAREA_garbage<Vector>() };
+
+        MAREA_HostContext context{};
+
+        MAREA_IGNORE(MAREA_HostContextInitialize(&context, nullptr, nullptr));
+
+        divide(&context, &LEFT, &RIGHT, &result);
+
+        trap = MAREA_HostContextGetTrap(&context);
+
+        return result;
+    }
+
+    void MAREA_checkDivisionByZero() const
+    {
+        for (std::size_t zero{ 0 }; zero < lanes; ++zero) {
+            MAREA_IntegerLanes divisor{ 1, 1, 1, 1 };
+
+            divisor[zero] = 0;
+
+            MAREA_HostTrap trap{ MAREA_HOST_TRAP_NONE };
+
+            MAREA_IGNORE(MAREA_divide({ 7, 9, 5, 4 }, divisor, trap));
+
+            EXPECT_EQ(trap, MAREA_HOST_TRAP_DIVISION_BY_ZERO) << "A zero divisor in lane " << zero << " must raise the trap.";
+        }
+    }
+
+    void MAREA_expectQuotient(const MAREA_IntegerLanes &left, const MAREA_IntegerLanes &right, const MAREA_IntegerLanes &expected, const char *label) const
+    {
+        MAREA_HostTrap trap{ MAREA_HOST_TRAP_NONE };
+
+        MAREA_expectIntegers(MAREA_divide(left, right, trap), expected, lanes, label);
+
+        EXPECT_EQ(trap, MAREA_HOST_TRAP_NONE) << label << " must raise no trap.";
     }
 
     void MAREA_checkWrapping() const
