@@ -60,7 +60,11 @@ static MAREA_LexExcept MAREA_CALL MAREA_G_LexScanPrefixedInteger(MAREA_LexCursor
     const MAREA_SourcePosition POSITION = MAREA_LexCursorMakePosition(cursor, startOffset, startLine, startColumn);
 
     if (digitCount == MAREA_INTEGER_SIZE(0)) {
-        MAREA_LexCursorReportDiagnostic(cursor, MAREA_LEX_DIAGNOSTIC_CODE_MALFORMED_NUMBER, POSITION, isHex ? "malformed hexadecimal integer literal prefix" : "malformed binary integer literal prefix");
+        const MAREA_LexExcept reportResult = MAREA_LexCursorReportDiagnostic(cursor, MAREA_LEX_DIAGNOSTIC_CODE_MALFORMED_NUMBER, POSITION, isHex ? "malformed hexadecimal integer literal prefix" : "malformed binary integer literal prefix");
+
+        if (reportResult != MAREA_LEX_EXCEPT_SUCCESS) {
+            return reportResult;
+        }
 
         return MAREA_LexTokenListAppend(list, MAREA_TOKEN_KIND_ERROR, text, POSITION.length, POSITION);
     }

@@ -20,6 +20,7 @@ Run in edit mode, never in plan mode. Read nothing beyond the `git` output named
 - If an argument was given, restrict everything below to the paths it names.
 - Never stage what was already dirty and unrelated to the request.
 - Messages: ASCII only, English, never the `type: description` format. A full sentence (or a few), first letter capitalized, describing what changed and why rather than what the file is.
+- Subject of at most 72 characters that says what changed, then a blank line and a body that says why. [marea-ship](../../../tools/marea-ship/main.lua) `open-pr` builds the pull request description from these messages.
 - When the issue number `N` is set, close every message with ` #N` (no trailing period before it); never invent a number.
 - Attribution follows the repository `AGENTS.md` and the session instructions; do not add or strip trailers on your own initiative.
 
@@ -58,10 +59,6 @@ EOF
 ```
 
 The command refuses a message that is empty, not ASCII or in the `type: description` format, and a `metadata.yaml` whose version somebody already edited. A refused commit changes nothing in `metadata.yaml`. If the call itself is denied or the tool is missing, stop and report it.
-
-## Delegation
-
-A main session with a large context may hand a whole run to the [shipper](../../agents/shipper.md) agent, which runs on a small model. The prompt names the paths, says in one or two sentences what changed and why, and gives the bump level. A session that is already a subagent runs the skill itself.
 
 ## Validation
 

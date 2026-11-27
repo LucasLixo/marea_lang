@@ -5,6 +5,7 @@
 -- The elements are written through a for each mutable.
 
 namespace main;
+require demo.vector;
 
 structure Point
     x: sinteger32;
@@ -16,7 +17,7 @@ structure Box
     count: sinteger32;
 end
 
-function check(#[semantics = reference_mutable] points: vector<Point>): sinteger32
+function check(#[semantics = reference_mutable] points: demo.vector<Point>): sinteger32
     for each item in mutable points do
         item.x = 1;
     end

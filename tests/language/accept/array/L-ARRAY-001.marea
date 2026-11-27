@@ -1,0 +1,16 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An element of a fixed array is read, written and taken with front and back.
+
+namespace main;
+
+require marea.array;
+
+function check(): sinteger32
+    local values: marea.array.Array<sinteger32, 4> = marea.array.Array<sinteger32, 4>{ 1, 2, 3, 4 };
+    values[1] = 20;
+    values[2] += 1;
+    return (values.front() * 100) + (values[1] * 10) + values[2] + values.back();
+end

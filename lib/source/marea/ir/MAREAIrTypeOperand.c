@@ -132,7 +132,125 @@ static MAREA_Boolean MAREA_CALL MAREA_G_UnitDeclaresGenericType(const MAREA_IrCo
 
 static MAREA_IrExcept MAREA_CALL MAREA_G_LowerTypeName(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode);
 
-// INFO: a type argument is a written type or a number; a function type has no IR form yet, so it is a gap.
+static MAREA_IrExcept MAREA_CALL MAREA_G_LowerFunctionType(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode);
+
+// INFO: the text of the TYPE_NAME that stands for a function type; function is a keyword, so no written type can have this name.
+static const MAREA_Character8 MAREA_G_FunctionTypeName[] = "function";
+
+// INFO: a written type is a NAMED_TYPE or a FUNCTION_TYPE. Any other kind makes no node and raises nothing.
+static MAREA_IrExcept MAREA_CALL MAREA_G_LowerTypeOperand(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode)
+{
+    *outNode = MAREA_NULLPTR;
+
+    if (MAREA_IrTypedKind(typed) == MAREA_AST_KIND_FUNCTION_TYPE) {
+        return MAREA_G_LowerFunctionType(context, typed, outNode);
+    }
+
+    if (MAREA_IrTypedKind(typed) == MAREA_AST_KIND_NAMED_TYPE) {
+        return MAREA_G_LowerTypeName(context, typed, outNode);
+    }
+
+    return MAREA_IR_EXCEPT_SUCCESS;
+}
+
+// INFO: the first direct child that is a written type, or null.
+static const MAREA_SemaTypedNode *MAREA_CALL MAREA_G_FindWrittenType(const MAREA_SemaTypedNode *typed)
+{
+    const MAREA_IntegerSize COUNT = MAREA_SemaTypedNodeGetChildCount(typed);
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < COUNT; index = (index + MAREA_INTEGER_SIZE(1))) {
+        const MAREA_SemaTypedNode *child = MAREA_IrTypedChildAt(typed, index);
+
+        if ((MAREA_IrTypedKind(child) == MAREA_AST_KIND_NAMED_TYPE) || (MAREA_IrTypedKind(child) == MAREA_AST_KIND_FUNCTION_TYPE)) {
+            return child;
+        }
+    }
+
+    return MAREA_NULLPTR;
+}
+
+// INFO: function(a: A, b: B): R becomes TYPE_NAME function (PARAMETER_LIST (TYPE_NAME A) (TYPE_NAME B)) (TYPE_NAME R). The list is there even when it is empty, so a result is always the second child. A gap in one part leaves the whole type out.
+static MAREA_IrExcept MAREA_CALL MAREA_G_LowerFunctionType(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode **outNode)
+{
+    *outNode = MAREA_NULLPTR;
+
+    MAREA_IrNode *node = MAREA_NULLPTR;
+
+    MAREA_IrExcept result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_TYPE_NAME, MAREA_SemaTypedNodeGetAstNode(typed), &node);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    node->text = MAREA_G_FunctionTypeName;
+    node->textLength = (MAREA_Uinteger32)strlen(MAREA_G_FunctionTypeName);
+
+    const MAREA_SemaTypedNode *parameters = MAREA_IrTypedFindChild(typed, MAREA_AST_KIND_PARAMETER_LIST);
+
+    MAREA_IrNode *list = MAREA_NULLPTR;
+
+    result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_PARAMETER_LIST, MAREA_SemaTypedNodeGetAstNode((parameters != MAREA_NULLPTR) ? parameters : typed), &list);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    const MAREA_IntegerSize COUNT = (parameters != MAREA_NULLPTR) ? MAREA_SemaTypedNodeGetChildCount(parameters) : MAREA_INTEGER_SIZE(0);
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < COUNT; index = (index + MAREA_INTEGER_SIZE(1))) {
+        const MAREA_SemaTypedNode *parameter = MAREA_IrTypedChildAt(parameters, index);
+
+        const MAREA_SemaTypedNode *type = (MAREA_IrTypedKind(parameter) == MAREA_AST_KIND_PARAMETER) ? MAREA_G_FindWrittenType(parameter) : MAREA_NULLPTR;
+
+        if (type == MAREA_NULLPTR) {
+            continue;
+        }
+
+        MAREA_IrNode *lowered = MAREA_NULLPTR;
+
+        result = MAREA_G_LowerTypeOperand(context, type, &lowered);
+
+        if ((result != MAREA_IR_EXCEPT_SUCCESS) || (lowered == MAREA_NULLPTR)) {
+            return result;
+        }
+
+        result = MAREA_IrNodeAppendChild(context, list, lowered);
+
+        if (result != MAREA_IR_EXCEPT_SUCCESS) {
+            return result;
+        }
+    }
+
+    result = MAREA_IrNodeAppendChild(context, node, list);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    const MAREA_SemaTypedNode *resultType = MAREA_G_FindWrittenType(typed);
+
+    if (resultType != MAREA_NULLPTR) {
+        MAREA_IrNode *lowered = MAREA_NULLPTR;
+
+        result = MAREA_G_LowerTypeOperand(context, resultType, &lowered);
+
+        if ((result != MAREA_IR_EXCEPT_SUCCESS) || (lowered == MAREA_NULLPTR)) {
+            return result;
+        }
+
+        result = MAREA_IrNodeAppendChild(context, node, lowered);
+
+        if (result != MAREA_IR_EXCEPT_SUCCESS) {
+            return result;
+        }
+    }
+
+    *outNode = node;
+
+    return MAREA_IR_EXCEPT_SUCCESS;
+}
+
+// INFO: a type argument is a written type (a named type or a function type) or a number.
 static MAREA_IrExcept MAREA_CALL MAREA_G_LowerTypeArguments(MAREA_IrContext *context, const MAREA_SemaTypedNode *arguments, MAREA_IrNode *parent, MAREA_Boolean *outComplete)
 {
     *outComplete = MAREA_BOOLEAN_FALSE;
@@ -148,12 +266,12 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerTypeArguments(MAREA_IrContext *con
 
         MAREA_IrExcept result = MAREA_IR_EXCEPT_SUCCESS;
 
-        if (KIND == MAREA_AST_KIND_NAMED_TYPE) {
-            result = MAREA_G_LowerTypeName(context, argument, &lowered);
+        if ((KIND == MAREA_AST_KIND_NAMED_TYPE) || (KIND == MAREA_AST_KIND_FUNCTION_TYPE)) {
+            result = MAREA_G_LowerTypeOperand(context, argument, &lowered);
         } else if (KIND == MAREA_AST_KIND_INTEGER_LITERAL) {
             result = MAREA_IrLowerExpression(context, argument, &lowered);
         } else {
-            return MAREA_IrRaise(context, MAREA_IR_DIAGNOSTIC_CODE_UNINSTANTIATED_GENERIC, MAREA_SemaTypedNodeGetAstNode(argument), "A type argument that is not a named type or a number is not supported by the IR yet.", MAREA_NULLPTR, MAREA_INTEGER_SIZE(0));
+            return MAREA_IrRaise(context, MAREA_IR_DIAGNOSTIC_CODE_UNINSTANTIATED_GENERIC, MAREA_SemaTypedNodeGetAstNode(argument), "A type argument that is not a written type or a number is not supported by the IR yet.", MAREA_NULLPTR, MAREA_INTEGER_SIZE(0));
         }
 
         if ((result != MAREA_IR_EXCEPT_SUCCESS) || (lowered == MAREA_NULLPTR)) {

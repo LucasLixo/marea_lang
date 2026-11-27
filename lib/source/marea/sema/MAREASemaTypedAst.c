@@ -127,11 +127,17 @@ static const MAREA_AstNode *MAREA_CALL MAREA_G_InferTypedResultType(MAREA_SemaCo
     if (KIND == MAREA_AST_KIND_INDEX_ACCESS) {
         const MAREA_AstNode *base = MAREA_G_InferTypedResultType(context, MAREA_SemaChildAt(expression, 0));
 
-        const MAREA_Character8 *name = MAREA_NULLPTR;
+        const MAREA_TypeDescriptor *descriptor = MAREA_NULLPTR;
 
-        MAREA_IntegerSize nameLength = 0;
+        const MAREA_AstNode *part = MAREA_SemaTupleElement(context, base, MAREA_SemaChildAt(expression, 1));
 
-        if ((MAREA_G_TypedAstSingleName(base, &name, &nameLength) == MAREA_BOOLEAN_FALSE) || ((MAREA_G_TypedAstTextIs(name, nameLength, "array") == MAREA_BOOLEAN_FALSE) && (MAREA_G_TypedAstTextIs(name, nameLength, "slice") == MAREA_BOOLEAN_FALSE) && (MAREA_G_TypedAstTextIs(name, nameLength, "vector") == MAREA_BOOLEAN_FALSE) && (MAREA_G_TypedAstTextIs(name, nameLength, "pointer") == MAREA_BOOLEAN_FALSE))) {
+        if (part != MAREA_NULLPTR) {
+            return (MAREA_G_TypedAstIsType(part) == MAREA_BOOLEAN_TRUE) ? part : MAREA_NULLPTR;
+        }
+
+        const MAREA_Boolean HAS_ELEMENT = ((MAREA_SemaDescriptorOfType(context, base, &descriptor) == MAREA_BOOLEAN_TRUE) && ((descriptor->hasIndexProtocol == MAREA_BOOLEAN_TRUE) || ((descriptor->roles & MAREA_TYPE_ROLE_RAW_POINTER) != MAREA_TYPE_ROLE_NONE))) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+
+        if (HAS_ELEMENT == MAREA_BOOLEAN_FALSE) {
             return MAREA_NULLPTR;
         }
 
@@ -383,6 +389,8 @@ static MAREA_SemaTypedAstExcept MAREA_CALL MAREA_G_TypedAstBuildNode(MAREA_SemaC
     built->layout = MAREA_NULLPTR;
     built->typeName = MAREA_NULLPTR;
     built->resolvedType = MAREA_NULLPTR;
+    built->backend = MAREA_NULLPTR;
+    built->backendLength = 0;
     built->exprType = (MAREA_SemaExprType){ .node = MAREA_NULLPTR, .declaration = MAREA_NULLPTR, .arguments = MAREA_NULLPTR, .frame = MAREA_NULLPTR, .fixed = MAREA_NULLPTR, .fixedLength = 0 };
     built->children = MAREA_NULLPTR;
     built->typeNameLength = 0;
@@ -391,6 +399,8 @@ static MAREA_SemaTypedAstExcept MAREA_CALL MAREA_G_TypedAstBuildNode(MAREA_SemaC
     built->typeClass = MAREA_SEMA_TYPE_CLASS_PRIMITIVE;
     built->ownershipMode = MAREA_SEMA_OWNERSHIP_MODE_VALUE;
     built->isQualifier = MAREA_BOOLEAN_FALSE;
+    built->isExternalCall = MAREA_BOOLEAN_FALSE;
+    built->includedFile = MAREA_NULLPTR;
 
     // INFO: the checker's scope stack is replayed read-only, matching the first sema visit.
     MAREA_SemaScopeMark mark = { 0 };
@@ -410,6 +420,13 @@ static MAREA_SemaTypedAstExcept MAREA_CALL MAREA_G_TypedAstBuildNode(MAREA_SemaC
     MAREA_SemaTypedAstResolveLiteralDefault(built);
 
     const MAREA_AstKind NODE_KIND = MAREA_AstNodeGetKind(node);
+
+    // INFO: a function carries its resolved backend, so the ir never reads the attributes or the target.
+    if ((NODE_KIND == MAREA_AST_KIND_FUNCTION_DECLARATION) && (MAREA_SemaResolveBackend(context, node, &built->backend, &built->backendLength) != MAREA_SEMA_EXCEPT_SUCCESS)) {
+        MAREA_SemaScopeLeave(context, mark);
+
+        return MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NULL_POINTER;
+    }
 
     // INFO: a structure or an enum carries its layout, measured with the generic parameters of the declaration in scope.
     if (((NODE_KIND == MAREA_AST_KIND_STRUCTURE_DECLARATION) || (NODE_KIND == MAREA_AST_KIND_ENUM_DECLARATION)) && (MAREA_SemaMeasureDeclaration(context, node, &built->layout) != MAREA_SEMA_EXCEPT_SUCCESS)) {
@@ -444,7 +461,15 @@ static MAREA_SemaTypedAstExcept MAREA_CALL MAREA_G_TypedAstBuildNode(MAREA_SemaC
 
             MAREA_SemaTypedNode *typedChild = MAREA_NULLPTR;
 
-            result = MAREA_G_TypedAstBuildNode(context, child, node, index, &typedChild);
+            if (MAREA_SemaIsBinderHeader(node, index) == MAREA_BOOLEAN_TRUE) {
+                const MAREA_SemaBinderWindow WINDOW = MAREA_SemaHideBinders(context, mark);
+
+                result = MAREA_G_TypedAstBuildNode(context, child, node, index, &typedChild);
+
+                MAREA_SemaShowBinders(context, WINDOW);
+            } else {
+                result = MAREA_G_TypedAstBuildNode(context, child, node, index, &typedChild);
+            }
 
             built->children[index] = typedChild;
 
@@ -622,4 +647,22 @@ MAREA_SemaOwnershipMode MAREA_CALL MAREA_SemaTypedNodeGetOwnershipMode(const MAR
     }
 
     return node->ownershipMode;
+}
+
+MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedNodeGetBackend(const MAREA_SemaTypedNode *node, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength)
+{
+    if ((node == MAREA_NULLPTR) || (outText == MAREA_NULLPTR) || (outLength == MAREA_NULLPTR)) {
+        return MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    *outText = node->backend;
+    *outLength = node->backendLength;
+
+    return (node->backend == MAREA_NULLPTR) ?
+MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NO_BACKEND : MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+}
+
+const MAREA_SemaIncludedFile *MAREA_CALL MAREA_SemaTypedNodeGetIncludedFile(const MAREA_SemaTypedNode *node)
+{
+    return (node == MAREA_NULLPTR) ? MAREA_NULLPTR : node->includedFile;
 }

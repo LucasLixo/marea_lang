@@ -36,7 +36,7 @@ alone.
    `general-purpose` subagent, one at a time, in this same tree. Give it the paths of the index and
    of the part, and what the earlier parts reported. Take back at most 15 lines: commits, each check
    with its real counts, deviations, and what the next part needs. Run every other part yourself. A
-   session that is itself a subagent runs every part itself.
+   session that is itself a subagent runs the parts it was given itself.
 
 ## Parts
 

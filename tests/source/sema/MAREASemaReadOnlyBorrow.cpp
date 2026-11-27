@@ -3,6 +3,7 @@
 
 #include "tests/dependencies.hpp"
 
+#include "tests/MAREALibraryRegistryHelpers.hpp"
 #include "tests/MAREASemaHelpers.hpp"
 
 namespace
@@ -15,7 +16,9 @@ namespace
     {
         MAREA_SemaFixture fixture([](const std::string &, const MAREA_AstNode **) { return MAREA_SEMA_IMPORT_RESULT_EXTERNAL; });
 
-        if (fixture.MAREA_sema("namespace main; import c.array; " + SHAPES + body) != MAREA_SEMA_EXCEPT_SUCCESS) {
+        MAREA_IGNORE(MAREA_SemaContextSetTypeRegistry(fixture.context, MAREA_buildLibraryRegistry(fixture.parser.lexer.arena)));
+
+        if (fixture.MAREA_sema("namespace main; import c.array as array; require demo.owned; require demo.vector; " + SHAPES + body) != MAREA_SEMA_EXCEPT_SUCCESS) {
             return { 0 };
         }
 
@@ -60,9 +63,9 @@ TEST(MAREASemaReadOnlyBorrow, ParameterWithNoAttributeFollowsItsDefault)
 
     EXPECT_EQ(MAREA_codesOf("function f(p: Point) p.x = 1; end"), ONE) << "A default structure parameter is a read-only borrow.";
 
-    EXPECT_EQ(MAREA_codesOf("function f(o: owned<Point>) o.x = 1; end"), NONE) << "An owned parameter is a move-in type.";
+    EXPECT_EQ(MAREA_codesOf("function f(o: demo.owned<Point>) o.x = 1; end"), NONE) << "An owned parameter is a move-in type.";
 
-    EXPECT_EQ(MAREA_codesOf("function f(v: vector<Point>) v[0] = make_point(); end"), NONE) << "A vector parameter is a move-in type.";
+    EXPECT_EQ(MAREA_codesOf("function f(v: demo.vector<Point>) v[0] = make_point(); end"), NONE) << "A vector parameter is a move-in type.";
 }
 
 TEST(MAREASemaReadOnlyBorrow, ForEachVariableOverAReadOnlySourceIsReadOnly)
@@ -72,11 +75,23 @@ TEST(MAREASemaReadOnlyBorrow, ForEachVariableOverAReadOnlySourceIsReadOnly)
     EXPECT_EQ(MAREA_codesOf("function f(xs: c.array<Point>) for each v in xs do v.x = 1; end end"), ONE) << "A for each variable is read-only without mutable.";
 }
 
-TEST(MAREASemaReadOnlyBorrow, WithNameOverAnExistingValueIsReadOnly)
+TEST(MAREASemaReadOnlyBorrow, WithNameFollowsTheModeOfItsSource)
 {
-    GTEST_COUT << "Validating that a with name over a name is read-only and over a call is writable." << std::endl;
+    GTEST_COUT << "Validating that a with name over an existing value has the mode of that value and over a call is writable." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf("function f() local p: Point = make_point(); with p as v do v.x = 1; end end"), ONE) << "A view of an existing value is read-only.";
+    EXPECT_EQ(MAREA_codesOf("function f() local p: Point = make_point(); with p as v do v.x = 1; end end"), NONE) << "A view of a writable local is writable.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(#[semantics = reference_mutable] p: Point) with p as v do v.x = 1; end end"), NONE) << "A view of a write borrow is writable.";
+
+    EXPECT_EQ(MAREA_codesOf("function f() local b: Box = Box{ inner = make_point(), count = 1 }; with b.inner as v do v.x = 1; end end"), NONE) << "A view of a field of a writable local is writable.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(p: Point) with p as v do v.x = 1; end end"), ONE) << "A view of a read-only borrow is read-only.";
+
+    EXPECT_EQ(MAREA_codesOf("function f(b: Box) with b.inner as v do v.x = 1; end end"), ONE) << "A view of a field of a read-only borrow is read-only.";
+
+    EXPECT_EQ(MAREA_codesOf("constant ORIGIN: Point = Point{ x = 0, y = 0 }; function f() with ORIGIN as v do v.x = 1; end end"), ONE) << "A view of a file constant is read-only.";
+
+    EXPECT_EQ(MAREA_codesOf("implementation Point constant ZERO: Point = Point{ x = 0, y = 0 }; end function f() with Point.ZERO as v do v.x = 1; end end"), ONE) << "A view of an implementation constant is read-only.";
 
     EXPECT_EQ(MAREA_codesOf("function f() with make_point() as v do v.x = 1; end end"), NONE) << "A with over a call is writable.";
 }
@@ -114,7 +129,7 @@ TEST(MAREASemaReadOnlyBorrow, ReadOnlyBorrowGivenToAWriteBorrowIsRejected)
 
     EXPECT_EQ(MAREA_codesOf(HEAD + "function f(#[semantics = reference_mutable] p: Point) write_point(p); end"), NONE) << "A mutable parameter must be accepted.";
 
-    EXPECT_EQ(MAREA_codesOf(HEAD + "import c.task; function f(#[semantics = reference_read_only] p: Point) fork_join spawn write_point(p); end end"), ONE) << "A spawn of a read-only parameter must be rejected.";
+    EXPECT_EQ(MAREA_codesOf(HEAD + "import c.task as task; function f(#[semantics = reference_read_only] p: Point) fork_join spawn write_point(p); end end"), ONE) << "A spawn of a read-only parameter must be rejected.";
 }
 
 TEST(MAREASemaReadOnlyBorrow, TemporaryGivenToAWriteBorrowIsRejected)
@@ -136,7 +151,7 @@ TEST(MAREASemaReadOnlyBorrow, PartitionMutableNeedsAWritableSource)
 {
     GTEST_COUT << "Validating that partition mutable over a read-only source reports once and the part of a writable one may be written." << std::endl;
 
-    const std::string HEAD{ "import c.slice; import c.task; function scale(#[semantics = reference_mutable] part: c.slice<float32>) end " };
+    const std::string HEAD{ "import c.slice as slice; import c.task as task; function scale(#[semantics = reference_mutable] part: c.slice<float32>) end " };
 
     EXPECT_EQ(MAREA_codesOf(HEAD + "function f(#[semantics = reference_read_only] values: c.array<float32>) fork_join partition mutable values into 2 as part do end end end"), ONE) << "A read-only source must be rejected.";
 

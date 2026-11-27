@@ -1,0 +1,15 @@
+-- expect: 3041 @10, 3065 @13, 3041 @13
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A raw pointer local of a type alias outside an unsafe block.
+
+namespace main;
+require demo.pointer;
+
+type Raw = demo.pointer<sinteger32>;
+
+function check(): sinteger32
+    local raw: Raw;
+    return 1;
+end

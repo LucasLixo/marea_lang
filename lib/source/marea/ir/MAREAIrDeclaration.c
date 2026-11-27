@@ -57,6 +57,11 @@ static MAREA_Boolean MAREA_CALL MAREA_G_FunctionCarriesOperator(const MAREA_Sema
     return MAREA_BOOLEAN_FALSE;
 }
 
+MAREA_Boolean MAREA_CALL MAREA_IrIsDestroyFunction(const MAREA_SemaTypedNode *function)
+{
+    return MAREA_G_FunctionCarriesOperator(function, "destroy", (MAREA_IntegerSize)strlen("destroy"));
+}
+
 const MAREA_SemaTypedNode *MAREA_CALL MAREA_IrFindLifecycleFunction(const MAREA_IrContext *context, const MAREA_Character8 *typeName, MAREA_IntegerSize typeNameLength, MAREA_Boolean wantConstruct)
 {
     if ((context == MAREA_NULLPTR) || (context->unit == MAREA_NULLPTR) || (typeName == MAREA_NULLPTR)) {
@@ -443,6 +448,32 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerConstant(MAREA_IrContext *context,
     return MAREA_IrNodeAppendChild(context, parent, node);
 }
 
+// INFO: the backend that sema resolved for the function is the last child of the node, after the body. The text is the one of sema, which stays valid as long as the arena.
+static MAREA_IrExcept MAREA_CALL MAREA_G_AppendBackend(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, MAREA_IrNode *function)
+{
+    const MAREA_Character8 *text = MAREA_NULLPTR;
+
+    MAREA_IntegerSize length = MAREA_INTEGER_SIZE(0);
+
+    if (MAREA_SemaTypedNodeGetBackend(typed, &text, &length) != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) {
+        return MAREA_IR_EXCEPT_SUCCESS;
+    }
+
+    MAREA_IrNode *backend = MAREA_NULLPTR;
+
+    MAREA_IrExcept result = MAREA_IrNodeCreate(context, MAREA_IR_KIND_BACKEND_ATTRIBUTE, MAREA_SemaTypedNodeGetAstNode(typed), &backend);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
+    backend->text = text;
+    backend->textLength = (MAREA_Uinteger32)length;
+    backend->flags = MAREA_UINTEGER_32(0);
+
+    return MAREA_IrNodeAppendChild(context, function, backend);
+}
+
 static MAREA_IrExcept MAREA_CALL MAREA_G_LowerFunctionBody(MAREA_IrContext *context, const MAREA_SemaTypedNode *typed, const MAREA_Character8 *qualifier, MAREA_IntegerSize qualifierLength, MAREA_IrNode *parent)
 {
     if (MAREA_G_HasChildOfKind(typed, MAREA_AST_KIND_GENERIC_PARAMETERS) == MAREA_BOOLEAN_TRUE) {
@@ -456,6 +487,8 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerFunctionBody(MAREA_IrContext *cont
     if (result != MAREA_IR_EXCEPT_SUCCESS) {
         return result;
     }
+
+    node->destroyOperator = MAREA_IrIsDestroyFunction(typed);
 
     const MAREA_SemaTypedNode *parameters = MAREA_IrTypedFindChild(typed, MAREA_AST_KIND_PARAMETER_LIST);
 
@@ -521,6 +554,12 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerFunctionBody(MAREA_IrContext *cont
         }
     }
 
+    result = MAREA_G_AppendBackend(context, typed, node);
+
+    if (result != MAREA_IR_EXCEPT_SUCCESS) {
+        return result;
+    }
+
     return MAREA_IrNodeAppendChild(context, parent, node);
 }
 
@@ -529,6 +568,8 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerFunction(MAREA_IrContext *context,
 {
     context->function = typed;
     context->loopCount = MAREA_INTEGER_SIZE(0);
+    context->switchCount = MAREA_INTEGER_SIZE(0);
+    context->returnCount = MAREA_INTEGER_SIZE(0);
 
     const MAREA_IrExcept result = MAREA_G_LowerFunctionBody(context, typed, qualifier, qualifierLength, parent);
 
@@ -611,11 +652,24 @@ MAREA_IrExcept MAREA_CALL MAREA_IrLowerDeclaration(MAREA_IrContext *context, con
         return MAREA_G_LowerImplementation(context, typed, parent);
     case MAREA_AST_KIND_MACRO_STATEMENT:
     {
-        const MAREA_SemaTypedNode *name = MAREA_IrTypedFindChild(MAREA_IrTypedFindChild(typed, MAREA_AST_KIND_MACRO_CALL), MAREA_AST_KIND_IDENTIFIER);
+        const MAREA_SemaTypedNode *call = MAREA_IrTypedFindChild(typed, MAREA_AST_KIND_MACRO_CALL);
 
-        const MAREA_AstNode *nameAst = MAREA_SemaTypedNodeGetAstNode(name);
+        // INFO: the name is a plain identifier, or a qualified name for the macro of a library; the message holds whichever is written.
+        const MAREA_SemaTypedNode *name = MAREA_IrTypedChildAt(call, MAREA_INTEGER_SIZE(0));
 
-        return MAREA_IrRaise(context, MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_MACRO, MAREA_SemaTypedNodeGetAstNode(typed), "A macro at module level is not supported by the IR yet:", MAREA_AstNodeGetText(nameAst), MAREA_AstNodeGetTextLength(nameAst));
+        const MAREA_Character8 *text = MAREA_NULLPTR;
+        MAREA_IntegerSize length = MAREA_INTEGER_SIZE(0);
+
+        if ((name != MAREA_NULLPTR) && (MAREA_IrTypedKind(name) == MAREA_AST_KIND_QUALIFIED_NAME)) {
+            if (MAREA_IrAstQualifiedNameSpan(MAREA_SemaTypedNodeGetAstNode(name), &text, &length) == MAREA_BOOLEAN_FALSE) {
+                text = MAREA_NULLPTR;
+            }
+        } else if (name != MAREA_NULLPTR) {
+            text = MAREA_AstNodeGetText(MAREA_SemaTypedNodeGetAstNode(name));
+            length = MAREA_AstNodeGetTextLength(MAREA_SemaTypedNodeGetAstNode(name));
+        }
+
+        return MAREA_IrRaise(context, MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_MACRO, MAREA_SemaTypedNodeGetAstNode(typed), "A macro at module level is not supported by the IR yet:", text, length);
     }
     default:
         // INFO: namespace, import, file attribute, type alias, contract and error nodes make no IR node.

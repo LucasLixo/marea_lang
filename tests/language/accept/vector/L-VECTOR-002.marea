@@ -1,0 +1,19 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- append past the capacity grows the vector and keeps the order.
+
+namespace main;
+
+require marea.vector;
+
+function check(count: uinteger64): uinteger64
+    local values: marea.vector.Vector<sinteger32> = marea.vector.Vector<sinteger32>{};
+    local index: uinteger64 = 0;
+    while index < count do
+        values.append(1);
+        index += 1;
+    end
+    return (values.size() * 1000) + values.capacity();
+end

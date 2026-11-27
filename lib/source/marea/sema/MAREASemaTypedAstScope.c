@@ -150,7 +150,7 @@ static MAREA_SemaTypedAstExcept MAREA_CALL MAREA_G_TypeForEachNames(MAREA_SemaCo
     return (KEY_RESULT != MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) ? KEY_RESULT : MAREA_G_TypeDeclaredName(context, built, 0, &KEY);
 }
 
-// INFO: a part is a slice of the element type of the value, written slice<T> whatever the collection is.
+// INFO: a part is the partition-part type of the element type of the value, whatever the collection is.
 static MAREA_SemaTypedAstExcept MAREA_CALL MAREA_G_TypePartitionPart(MAREA_SemaContext *context, const MAREA_SemaTypedNode *built)
 {
     const MAREA_SemaExprType VALUE = MAREA_SemaTypedAstTypeOfChild(built, 0);
@@ -175,20 +175,21 @@ RENDERED
 ;
 }
 
-MAREA_Null memory = MAREA_NULLPTR;
+const MAREA_Character8 *wrapped = MAREA_NULLPTR;
 
-if (MAREA_ArenaAllocate(context->arena, (length + MAREA_INTEGER_SIZE(7)), MAREA_INTEGER_SIZE(1), &memory) != MAREA_ARENA_EXCEPT_SUCCESS) {
+MAREA_IntegerSize wrappedLength = 0;
+
+const MAREA_SemaExcept WRAPPED = MAREA_SemaWrapInRoleType(context, MAREA_TYPE_ROLE_PARTITION_PART, text, length, &wrapped, &wrappedLength);
+
+if (WRAPPED != MAREA_SEMA_EXCEPT_SUCCESS) {
     return MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_OUT_OF_MEMORY;
 }
 
-MAREA_Character8 *buffer = memory;
+if (wrapped == MAREA_NULLPTR) {
+    return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+}
 
-memcpy(buffer, "slice<", MAREA_INTEGER_SIZE(6));
-memcpy((buffer + MAREA_INTEGER_SIZE(6)), text, length);
-
-buffer[(length + MAREA_INTEGER_SIZE(6))] = '>';
-
-const MAREA_SemaExprType PART = MAREA_G_TypeOfFixedText(buffer, (length + MAREA_INTEGER_SIZE(7)));
+const MAREA_SemaExprType PART = MAREA_G_TypeOfFixedText(wrapped, wrappedLength);
 
 return MAREA_G_BindType(context, MAREA_SemaChildAt(built->astNode, 2), &PART);
 }

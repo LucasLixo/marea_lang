@@ -66,6 +66,10 @@ configurethirdpartyprojects()
 
 add_subdirectory("${MAREA_FOLDER_LIB}" "${MAREA_FOLDER_CMAKE_BINARY}/Marea-Lib")
 
+if(MAREA_OPTION_TARGET_CC OR MAREA_OPTION_TARGET_BC)
+    add_subdirectory("${MAREA_FOLDER_APPS}" "${MAREA_FOLDER_CMAKE_BINARY}/Marea-Apps")
+endif()
+
 if(MAREA_OPTION_TARGET_TESTS)
     enable_testing()
     add_subdirectory("${MAREA_FOLDER_TESTS}" "${MAREA_FOLDER_CMAKE_BINARY}/Marea-Tests")

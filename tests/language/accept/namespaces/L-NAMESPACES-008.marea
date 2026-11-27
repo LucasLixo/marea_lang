@@ -2,11 +2,11 @@
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
--- A c import renamed by as.
+-- A required C library renamed by as.
 
 namespace main;
 
-import c.stdio as output;
+require c.stdio as output;
 
 function show()
     output.puts("hello");

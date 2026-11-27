@@ -1,0 +1,13 @@
+-- expect: 3003 @11
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A local of a for body repeats the loop name.
+
+namespace main;
+
+function check()
+    for i in 0 .. 10 do
+        local i: sinteger32 = 0;
+    end
+end

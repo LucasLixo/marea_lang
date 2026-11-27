@@ -13,7 +13,8 @@ MAREA_BEGIN_EXTERN_C
 
     /**
      * @brief How the checks treat a type: a built-in primitive, a built-in that copies or moves, an
-     * unbound generic parameter, a user structure or enum, or a type from outside the language core.
+     * unbound generic parameter, a user structure or enum, a type from outside the language core, or a
+     * tuple, which follows the rules of a structure.
      */
     typedef enum MAREA_SemaTypeClass
     {
@@ -23,6 +24,7 @@ MAREA_BEGIN_EXTERN_C
         MAREA_SEMA_TYPE_CLASS_GENERIC = MAREA_UINTEGER_8(3),
         MAREA_SEMA_TYPE_CLASS_USER = MAREA_UINTEGER_8(4),
         MAREA_SEMA_TYPE_CLASS_EXTERNAL = MAREA_UINTEGER_8(5),
+        MAREA_SEMA_TYPE_CLASS_TUPLE = MAREA_UINTEGER_8(6),
     } MAREA_SemaTypeClass;
 
     /**
@@ -50,6 +52,7 @@ MAREA_BEGIN_EXTERN_C
         MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NO_TYPE = MAREA_UINTEGER_8(4),
         MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NO_LAYOUT = MAREA_UINTEGER_8(5),
         MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_UNDECIDED = MAREA_UINTEGER_8(6),
+        MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NO_BACKEND = MAREA_UINTEGER_8(7),
     } MAREA_SemaTypedAstExcept;
 
     /**
@@ -147,6 +150,20 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedNodeGetResolvedType(const MAREA_SemaTypedNode *node, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength);
 
     /**
+     * @brief Returns the backend of a function: the member of the key backend that decides for it, already
+     * resolved by sema against the target description of the context (see the sema doc, "Backend"): the
+     * function attribute over the file attribute, a when item that holds over a plain item, and auto replaced by
+     * the best backend the target gives. Only a function of a file in marea.math has one.
+     * @param node Typed node to query. Must not be null.
+     * @param outText Receives the member name (auto never, only scalar, vector_extension or intrinsics), NUL
+     * terminated, valid for the lifetime of the arena, or null when there is none. Must not be null.
+     * @param outLength Receives the byte length of outText, 0 when outText is null. Must not be null.
+     * @return MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS, ERROR_NULL_POINTER when node, outText or outLength is null, or
+     * ERROR_NO_BACKEND when the node is not a function of a file in marea.math.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedNodeGetBackend(const MAREA_SemaTypedNode *node, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength);
+
+    /**
      * @brief Returns the resolved ownership mode of a typed node.
      * @param node Typed node to query. Null returns MAREA_SEMA_OWNERSHIP_MODE_VALUE.
      * @return The ownership mode, or MAREA_SEMA_OWNERSHIP_MODE_VALUE when node is null.
@@ -162,6 +179,26 @@ MAREA_BEGIN_EXTERN_C
      * @return True for such an IDENTIFIER, false for any other node and for a null node.
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaTypedNodeIsQualifier(const MAREA_SemaTypedNode *node);
+
+    /**
+     * @brief Tells whether a typed node is a call of a name that the host or a library registered: a call whose
+     * callee names a member of a namespace that a resolver answers EXTERNAL, written with its full path or through
+     * the alias of an import or a require, or a function that a shipped library registered beside its source file: a
+     * member of a namespace under c or marea that its tree does not declare and that the signature function knows.
+     * A call into a tree of the project (a FOUND namespace), through Self, through a local type alias, of a
+     * declaration of the file or of its own namespace, or of a value is not one.
+     * @param node Typed node to query. Null returns false.
+     * @return True for such a CALL_EXPRESSION, false for any other node and for a null node.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaTypedNodeIsExternalCall(const MAREA_SemaTypedNode *node);
+
+    /**
+     * @brief Returns the file of a MACRO_CALL that gives the bytes of a file, as include_bytes! does.
+     * @param node Node to query. May be null.
+     * @return The bytes and the path, held by the arena of the context, or null for any other node and when the
+     * include resolver of the context gave no bytes.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_SemaIncludedFile *MAREA_CALL MAREA_SemaTypedNodeGetIncludedFile(const MAREA_SemaTypedNode *node);
 
 MAREA_END_EXTERN_C
 

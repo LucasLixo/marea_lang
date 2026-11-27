@@ -5,12 +5,13 @@
 -- A raw pointer from a c call inside an unsafe block.
 
 namespace main;
+require demo.pointer;
 
-import c.vulkan;
+require c.vulkan as vulkan;
 
 function native(): uinteger64
     unsafe
-        local raw: pointer<uinteger8> = vulkan.native_pointer();
+        local raw: demo.pointer<uinteger8> = vulkan.native_pointer();
         return convert<uinteger64>(raw);
     end
 end

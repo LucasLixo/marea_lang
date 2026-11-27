@@ -1,10 +1,11 @@
--- expect: 3069 @21
+-- expect: 3069 @22
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
 -- A for each variable is written.
 
 namespace main;
+require demo.vector;
 
 structure Point
     x: sinteger32;
@@ -16,7 +17,7 @@ structure Box
     count: sinteger32;
 end
 
-function check(#[semantics = reference_read_only] points: vector<Point>)
+function check(#[semantics = reference_read_only] points: demo.vector<Point>)
     for each item in points do
         item.x = 1;
     end

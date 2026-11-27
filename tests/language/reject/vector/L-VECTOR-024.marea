@@ -1,0 +1,13 @@
+-- expect: 3069 @12
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- append writes through a read only borrow.
+
+namespace main;
+
+require marea.vector;
+
+function check(#[semantics = reference_read_only] values: marea.vector.Vector<sinteger32>)
+    values.append(1);
+end

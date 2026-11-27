@@ -1,4 +1,4 @@
--- expect: 3011 @22
+-- expect: 3011 @24
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
@@ -6,6 +6,8 @@
 -- Mutant of L-OWNERSHIP-083: a field of a for each element is stored in a narrower local.
 
 namespace main;
+require demo.owned;
+require demo.vector;
 
 structure Point
     x: sinteger32;
@@ -17,11 +19,11 @@ structure Box
     count: sinteger32;
 end
 
-function check(points: owned<vector<Point>>): sinteger32
+function check(points: demo.owned<demo.vector<Point>>): sinteger32
     for each item in points do
         local x: sinteger8 = item.x;
     end
-    local other: vector<Point> = move points;
+    local other: demo.owned<demo.vector<Point>> = move points;
     return 1;
 end
 

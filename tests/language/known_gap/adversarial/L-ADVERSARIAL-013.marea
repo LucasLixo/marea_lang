@@ -6,6 +6,7 @@
 -- A contract method moves its receiver into a write borrow.
 
 namespace main;
+require demo.owned;
 
 structure Point
     x: sinteger32;
@@ -29,7 +30,7 @@ function write_point(#[semantics = reference_mutable] point: Point)
     point.x = 1;
 end
 
-function take_point(point: owned<Point>): sinteger32
+function take_point(point: demo.owned<Point>): sinteger32
     return point.x;
 end
 

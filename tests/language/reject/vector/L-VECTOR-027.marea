@@ -1,0 +1,18 @@
+-- expect: 3013 @17
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- resize needs an element type that can be copied.
+
+namespace main;
+
+require marea.vector;
+
+structure Token
+    value: sinteger32;
+end
+
+function check()
+    local values: marea.vector.Vector<Token> = marea.vector.Vector<Token>{};
+    values.resize(2, Token{ value = 1 });
+end

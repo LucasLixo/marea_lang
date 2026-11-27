@@ -1,0 +1,13 @@
+-- expect: 3004 @12
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A wildcard require binds no short name.
+
+namespace main;
+
+require demo.*;
+
+function show()
+    io.puts("hello");
+end

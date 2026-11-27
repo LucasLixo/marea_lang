@@ -1,0 +1,11 @@
+-- expect: 3007 @9
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Two when items that hold give the same key.
+
+namespace main;
+
+#[when(not(architecture = "x86_64"), inline = never), when(not(operating_system = "linux"), inline = force)]
+function run()
+end

@@ -1,0 +1,31 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- The matrices of sinteger32 take the product, the equality and the index of a column.
+
+namespace main;
+
+require marea.math as math;
+require marea.math { Matrix2x2Sinteger32, Vector2Sinteger32, Matrix3x3Sinteger32, Vector3Sinteger32, Matrix4x4Sinteger32, Vector4Sinteger32 };
+
+function check2(left: math.Matrix2x2Sinteger32, right: math.Matrix2x2Sinteger32)
+    local product: math.Matrix2x2Sinteger32 = left * right;
+    local equal: boolean = left == right;
+    local different: boolean = left != right;
+    local first: math.Vector2Sinteger32 = left[0];
+end
+
+function check3(left: math.Matrix3x3Sinteger32, right: math.Matrix3x3Sinteger32)
+    local product: math.Matrix3x3Sinteger32 = left * right;
+    local equal: boolean = left == right;
+    local different: boolean = left != right;
+    local first: math.Vector3Sinteger32 = left[0];
+end
+
+function check4(left: math.Matrix4x4Sinteger32, right: math.Matrix4x4Sinteger32)
+    local product: math.Matrix4x4Sinteger32 = left * right;
+    local equal: boolean = left == right;
+    local different: boolean = left != right;
+    local first: math.Vector4Sinteger32 = left[0];
+end

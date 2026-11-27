@@ -1,16 +1,17 @@
--- expect: 3016 @15
+-- expect: 3016 @16
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
 -- An owner of an opaque type assigned with no move.
 
 namespace main;
+require demo.owned;
 
-import c.vulkan;
+require c.vulkan as vulkan;
 
 opaque structure Texture;
 
 function check()
-    local first: owned<Texture> = vulkan.create_texture();
-    local second: owned<Texture> = first;
+    local first: demo.owned<Texture> = vulkan.create_texture();
+    local second: demo.owned<Texture> = first;
 end

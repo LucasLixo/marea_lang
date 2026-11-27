@@ -6,6 +6,8 @@
 
 namespace main;
 
+require c.array;
+
 function sum_array(values: c.array<sinteger32>): sinteger32
     local total: sinteger32 = 0;
     for each value in values do

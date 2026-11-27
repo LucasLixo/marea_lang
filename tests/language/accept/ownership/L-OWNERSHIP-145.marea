@@ -5,6 +5,7 @@
 -- An owned parameter is returned and the owner goes up.
 
 namespace main;
+require demo.owned;
 
 structure Point
     x: sinteger32;
@@ -16,6 +17,6 @@ structure Box
     count: sinteger32;
 end
 
-function check(point: owned<Point>): Point
+function check(point: demo.owned<Point>): Point
     return point;
 end

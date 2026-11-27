@@ -1,0 +1,13 @@
+-- expect: 3016 @12
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An arena is given to another name with no move.
+
+namespace main;
+
+require marea.memory;
+
+function check(#[semantics = reference_mutable] arena: marea.memory.Arena)
+    local other: marea.memory.Arena = arena;
+end

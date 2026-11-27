@@ -130,10 +130,10 @@ TEST(MAREASemaTypedAstGenerics, ExplicitTypeArgumentsAreStillUnaffected)
 
 TEST(MAREASemaTypedAstGenerics, CompoundParameterBindsThroughItsArguments)
 {
-    GTEST_COUT << "Validating a compound parameter such as array<Item,4> binds Item from the matching argument." << std::endl;
+    GTEST_COUT << "Validating a compound parameter such as demo.array<Item,4> binds Item from the matching argument." << std::endl;
 
-    const std::string SOURCE{ "namespace main; function first<Item>(values: array<Item,4>): Item where Item: Copyable return copy values[0]; end "
-                              "function run(data: array<sinteger32,4>): sinteger32 return first(data); end" };
+    const std::string SOURCE{ "namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; function first<Item>(values: demo.array<Item,4>): Item where Item: Copyable return copy values[0]; end "
+                              "function run(data: demo.array<sinteger32,4>): sinteger32 return first(data); end" };
 
     MAREA_expectGenericType(SOURCE, MAREA_AST_KIND_CALL_EXPRESSION, 0, "sinteger32");
 }
@@ -143,10 +143,10 @@ TEST(MAREASemaTypedAstGenerics, ConflictingBindingLeavesNoType)
     GTEST_COUT << "Validating two parameters of the same generic name bound to two different argument types leave the call untyped." << std::endl;
 
     const std::string SOURCE{ "namespace main; function same<Item>(a: Item, b: Item): Item where Item: Copyable return copy a; end "
-                              "function run(x: sinteger32, y: float64): sinteger32 return convert<sinteger32>(same(x, y)); end" };
+                              "enum Left a; end enum Right b; end function run(x: Left, y: Right): sinteger32 return convert<sinteger32>(same(x, y)); end" };
 
     // INFO: the outer call in source order is convert<sinteger32>(...) itself (index 0); the inner call, same(x, y)
-    // (index 1), binds Item to sinteger32 from x and to float64 from y: a conflict, so it keeps no type of its own.
+    // (index 1), binds Item to Left from x and to Right from y: a conflict, so it keeps no type of its own.
     MAREA_expectGenericNoType(SOURCE, MAREA_AST_KIND_CALL_EXPRESSION, 1);
 }
 

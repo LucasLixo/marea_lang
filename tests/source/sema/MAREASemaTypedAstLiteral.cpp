@@ -5,6 +5,7 @@
 
 #include "marea/sema/MAREASemaTypedAst.h"
 
+#include "tests/MAREALibraryRegistryHelpers.hpp"
 #include "tests/MAREASemaHelpers.hpp"
 
 #include <string>
@@ -47,7 +48,9 @@ namespace
     // Checks the source with zero errors, builds its typed tree and lists the resolved type of every literal of one kind.
     Types MAREA_literalTypes(const std::string &source, MAREA_AstKind kind)
     {
-        MAREA_SemaFixture fixture;
+        MAREA_SemaFixture fixture([](const std::string &text, const MAREA_AstNode **) { return (text.rfind("demo.", 0) == 0) ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND; });
+
+        MAREA_IGNORE(MAREA_SemaContextSetTypeRegistry(fixture.context, MAREA_buildLibraryRegistry(fixture.parser.lexer.arena)));
 
         Types result;
 
@@ -195,9 +198,9 @@ TEST(MAREASemaTypedAstLiteral, ElementTypeFixesAnArrayEntry)
 {
     GTEST_COUT << "Validating an entry of an array literal takes the element type." << std::endl;
 
-    EXPECT_EQ(MAREA_floats("namespace main; function f() local a: array<float32, 2> = array<float32, 2>{ 1.0, 2.0 }; end"), (Types{ "float32", "float32" })) << "Every plain entry must take the element type.";
+    EXPECT_EQ(MAREA_floats("namespace main; require demo.array; function f() local a: demo.array<float32, 2> = demo.array<float32, 2>{ 1.0, 2.0 }; end"), (Types{ "float32", "float32" })) << "Every plain entry must take the element type.";
 
-    EXPECT_EQ(MAREA_integers("namespace main; function f() local a: array<uinteger8, 2> = array<uinteger8, 2>{ [0] = 1, [1] = 2 }; end"), (Types{ "sinteger32", "sinteger32", "sinteger32", "uinteger8", "sinteger32", "uinteger8" })) << "An index entry value must take the element type; the size arguments and the keys keep the default.";
+    EXPECT_EQ(MAREA_integers("namespace main; require demo.array; function f() local a: demo.array<uinteger8, 2> = demo.array<uinteger8, 2>{ [0] = 1, [1] = 2 }; end"), (Types{ "sinteger32", "sinteger32", "sinteger32", "uinteger8", "sinteger32", "uinteger8" })) << "An index entry value must take the element type; the size arguments and the keys keep the default.";
 }
 
 TEST(MAREASemaTypedAstLiteral, FieldTypeFixesAStructureLiteralEntry)
@@ -245,7 +248,7 @@ TEST(MAREASemaTypedAstLiteral, LiteralWithNoContextTakesTheDefault)
 
     EXPECT_EQ(MAREA_integers("namespace main; function g<Item>(a: Item) end function f() g(5); end"), Types{ "sinteger32" }) << "A parameter of a generic type fixes no primitive, so the default is used.";
 
-    EXPECT_EQ(MAREA_integers("namespace main; function f(a: array<sinteger32, 4>): sinteger32 return a[0]; end"), (Types{ "sinteger32", "sinteger32" })) << "A size argument and an index are not values of a context, so each keeps the default.";
+    EXPECT_EQ(MAREA_integers("namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; function f(a: demo.array<sinteger32, 4>): sinteger32 return a[0]; end"), (Types{ "sinteger32", "sinteger32" })) << "A size argument and an index are not values of a context, so each keeps the default.";
 }
 
 TEST(MAREASemaTypedAstLiteral, StringCharacterAndBooleanKeepTheirOwnType)

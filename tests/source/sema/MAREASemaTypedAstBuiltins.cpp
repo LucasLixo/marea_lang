@@ -130,7 +130,7 @@ TEST(MAREASemaTypedAstBuiltins, CallOfAnImportStaysWithoutAType)
 {
     GTEST_COUT << "Validating a call that sema cannot resolve (an import) is not given the type void." << std::endl;
 
-    MAREA_expectNoType("namespace main; import c.stdio; function f(text: string) stdio.puts(text); end", MAREA_AST_KIND_CALL_EXPRESSION, 0, MAREA_EXTERNAL_RESOLVE);
+    MAREA_expectNoType("namespace main; import c.stdio as stdio; function f(text: string) stdio.puts(text); end", MAREA_AST_KIND_CALL_EXPRESSION, 0, MAREA_EXTERNAL_RESOLVE);
 }
 
 TEST(MAREASemaTypedAstBuiltins, SpawnOfAVoidCallStaysWithoutAType)

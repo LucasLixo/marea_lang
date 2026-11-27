@@ -1,10 +1,11 @@
--- expect: 3016 @25
+-- expect: 3016 @26
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
 -- A local of an owned type takes a value with no word.
 
 namespace main;
+require demo.owned;
 
 structure Point
     x: sinteger32;
@@ -22,6 +23,6 @@ end
 
 function check(): sinteger32
     local point: Point = make_point();
-    local owner: owned<Point> = point;
+    local owner: demo.owned<Point> = point;
     return 1;
 end

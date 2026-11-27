@@ -3,6 +3,7 @@
 
 #include "tests/dependencies.hpp"
 
+#include "tests/MAREALibraryRegistryHelpers.hpp"
 #include "tests/MAREASemaHelpers.hpp"
 
 namespace
@@ -15,7 +16,9 @@ namespace
     {
         MAREA_SemaFixture fixture([](const std::string &, const MAREA_AstNode **) { return MAREA_SEMA_IMPORT_RESULT_EXTERNAL; });
 
-        if (fixture.MAREA_sema("namespace main; import c.lib; " + body) != MAREA_SEMA_EXCEPT_SUCCESS) {
+        MAREA_IGNORE(MAREA_SemaContextSetTypeRegistry(fixture.context, MAREA_buildLibraryRegistry(fixture.parser.lexer.arena)));
+
+        if (fixture.MAREA_sema("namespace main; import c.lib as lib; require demo.pointer; " + body) != MAREA_SEMA_EXCEPT_SUCCESS) {
             return { 0 };
         }
 
@@ -36,30 +39,30 @@ TEST(MAREASemaRawPointer, PointerLocalOutsideUnsafeIsRejected)
 {
     GTEST_COUT << "Validating a pointer local outside unsafe raises RAW_POINTER_OUTSIDE_UNSAFE." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf(MAREA_function("local raw: pointer<sinteger32> = lib.f();")), Codes{ RAW_POINTER }) << "A pointer local outside unsafe must raise 3041.";
+    EXPECT_EQ(MAREA_codesOf(MAREA_function("local raw: demo.pointer<sinteger32> = lib.f();")), Codes{ RAW_POINTER }) << "A pointer local outside unsafe must raise 3041.";
 }
 
 TEST(MAREASemaRawPointer, PointerLocalInsideUnsafeIsSilent)
 {
     GTEST_COUT << "Validating a pointer local inside unsafe, also in a nested block, raises nothing." << std::endl;
 
-    EXPECT_TRUE(MAREA_codesOf(MAREA_function("unsafe local raw: pointer<sinteger32> = lib.f(); end")).empty()) << "A pointer local directly in unsafe must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf(MAREA_function("unsafe local raw: demo.pointer<sinteger32> = lib.f(); end")).empty()) << "A pointer local directly in unsafe must raise nothing.";
 
-    EXPECT_TRUE(MAREA_codesOf(MAREA_function("unsafe while flag do local raw: pointer<sinteger32> = lib.f(); end end")).empty()) << "A pointer local in a block nested in unsafe must raise nothing.";
+    EXPECT_TRUE(MAREA_codesOf(MAREA_function("unsafe while flag do local raw: demo.pointer<sinteger32> = lib.f(); end end")).empty()) << "A pointer local in a block nested in unsafe must raise nothing.";
 }
 
 TEST(MAREASemaRawPointer, PointerLocalAfterUnsafeIsRejected)
 {
     GTEST_COUT << "Validating a pointer local after an unsafe block has ended raises 3041." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf(MAREA_function("unsafe local a: sinteger32 = 1; end local raw: pointer<sinteger32> = lib.f();")), Codes{ RAW_POINTER }) << "A pointer local after unsafe must raise 3041.";
+    EXPECT_EQ(MAREA_codesOf(MAREA_function("unsafe local a: sinteger32 = 1; end local raw: demo.pointer<sinteger32> = lib.f();")), Codes{ RAW_POINTER }) << "A pointer local after unsafe must raise 3041.";
 }
 
 TEST(MAREASemaRawPointer, UnsafeInNestedBlockDoesNotLeak)
 {
     GTEST_COUT << "Validating an unsafe block inside a nested block does not cover a later local." << std::endl;
 
-    EXPECT_EQ(MAREA_codesOf(MAREA_function("while flag do unsafe local a: sinteger32 = 1; end end local raw: pointer<sinteger32> = lib.f();")), Codes{ RAW_POINTER }) << "A pointer local after a nested unsafe must raise 3041.";
+    EXPECT_EQ(MAREA_codesOf(MAREA_function("while flag do unsafe local a: sinteger32 = 1; end end local raw: demo.pointer<sinteger32> = lib.f();")), Codes{ RAW_POINTER }) << "A pointer local after a nested unsafe must raise 3041.";
 }
 
 TEST(MAREASemaRawPointer, OtherLocalTypesAreSilent)
@@ -67,4 +70,24 @@ TEST(MAREASemaRawPointer, OtherLocalTypesAreSilent)
     GTEST_COUT << "Validating a local of another type outside unsafe raises nothing." << std::endl;
 
     EXPECT_TRUE(MAREA_codesOf(MAREA_function("local a: sinteger32 = 1; local b: float64 = 1.5;")).empty()) << "A primitive local must raise nothing.";
+}
+
+TEST(MAREASemaRawPointer, AliasOfARawPointerIsFollowedAtItsUse)
+{
+    GTEST_COUT << "Validating a use of a type alias of a raw pointer outside unsafe raises 3041 at the alias and at the use." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("type Raw = demo.pointer<sinteger32>; " + MAREA_function("local raw: Raw = lib.f();")), (Codes{ RAW_POINTER, RAW_POINTER })) << "A local of an aliased raw pointer must raise 3041.";
+
+    EXPECT_EQ(MAREA_codesOf("type Raw = demo.pointer<sinteger32>; function h(raw: Raw) end"), (Codes{ RAW_POINTER, RAW_POINTER })) << "A parameter of an aliased raw pointer must raise 3041.";
+
+    EXPECT_EQ(MAREA_codesOf("type Raw = demo.pointer<sinteger32>; type Again = Raw; " + MAREA_function("local raw: Again = lib.f();")), (Codes{ RAW_POINTER, RAW_POINTER, RAW_POINTER })) << "A chain of aliases must be followed.";
+}
+
+TEST(MAREASemaRawPointer, AliasUseInsideUnsafeOrOfAnotherTypeIsSilent)
+{
+    GTEST_COUT << "Validating a use of an alias inside unsafe, or of an alias of another type, adds no diagnostic." << std::endl;
+
+    EXPECT_EQ(MAREA_codesOf("type Raw = demo.pointer<sinteger32>; " + MAREA_function("unsafe local raw: Raw = lib.f(); end")), Codes{ RAW_POINTER }) << "Only the alias itself must raise 3041.";
+
+    EXPECT_TRUE(MAREA_codesOf("type Number = sinteger32; " + MAREA_function("local value: Number = 1;")).empty()) << "An alias of a primitive must raise nothing.";
 }

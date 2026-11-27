@@ -1,0 +1,16 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- The quaternion takes the product and the equality.
+
+namespace main;
+
+require marea.math as math;
+require marea.math { QuaternionFloat32 };
+
+function check(left: math.QuaternionFloat32, right: math.QuaternionFloat32)
+    local product: math.QuaternionFloat32 = left * right;
+    local equal: boolean = left == right;
+    local different: boolean = left != right;
+end

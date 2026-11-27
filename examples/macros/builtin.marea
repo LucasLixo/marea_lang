@@ -20,7 +20,7 @@
 --   unreachable!()                      a point that must never run; stops with an error
 --   compile_error!(message)             stops the compile with the message
 --   static_assert!(condition, message)  checks a constant condition at compile time
---   include_bytes!(path)                embeds a file as c.array<uinteger8>, path relative to this file
+--   include_bytes!(path)                embeds a file as marea.array.Array<uinteger8, N>, path relative to this file
 --   include_text!(path)                 embeds a file as a string
 --   format!(text, values...)            builds a string. The caller becomes its owner.
 --   print!(text, values...)             writes a formatted text to the standard output
@@ -30,8 +30,8 @@
 
 namespace macros.builtin;
 
-import collections.array;
-import attributes.layout;
+require marea.array;
+import attributes.layout as layout;
 
 -- The format text is checked at compile time: the count and the type of every {} must match.
 -- No printf-like variadic call exists, so a wrong format cannot be a run-time error.
@@ -56,7 +56,7 @@ static_assert!(align_of<layout.Light>() == 16, "Light must align to 16 bytes");
 
 -- A file embedded at compile time. Nothing is read when the program runs.
 constant VERTEX_SHADER: string = include_text!("shaders/triangle.vert");
-constant LOGO: c.array<uinteger8> = include_bytes!("images/logo.bin");
+constant LOGO: marea.array.Array<uinteger8, 4096> = include_bytes!("images/logo.bin");
 
 -- unreachable!() after a branch that cannot happen.
 #[visibility = public]

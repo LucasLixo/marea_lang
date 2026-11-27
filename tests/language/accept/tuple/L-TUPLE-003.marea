@@ -1,0 +1,21 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A function gives back two values in one tuple.
+
+namespace main;
+
+require marea.tuple;
+
+function bounds(a: sinteger32, b: sinteger32): marea.tuple.Tuple<sinteger32, sinteger32>
+    if a < b then
+        return marea.tuple.Tuple<sinteger32, sinteger32>{ a, b };
+    end
+    return marea.tuple.Tuple<sinteger32, sinteger32>{ b, a };
+end
+
+function check(a: sinteger32, b: sinteger32): sinteger32
+    local range: marea.tuple.Tuple<sinteger32, sinteger32> = bounds(a, b);
+    return range[1] - range[0];
+end

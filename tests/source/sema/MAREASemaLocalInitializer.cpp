@@ -15,7 +15,7 @@ namespace
     {
         MAREA_SemaFixture fixture([](const std::string &, const MAREA_AstNode **) { return MAREA_SEMA_IMPORT_RESULT_EXTERNAL; });
 
-        if (fixture.MAREA_sema("namespace main; import c.lib; structure Point x: sinteger32; end " + body) != MAREA_SEMA_EXCEPT_SUCCESS) {
+        if (fixture.MAREA_sema("namespace main; import c.lib as lib; structure Point x: sinteger32; end " + body) != MAREA_SEMA_EXCEPT_SUCCESS) {
             return { 0 };
         }
 

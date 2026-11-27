@@ -49,6 +49,7 @@ namespace
         { "opaque", MAREA_TOKEN_KIND_KEYWORD_OPAQUE },
         { "or", MAREA_TOKEN_KIND_KEYWORD_OR },
         { "partition", MAREA_TOKEN_KIND_KEYWORD_PARTITION },
+        { "require", MAREA_TOKEN_KIND_KEYWORD_REQUIRE },
         { "return", MAREA_TOKEN_KIND_KEYWORD_RETURN },
         { "spawn", MAREA_TOKEN_KIND_KEYWORD_SPAWN },
         { "structure", MAREA_TOKEN_KIND_KEYWORD_STRUCTURE },
@@ -68,7 +69,7 @@ TEST(MAREATokenKind, NamesAreUniqueAndNonEmpty)
 {
     GTEST_COUT << "Validating every token kind name is non-null, non-empty, unique and only A-Z0-9_." << std::endl;
 
-    ASSERT_EQ(static_cast<int>(MAREA_TOKEN_KIND_COUNT), 100) << "MAREA_TOKEN_KIND_COUNT must equal 100.";
+    ASSERT_EQ(static_cast<int>(MAREA_TOKEN_KIND_COUNT), 101) << "MAREA_TOKEN_KIND_COUNT must equal 101.";
 
     std::set<std::string> seenNames;
 
@@ -96,11 +97,11 @@ TEST(MAREATokenKind, NameOfOutOfRangeKindIsUnknown)
     EXPECT_STREQ(MAREA_TokenKindGetName(MAREA_TOKEN_KIND_COUNT), "UNKNOWN") << "MAREA_TOKEN_KIND_COUNT must report UNKNOWN.";
 }
 
-TEST(MAREATokenKind, KeywordLookupFindsAll43)
+TEST(MAREATokenKind, KeywordLookupFindsAll44)
 {
-    GTEST_COUT << "Validating MAREA_TokenKindLookupKeyword finds every one of the 43 keywords." << std::endl;
+    GTEST_COUT << "Validating MAREA_TokenKindLookupKeyword finds every one of the 44 keywords." << std::endl;
 
-    ASSERT_EQ(sizeof(MAREA_G_KEYWORD_TABLE) / sizeof(MAREA_G_KEYWORD_TABLE[0]), 43U) << "The keyword table must have 43 rows.";
+    ASSERT_EQ(sizeof(MAREA_G_KEYWORD_TABLE) / sizeof(MAREA_G_KEYWORD_TABLE[0]), 44U) << "The keyword table must have 44 rows.";
 
     for (const MAREA_KeywordRow &row : MAREA_G_KEYWORD_TABLE) {
         const MAREA_TokenKind KIND{ MAREA_TokenKindLookupKeyword(row.text, static_cast<MAREA_IntegerSize>(std::strlen(row.text))) };

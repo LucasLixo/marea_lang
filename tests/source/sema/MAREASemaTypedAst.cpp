@@ -5,6 +5,7 @@
 
 #include "marea/sema/MAREASemaTypedAst.h"
 
+#include "tests/MAREALibraryRegistryHelpers.hpp"
 #include "tests/MAREASemaHelpers.hpp"
 
 namespace
@@ -88,7 +89,7 @@ TEST(MAREASemaTypedAst, ImportMemberListIsCarriedIntoTheShadowTree)
 
     MAREA_SemaFixture fixture([](const std::string &, const MAREA_AstNode **) { return MAREA_SEMA_IMPORT_RESULT_EXTERNAL; });
 
-    ASSERT_EQ(fixture.MAREA_sema("namespace main; import a.b { f as g, T };"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check.";
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; import a.b { f as g, T as T };"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check.";
 
     ASSERT_EQ(fixture.MAREA_errorCount(), MAREA_INTEGER_SIZE(0)) << "The source must raise no error.";
 
@@ -533,11 +534,13 @@ TEST(MAREASemaTypedAst, MutableBorrowParameterOwnershipIsMutableBorrow)
 
 TEST(MAREASemaTypedAst, OwnedParameterOwnershipIsMove)
 {
-    GTEST_COUT << "Validating an owned<T> parameter has ownership mode MOVE." << std::endl;
+    GTEST_COUT << "Validating an demo.owned<T> parameter has ownership mode MOVE." << std::endl;
 
-    MAREA_SemaFixture fixture;
+    MAREA_SemaFixture fixture([](const std::string &text, const MAREA_AstNode **) { return (text.rfind("demo.", 0) == 0) ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND; });
 
-    ASSERT_EQ(fixture.MAREA_sema("namespace main; structure Shape x: float32; end function f(o: owned<Shape>) end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
+    MAREA_IGNORE(MAREA_SemaContextSetTypeRegistry(fixture.context, MAREA_buildLibraryRegistry(fixture.parser.lexer.arena)));
+
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; require demo.owned; structure Shape x: float32; end function f(o: demo.owned<Shape>) end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The source must check with zero errors.";
 
     const MAREA_SemaTypedNode *outRoot{ nullptr };
 
@@ -547,7 +550,7 @@ TEST(MAREASemaTypedAst, OwnedParameterOwnershipIsMove)
 
     ASSERT_NE(parameter, nullptr) << "The typed tree must carry the parameter node.";
 
-    EXPECT_EQ(MAREA_SemaTypedNodeGetOwnershipMode(parameter), MAREA_SEMA_OWNERSHIP_MODE_MOVE) << "An owned<T> parameter must carry ownership mode MOVE.";
+    EXPECT_EQ(MAREA_SemaTypedNodeGetOwnershipMode(parameter), MAREA_SEMA_OWNERSHIP_MODE_MOVE) << "An demo.owned<T> parameter must carry ownership mode MOVE.";
 }
 
 TEST(MAREASemaTypedAst, CopyExpressionOwnershipIsCopy)
@@ -623,13 +626,13 @@ TEST(MAREASemaTypedAst, ResolvedTypeOfParameterKeepsTypeArgumentsWithoutSpaces)
 
     MAREA_SemaFixture fixture;
 
-    const MAREA_ResolvedTypeResult RESULT{ MAREA_resolvedTypeOf(fixture, "namespace main; function f(a: array<sinteger32, 4>) end", MAREA_AST_KIND_PARAMETER) };
+    const MAREA_ResolvedTypeResult RESULT{ MAREA_resolvedTypeOf(fixture, "namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; function f(a: demo.array<sinteger32, 4>) end", MAREA_AST_KIND_PARAMETER) };
 
     ASSERT_TRUE(RESULT.found) << "The parameter must be in the typed tree.";
 
     ASSERT_EQ(RESULT.except, MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "A parameter has a resolved type.";
 
-    EXPECT_EQ(RESULT.text, "array<sinteger32,4>") << "Type arguments must be joined by a comma with no space.";
+    EXPECT_EQ(RESULT.text, "demo.array<sinteger32,4>") << "Type arguments must be joined by a comma with no space.";
 }
 
 TEST(MAREASemaTypedAst, ResolvedTypeOfLocalKeepsTypeArguments)
@@ -638,13 +641,13 @@ TEST(MAREASemaTypedAst, ResolvedTypeOfLocalKeepsTypeArguments)
 
     MAREA_SemaFixture fixture;
 
-    const MAREA_ResolvedTypeResult RESULT{ MAREA_resolvedTypeOf(fixture, "namespace main; function f() local a: array<sinteger32, 4> = array<sinteger32, 4>{ 0, 0, 0, 0 }; end", MAREA_AST_KIND_LOCAL_DECLARATION) };
+    const MAREA_ResolvedTypeResult RESULT{ MAREA_resolvedTypeOf(fixture, "namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; function f() local a: demo.array<sinteger32, 4> = demo.array<sinteger32, 4>{ 0, 0, 0, 0 }; end", MAREA_AST_KIND_LOCAL_DECLARATION) };
 
     ASSERT_TRUE(RESULT.found) << "The local must be in the typed tree.";
 
     ASSERT_EQ(RESULT.except, MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "A local has a resolved type.";
 
-    EXPECT_EQ(RESULT.text, "array<sinteger32,4>") << "A local must give array<sinteger32,4>.";
+    EXPECT_EQ(RESULT.text, "demo.array<sinteger32,4>") << "A local must give demo.array<sinteger32,4>.";
 }
 
 TEST(MAREASemaTypedAst, ResolvedTypeOfFieldIsItsWrittenType)
@@ -653,7 +656,7 @@ TEST(MAREASemaTypedAst, ResolvedTypeOfFieldIsItsWrittenType)
 
     MAREA_SemaFixture fixture;
 
-    const MAREA_ResolvedTypeResult RESULT{ MAREA_resolvedTypeOf(fixture, "namespace main; structure Point x: float32; end structure Line points: vector<Point>; end", MAREA_AST_KIND_FIELD_DECLARATION) };
+    const MAREA_ResolvedTypeResult RESULT{ MAREA_resolvedTypeOf(fixture, "namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; structure Point x: float32; end structure Line points: demo.vector<Point>; end", MAREA_AST_KIND_FIELD_DECLARATION) };
 
     ASSERT_TRUE(RESULT.found) << "The field must be in the typed tree.";
 
@@ -664,15 +667,15 @@ TEST(MAREASemaTypedAst, ResolvedTypeOfFieldIsItsWrittenType)
 
 TEST(MAREASemaTypedAst, ResolvedTypeOfFieldWithTypeArgumentIsCanonical)
 {
-    GTEST_COUT << "Validating a field whose type has a user type argument gives vector<Point>." << std::endl;
+    GTEST_COUT << "Validating a field whose type has a user type argument gives demo.vector<Point>." << std::endl;
 
     MAREA_SemaFixture fixture;
 
-    const MAREA_ResolvedTypeResult RESULT{ MAREA_resolvedTypeOf(fixture, "namespace main; structure Line points: vector<Point>; end structure Point x: float32; end", MAREA_AST_KIND_FIELD_DECLARATION) };
+    const MAREA_ResolvedTypeResult RESULT{ MAREA_resolvedTypeOf(fixture, "namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; structure Line points: demo.vector<Point>; end structure Point x: float32; end", MAREA_AST_KIND_FIELD_DECLARATION) };
 
     ASSERT_EQ(RESULT.except, MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "A field has a resolved type.";
 
-    EXPECT_EQ(RESULT.text, "vector<Point>") << "A user type argument must be kept.";
+    EXPECT_EQ(RESULT.text, "demo.vector<Point>") << "A user type argument must be kept.";
 }
 
 TEST(MAREASemaTypedAst, ResolvedTypeOfVariantFieldIsItsWrittenType)
@@ -711,13 +714,13 @@ TEST(MAREASemaTypedAst, ResolvedTypeOfFunctionIsItsResult)
 
     MAREA_SemaFixture fixture;
 
-    const MAREA_ResolvedTypeResult RESULT{ MAREA_resolvedTypeOf(fixture, "namespace main; function f(n: sinteger32): array<sinteger32, 4> local a: array<sinteger32, 4> = array<sinteger32, 4>{ 0, 0, 0, 0 }; return a; end", MAREA_AST_KIND_FUNCTION_DECLARATION) };
+    const MAREA_ResolvedTypeResult RESULT{ MAREA_resolvedTypeOf(fixture, "namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; function f(n: sinteger32): demo.array<sinteger32, 4> local a: demo.array<sinteger32, 4> = demo.array<sinteger32, 4>{ 0, 0, 0, 0 }; return a; end", MAREA_AST_KIND_FUNCTION_DECLARATION) };
 
     ASSERT_TRUE(RESULT.found) << "The function must be in the typed tree.";
 
     ASSERT_EQ(RESULT.except, MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "A function with a result has a resolved type.";
 
-    EXPECT_EQ(RESULT.text, "array<sinteger32,4>") << "The function must give the type of its result, not of a parameter.";
+    EXPECT_EQ(RESULT.text, "demo.array<sinteger32,4>") << "The function must give the type of its result, not of a parameter.";
 }
 
 TEST(MAREASemaTypedAst, ResolvedTypeOfFunctionWithoutResultHasNoType)
@@ -847,11 +850,11 @@ TEST(MAREASemaTypedAst, ResolvedTypeOfNestedArgumentsIsCanonical)
 
     MAREA_SemaFixture fixture;
 
-    const MAREA_ResolvedTypeResult NESTED{ MAREA_resolvedTypeOf(fixture, "namespace main; function f(a: vector<array<sinteger32, 4>>) end", MAREA_AST_KIND_PARAMETER) };
+    const MAREA_ResolvedTypeResult NESTED{ MAREA_resolvedTypeOf(fixture, "namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; function f(a: demo.vector<demo.array<sinteger32, 4>>) end", MAREA_AST_KIND_PARAMETER) };
 
     ASSERT_EQ(NESTED.except, MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "A nested type has a resolved type.";
 
-    EXPECT_EQ(NESTED.text, "vector<array<sinteger32,4>>") << "Nested arguments must keep every level.";
+    EXPECT_EQ(NESTED.text, "demo.vector<demo.array<sinteger32,4>>") << "Nested arguments must keep every level.";
 }
 
 TEST(MAREASemaTypedAst, ResolvedTypeKeepsADottedNameWhole)
@@ -860,7 +863,7 @@ TEST(MAREASemaTypedAst, ResolvedTypeKeepsADottedNameWhole)
 
     MAREA_SemaFixture fixture([](const std::string &, const MAREA_AstNode **) { return MAREA_EXTERNAL_RESULT; });
 
-    const MAREA_ResolvedTypeResult RESULT{ MAREA_resolvedTypeOf(fixture, "namespace main; function f(a: c.array<string>) end", MAREA_AST_KIND_PARAMETER) };
+    const MAREA_ResolvedTypeResult RESULT{ MAREA_resolvedTypeOf(fixture, "namespace main; require c.array; function f(a: c.array<string>) end", MAREA_AST_KIND_PARAMETER) };
 
     ASSERT_EQ(RESULT.except, MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "A dotted type has a resolved type.";
 
@@ -912,18 +915,18 @@ TEST(MAREASemaTypedAst, ResolvedTypeFollowsALocalTypeAlias)
 
     MAREA_SemaFixture fixture;
 
-    const MAREA_ResolvedTypeResult RESULT{ MAREA_resolvedTypeOf(fixture, "namespace main; structure Point x: float32; end type Grid = array<Point, 4>; type Board = Grid; function f(b: Board) end", MAREA_AST_KIND_PARAMETER) };
+    const MAREA_ResolvedTypeResult RESULT{ MAREA_resolvedTypeOf(fixture, "namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; structure Point x: float32; end type Grid = demo.array<Point, 4>; type Board = Grid; function f(b: Board) end", MAREA_AST_KIND_PARAMETER) };
 
     ASSERT_EQ(RESULT.except, MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS) << "An aliased type has a resolved type.";
 
-    EXPECT_EQ(RESULT.text, "array<Point,4>") << "A chain of local aliases must be followed to the full type.";
+    EXPECT_EQ(RESULT.text, "demo.array<Point,4>") << "A chain of local aliases must be followed to the full type.";
 }
 
 TEST(MAREASemaTypedAst, ResolvedTypeIsTheSameOnTwoRuns)
 {
     GTEST_COUT << "Validating two builds of one source give the same text." << std::endl;
 
-    const std::string SOURCE{ "namespace main; function f(a: vector<array<sinteger32, 4>>, op: function(x: sinteger32): boolean) end" };
+    const std::string SOURCE{ "namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task; function f(a: demo.vector<demo.array<sinteger32, 4>>, op: function(x: sinteger32): boolean) end" };
 
     MAREA_SemaFixture first;
 

@@ -1,0 +1,16 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A vector moves out of a tuple that holds it.
+
+namespace main;
+
+require marea.tuple;
+require marea.vector;
+
+function check(): uinteger64
+    local held: marea.tuple.Tuple<marea.vector.Vector<sinteger32>, uinteger64> = marea.tuple.Tuple<marea.vector.Vector<sinteger32>, uinteger64>{ marea.vector.Vector<sinteger32>{ 1, 2 }, 2 };
+    local bytes: marea.vector.Vector<sinteger32> = move held[0];
+    return bytes.size() + held[1];
+end

@@ -1,10 +1,11 @@
--- expect: 3069 @38
+-- expect: 3069 @39
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
 -- A nested field of a read-only parameter is written in a switch arm of a generic function.
 
 namespace main;
+require demo.owned;
 
 structure Point
     x: sinteger32;
@@ -28,7 +29,7 @@ function write_point(#[semantics = reference_mutable] point: Point)
     point.x = 1;
 end
 
-function take_point(point: owned<Point>): sinteger32
+function take_point(point: demo.owned<Point>): sinteger32
     return point.x;
 end
 

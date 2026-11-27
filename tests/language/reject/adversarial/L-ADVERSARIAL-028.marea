@@ -1,14 +1,15 @@
--- expect: 3024 @60
+-- expect: 3024 @61
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
 -- A return in an arm of switch stands directly in a fork_join block.
 
 namespace main;
+require demo.owned;
 
-import c.array;
-import c.slice;
-import c.task;
+require c.array;
+require c.slice;
+require c.task;
 
 constant WORKER_COUNT: sinteger32 = 4;
 
@@ -34,7 +35,7 @@ function write_point(#[semantics = reference_mutable] point: Point)
     point.x = 1;
 end
 
-function take_point(point: owned<Point>): sinteger32
+function take_point(point: demo.owned<Point>): sinteger32
     return point.x;
 end
 

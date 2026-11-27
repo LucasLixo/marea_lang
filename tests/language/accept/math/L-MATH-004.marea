@@ -1,0 +1,27 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- The vectors of boolean take the equality and the index operators.
+
+namespace main;
+
+require marea.math as math;
+
+function check2(left: math.Vector2Boolean, right: math.Vector2Boolean)
+    local equal: boolean = left == right;
+    local different: boolean = left != right;
+    local first: boolean = left[0];
+end
+
+function check3(left: math.Vector3Boolean, right: math.Vector3Boolean)
+    local equal: boolean = left == right;
+    local different: boolean = left != right;
+    local first: boolean = left[0];
+end
+
+function check4(left: math.Vector4Boolean, right: math.Vector4Boolean)
+    local equal: boolean = left == right;
+    local different: boolean = left != right;
+    local first: boolean = left[0];
+end

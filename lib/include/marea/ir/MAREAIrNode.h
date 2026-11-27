@@ -125,6 +125,24 @@ MAREA_BEGIN_EXTERN_C
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_IntegerSize MAREA_CALL MAREA_IrNodeGetResolvedTypeLength(const MAREA_IrNode *node);
 
+    /**
+     * @brief Tells whether a node is a CALL_EXPRESSION of a name that the host or a library registered, as sema
+     * decided it (MAREA_SemaTypedNodeIsExternalCall). It is the only kind of call that a backend may send to a C
+     * function; the callee is then the full path of the name.
+     * @param node Node to query. Null returns false.
+     * @return True for such a call, false for any other node.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_IrNodeIsExternalCall(const MAREA_IrNode *node);
+
+    /**
+     * @brief Tells whether a node is the FUNCTION_DECLARATION of the destroy operator of its type. A backend runs
+     * it for each element of that type that a container destroys, since the ir writes a DESTROY_CALL only for a
+     * local.
+     * @param node Node to query. Null returns false.
+     * @return True for such a function, false for any other node.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_IrNodeIsDestroyOperator(const MAREA_IrNode *node);
+
 MAREA_END_EXTERN_C
 
 #endif /* MAREA_INCLUDE_IR_MAREAIRNODE_H */

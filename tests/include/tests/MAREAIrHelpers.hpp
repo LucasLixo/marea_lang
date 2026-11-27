@@ -7,6 +7,7 @@
     #include "marea/ir/MAREAIr.h"
     #include "marea/sema/MAREASemaTypedAst.h"
 
+    #include "tests/MAREALibraryRegistryHelpers.hpp"
     #include "tests/MAREASemaHelpers.hpp"
 
     #include <algorithm>
@@ -144,7 +145,7 @@ struct MAREA_IrExampleSet
                 return MAREA_SEMA_IMPORT_RESULT_FOUND;
             }
 
-            const bool EXTERNAL{ (text.compare(0, 12, "collections.") == 0) || (text.compare(0, 12, "concurrency.") == 0) || (text.compare(0, 7, "arenas.") == 0) || (text == "text") || (text.compare(0, 2, "c.") == 0) };
+            const bool EXTERNAL{ (text.compare(0, 12, "collections.") == 0) || (text.compare(0, 12, "concurrency.") == 0) || (text.compare(0, 7, "arenas.") == 0) || (text == "text") || ((text.compare(0, 2, "c.") == 0) || (text.compare(0, 6, "marea.") == 0) || (text.compare(0, 5, "demo.") == 0)) };
 
             return EXTERNAL ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
         };
@@ -161,6 +162,8 @@ struct MAREA_IrFixture
     explicit MAREA_IrFixture(MAREA_ResolveCallback resolve = nullptr)
         : sema(std::move(resolve))
     {
+        MAREA_IGNORE(MAREA_SemaContextSetTypeRegistry(sema.context, MAREA_buildLibraryRegistry(sema.parser.lexer.arena)));
+
         MAREA_IGNORE(MAREA_IrContextCreate(sema.parser.lexer.arena, sema.parser.lexer.sink, &context));
     }
 

@@ -1,0 +1,16 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- swap exchanges the elements of two tuples of one type.
+
+namespace main;
+
+require marea.tuple;
+
+function check(): sinteger32
+    local first: marea.tuple.Tuple<sinteger32, sinteger32> = marea.tuple.Tuple<sinteger32, sinteger32>{ 1, 2 };
+    local second: marea.tuple.Tuple<sinteger32, sinteger32> = marea.tuple.Tuple<sinteger32, sinteger32>{ 3, 4 };
+    first.swap(second);
+    return (first[0] * 10) + second[1];
+end

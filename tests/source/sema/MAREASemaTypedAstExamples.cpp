@@ -5,6 +5,7 @@
 
 #include "marea/sema/MAREASemaTypedAst.h"
 
+#include "tests/MAREALibraryRegistryHelpers.hpp"
 #include "tests/MAREASemaHelpers.hpp"
 
 #include <algorithm>
@@ -100,13 +101,15 @@ TEST(MAREASemaTypedAstExamples, EveryExampleBuildsATypedTreeWithoutCrashing)
             return MAREA_SEMA_IMPORT_RESULT_FOUND;
         }
 
-        const bool EXTERNAL{ MAREA_startsWith(text, "collections.") || MAREA_startsWith(text, "concurrency.") || MAREA_startsWith(text, "arenas.") || (text == "text") || MAREA_startsWith(text, "c.") };
+        const bool EXTERNAL{ MAREA_startsWith(text, "collections.") || MAREA_startsWith(text, "concurrency.") || MAREA_startsWith(text, "arenas.") || (text == "text") || MAREA_startsWith(text, "c.") || MAREA_startsWith(text, "marea.") || MAREA_startsWith(text, "demo.") };
 
         return EXTERNAL ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
     } };
 
     for (const MAREA_ExampleFile &file : FILES) {
         MAREA_SemaFixture fixture(RESOLVE);
+
+        MAREA_IGNORE(MAREA_SemaContextSetTypeRegistry(fixture.context, MAREA_buildLibraryRegistry(fixture.parser.lexer.arena)));
 
         ASSERT_EQ(fixture.MAREA_sema(file.source, file.relativePath), MAREA_SEMA_EXCEPT_SUCCESS) << "The check of " << file.relativePath << " must succeed.";
 
@@ -452,7 +455,7 @@ TEST(MAREASemaTypedAstExamples, EveryUntypedExpressionOfEveryExampleIsInAnAllowe
             return MAREA_SEMA_IMPORT_RESULT_FOUND;
         }
 
-        const bool EXTERNAL{ MAREA_startsWith(text, "collections.") || MAREA_startsWith(text, "concurrency.") || MAREA_startsWith(text, "arenas.") || (text == "text") || MAREA_startsWith(text, "c.") };
+        const bool EXTERNAL{ MAREA_startsWith(text, "collections.") || MAREA_startsWith(text, "concurrency.") || MAREA_startsWith(text, "arenas.") || (text == "text") || MAREA_startsWith(text, "c.") || MAREA_startsWith(text, "marea.") || MAREA_startsWith(text, "demo.") };
 
         return EXTERNAL ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
     } };
@@ -461,6 +464,8 @@ TEST(MAREASemaTypedAstExamples, EveryUntypedExpressionOfEveryExampleIsInAnAllowe
 
     for (const MAREA_ExampleFile &file : FILES) {
         MAREA_SemaFixture fixture(RESOLVE);
+
+        MAREA_IGNORE(MAREA_SemaContextSetTypeRegistry(fixture.context, MAREA_buildLibraryRegistry(fixture.parser.lexer.arena)));
 
         ASSERT_EQ(MAREA_SemaImportResolverSetSignatureFunction(fixture.resolver, &MAREA_fixtureSignatureThunk), MAREA_SEMA_EXCEPT_SUCCESS);
 
@@ -586,7 +591,7 @@ TEST(MAREASemaTypedAstExamples, EveryLiteralOfEveryExampleHasAResolvedType)
             return MAREA_SEMA_IMPORT_RESULT_FOUND;
         }
 
-        const bool EXTERNAL{ MAREA_startsWith(text, "collections.") || MAREA_startsWith(text, "concurrency.") || MAREA_startsWith(text, "arenas.") || (text == "text") || MAREA_startsWith(text, "c.") };
+        const bool EXTERNAL{ MAREA_startsWith(text, "collections.") || MAREA_startsWith(text, "concurrency.") || MAREA_startsWith(text, "arenas.") || (text == "text") || MAREA_startsWith(text, "c.") || MAREA_startsWith(text, "marea.") || MAREA_startsWith(text, "demo.") };
 
         return EXTERNAL ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
     } };
@@ -595,6 +600,8 @@ TEST(MAREASemaTypedAstExamples, EveryLiteralOfEveryExampleHasAResolvedType)
 
     for (const MAREA_ExampleFile &file : FILES) {
         MAREA_SemaFixture fixture(RESOLVE);
+
+        MAREA_IGNORE(MAREA_SemaContextSetTypeRegistry(fixture.context, MAREA_buildLibraryRegistry(fixture.parser.lexer.arena)));
 
         ASSERT_EQ(fixture.MAREA_sema(file.source, file.relativePath), MAREA_SEMA_EXCEPT_SUCCESS) << "The check of " << file.relativePath << " must succeed.";
 
@@ -691,7 +698,7 @@ TEST(MAREASemaTypedAstExamples, EveryLoopNameOfEveryExampleHasATypeUnlessItsHead
             return MAREA_SEMA_IMPORT_RESULT_FOUND;
         }
 
-        const bool EXTERNAL{ MAREA_startsWith(text, "collections.") || MAREA_startsWith(text, "concurrency.") || MAREA_startsWith(text, "arenas.") || (text == "text") || MAREA_startsWith(text, "c.") };
+        const bool EXTERNAL{ MAREA_startsWith(text, "collections.") || MAREA_startsWith(text, "concurrency.") || MAREA_startsWith(text, "arenas.") || (text == "text") || MAREA_startsWith(text, "c.") || MAREA_startsWith(text, "marea.") || MAREA_startsWith(text, "demo.") };
 
         return EXTERNAL ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
     } };
@@ -700,6 +707,8 @@ TEST(MAREASemaTypedAstExamples, EveryLoopNameOfEveryExampleHasATypeUnlessItsHead
 
     for (const MAREA_ExampleFile &file : FILES) {
         MAREA_SemaFixture fixture(RESOLVE);
+
+        MAREA_IGNORE(MAREA_SemaContextSetTypeRegistry(fixture.context, MAREA_buildLibraryRegistry(fixture.parser.lexer.arena)));
 
         ASSERT_EQ(fixture.MAREA_sema(file.source, file.relativePath), MAREA_SEMA_EXCEPT_SUCCESS) << "The check of " << file.relativePath << " must succeed.";
 

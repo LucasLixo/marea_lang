@@ -3,6 +3,8 @@
 
 #include "marea/internal/sema/MAREASemaInternal.h"
 
+#define MAREA_G_ERROR_DEPTH_LIMIT MAREA_UINTEGER_32(256)
+
 typedef enum MAREA_G_OperandClass
 {
     MAREA_G_OPERAND_CLASS_UNKNOWN = MAREA_UINTEGER_8(0),
@@ -82,10 +84,76 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsBitwise(MAREA_TokenKind operatorKind)
     }
 }
 
-// INFO: a bitwise operand is wrong when it is a float, a boolean or a string. A character is left alone, as the rule names no character.
+static MAREA_Boolean MAREA_CALL MAREA_G_IsArithmetic(MAREA_TokenKind operatorKind)
+{
+    switch (operatorKind) {
+    case MAREA_TOKEN_KIND_PLUS:
+    case MAREA_TOKEN_KIND_MINUS:
+    case MAREA_TOKEN_KIND_STAR:
+    case MAREA_TOKEN_KIND_SLASH:
+    case MAREA_TOKEN_KIND_PERCENT:
+    case MAREA_TOKEN_KIND_STAR_STAR:
+    case MAREA_TOKEN_KIND_PLUS_PERCENT:
+    case MAREA_TOKEN_KIND_MINUS_PERCENT:
+    case MAREA_TOKEN_KIND_STAR_PERCENT:
+    case MAREA_TOKEN_KIND_PLUS_PIPE:
+    case MAREA_TOKEN_KIND_MINUS_PIPE:
+    case MAREA_TOKEN_KIND_STAR_PIPE:
+    case MAREA_TOKEN_KIND_PLUS_EQUAL:
+    case MAREA_TOKEN_KIND_MINUS_EQUAL:
+    case MAREA_TOKEN_KIND_STAR_EQUAL:
+    case MAREA_TOKEN_KIND_SLASH_EQUAL:
+    case MAREA_TOKEN_KIND_PERCENT_EQUAL:
+    case MAREA_TOKEN_KIND_STAR_STAR_EQUAL:
+        return MAREA_BOOLEAN_TRUE;
+    default:
+        return MAREA_BOOLEAN_FALSE;
+    }
+}
+
+static MAREA_Boolean MAREA_CALL MAREA_G_IsComparison(MAREA_TokenKind operatorKind)
+{
+    switch (operatorKind) {
+    case MAREA_TOKEN_KIND_EQUAL_EQUAL:
+    case MAREA_TOKEN_KIND_BANG_EQUAL:
+    case MAREA_TOKEN_KIND_LESS:
+    case MAREA_TOKEN_KIND_LESS_EQUAL:
+    case MAREA_TOKEN_KIND_GREATER:
+    case MAREA_TOKEN_KIND_GREATER_EQUAL:
+        return MAREA_BOOLEAN_TRUE;
+    default:
+        return MAREA_BOOLEAN_FALSE;
+    }
+}
+
+static MAREA_Boolean MAREA_CALL MAREA_G_HoldsErrorNode(const MAREA_AstNode *node, MAREA_Uinteger32 depth)
+{
+    if ((node == MAREA_NULLPTR) || (depth >= MAREA_G_ERROR_DEPTH_LIMIT)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    if (MAREA_AstNodeGetKind(node) == MAREA_AST_KIND_ERROR_NODE) {
+        return MAREA_BOOLEAN_TRUE;
+    }
+
+    for (MAREA_IntegerSize index = 0; index < MAREA_AstNodeGetChildCount(node); ++index) {
+        if (MAREA_G_HoldsErrorNode(MAREA_SemaChildAt(node, index), (depth + 1)) == MAREA_BOOLEAN_TRUE) {
+            return MAREA_BOOLEAN_TRUE;
+        }
+    }
+
+    return MAREA_BOOLEAN_FALSE;
+}
+
+// INFO: a bitwise operand is wrong when it is a float, a boolean, a string or a character.
 static MAREA_Boolean MAREA_CALL MAREA_G_BadForBitwise(MAREA_G_OperandClass operandClass)
 {
-    return ((operandClass == MAREA_G_OPERAND_CLASS_FLOAT) || (operandClass == MAREA_G_OPERAND_CLASS_BOOLEAN) || (operandClass == MAREA_G_OPERAND_CLASS_STRING)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+    return ((operandClass == MAREA_G_OPERAND_CLASS_FLOAT) || (operandClass == MAREA_G_OPERAND_CLASS_BOOLEAN) || (operandClass == MAREA_G_OPERAND_CLASS_STRING) || (operandClass == MAREA_G_OPERAND_CLASS_CHARACTER)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
+static MAREA_Boolean MAREA_CALL MAREA_G_BadForArithmetic(MAREA_G_OperandClass operandClass)
+{
+    return ((operandClass == MAREA_G_OPERAND_CLASS_BOOLEAN) || (operandClass == MAREA_G_OPERAND_CLASS_STRING)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 }
 
 MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckOperatorOperands(MAREA_SemaContext *context, MAREA_TokenKind operatorKind, const MAREA_AstNode *left, const MAREA_AstNode *right, MAREA_SourcePosition position)
@@ -101,6 +169,28 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckOperatorOperands(MAREA_SemaContext *c
     if (MAREA_G_IsBitwise(operatorKind) == MAREA_BOOLEAN_TRUE) {
         if ((MAREA_G_BadForBitwise(leftClass) == MAREA_BOOLEAN_TRUE) || (MAREA_G_BadForBitwise(rightClass) == MAREA_BOOLEAN_TRUE)) {
             MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_BITWISE_OPERAND_NOT_INTEGER, position, "a bitwise operator needs integer operands");
+        }
+
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    // INFO: an operand that the parser could not build gives no second diagnostic on the same broken line.
+    if ((MAREA_G_HoldsErrorNode(left, 0) == MAREA_BOOLEAN_TRUE) || (MAREA_G_HoldsErrorNode(right, 0) == MAREA_BOOLEAN_TRUE)) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    // INFO: an operand of the wrong class for an arithmetic or a comparison operator is a type mismatch, like a shift of a value that is not an integer.
+    if (MAREA_G_IsArithmetic(operatorKind) == MAREA_BOOLEAN_TRUE) {
+        if ((MAREA_G_BadForArithmetic(leftClass) == MAREA_BOOLEAN_TRUE) || (MAREA_G_BadForArithmetic(rightClass) == MAREA_BOOLEAN_TRUE)) {
+            MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH, position, "an arithmetic operator cannot take a boolean or a string");
+        }
+
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    if (MAREA_G_IsComparison(operatorKind) == MAREA_BOOLEAN_TRUE) {
+        if ((leftClass == MAREA_G_OPERAND_CLASS_BOOLEAN) && (rightClass == MAREA_G_OPERAND_CLASS_BOOLEAN)) {
+            MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_TYPE_MISMATCH, position, "two booleans cannot be compared");
         }
 
         return MAREA_SEMA_EXCEPT_SUCCESS;

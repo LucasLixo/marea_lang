@@ -1,0 +1,12 @@
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- Minimal real Marea source for CheckMareaFunctionsRealTools.cmake: proves the resolved marea-cc/
+-- marea-bc binaries can actually drive their own pipeline, not just that they were found.
+
+namespace demo;
+
+#[visibility = public]
+function answer(): sinteger32
+    return 42;
+end

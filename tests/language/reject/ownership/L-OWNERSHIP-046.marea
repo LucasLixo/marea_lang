@@ -1,10 +1,11 @@
--- expect: 3070 @34
+-- expect: 3070 @35
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
 -- A structure is used after it was moved into an owned parameter.
 
 namespace main;
+require demo.owned;
 
 structure Point
     x: sinteger32;
@@ -24,7 +25,7 @@ function read_point(#[semantics = reference_read_only] point: Point): sinteger32
     return point.x;
 end
 
-function take_point(point: owned<Point>): sinteger32
+function take_point(point: demo.owned<Point>): sinteger32
     return point.x;
 end
 

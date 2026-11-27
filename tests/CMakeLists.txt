@@ -13,24 +13,52 @@ include(GoogleTest)
 
 file(GLOB_RECURSE MAREA_TESTS_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/source/*.cpp")
 
-if(NOT TARGET Marea-Base)
+if(NOT TARGET marea::base)
     list(FILTER MAREA_TESTS_SOURCES EXCLUDE REGEX "/source/base/")
 endif()
 
-if(NOT TARGET Marea-Lex)
+if(NOT TARGET marea::lex)
     list(FILTER MAREA_TESTS_SOURCES EXCLUDE REGEX "/source/lex/")
 endif()
 
-if(NOT TARGET Marea-Parse)
+if(NOT TARGET marea::parse)
     list(FILTER MAREA_TESTS_SOURCES EXCLUDE REGEX "/source/parse/")
 endif()
 
-if(NOT TARGET Marea-Sema)
+if(NOT TARGET marea::sema)
     list(FILTER MAREA_TESTS_SOURCES EXCLUDE REGEX "/source/sema/")
 endif()
 
-if(NOT TARGET Marea-Ir)
+if(NOT TARGET marea::ir)
     list(FILTER MAREA_TESTS_SOURCES EXCLUDE REGEX "/source/ir/")
+endif()
+
+if(NOT TARGET marea::bytecode)
+    list(FILTER MAREA_TESTS_SOURCES EXCLUDE REGEX "/source/bytecode/")
+endif()
+
+if(NOT TARGET marea::vm)
+    list(FILTER MAREA_TESTS_SOURCES EXCLUDE REGEX "/source/vm/")
+endif()
+
+# INFO: cgen is a separate backend of the ir (never bytecode or vm), so its test filter is its own region.
+if(NOT TARGET marea::cgen)
+    list(FILTER MAREA_TESTS_SOURCES EXCLUDE REGEX "/source/cgen/")
+endif()
+
+# INFO: the parity tests need both backends, so they and the cgen tests that compare with the vm need both targets.
+if(NOT TARGET marea::cgen OR NOT TARGET marea::vm)
+    list(FILTER MAREA_TESTS_SOURCES EXCLUDE REGEX "/source/cgen/MAREACgen[A-Za-z]+\\.cpp$")
+    list(FILTER MAREA_TESTS_SOURCES EXCLUDE REGEX "/source/language/MAREALanguageParity\\.cpp$")
+endif()
+
+# INFO: marea-bc/marea-cc's own GoogleTest sources exist only when their executable's own option is ON.
+if(NOT TARGET marea-bc-driver)
+    list(FILTER MAREA_TESTS_SOURCES EXCLUDE REGEX "/source/apps/marea-bc/")
+endif()
+
+if(NOT TARGET marea-cc-driver)
+    list(FILTER MAREA_TESTS_SOURCES EXCLUDE REGEX "/source/apps/marea-cc/")
 endif()
 
 add_executable(marea_tests ${MAREA_TESTS_SOURCES})
@@ -42,28 +70,239 @@ target_link_libraries(marea_tests PRIVATE marea::include GTest::gtest_main)
 # INFO: tests may include internal headers (see the cpp-testing skill).
 target_include_directories(marea_tests PRIVATE "${MAREA_FOLDER_LIB_INTERNAL}")
 
+# INFO: marea-cc/marea-bc's own internal/ headers, the same cpp-testing allowance as lib/internal
+# (apply marea-cc-and-bc-tools), each guarded on its own target so the tests still build when its
+# option is OFF.
+if(TARGET marea-shared)
+    target_include_directories(marea_tests PRIVATE "${MAREA_FOLDER_APPS}/marea-shared/internal")
+    target_link_libraries(marea_tests PRIVATE marea-shared)
+endif()
+
+if(TARGET marea-bc-driver)
+    target_include_directories(marea_tests PRIVATE "${MAREA_FOLDER_APPS}/marea-bc/internal")
+    target_link_libraries(marea_tests PRIVATE marea-bc-driver)
+endif()
+
+if(TARGET marea-cc-driver)
+    target_include_directories(marea_tests PRIVATE "${MAREA_FOLDER_APPS}/marea-cc/internal")
+    target_link_libraries(marea_tests PRIVATE marea-cc-driver)
+endif()
+
 target_compile_definitions(marea_tests PRIVATE "MAREA_TESTS_EXAMPLES_DIRECTORY=\"${MAREA_FOLDER_EXAMPLES}\"")
+
+target_compile_definitions(
+    marea_tests
+    PRIVATE "MAREA_TESTS_SEMA_SOURCE_DIRECTORY=\"${MAREA_FOLDER_LIB_SOURCE}/marea/sema\""
+)
 
 target_compile_definitions(marea_tests PRIVATE "MAREA_TESTS_LANGUAGE_DIRECTORY=\"${MAREA_FOLDER_TESTS}/language\"")
 
-if(TARGET Marea-Base)
+target_compile_definitions(marea_tests PRIVATE "MAREA_TESTS_LIB_INCLUDE_DIRECTORY=\"${MAREA_FOLDER_LIB_INCLUDE}\"")
+
+if(TARGET marea::base)
     target_link_libraries(marea_tests PRIVATE marea::base)
 endif()
 
-if(TARGET Marea-Lex)
+if(TARGET marea::lex)
     target_link_libraries(marea_tests PRIVATE marea::lex)
 endif()
 
-if(TARGET Marea-Parse)
+if(TARGET marea::parse)
     target_link_libraries(marea_tests PRIVATE marea::parse)
 endif()
 
-if(TARGET Marea-Sema)
+if(TARGET marea::sema)
     target_link_libraries(marea_tests PRIVATE marea::sema)
 endif()
 
-if(TARGET Marea-Ir)
+if(TARGET marea::ir)
     target_link_libraries(marea_tests PRIVATE marea::ir)
 endif()
 
+if(TARGET marea::bytecode)
+    target_link_libraries(marea_tests PRIVATE marea::bytecode)
+endif()
+
+if(TARGET marea::vm)
+    target_link_libraries(marea_tests PRIVATE marea::vm)
+endif()
+
+# INFO: cgen's own link block, separate from the bytecode/vm region above so a parallel worker never collides.
+if(TARGET marea::cgen)
+    target_link_libraries(marea_tests PRIVATE marea::cgen)
+endif()
+
+target_compile_definitions(marea_tests PRIVATE "MAREA_TESTS_CGEN_C_COMPILER=\"${CMAKE_C_COMPILER}\"")
+
+# INFO: the generated C programs of the parity tests include the host header of tests/include and link the base library.
+target_compile_definitions(marea_tests PRIVATE "MAREA_TESTS_SUPPORT_DIRECTORY=\"${CMAKE_CURRENT_SOURCE_DIR}/include\"")
+
+if(TARGET marea::base)
+    target_compile_definitions(marea_tests PRIVATE "MAREA_TESTS_BASE_LIBRARY=\"$<TARGET_FILE:marea::base>\"")
+endif()
+
+# INFO: the cgen tests also exercise every other C11 compiler this machine has, beyond CMAKE_C_COMPILER.
+find_program(MAREA_TESTS_CGEN_CLANG "clang")
+find_program(MAREA_TESTS_CGEN_GCC "gcc")
+
+if(MAREA_TESTS_CGEN_CLANG)
+    target_compile_definitions(marea_tests PRIVATE "MAREA_TESTS_CGEN_CLANG=\"${MAREA_TESTS_CGEN_CLANG}\"")
+endif()
+
+if(MAREA_TESTS_CGEN_GCC)
+    target_compile_definitions(marea_tests PRIVATE "MAREA_TESTS_CGEN_GCC=\"${MAREA_TESTS_CGEN_GCC}\"")
+endif()
+
 gtest_discover_tests(marea_tests)
+
+# One CTest entry per combination of the library options, each configuring the project in a scratch folder
+foreach(
+    TEMP_CASE
+    IN
+    ITEMS "StaticOnly;ON;OFF;PASS" "SharedOnly;OFF;ON;PASS" "StaticAndShared;ON;ON;PASS" "BothOff;OFF;OFF;FAIL"
+)
+    list(GET TEMP_CASE 0 TEMP_CASE_NAME)
+    list(GET TEMP_CASE 1 TEMP_CASE_STATIC)
+    list(GET TEMP_CASE 2 TEMP_CASE_SHARED)
+    list(GET TEMP_CASE 3 TEMP_CASE_EXPECT)
+    add_test(
+        NAME MareaLibraryOptions.${TEMP_CASE_NAME}
+        COMMAND
+            "${CMAKE_COMMAND}" "-DCHECK_SOURCE=${MAREA_FOLDER}"
+            "-DCHECK_BINARY=${CMAKE_CURRENT_BINARY_DIR}/OptionCheck/${TEMP_CASE_NAME}"
+            "-DCHECK_GENERATOR=${CMAKE_GENERATOR}" "-DCHECK_C_COMPILER=${CMAKE_C_COMPILER}"
+            "-DCHECK_CXX_COMPILER=${CMAKE_CXX_COMPILER}" "-DCHECK_STATIC=${TEMP_CASE_STATIC}"
+            "-DCHECK_SHARED=${TEMP_CASE_SHARED}" "-DCHECK_EXPECT=${TEMP_CASE_EXPECT}" -P
+            "${CMAKE_CURRENT_SOURCE_DIR}/cmake/CheckLibraryOptions.cmake"
+    )
+endforeach()
+unset(TEMP_CASE)
+unset(TEMP_CASE_NAME)
+unset(TEMP_CASE_STATIC)
+unset(TEMP_CASE_SHARED)
+unset(TEMP_CASE_EXPECT)
+
+# marea_add_library/marea_add_executable tool detection, with and without a marea-cc/marea-bc stand-in on PATH
+foreach(TEMP_CASE IN ITEMS "NoTool;;FAIL" "StandIn;${CMAKE_CURRENT_SOURCE_DIR}/cmake/fixtures/MareaStandIns;PASS")
+    list(GET TEMP_CASE 0 TEMP_CASE_NAME)
+    list(GET TEMP_CASE 1 TEMP_CASE_STUB_DIR)
+    list(GET TEMP_CASE 2 TEMP_CASE_EXPECT)
+    add_test(
+        NAME MareaFunctions.${TEMP_CASE_NAME}
+        COMMAND
+            "${CMAKE_COMMAND}" "-DCHECK_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/cmake/fixtures/MareaFunctions"
+            "-DCHECK_BINARY=${CMAKE_CURRENT_BINARY_DIR}/MareaFunctionsCheck/${TEMP_CASE_NAME}"
+            "-DCHECK_GENERATOR=${CMAKE_GENERATOR}" "-DCHECK_C_COMPILER=${CMAKE_C_COMPILER}"
+            "-DCHECK_CXX_COMPILER=${CMAKE_CXX_COMPILER}" "-DCHECK_MAREA_ROOT=${MAREA_FOLDER}"
+            "-DCHECK_STUB_DIR=${TEMP_CASE_STUB_DIR}" "-DCHECK_EXPECT=${TEMP_CASE_EXPECT}" -P
+            "${CMAKE_CURRENT_SOURCE_DIR}/cmake/CheckMareaFunctions.cmake"
+    )
+endforeach()
+unset(TEMP_CASE)
+unset(TEMP_CASE_NAME)
+unset(TEMP_CASE_STUB_DIR)
+unset(TEMP_CASE_EXPECT)
+
+# Proves FindExecutable resolves the real, freshly built marea-cc/marea-bc of this repository (not a
+# stand-in) once their output directory is on CMAKE_PROGRAM_PATH, and that each real binary actually
+# runs end to end on a real ".marea" fixture (apply marea-cc-and-bc-tools, part 3). Needs both tools
+# buildable from this same source tree.
+if(MAREA_OPTION_TARGET_CC AND MAREA_OPTION_TARGET_BC)
+    add_test(
+        NAME MareaFunctions.RealTools
+        COMMAND
+            "${CMAKE_COMMAND}" "-DCHECK_SOURCE=${MAREA_FOLDER}"
+            "-DCHECK_TOOLS_BINARY=${CMAKE_CURRENT_BINARY_DIR}/MareaFunctionsRealToolsCheck/Tools"
+            "-DCHECK_FIXTURE_BINARY=${CMAKE_CURRENT_BINARY_DIR}/MareaFunctionsRealToolsCheck/Fixture"
+            "-DCHECK_GENERATOR=${CMAKE_GENERATOR}" "-DCHECK_C_COMPILER=${CMAKE_C_COMPILER}"
+            "-DCHECK_CXX_COMPILER=${CMAKE_CXX_COMPILER}" "-DCHECK_MAREA_ROOT=${MAREA_FOLDER}"
+            "-DCHECK_FIXTURE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/cmake/fixtures/MareaRealTools" -P
+            "${CMAKE_CURRENT_SOURCE_DIR}/cmake/CheckMareaFunctionsRealTools.cmake"
+    )
+endif()
+
+# SETTINGS/MAREA_SETTING_<NAME> normalization and override order (part of marea_add_library/marea_add_executable)
+set(MAREA_TESTS_SETTINGS_STUB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/cmake/fixtures/MareaStandIns")
+add_test(
+    NAME MareaSettings.NormalizeAndDefinitions
+    COMMAND
+        "${CMAKE_COMMAND}" "-DCHECK_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/cmake/fixtures/MareaSettings"
+        "-DCHECK_BINARY=${CMAKE_CURRENT_BINARY_DIR}/MareaSettingsCheck/NormalizeAndDefinitions"
+        "-DCHECK_GENERATOR=${CMAKE_GENERATOR}" "-DCHECK_C_COMPILER=${CMAKE_C_COMPILER}"
+        "-DCHECK_CXX_COMPILER=${CMAKE_CXX_COMPILER}" "-DCHECK_MAREA_ROOT=${MAREA_FOLDER}"
+        "-DCHECK_STUB_DIR=${MAREA_TESTS_SETTINGS_STUB_DIR}" "-DCHECK_SETTINGS=LOG_LEVEL=3|USE_FAST_PATH=ON"
+        "-DCHECK_EXPECT=PASS" "-DCHECK_EXPECT_CONTAINS=LOG_LEVEL=3|USE_FAST_PATH=true" -P
+        "${CMAKE_CURRENT_SOURCE_DIR}/cmake/CheckMareaSettings.cmake"
+)
+add_test(
+    NAME MareaSettings.PerCallOverridesGlobal
+    COMMAND
+        "${CMAKE_COMMAND}" "-DCHECK_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/cmake/fixtures/MareaSettings"
+        "-DCHECK_BINARY=${CMAKE_CURRENT_BINARY_DIR}/MareaSettingsCheck/PerCallOverridesGlobal"
+        "-DCHECK_GENERATOR=${CMAKE_GENERATOR}" "-DCHECK_C_COMPILER=${CMAKE_C_COMPILER}"
+        "-DCHECK_CXX_COMPILER=${CMAKE_CXX_COMPILER}" "-DCHECK_MAREA_ROOT=${MAREA_FOLDER}"
+        "-DCHECK_STUB_DIR=${MAREA_TESTS_SETTINGS_STUB_DIR}" "-DCHECK_SETTINGS=LOG_LEVEL=3"
+        "-DCHECK_GLOBAL_SETTINGS=LOG_LEVEL=9" "-DCHECK_EXPECT=PASS" "-DCHECK_EXPECT_CONTAINS=LOG_LEVEL=3"
+        "-DCHECK_EXPECT_NOT_CONTAINS=LOG_LEVEL=9" -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/CheckMareaSettings.cmake"
+)
+add_test(
+    NAME MareaSettings.GlobalReachesCall
+    COMMAND
+        "${CMAKE_COMMAND}" "-DCHECK_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/cmake/fixtures/MareaSettings"
+        "-DCHECK_BINARY=${CMAKE_CURRENT_BINARY_DIR}/MareaSettingsCheck/GlobalReachesCall"
+        "-DCHECK_GENERATOR=${CMAKE_GENERATOR}" "-DCHECK_C_COMPILER=${CMAKE_C_COMPILER}"
+        "-DCHECK_CXX_COMPILER=${CMAKE_CXX_COMPILER}" "-DCHECK_MAREA_ROOT=${MAREA_FOLDER}"
+        "-DCHECK_STUB_DIR=${MAREA_TESTS_SETTINGS_STUB_DIR}" "-DCHECK_GLOBAL_SETTINGS=WINDOW_MODE=ON"
+        "-DCHECK_EXPECT=PASS" "-DCHECK_EXPECT_CONTAINS=WINDOW_MODE=true" -P
+        "${CMAKE_CURRENT_SOURCE_DIR}/cmake/CheckMareaSettings.cmake"
+)
+
+# The include-bytes dependency table: include_bytes! needs marea.array, mirroring MAREA_TYPE_REGISTRY_EXCEPT_ERROR_MISSING_DEPENDENCY
+add_test(
+    NAME MareaSettings.DependencyMissingFails
+    COMMAND
+        "${CMAKE_COMMAND}" "-DCHECK_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/cmake/fixtures/MareaSettings"
+        "-DCHECK_BINARY=${CMAKE_CURRENT_BINARY_DIR}/MareaSettingsCheck/DependencyMissingFails"
+        "-DCHECK_GENERATOR=${CMAKE_GENERATOR}" "-DCHECK_C_COMPILER=${CMAKE_C_COMPILER}"
+        "-DCHECK_CXX_COMPILER=${CMAKE_CXX_COMPILER}" "-DCHECK_MAREA_ROOT=${MAREA_FOLDER}"
+        "-DCHECK_STUB_DIR=${MAREA_TESTS_SETTINGS_STUB_DIR}"
+        "-DCHECK_LIBRARIES=marea.vector|marea.tuple|c.memory|c.threads" "-DCHECK_MACROS=include_bytes!"
+        "-DCHECK_EXPECT=FAIL" "-DCHECK_EXPECT_FAIL_CONTAINS=include_bytes!|marea.array" -P
+        "${CMAKE_CURRENT_SOURCE_DIR}/cmake/CheckMareaSettings.cmake"
+)
+add_test(
+    NAME MareaSettings.DependencyPresentPasses
+    COMMAND
+        "${CMAKE_COMMAND}" "-DCHECK_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/cmake/fixtures/MareaSettings"
+        "-DCHECK_BINARY=${CMAKE_CURRENT_BINARY_DIR}/MareaSettingsCheck/DependencyPresentPasses"
+        "-DCHECK_GENERATOR=${CMAKE_GENERATOR}" "-DCHECK_C_COMPILER=${CMAKE_C_COMPILER}"
+        "-DCHECK_CXX_COMPILER=${CMAKE_CXX_COMPILER}" "-DCHECK_MAREA_ROOT=${MAREA_FOLDER}"
+        "-DCHECK_STUB_DIR=${MAREA_TESTS_SETTINGS_STUB_DIR}"
+        "-DCHECK_LIBRARIES=marea.array|marea.vector|marea.tuple|c.memory|c.threads" "-DCHECK_MACROS=include_bytes!"
+        "-DCHECK_EXPECT=PASS" -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/CheckMareaSettings.cmake"
+)
+unset(MAREA_TESTS_SETTINGS_STUB_DIR)
+
+# The typo-guard comparison itself (MareaWarnUnreadSettings): proven directly with an explicit KNOWN list, since no
+# "list settings" tool mode exists yet to feed it one end to end (marea-cc-and-bc-tools; see temp/_LOG_APPLY_ERROR.md)
+add_test(
+    NAME MareaWarnUnreadSettings.UnknownNameWarns
+    COMMAND
+        "${CMAKE_COMMAND}" "-DCHECK_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/cmake/fixtures/MareaWarnUnreadSettings"
+        "-DCHECK_BINARY=${CMAKE_CURRENT_BINARY_DIR}/MareaWarnUnreadSettingsCheck/UnknownNameWarns"
+        "-DCHECK_GENERATOR=${CMAKE_GENERATOR}" "-DCHECK_C_COMPILER=${CMAKE_C_COMPILER}"
+        "-DCHECK_CXX_COMPILER=${CMAKE_CXX_COMPILER}" "-DCHECK_MAREA_ROOT=${MAREA_FOLDER}" "-DCHECK_SETTINGS=LOG_LEVEL=3"
+        "-DCHECK_KNOWN=OTHER_NAME" "-DCHECK_EXPECT=PASS"
+        "-DCHECK_EXPECT_CONTAINS=LOG_LEVEL|is not read by any|build_value" -P
+        "${CMAKE_CURRENT_SOURCE_DIR}/cmake/CheckMareaSettings.cmake"
+)
+add_test(
+    NAME MareaWarnUnreadSettings.KnownNameIsQuiet
+    COMMAND
+        "${CMAKE_COMMAND}" "-DCHECK_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/cmake/fixtures/MareaWarnUnreadSettings"
+        "-DCHECK_BINARY=${CMAKE_CURRENT_BINARY_DIR}/MareaWarnUnreadSettingsCheck/KnownNameIsQuiet"
+        "-DCHECK_GENERATOR=${CMAKE_GENERATOR}" "-DCHECK_C_COMPILER=${CMAKE_C_COMPILER}"
+        "-DCHECK_CXX_COMPILER=${CMAKE_CXX_COMPILER}" "-DCHECK_MAREA_ROOT=${MAREA_FOLDER}" "-DCHECK_SETTINGS=LOG_LEVEL=3"
+        "-DCHECK_KNOWN=LOG_LEVEL" "-DCHECK_EXPECT=PASS" "-DCHECK_EXPECT_NOT_CONTAINS=is not read by any" -P
+        "${CMAKE_CURRENT_SOURCE_DIR}/cmake/CheckMareaSettings.cmake"
+)

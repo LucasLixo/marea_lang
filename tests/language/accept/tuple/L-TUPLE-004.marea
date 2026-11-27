@@ -1,0 +1,21 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A tuple holds a tuple, a structure and an array.
+
+namespace main;
+
+require marea.tuple;
+require marea.array;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+function check(): sinteger32
+    local inner: marea.tuple.Tuple<Point, marea.array.Array<sinteger32, 2>> = marea.tuple.Tuple<Point, marea.array.Array<sinteger32, 2>>{ Point{ x = 1, y = 2 }, marea.array.Array<sinteger32, 2>{ 3, 4 } };
+    local outer: marea.tuple.Tuple<sinteger32, marea.tuple.Tuple<sinteger32, sinteger32>> = marea.tuple.Tuple<sinteger32, marea.tuple.Tuple<sinteger32, sinteger32>>{ 5, marea.tuple.Tuple<sinteger32, sinteger32>{ 6, 7 } };
+    return inner[0].y + inner[1][1] + outer[0] + outer[1][1];
+end

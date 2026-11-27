@@ -6,7 +6,7 @@
 
 namespace main;
 
-import c.stdio as output;
+require c.stdio as output;
 
 function check()
     stdio.puts("x");

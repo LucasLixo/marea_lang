@@ -218,7 +218,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckAliasedArguments(MAREA_SemaContext *c
 // INFO: the library calls that change a collection in place and that sema knows by name; any other library call that changes its receiver is not seen.
 static MAREA_Boolean MAREA_CALL MAREA_G_IsChangingMethod(const MAREA_AstNode *method)
 {
-    static const MAREA_Character8 *const NAMES[] = { "append", "insert", "remove", "clear", "pop", "push", "resize" };
+    static const MAREA_Character8 *const NAMES[] = { "append", "insert", "remove", "clear", "pop", "push", "resize", "fill", "swap", "reserve", "erase", "shrink_to_fit" };
 
     if (MAREA_G_IsKind(method, MAREA_AST_KIND_IDENTIFIER) == MAREA_BOOLEAN_FALSE) {
         return MAREA_BOOLEAN_FALSE;
@@ -304,4 +304,9 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckBorrowedSource(MAREA_SemaContext *con
     }
 
     return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
+MAREA_Boolean MAREA_CALL MAREA_SemaPlacesAlias(const MAREA_AstNode *left, const MAREA_AstNode *right)
+{
+    return MAREA_G_Alias(left, right);
 }

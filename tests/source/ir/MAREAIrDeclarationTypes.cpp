@@ -8,7 +8,7 @@
 namespace
 {
     const MAREA_ResolveCallback RESOLVE_C{ [](const std::string &text, const MAREA_AstNode **) {
-        return (text.compare(0, 2, "c.") == 0) ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
+        return ((text.compare(0, 2, "c.") == 0) || (text.compare(0, 6, "marea.") == 0) || (text.compare(0, 5, "demo.") == 0)) ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
     } };
 
     std::string MAREA_dumpOf(const std::string &source)
@@ -65,7 +65,10 @@ namespace
 
             const std::string RESOLVED{ MAREA_resolvedOf(node) };
 
-            const bool HEAD_MATCHES{ (RESOLVED.compare(0, NAME.size(), NAME) == 0) && ((RESOLVED.size() == NAME.size()) || (RESOLVED[NAME.size()] == '<')) };
+            // INFO: an imported type has its full path as the type name, while sema spells the resolved type with the last segment or two, so the head of the resolved type may be the end of the name.
+            const std::string HEAD{ RESOLVED.substr(0, RESOLVED.find('<')) };
+
+            const bool HEAD_MATCHES{ (NAME == HEAD) || ((NAME.size() > HEAD.size()) && (NAME.compare(NAME.size() - HEAD.size(), HEAD.size(), HEAD) == 0) && (NAME[NAME.size() - HEAD.size() - 1] == '.')) };
 
             if (HEAD_MATCHES == false) {
                 mismatch += file + ": " + MAREA_IrKindGetName(MAREA_IrNodeGetKind(node)) + " " + MAREA_irText(node) + " type=" + NAME + " resolved=" + RESOLVED + "\n";
@@ -96,45 +99,45 @@ TEST(MAREAIrDeclarationTypes, EveryDeclarationKindKeepsTheTypeArgumentsInTheDump
 {
     GTEST_COUT << "Validating a constant, a field, a variant field, a parameter, a local and a result type keep array<sinteger32,4> in full, next to the head name." << std::endl;
 
-    const std::string DUMP{ MAREA_dumpOf("namespace main; import c.array; "
+    const std::string DUMP{ MAREA_dumpOf("namespace main; import c.array as array; "
                                          "constant TABLE: array<sinteger32, 4> = array<sinteger32, 4>{ 1, 2, 3, 4 }; "
                                          "structure Holder items: array<sinteger32, 4>; end "
                                          "enum Shape Quad(corners: array<sinteger32, 4>); end "
                                          "function take(values: array<sinteger32, 4>): array<sinteger32, 4> local copy_of: array<sinteger32, 4> = values; return copy_of; end") };
 
-    EXPECT_TRUE(MAREA_has(DUMP, "CONSTANT_DECLARATION \"TABLE\" type=array resolved=array<sinteger32,4>")) << DUMP;
+    EXPECT_TRUE(MAREA_has(DUMP, "CONSTANT_DECLARATION \"TABLE\" type=c.array resolved=array<sinteger32,4>")) << DUMP;
 
-    EXPECT_TRUE(MAREA_has(DUMP, "FIELD_DECLARATION \"items\" type=array resolved=array<sinteger32,4>")) << DUMP;
+    EXPECT_TRUE(MAREA_has(DUMP, "FIELD_DECLARATION \"items\" type=c.array resolved=array<sinteger32,4>")) << DUMP;
 
-    EXPECT_TRUE(MAREA_has(DUMP, "VARIANT_FIELD \"corners\" type=array resolved=array<sinteger32,4>")) << DUMP;
+    EXPECT_TRUE(MAREA_has(DUMP, "VARIANT_FIELD \"corners\" type=c.array resolved=array<sinteger32,4>")) << DUMP;
 
-    EXPECT_TRUE(MAREA_has(DUMP, "PARAMETER \"values\" type=array resolved=array<sinteger32,4>")) << DUMP;
+    EXPECT_TRUE(MAREA_has(DUMP, "PARAMETER \"values\" type=c.array resolved=array<sinteger32,4>")) << DUMP;
 
-    EXPECT_TRUE(MAREA_has(DUMP, "LOCAL_DECLARATION \"copy_of\" type=array resolved=array<sinteger32,4>")) << DUMP;
+    EXPECT_TRUE(MAREA_has(DUMP, "LOCAL_DECLARATION \"copy_of\" type=c.array resolved=array<sinteger32,4>")) << DUMP;
 
-    EXPECT_TRUE(MAREA_has(DUMP, "FUNCTION_DECLARATION \"take\" type=array resolved=array<sinteger32,4>")) << DUMP;
+    EXPECT_TRUE(MAREA_has(DUMP, "FUNCTION_DECLARATION \"take\" type=c.array resolved=array<sinteger32,4>")) << DUMP;
 }
 
 TEST(MAREAIrDeclarationTypes, NestedTypeArgumentsStayWhole)
 {
     GTEST_COUT << "Validating a type argument that holds a type argument is kept whole in the resolved type, and the type name stays the head." << std::endl;
 
-    const std::string DUMP{ MAREA_dumpOf("namespace main; import c.array; import c.vector; function f(grid: array<array<sinteger32, 2>, 3>, rows: vector<array<float32, 2>>) end") };
+    const std::string DUMP{ MAREA_dumpOf("namespace main; import c.array as array; import c.vector as vector; function f(grid: array<array<sinteger32, 2>, 3>, rows: vector<array<float32, 2>>) end") };
 
-    EXPECT_TRUE(MAREA_has(DUMP, "PARAMETER \"grid\" type=array resolved=array<array<sinteger32,2>,3>")) << DUMP;
+    EXPECT_TRUE(MAREA_has(DUMP, "PARAMETER \"grid\" type=c.array resolved=array<array<sinteger32,2>,3>")) << DUMP;
 
-    EXPECT_TRUE(MAREA_has(DUMP, "PARAMETER \"rows\" type=vector resolved=vector<array<float32,2>>")) << DUMP;
+    EXPECT_TRUE(MAREA_has(DUMP, "PARAMETER \"rows\" type=c.vector resolved=vector<array<float32,2>>")) << DUMP;
 }
 
 TEST(MAREAIrDeclarationTypes, AliasOfAGenericTypeKeepsTheFullTypeItStandsFor)
 {
     GTEST_COUT << "Validating a local alias of array<sinteger32, 4> gives the full type the alias stands for, not the alias name." << std::endl;
 
-    const std::string DUMP{ MAREA_dumpOf("namespace main; import c.array; type Grid = array<sinteger32, 4>; function f(g: Grid) local h: Grid = g; end") };
+    const std::string DUMP{ MAREA_dumpOf("namespace main; import c.array as array; type Grid = array<sinteger32, 4>; function f(g: Grid) local h: Grid = g; end") };
 
-    EXPECT_TRUE(MAREA_has(DUMP, "PARAMETER \"g\" type=array resolved=array<sinteger32,4>")) << DUMP;
+    EXPECT_TRUE(MAREA_has(DUMP, "PARAMETER \"g\" type=c.array resolved=array<sinteger32,4>")) << DUMP;
 
-    EXPECT_TRUE(MAREA_has(DUMP, "LOCAL_DECLARATION \"h\" type=array resolved=array<sinteger32,4>")) << DUMP;
+    EXPECT_TRUE(MAREA_has(DUMP, "LOCAL_DECLARATION \"h\" type=c.array resolved=array<sinteger32,4>")) << DUMP;
 }
 
 TEST(MAREAIrDeclarationTypes, FunctionTypeOnEveryDeclarationKindIsNotLost)

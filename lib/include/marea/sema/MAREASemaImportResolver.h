@@ -71,8 +71,10 @@ MAREA_BEGIN_EXTERN_C
 
     /**
      * @brief Function the caller optionally supplies to give the signature of one member of a namespace
-     * it answers EXTERNAL for. Sema calls it only for a call whose callee names such a member, never for
-     * a namespace the resolve function answers FOUND or NOT_FOUND for.
+     * it answers EXTERNAL for. Sema calls it for a call whose callee names such a member, and for a call of a
+     * member of a namespace under c or marea that has a tree (the namespace of the file too) that does not
+     * declare it, which is a function that the library registered from C. It never calls it for another
+     * namespace that the resolve function answers FOUND or NOT_FOUND for.
      * @param userData Pointer given to MAREA_SemaImportResolverCreate.
      * @param namespaceText Dotted namespace text, not NUL terminated (for example "c.math").
      * @param namespaceLength Length of namespaceText in bytes.

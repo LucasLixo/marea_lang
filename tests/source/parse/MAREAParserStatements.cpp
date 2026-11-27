@@ -103,6 +103,118 @@ TEST(MAREAParserStatements, Loops)
     });
 }
 
+TEST(MAREAParserStatements, DoWhile)
+{
+    GTEST_COUT << "Validating do ... while cond end builds a DO_WHILE_STATEMENT with the body block, then the condition." << std::endl;
+
+    MAREA_expectCases({
+        { "do x = 1; while a end", "(do_while_statement (block (assignment:EQUAL x 1)) a)" },
+        { "do while a end", "(do_while_statement (block) a)" },
+        { "do x = 1; y = 2; while a and b end", "(do_while_statement (block (assignment:EQUAL x 1) (assignment:EQUAL y 2)) (binary:KEYWORD_AND a b))" },
+        { "do total += v[i]; i += 1; while i < v.size() end", "(do_while_statement (block (assignment:PLUS_EQUAL total (index_access v i)) (assignment:PLUS_EQUAL i 1)) (binary:LESS i (call (member_access v size) (argument_list))))" },
+    });
+}
+
+TEST(MAREAParserStatements, DoWhileKeepsTheScopeBlock)
+{
+    GTEST_COUT << "Validating a plain do ... end is still a scope block, also with an ordinary while inside it." << std::endl;
+
+    MAREA_expectCases({
+        { "do x = 1; end", "(scope_block (block (assignment:EQUAL x 1)))" },
+        { "do end", "(scope_block (block))" },
+        { "do while a do break; end end", "(scope_block (block (while_statement a (block (break_statement)))))" },
+        { "do x = 1; while a do end y = 2; end", "(scope_block (block (assignment:EQUAL x 1) (while_statement a (block)) (assignment:EQUAL y 2)))" },
+    });
+}
+
+TEST(MAREAParserStatements, DoWhileNestsWithOrdinaryWhile)
+{
+    GTEST_COUT << "Validating an ordinary while inside a do-while body is told apart by the word after its condition." << std::endl;
+
+    MAREA_expectCases({
+        { "do while a do end while b end", "(do_while_statement (block (while_statement a (block))) b)" },
+        { "do x = 1; while a do y = 2; end z = 3; while b end", "(do_while_statement (block (assignment:EQUAL x 1) (while_statement a (block (assignment:EQUAL y 2))) (assignment:EQUAL z 3)) b)" },
+        { "do while a do while b do end end while c end", "(do_while_statement (block (while_statement a (block (while_statement b (block))))) c)" },
+        { "while a do do x = 1; while b end end", "(while_statement a (block (do_while_statement (block (assignment:EQUAL x 1)) b)))" },
+        { "do do x = 1; while a end while b end", "(do_while_statement (block (do_while_statement (block (assignment:EQUAL x 1)) a)) b)" },
+        { "do if a then x = 1; end while b end", "(do_while_statement (block (if_statement a (block (assignment:EQUAL x 1)))) b)" },
+    });
+}
+
+TEST(MAREAParserStatements, DoWhileWithJumps)
+{
+    GTEST_COUT << "Validating break, continue and return inside a do-while body." << std::endl;
+
+    MAREA_expectCases({
+        { "do if a then continue; end if b then break; end while c end", "(do_while_statement (block (if_statement a (block (continue_statement))) (if_statement b (block (break_statement)))) c)" },
+        { "do return; while a end", "(do_while_statement (block (return_statement)) a)" },
+    });
+}
+
+TEST(MAREAParserStatements, DoWhileWithoutEndIsReported)
+{
+    GTEST_COUT << "Validating a do-while with no closing end at the end of the file gives one UNTERMINATED_BLOCK." << std::endl;
+
+    MAREA_ParseFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_parse("namespace main; function f() do x = 1; while a"), MAREA_PARSE_EXCEPT_SUCCESS) << "Parsing must succeed.";
+
+    EXPECT_EQ(fixture.MAREA_codes(), std::vector<MAREA_Uinteger32>{ MAREA_PARSE_DIAGNOSTIC_CODE_UNTERMINATED_BLOCK }) << "The missing end is one UNTERMINATED_BLOCK.";
+
+    EXPECT_NE(fixture.MAREA_dump().find("DO_WHILE_STATEMENT"), std::string::npos) << "The statement must stay in the tree as a do-while.";
+}
+
+TEST(MAREAParserStatements, DoWhileWithoutConditionIsReported)
+{
+    GTEST_COUT << "Validating a do-while with no condition gives EXPECTED_EXPRESSION and the tree keeps the statement." << std::endl;
+
+    MAREA_ParseFixture fixture;
+
+    EXPECT_EQ(fixture.MAREA_statements("do x = 1; while end"), "(do_while_statement (block (assignment:EQUAL x 1)) (error_node))") << "An error node must stand for the condition.";
+
+    EXPECT_EQ(fixture.MAREA_codes(), std::vector<MAREA_Uinteger32>{ MAREA_PARSE_DIAGNOSTIC_CODE_EXPECTED_EXPRESSION }) << "A missing condition is EXPECTED_EXPRESSION.";
+}
+
+TEST(MAREAParserStatements, DoWithoutWhileOrEndKeepsParsing)
+{
+    GTEST_COUT << "Validating a do whose body ends at a declaration word reports the missing end and keeps the next function." << std::endl;
+
+    MAREA_ParseFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_parse("namespace main; function f() do x = 1; function g() end"), MAREA_PARSE_EXCEPT_SUCCESS) << "Parsing must succeed.";
+
+    EXPECT_FALSE(fixture.MAREA_codes().empty()) << "The unclosed do must give a diagnostic.";
+
+    EXPECT_NE(fixture.MAREA_dump().find("IDENTIFIER \"g\""), std::string::npos) << "The next function must still parse.";
+}
+
+TEST(MAREAParserStatements, DoWhileNestedDeeplyIsLimited)
+{
+    GTEST_COUT << "Validating a very deep do-while nesting gives RECURSION_TOO_DEEP and never crashes." << std::endl;
+
+    std::string source{ "namespace main; function f() " };
+
+    for (int level{ 0 }; level < 5000; ++level) {
+        source += "do ";
+    }
+
+    for (int level{ 0 }; level < 5000; ++level) {
+        source += "while a end ";
+    }
+
+    source += "end";
+
+    MAREA_ParseFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_parse(source), MAREA_PARSE_EXCEPT_SUCCESS) << "Parsing must succeed.";
+
+    const std::vector<MAREA_Uinteger32> CODES{ fixture.MAREA_codes() };
+
+    ASSERT_FALSE(CODES.empty()) << "The depth limit must be reported.";
+
+    EXPECT_EQ(CODES[0], static_cast<MAREA_Uinteger32>(MAREA_PARSE_DIAGNOSTIC_CODE_RECURSION_TOO_DEEP)) << "The first diagnostic must be RECURSION_TOO_DEEP.";
+}
+
 TEST(MAREAParserStatements, SwitchStatements)
 {
     GTEST_COUT << "Validating switch with several values, a default, without a default and empty." << std::endl;

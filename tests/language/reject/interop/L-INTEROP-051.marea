@@ -1,17 +1,18 @@
--- expect: 3070 @16
+-- expect: 3070 @17
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.
 
 -- An owner of an opaque type is used after it moved.
 
 namespace main;
+require demo.owned;
 
-import c.vulkan;
+require c.vulkan as vulkan;
 
 opaque structure Texture;
 
 function check()
-    local first: owned<Texture> = vulkan.create_texture();
-    local second: owned<Texture> = move first;
+    local first: demo.owned<Texture> = vulkan.create_texture();
+    local second: demo.owned<Texture> = move first;
     vulkan.present(first);
 end

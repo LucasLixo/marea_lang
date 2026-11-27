@@ -5,11 +5,12 @@
 -- An owner of an opaque type comes from a c call and goes up with return.
 
 namespace main;
+require demo.owned;
 
-import c.vulkan;
+require c.vulkan as vulkan;
 
 opaque structure Texture;
 
-function create(): owned<Texture>
+function create(): demo.owned<Texture>
     return vulkan.create_texture();
 end

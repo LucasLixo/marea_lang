@@ -5,6 +5,7 @@
 
 #include "marea/sema/MAREASemaTypedAst.h"
 
+#include "tests/MAREALibraryRegistryHelpers.hpp"
 #include "tests/MAREASemaHelpers.hpp"
 
 #include <functional>
@@ -58,6 +59,8 @@ namespace
             }
 
             MAREA_IGNORE(MAREA_SemaContextCreate(parser.lexer.arena, parser.lexer.sink, resolver, &context));
+
+            MAREA_IGNORE(MAREA_SemaContextSetTypeRegistry(context, MAREA_buildLibraryRegistry(parser.lexer.arena)));
         }
 
         MAREA_LibraryFixture(const MAREA_LibraryFixture &) = delete;
@@ -135,16 +138,17 @@ const MAREA_SemaSignature MAREA_RESULT_SIGNATURE{ nullptr, 0, "Item", 4 };
 const MAREA_SemaSignature MAREA_SUM_SIGNATURE{ nullptr, 0, "Item", 4 };
 const MAREA_SemaSignature MAREA_COUNT_SIGNATURE{ nullptr, 0, "Count", 5 };
 
-// The fixture signatures, keyed by the canonical "c.<library>" namespace and the member name.
+// The fixture signatures, keyed by the full written path of the registered type and the member name.
 MAREA_SignatureCallback MAREA_librarySignatures()
 {
     return [](const std::string &namespaceText, const std::string &memberText, const MAREA_SemaSignature **outSignature) {
         static const std::map<std::pair<std::string, std::string>, const MAREA_SemaSignature *> SIGNATURES{
-            { { "c.array", "filled" }, &MAREA_FILLED_SIGNATURE },
-            { { "c.array", "append" }, &MAREA_APPEND_SIGNATURE },
-            { { "c.array", "sum" }, &MAREA_SUM_SIGNATURE },
-            { { "c.array", "count" }, &MAREA_COUNT_SIGNATURE },
-            { { "c.task", "result" }, &MAREA_RESULT_SIGNATURE },
+            { { "demo.array", "filled" }, &MAREA_FILLED_SIGNATURE },
+            { { "demo.vector", "filled" }, &MAREA_FILLED_SIGNATURE },
+            { { "demo.vector", "append" }, &MAREA_APPEND_SIGNATURE },
+            { { "demo.array", "sum" }, &MAREA_SUM_SIGNATURE },
+            { { "demo.array", "count" }, &MAREA_COUNT_SIGNATURE },
+            { { "demo.task", "result" }, &MAREA_RESULT_SIGNATURE },
         };
 
         const auto FOUND{ SIGNATURES.find({ namespaceText, memberText }) };
@@ -161,38 +165,38 @@ MAREA_SignatureCallback MAREA_librarySignatures()
 
 MAREA_ResolveCallback MAREA_externalLibraries()
 {
-    return [](const std::string &text, const MAREA_AstNode **) { return ((text.rfind("c.", 0) == 0) || (text.rfind("collections.", 0) == 0) || (text.rfind("concurrency.", 0) == 0)) ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND; };
+    return [](const std::string &text, const MAREA_AstNode **) { return ((text.rfind("c.", 0) == 0) || (text.rfind("demo.", 0) == 0) || (text.rfind("collections.", 0) == 0) || (text.rfind("concurrency.", 0) == 0)) ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND; };
 }
 } // namespace
 
 TEST(MAREASemaTypedAstLibraries, StaticCallOnAFixedArrayTypeGivesTheReceiverType)
 {
-    GTEST_COUT << "Validating array<float32, 16>.filled(0.0) is typed with the receiver type through a fixture signature." << std::endl;
+    GTEST_COUT << "Validating demo.array<float32, 16>.filled(0.0) is typed with the receiver type through a fixture signature." << std::endl;
 
     MAREA_LibraryFixture fixture(MAREA_externalLibraries(), MAREA_librarySignatures());
 
-    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nimport collections.array;\nfunction f(): sinteger32\n    local fixed: array<float32, 16> = array<float32, 16>.filled(0.0);\n    return 0;\nend\n"));
+    ASSERT_TRUE(fixture.MAREA_build("namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task;\nfunction f(): sinteger32\n    local fixed: demo.array<float32, 16> = demo.array<float32, 16>.filled(0.0);\n    return 0;\nend\n"));
 
     const MAREA_SemaTypedNode *call{ MAREA_nth(fixture, MAREA_AST_KIND_CALL_EXPRESSION, 0) };
 
     ASSERT_NE(call, nullptr);
 
-    EXPECT_EQ(MAREA_typeOf(call), "array<float32,16>") << "A result spelled Self must give the receiver type with its type arguments.";
+    EXPECT_EQ(MAREA_typeOf(call), "demo.array<float32,16>") << "A result spelled Self must give the receiver type with its type arguments.";
 }
 
 TEST(MAREASemaTypedAstLibraries, StaticCallUnderTheReservedNamespaceGivesTheReceiverType)
 {
-    GTEST_COUT << "Validating c.array<sinteger32>.filled(8, 0) is typed through the canonical c.array key." << std::endl;
+    GTEST_COUT << "Validating demo.vector<sinteger32>.filled(8, 0) is typed through the canonical demo.array key." << std::endl;
 
     MAREA_LibraryFixture fixture(MAREA_externalLibraries(), MAREA_librarySignatures());
 
-    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nimport collections.array;\nfunction f(): sinteger32\n    local scratch: c.array<sinteger32> = c.array<sinteger32>.filled(8, 0);\n    return 0;\nend\n"));
+    ASSERT_TRUE(fixture.MAREA_build("namespace main; require demo.vector; function f(): sinteger32\n    local scratch: demo.vector<sinteger32> = demo.vector<sinteger32>.filled(8, 0);\n    return 0;\nend\n"));
 
     const MAREA_SemaTypedNode *call{ MAREA_nth(fixture, MAREA_AST_KIND_CALL_EXPRESSION, 0) };
 
     ASSERT_NE(call, nullptr);
 
-    EXPECT_EQ(MAREA_typeOf(call), "c.array<sinteger32>");
+    EXPECT_EQ(MAREA_typeOf(call), "demo.vector<sinteger32>");
 }
 
 TEST(MAREASemaTypedAstLibraries, InstanceCallOfATypeParameterNameGivesTheTypeArgument)
@@ -201,13 +205,13 @@ TEST(MAREASemaTypedAstLibraries, InstanceCallOfATypeParameterNameGivesTheTypeArg
 
     MAREA_LibraryFixture fixture(MAREA_externalLibraries(), MAREA_librarySignatures());
 
-    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nimport collections.array;\nfunction f(values: array<float32, 4>): float32\n    return values.sum();\nend\n"));
+    ASSERT_TRUE(fixture.MAREA_build("namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task;\nfunction f(values: demo.array<float32, 4>): float32\n    return values.sum();\nend\n"));
 
     const MAREA_SemaTypedNode *call{ MAREA_nth(fixture, MAREA_AST_KIND_CALL_EXPRESSION, 0) };
 
     ASSERT_NE(call, nullptr);
 
-    EXPECT_EQ(MAREA_typeOf(call), "float32") << "Item of array<float32, 4> is float32.";
+    EXPECT_EQ(MAREA_typeOf(call), "float32") << "Item of demo.array<float32, 4> is float32.";
 }
 
 TEST(MAREASemaTypedAstLibraries, SizeArgumentIsNotATypeSoItStaysUntyped)
@@ -216,7 +220,7 @@ TEST(MAREASemaTypedAstLibraries, SizeArgumentIsNotATypeSoItStaysUntyped)
 
     MAREA_LibraryFixture fixture(MAREA_externalLibraries(), MAREA_librarySignatures());
 
-    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nimport collections.array;\nfunction f(values: array<float32, 4>): sinteger32\n    return values.count();\nend\n"));
+    ASSERT_TRUE(fixture.MAREA_build("namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task;\nfunction f(values: demo.array<float32, 4>): sinteger32\n    return values.count();\nend\n"));
 
     const MAREA_SemaTypedNode *call{ MAREA_nth(fixture, MAREA_AST_KIND_CALL_EXPRESSION, 0) };
 
@@ -227,11 +231,11 @@ TEST(MAREASemaTypedAstLibraries, SizeArgumentIsNotATypeSoItStaysUntyped)
 
 TEST(MAREASemaTypedAstLibraries, TaskResultGivesTheTaskTypeArgument)
 {
-    GTEST_COUT << "Validating item.result() of a task<float32> is typed float32." << std::endl;
+    GTEST_COUT << "Validating item.result() of a demo.task<float32> is typed float32." << std::endl;
 
     MAREA_LibraryFixture fixture(MAREA_externalLibraries(), MAREA_librarySignatures());
 
-    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nimport concurrency.task;\nfunction f(item: task<float32>): float32\n    return item.result();\nend\n"));
+    ASSERT_TRUE(fixture.MAREA_build("namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task;\nfunction f(item: demo.task<float32>): float32\n    return item.result();\nend\n"));
 
     const MAREA_SemaTypedNode *call{ MAREA_nth(fixture, MAREA_AST_KIND_CALL_EXPRESSION, 0) };
 
@@ -242,11 +246,11 @@ TEST(MAREASemaTypedAstLibraries, TaskResultGivesTheTaskTypeArgument)
 
 TEST(MAREASemaTypedAstLibraries, AppendOnAReceiverUnderTheReservedNamespaceIsTypedByItsLiteralResult)
 {
-    GTEST_COUT << "Validating tasks.append(x) on a c.array receiver is typed with the literal result of its signature." << std::endl;
+    GTEST_COUT << "Validating tasks.append(x) on a demo.vector receiver is typed with the literal result of its signature." << std::endl;
 
     MAREA_LibraryFixture fixture(MAREA_externalLibraries(), MAREA_librarySignatures());
 
-    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nimport collections.array;\nfunction f(): sinteger32\n    local values: c.array<float32> = c.array<float32>{};\n    values.append(1.0);\n    return 0;\nend\n"));
+    ASSERT_TRUE(fixture.MAREA_build("namespace main; require demo.vector; function f(): sinteger32\n    local values: demo.vector<float32> = demo.vector<float32>{};\n    values.append(1.0);\n    return 0;\nend\n"));
 
     const MAREA_SemaTypedNode *call{ MAREA_nth(fixture, MAREA_AST_KIND_CALL_EXPRESSION, 0) };
 
@@ -261,7 +265,7 @@ TEST(MAREASemaTypedAstLibraries, TableIndexGivesTheValueType)
 
     MAREA_LibraryFixture fixture(MAREA_externalLibraries(), MAREA_librarySignatures());
 
-    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nimport collections.table;\nfunction f(scores: table<string, sinteger32>): sinteger32\n    return scores[\"ana\"];\nend\n"));
+    ASSERT_TRUE(fixture.MAREA_build("namespace main; require demo.table;\nfunction f(scores: demo.table<string, sinteger32>): sinteger32\n    return scores[\"ana\"];\nend\n"));
 
     const MAREA_SemaTypedNode *access{ MAREA_nth(fixture, MAREA_AST_KIND_INDEX_ACCESS, 0) };
 
@@ -272,11 +276,11 @@ TEST(MAREASemaTypedAstLibraries, TableIndexGivesTheValueType)
 
 TEST(MAREASemaTypedAstLibraries, ArrayIndexStillGivesTheElementType)
 {
-    GTEST_COUT << "Validating the table rule leaves the element read of a c.array unchanged." << std::endl;
+    GTEST_COUT << "Validating the table rule leaves the element read of a demo.vector unchanged." << std::endl;
 
     MAREA_LibraryFixture fixture(MAREA_externalLibraries(), MAREA_librarySignatures());
 
-    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nimport collections.array;\nfunction f(values: c.array<float32>): float32\n    return values[0];\nend\n"));
+    ASSERT_TRUE(fixture.MAREA_build("namespace main; require demo.vector; function f(values: demo.vector<float32>): float32\n    return values[0];\nend\n"));
 
     const MAREA_SemaTypedNode *access{ MAREA_nth(fixture, MAREA_AST_KIND_INDEX_ACCESS, 0) };
 
@@ -291,7 +295,7 @@ TEST(MAREASemaTypedAstLibraries, MemberWithNoSignatureStaysOpaque)
 
     MAREA_LibraryFixture fixture(MAREA_externalLibraries(), MAREA_librarySignatures());
 
-    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nimport collections.array;\nfunction f(values: array<float32, 4>): float32\n    return values.unknown_member();\nend\n"));
+    ASSERT_TRUE(fixture.MAREA_build("namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task;\nfunction f(values: demo.array<float32, 4>): float32\n    return values.unknown_member();\nend\n"));
 
     const MAREA_SemaTypedNode *call{ MAREA_nth(fixture, MAREA_AST_KIND_CALL_EXPRESSION, 0) };
 
@@ -306,7 +310,7 @@ TEST(MAREASemaTypedAstLibraries, NoSignatureFunctionChangesNothing)
 
     MAREA_LibraryFixture fixture(MAREA_externalLibraries(), nullptr);
 
-    ASSERT_TRUE(fixture.MAREA_build("namespace main;\nimport collections.array;\nfunction f(values: array<float32, 4>): array<float32, 4>\n    local fixed: array<float32, 4> = array<float32, 4>.filled(0.0);\n    local total: float32 = values.sum();\n    return fixed;\nend\n"));
+    ASSERT_TRUE(fixture.MAREA_build("namespace main; require demo.array; require demo.vector; require demo.pointer; require demo.owned; require demo.slice; require demo.task;\nfunction f(values: demo.array<float32, 4>): demo.array<float32, 4>\n    local fixed: demo.array<float32, 4> = demo.array<float32, 4>.filled(0.0);\n    local total: float32 = values.sum();\n    return fixed;\nend\n"));
 
     EXPECT_EQ(MAREA_typeOf(MAREA_nth(fixture, MAREA_AST_KIND_CALL_EXPRESSION, 0)), "<none>") << "The static call must stay untyped.";
 

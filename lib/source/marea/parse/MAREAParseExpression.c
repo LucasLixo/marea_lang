@@ -59,11 +59,12 @@ static MAREA_Uinteger32 MAREA_CALL MAREA_G_BinaryLevel(MAREA_TokenKind kind)
     }
 }
 
-// INFO: Token level scan, no allocation. The less than at start opens type arguments only if a balanced closing angle bracket follows with only type tokens between.
+// INFO: Token level scan, no allocation. The less than at start opens type arguments only if a balanced closing angle bracket follows with only type tokens between. An attribute is a type token only inside a function type, where a parameter may carry one.
 static MAREA_IntegerSize MAREA_CALL MAREA_G_ScanTypeArguments(const MAREA_ParseState *state, MAREA_IntegerSize start)
 {
     MAREA_Sinteger32 angleDepth = 0;
     MAREA_Sinteger32 parenDepth = 0;
+    MAREA_Boolean inAttribute = MAREA_BOOLEAN_FALSE;
 
     for (MAREA_IntegerSize ahead = start; ahead < (start + MAREA_PARSE_SCAN_LIMIT); ahead = (ahead + MAREA_INTEGER_SIZE(1))) {
         switch (MAREA_ParsePeekKind(state, ahead)) {
@@ -99,6 +100,29 @@ static MAREA_IntegerSize MAREA_CALL MAREA_G_ScanTypeArguments(const MAREA_ParseS
             }
 
             parenDepth = (parenDepth - 1);
+            break;
+        case MAREA_TOKEN_KIND_HASH_BRACKET:
+            if ((parenDepth == 0) || (inAttribute == MAREA_BOOLEAN_TRUE)) {
+                return MAREA_INTEGER_SIZE(0);
+            }
+
+            inAttribute = MAREA_BOOLEAN_TRUE;
+            break;
+        case MAREA_TOKEN_KIND_RIGHT_BRACKET:
+            if (inAttribute == MAREA_BOOLEAN_FALSE) {
+                return MAREA_INTEGER_SIZE(0);
+            }
+
+            inAttribute = MAREA_BOOLEAN_FALSE;
+            break;
+        case MAREA_TOKEN_KIND_EQUAL:
+        case MAREA_TOKEN_KIND_STRING_LITERAL:
+        case MAREA_TOKEN_KIND_KEYWORD_TRUE:
+        case MAREA_TOKEN_KIND_KEYWORD_FALSE:
+            if (inAttribute == MAREA_BOOLEAN_FALSE) {
+                return MAREA_INTEGER_SIZE(0);
+            }
+
             break;
         case MAREA_TOKEN_KIND_IDENTIFIER:
         case MAREA_TOKEN_KIND_DOT:
@@ -142,12 +166,17 @@ static MAREA_AstNode *MAREA_CALL MAREA_G_ParseArgumentList(MAREA_ParseState *sta
     return list;
 }
 
-static MAREA_AstNode *MAREA_CALL MAREA_G_ParseMacroCall(MAREA_ParseState *state)
+// INFO: segments is the count of names before the "!". One name is an IDENTIFIER, so a plain macro keeps its shape. More than one is a QUALIFIED_NAME, the path of the library that registers the macro.
+static MAREA_AstNode *MAREA_CALL MAREA_G_ParseMacroCall(MAREA_ParseState *state, MAREA_IntegerSize segments)
 {
     MAREA_AstNode *call = MAREA_ParseNodeBegin(state, MAREA_AST_KIND_MACRO_CALL);
 
-    // INFO: The name may be the word namespace, as in namespace!(), so it is built from the token directly.
-    MAREA_ParseNodeAdd(state, call, MAREA_ParseNodeFromToken(state, MAREA_AST_KIND_IDENTIFIER, MAREA_ParseAdvance(state)));
+    if (segments > MAREA_INTEGER_SIZE(1)) {
+        MAREA_ParseNodeAdd(state, call, MAREA_ParseQualifiedName(state));
+    } else {
+        // INFO: The name may be the word namespace, as in namespace!(), so it is built from the token directly.
+        MAREA_ParseNodeAdd(state, call, MAREA_ParseNodeFromToken(state, MAREA_AST_KIND_IDENTIFIER, MAREA_ParseAdvance(state)));
+    }
 
     MAREA_IGNORE(MAREA_ParseAdvance(state));
 
@@ -245,10 +274,6 @@ static MAREA_AstNode *MAREA_CALL MAREA_G_ParseGenericName(MAREA_ParseState *stat
 
 static MAREA_AstNode *MAREA_CALL MAREA_G_ParseIdentifierPrimary(MAREA_ParseState *state)
 {
-    if ((MAREA_ParsePeekKind(state, MAREA_INTEGER_SIZE(1)) == MAREA_TOKEN_KIND_BANG) && (MAREA_ParsePeekKind(state, MAREA_INTEGER_SIZE(2)) == MAREA_TOKEN_KIND_LEFT_PAREN)) {
-        return MAREA_G_ParseMacroCall(state);
-    }
-
     MAREA_IntegerSize last = MAREA_INTEGER_SIZE(0);
 
     while ((MAREA_ParsePeekKind(state, (last + MAREA_INTEGER_SIZE(1))) == MAREA_TOKEN_KIND_DOT) && (MAREA_ParsePeekKind(state, (last + MAREA_INTEGER_SIZE(2))) == MAREA_TOKEN_KIND_IDENTIFIER)) {
@@ -258,6 +283,10 @@ static MAREA_AstNode *MAREA_CALL MAREA_G_ParseIdentifierPrimary(MAREA_ParseState
     const MAREA_IntegerSize after = (last + MAREA_INTEGER_SIZE(1));
 
     const MAREA_TokenKind afterKind = MAREA_ParsePeekKind(state, after);
+
+    if ((afterKind == MAREA_TOKEN_KIND_BANG) && (MAREA_ParsePeekKind(state, (after + MAREA_INTEGER_SIZE(1))) == MAREA_TOKEN_KIND_LEFT_PAREN)) {
+        return MAREA_G_ParseMacroCall(state, ((last / MAREA_INTEGER_SIZE(2)) + MAREA_INTEGER_SIZE(1)));
+    }
 
     if (afterKind == MAREA_TOKEN_KIND_LEFT_BRACE) {
         return MAREA_G_ParseLiteralValue(state);
@@ -312,7 +341,7 @@ static MAREA_AstNode *MAREA_CALL MAREA_G_ParsePrimary(MAREA_ParseState *state)
     }
     case MAREA_TOKEN_KIND_KEYWORD_NAMESPACE:
         if ((MAREA_ParsePeekKind(state, MAREA_INTEGER_SIZE(1)) == MAREA_TOKEN_KIND_BANG) && (MAREA_ParsePeekKind(state, MAREA_INTEGER_SIZE(2)) == MAREA_TOKEN_KIND_LEFT_PAREN)) {
-            return MAREA_G_ParseMacroCall(state);
+            return MAREA_G_ParseMacroCall(state, MAREA_INTEGER_SIZE(1));
         }
 
         break;

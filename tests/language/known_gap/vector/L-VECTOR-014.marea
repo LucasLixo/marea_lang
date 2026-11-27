@@ -1,0 +1,36 @@
+-- gap: #393 NEW
+-- rule: accept
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- partition over a vector gives no part until the run time view type exists.
+
+namespace main;
+
+require marea.vector;
+require c.memory;
+
+function scale_part(#[semantics = reference_mutable] part: c.memory.Slice<float32>)
+    for each value in mutable part do
+        value *= 2.0;
+    end
+end
+
+function read_part(part: c.memory.Slice<float32>)
+end
+
+function scale_all(#[semantics = reference_mutable] values: marea.vector.Vector<float32>)
+    fork_join
+        partition mutable values into 4 as part do
+            spawn scale_part(part);
+        end
+    end
+end
+
+function read_all(values: marea.vector.Vector<float32>)
+    fork_join
+        partition values into 4 as part do
+            spawn read_part(part);
+        end
+    end
+end

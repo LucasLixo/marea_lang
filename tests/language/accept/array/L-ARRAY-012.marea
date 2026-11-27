@@ -1,0 +1,21 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An array of owners is borrowed by for each and never copied.
+
+namespace main;
+
+require marea.array;
+require c.memory;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+function walk(values: marea.array.Array<c.memory.Owned<Point>, 2>)
+    for each point in values do
+        local first: sinteger32 = point.x;
+    end
+end

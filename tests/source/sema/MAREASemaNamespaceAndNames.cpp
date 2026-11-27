@@ -138,7 +138,7 @@ TEST(MAREASemaNamespaceAndNames, ImportOfPrivateSymbolIsRejected)
 
     MAREA_SemaFixture fixture(MAREA_answer("a.b", MAREA_SEMA_IMPORT_RESULT_FOUND, library.library.parser.root));
 
-    ASSERT_EQ(fixture.MAREA_sema("namespace main; import a.b.hidden;"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; import a.b.hidden as hidden;"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
 
     EXPECT_EQ(fixture.MAREA_semaCodes(), std::vector<MAREA_Uinteger32>{ UNRESOLVED }) << "A private symbol must raise UNRESOLVED_IMPORT.";
 }
@@ -153,13 +153,13 @@ TEST(MAREASemaNamespaceAndNames, ImportHonoursFileVisibilityAndExplicitPrivate)
 
     MAREA_SemaFixture openFixture(MAREA_answer("a.b", MAREA_SEMA_IMPORT_RESULT_FOUND, library.parser.root));
 
-    ASSERT_EQ(openFixture.MAREA_sema("namespace main; import a.b.open;"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+    ASSERT_EQ(openFixture.MAREA_sema("namespace main; import a.b.open as open;"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
 
     EXPECT_TRUE(openFixture.MAREA_semaCodes().empty()) << "A symbol of a public file must be importable.";
 
     MAREA_SemaFixture closedFixture(MAREA_answer("a.b", MAREA_SEMA_IMPORT_RESULT_FOUND, library.parser.root));
 
-    ASSERT_EQ(closedFixture.MAREA_sema("namespace main; import a.b.closed;"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+    ASSERT_EQ(closedFixture.MAREA_sema("namespace main; import a.b.closed as closed;"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
 
     EXPECT_EQ(closedFixture.MAREA_semaCodes(), std::vector<MAREA_Uinteger32>{ UNRESOLVED }) << "A private symbol of a public file must raise UNRESOLVED_IMPORT.";
 }
@@ -172,7 +172,7 @@ TEST(MAREASemaNamespaceAndNames, ImportOfMissingSymbolIsRejected)
 
     MAREA_SemaFixture fixture(MAREA_answer("a.b", MAREA_SEMA_IMPORT_RESULT_FOUND, library.library.parser.root));
 
-    ASSERT_EQ(fixture.MAREA_sema("namespace main; import a.b.missing;"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; import a.b.missing as missing;"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
 
     EXPECT_EQ(fixture.MAREA_semaCodes(), std::vector<MAREA_Uinteger32>{ UNRESOLVED }) << "A missing symbol must raise UNRESOLVED_IMPORT.";
 }
@@ -214,9 +214,9 @@ TEST(MAREASemaNamespaceAndNames, DeclarationClashingWithImportIsRejected)
 {
     GTEST_COUT << "Validating a declaration named like an import is a clash." << std::endl;
 
-    MAREA_SemaFixture fixture(MAREA_answer("a.b.c", MAREA_SEMA_IMPORT_RESULT_EXTERNAL));
+    MAREA_SemaFixture fixture(MAREA_answer("a.b.d", MAREA_SEMA_IMPORT_RESULT_EXTERNAL));
 
-    ASSERT_EQ(fixture.MAREA_sema("namespace main; import a.b.c; structure c end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; import a.b.d as d; structure d end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
 
     EXPECT_EQ(fixture.MAREA_semaCodes(), std::vector<MAREA_Uinteger32>{ ALREADY_DECLARED }) << "A clash must raise NAME_ALREADY_DECLARED.";
 }
@@ -238,7 +238,7 @@ TEST(MAREASemaNamespaceAndNames, TwoImportsWithTheSameLocalNameClash)
 
     MAREA_SemaFixture fixture([](const std::string &, const MAREA_AstNode **) { return MAREA_SEMA_IMPORT_RESULT_EXTERNAL; });
 
-    ASSERT_EQ(fixture.MAREA_sema("namespace main; import a.item; import b.item;"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; import a.item as item; import b.item as item;"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
 
     EXPECT_EQ(fixture.MAREA_semaCodes(), std::vector<MAREA_Uinteger32>{ ALREADY_DECLARED }) << "Two imports of one local name must clash.";
 }
@@ -288,7 +288,7 @@ TEST(MAREASemaNamespaceAndNames, MemberListBindsEveryLocalName)
 
     MAREA_SemaFixture fixture(MAREA_externalAll());
 
-    ASSERT_EQ(fixture.MAREA_sema("namespace main; import a.b { f as g, T as U, Color.red as Crimson, MAX }; structure other end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; import a.b { f as g, T as U, Color.red as Crimson, MAX as MAX }; structure other end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
 
     EXPECT_TRUE(fixture.MAREA_semaCodes().empty()) << "A member list must raise nothing.";
 }
@@ -305,7 +305,7 @@ TEST(MAREASemaNamespaceAndNames, MemberAliasIsTheLocalName)
 
     MAREA_SemaFixture plain(MAREA_externalAll());
 
-    ASSERT_EQ(plain.MAREA_sema("namespace main; import a.b { f }; structure f end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+    ASSERT_EQ(plain.MAREA_sema("namespace main; import a.b { f as f }; structure f end"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
 
     EXPECT_EQ(plain.MAREA_semaCodes(), std::vector<MAREA_Uinteger32>{ ALREADY_DECLARED }) << "A member without alias binds its last segment.";
 }
@@ -330,7 +330,7 @@ TEST(MAREASemaNamespaceAndNames, MemberAliasClashesAreRejected)
 
     MAREA_SemaFixture withPlainImport(MAREA_externalAll());
 
-    ASSERT_EQ(withPlainImport.MAREA_sema("namespace main; import a.g; import a.b { f as g };"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+    ASSERT_EQ(withPlainImport.MAREA_sema("namespace main; import a.g as g; import a.b { f as g };"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
 
     EXPECT_EQ(withPlainImport.MAREA_semaCodes(), EXPECTED) << "An alias and a plain import must clash.";
 }
@@ -366,7 +366,7 @@ TEST(MAREASemaNamespaceAndNames, PlainDeclarationNamedCKeepsItsBehavior)
 
     MAREA_SemaFixture import(MAREA_externalAll());
 
-    ASSERT_EQ(import.MAREA_sema("namespace main; import c.stdio;"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+    ASSERT_EQ(import.MAREA_sema("namespace main; import c.stdio as stdio;"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
 
     EXPECT_TRUE(import.MAREA_semaCodes().empty()) << "An import of the C namespace stays accepted.";
 }
@@ -377,7 +377,7 @@ TEST(MAREASemaNamespaceAndNames, MemberOfAMissingNamespaceIsRejected)
 
     MAREA_SemaFixture fixture;
 
-    ASSERT_EQ(fixture.MAREA_sema("namespace main; import a.b { f as g, h };"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+    ASSERT_EQ(fixture.MAREA_sema("namespace main; import a.b { f as g, h as h };"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
 
     EXPECT_EQ(fixture.MAREA_semaCodes(), (std::vector<MAREA_Uinteger32>{ UNRESOLVED, UNRESOLVED })) << "Each member must raise UNRESOLVED_IMPORT.";
 }
@@ -390,7 +390,7 @@ TEST(MAREASemaNamespaceAndNames, MemberMustBePublicInAFoundNamespace)
 
     const std::vector<MAREA_Uinteger32> EXPECTED{ UNRESOLVED };
 
-    const char *const BAD[]{ "namespace main; import a.b { hidden };", "namespace main; import a.b { missing as other };", "namespace main; import a.b { hidden as other };" };
+    const char *const BAD[]{ "namespace main; import a.b { hidden as hidden };", "namespace main; import a.b { missing as other };", "namespace main; import a.b { hidden as other };" };
 
     for (const char *source : BAD) {
         MAREA_SemaFixture fixture(MAREA_answer("a.b", MAREA_SEMA_IMPORT_RESULT_FOUND, library.library.parser.root));
@@ -417,11 +417,11 @@ TEST(MAREASemaNamespaceAndNames, EnumVariantMemberNeedsAnEnumWithThatVariant)
 
     MAREA_SemaFixture good(MAREA_answer("a.b", MAREA_SEMA_IMPORT_RESULT_FOUND, library.library.parser.root));
 
-    ASSERT_EQ(good.MAREA_sema("namespace main; import a.b { Color.red as Crimson, Color.green };"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+    ASSERT_EQ(good.MAREA_sema("namespace main; import a.b { Color.red as Crimson, Color.green as green };"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
 
     EXPECT_TRUE(good.MAREA_semaCodes().empty()) << "A variant of a public enum must raise nothing.";
 
-    const char *const BAD[]{ "namespace main; import a.b { Color.blue };", "namespace main; import a.b { Item.red };", "namespace main; import a.b { c.red };", "namespace main; import a.b { Missing.red };", "namespace main; import a.b { Color.red.deep };" };
+    const char *const BAD[]{ "namespace main; import a.b { Color.blue as blue };", "namespace main; import a.b { Item.red as red };", "namespace main; import a.b { c.red as red };", "namespace main; import a.b { Missing.red as red };", "namespace main; import a.b { Color.red.deep as deep };" };
 
     for (const char *source : BAD) {
         MAREA_SemaFixture fixture(MAREA_answer("a.b", MAREA_SEMA_IMPORT_RESULT_FOUND, library.library.parser.root));
@@ -433,7 +433,7 @@ TEST(MAREASemaNamespaceAndNames, EnumVariantMemberNeedsAnEnumWithThatVariant)
 
     MAREA_SemaFixture external(MAREA_externalAll());
 
-    ASSERT_EQ(external.MAREA_sema("namespace main; import a.b { Color.red.deep };"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
+    ASSERT_EQ(external.MAREA_sema("namespace main; import a.b { Color.red.deep as deep };"), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
 
     EXPECT_EQ(external.MAREA_semaCodes(), std::vector<MAREA_Uinteger32>{ UNRESOLVED }) << "A path of three segments is never a member, even for an external namespace.";
 }
@@ -457,7 +457,7 @@ TEST(MAREASemaNamespaceAndNames, BrokenMemberListIsTolerated)
 
     MAREA_SemaFixture brokenAlias(MAREA_externalAll());
 
-    ASSERT_EQ(brokenAlias.MAREA_sema("namespace main; import a.b { f as };"), MAREA_SEMA_EXCEPT_SUCCESS) << "A broken alias must still check.";
+    ASSERT_EQ(brokenAlias.MAREA_sema("namespace main; import a.b { f as as f as };"), MAREA_SEMA_EXCEPT_SUCCESS) << "A broken alias must still check.";
 
     EXPECT_TRUE(brokenAlias.MAREA_semaCodes().empty()) << "A broken alias must raise no sema code.";
 
@@ -477,7 +477,7 @@ TEST(MAREASemaNamespaceAndNames, ChainHeadWithNoImportIsUndeclared)
     const char *const SOURCES[]{ "namespace main; function f() stdio.puts(\"x\"); end", "namespace main; import c.stdio as output; function f() stdio.puts(\"x\"); end" };
 
     for (const char *source : SOURCES) {
-        MAREA_SemaFixture fixture(MAREA_externalAll());
+        MAREA_SemaFixture fixture(MAREA_answer("c.stdio", MAREA_SEMA_IMPORT_RESULT_EXTERNAL));
 
         ASSERT_EQ(fixture.MAREA_sema(source), MAREA_SEMA_EXCEPT_SUCCESS) << "The check must succeed.";
 
@@ -489,7 +489,7 @@ TEST(MAREASemaNamespaceAndNames, ChainHeadThatAnImportBindsRaisesNothing)
 {
     GTEST_COUT << "Validating a chain head bound by an import, an alias, a local, a parameter, a type or a built-in name raises nothing." << std::endl;
 
-    const char *const SOURCES[]{ "namespace main; import c.stdio; function f() stdio.puts(\"x\"); end", "namespace main; import c.stdio as output; function f() output.puts(\"x\"); end", "namespace main; enum Color red; end structure Point end function f() local a: sinteger32 = Color.red; local b: sinteger32 = Point.make(); end", "namespace main; function f(value: sinteger32) value.x(); end", "namespace main; function f() c.stdio.puts(\"x\"); main.g(); end" };
+    const char *const SOURCES[]{ "namespace main; import c.stdio as stdio; function f() stdio.puts(\"x\"); end", "namespace main; import c.stdio as output; function f() output.puts(\"x\"); end", "namespace main; enum Color red; end structure Point end function f() local a: sinteger32 = Color.red; local b: sinteger32 = Point.make(); end", "namespace main; function f(value: sinteger32) value.x(); end", "namespace main; require c.stdio as stdio; function f() c.stdio.puts(\"x\"); main.g(); end" };
 
     for (const char *source : SOURCES) {
         MAREA_SemaFixture fixture(MAREA_externalAll());

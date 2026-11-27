@@ -1,0 +1,14 @@
+-- expect: 3011 @13
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- The result of a generic call compared after its type argument is bound.
+
+namespace main;
+function same<Item>(value: Item): Item
+    return copy value;
+end
+
+function run(text: string): sinteger32
+    return same(text);
+end

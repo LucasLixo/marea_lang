@@ -72,7 +72,7 @@ TEST(MAREAIrContext, LowerRejectsANodeThatIsNotACompilationUnit)
 
     const MAREA_IrNode *module{ nullptr };
 
-    EXPECT_EQ(MAREA_IrLowerCompilationUnit(fixture.context, child, &module), MAREA_IR_EXCEPT_ERROR_NULL_POINTER) << "A non-root typed node must be rejected.";
+    EXPECT_EQ(MAREA_IrLowerCompilationUnit(fixture.context, child, &module), MAREA_IR_EXCEPT_ERROR_BAD_ROOT) << "A non-root typed node must be rejected with its own value.";
 }
 
 TEST(MAREAIrContext, EmptyNamespaceLowersToAnEmptyModule)
@@ -158,7 +158,7 @@ TEST(MAREAIrContext, KindNamesAreStable)
 
     EXPECT_STREQ(MAREA_IrKindGetName(MAREA_IR_KIND_CONSTRUCT_CALL), "CONSTRUCT_CALL") << "CONSTRUCT_CALL must be named, the explicit lowering of Type(args).";
 
-    EXPECT_STREQ(MAREA_IrKindGetName(MAREA_IR_KIND_DESTROY_CALL), "DESTROY_CALL") << "The last kind must be DESTROY_CALL, the explicit cleanup at a scope exit.";
+    EXPECT_STREQ(MAREA_IrKindGetName(MAREA_IR_KIND_DESTROY_CALL), "DESTROY_CALL") << "DESTROY_CALL must be named, the explicit cleanup at a scope exit.";
 
     EXPECT_EQ(static_cast<int>(MAREA_IR_KIND_FOR_EACH_STATEMENT), static_cast<int>(MAREA_IR_KIND_WITH_STATEMENT) + 1) << "FOR_EACH_STATEMENT must come after the parallel kinds, so no value moves.";
 
@@ -176,7 +176,9 @@ TEST(MAREAIrContext, KindNamesAreStable)
 
     EXPECT_EQ(static_cast<int>(MAREA_IR_KIND_DESTROY_CALL), static_cast<int>(MAREA_IR_KIND_CONSTRUCT_CALL) + 1) << "DESTROY_CALL must follow CONSTRUCT_CALL, so no value moves.";
 
-    EXPECT_EQ(static_cast<int>(MAREA_IR_KIND_COUNT), static_cast<int>(MAREA_IR_KIND_DESTROY_CALL) + 1) << "DESTROY_CALL must be the last kind before COUNT.";
+    EXPECT_EQ(static_cast<int>(MAREA_IR_KIND_BACKEND_ATTRIBUTE), static_cast<int>(MAREA_IR_KIND_DESTROY_CALL) + 1) << "BACKEND_ATTRIBUTE must follow DESTROY_CALL, so no value moves.";
+
+    EXPECT_EQ(static_cast<int>(MAREA_IR_KIND_COUNT), static_cast<int>(MAREA_IR_KIND_INCLUDED_BYTES) + 1) << "INCLUDED_BYTES must be the last kind before COUNT.";
 
     EXPECT_STREQ(MAREA_IrKindGetName(MAREA_IR_KIND_COUNT), "UNKNOWN") << "COUNT must be unknown.";
 

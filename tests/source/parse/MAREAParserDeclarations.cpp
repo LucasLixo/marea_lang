@@ -379,3 +379,271 @@ TEST(MAREAParserDeclarations, ImportMemberListBadMemberTerminates)
         EXPECT_FALSE(fixture.MAREA_codes().empty()) << "A bad member list must give a diagnostic for: " << source;
     }
 }
+
+TEST(MAREAParserDeclarations, ImportWildcard)
+{
+    GTEST_COUT << "Validating import N.*; is an IMPORT_DECLARATION with the wildcard flag and only the namespace child." << std::endl;
+
+    MAREA_ParseFixture fixture;
+
+    const std::string EXPECTED{ MAREA_lines({ "  IMPORT_DECLARATION flags=64", "    QUALIFIED_NAME", "      IDENTIFIER \"a\"", "      IDENTIFIER \"b\"", "  IMPORT_DECLARATION flags=64", "    QUALIFIED_NAME", "      IDENTIFIER \"c\"" }) };
+
+    EXPECT_EQ(MAREA_itemsOf(fixture, "import a.b.*; import c.*;"), EXPECTED) << "The dot and the star are not part of the name; the flag says wildcard.";
+
+    EXPECT_TRUE(fixture.MAREA_codes().empty()) << "No diagnostic is expected.";
+}
+
+TEST(MAREAParserDeclarations, RequireForms)
+{
+    GTEST_COUT << "Validating require takes the same forms as import and has its own node kind." << std::endl;
+
+    MAREA_ParseFixture fixture;
+
+    const std::string EXPECTED{ MAREA_lines({ "  REQUIRE_DECLARATION", "    QUALIFIED_NAME", "      IDENTIFIER \"c\"", "      IDENTIFIER \"stdio\"", "  REQUIRE_DECLARATION flags=8", "    QUALIFIED_NAME", "      IDENTIFIER \"marea\"", "      IDENTIFIER \"math\"", "    IDENTIFIER \"math\"", "  REQUIRE_DECLARATION flags=32", "    QUALIFIED_NAME", "      IDENTIFIER \"c\"", "      IDENTIFIER \"math\"", "    IMPORT_MEMBER flags=8", "      QUALIFIED_NAME", "        IDENTIFIER \"pow\"", "      IDENTIFIER \"power\"", "  REQUIRE_DECLARATION flags=64", "    QUALIFIED_NAME", "      IDENTIFIER \"c\"" }) };
+
+    EXPECT_EQ(MAREA_itemsOf(fixture, "require c.stdio; require marea.math as math; require c.math { pow as power }; require c.*;"), EXPECTED) << "A require holds the same children as an import.";
+
+    EXPECT_TRUE(fixture.MAREA_codes().empty()) << "No diagnostic is expected.";
+}
+
+TEST(MAREAParserDeclarations, ImportAndRequireMixInAnyOrder)
+{
+    GTEST_COUT << "Validating import and require declarations share the header and may come in any order." << std::endl;
+
+    MAREA_ParseFixture fixture;
+
+    const std::string EXPECTED{ MAREA_lines({ "  REQUIRE_DECLARATION", "    QUALIFIED_NAME", "      IDENTIFIER \"c\"", "  IMPORT_DECLARATION", "    QUALIFIED_NAME", "      IDENTIFIER \"game\"", "  REQUIRE_DECLARATION", "    QUALIFIED_NAME", "      IDENTIFIER \"marea\"", "  CONSTANT_DECLARATION", "    IDENTIFIER \"MAX\"", "    NAMED_TYPE", "      QUALIFIED_NAME", "        IDENTIFIER \"sinteger32\"", "    INTEGER_LITERAL \"1\"" }) };
+
+    EXPECT_EQ(MAREA_itemsOf(fixture, "require c; import game; require marea; constant MAX: sinteger32 = 1;"), EXPECTED) << "The two keywords interleave before the first declaration.";
+
+    EXPECT_TRUE(fixture.MAREA_codes().empty()) << "No diagnostic is expected.";
+}
+
+TEST(MAREAParserDeclarations, RequireAfterADeclarationIsReported)
+{
+    GTEST_COUT << "Validating a require after a declaration gives one diagnostic and still parses as a require." << std::endl;
+
+    MAREA_ParseFixture fixture;
+
+    const std::string DUMP{ MAREA_itemsOf(fixture, "constant MAX: sinteger32 = 1; require c;") };
+
+    EXPECT_EQ(fixture.MAREA_codes(), std::vector<MAREA_Uinteger32>{ MAREA_PARSE_DIAGNOSTIC_CODE_EXPECTED_DECLARATION }) << "The late require is EXPECTED_DECLARATION, as a late import is.";
+
+    EXPECT_NE(DUMP.find("  REQUIRE_DECLARATION\n"), std::string::npos) << "The require must stay in the tree.";
+}
+
+TEST(MAREAParserDeclarations, WildcardRejectsAliasAndMemberList)
+{
+    GTEST_COUT << "Validating a wildcard with an alias or a member list gives one diagnostic and parsing goes on." << std::endl;
+
+    for (const char *keyword : { "import", "require" }) {
+        for (const char *tail : { "a.* as x;", "a.* { f };", "a.* as x { f };" }) {
+            MAREA_ParseFixture fixture;
+
+            const std::string DUMP{ MAREA_itemsOf(fixture, std::string(keyword) + " " + tail + " constant MAX: sinteger32 = 10;") };
+
+            EXPECT_FALSE(fixture.MAREA_codes().empty()) << "'" << keyword << " " << tail << "' must give a diagnostic.";
+
+            EXPECT_EQ(fixture.MAREA_codes()[0], static_cast<MAREA_Uinteger32>(MAREA_PARSE_DIAGNOSTIC_CODE_EXPECTED_TOKEN)) << "The first diagnostic of '" << keyword << " " << tail << "' must be EXPECTED_TOKEN.";
+
+            EXPECT_NE(DUMP.find("  CONSTANT_DECLARATION\n"), std::string::npos) << "The declaration after '" << keyword << " " << tail << "' must still parse.";
+        }
+    }
+}
+
+TEST(MAREAParserDeclarations, WildcardNeedsANamespaceAndIsLast)
+{
+    GTEST_COUT << "Validating a star with no namespace before it, or one with a name after it, is a diagnostic." << std::endl;
+
+    for (const char *source : { "import *;", "require *;", "require c.*.math;", "import a.*.*;", "require c.*", "import a.* b;" }) {
+        MAREA_ParseFixture fixture;
+
+        ASSERT_EQ(fixture.MAREA_parse(std::string("namespace main; ") + source), MAREA_PARSE_EXCEPT_SUCCESS) << "Parsing must succeed for: " << source;
+
+        ASSERT_FALSE(fixture.MAREA_codes().empty()) << "A misplaced star must give a diagnostic for: " << source;
+
+        EXPECT_EQ(fixture.MAREA_codes()[0], static_cast<MAREA_Uinteger32>(MAREA_PARSE_DIAGNOSTIC_CODE_EXPECTED_TOKEN)) << "The first diagnostic for '" << source << "' must be EXPECTED_TOKEN.";
+    }
+}
+
+TEST(MAREAParserDeclarations, RequireWithoutANameTerminates)
+{
+    GTEST_COUT << "Validating a require with no name, no semicolon or a bad member list terminates with a diagnostic." << std::endl;
+
+    for (const char *source : { "require;", "require", "require c.stdio", "require c { };", "require c { f, };", "require c as;" }) {
+        MAREA_ParseFixture fixture;
+
+        ASSERT_EQ(fixture.MAREA_parse(std::string("namespace main; ") + source), MAREA_PARSE_EXCEPT_SUCCESS) << "Parsing must succeed for: " << source;
+
+        EXPECT_FALSE(fixture.MAREA_codes().empty()) << "A bad require must give a diagnostic for: " << source;
+    }
+}
+
+TEST(MAREAParserDeclarations, EnumerationWithANonIntegerTagParses)
+{
+    GTEST_COUT << "Validating the grammar accepts any type as an enum tag; the check that it is an integer belongs to sema." << std::endl;
+
+    for (const char *tag : { "float32", "string", "boolean" }) {
+        MAREA_ParseFixture fixture;
+
+        const std::string DUMP{ MAREA_itemsOf(fixture, std::string("enum Mode: ") + tag + " A; B; end") };
+
+        EXPECT_NE(DUMP.find(std::string("IDENTIFIER \"") + tag + "\""), std::string::npos) << "The tag type " << tag << " must be a child of the enum.";
+
+        EXPECT_NE(DUMP.find("  ENUM_DECLARATION\n"), std::string::npos) << "The enum with the tag " << tag << " must parse.";
+
+        EXPECT_TRUE(fixture.MAREA_codes().empty()) << "The tag " << tag << " must give no parse diagnostic.";
+    }
+}
+
+TEST(MAREAParserDeclarations, WhenAttributeItem)
+{
+    GTEST_COUT << "Validating when(predicate, key = value) is a WHEN_ITEM with a comparison and the plain items." << std::endl;
+
+    MAREA_ParseFixture fixture;
+
+    const std::string EXPECTED{ MAREA_lines({ "  FUNCTION_DECLARATION", "    ATTRIBUTE", "      WHEN_ITEM", "        WHEN_COMPARISON", "          IDENTIFIER \"architecture\"", "          STRING_LITERAL \"\\\"x86_64\\\"\"", "        ATTRIBUTE_ITEM", "          IDENTIFIER \"backend\"", "          QUALIFIED_NAME", "            IDENTIFIER \"intrinsics\"", "        ATTRIBUTE_ITEM", "          IDENTIFIER \"inline\"", "    IDENTIFIER \"f\"", "    PARAMETER_LIST", "    BLOCK" }) };
+
+    EXPECT_EQ(MAREA_itemsOf(fixture, "#[when(architecture = \"x86_64\", backend = intrinsics, inline)] function f() end"), EXPECTED) << "The predicate comes first and every attribute item after it.";
+
+    EXPECT_TRUE(fixture.MAREA_codes().empty()) << "No diagnostic is expected.";
+}
+
+TEST(MAREAParserDeclarations, WhenBesideAPlainItemAndInAFileAttribute)
+{
+    GTEST_COUT << "Validating a when item sits in the same list as a plain item, in an attribute and in a file attribute." << std::endl;
+
+    MAREA_ParseFixture fixture;
+
+    const std::string EXPECTED{ MAREA_lines({ "  FILE_ATTRIBUTE", "    ATTRIBUTE_ITEM", "      IDENTIFIER \"backend\"", "      QUALIFIED_NAME", "        IDENTIFIER \"auto\"", "    WHEN_ITEM", "      WHEN_COMPARISON", "        IDENTIFIER \"pointer_width\"", "        INTEGER_LITERAL \"64\"", "      ATTRIBUTE_ITEM", "        IDENTIFIER \"backend\"", "        QUALIFIED_NAME", "          IDENTIFIER \"scalar\"" }) };
+
+    ASSERT_EQ(fixture.MAREA_parse("namespace main; #![backend = auto, when(pointer_width = 64, backend = scalar)]"), MAREA_PARSE_EXCEPT_SUCCESS) << "Parsing must succeed.";
+
+    EXPECT_EQ(fixture.MAREA_itemsDump(), EXPECTED) << "A file attribute takes the when item too.";
+
+    EXPECT_TRUE(fixture.MAREA_codes().empty()) << "No diagnostic is expected.";
+}
+
+TEST(MAREAParserDeclarations, WhenCombinators)
+{
+    GTEST_COUT << "Validating all, any and not build a WHEN_COMBINATOR that holds the named predicates." << std::endl;
+
+    MAREA_ParseFixture fixture;
+
+    const std::string EXPECTED{ MAREA_lines({ "  FUNCTION_DECLARATION", "    ATTRIBUTE", "      WHEN_ITEM", "        WHEN_COMBINATOR", "          IDENTIFIER \"all\"", "          WHEN_COMPARISON", "            IDENTIFIER \"operating_system\"", "            STRING_LITERAL \"\\\"linux\\\"\"", "          WHEN_COMBINATOR", "            IDENTIFIER \"not\"", "            WHEN_COMPARISON", "              IDENTIFIER \"feature\"", "              STRING_LITERAL \"\\\"sse2\\\"\"", "          WHEN_COMBINATOR", "            IDENTIFIER \"any\"", "            WHEN_COMPARISON", "              IDENTIFIER \"compiler\"", "              STRING_LITERAL \"\\\"gcc\\\"\"", "            WHEN_COMPARISON", "              IDENTIFIER \"compiler\"", "              STRING_LITERAL \"\\\"clang\\\"\"", "        ATTRIBUTE_ITEM", "          IDENTIFIER \"backend\"", "          QUALIFIED_NAME", "            IDENTIFIER \"scalar\"", "    IDENTIFIER \"f\"", "    PARAMETER_LIST", "    BLOCK" }) };
+
+    EXPECT_EQ(MAREA_itemsOf(fixture, "#[when(all(operating_system = \"linux\", not(feature = \"sse2\"), any(compiler = \"gcc\", compiler = \"clang\")), backend = scalar)] function f() end"), EXPECTED) << "A combinator names itself in its first child and nests.";
+
+    EXPECT_TRUE(fixture.MAREA_codes().empty()) << "No diagnostic is expected.";
+}
+
+TEST(MAREAParserDeclarations, WhenOnAnyItemAndSeveralLists)
+{
+    GTEST_COUT << "Validating when is allowed wherever an attribute list is, and a list may hold several when items." << std::endl;
+
+    const std::vector<std::pair<std::string, std::string>> CASES{
+        { "#[when(endianness = \"little\", export = \"label\")] constant x: sinteger32 = 1;", "  CONSTANT_DECLARATION" },
+        { "#[when(endianness = \"little\", value)] structure S end", "  STRUCTURE_DECLARATION" },
+        { "#[when(a = \"b\", c), when(d = 1, e)] function f() end", "  FUNCTION_DECLARATION" },
+    };
+
+    for (const std::pair<std::string, std::string> &entry : CASES) {
+        MAREA_ParseFixture fixture;
+
+        const std::string DUMP{ MAREA_itemsOf(fixture, entry.first) };
+
+        EXPECT_EQ(DUMP.compare(0, entry.second.size() + 1, entry.second + "\n"), 0) << "The item of '" << entry.first << "' must be " << entry.second << ".";
+
+        EXPECT_NE(DUMP.find("WHEN_ITEM\n"), std::string::npos) << "'" << entry.first << "' must hold a WHEN_ITEM.";
+
+        EXPECT_TRUE(fixture.MAREA_codes().empty()) << "'" << entry.first << "' must give no diagnostic.";
+    }
+}
+
+TEST(MAREAParserDeclarations, WhenWithoutAPlainAttributeNamedWhenIsStillAKey)
+{
+    GTEST_COUT << "Validating the word when without a parenthesis is an ordinary key, so sema keeps owning the key check." << std::endl;
+
+    MAREA_ParseFixture fixture;
+
+    const std::string DUMP{ MAREA_itemsOf(fixture, "#[when] function f() end") };
+
+    EXPECT_NE(DUMP.find("    ATTRIBUTE\n      ATTRIBUTE_ITEM\n        IDENTIFIER \"when\"\n"), std::string::npos) << "A bare when is an ATTRIBUTE_ITEM.";
+
+    EXPECT_EQ(DUMP.find("WHEN_ITEM"), std::string::npos) << "A bare when is not a WHEN_ITEM.";
+
+    EXPECT_TRUE(fixture.MAREA_codes().empty()) << "No parse diagnostic is expected.";
+}
+
+TEST(MAREAParserDeclarations, WhenMalformedFormsAreReported)
+{
+    GTEST_COUT << "Validating a when with no predicate, no attribute, a bare predicate, a bad value or an open parenthesis is a diagnostic." << std::endl;
+
+    const std::vector<std::string> SOURCES{
+        "#[when()] function f() end",
+        "#[when(architecture = \"x86_64\")] function f() end",
+        "#[when(backend = intrinsics)] function f() end",
+        "#[when(architecture, backend = scalar)] function f() end",
+        "#[when(architecture = , backend = scalar)] function f() end",
+        "#[when(architecture = \"x86_64\", backend = scalar] function f() end",
+        "#[when(not(), backend = scalar)] function f() end",
+        "#[when(all(), backend = scalar)] function f() end",
+        "#[when(any(), backend = scalar)] function f() end",
+        "#[when(not(architecture = \"x86_64\", feature = \"sse2\"), backend = scalar)] function f() end",
+        "#[when(architecture = \"x86_64\", when(feature = \"sse2\", backend = scalar))] function f() end",
+        "#[when(",
+        "#[when(all(",
+    };
+
+    for (const std::string &source : SOURCES) {
+        MAREA_ParseFixture fixture;
+
+        ASSERT_EQ(fixture.MAREA_parse("namespace main; " + source), MAREA_PARSE_EXCEPT_SUCCESS) << "Parsing must succeed for: " << source;
+
+        EXPECT_FALSE(fixture.MAREA_codes().empty()) << "A malformed when must give a diagnostic for: " << source;
+    }
+}
+
+TEST(MAREAParserDeclarations, WhenMalformedKeepsTheNextFunction)
+{
+    GTEST_COUT << "Validating a malformed when does not hide the function that follows it." << std::endl;
+
+    MAREA_ParseFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_parse("namespace main; #[when(architecture = \"x86_64\")] function f() end function g() end"), MAREA_PARSE_EXCEPT_SUCCESS) << "Parsing must succeed.";
+
+    const std::string DUMP{ fixture.MAREA_dump() };
+
+    EXPECT_NE(DUMP.find("IDENTIFIER \"g\""), std::string::npos) << "The function after the bad attribute must be parsed.";
+
+    EXPECT_EQ(fixture.MAREA_codes().size(), 1U) << "One malformed attribute gives one diagnostic.";
+}
+
+TEST(MAREAParserDeclarations, WhenNestedDeeplyIsLimited)
+{
+    GTEST_COUT << "Validating a very deep combinator nesting gives RECURSION_TOO_DEEP and never crashes." << std::endl;
+
+    std::string source{ "namespace main; #[when(" };
+
+    for (int level{ 0 }; level < 5000; ++level) {
+        source += "not(";
+    }
+
+    source += "a = 1";
+
+    for (int level{ 0 }; level < 5000; ++level) {
+        source += ")";
+    }
+
+    source += ", b)] function f() end";
+
+    MAREA_ParseFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_parse(source), MAREA_PARSE_EXCEPT_SUCCESS) << "Parsing must succeed.";
+
+    const std::vector<MAREA_Uinteger32> CODES{ fixture.MAREA_codes() };
+
+    ASSERT_FALSE(CODES.empty()) << "The depth limit must be reported.";
+
+    EXPECT_EQ(CODES[0], static_cast<MAREA_Uinteger32>(MAREA_PARSE_DIAGNOSTIC_CODE_RECURSION_TOO_DEEP)) << "The first diagnostic must be RECURSION_TOO_DEEP.";
+}

@@ -1,0 +1,14 @@
+-- expect: 3082 @13
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A vector cannot hold an opaque structure by value.
+
+namespace main;
+
+require marea.vector;
+
+opaque structure Texture;
+
+function check(textures: marea.vector.Vector<Texture>)
+end

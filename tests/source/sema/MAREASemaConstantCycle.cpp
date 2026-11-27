@@ -112,3 +112,61 @@ TEST(MAREASemaConstantCycle, LongChainThatClosesIsReportedOnce)
 
     EXPECT_EQ(MAREA_codesOfProgram(MAREA_chain(70, true)), Codes{ CYCLIC });
 }
+
+TEST(MAREASemaConstantCycle, ImplementationConstantsAreInTheSearch)
+{
+    GTEST_COUT << "Validating that a cycle through a constant of an implementation block raises one CYCLIC_CONSTANT." << std::endl;
+
+    const std::string HEAD{ "namespace main; structure P x: sinteger32; end " };
+
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "implementation P constant A: sinteger32 = B; constant B: sinteger32 = A; end"), Codes{ CYCLIC }) << "Two constants of one block.";
+
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "constant C: sinteger32 = P.B; implementation P constant B: sinteger32 = C; end"), Codes{ CYCLIC }) << "A cycle through Type.NAME.";
+
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "implementation P constant A: sinteger32 = Self.A; end"), Codes{ CYCLIC }) << "A constant that reads itself through Self.";
+
+    EXPECT_EQ(MAREA_codesOfProgram(HEAD + "implementation P constant A: sinteger32 = 1; constant B: sinteger32 = A + 1; end constant C: sinteger32 = P.B;"), Codes{}) << "A use with no cycle.";
+}
+
+namespace
+{
+    Codes MAREA_codesWithOther(const std::string &other, const std::string &program)
+    {
+        MAREA_SemaFixture library;
+
+        MAREA_IGNORE(library.parser.MAREA_parse(other));
+
+        const MAREA_AstNode *ROOT{ library.parser.root };
+
+        MAREA_SemaFixture fixture([ROOT](const std::string &text, const MAREA_AstNode **outRoot) {
+            if (text == "other") {
+                *outRoot = ROOT;
+
+                return MAREA_SEMA_IMPORT_RESULT_FOUND;
+            }
+
+            return MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
+        });
+
+        if (fixture.MAREA_sema(program) != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return { 0 };
+        }
+
+        return fixture.MAREA_semaCodes();
+    }
+} // namespace
+
+TEST(MAREASemaConstantCycle, QualifiedNamesAreFollowedThroughTheResolver)
+{
+    GTEST_COUT << "Validating that a cycle through a constant of another namespace raises one CYCLIC_CONSTANT." << std::endl;
+
+    EXPECT_EQ(MAREA_codesWithOther("namespace other; import main; constant B: sinteger32 = main.A;", "namespace main; import other; constant A: sinteger32 = other.B;"), Codes{ CYCLIC }) << "Full paths on both sides.";
+
+    EXPECT_EQ(MAREA_codesWithOther("namespace other; import main as m; constant B: sinteger32 = m.A + 1;", "namespace main; import other as o; constant A: sinteger32 = o.B;"), Codes{ CYCLIC }) << "Aliases on both sides.";
+
+    EXPECT_EQ(MAREA_codesWithOther("namespace other; import main; constant B: sinteger32 = C; constant C: sinteger32 = main.A;", "namespace main; import other { B as D }; constant A: sinteger32 = D;"), Codes{ CYCLIC }) << "An imported constant with a second step in its file.";
+
+    EXPECT_EQ(MAREA_codesWithOther("namespace other; constant B: sinteger32 = 2;", "namespace main; import other; constant A: sinteger32 = other.B;"), Codes{}) << "A qualified name with no cycle.";
+
+    EXPECT_EQ(MAREA_codesWithOther("namespace other; constant B: sinteger32 = B;", "namespace main; import other; constant A: sinteger32 = other.B;"), Codes{}) << "A cycle of another file is not reported here.";
+}

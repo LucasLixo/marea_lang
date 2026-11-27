@@ -1,0 +1,13 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A type of a required library written with its full path.
+
+namespace main;
+
+require marea.array;
+
+function first(values: marea.array<sinteger32>): sinteger32
+    return values[0];
+end

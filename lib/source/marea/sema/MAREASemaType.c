@@ -20,12 +20,6 @@ static const MAREA_Character8 *const MAREA_G_BuiltinTypes[] = {
     "float64",
     "character",
     "string",
-    "array",
-    "vector",
-    "pointer",
-    "owned",
-    "slice",
-    "task",
 };
 
 static MAREA_Boolean MAREA_CALL MAREA_G_TextEquals(const MAREA_Character8 *left, MAREA_IntegerSize leftLength, const MAREA_Character8 *right)
@@ -48,6 +42,97 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsBuiltin(const MAREA_Character8 *text, 
     }
 
     return MAREA_BOOLEAN_FALSE;
+}
+
+MAREA_Boolean MAREA_CALL MAREA_SemaDescriptorOfType(const MAREA_SemaContext *context, const MAREA_AstNode *type, const MAREA_TypeDescriptor **outDescriptor)
+{
+    *outDescriptor = MAREA_NULLPTR;
+
+    if ((context == MAREA_NULLPTR) || (type == MAREA_NULLPTR) || (context->typeRegistry == MAREA_NULLPTR)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    if ((MAREA_AstNodeGetKind(type) != MAREA_AST_KIND_NAMED_TYPE) && (MAREA_AstNodeGetKind(type) != MAREA_AST_KIND_GENERIC_NAME)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_AstNode *qualifiedName = MAREA_SemaChildAt(type, 0);
+
+    if ((qualifiedName == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(qualifiedName) != MAREA_AST_KIND_QUALIFIED_NAME)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_IntegerSize SEGMENT_COUNT = MAREA_AstNodeGetChildCount(qualifiedName);
+
+    // INFO: a registered type always has a namespace, so at least two segments: the namespace, then the name.
+    if (SEGMENT_COUNT < 2) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_Character8 *joined = MAREA_NULLPTR;
+
+    MAREA_IntegerSize joinedLength = 0;
+
+    // INFO: the join only reads the written segments and allocates from the context's own arena; it never
+    // changes the context's own state, so the cast is safe for a query function that takes it const.
+    if (MAREA_SemaQualifiedNameJoin((MAREA_SemaContext *)context, qualifiedName, &joined, &joinedLength) != MAREA_SEMA_EXCEPT_SUCCESS) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_AstNode *last = MAREA_SemaChildAt(qualifiedName, (SEGMENT_COUNT - MAREA_INTEGER_SIZE(1)));
+
+    const MAREA_IntegerSize NAME_LENGTH = MAREA_AstNodeGetTextLength(last);
+
+    const MAREA_IntegerSize NAMESPACE_LENGTH = (joinedLength - NAME_LENGTH - MAREA_INTEGER_SIZE(1));
+
+    *outDescriptor = MAREA_TypeRegistryFind(context->typeRegistry, joined, NAMESPACE_LENGTH, MAREA_AstNodeGetText(last), NAME_LENGTH);
+
+    return (*outDescriptor != MAREA_NULLPTR) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
+MAREA_SemaExcept MAREA_CALL MAREA_SemaWrapInRoleType(MAREA_SemaContext *context, MAREA_TypeRole role, const MAREA_Character8 *argumentText, MAREA_IntegerSize argumentLength, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength)
+{
+    *outText = MAREA_NULLPTR;
+    *outLength = 0;
+
+    const MAREA_TypeDescriptor *descriptor = MAREA_TypeRegistryFindByRole(context->typeRegistry, role);
+
+    if (descriptor == MAREA_NULLPTR) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    // INFO: namespace, one dot, name, "<", argument, ">".
+    const MAREA_IntegerSize TOTAL = (descriptor->namespaceLength + descriptor->nameLength + argumentLength + MAREA_INTEGER_SIZE(3));
+
+    MAREA_Null memory = MAREA_NULLPTR;
+
+    if (MAREA_ArenaAllocate(context->arena, TOTAL, MAREA_INTEGER_SIZE(1), &memory) != MAREA_ARENA_EXCEPT_SUCCESS) {
+        return MAREA_SEMA_EXCEPT_ERROR_OUT_OF_MEMORY;
+    }
+
+    MAREA_Character8 *buffer = memory;
+
+    MAREA_IntegerSize cursor = 0;
+
+    memcpy(buffer, descriptor->namespaceText, descriptor->namespaceLength);
+    cursor += descriptor->namespaceLength;
+
+    buffer[cursor++] = '.';
+
+    memcpy((buffer + cursor), descriptor->name, descriptor->nameLength);
+    cursor += descriptor->nameLength;
+
+    buffer[cursor++] = '<';
+
+    memcpy((buffer + cursor), argumentText, argumentLength);
+    cursor += argumentLength;
+
+    buffer[cursor++] = '>';
+
+    *outText = buffer;
+    *outLength = TOTAL;
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
 }
 
 static MAREA_Boolean MAREA_CALL MAREA_G_IsTypeDeclaration(const MAREA_AstNode *declaration)
@@ -100,6 +185,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaScopeEnter(MAREA_SemaContext *context, con
     outMark->forkBody = context->forkBody;
     outMark->captureScope = (MAREA_AstNodeGetKind(node) == MAREA_AST_KIND_FORK_JOIN_BLOCK) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
     outMark->localStart = context->localStart;
+    outMark->localStartBinders = context->localStartBinders;
     outMark->functionLocalStart = context->functionLocalStart;
     outMark->function = context->function;
     outMark->implementation = context->implementation;
@@ -139,7 +225,11 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaScopeEnter(MAREA_SemaContext *context, con
 
         const MAREA_Boolean IS_BODY = ((FUNCTION_COUNT > 0) && (MAREA_SemaChildAt(context->function, (FUNCTION_COUNT - 1)) == node)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 
-        context->localStart = (IS_BODY == MAREA_BOOLEAN_TRUE) ? context->functionLocalStart : context->locals.count;
+        // INFO: the names of a for, for each, partition or with statement are names of its body block too.
+        const MAREA_IntegerSize BINDERS = MAREA_SemaBinderCount(context->parent);
+
+        context->localStart = (IS_BODY == MAREA_BOOLEAN_TRUE) ? context->functionLocalStart : ((context->locals.count >= BINDERS) ? (context->locals.count - BINDERS) : context->locals.count);
+        context->localStartBinders = (IS_BODY == MAREA_BOOLEAN_TRUE) ? 0 : BINDERS;
     }
 
     if ((KIND == MAREA_AST_KIND_IMPLEMENTATION_DECLARATION) || (KIND == MAREA_AST_KIND_CONTRACT_DECLARATION)) {
@@ -168,7 +258,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaScopeEnter(MAREA_SemaContext *context, con
         context->loopDepth = 0;
     }
 
-    if ((KIND == MAREA_AST_KIND_WHILE_STATEMENT) || (KIND == MAREA_AST_KIND_FOR_RANGE_STATEMENT) || (KIND == MAREA_AST_KIND_FOR_EACH_STATEMENT)) {
+    if ((KIND == MAREA_AST_KIND_WHILE_STATEMENT) || (KIND == MAREA_AST_KIND_DO_WHILE_STATEMENT) || (KIND == MAREA_AST_KIND_FOR_RANGE_STATEMENT) || (KIND == MAREA_AST_KIND_FOR_EACH_STATEMENT)) {
         context->loopDepth += 1;
     }
 
@@ -238,6 +328,7 @@ void MAREA_CALL MAREA_SemaScopeLeave(MAREA_SemaContext *context, MAREA_SemaScope
     }
 
     context->localStart = mark.localStart;
+    context->localStartBinders = mark.localStartBinders;
     context->functionLocalStart = mark.functionLocalStart;
     context->function = mark.function;
     context->implementation = mark.implementation;
@@ -248,15 +339,36 @@ void MAREA_CALL MAREA_SemaScopeLeave(MAREA_SemaContext *context, MAREA_SemaScope
     context->unsafeDepth = mark.unsafeDepth;
 }
 
-static MAREA_IntegerSize MAREA_CALL MAREA_G_BuiltinArity(const MAREA_Character8 *text, MAREA_IntegerSize length)
+MAREA_Boolean MAREA_CALL MAREA_SemaIsBinderHeader(const MAREA_AstNode *node, MAREA_IntegerSize index)
 {
-    if (MAREA_G_TextEquals(text, length, "array") == MAREA_BOOLEAN_TRUE) {
-        return MAREA_INTEGER_SIZE(2);
+    MAREA_IntegerSize first = 0;
+
+    MAREA_IntegerSize end = 0;
+
+    if (MAREA_SemaBinderRange(node, &first, &end) == MAREA_BOOLEAN_FALSE) {
+        return MAREA_BOOLEAN_FALSE;
     }
 
-    const MAREA_Boolean TAKES_ONE = (MAREA_G_TextEquals(text, length, "pointer") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextEquals(text, length, "owned") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextEquals(text, length, "slice") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextEquals(text, length, "vector") == MAREA_BOOLEAN_TRUE) || (MAREA_G_TextEquals(text, length, "task") == MAREA_BOOLEAN_TRUE);
+    // INFO: the body is the last child, and every other child that is no declared name is part of the header.
+    return (((index < first) || (index >= end)) && ((index + 1) < MAREA_AstNodeGetChildCount(node))) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
 
-    return (TAKES_ONE == MAREA_BOOLEAN_TRUE) ? MAREA_INTEGER_SIZE(1) : MAREA_INTEGER_SIZE(0);
+MAREA_SemaBinderWindow MAREA_CALL MAREA_SemaHideBinders(MAREA_SemaContext *context, MAREA_SemaScopeMark mark)
+{
+    const MAREA_SemaBinderWindow WINDOW = { .localCount = context->locals.count, .referenceCount = context->references.count, .readOnlyCount = context->readOnly.count };
+
+    context->locals.count = mark.localCount;
+    context->references.count = mark.referenceCount;
+    context->readOnly.count = mark.readOnlyCount;
+
+    return WINDOW;
+}
+
+void MAREA_CALL MAREA_SemaShowBinders(MAREA_SemaContext *context, MAREA_SemaBinderWindow window)
+{
+    context->locals.count = window.localCount;
+    context->references.count = window.referenceCount;
+    context->readOnly.count = window.readOnlyCount;
 }
 
 static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckArity(MAREA_SemaContext *context, const MAREA_AstNode *node, const MAREA_AstNode *declaration, const MAREA_Character8 *name, MAREA_IntegerSize nameLength)
@@ -270,7 +382,7 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckArity(MAREA_SemaContext *context
     MAREA_IntegerSize expected = 0;
 
     if (declaration == MAREA_NULLPTR) {
-        expected = MAREA_G_BuiltinArity(name, nameLength);
+        expected = MAREA_INTEGER_SIZE(0);
     } else {
         const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(declaration);
 
@@ -315,10 +427,139 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckArity(MAREA_SemaContext *context
     return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_GENERIC_ARGUMENT_MISMATCH, MAREA_AstNodeGetPosition(node), "type arguments do not match the generic parameters of", name, nameLength);
 }
 
+static const MAREA_AstNode *MAREA_CALL MAREA_G_FindTypeArguments(const MAREA_AstNode *node)
+{
+    const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(node);
+
+    for (MAREA_IntegerSize index = 0; index < COUNT; ++index) {
+        const MAREA_AstNode *child = MAREA_SemaChildAt(node, index);
+
+        if ((child != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(child) == MAREA_AST_KIND_TYPE_ARGUMENTS)) {
+            return child;
+        }
+    }
+
+    return MAREA_NULLPTR;
+}
+
+// INFO: whether sema knows the type has a measured layout at this shallow level: a primitive always
+// does, a user structure or enum always does (its own layout record decides the detail), and a generic
+// parameter is trusted until it is filled with a concrete argument (checked again then, at the call or
+// the instantiation that fills it, not here). A registered type has the shape its descriptor gives (a
+// handle for a task, an owner or a pointer, an inline run for an array), and its own type arguments are
+// checked when its own node is visited. A function type is rejected.
+MAREA_Boolean MAREA_CALL MAREA_SemaHasKnownLayout(const MAREA_SemaContext *context, const MAREA_AstNode *type, MAREA_TypeRole holderRoles)
+{
+    const MAREA_AstNode *declaration = MAREA_NULLPTR;
+
+    const MAREA_Character8 *name = MAREA_NULLPTR;
+
+    MAREA_IntegerSize length = 0;
+
+    const MAREA_TypeDescriptor *descriptor = MAREA_NULLPTR;
+
+    if (MAREA_SemaDescriptorOfType(context, type, &descriptor) == MAREA_BOOLEAN_TRUE) {
+        return MAREA_BOOLEAN_TRUE;
+    }
+
+    // INFO: a type sema cannot see (an external one, or an unknown name that its own check reports) is not
+    // guessed here; a function type, and an opaque structure in a holder that stores it (not a view, which only
+    // refers to it), are the shapes that are known to have no layout.
+    const MAREA_SemaTypeClass CLASS = MAREA_SemaClassifyType(context, type, &declaration, &name, &length);
+
+    if ((holderRoles == MAREA_TYPE_ROLE_NONE) && (CLASS == MAREA_SEMA_TYPE_CLASS_USER) && (declaration != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(declaration) == MAREA_AST_KIND_OPAQUE_DECLARATION)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    return (CLASS == MAREA_SEMA_TYPE_CLASS_COPY_BUILTIN) ? MAREA_BOOLEAN_FALSE : MAREA_BOOLEAN_TRUE;
+}
+
+// INFO: an element type with no measured layout cannot be held by value (decision 28 of the
+// 2026-11-24 plan): a registered type whose descriptor holds its first type argument inline
+// (hasIndexProtocol) needs that argument to have a known layout.
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckElementLayout(MAREA_SemaContext *context, const MAREA_AstNode *node)
+{
+    const MAREA_TypeDescriptor *descriptor = MAREA_NULLPTR;
+
+    if ((MAREA_SemaDescriptorOfType(context, node, &descriptor) == MAREA_BOOLEAN_FALSE) || (descriptor->hasIndexProtocol == MAREA_BOOLEAN_FALSE)) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_AstNode *arguments = MAREA_G_FindTypeArguments(node);
+
+    const MAREA_AstNode *element = (arguments == MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_SemaChildAt(arguments, 0);
+
+    if ((element == MAREA_NULLPTR) || (MAREA_SemaHasKnownLayout(context, element, descriptor->roles) == MAREA_BOOLEAN_TRUE)) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_ELEMENT_WITHOUT_MEASURED_LAYOUT, MAREA_AstNodeGetPosition(element), "an element type with no measured layout cannot be held by value");
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
+// INFO: a raw pointer exists only inside an unsafe block, in every place a type is written (issue
+// #190, decision 30 of the 2026-11-24 plan): a parameter, a result, a field, an alias, and nested
+// inside another written type's own type arguments. MAREA_SemaCheckNamedType runs once for every
+// written NAMED_TYPE, so this one hook covers all of them; a local's own check (MAREASemaRawPointer.c)
+// stays the one place still reporting with the local's own name in the message.
+static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckRawPointerPlacement(MAREA_SemaContext *context, const MAREA_AstNode *node)
+{
+    if (context->unsafeDepth > 0) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    // INFO: an alias is read as the type that it stands for.
+    MAREA_SemaTypeTarget target = { .type = MAREA_NULLPTR, .declaration = MAREA_NULLPTR, .root = MAREA_NULLPTR };
+
+    MAREA_IGNORE(MAREA_SemaFindTypeTarget(context, node, MAREA_NULLPTR, &target));
+
+    const MAREA_TypeDescriptor *descriptor = MAREA_NULLPTR;
+
+    if ((MAREA_SemaDescriptorOfType(context, target.type, &descriptor) == MAREA_BOOLEAN_FALSE) || ((descriptor->roles & MAREA_TYPE_ROLE_RAW_POINTER) == MAREA_TYPE_ROLE_NONE)) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_RAW_POINTER_OUTSIDE_UNSAFE, MAREA_AstNodeGetPosition(node), "a raw pointer exists only inside an unsafe block");
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
 MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckNamedType(MAREA_SemaContext *context, const MAREA_AstNode *node)
 {
     if ((context == MAREA_NULLPTR) || (node == MAREA_NULLPTR)) {
         return MAREA_SEMA_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    const MAREA_SemaExcept ELEMENT_LAYOUT_RESULT = MAREA_G_CheckElementLayout(context, node);
+
+    if (ELEMENT_LAYOUT_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+        return ELEMENT_LAYOUT_RESULT;
+    }
+
+    const MAREA_SemaExcept TUPLE_RESULT = MAREA_SemaCheckTupleType(context, node);
+
+    if (TUPLE_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+        return TUPLE_RESULT;
+    }
+
+    const MAREA_SemaExcept RAW_POINTER_RESULT = MAREA_G_CheckRawPointerPlacement(context, node);
+
+    if (RAW_POINTER_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+        return RAW_POINTER_RESULT;
+    }
+
+    // INFO: a registered type takes no more type arguments than its descriptor declares; a library may also
+    // be written with fewer, so a missing argument is the library's own business.
+    const MAREA_TypeDescriptor *registered = MAREA_NULLPTR;
+
+    const MAREA_AstNode *writtenArguments = MAREA_G_FindTypeArguments(node);
+
+    MAREA_SemaInlineRun run = { 0 };
+
+    // INFO: an inline run is stored inline, so each of its type arguments, the count too, has to be written.
+    if ((writtenArguments != MAREA_NULLPTR) && (MAREA_SemaDescriptorOfType(context, node, &registered) == MAREA_BOOLEAN_TRUE) && ((MAREA_AstNodeGetChildCount(writtenArguments) > registered->typeParameterCount) || ((MAREA_SemaInlineRunOfType(context, node, &run) == MAREA_BOOLEAN_TRUE) && (MAREA_AstNodeGetChildCount(writtenArguments) != registered->typeParameterCount)))) {
+        return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_GENERIC_ARGUMENT_MISMATCH, MAREA_AstNodeGetPosition(node), "type arguments do not match the generic parameters of", registered->name, registered->nameLength);
     }
 
     const MAREA_AstNode *qualifiedName = MAREA_SemaChildAt(node, 0);
@@ -384,12 +625,31 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckNamedType(MAREA_SemaContext *context,
         return JOIN_RESULT;
     }
 
+    // INFO: a type of another namespace is written with its full path, and a cover must reach that path.
+    if ((SEGMENT_COUNT > 1) && (entry == MAREA_NULLPTR)) {
+        MAREA_SemaPathStatus status = MAREA_SEMA_PATH_STATUS_NOT_A_PATH;
+
+        const MAREA_SemaExcept CLASSIFY_RESULT = MAREA_SemaClassifyPath(context, joined, joinedLength, MAREA_BOOLEAN_FALSE, &status, MAREA_NULLPTR, MAREA_NULLPTR);
+
+        if (CLASSIFY_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return CLASSIFY_RESULT;
+        }
+
+        if (status == MAREA_SEMA_PATH_STATUS_COVERED) {
+            return MAREA_SEMA_EXCEPT_SUCCESS;
+        }
+
+        if (status == MAREA_SEMA_PATH_STATUS_UNIMPORTED) {
+            return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_UNIMPORTED_NAMESPACE, MAREA_AstNodeGetPosition(node), "a namespace that no import or require covers:", joined, joinedLength);
+        }
+    }
+
     MAREA_SemaImportResult result = MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
 
     const MAREA_AstNode *foundRoot = MAREA_NULLPTR;
 
     if ((entry == MAREA_NULLPTR) || (entry->kind != MAREA_SEMA_NAME_KIND_DECLARATION)) {
-        context->resolver->resolve(context->resolver->userData, joined, joinedLength, &result, &foundRoot);
+        result = MAREA_SemaResolveNamespace(context, joined, joinedLength, &foundRoot);
     }
 
     if (result != MAREA_SEMA_IMPORT_RESULT_NOT_FOUND) {
@@ -412,13 +672,9 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckOpaqueField(MAREA_SemaContext *contex
             continue;
         }
 
-        const MAREA_AstNode *declaration = MAREA_NULLPTR;
+        MAREA_SemaTypeTarget target = { .type = MAREA_NULLPTR, .declaration = MAREA_NULLPTR, .root = MAREA_NULLPTR };
 
-        const MAREA_Character8 *name = MAREA_NULLPTR;
-
-        MAREA_IntegerSize length = 0;
-
-        if ((MAREA_SemaClassifyType(context, type, &declaration, &name, &length) == MAREA_SEMA_TYPE_CLASS_USER) && (declaration != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(declaration) == MAREA_AST_KIND_OPAQUE_DECLARATION)) {
+        if ((MAREA_SemaFindTypeTarget(context, type, MAREA_NULLPTR, &target) == MAREA_BOOLEAN_TRUE) && (MAREA_AstNodeGetKind(target.declaration) == MAREA_AST_KIND_OPAQUE_DECLARATION)) {
             MAREA_SemaReport(context, MAREA_SEMA_DIAGNOSTIC_CODE_OPAQUE_FIELD_BY_VALUE, MAREA_AstNodeGetPosition(type), "an opaque type cannot be held by value in a field");
         }
 

@@ -10,7 +10,7 @@
 MAREA_BEGIN_EXTERN_C
 
     /**
-     * @brief Kind of a lexed token: the 7 base kinds, the 43 keywords, the 36 operators and the 14
+     * @brief Kind of a lexed token: the 7 base kinds, the 44 keywords, the 36 operators and the 14
      * separators of the grammar, in grammar order, followed by MAREA_TOKEN_KIND_COUNT.
      */
     typedef enum MAREA_TokenKind
@@ -55,6 +55,7 @@ MAREA_BEGIN_EXTERN_C
         MAREA_TOKEN_KIND_KEYWORD_OPAQUE,
         MAREA_TOKEN_KIND_KEYWORD_OR,
         MAREA_TOKEN_KIND_KEYWORD_PARTITION,
+        MAREA_TOKEN_KIND_KEYWORD_REQUIRE,
         MAREA_TOKEN_KIND_KEYWORD_RETURN,
         MAREA_TOKEN_KIND_KEYWORD_SPAWN,
         MAREA_TOKEN_KIND_KEYWORD_STRUCTURE,
@@ -130,7 +131,7 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_Character8 *MAREA_CALL MAREA_TokenKindGetName(MAREA_TokenKind kind);
 
     /**
-     * @brief Looks up whether text names one of the 43 keywords.
+     * @brief Looks up whether text names one of the 44 keywords.
      * @param text Identifier text, not necessarily NUL-terminated. Must not be null when length is
      * not 0.
      * @param length Byte length of text.

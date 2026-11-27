@@ -6,7 +6,7 @@
 
 namespace main;
 
-import c.array;
+require c.array;
 
 function main(arguments: c.array<string>): sinteger32
     return 0;

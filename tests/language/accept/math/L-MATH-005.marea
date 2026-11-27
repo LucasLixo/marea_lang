@@ -1,0 +1,29 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- One call of each family of the vector operations of marea.math.
+
+namespace main;
+
+require marea.math as math;
+
+function check(left: math.Vector3Float32, right: math.Vector3Float32, count: math.Vector3Sinteger32)
+    local sum: math.Vector3Float32 = math.add_vector3_float32(left, right);
+    local scaled: math.Vector3Float32 = math.scale_vector3_float32(left, 2.0);
+    local dot: float32 = math.dot_vector3_float32(left, right);
+    local cross: math.Vector3Float32 = math.cross_vector3_float32(left, right);
+    local length: float32 = math.length_vector3_float32(left);
+    local distance: float32 = math.distance_vector3_float32(left, right);
+    local unit: math.Vector3Float32 = math.normalize_vector3_float32(left);
+    local between: math.Vector3Float32 = math.mix_vector3_float32(left, right, 0.5);
+    local bounded: math.Vector3Float32 = math.clamp_vector3_float32(left, left, right);
+    local lowest: math.Vector3Float32 = math.minimum_vector3_float32(left, right);
+    local magnitude: math.Vector3Float32 = math.absolute_vector3_float32(left);
+    local wave: math.Vector3Float32 = math.sine_vector3_float32(left);
+    local angle: math.Vector3Float32 = math.radians_vector3_float32(left);
+    local root: math.Vector3Float32 = math.square_root_vector3_float32(left);
+    local raised: math.Vector3Float32 = math.power_vector3_float32(left, right);
+    local total: math.Vector3Sinteger32 = math.add_vector3_sinteger32(count, count);
+    local weight: sinteger32 = math.dot_vector3_sinteger32(count, count);
+end

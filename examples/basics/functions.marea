@@ -9,7 +9,7 @@
 
 namespace basics.functions;
 
-import c.stdio;
+require demo.io;
 
 -- A function type has its own name. It is a type name, so it uses PascalCase.
 #[visibility = public]
@@ -38,7 +38,7 @@ function log_line(text: string)
     if text == "" then
         return;
     end
-    stdio.puts(text);
+    demo.io.puts(text);
 end
 
 #[visibility = public]

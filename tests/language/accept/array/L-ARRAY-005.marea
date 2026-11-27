@@ -1,0 +1,22 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- An array holds arrays and structures in place.
+
+namespace main;
+
+require marea.array;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+function check(): sinteger32
+    local grid: marea.array.Array<marea.array.Array<sinteger32, 2>, 2> = marea.array.Array<marea.array.Array<sinteger32, 2>, 2>{};
+    grid[1][0] = 4;
+    local points: marea.array.Array<Point, 2> = marea.array.Array<Point, 2>{ Point{ x = 1, y = 2 }, Point{ x = 3, y = 4 } };
+    points[0].y = 5;
+    return grid[1][0] + points[0].y + points[1].x;
+end

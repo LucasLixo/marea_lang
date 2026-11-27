@@ -1,0 +1,54 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A program names the nineteen types of marea.math, each with its size and its alignment.
+
+namespace main;
+
+require marea.math as math;
+require marea.math { Vector2Float32, Vector3Float32, Vector4Float32, Vector2Sinteger32, Vector3Sinteger32, Vector4Sinteger32, Vector2Boolean, Vector3Boolean, Vector4Boolean, Matrix2x2Float32, Matrix3x3Float32, Matrix4x4Float32, Matrix2x2Sinteger32, Matrix3x3Sinteger32, Matrix4x4Sinteger32, Matrix2x2Boolean, Matrix3x3Boolean, Matrix4x4Boolean, QuaternionFloat32 };
+
+function check()
+    static_assert!(size_of<math.Vector2Float32>() == 16, "the size of Vector2Float32");
+    static_assert!(align_of<math.Vector2Float32>() == 16, "the alignment of Vector2Float32");
+    static_assert!(size_of<math.Vector3Float32>() == 16, "the size of Vector3Float32");
+    static_assert!(align_of<math.Vector3Float32>() == 16, "the alignment of Vector3Float32");
+    static_assert!(size_of<math.Vector4Float32>() == 16, "the size of Vector4Float32");
+    static_assert!(align_of<math.Vector4Float32>() == 16, "the alignment of Vector4Float32");
+    static_assert!(size_of<math.Vector2Sinteger32>() == 16, "the size of Vector2Sinteger32");
+    static_assert!(align_of<math.Vector2Sinteger32>() == 16, "the alignment of Vector2Sinteger32");
+    static_assert!(size_of<math.Vector3Sinteger32>() == 16, "the size of Vector3Sinteger32");
+    static_assert!(align_of<math.Vector3Sinteger32>() == 16, "the alignment of Vector3Sinteger32");
+    static_assert!(size_of<math.Vector4Sinteger32>() == 16, "the size of Vector4Sinteger32");
+    static_assert!(align_of<math.Vector4Sinteger32>() == 16, "the alignment of Vector4Sinteger32");
+    static_assert!(size_of<math.Vector2Boolean>() == 4, "the size of Vector2Boolean");
+    static_assert!(align_of<math.Vector2Boolean>() == 4, "the alignment of Vector2Boolean");
+    static_assert!(size_of<math.Vector3Boolean>() == 4, "the size of Vector3Boolean");
+    static_assert!(align_of<math.Vector3Boolean>() == 4, "the alignment of Vector3Boolean");
+    static_assert!(size_of<math.Vector4Boolean>() == 4, "the size of Vector4Boolean");
+    static_assert!(align_of<math.Vector4Boolean>() == 4, "the alignment of Vector4Boolean");
+    static_assert!(size_of<math.Matrix2x2Float32>() == 32, "the size of Matrix2x2Float32");
+    static_assert!(align_of<math.Matrix2x2Float32>() == 16, "the alignment of Matrix2x2Float32");
+    static_assert!(size_of<math.Matrix3x3Float32>() == 48, "the size of Matrix3x3Float32");
+    static_assert!(align_of<math.Matrix3x3Float32>() == 16, "the alignment of Matrix3x3Float32");
+    static_assert!(size_of<math.Matrix4x4Float32>() == 64, "the size of Matrix4x4Float32");
+    static_assert!(align_of<math.Matrix4x4Float32>() == 16, "the alignment of Matrix4x4Float32");
+    static_assert!(size_of<math.Matrix2x2Sinteger32>() == 32, "the size of Matrix2x2Sinteger32");
+    static_assert!(align_of<math.Matrix2x2Sinteger32>() == 16, "the alignment of Matrix2x2Sinteger32");
+    static_assert!(size_of<math.Matrix3x3Sinteger32>() == 48, "the size of Matrix3x3Sinteger32");
+    static_assert!(align_of<math.Matrix3x3Sinteger32>() == 16, "the alignment of Matrix3x3Sinteger32");
+    static_assert!(size_of<math.Matrix4x4Sinteger32>() == 64, "the size of Matrix4x4Sinteger32");
+    static_assert!(align_of<math.Matrix4x4Sinteger32>() == 16, "the alignment of Matrix4x4Sinteger32");
+    static_assert!(size_of<math.Matrix2x2Boolean>() == 8, "the size of Matrix2x2Boolean");
+    static_assert!(align_of<math.Matrix2x2Boolean>() == 4, "the alignment of Matrix2x2Boolean");
+    static_assert!(size_of<math.Matrix3x3Boolean>() == 12, "the size of Matrix3x3Boolean");
+    static_assert!(align_of<math.Matrix3x3Boolean>() == 4, "the alignment of Matrix3x3Boolean");
+    static_assert!(size_of<math.Matrix4x4Boolean>() == 16, "the size of Matrix4x4Boolean");
+    static_assert!(align_of<math.Matrix4x4Boolean>() == 4, "the alignment of Matrix4x4Boolean");
+    static_assert!(size_of<math.QuaternionFloat32>() == 16, "the size of QuaternionFloat32");
+    static_assert!(align_of<math.QuaternionFloat32>() == 16, "the alignment of QuaternionFloat32");
+end
+
+function take(value0: math.Vector2Float32, value1: math.Vector3Float32, value2: math.Vector4Float32, value3: math.Vector2Sinteger32, value4: math.Vector3Sinteger32, value5: math.Vector4Sinteger32, value6: math.Vector2Boolean, value7: math.Vector3Boolean, value8: math.Vector4Boolean, value9: math.Matrix2x2Float32, value10: math.Matrix3x3Float32, value11: math.Matrix4x4Float32, value12: math.Matrix2x2Sinteger32, value13: math.Matrix3x3Sinteger32, value14: math.Matrix4x4Sinteger32, value15: math.Matrix2x2Boolean, value16: math.Matrix3x3Boolean, value17: math.Matrix4x4Boolean, value18: math.QuaternionFloat32)
+end

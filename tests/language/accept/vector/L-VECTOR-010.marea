@@ -1,0 +1,22 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- copy, move and return hand a vector on.
+
+namespace main;
+
+require marea.vector;
+
+function make(): marea.vector.Vector<sinteger32>
+    local values: marea.vector.Vector<sinteger32> = marea.vector.Vector<sinteger32>{ 4, 5 };
+    return values;
+end
+
+function check(): sinteger32
+    local first: marea.vector.Vector<sinteger32> = make();
+    local second: marea.vector.Vector<sinteger32> = copy first;
+    local third: marea.vector.Vector<sinteger32> = move first;
+    second[0] = 9;
+    return (second[0] * 10) + third[0];
+end

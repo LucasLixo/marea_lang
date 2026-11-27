@@ -36,8 +36,8 @@ An upstream option of a third-party project keeps the spelling that project defi
 - An option is `option(MAREA_OPTION_<NAME> "Description" ON|OFF)`, with a description that says what it builds or changes. A normally built target is ON.
 - A rule between options uses `cmake_dependent_option` (`include(CMakeDependentOption)`), not a hand-written `if()` that forces a value. A message that explains a forced value, and a combination that has no valid fallback (`FATAL_ERROR`), stay outside it.
 - Options that build a subset of the project are named `MAREA_OPTION_TARGET_<THING>` (today `MAREA_OPTION_TARGET_TESTS`, ON, guarding `enable_testing()` and `add_subdirectory(tests)`).
-- Global defaults of the language come from CMake options and not from a `marea.toml`: `MAREA_DEFAULT_INLINE` and `CMAKE_BUILD_TYPE` (SIMD is chosen by the `backend` attribute of `marea.math`, not by a global option) (planned, not in the repository yet; objective 37).
-- `MAREA_OPTION_SHARED_LIBS` selects a shared build, OFF by default (see `## Targets and linkage`; planned, not in the repository yet).
+- Global defaults of the language come from CMake options and not from a `marea.toml`: `MAREA_OPTION_DEFAULT_INLINE` (the `MAREA_DEFAULT_INLINE` setting of the design record and `docs/sema/marea-sema.md`, named per this section's own `MAREA_OPTION_<NAME>` convention) and `CMAKE_BUILD_TYPE` (through `ConfigureBuildType`'s `CURRENT` output) (SIMD is chosen by the `backend` attribute of `marea.math`, not by a global option); both reach a `build_value!` call or the C11 side as a setting through `marea_add_library`/`marea_add_executable` (objective 37, `cmake-functions-and-settings`).
+- `MAREA_OPTION_STATIC_LIBS` (ON by default) and `MAREA_OPTION_SHARED_LIBS` (OFF by default) each ADD the targets of their kind; neither replaces the other, and configure fails when both are OFF (see `## Targets and linkage`).
 
 Declare an option in `cmake/settings/ConfigureOptions.cmake`, in its one block. A folder path is defined once in `cmake/settings/ConfigureFolders.cmake` as `MAREA_FOLDER_*`; read that variable and never rebuild the path from `CMAKE_SOURCE_DIR`. `ConfigureMiseTools` checks that every tool of `mise.toml` [tools] provides its executables; a new tool there needs an entry in that file.
 
@@ -51,7 +51,7 @@ A CMake function or macro that takes parameters takes keyword arguments, not pos
 
 Use `function()` when the work is self-contained. Use `macro()` only when the body must set variables or define targets in the caller scope. Parameters take the `PARAM_` prefix, scope-locals the `TEMP_` prefix.
 
-Planned, not in the repository yet: `marea_add_library` and `marea_add_executable` (see `## Targets and linkage`). When written, they follow this section.
+`marea_add_library` and `marea_add_executable` (see `## Targets and linkage`), declared in `cmake/settings/ConfigureMareaFunctions.cmake`, follow this section: `SOURCES` is the required multi-value keyword, `SETTINGS` (per-call `NAME=value` pairs), `LIBRARIES` (the enabled shipped-library subset) and `MACROS` (the built-in library macros the sources call, checked against the include-bytes dependency table) are optional ones.
 
 ## Generator expressions versus if()
 
@@ -74,14 +74,14 @@ The toolchain is clang/LLVM on every platform (`mise.toml` sets `CC=clang`); do 
 
 ## Targets and linkage
 
-From the design record (objective 37 and decision 38); the repository today has one library, `marea`, and the test executable `marea_tests`.
+From the design record (objective 37 and decision 38); the repository today has the stage libraries `base`, `lex`, `parse`, `sema`, `ir` and `bytecode`, and the test executable `marea_tests`.
 
-- **One static library target per compiler stage** (`lex`, `parse`, `sema`, `ir`, `bytecode`, `vm`, `cgen`), plus a small shared base (arena, diagnostics, source position) that the stages link. A stage links only earlier stages, never a later one; the build graph must match the dependency order of the stages.
-- **Libraries are static by default.** A shared build happens only when `MAREA_OPTION_SHARED_LIBS` is ON (OFF by default); the choice is made once, through `BUILD_SHARED_LIBS` or the library type, and never hard-coded per target. A shared build needs an export macro; keep the public header the only place that has it.
-- **Targets and aliases**: each library has an `ALIAS` in the `marea::` namespace declared right after it (`marea::lex`), and other targets link the alias. Library targets follow the Mimico engine pattern, `Marea-<Stage>` (`Marea-Base`, `Marea-Lex`) with the alias `marea::<stage>`; the test executable stays `marea_tests`.
+- **One library per compiler stage** (`base`, `lex`, `parse`, `sema`, `ir`, `bytecode`, then `vm` and `cgen`), created only through the function `MareaAddStageLibrary` in `cmake/settings/ConfigureLibTargets.cmake`. A stage links only earlier stages, never a later one; the build graph must match the dependency order of the stages.
+- **Static and shared targets are built side by side.** `MAREA_OPTION_STATIC_LIBS` (ON by default) adds a static target `Marea-<Name>`; `MAREA_OPTION_SHARED_LIBS` (OFF by default) adds a shared target `Marea-<Name>-Shared`; with both ON both exist in the same configure. Never choose one kind through `BUILD_SHARED_LIBS` and never hard-code a kind per target. A shared build needs the export macro: every declaration that a test or another library calls carries `MAREA_EXTERN_DECL`, including those of the internal headers.
+- **Targets and aliases**: each target has an `ALIAS` declared right after it: `marea::<stage>_static` and `marea::<stage>_shared`, and the plain `marea::<stage>` names the static target when it exists and the shared one otherwise. Other targets link the plain alias. The test executable stays `marea_tests`.
 - **Public include directory**: `PUBLIC` is `lib/include`; internal headers (`lib/internal`) are `PRIVATE` and never reach a consumer. Sources are listed per target or globbed with `CONFIGURE_DEPENDS`, like `tests/CMakeLists.txt`.
 - **`MAREA_OPTION_TARGET_*` options build a subset**, so a consumer can build only the lexer or only the interpreter without configuring the rest. Every option-guarded target works alone.
-- **No own driver.** A small set of CMake functions, `marea_add_library` and `marea_add_executable`, will call `marea-cc` (C11 to machine code) and `marea-bc` (bytecode). Planned, not in the repository yet.
+- **No own driver.** The CMake functions `marea_add_library` and `marea_add_executable` (`cmake/settings/ConfigureMareaFunctions.cmake`) locate `marea-cc` (C11 to machine code) and `marea-bc` (bytecode) through `FindExecutable` and carry the `SETTINGS`/`MAREA_SETTING_<NAME>` pipeline. Both tools exist as real, buildable executable targets of this repository (`MAREA_OPTION_TARGET_CC`/`MAREA_OPTION_TARGET_BC`); see [docs/tools/marea-cc-and-bc.md](../../../docs/tools/marea-cc-and-bc.md) for their CLI surface. `FindExecutable` resolves the real binary once it is on `CMAKE_PROGRAM_PATH`; `marea_add_library`/`marea_add_executable` still record only the compile plan at configure time, they do not yet invoke either tool as a build step.
 - **Release builds strip** the output (`--strip`, objective 11). Planned, not in the repository yet; set it on the target for the `Release` configuration through a generator expression.
 
 ## Early checks

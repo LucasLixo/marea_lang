@@ -40,7 +40,7 @@ TEST(MAREAIrDump, SmallModuleHasAnExactText)
     ASSERT_EQ(fixture.MAREA_lower("namespace main; structure Point x: float64; end function f(a: sinteger32): sinteger32 local b: sinteger32 = a + 1; return b; end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     EXPECT_EQ(MAREA_dumpOf(fixture), MAREA_lines({
-                                         "MODULE",
+                                         "MODULE \"main\"",
                                          "  STRUCTURE_DECLARATION \"Point\"",
                                          "    FIELD_DECLARATION \"x\" type=float64 resolved=float64",
                                          "  FUNCTION_DECLARATION \"f\" type=sinteger32 resolved=sinteger32",
@@ -67,7 +67,7 @@ TEST(MAREAIrDump, EmptyModuleIsOneLine)
 
     ASSERT_EQ(fixture.MAREA_lower("namespace main;"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
-    EXPECT_EQ(MAREA_dumpOf(fixture), "MODULE\n") << "An empty module must be one line.";
+    EXPECT_EQ(MAREA_dumpOf(fixture), "MODULE \"main\"\n") << "An empty module must be one line.";
 }
 
 TEST(MAREAIrDump, FlagsAndOperatorsAreWritten)
@@ -79,7 +79,7 @@ TEST(MAREAIrDump, FlagsAndOperatorsAreWritten)
     ASSERT_EQ(fixture.MAREA_lower("namespace main; function run() for index in 0 .. 3 do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     EXPECT_EQ(MAREA_dumpOf(fixture), MAREA_lines({
-                                         "MODULE",
+                                         "MODULE \"main\"",
                                          "  FUNCTION_DECLARATION \"run\"",
                                          "    PARAMETER_LIST",
                                          "    BLOCK",
@@ -104,6 +104,39 @@ TEST(MAREAIrDump, FlagsAndOperatorsAreWritten)
                                          "              INTEGER_LITERAL \"1\" resolved=sinteger32",
                                      }))
         << "The desugared loop must show its flag and operators.";
+}
+
+TEST(MAREAIrDump, ACallOfAHostOrLibraryNameIsMarkedAndWritten)
+{
+    GTEST_COUT << "Validating the call of an EXTERNAL name carries the mark that sema gave it, in the node and in the dump, and no other call does." << std::endl;
+
+    MAREA_IrFixture fixture(RESOLVE_EXTERNAL);
+
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; require collections.list; function helper() end function run() collections.list.push(1); helper(); end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+
+    const MAREA_IrNode *body{ MAREA_irChild(MAREA_irChild(fixture.module, 1), 1) };
+
+    const MAREA_IrNode *pushed{ MAREA_irChild(MAREA_irChild(body, 0), 0) };
+
+    const MAREA_IrNode *helped{ MAREA_irChild(MAREA_irChild(body, 1), 0) };
+
+    ASSERT_EQ(MAREA_IrNodeGetKind(pushed), MAREA_IR_KIND_CALL_EXPRESSION) << "The first statement is a call.";
+
+    ASSERT_EQ(MAREA_IrNodeGetKind(helped), MAREA_IR_KIND_CALL_EXPRESSION) << "The second statement is a call.";
+
+    EXPECT_TRUE(MAREA_IrNodeIsExternalCall(pushed)) << "A name that a resolver answers EXTERNAL is an external call.";
+
+    EXPECT_FALSE(MAREA_IrNodeIsExternalCall(helped)) << "A function of the unit is not.";
+
+    EXPECT_FALSE(MAREA_IrNodeIsExternalCall(fixture.module)) << "A node that is no call is not.";
+
+    EXPECT_FALSE(MAREA_IrNodeIsExternalCall(nullptr)) << "A null node is not.";
+
+    const std::string DUMP{ MAREA_dumpOf(fixture) };
+
+    EXPECT_NE(DUMP.find("        CALL_EXPRESSION external\n"), std::string::npos) << "The mark is written on the call: " << DUMP;
+
+    EXPECT_EQ(DUMP.find("external"), DUMP.rfind("external")) << "Only one call is marked: " << DUMP;
 }
 
 TEST(MAREAIrDump, StringTextIsEscaped)
@@ -196,13 +229,13 @@ TEST(MAREAIrDump, ForEachDumpsItsNameFlagAndChildren)
 
     MAREA_IrFixture fixture(RESOLVE_EXTERNAL);
 
-    ASSERT_EQ(fixture.MAREA_lower("namespace main; import collections.list; function run(#[semantics = reference_mutable] values: list<sinteger32>) for each key, value in mutable values do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; import collections.list as list; function run(#[semantics = reference_mutable] values: list<sinteger32>) for each key, value in mutable values do end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
 
     EXPECT_EQ(MAREA_dumpOf(fixture), MAREA_lines({
-                                         "MODULE",
+                                         "MODULE \"main\"",
                                          "  FUNCTION_DECLARATION \"run\"",
                                          "    PARAMETER_LIST",
-                                         "      PARAMETER \"values\" type=list resolved=list<sinteger32> flags=1",
+                                         "      PARAMETER \"values\" type=collections.list resolved=list<sinteger32> flags=1",
                                          "    BLOCK",
                                          "      FOR_EACH_STATEMENT \"value\" flags=1",
                                          "        IDENTIFIER \"key\"",
@@ -291,3 +324,32 @@ TEST(MAREAIrDump, DeepChainDumpsOnASmallStack)
     EXPECT_EQ(TEXT.substr(TEXT.size() - LAST_LINE.size()), LAST_LINE) << "The deepest line must be indented by two spaces per level.";
 }
 #endif
+
+TEST(MAREAIrDump, TheDestroyOperatorOfATypeIsMarkedAndWritten)
+{
+    GTEST_COUT << "Validating the function of the destroy operator carries a mark, in the node and in the dump, and no other function does." << std::endl;
+
+    MAREA_IrFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; structure H id: sinteger32; end implementation H #[operator = \"destroy\"] function close() end function other() end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+
+    std::vector<bool> marks;
+
+    for (MAREA_IntegerSize index{ 0 }; index < MAREA_IrNodeGetChildCount(fixture.module); ++index) {
+        const MAREA_IrNode *child{ MAREA_irChild(fixture.module, index) };
+
+        if (MAREA_IrNodeGetKind(child) == MAREA_IR_KIND_FUNCTION_DECLARATION) {
+            marks.push_back(MAREA_IrNodeIsDestroyOperator(child) == MAREA_BOOLEAN_TRUE);
+        }
+    }
+
+    EXPECT_EQ(marks, (std::vector<bool>{ true, false })) << "Only close is the destroy operator.";
+
+    EXPECT_FALSE(MAREA_IrNodeIsDestroyOperator(nullptr)) << "A null node is not.";
+
+    const std::string DUMP{ MAREA_dumpOf(fixture) };
+
+    EXPECT_NE(DUMP.find(" destroy\n"), std::string::npos) << "The mark is written on the function: " << DUMP;
+
+    EXPECT_EQ(DUMP.find(" destroy\n"), DUMP.rfind(" destroy\n")) << "Only one function is marked: " << DUMP;
+}

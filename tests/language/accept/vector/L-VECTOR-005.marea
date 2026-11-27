@@ -1,0 +1,21 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- resize, fill, front, back and max_size of a vector.
+
+namespace main;
+
+require marea.vector;
+
+function check(): sinteger32
+    local values: marea.vector.Vector<sinteger32> = marea.vector.Vector<sinteger32>{ 1 };
+    values.resize(3, 2);
+    values.fill(4);
+    return values.front() + values.back();
+end
+
+function most(): uinteger64
+    local values: marea.vector.Vector<sinteger32> = marea.vector.Vector<sinteger32>{};
+    return values.max_size();
+end
