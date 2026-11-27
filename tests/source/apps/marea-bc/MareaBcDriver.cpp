@@ -25,7 +25,7 @@ namespace
      * one test's duration and restores the previous directory afterward. */
     class MareaBcDriverExamplesTest : public ::testing::Test
     {
-    protected:
+      protected:
         void SetUp() override
         {
             previousDirectory = std::filesystem::current_path();
@@ -36,7 +36,7 @@ namespace
 
         static constexpr const char *FIXTURE_PATH = "basics/operators.marea";
 
-    private:
+      private:
         std::filesystem::path previousDirectory;
     };
 } // namespace
@@ -53,6 +53,18 @@ TEST_F(MareaBcDriverExamplesTest, CompileProducesABytecodeModule)
     std::FILE *file = std::fopen(outputPath.c_str(), "rb");
     ASSERT_NE(file, nullptr);
     std::fclose(file);
+}
+
+TEST_F(MareaBcDriverExamplesTest, CompileWorksWithAnEmptyLibraryMask)
+{
+    // INFO: none of the shipped libraries (lib-array-vector-tuple and the rest) are built yet, so this
+    // proves marea-bc runs correctly with every one of them disabled, not only with the default mask.
+    MAREA_SemaTarget target{};
+    MareaTargetDescriptionDetectHost(&target);
+
+    const std::string outputPath = MAREA_scratchPath("-empty-mask.mbc");
+
+    ASSERT_TRUE(MareaBcDriverCompile(FIXTURE_PATH, outputPath.c_str(), MAREA_LIBRARY_FLAG_NONE, MAREA_SemaSettings{}, &target, nullptr, 0, stderr));
 }
 
 TEST(MareaBcDriver, CompileFailsOnAMissingInputFile)

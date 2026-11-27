@@ -11,7 +11,7 @@ namespace
 {
     class MareaDiagnosticPrinterTest : public ::testing::Test
     {
-    protected:
+      protected:
         void SetUp() override
         {
             ASSERT_EQ(MAREA_ArenaCreate(0, &arena), MAREA_ARENA_EXCEPT_SUCCESS);
