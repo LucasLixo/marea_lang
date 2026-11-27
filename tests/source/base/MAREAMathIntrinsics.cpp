@@ -18,11 +18,11 @@
 // backend actually builds on this machine (needs sse2 on x86_64 or neon on aarch64) is decided by part 3/4,
 // not by this test file.
 extern "C" {
-MAREA_EXTERN_DECL void MAREA_CALL MAREA_MathAddVector2Float32Intrinsics(const MAREA_MathVector2Float32 *left, const MAREA_MathVector2Float32 *right, MAREA_MathVector2Float32 *result);
-MAREA_EXTERN_DECL MAREA_Float32 MAREA_CALL MAREA_MathDotVector3Float32Intrinsics(const MAREA_MathVector3Float32 *left, const MAREA_MathVector3Float32 *right);
-MAREA_EXTERN_DECL void MAREA_CALL MAREA_MathNormalizeVector4Float32Intrinsics(const MAREA_MathVector4Float32 *value, MAREA_MathVector4Float32 *result);
-MAREA_EXTERN_DECL void MAREA_CALL MAREA_MathMultiplyMatrix4x4Float32Intrinsics(const MAREA_MathMatrix4x4Float32 *left, const MAREA_MathMatrix4x4Float32 *right, MAREA_MathMatrix4x4Float32 *result);
-MAREA_EXTERN_DECL void MAREA_CALL MAREA_MathMultiplyQuaternionFloat32Intrinsics(const MAREA_MathQuaternionFloat32 *left, const MAREA_MathQuaternionFloat32 *right, MAREA_MathQuaternionFloat32 *result);
+    MAREA_EXTERN_DECL void MAREA_CALL MAREA_MathAddVector2Float32Intrinsics(const MAREA_MathVector2Float32 *left, const MAREA_MathVector2Float32 *right, MAREA_MathVector2Float32 *result);
+    MAREA_EXTERN_DECL MAREA_Float32 MAREA_CALL MAREA_MathDotVector3Float32Intrinsics(const MAREA_MathVector3Float32 *left, const MAREA_MathVector3Float32 *right);
+    MAREA_EXTERN_DECL void MAREA_CALL MAREA_MathNormalizeVector4Float32Intrinsics(const MAREA_MathVector4Float32 *value, MAREA_MathVector4Float32 *result);
+    MAREA_EXTERN_DECL void MAREA_CALL MAREA_MathMultiplyMatrix4x4Float32Intrinsics(const MAREA_MathMatrix4x4Float32 *left, const MAREA_MathMatrix4x4Float32 *right, MAREA_MathMatrix4x4Float32 *result);
+    MAREA_EXTERN_DECL void MAREA_CALL MAREA_MathMultiplyQuaternionFloat32Intrinsics(const MAREA_MathQuaternionFloat32 *left, const MAREA_MathQuaternionFloat32 *right, MAREA_MathQuaternionFloat32 *result);
 }
 
 // INFO: a bit-for-bit comparison, never '==' on the float, so a sign of zero or a NaN payload the two
