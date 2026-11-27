@@ -84,4 +84,18 @@ macro(ConfigureOptions)
         "MAREA_OPTION_TARGET_IR"
         OFF
     )
+    cmake_dependent_option(
+        MAREA_OPTION_TARGET_CC
+        "Build the marea-cc executable"
+        ON
+        "MAREA_OPTION_TARGET_CGEN"
+        OFF
+    )
+    cmake_dependent_option(
+        MAREA_OPTION_TARGET_BC
+        "Build the marea-bc executable"
+        ON
+        "MAREA_OPTION_TARGET_BYTECODE"
+        OFF
+    )
 endmacro()
