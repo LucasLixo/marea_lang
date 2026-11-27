@@ -1,0 +1,31 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- The matrices of float32 take the product, the equality and the index of a column.
+
+namespace main;
+
+require marea.math as math;
+require marea.math { Matrix2x2Float32, Vector2Float32, Matrix3x3Float32, Vector3Float32, Matrix4x4Float32, Vector4Float32 };
+
+function check2(left: math.Matrix2x2Float32, right: math.Matrix2x2Float32)
+    local product: math.Matrix2x2Float32 = left * right;
+    local equal: boolean = left == right;
+    local different: boolean = left != right;
+    local first: math.Vector2Float32 = left[0];
+end
+
+function check3(left: math.Matrix3x3Float32, right: math.Matrix3x3Float32)
+    local product: math.Matrix3x3Float32 = left * right;
+    local equal: boolean = left == right;
+    local different: boolean = left != right;
+    local first: math.Vector3Float32 = left[0];
+end
+
+function check4(left: math.Matrix4x4Float32, right: math.Matrix4x4Float32)
+    local product: math.Matrix4x4Float32 = left * right;
+    local equal: boolean = left == right;
+    local different: boolean = left != right;
+    local first: math.Vector4Float32 = left[0];
+end
