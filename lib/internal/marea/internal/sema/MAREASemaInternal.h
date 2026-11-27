@@ -1076,6 +1076,16 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaFindTypeTarget(const MAREA_SemaContext *context, const MAREA_AstNode *type, const MAREA_AstNode *root, MAREA_SemaTypeTarget *outTarget);
 
     /**
+     * @brief Follows the type of a value to its declaration, in the file of the run or in a FOUND namespace.
+     * @param context Context of the run. Must not be null.
+     * @param expression Expression node. May be null.
+     * @param outTarget Receives the declaration, or null when sema does not see it, and its tree (null for
+     * the file of the run). Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaFindValueTarget(MAREA_SemaContext * context, const MAREA_AstNode *expression, MAREA_SemaTypeTarget *outTarget);
+
+    /**
      * @brief Gives the declaration that an expression names, as Box, ns.Box, the full path of one or an
      * imported symbol. A name that a local hides names nothing, and no type alias is followed.
      * @param context Context of the run. Must not be null.
@@ -1403,6 +1413,17 @@ MAREA_BEGIN_EXTERN_C
      * @return The first FUNCTION_DECLARATION, or null when the type declares none.
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_AstNode *MAREA_CALL MAREA_SemaFindOperatorFunction(const MAREA_SemaContext *context, const MAREA_AstNode *typeDeclaration, const MAREA_Character8 *token, MAREA_IntegerSize tokenLength, MAREA_IntegerSize *outCount);
+
+    /**
+     * @brief Tells whether an implementation of a tree marks a function of a type with an operator token. The
+     * type is matched by its name, so the tree must be the one that declares the type.
+     * @param root Tree of a namespace. May be null, which gives false.
+     * @param typeDeclaration Declaration of the type in that tree. May be null, which gives false.
+     * @param token Operator token, not NUL terminated (for example "[]"). May be null, which gives false.
+     * @param tokenLength Length of token in bytes.
+     * @return True when at least one function is marked with the token.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaTreeDeclaresOperator(const MAREA_AstNode *root, const MAREA_AstNode *typeDeclaration, const MAREA_Character8 *token, MAREA_IntegerSize tokenLength);
 
     /**
      * @brief Checks that a call does not pass one name twice when one of the parameters is a write borrow.
@@ -2291,6 +2312,15 @@ MAREA_BEGIN_EXTERN_C
      * @brief Reports an index of a tuple that is no integer literal, or that is not below its arity.
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckTupleIndex(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
+     * @brief Reports UNDECLARED_OPERATOR on an INDEX_ACCESS of a structure, of the file of the run or of a
+     * FOUND namespace, that no implementation of its own tree marks with "[]". Any other value raises nothing.
+     * @param context Context of the run. Must not be null.
+     * @param node INDEX_ACCESS node. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckIndexOperator(MAREA_SemaContext * context, const MAREA_AstNode *node);
 
     /**
      * @brief Checks the entries of a LITERAL_VALUE of a tuple: their count, their types, and copy or move for a
