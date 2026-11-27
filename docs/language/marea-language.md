@@ -1132,7 +1132,7 @@ Facts the items fix, checked by running the compiler:
 - A part is a name of the body only: its use after the `end` of the body is the undeclared name 3004 (item 080).
 - A parameter with no attribute is a read-only borrow (settled rule 2), so `spawn` accepts it as a name that is not a
   write-borrow parameter. `examples/parallel/scaling.marea` writes `#[semantics = reference_mutable]` on the two
-  parameters it writes (`scale_slice`, `scale_all`) and requires `marea.array`, `c.memory` and `c.threads`.
+  parameters it writes (`scale_slice`, `scale_all`) and requires `marea.array`, `c.memory` and `marea.tasks`.
 
 ### Parallel code: accept
 

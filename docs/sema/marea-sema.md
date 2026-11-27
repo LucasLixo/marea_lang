@@ -1083,7 +1083,7 @@ intentional exception; no attribute exempts any other user type), `BORROW` (a pa
 effective `semantics` is `reference_read_only`, a `for each` variable, a `partition` part or a
 `with` name; this is also a parameter with no attribute, whose type is not by value and does not
 move in), `MUTABLE_BORROW` (a parameter whose effective `semantics` is an explicit
-`reference_mutable`), `MOVE` (an `c.memory.Owned<T>` or `c.threads.Task<T>` parameter or value), `COPY` (a `copy x`
+`reference_mutable`), `MOVE` (an `c.memory.Owned<T>` or `marea.tasks.Task<T>` parameter or value), `COPY` (a `copy x`
 expression). A node this cannot classify defaults to `VALUE`.
 
 **Call results.** A call expression's typed node carries the type the call returns. A call of a function of the
@@ -1137,7 +1137,7 @@ type. The declared name of a `for` and of a `for each` is the exception, see "Lo
 | shift | the type of the left operand |
 | `-` and `~` | the type of the operand |
 | `copy x`, `move x`, `(x)` | the type of `x`, with its type arguments |
-| `spawn call` | the registered type with the spawn handle role around `T` (`c.threads.Task<float32>`), where `T` is the type of the call; no type when no registered type holds the role |
+| `spawn call` | the registered type with the spawn handle role around `T` (`marea.tasks.Task<float32>`), where `T` is the type of the call; no type when no registered type holds the role |
 | identifier | the type of its declaration: a parameter or a local, a constant of the file or of the implementation block, a value parameter such as `Count` in `<constant Count: sinteger32>`, or a function name as its function type |
 | name of a loop or a scope | read as a value, it has the type its statement gives it. `for i in a .. b`: the type of the bounds, as for an operation (a number literal never decides, two literals give the type of the first). `for each key, value in c`: the value is the element type of `array`, `vector` or `slice` (also under `c.`), the key is `uinteger64`. `partition v into n as part`: `c.memory.Slice<T>`, where `T` is the element type of `v`. `with e as name`: the type of `e`. The name has no type when the type that decides it has none |
 | member access | the declared type of the field. On a value of a generic structure, the type arguments of the value replace the parameters of the structure. An enum variant (`Color.Red`) is the enum. A field of a variant of an enum is read on the enum value. `Type.NAME` is a constant of an implementation block. A method or a static function, named with no call, is its function type with the receiver first: `function(Vector2,float64)` |
@@ -1459,9 +1459,9 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 - Two functions that call each other cannot be written, because a function must be declared before its use and the
   grammar has no forward declaration.
 - No check of the signature of `main` exists any more, and a driver-level replacement does not exist yet.
-- Only `marea.array`, `marea.vector`, `marea.tuple`, `c.memory` and `marea.memory` are shipped libraries. The types of
-  `c.threads` are registered by fixtures in the tests. A registered type that is no inline run is checked for too many type
-  arguments only, never too few.
+- Only `marea.array`, `marea.vector`, `marea.tuple`, `c.memory`, `marea.memory`, `c.threads` and `marea.tasks` are
+  shipped libraries. A registered type that is no inline run is checked for too many type arguments only, never
+  too few.
 - No construction of a `marea.memory.Owned`, `Slice` or `Arena` exists. A local of one of these types takes any
   initial value with no diagnostic, and a write of an element of a view is not refused.
 - The registry gives sema no signature of a function: a call of a function of `c.memory` has a type only when the
