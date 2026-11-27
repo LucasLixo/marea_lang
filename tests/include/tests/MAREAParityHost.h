@@ -6,6 +6,7 @@
 
     #include "marea/base/MAREACTypes.h"
     #include "marea/base/MAREAMacros.h"
+    #include "marea/base/MAREACMemoryRuntime.h"
     #include "marea/base/MAREAHostContext.h"
 
     #include <stdlib.h>

@@ -17,6 +17,7 @@ set(MAREA_KNOWN_LIBRARIES
     "marea.tuple"
     "c.memory"
     "c.threads"
+    "marea.memory"
 )
 
 # The shipped-macro to library dependency table (DECISIONS row 53): today only include_bytes! needs marea.array

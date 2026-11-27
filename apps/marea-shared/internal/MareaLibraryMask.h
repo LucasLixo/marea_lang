@@ -12,7 +12,8 @@ MAREA_BEGIN_EXTERN_C
     /**
      * @brief Parses a comma-separated list of shipped-library names (the spelling
      * cmake/settings/ConfigureMareaFunctions.cmake's own MAREA_KNOWN_LIBRARIES list uses: "marea.array",
-     * "marea.vector", "marea.tuple", "c.memory", "c.threads") into a MAREA_LibraryMask.
+     * "marea.vector", "marea.tuple", "c.memory", "c.threads",
+     * "marea.memory") into a MAREA_LibraryMask.
      * @param text The comma-separated list, NUL terminated. Null or empty means
      * MAREA_LIBRARY_MASK_DEFAULT (every shipped library on).
      * @param outMask Receives the parsed mask. Must not be null. Left unchanged on failure.

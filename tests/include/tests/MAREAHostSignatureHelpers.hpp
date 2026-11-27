@@ -57,6 +57,12 @@ inline const MAREA_SemaSignature *MAREA_hostSignature(const std::string &member)
         add("shift", { "Pair", "sinteger32" }, nullptr);
         add("block", { "uinteger64" }, "boolean");
         add("raw", { "sinteger32" }, nullptr);
+        add("alloc", { "uinteger64", "uinteger64" }, "uinteger64");
+        add("free", { "uinteger64" }, nullptr);
+        add("offset", { "uinteger64", "sinteger64", "uinteger64" }, "uinteger64");
+        add("is_null", { "uinteger64" }, "boolean");
+        add("copy_bytes", { "uinteger64", "uinteger64", "uinteger64" }, nullptr);
+        add("fill_bytes", { "uinteger64", "uinteger8", "uinteger64" }, nullptr);
         add("thirtytwo", std::vector<const char *>(32, "sinteger32"), "sinteger64");
 
         return rows;

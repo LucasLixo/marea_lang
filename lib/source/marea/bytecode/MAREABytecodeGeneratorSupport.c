@@ -552,6 +552,15 @@ MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorTextKind(MAREA_BytecodeGe
         }
     }
 
+    const MAREA_Character8 *pointee = MAREA_NULLPTR;
+    MAREA_IntegerSize pointeeLength = MAREA_INTEGER_SIZE(0);
+
+    if (MAREA_BytecodeGeneratorPointee(generator, text, length, &pointee, &pointeeLength)) {
+        *outKind = MAREA_BYTECODE_NUMBER_KIND_UINTEGER_64;
+
+        return MAREA_BYTECODE_EXCEPT_SUCCESS;
+    }
+
     MAREA_Uinteger32 run = MAREA_BYTECODE_NONE;
 
     MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorRunKind(generator, node, text, length, &run));

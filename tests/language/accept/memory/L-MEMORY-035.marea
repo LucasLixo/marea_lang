@@ -1,0 +1,21 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A view passes by value, so one name is given to two calls and then walked.
+
+namespace main;
+
+require marea.memory;
+
+function read(part: marea.memory.Slice<float32>)
+    for each value in part do
+        local seen: float32 = value;
+    end
+end
+
+function check(part: marea.memory.Slice<float32>)
+    read(part);
+    read(part);
+    local first: float32 = part[0];
+end

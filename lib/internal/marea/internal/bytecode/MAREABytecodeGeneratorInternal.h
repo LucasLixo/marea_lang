@@ -698,6 +698,17 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_TypeDescriptor *MAREA_CALL MAREA_BytecodeGeneratorDescribe(const MAREA_BytecodeGenerator *generator, const MAREA_Character8 *text, MAREA_IntegerSize length);
 
     /**
+     * @brief Reads a type spelling as a raw pointer, a type whose descriptor has the raw pointer role, and gives the
+     * text of its element type, which points into text.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_BytecodeGeneratorPointee(const MAREA_BytecodeGenerator *generator, const MAREA_Character8 *text, MAREA_IntegerSize length, const MAREA_Character8 **outElement, MAREA_IntegerSize *outElementLength);
+
+    /**
+     * @brief True when the resolved type of a node is a raw pointer. False for a null node.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_BytecodeGeneratorIsPointer(const MAREA_BytecodeGenerator *generator, const MAREA_IrNode *node);
+
+    /**
      * @brief The aggregate of the spelling of a tuple, or MAREA_BYTECODE_NONE when an element is not lowered.
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorTupleKind(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node, const MAREA_Character8 *text, MAREA_IntegerSize length, MAREA_Uinteger32 *outAggregateIndex);

@@ -331,12 +331,56 @@ static MAREA_BytecodeExcept MAREA_CALL MAREA_G_ElementField(MAREA_BytecodeGenera
     return MAREA_BytecodeGeneratorEmit(generator, MAREA_BYTECODE_OPCODE_FIELD, *outRegister, base, (MAREA_Uinteger32)offset, MAREA_NULLPTR);
 }
 
+// INFO: the element of a raw pointer: the address is the value of the pointer, and no count limits the index.
+static MAREA_BytecodeExcept MAREA_CALL MAREA_G_PointerPlace(MAREA_BytecodeGenerator *generator, const MAREA_IrNode *node, const MAREA_IrNode *pointer, MAREA_Uinteger32 *outRegister, MAREA_Uinteger8 *outKind)
+{
+    const MAREA_Character8 *element = MAREA_NULLPTR;
+    MAREA_IntegerSize length = MAREA_INTEGER_SIZE(0);
+
+    MAREA_IGNORE(MAREA_BytecodeGeneratorPointee(generator, MAREA_IrNodeGetResolvedType(pointer), MAREA_IrNodeGetResolvedTypeLength(pointer), &element, &length));
+
+    const MAREA_Uinteger8 KIND = MAREA_BytecodeGeneratorKindFromText(element, length);
+
+    if (!((KIND < MAREA_BYTECODE_NUMBER_KIND_COUNT) || (KIND == MAREA_BYTECODE_GENERATOR_KIND_BOOLEAN))) {
+        return MAREA_BytecodeGeneratorFail(generator, node, MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, "A pointer reaches a number or a boolean only.");
+    }
+
+    // INFO: the bytes of each number kind, in the order of MAREA_BytecodeNumberKind.
+    static const MAREA_Uinteger8 SIZES[MAREA_BYTECODE_NUMBER_KIND_COUNT] = { 1, 2, 4, 8, 1, 2, 4, 8, 4, 8 };
+
+    const MAREA_Uinteger64 STRIDE = ((KIND == MAREA_BYTECODE_GENERATOR_KIND_BOOLEAN) ? MAREA_UINTEGER_64(1) : (MAREA_Uinteger64)SIZES[KIND]);
+
+    MAREA_Uinteger32 base = MAREA_UINTEGER_32(0);
+    MAREA_Uinteger32 index = MAREA_UINTEGER_32(0);
+    MAREA_Uinteger8 baseKind = MAREA_BYTECODE_GENERATOR_KIND_NONE;
+    MAREA_Uinteger8 indexKind = MAREA_BYTECODE_GENERATOR_KIND_NONE;
+
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorLowerOperand(generator, pointer, MAREA_BYTECODE_GENERATOR_KIND_NONE, &base, &baseKind));
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorLowerOperand(generator, MAREA_BytecodeGeneratorChildAt(node, MAREA_INTEGER_SIZE(1)), MAREA_BYTECODE_GENERATOR_KIND_NONE, &index, &indexKind));
+
+    if (indexKind >= MAREA_BYTECODE_NUMBER_KIND_FLOAT_32) {
+        return MAREA_BytecodeGeneratorFail(generator, node, MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, "An index is an integer.");
+    }
+
+    *outKind = KIND;
+
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorAllocate(generator, node, MAREA_UINTEGER_32(1), outRegister));
+
+    return MAREA_G_ElementAt(generator, node, base, index, STRIDE, *outRegister);
+}
+
 MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorElementPlace(MAREA_BytecodeGenerator *generator, const MAREA_IrNode *node, MAREA_Uinteger32 *outRegister, MAREA_Uinteger8 *outKind, MAREA_Uinteger32 *outAggregateIndex)
 {
     MAREA_Uinteger32 base = MAREA_UINTEGER_32(0);
     MAREA_Uinteger32 run = MAREA_BYTECODE_NONE;
 
-    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorAggregateAddress(generator, MAREA_BytecodeGeneratorChildAt(node, MAREA_INTEGER_SIZE(0)), &base, &run));
+    const MAREA_IrNode *indexed = MAREA_BytecodeGeneratorChildAt(node, MAREA_INTEGER_SIZE(0));
+
+    if (MAREA_BytecodeGeneratorIsPointer(generator, indexed)) {
+        return MAREA_G_PointerPlace(generator, node, indexed, outRegister, outKind);
+    }
+
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorAggregateAddress(generator, indexed, &base, &run));
 
     if (generator->functionFailed) {
         return MAREA_BYTECODE_EXCEPT_SUCCESS;

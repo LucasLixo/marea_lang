@@ -1,0 +1,12 @@
+-- expect: 3082 @11
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A view cannot hold an element that has no measured layout.
+
+namespace main;
+
+require marea.memory;
+
+function check(part: marea.memory.Slice<function(value: sinteger32)>)
+end

@@ -273,6 +273,10 @@ static MAREA_CgenExcept MAREA_CALL MAREA_G_WriteAssignment(MAREA_CgenGenerator *
         return MAREA_CgenGeneratorFail(generator, node, MAREA_CGEN_DIAGNOSTIC_CODE_UNSUPPORTED_CONSTRUCT, "An assignment has no target or no value.");
     }
 
+    if ((MAREA_IrNodeGetOperator(node) != MAREA_TOKEN_KIND_EQUAL) && (MAREA_CgenIsPointer(generator, target) == MAREA_BOOLEAN_TRUE)) {
+        return MAREA_CgenGeneratorFail(generator, node, MAREA_CGEN_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, "A pointer has no compound assignment.");
+    }
+
     MAREA_Boolean through = MAREA_BOOLEAN_FALSE;
 
     MAREA_CGEN_TRY(MAREA_G_ThroughVector(generator, target, &through));

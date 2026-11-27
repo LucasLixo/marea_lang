@@ -12,13 +12,14 @@ typedef struct MareaLibraryMaskEntry
 } MareaLibraryMaskEntry;
 
 /* TAG: one entry per MAREA_KNOWN_LIBRARIES name of cmake/settings/ConfigureMareaFunctions.cmake, kept in
- * step with it by hand, since the CMake list and this table name the same five shipped libraries. */
+ * step with it by hand, since the CMake list and this table name the same shipped libraries. */
 static const MareaLibraryMaskEntry MAREA_LIBRARY_MASK_TABLE[] = {
     { "marea.array", MAREA_LIBRARY_FLAG_MAREA_ARRAY },
     { "marea.vector", MAREA_LIBRARY_FLAG_MAREA_VECTOR },
     { "marea.tuple", MAREA_LIBRARY_FLAG_MAREA_TUPLE },
     { "c.memory", MAREA_LIBRARY_FLAG_C_MEMORY },
     { "c.threads", MAREA_LIBRARY_FLAG_C_THREADS },
+    { "marea.memory", MAREA_LIBRARY_FLAG_MAREA_MEMORY },
 };
 
 MAREA_Boolean MareaLibraryMaskParse(const MAREA_Character8 *text, MAREA_LibraryMask *outMask)

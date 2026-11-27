@@ -39,6 +39,14 @@ TEST(MareaLibraryMask, ParsesCommaSeparatedNames)
         static_cast<MAREA_LibraryMask>(MAREA_LIBRARY_FLAG_MAREA_ARRAY | MAREA_LIBRARY_FLAG_C_MEMORY | MAREA_LIBRARY_FLAG_C_THREADS));
 }
 
+TEST(MareaLibraryMask, ParsesMareaMemory)
+{
+    MAREA_LibraryMask mask{ 0 };
+
+    ASSERT_TRUE(MareaLibraryMaskParse("c.memory,marea.memory", &mask));
+    ASSERT_EQ(mask, static_cast<MAREA_LibraryMask>(MAREA_LIBRARY_FLAG_C_MEMORY | MAREA_LIBRARY_FLAG_MAREA_MEMORY));
+}
+
 TEST(MareaLibraryMask, RejectsUnknownName)
 {
     MAREA_LibraryMask mask{ 0 };
