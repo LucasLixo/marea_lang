@@ -329,6 +329,8 @@ The range 5000 to 5999 is reserved for this stage. The messages are fixed texts 
 
 - A pointer reaches a number or a `boolean` only: a pointer to a structure, an enum, an array or another pointer is
   `UNSUPPORTED_TYPE`. A pointer as the element of an array, a vector or a tuple has no test.
+- `marea.memory.Owned`, `Slice` and `Arena` are not lowered (`UNSUPPORTED_TYPE`). No source builds one yet, so no
+  import of their runtime (`marea/base/MAREAMemoryRuntime.h`) is written.
 - A `structure` with a user `construct` or `destroy` operator (`CONSTRUCT_CALL`, `DESTROY_CALL`) is not lowered:
   calling it needs the address of the value as a hidden receiver argument, and no call in this slice passes a
   structure. `tests/language/accept/memory/L-MEMORY-010.marea` through `-015.marea` already exercise the sema and

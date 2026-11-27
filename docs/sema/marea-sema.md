@@ -1429,9 +1429,11 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 - Two functions that call each other cannot be written, because a function must be declared before its use and the
   grammar has no forward declaration.
 - No check of the signature of `main` exists any more, and a driver-level replacement does not exist yet.
-- Only `marea.array`, `marea.vector`, `marea.tuple` and `c.memory` are shipped libraries. The types of `c.threads` are
-  registered by fixtures in the tests. A registered type that is no inline run is checked for too many type
+- Only `marea.array`, `marea.vector`, `marea.tuple`, `c.memory` and `marea.memory` are shipped libraries. The types of
+  `c.threads` are registered by fixtures in the tests. A registered type that is no inline run is checked for too many type
   arguments only, never too few.
+- No construction of a `marea.memory.Owned`, `Slice` or `Arena` exists. A local of one of these types takes any
+  initial value with no diagnostic, and a write of an element of a view is not refused.
 - The registry gives sema no signature of a function: a call of a function of `c.memory` has a type only when the
   caller of sema gives its signature through the import resolver.
 - An index through the alias of a `require ... as` (`memory.Pointer<sinteger32>`, `array.Array<sinteger32,2>`) gets no

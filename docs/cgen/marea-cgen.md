@@ -198,7 +198,7 @@ parameters is called with the same sample values, eight rows (one call when it t
 test compares the trap of each call, the value when there is no trap (two NaN values are equal) and
 the log of the host functions.
 
-Of 314 accept items, 241 have a function with a result: 100 run on both backends (396 calls) and 136
+Of 317 accept items, 241 have a function with a result: 100 run on both backends (396 calls) and 136
 are excluded, each with a reason in the table of the test. The test checks every line both ways, so a
 line that no longer holds fails. The 71 excluded items that cgen writes are still compiled. Five items
 whose functions take only composites are compiled and not run.
@@ -244,6 +244,8 @@ the backend computes the offsets.
   registered array, vector, tuple or raw pointer (and a raw pointer reaches a number or a `boolean` only), operators and methods of a library, `with`, user operators (the ir calls no
   function for them), `size_of`, `align_of`, macros other than `build_value!`, the handle of a spawn,
   the value of a partition part and a call into another module.
+- `marea.memory.Owned`, `Slice` and `Arena` are not written (`UNSUPPORTED_TYPE`). Their runtime is in
+  `marea/base/MAREAMemoryRuntime.h`; the generated code does not call it yet.
 - A `swap` or a `fill` of an array inside a packed structure writes through the place that cgen
   gives, with no test of its own. The Mach-O and COFF forms of an included file were not built.
 - Vector: `data` is not written, and neither is a copy of an enum that holds a vector or an element type that holds

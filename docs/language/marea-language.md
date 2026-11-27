@@ -82,6 +82,34 @@ These rules bind every item (user decision 2026-11-23).
 
 Where the compiler does not enforce a rule yet, the item is a `known_gap` with `-- rule:`.
 
+## Undefined behavior
+
+Safe code has no undefined behavior: each fault that the language sees is a defined trap, the same in both backends.
+Undefined behavior is possible only inside `unsafe`, and when a value crosses the C border and C breaks a promise that
+the type system cannot see. `c.memory` is that border: it trusts each address that it gets. These cases remain:
+
+- A zero-filled array or vector of `c.memory.Pointer`, an empty slot of a vector and a `resize` with a default hold
+  null pointers. The language has no `nil`: a zero pointer is the null address of C. A read or a write through it is
+  undefined.
+- A pointer to freed or foreign memory. A container stores the address only and never frees what it points to. A
+  read or a write through such a pointer, a second `free` of one block and a `free` of an address that `alloc` did
+  not give are undefined.
+- `copy` of a container of pointers, and a `fill` with a pointer, copy the addresses and not the pointed values. Two
+  owners of one block then risk a double free.
+- The address that `data()` of a container gives is not valid after a later resize, move or destroy of the container.
+  Neither backend lowers `data()` today.
+- A write of C past the size or the capacity of the storage that it was given.
+- Padding bytes read through a raw access have no specified value. Compare values element by element, never by their
+  bytes. A `boolean` read from a byte other than 0 or 1 is undefined.
+- A `marea.memory.Slice` over a C buffer trusts the length that it is given. When C gives a wrong length, an index
+  below that length can read past the buffer.
+- Two workers of a `fork_join` that use one C pointer can race: the ownership rules see Marea values only.
+- An unchecked conversion to a pointer does not check the alignment. An element access of both backends moves the
+  bytes at any alignment, but a C function that receives a misaligned address has undefined behavior.
+- A borrow of an opaque structure lives for one call. When C frees the object during the call, the borrow dangles.
+- A structure without `#[layout = c]` that reaches C: no rule refuses it yet, and C can then read other offsets (see
+  Gaps).
+
 ## Catalogue: accept
 
 | Id | Shows | Expected |
@@ -1584,6 +1612,12 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
   runner gives an item one file. The mutation of the accept items was run once, by a script that is not in the
   repository, so a new accept item gets no mutants until someone runs that sweep again. A copy of a structure with a
   `destroy` operator (the `copy` of L-MEMORY-012) is accepted; no rule says whether it must be refused, so it has no item.
+
+- The items of `marea.memory` (L-MEMORY-034 to 041) check the front end only. No syntax builds an
+  `marea.memory.Owned`, `Slice` or `Arena`: sema gives such a local no check of its initial value, and neither backend
+  holds one of these values.
+- Only a `layout = c` type with measured members should cross the C border. No rule checks this.
+- The `vm` has no debug build that traps on a null address or on a view out of range.
 
 ### Open decisions and holes of the catalogue
 
