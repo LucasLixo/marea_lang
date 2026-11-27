@@ -4,6 +4,8 @@
 #include "marea/internal/bytecode/MAREABytecodeGeneratorInternal.h"
 #include "marea/internal/bytecode/MAREABytecodeInternal.h"
 
+#include "marea/base/MAREAVectorRuntime.h"
+
 #include <string.h>
 
 static MAREA_Boolean MAREA_CALL MAREA_G_TextIs(const MAREA_IrNode *node, const MAREA_Character8 *expected)
@@ -68,9 +70,10 @@ static const MAREA_TypeDescriptor *MAREA_CALL MAREA_G_DescribeSpelling(const MAR
     return MAREA_NULLPTR;
 }
 
-// INFO: splits the resolved spelling of an inline run, head<element,count>, into its element and its literal count.
-// The shape is the one that sema measures: an index protocol, no role, a copy class and two type parameters.
-static MAREA_Boolean MAREA_CALL MAREA_G_SplitRun(const MAREA_BytecodeGenerator *generator, const MAREA_Character8 *text, MAREA_IntegerSize length, const MAREA_Character8 **outElement, MAREA_IntegerSize *outElementLength, MAREA_Uinteger64 *outCount)
+// INFO: splits the resolved spelling of a run into its element and, for an inline run, its literal count. The shapes
+// are the ones that sema reads: an index protocol and no role; an inline run, head<element,count>, has a copy class
+// and two type parameters; a growable run, head<element>, a move class and one.
+static MAREA_Boolean MAREA_CALL MAREA_G_SplitRun(const MAREA_BytecodeGenerator *generator, const MAREA_Character8 *text, MAREA_IntegerSize length, const MAREA_Character8 **outElement, MAREA_IntegerSize *outElementLength, MAREA_Uinteger64 *outCount, MAREA_Boolean *outIsVector)
 {
     if ((generator->context->registry == MAREA_NULLPTR) || (text == MAREA_NULLPTR) || (length == MAREA_INTEGER_SIZE(0)) || (text[(length - MAREA_INTEGER_SIZE(1))] != '>')) {
         return MAREA_BOOLEAN_FALSE;
@@ -88,7 +91,32 @@ static MAREA_Boolean MAREA_CALL MAREA_G_SplitRun(const MAREA_BytecodeGenerator *
         descriptor = MAREA_G_DescribeSpelling(generator, generator->root, text, HEAD);
     }
 
-    if ((descriptor == MAREA_NULLPTR) || (descriptor->hasIndexProtocol == MAREA_BOOLEAN_FALSE) || (descriptor->roles != MAREA_TYPE_ROLE_NONE) || (descriptor->ownershipClass != MAREA_TYPE_OWNERSHIP_CLASS_COPY) || (descriptor->typeParameterCount != MAREA_INTEGER_SIZE(2))) {
+    if ((descriptor == MAREA_NULLPTR) || (descriptor->hasIndexProtocol == MAREA_BOOLEAN_FALSE) || (descriptor->roles != MAREA_TYPE_ROLE_NONE)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    *outIsVector = ((descriptor->ownershipClass == MAREA_TYPE_OWNERSHIP_CLASS_MOVE) && (descriptor->typeParameterCount == MAREA_INTEGER_SIZE(1)));
+    *outCount = MAREA_UINTEGER_64(0);
+
+    if (*outIsVector) {
+        MAREA_IntegerSize from = (HEAD + MAREA_INTEGER_SIZE(1));
+        MAREA_IntegerSize to = (length - MAREA_INTEGER_SIZE(1));
+
+        while ((from < to) && (text[from] == ' ')) {
+            from += MAREA_INTEGER_SIZE(1);
+        }
+
+        while ((to > from) && (text[(to - MAREA_INTEGER_SIZE(1))] == ' ')) {
+            to -= MAREA_INTEGER_SIZE(1);
+        }
+
+        *outElement = (text + from);
+        *outElementLength = (to - from);
+
+        return (to > from);
+    }
+
+    if ((descriptor->ownershipClass != MAREA_TYPE_OWNERSHIP_CLASS_COPY) || (descriptor->typeParameterCount != MAREA_INTEGER_SIZE(2))) {
         return MAREA_BOOLEAN_FALSE;
     }
 
@@ -138,8 +166,9 @@ MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorRunKind(MAREA_BytecodeGen
     const MAREA_Character8 *element = MAREA_NULLPTR;
     MAREA_IntegerSize elementLength = MAREA_INTEGER_SIZE(0);
     MAREA_Uinteger64 count = MAREA_UINTEGER_64(0);
+    MAREA_Boolean isVector = MAREA_BOOLEAN_FALSE;
 
-    if (!MAREA_G_SplitRun(generator, text, length, &element, &elementLength, &count)) {
+    if (!MAREA_G_SplitRun(generator, text, length, &element, &elementLength, &count, &isVector)) {
         return MAREA_BYTECODE_EXCEPT_SUCCESS;
     }
 
@@ -155,7 +184,8 @@ MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorRunKind(MAREA_BytecodeGen
 
     made.name = text;
     made.nameLength = length;
-    made.isRun = MAREA_BOOLEAN_TRUE;
+    made.isRun = !isVector;
+    made.isVector = isVector;
     made.count = count;
     made.elementAggregate = MAREA_BYTECODE_NONE;
     made.elementKind = MAREA_BytecodeGeneratorKindFromText(element, elementLength);
@@ -183,8 +213,16 @@ MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorRunKind(MAREA_BytecodeGen
         made.alignment = elementInfo.alignment;
     }
 
+    made.elementAlignment = ((made.alignment == MAREA_UINTEGER_64(0)) ? MAREA_UINTEGER_64(1) : made.alignment);
+
     // INFO: a run that cannot fit the frame area is reported where a place of it is reserved.
     made.size = ((made.stride != MAREA_UINTEGER_64(0)) && (count > (MAREA_UINTEGER_64(0xFFFFFFFF) / made.stride))) ? MAREA_UINTEGER_64(0xFFFFFFFF) : (made.stride * count);
+
+    // INFO: a vector is the header of the runtime, whatever its element is.
+    if (isVector) {
+        made.size = sizeof(MAREA_VectorHeader);
+        made.alignment = MAREA_ALIGNOF(MAREA_VectorHeader);
+    }
 
     MAREA_Uinteger32 nameString = MAREA_UINTEGER_32(0);
 
@@ -197,7 +235,7 @@ MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorRunKind(MAREA_BytecodeGen
         .element = elementType,
         .alignment = (MAREA_Uinteger32)made.alignment,
         .memberCount = MAREA_UINTEGER_32(0),
-        .kind = MAREA_BYTECODE_TYPE_KIND_ARRAY,
+        .kind = (isVector ? MAREA_BYTECODE_TYPE_KIND_VECTOR : MAREA_BYTECODE_TYPE_KIND_ARRAY),
     };
 
     MAREA_BYTECODE_TRY(MAREA_BytecodeModuleAddType(generator->module, &INFO, &made.typeIndex));
@@ -280,8 +318,15 @@ MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorElementPlace(MAREA_Byteco
         return MAREA_BYTECODE_EXCEPT_SUCCESS;
     }
 
+    if (generator->aggregates[run].isVector) {
+        *outKind = generator->aggregates[run].elementKind;
+        *outAggregateIndex = generator->aggregates[run].elementAggregate;
+
+        return MAREA_BytecodeGeneratorVectorPlace(generator, node, run, base, outRegister);
+    }
+
     if (!generator->aggregates[run].isRun) {
-        return MAREA_BytecodeGeneratorFail(generator, node, MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_CONSTRUCT, "Only an array of a registered inline run is indexed.");
+        return MAREA_BytecodeGeneratorFail(generator, node, MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_CONSTRUCT, "Only an array or a vector is indexed.");
     }
 
     const MAREA_Uinteger64 COUNT = generator->aggregates[run].count;
@@ -475,6 +520,10 @@ MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorRunCall(MAREA_BytecodeGen
     }
 
     *outHandled = MAREA_BOOLEAN_TRUE;
+
+    if (generator->aggregates[run].isVector && !IS_STATIC) {
+        return MAREA_BytecodeGeneratorVectorCall(generator, node, run, destination, outKind);
+    }
     *outKind = MAREA_BYTECODE_GENERATOR_KIND_VOID;
 
     const MAREA_IntegerSize GIVEN = MAREA_IrNodeGetChildCount(arguments);
@@ -652,7 +701,7 @@ MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorLowerForEach(MAREA_Byteco
     MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorRunKind(generator, collection, MAREA_IrNodeGetResolvedType(collection), MAREA_IrNodeGetResolvedTypeLength(collection), &run));
 
     if (run == MAREA_BYTECODE_NONE) {
-        return MAREA_BytecodeGeneratorFail(generator, node, MAREA_BYTECODE_DIAGNOSTIC_CODE_UNWALKABLE_COLLECTION, "Only an array of a registered inline run is walked by a for each.");
+        return MAREA_BytecodeGeneratorFail(generator, node, MAREA_BYTECODE_DIAGNOSTIC_CODE_UNWALKABLE_COLLECTION, "Only an array or a vector is walked by a for each.");
     }
 
     const MAREA_Uinteger32 MARK = generator->nextRegister;
@@ -674,7 +723,13 @@ MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorLowerForEach(MAREA_Byteco
 
     MAREA_BYTECODE_TRY(MAREA_G_Constant(generator, node, MAREA_UINTEGER_64_MAXIMUM, &index));
     MAREA_BYTECODE_TRY(MAREA_G_Constant(generator, node, MAREA_UINTEGER_64(1), &one));
-    MAREA_BYTECODE_TRY(MAREA_G_Constant(generator, node, RUN.count, &limit));
+    // INFO: the count of a vector is read once, when the loop starts.
+    if (RUN.isVector) {
+        MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorLoadWord(generator, node, base, MAREA_UINTEGER_64(8), &limit));
+    } else {
+        MAREA_BYTECODE_TRY(MAREA_G_Constant(generator, node, RUN.count, &limit));
+    }
+
     MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorAllocate(generator, node, MAREA_UINTEGER_32(1), &test));
     MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorAllocate(generator, node, MAREA_UINTEGER_32(1), &key));
     MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorAllocate(generator, node, MAREA_UINTEGER_32(1), &element));
@@ -691,7 +746,14 @@ MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorLowerForEach(MAREA_Byteco
 
     const MAREA_Uinteger32 LOOP_MARK = generator->nextRegister;
 
-    MAREA_BYTECODE_TRY(MAREA_G_ElementAt(generator, node, base, index, RUN.stride, element));
+    if (RUN.isVector) {
+        MAREA_Uinteger32 data = MAREA_UINTEGER_32(0);
+
+        MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorLoadWord(generator, node, base, MAREA_UINTEGER_64(0), &data));
+        MAREA_BYTECODE_TRY(MAREA_G_ElementAt(generator, node, data, index, RUN.stride, element));
+    } else {
+        MAREA_BYTECODE_TRY(MAREA_G_ElementAt(generator, node, base, index, RUN.stride, element));
+    }
 
     generator->nextRegister = LOOP_MARK;
 

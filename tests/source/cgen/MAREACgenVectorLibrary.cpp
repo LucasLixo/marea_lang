@@ -315,3 +315,50 @@ TEST(MAREACgenVectorLibrary, AVectorHoldsStructuresVectorsAndElementsOfNoSize)
 
     EXPECT_EQ(MAREA_parityValue(RESULT.MAREA_outcome("z()")), 2) << "The size counts elements of no size.";
 }
+
+TEST(MAREACgenVectorLibrary, TemporariesLoopsJumpsAndContainersGiveEveryBlockBack)
+{
+    GTEST_COUT << "Validating no block is lost or freed twice for temporaries, jumps out of loops, replaced values and vectors held in other values." << std::endl;
+
+    MAREA_ParityHost host{ MAREA_parityHost() };
+
+    host.vmAllocate = &marea_parity_allocate;
+    host.vmRelease = &marea_parity_release;
+    host.cAllocate = "marea_parity_allocate";
+    host.cRelease = "marea_parity_release";
+
+    const std::string BAG{ "structure Bag items: " + MAREA_V + "; extra: sinteger32; end " };
+
+    const std::string MAKE{ "function make(): " + MAREA_V + " " + MAREA_THREE + "return v; end function first(#[semantics = reference_read_only] v: " + MAREA_V + "): sinteger32 return v[0]; end " };
+
+    const std::vector<MAREA_ParityCall> CALLS{ MAREA_parityCall("borrowed", "sinteger32"), MAREA_parityCall("discarded", "sinteger32"), MAREA_parityCall("loops", "sinteger32"), MAREA_parityCall("replaced", "sinteger32"), MAREA_parityCall("bag", "sinteger32"), MAREA_parityCall("row", "sinteger32"), MAREA_parityCall("nested", "sinteger32"), MAREA_parityCall("walked", "sinteger32"), MAREA_parityCall("early", "sinteger32") };
+
+    const std::string BODY{ "function borrowed(): sinteger32 local total: sinteger32 = 0; local i: sinteger32 = 0; while i < 3 do total += first(make()); i += 1; end return total; end "
+                            "function discarded(): sinteger32 make(); make(); return 1; end "
+                            "function loops(): sinteger32 local total: sinteger32 = 0; for i in 1 .. 5 do " +
+                            MAREA_THREE + "if i == 2 then continue; end if i == 4 then break; end total += v[0]; end return total; end "
+                                          "function replaced(): sinteger32 " +
+                            MAREA_THREE + "v = make(); v = " + MAREA_V + "{ 8 }; v = move v; return v[0]; end "
+                                                                         "function bag(): sinteger32 local b: Bag = Bag{ items = make(), extra = 1 }; local c: Bag = copy b; c.items[0] = 7; c.items = make(); b.items.append(4); return (b.items[3] * 10) + c.items[0]; end "
+                                                                         "function row(): sinteger32 local r: marea.array.Array<" +
+                            MAREA_V + ", 2> = marea.array.Array<" + MAREA_V + ", 2>{ make(), make() }; r[1].append(4); return r[1][3]; end "
+                                                                              "function nested(): sinteger32 local outer: marea.vector.Vector<" +
+                            MAREA_V + "> = marea.vector.Vector<" + MAREA_V + ">{ make(), make() }; local other: marea.vector.Vector<" + MAREA_V + "> = marea.vector.Vector<" + MAREA_V + ">{}; other.append(outer.pop()); outer.append(make()); outer.erase(0); outer.insert(0, make()); outer.clear(); outer.append(make()); return other[0][2] + outer[0][1]; end "
+                                                                                                                                                                                         "function walked(): sinteger32 local total: sinteger32 = 0; for value in 1 .. 2 do for each item in make() do total += item; end end return total; end "
+                                                                                                                                                                                         "function early(): sinteger32 " +
+                            MAREA_THREE + "while true do local w: " + MAREA_V + " = make(); return w[2] + v[0]; end return 0; end" };
+
+    const MAREA_ParityResult RESULT{ MAREA_parityCheck("namespace main; require marea.vector; require marea.array; " + BAG + MAKE + BODY, CALLS, &host) };
+
+    ASSERT_TRUE(RESULT.failures.empty()) << RESULT.MAREA_failures();
+
+    EXPECT_EQ(MAREA_values(RESULT), (std::vector<std::int64_t>{ 3, 1, 2, 8, 41, 4, 5, 12, 4 })) << "The values of the calls.";
+
+    for (std::size_t index{ 0 }; index < CALLS.size(); ++index) {
+        const std::vector<std::int64_t> &log{ RESULT.generated[index].log };
+
+        const auto BLOCKS{ std::count_if(log.begin(), log.end(), [](std::int64_t entry) { return (entry >= 1000) && (entry < 2000); }) };
+
+        EXPECT_EQ(std::count(log.begin(), log.end(), 2000), BLOCKS) << MAREA_parityDescribe(CALLS[index]);
+    }
+}

@@ -105,8 +105,11 @@ MAREA_BEGIN_EXTERN_C
         MAREA_Uinteger64 count;
         MAREA_Uinteger64 stride;
         MAREA_Uinteger32 elementAggregate;
+        MAREA_Uinteger64 elementAlignment;
         MAREA_Uinteger8 elementKind;
         MAREA_Boolean isRun;
+        // INFO: a growable run: its bytes are the header of the runtime, and its elements are in storage of the allocator.
+        MAREA_Boolean isVector;
     } MAREA_BytecodeGeneratorAggregate;
 
     /**
@@ -122,6 +125,9 @@ MAREA_BEGIN_EXTERN_C
         MAREA_Uinteger32 *parameterAggregates;
         MAREA_IntegerSize nameLength;
         MAREA_Uinteger32 parameterCount;
+        // INFO: the aggregate of the result when it is one: the caller gives the address of its bytes before the
+        // arguments, and the call gives that address back.
+        MAREA_Uinteger32 resultAggregate;
         MAREA_Uinteger8 resultKind;
         MAREA_Uinteger8 padding[3];
     } MAREA_BytecodeGeneratorFunction;
@@ -134,7 +140,28 @@ MAREA_BEGIN_EXTERN_C
         MAREA_IntegerSize patchMark;
         MAREA_Uinteger32 start;
         MAREA_Uinteger8 padding[4];
+        // INFO: the count of the owned values when the body of the loop starts, which a jump out of it destroys down to.
+        MAREA_IntegerSize ownedMark;
     } MAREA_BytecodeGeneratorLoop;
+
+    /**
+     * @brief One value of the frame that is destroyed when its block ends: where its bytes are and what they are.
+     */
+    typedef struct MAREA_BytecodeGeneratorOwned
+    {
+        MAREA_Uinteger32 offset;
+        MAREA_Uinteger32 aggregate;
+    } MAREA_BytecodeGeneratorOwned;
+
+    /**
+     * @brief The registers and the jump of an open loop that counts from a first value up to a limit.
+     */
+    typedef struct MAREA_BytecodeGeneratorCount
+    {
+        MAREA_Uinteger32 index;
+        MAREA_Uinteger32 start;
+        MAREA_Uinteger32 exit;
+    } MAREA_BytecodeGeneratorCount;
 
     /**
      * @brief One import: a call of a registered C function, known by its full name and its shape. parameters holds
@@ -173,6 +200,11 @@ MAREA_BEGIN_EXTERN_C
         MAREA_Uinteger32 *patches;
         MAREA_Uinteger32 *endPatches;
         MAREA_BytecodeGeneratorAggregate *aggregates;
+        MAREA_BytecodeGeneratorOwned *owned;
+        MAREA_IntegerSize ownedCount;
+        MAREA_IntegerSize ownedCapacity;
+        // INFO: the register of the address of the result, for a function that gives an aggregate.
+        MAREA_Uinteger32 resultRegister;
         MAREA_BytecodeGeneratorImport *imports;
         const MAREA_BytecodeGeneratorFunction *current;
         MAREA_IntegerSize namespaceLength;
@@ -561,6 +593,88 @@ MAREA_BEGIN_EXTERN_C
      * @brief Builds the array of an INCLUDED_BYTES node at a given address.
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorConstructIncluded(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node, MAREA_Uinteger32 destinationAddress, MAREA_Uinteger32 aggregateIndex);
+
+    /**
+     * @brief Finds the import of a shape, or adds it, and gives its function index.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorImportIndex(MAREA_BytecodeGenerator * generator, const MAREA_BytecodeGeneratorImport *import, MAREA_Uinteger32 *outIndex);
+
+    /**
+     * @brief Tells whether a value of an aggregate holds storage of the allocator: a vector, or a value that holds one.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorNeedsDrop(MAREA_BytecodeGenerator * generator, MAREA_Uinteger32 aggregateIndex, MAREA_Boolean * outNeeds);
+
+    /**
+     * @brief Emits the destroy of the value at an address. With isElement a destroy operator of the type is a
+     * construct that this stage does not lower. A destroy of a value that was taken does nothing.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorDrop(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node, MAREA_Uinteger32 address, MAREA_Uinteger32 aggregateIndex, MAREA_Boolean isElement);
+
+    /**
+     * @brief Emits a deep copy of a value into bytes that hold none yet.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorDeepCopy(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node, MAREA_Uinteger32 destination, MAREA_Uinteger32 source, MAREA_Uinteger32 aggregateIndex);
+
+    /**
+     * @brief Puts a value of the frame among those that are destroyed when the current block ends. A value with no
+     * storage of the allocator is not put there.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorPushOwned(MAREA_BytecodeGenerator * generator, MAREA_Uinteger32 offset, MAREA_Uinteger32 aggregateIndex);
+
+    /**
+     * @brief Emits the destroys of the owned values from a mark up, the last one first. They stay in the list.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorDrops(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node, MAREA_IntegerSize mark);
+
+    /**
+     * @brief Emits the address base + offset into a new register.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorAt(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node, MAREA_Uinteger32 base, MAREA_Uinteger64 offset, MAREA_Uinteger32 *outRegister);
+
+    /**
+     * @brief Emits the read of the 64-bit word at base + offset into a new register.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorLoadWord(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node, MAREA_Uinteger32 base, MAREA_Uinteger64 offset, MAREA_Uinteger32 *outRegister);
+
+    /**
+     * @brief Emits the write of a register to the 64-bit word at base + offset.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorStoreWord(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node, MAREA_Uinteger32 base, MAREA_Uinteger64 offset, MAREA_Uinteger32 value);
+
+    /**
+     * @brief Emits the address base + index * stride into a new register.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorStride(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node, MAREA_Uinteger32 base, MAREA_Uinteger32 index, MAREA_Uinteger64 stride, MAREA_Uinteger32 *outRegister);
+
+    /**
+     * @brief Opens a loop whose index goes from the value of first up to, not including, the value of limit.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorLoopOpen(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node, MAREA_BytecodeGeneratorCount *outLoop, MAREA_Uinteger32 first, MAREA_Uinteger32 limit);
+
+    /**
+     * @brief Closes the loop that MAREA_BytecodeGeneratorLoopOpen opened.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorLoopClose(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node, const MAREA_BytecodeGeneratorCount *loop);
+
+    /**
+     * @brief Emits a call of a runtime function of a vector: the header and count unsigned 64-bit values.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorRuntimeCall(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node, const MAREA_Character8 *name, MAREA_Uinteger32 vector, MAREA_Uinteger32 header, const MAREA_Uinteger32 *values, MAREA_Uinteger32 count);
+
+    /**
+     * @brief Lowers the checked place of an element of a vector, for an INDEX_ACCESS whose base is at header.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorVectorPlace(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node, MAREA_Uinteger32 vector, MAREA_Uinteger32 header, MAREA_Uinteger32 *outRegister);
+
+    /**
+     * @brief Lowers a CALL_EXPRESSION of a member of a vector.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorVectorCall(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node, MAREA_Uinteger32 vector, MAREA_Uinteger32 destination, MAREA_Uinteger8 *outKind);
+
+    /**
+     * @brief Builds a vector from a LITERAL_VALUE at a given address.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorConstructVector(MAREA_BytecodeGenerator * generator, const MAREA_IrNode *node, MAREA_Uinteger32 destination, MAREA_Uinteger32 vector);
 
 MAREA_END_EXTERN_C
 

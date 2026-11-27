@@ -20,7 +20,9 @@ static MAREA_BytecodeExcept MAREA_CALL MAREA_G_LowerAggregateLocal(MAREA_Bytecod
 
     MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorEmit(generator, MAREA_BYTECODE_OPCODE_ADDRESS_OF, registerIndex, offset, MAREA_UINTEGER_32(0), MAREA_NULLPTR));
 
+    // INFO: a loop builds the local again at the same bytes, whose old value its block already destroyed.
     MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorConstructAggregate(generator, value, registerIndex, aggregateIndex));
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorPushOwned(generator, offset, aggregateIndex));
 
     // INFO: the name is bound after its value, so the value cannot read the local that it makes.
     MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorPushSymbol(generator, MAREA_IrNodeGetText(node), MAREA_IrNodeGetTextLength(node), registerIndex, MAREA_BYTECODE_GENERATOR_KIND_AGGREGATE, aggregateIndex));
@@ -84,6 +86,9 @@ static MAREA_BytecodeExcept MAREA_CALL MAREA_G_LowerAggregateAssignment(MAREA_By
     MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorEmit(generator, MAREA_BYTECODE_OPCODE_ADDRESS_OF, temporary, offset, MAREA_UINTEGER_32(0), MAREA_NULLPTR));
 
     MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorConstructAggregate(generator, value, temporary, aggregateIndex));
+
+    // INFO: the new value is built before the old one is destroyed, since it may read the target.
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorDrop(generator, node, target, aggregateIndex, MAREA_BOOLEAN_FALSE));
 
     return MAREA_BytecodeGeneratorEmit(generator, MAREA_BYTECODE_OPCODE_COPY_BYTES, target, temporary, (MAREA_Uinteger32)SIZE, MAREA_NULLPTR);
 }
@@ -225,13 +230,26 @@ static MAREA_BytecodeExcept MAREA_CALL MAREA_G_LowerAssignment(MAREA_BytecodeGen
 static MAREA_BytecodeExcept MAREA_CALL MAREA_G_LowerReturn(MAREA_BytecodeGenerator *generator, const MAREA_IrNode *node)
 {
     if (MAREA_IrNodeGetChildCount(node) == MAREA_INTEGER_SIZE(0)) {
+        MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorDrops(generator, node, MAREA_INTEGER_SIZE(0)));
+
         return MAREA_BytecodeGeneratorEmit(generator, MAREA_BYTECODE_OPCODE_RETURN_VOID, MAREA_UINTEGER_32(0), MAREA_UINTEGER_32(0), MAREA_UINTEGER_32(0), MAREA_NULLPTR);
     }
+
+    const MAREA_IrNode *value = MAREA_BytecodeGeneratorChildAt(node, MAREA_INTEGER_SIZE(0));
 
     MAREA_Uinteger32 registerIndex = MAREA_UINTEGER_32(0);
     MAREA_Uinteger8 kind = MAREA_BYTECODE_GENERATOR_KIND_NONE;
 
-    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorLowerOperand(generator, MAREA_BytecodeGeneratorChildAt(node, MAREA_INTEGER_SIZE(0)), generator->current->resultKind, &registerIndex, &kind));
+    // INFO: the result is built before the values of the function are destroyed, since it may read them.
+    if (generator->current->resultKind == MAREA_BYTECODE_GENERATOR_KIND_AGGREGATE) {
+        registerIndex = generator->resultRegister;
+
+        MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorConstructAggregate(generator, value, registerIndex, generator->current->resultAggregate));
+    } else {
+        MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorLowerOperand(generator, value, generator->current->resultKind, &registerIndex, &kind));
+    }
+
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorDrops(generator, node, MAREA_INTEGER_SIZE(0)));
 
     return MAREA_BytecodeGeneratorEmit(generator, MAREA_BYTECODE_OPCODE_RETURN, registerIndex, MAREA_UINTEGER_32(0), MAREA_UINTEGER_32(0), MAREA_NULLPTR);
 }
@@ -251,7 +269,22 @@ static MAREA_BytecodeExcept MAREA_CALL MAREA_G_LowerExpressionStatement(MAREA_By
     }
 
     if (MAREA_IrNodeGetKind(expression) == MAREA_IR_KIND_CALL_EXPRESSION) {
-        return MAREA_BytecodeGeneratorLowerCall(generator, expression, temporary, MAREA_BOOLEAN_FALSE, &kind);
+        MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorLowerCall(generator, expression, temporary, MAREA_BOOLEAN_FALSE, &kind));
+
+        if ((kind != MAREA_BYTECODE_GENERATOR_KIND_AGGREGATE) || generator->functionFailed) {
+            return MAREA_BYTECODE_EXCEPT_SUCCESS;
+        }
+
+        MAREA_Uinteger32 aggregate = MAREA_BYTECODE_NONE;
+
+        // INFO: a result that nothing takes over is destroyed at once.
+        MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorAggregateKind(generator, expression, &kind, &aggregate));
+
+        if (aggregate == MAREA_BYTECODE_NONE) {
+            return MAREA_BYTECODE_EXCEPT_SUCCESS;
+        }
+
+        return MAREA_BytecodeGeneratorDrop(generator, expression, temporary, aggregate, MAREA_BOOLEAN_TRUE);
     }
 
     return MAREA_BytecodeGeneratorLowerInto(generator, expression, temporary, MAREA_BYTECODE_GENERATOR_KIND_NONE, &kind);
@@ -380,6 +413,7 @@ MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorLowerLoopBody(MAREA_Bytec
     generator->loops = items;
     generator->loops[generator->loopCount].start = start;
     generator->loops[generator->loopCount].patchMark = BREAK_MARK;
+    generator->loops[generator->loopCount].ownedMark = generator->ownedCount;
     generator->loopCount += MAREA_INTEGER_SIZE(1);
 
     MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorLowerBlock(generator, body));
@@ -483,6 +517,8 @@ static MAREA_BytecodeExcept MAREA_CALL MAREA_G_LowerJumpOut(MAREA_BytecodeGenera
         return MAREA_BytecodeGeneratorFail(generator, node, MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_CONSTRUCT, "A break or a continue is outside a loop.");
     }
 
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorDrops(generator, node, generator->loops[(generator->loopCount - MAREA_INTEGER_SIZE(1))].ownedMark));
+
     MAREA_Uinteger32 jump = MAREA_UINTEGER_32(0);
 
     MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorEmit(generator, MAREA_BYTECODE_OPCODE_JUMP, MAREA_UINTEGER_32(0), MAREA_UINTEGER_32(0), MAREA_UINTEGER_32(0), &jump));
@@ -498,12 +534,16 @@ MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorLowerBlock(MAREA_Bytecode
 {
     const MAREA_IntegerSize SYMBOL_MARK = generator->symbolCount;
     const MAREA_Uinteger32 REGISTER_MARK = generator->nextRegister;
+    const MAREA_IntegerSize OWNED_MARK = generator->ownedCount;
     const MAREA_IntegerSize COUNT = MAREA_IrNodeGetChildCount(node);
 
     for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < COUNT; index += MAREA_INTEGER_SIZE(1)) {
         MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorLowerStatement(generator, MAREA_BytecodeGeneratorChildAt(node, index)));
     }
 
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorDrops(generator, node, OWNED_MARK));
+
+    generator->ownedCount = OWNED_MARK;
     generator->symbolCount = SYMBOL_MARK;
     generator->nextRegister = REGISTER_MARK;
 

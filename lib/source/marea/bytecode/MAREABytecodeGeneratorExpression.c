@@ -468,6 +468,9 @@ static MAREA_BytecodeExcept MAREA_CALL MAREA_G_LowerPlainCall(MAREA_BytecodeGene
     const MAREA_IrNode *arguments = MAREA_BytecodeGeneratorChildAt(node, MAREA_INTEGER_SIZE(1));
     const MAREA_IntegerSize COUNT = MAREA_IrNodeGetChildCount(arguments);
 
+    const MAREA_Boolean AGGREGATE_RESULT = (callee->resultKind == MAREA_BYTECODE_GENERATOR_KIND_AGGREGATE);
+    const MAREA_Uinteger32 HIDDEN = (AGGREGATE_RESULT ? MAREA_UINTEGER_32(1) : MAREA_UINTEGER_32(0));
+
     if ((MAREA_Uinteger32)COUNT != callee->parameterCount) {
         return MAREA_BytecodeGeneratorFail(generator, node, MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_CONSTRUCT, "A call does not give one argument for every parameter.");
     }
@@ -475,7 +478,16 @@ static MAREA_BytecodeExcept MAREA_CALL MAREA_G_LowerPlainCall(MAREA_BytecodeGene
     const MAREA_Uinteger32 MARK = generator->nextRegister;
     MAREA_Uinteger32 window = MAREA_UINTEGER_32(0);
 
-    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorAllocate(generator, node, (callee->parameterCount + MAREA_UINTEGER_32(1)), &window));
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorAllocate(generator, node, (callee->parameterCount + HIDDEN + MAREA_UINTEGER_32(1)), &window));
+
+    if (AGGREGATE_RESULT) {
+        const MAREA_BytecodeGeneratorAggregate *result = &generator->aggregates[callee->resultAggregate];
+
+        MAREA_Uinteger32 offset = MAREA_UINTEGER_32(0);
+
+        MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorAllocateFrame(generator, node, result->size, result->alignment, &offset));
+        MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorEmit(generator, MAREA_BYTECODE_OPCODE_ADDRESS_OF, (window + MAREA_UINTEGER_32(1)), offset, MAREA_UINTEGER_32(0), MAREA_NULLPTR));
+    }
 
     for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < COUNT; index += MAREA_INTEGER_SIZE(1)) {
         const MAREA_Uinteger8 PARAMETER_KIND = callee->parameterKinds[index];
@@ -486,10 +498,10 @@ static MAREA_BytecodeExcept MAREA_CALL MAREA_G_LowerPlainCall(MAREA_BytecodeGene
 
         MAREA_Uinteger8 kind = MAREA_BYTECODE_GENERATOR_KIND_NONE;
 
-        const MAREA_Uinteger32 SLOT = (window + MAREA_UINTEGER_32(1) + (MAREA_Uinteger32)index);
+        const MAREA_Uinteger32 SLOT = (window + MAREA_UINTEGER_32(1) + HIDDEN + (MAREA_Uinteger32)index);
 
         if (PARAMETER_KIND == MAREA_BYTECODE_GENERATOR_KIND_AGGREGATE) {
-            // INFO: an array is passed by its address, so a write borrow reaches the value of the caller.
+            // INFO: an array or a vector is passed by its address, so a write borrow reaches the value of the caller.
             MAREA_Uinteger32 address = MAREA_UINTEGER_32(0);
             MAREA_Uinteger32 aggregate = MAREA_BYTECODE_NONE;
 
@@ -503,7 +515,7 @@ static MAREA_BytecodeExcept MAREA_CALL MAREA_G_LowerPlainCall(MAREA_BytecodeGene
         MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorLowerInto(generator, MAREA_BytecodeGeneratorChildAt(arguments, index), SLOT, PARAMETER_KIND, &kind));
     }
 
-    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorEmit(generator, MAREA_BYTECODE_OPCODE_CALL, window, functionIndex, callee->parameterCount, MAREA_NULLPTR));
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorEmit(generator, MAREA_BYTECODE_OPCODE_CALL, window, functionIndex, (callee->parameterCount + HIDDEN), MAREA_NULLPTR));
 
     if ((callee->resultKind != MAREA_BYTECODE_GENERATOR_KIND_VOID) && (window != destination)) {
         MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorEmit(generator, MAREA_BYTECODE_OPCODE_MOVE, destination, window, MAREA_UINTEGER_32(0), MAREA_NULLPTR));
@@ -598,7 +610,11 @@ MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorMaterialize(MAREA_Bytecod
 
     MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorEmit(generator, MAREA_BYTECODE_OPCODE_ADDRESS_OF, *outRegister, offset, MAREA_UINTEGER_32(0), MAREA_NULLPTR));
 
-    return MAREA_BytecodeGeneratorConstructAggregate(generator, node, *outRegister, aggregateIndex);
+    // INFO: a value that is only borrowed has no owner yet, so the block destroys it. A loop builds it again, so the old value goes first.
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorDrop(generator, node, *outRegister, aggregateIndex, MAREA_BOOLEAN_FALSE));
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorConstructAggregate(generator, node, *outRegister, aggregateIndex));
+
+    return MAREA_BytecodeGeneratorPushOwned(generator, offset, aggregateIndex);
 }
 
 MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorPlace(MAREA_BytecodeGenerator *generator, const MAREA_IrNode *node, MAREA_Uinteger32 *outRegister, MAREA_Uinteger8 *outKind, MAREA_Uinteger32 *outAggregateIndex)
@@ -716,12 +732,19 @@ MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorConstructAggregate(MAREA_
         return MAREA_BytecodeGeneratorConstructIncluded(generator, node, destinationAddress, aggregateIndex);
     }
 
+    if ((MAREA_IrNodeGetKind(node) == MAREA_IR_KIND_LITERAL_VALUE) && AGGREGATE.isVector) {
+        return MAREA_BytecodeGeneratorConstructVector(generator, node, destinationAddress, aggregateIndex);
+    }
+
     if ((MAREA_IrNodeGetKind(node) == MAREA_IR_KIND_LITERAL_VALUE) && AGGREGATE.isRun) {
         return MAREA_BytecodeGeneratorConstructRun(generator, node, destinationAddress, aggregateIndex);
     }
 
     if (MAREA_IrNodeGetKind(node) == MAREA_IR_KIND_LITERAL_VALUE) {
-        MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorEmit(generator, MAREA_BYTECODE_OPCODE_ZERO, destinationAddress, (MAREA_Uinteger32)AGGREGATE.size, MAREA_UINTEGER_32(0), MAREA_NULLPTR));
+        // INFO: zero of b clears the register itself, so a structure of no byte is not cleared.
+        if (AGGREGATE.size > MAREA_UINTEGER_64(0)) {
+            MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorEmit(generator, MAREA_BYTECODE_OPCODE_ZERO, destinationAddress, (MAREA_Uinteger32)AGGREGATE.size, MAREA_UINTEGER_32(0), MAREA_NULLPTR));
+        }
 
         const MAREA_IntegerSize COUNT = MAREA_IrNodeGetChildCount(node);
         const MAREA_Uinteger32 MARK = generator->nextRegister;
@@ -791,6 +814,10 @@ MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorConstructAggregate(MAREA_
 
             MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorAggregateAddress(generator, operand, &sourceRegister, &sourceAggregate));
 
+            if (OPERATOR == MAREA_TOKEN_KIND_KEYWORD_COPY) {
+                return MAREA_BytecodeGeneratorDeepCopy(generator, node, destinationAddress, sourceRegister, aggregateIndex);
+            }
+
             MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorEmit(generator, MAREA_BYTECODE_OPCODE_COPY_BYTES, destinationAddress, sourceRegister, (MAREA_Uinteger32)AGGREGATE.size, MAREA_NULLPTR));
 
             if ((OPERATOR == MAREA_TOKEN_KIND_KEYWORD_MOVE) && (AGGREGATE.size > MAREA_UINTEGER_64(0))) {
@@ -807,7 +834,17 @@ MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorConstructAggregate(MAREA_
 
         MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorAggregateAddress(generator, node, &sourceRegister, &sourceAggregate));
 
-        return MAREA_BytecodeGeneratorEmit(generator, MAREA_BYTECODE_OPCODE_COPY_BYTES, destinationAddress, sourceRegister, (MAREA_Uinteger32)AGGREGATE.size, MAREA_NULLPTR);
+        MAREA_Boolean needs = MAREA_BOOLEAN_FALSE;
+
+        MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorNeedsDrop(generator, aggregateIndex, &needs));
+        MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorEmit(generator, MAREA_BYTECODE_OPCODE_COPY_BYTES, destinationAddress, sourceRegister, (MAREA_Uinteger32)AGGREGATE.size, MAREA_NULLPTR));
+
+        // INFO: a value that holds storage is taken over, so the source is left with none.
+        if (needs) {
+            return MAREA_BytecodeGeneratorEmit(generator, MAREA_BYTECODE_OPCODE_ZERO, sourceRegister, (MAREA_Uinteger32)AGGREGATE.size, MAREA_UINTEGER_32(0), MAREA_NULLPTR);
+        }
+
+        return MAREA_BYTECODE_EXCEPT_SUCCESS;
     }
 
     if (MAREA_IrNodeGetKind(node) == MAREA_IR_KIND_CALL_EXPRESSION) {
