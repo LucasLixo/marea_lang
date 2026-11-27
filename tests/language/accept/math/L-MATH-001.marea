@@ -1,0 +1,99 @@
+-- expect: ok
+-- shipped: marea/math.marea
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A shipped file of marea.math declares the nine vector types with the layout of C, and sema measures each one.
+
+namespace marea.math;
+
+#[visibility = public, layout = c, align = 16]
+structure Vector2Float32
+    x: float32;
+    y: float32;
+    padding0: float32;
+    padding1: float32;
+end
+
+#[visibility = public, layout = c, align = 16]
+structure Vector3Float32
+    x: float32;
+    y: float32;
+    z: float32;
+    padding: float32;
+end
+
+#[visibility = public, layout = c, align = 16]
+structure Vector4Float32
+    x: float32;
+    y: float32;
+    z: float32;
+    w: float32;
+end
+
+#[visibility = public, layout = c, align = 16]
+structure Vector2Sinteger32
+    x: sinteger32;
+    y: sinteger32;
+    padding0: sinteger32;
+    padding1: sinteger32;
+end
+
+#[visibility = public, layout = c, align = 16]
+structure Vector3Sinteger32
+    x: sinteger32;
+    y: sinteger32;
+    z: sinteger32;
+    padding: sinteger32;
+end
+
+#[visibility = public, layout = c, align = 16]
+structure Vector4Sinteger32
+    x: sinteger32;
+    y: sinteger32;
+    z: sinteger32;
+    w: sinteger32;
+end
+
+#[visibility = public, layout = c, align = 4]
+structure Vector2Boolean
+    x: boolean;
+    y: boolean;
+    padding0: boolean;
+    padding1: boolean;
+end
+
+#[visibility = public, layout = c, align = 4]
+structure Vector3Boolean
+    x: boolean;
+    y: boolean;
+    z: boolean;
+    padding: boolean;
+end
+
+#[visibility = public, layout = c, align = 4]
+structure Vector4Boolean
+    x: boolean;
+    y: boolean;
+    z: boolean;
+    w: boolean;
+end
+
+static_assert!(size_of<Vector2Float32>() == 16, "the size of Vector2Float32");
+static_assert!(align_of<Vector2Float32>() == 16, "the alignment of Vector2Float32");
+static_assert!(size_of<Vector3Float32>() == 16, "the size of Vector3Float32");
+static_assert!(align_of<Vector3Float32>() == 16, "the alignment of Vector3Float32");
+static_assert!(size_of<Vector4Float32>() == 16, "the size of Vector4Float32");
+static_assert!(align_of<Vector4Float32>() == 16, "the alignment of Vector4Float32");
+static_assert!(size_of<Vector2Sinteger32>() == 16, "the size of Vector2Sinteger32");
+static_assert!(align_of<Vector2Sinteger32>() == 16, "the alignment of Vector2Sinteger32");
+static_assert!(size_of<Vector3Sinteger32>() == 16, "the size of Vector3Sinteger32");
+static_assert!(align_of<Vector3Sinteger32>() == 16, "the alignment of Vector3Sinteger32");
+static_assert!(size_of<Vector4Sinteger32>() == 16, "the size of Vector4Sinteger32");
+static_assert!(align_of<Vector4Sinteger32>() == 16, "the alignment of Vector4Sinteger32");
+static_assert!(size_of<Vector2Boolean>() == 4, "the size of Vector2Boolean");
+static_assert!(align_of<Vector2Boolean>() == 4, "the alignment of Vector2Boolean");
+static_assert!(size_of<Vector3Boolean>() == 4, "the size of Vector3Boolean");
+static_assert!(align_of<Vector3Boolean>() == 4, "the alignment of Vector3Boolean");
+static_assert!(size_of<Vector4Boolean>() == 4, "the size of Vector4Boolean");
+static_assert!(align_of<Vector4Boolean>() == 4, "the alignment of Vector4Boolean");

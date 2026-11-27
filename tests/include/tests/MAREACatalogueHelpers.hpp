@@ -58,8 +58,54 @@ inline const MAREA_AstNode *MAREA_fixtureShapes()
     return (PARSED == MAREA_PARSE_EXCEPT_SUCCESS) ? parser.root : nullptr;
 }
 
+inline std::string MAREA_readFile(const std::filesystem::path &path)
+{
+    std::ifstream stream(path, std::ios::binary);
+
+    std::ostringstream buffer;
+
+    buffer << stream.rdbuf();
+
+    return buffer.str();
+}
+
+// INFO: the shipped source of marea.math, so an item uses the types that the language ships. It is parsed once.
+inline const MAREA_AstNode *MAREA_shippedMath()
+{
+    static MAREA_ParseFixture parser;
+
+    static const std::string SOURCE{ MAREA_readFile(MAREA_mathSourcePath()) };
+
+    static const bool PARSED{ !SOURCE.empty() && (parser.MAREA_parse(SOURCE) == MAREA_PARSE_EXCEPT_SUCCESS) };
+
+    return PARSED ? parser.root : nullptr;
+}
+
+// INFO: an item whose second line is '-- shipped: <path>' is a source file that the language ships: it is checked with
+// that path and with the shipped library source input of sema. Any other item gives an empty path.
+inline std::string MAREA_shippedPathOf(const std::string &source)
+{
+    const std::string MARK{ "-- shipped: " };
+
+    const std::size_t SECOND{ source.find('\n') };
+
+    if ((SECOND == std::string::npos) || (source.compare(SECOND + 1, MARK.size(), MARK) != 0)) {
+        return "";
+    }
+
+    const std::size_t BEGIN{ SECOND + 1 + MARK.size() };
+
+    return source.substr(BEGIN, source.find('\n', BEGIN) - BEGIN);
+}
+
 inline MAREA_SemaImportResult MAREA_resolveLibrary(const std::string &text, const MAREA_AstNode **outRoot)
 {
+    if ((text == "marea.math") && (MAREA_shippedMath() != nullptr)) {
+        *outRoot = MAREA_shippedMath();
+
+        return MAREA_SEMA_IMPORT_RESULT_FOUND;
+    }
+
     if (text == "fixture.shapes") {
         *outRoot = MAREA_fixtureShapes();
 
@@ -71,17 +117,6 @@ inline MAREA_SemaImportResult MAREA_resolveLibrary(const std::string &text, cons
     const bool EXTERNAL{ STARTS("collections.") || STARTS("concurrency.") || STARTS("arenas.") || (text == "text") || STARTS("c.") || (text == "demo") || (text == "marea.array") || (text == "marea.vector") || (text == "marea.tuple") || (text == "marea.memory") || (text == "marea.tasks") || STARTS("demo.") };
 
     return EXTERNAL ? MAREA_SEMA_IMPORT_RESULT_EXTERNAL : MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
-}
-
-inline std::string MAREA_readFile(const std::filesystem::path &path)
-{
-    std::ifstream stream(path, std::ios::binary);
-
-    std::ostringstream buffer;
-
-    buffer << stream.rdbuf();
-
-    return buffer.str();
 }
 
 inline std::vector<MAREA_ItemFile> MAREA_collectItems()

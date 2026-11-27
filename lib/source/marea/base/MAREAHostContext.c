@@ -137,7 +137,7 @@ void MAREA_CALL MAREA_HostContextRaiseTrap(MAREA_HostContext *context, MAREA_Hos
         return;
     }
 
-    if ((trap == MAREA_HOST_TRAP_OUT_OF_MEMORY) && (context->trap == MAREA_HOST_TRAP_NONE)) {
+    if (((trap == MAREA_HOST_TRAP_DIVISION_BY_ZERO) || (trap == MAREA_HOST_TRAP_OUT_OF_MEMORY)) && (context->trap == MAREA_HOST_TRAP_NONE)) {
         context->trap = trap;
     }
 }

@@ -1790,6 +1790,33 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckConstruction(MAREA_SemaContext *
     return MAREA_G_CheckArguments(context, node, MAREA_NULLPTR, parameters, arguments, calleeName, calleeLength);
 }
 
+// INFO: a signature writes a type with its full path, and the file that declares the type writes its bare name.
+static MAREA_SemaExcept MAREA_CALL MAREA_G_DropOwnNamespace(MAREA_SemaContext *context, const MAREA_Character8 **text, MAREA_IntegerSize *length)
+{
+    const MAREA_AstNode *declaration = (context->root == MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_G_FindChild(context->root, MAREA_AST_KIND_NAMESPACE_DECLARATION);
+
+    if (declaration == MAREA_NULLPTR) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_Character8 *own = MAREA_NULLPTR;
+
+    MAREA_IntegerSize ownLength = 0;
+
+    const MAREA_SemaExcept JOINED = MAREA_SemaQualifiedNameJoin(context, MAREA_SemaChildAt(declaration, 0), &own, &ownLength);
+
+    if (JOINED != MAREA_SEMA_EXCEPT_SUCCESS) {
+        return JOINED;
+    }
+
+    if ((*length > (ownLength + MAREA_INTEGER_SIZE(1))) && ((*text)[ownLength] == '.') && (MAREA_SemaTextEquals(*text, ownLength, own, ownLength) == MAREA_BOOLEAN_TRUE)) {
+        *text += (ownLength + MAREA_INTEGER_SIZE(1));
+        *length -= (ownLength + MAREA_INTEGER_SIZE(1));
+    }
+
+    return MAREA_SEMA_EXCEPT_SUCCESS;
+}
+
 // INFO: a call checked against the signature the host gave for one member of an EXTERNAL namespace: the
 // argument count must match exactly (no default, the host describes none) and each argument must fit the
 // parameter's primitive spelling, the same two diagnostics an ordinary call of a file function reuses.
@@ -1806,7 +1833,17 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckExternalCall(MAREA_SemaContext *
     for (MAREA_IntegerSize index = 0; index < ARGUMENT_COUNT; ++index) {
         const MAREA_SemaSignatureParameter *parameter = &signature->parameters[index];
 
-        const MAREA_SemaExcept RESULT = MAREA_SemaCheckExpressionFitsPrimitive(context, parameter->typeText, parameter->typeTextLength, MAREA_SemaChildAt(arguments, index));
+        const MAREA_Character8 *typeText = parameter->typeText;
+
+        MAREA_IntegerSize typeLength = parameter->typeTextLength;
+
+        const MAREA_SemaExcept OWN_RESULT = MAREA_G_DropOwnNamespace(context, &typeText, &typeLength);
+
+        if (OWN_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return OWN_RESULT;
+        }
+
+        const MAREA_SemaExcept RESULT = MAREA_SemaCheckExpressionFitsPrimitive(context, typeText, typeLength, MAREA_SemaChildAt(arguments, index));
 
         if (RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
             return RESULT;
