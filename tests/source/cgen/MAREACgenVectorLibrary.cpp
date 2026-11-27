@@ -379,3 +379,20 @@ TEST(MAREACgenVectorLibrary, TheValueOfAnElementAssignmentRunsBeforeItsPlaceIsRe
 
     EXPECT_EQ(RESULT.MAREA_outcome("p()").trap, MAREA_TRAP_INDEX_OUT_OF_BOUNDS) << "The index is checked against the size that the value left.";
 }
+
+TEST(MAREACgenVectorLibrary, ATrapGivesStorageBackAndRunsNoDestroyOperator)
+{
+    GTEST_COUT << "Validating a trap runs no destroy operator of the elements of a vector in scope." << std::endl;
+
+    const MAREA_ParityHost HOST{ MAREA_parityHost() };
+
+    const std::string HANDLE{ "namespace main; require marea.vector; require demo.host as host; structure Handle id: sinteger32; end implementation Handle #[operator = \"destroy\"] function close() host.record(-1); end end " };
+
+    const MAREA_ParityResult RESULT{ MAREA_parityGenerated(HANDLE + "function trapped(): sinteger32 local v: marea.vector.Vector<Handle> = marea.vector.Vector<Handle>{}; v.append(Handle{ id = 1 }); host.record(9); local empty: marea.vector.Vector<sinteger32> = marea.vector.Vector<sinteger32>{}; return empty[0]; end", {}, &HOST) };
+
+    ASSERT_TRUE(RESULT.failures.empty()) << RESULT.MAREA_failures();
+
+    EXPECT_EQ(RESULT.MAREA_outcome("trapped()").log, (std::vector<std::int64_t>{ 9 })) << "No operator after the trap.";
+
+    EXPECT_EQ(RESULT.MAREA_outcome("trapped()").trap, MAREA_TRAP_INDEX_OUT_OF_BOUNDS) << "The trap of the index.";
+}

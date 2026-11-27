@@ -152,7 +152,8 @@ static MAREA_CgenExcept MAREA_CALL MAREA_G_DropEnum(MAREA_CgenGenerator *generat
 
 MAREA_CgenExcept MAREA_CALL MAREA_CgenWriteDrop(MAREA_CgenGenerator *generator, const MAREA_IrNode *node, const MAREA_Character8 *place, MAREA_Uinteger32 type, MAREA_Boolean isElement)
 {
-    MAREA_CgenFunction *destroy = (isElement == MAREA_BOOLEAN_TRUE) ? MAREA_G_DestroyOf(generator, type) : MAREA_NULLPTR;
+    // INFO: a trap runs no destroy operator; it only gives storage back.
+    MAREA_CgenFunction *destroy = ((isElement == MAREA_BOOLEAN_TRUE) && (generator->unwinding == MAREA_BOOLEAN_FALSE)) ? MAREA_G_DestroyOf(generator, type) : MAREA_NULLPTR;
 
     if (destroy != MAREA_NULLPTR) {
         MAREA_CgenValue ignored = { 0 };
