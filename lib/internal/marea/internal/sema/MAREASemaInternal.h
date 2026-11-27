@@ -2301,14 +2301,14 @@ MAREA_BEGIN_EXTERN_C
      * @brief Checks a method call whose receiver is a tuple: swap is the only one.
      * @param outHandled Receives MAREA_BOOLEAN_TRUE when the receiver is a tuple. Must not be null.
      */
-    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckTupleCall(MAREA_SemaContext * context, const MAREA_AstNode *node, MAREA_Boolean * outHandled);
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckTupleCall(MAREA_SemaContext * context, const MAREA_AstNode *node, MAREA_Boolean *outHandled);
 
     /**
      * @brief Checks a binary expression with a tuple on a side: only == and != of two tuples of one type, whose
      * elements are primitives, enums or tuples of these.
      * @param outHandled Receives MAREA_BOOLEAN_TRUE when a side is a tuple. Must not be null.
      */
-    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckTupleOperands(MAREA_SemaContext * context, const MAREA_AstNode *expression, MAREA_Boolean * outHandled);
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckTupleOperands(MAREA_SemaContext * context, const MAREA_AstNode *expression, MAREA_Boolean *outHandled);
 
     /**
      * @brief Reports a for each whose collection is a tuple.

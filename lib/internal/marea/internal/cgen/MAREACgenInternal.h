@@ -160,7 +160,9 @@ MAREA_BEGIN_EXTERN_C
         MAREA_Boolean packed;
         MAREA_Boolean failed;
         MAREA_Boolean done;
-        MAREA_Uinteger8 padding[3];
+        // INFO: a structure that is a tuple: its fields are named by their places, and its type name is empty.
+        MAREA_Boolean isTuple;
+        MAREA_Uinteger8 padding[2];
     } MAREA_CgenType;
 
     /**
@@ -641,6 +643,26 @@ MAREA_BEGIN_EXTERN_C
      * @return The operator, or MAREA_TOKEN_KIND_ERROR when the token is no compound assignment.
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_TokenKind MAREA_CALL MAREA_CgenPlainOperator(MAREA_TokenKind compound);
+
+    /**
+     * @brief Tells whether a type is the generated structure of a tuple.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_CgenIsTuple(const MAREA_CgenGenerator *generator, MAREA_Uinteger32 type);
+
+    /**
+     * @brief The place of the element that the literal index of an INDEX_ACCESS names in a tuple value.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_CgenExcept MAREA_CALL MAREA_CgenWriteTupleIndex(MAREA_CgenGenerator * generator, const MAREA_IrNode *node, const MAREA_CgenValue *base, MAREA_CgenValue *outPlace);
+
+    /**
+     * @brief Writes == or != of two tuples of one type, element by element.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_CgenExcept MAREA_CALL MAREA_CgenWriteTupleComparison(MAREA_CgenGenerator * generator, const MAREA_IrNode *node, MAREA_Uinteger32 type, MAREA_CgenValue *outValue);
+
+    /**
+     * @brief Writes the call of swap on a tuple.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_CgenExcept MAREA_CALL MAREA_CgenWriteTupleCall(MAREA_CgenGenerator * generator, const MAREA_IrNode *node, const MAREA_CgenValue *receiver, const MAREA_IrNode *member, const MAREA_IrNode *arguments, MAREA_CgenValue *outValue);
 
     /**
      * @brief Writes a comparison of two values.

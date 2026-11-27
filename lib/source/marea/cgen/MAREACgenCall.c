@@ -238,6 +238,10 @@ static MAREA_CgenExcept MAREA_CALL MAREA_G_WriteMemberCall(MAREA_CgenGenerator *
         return MAREA_CgenWriteArrayCall(generator, node, &receiver, member, arguments, outValue);
     }
 
+    if (MAREA_CgenIsTuple(generator, receiver.type) == MAREA_BOOLEAN_TRUE) {
+        return MAREA_CgenWriteTupleCall(generator, node, &receiver, member, arguments, outValue);
+    }
+
     const MAREA_CgenType *entry = MAREA_CgenTypeAt(generator, receiver.type);
 
     MAREA_CgenFunction *method = (entry == MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_CgenFindMember(generator, entry->name, entry->nameLength, name, LENGTH);

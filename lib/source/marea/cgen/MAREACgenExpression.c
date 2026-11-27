@@ -444,6 +444,10 @@ static MAREA_CgenExcept MAREA_CALL MAREA_G_WriteIndexPlace(MAREA_CgenGenerator *
         return MAREA_CgenWriteVectorIndex(generator, node, &base, outPlace);
     }
 
+    if (MAREA_CgenIsTuple(generator, base.type) == MAREA_BOOLEAN_TRUE) {
+        return MAREA_CgenWriteTupleIndex(generator, node, &base, outPlace);
+    }
+
     if (MAREA_CgenCategoryOf(generator, base.type) != MAREA_CGEN_CATEGORY_ARRAY) {
         return MAREA_CgenGeneratorFail(generator, node, MAREA_CGEN_DIAGNOSTIC_CODE_UNSUPPORTED_CONSTRUCT, "Only an array of a registered inline run is indexed.");
     }

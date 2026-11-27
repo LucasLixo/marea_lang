@@ -75,6 +75,28 @@ static MAREA_CgenExcept MAREA_CALL MAREA_G_WriteFieldEntry(MAREA_CgenGenerator *
     return MAREA_CGEN_EXCEPT_SUCCESS;
 }
 
+// INFO: the entry of a tuple literal at a place is the element of that place.
+static MAREA_CgenExcept MAREA_CALL MAREA_G_WriteTupleEntry(MAREA_CgenGenerator *generator, const MAREA_IrNode *entry, const MAREA_Character8 *target, MAREA_Uinteger32 type, MAREA_IntegerSize position)
+{
+    if (position >= MAREA_CgenTypeAt(generator, type)->memberCount) {
+        return MAREA_CgenGeneratorFail(generator, entry, MAREA_CGEN_DIAGNOSTIC_CODE_UNSUPPORTED_CONSTRUCT, "A literal has more elements than its tuple holds.");
+    }
+
+    const MAREA_CgenField *field = &MAREA_CgenTypeAt(generator, type)->fields[position];
+
+    const MAREA_Uinteger32 ELEMENT = field->type;
+
+    const MAREA_Character8 *name = MAREA_CgenMangled(generator, "f_", field->name, field->nameLength);
+
+    MAREA_CgenValue value = { 0 };
+
+    MAREA_CGEN_TRY(MAREA_CgenWriteOwned(generator, MAREA_CgenChildAt(entry, MAREA_INTEGER_SIZE(0)), ELEMENT, &value));
+
+    MAREA_CgenStore(generator, MAREA_CGEN_JOIN(generator, "(", target, ").", name), ELEMENT, value.text);
+
+    return MAREA_CGEN_EXCEPT_SUCCESS;
+}
+
 MAREA_CgenExcept MAREA_CALL MAREA_CgenWriteLiteralValue(MAREA_CgenGenerator *generator, const MAREA_IrNode *node, MAREA_Uinteger32 expected, MAREA_CgenValue *outValue)
 {
     MAREA_Uinteger32 type = expected;
@@ -103,7 +125,9 @@ MAREA_CgenExcept MAREA_CALL MAREA_CgenWriteLiteralValue(MAREA_CgenGenerator *gen
     for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); (generator->functionFailed == MAREA_BOOLEAN_FALSE) && (index < MAREA_IrNodeGetChildCount(node)); index = (index + MAREA_INTEGER_SIZE(1))) {
         const MAREA_IrNode *entry = MAREA_CgenChildAt(node, index);
 
-        if ((MAREA_IrNodeGetKind(entry) == MAREA_IR_KIND_FIELD_ENTRY) && (CATEGORY == MAREA_CGEN_CATEGORY_STRUCTURE)) {
+        if ((MAREA_IrNodeGetKind(entry) == MAREA_IR_KIND_VALUE_ENTRY) && (MAREA_CgenIsTuple(generator, type) == MAREA_BOOLEAN_TRUE)) {
+            MAREA_CGEN_TRY(MAREA_G_WriteTupleEntry(generator, entry, made.text, type, index));
+        } else if ((MAREA_IrNodeGetKind(entry) == MAREA_IR_KIND_FIELD_ENTRY) && (CATEGORY == MAREA_CGEN_CATEGORY_STRUCTURE)) {
             MAREA_CGEN_TRY(MAREA_G_WriteFieldEntry(generator, entry, made.text, type));
         } else if ((MAREA_IrNodeGetKind(entry) == MAREA_IR_KIND_VALUE_ENTRY) && (CATEGORY == MAREA_CGEN_CATEGORY_ARRAY) && (positionKnown == MAREA_BOOLEAN_TRUE)) {
             MAREA_CGEN_TRY(MAREA_G_WriteElement(generator, entry, made.text, type, position, MAREA_CgenChildAt(entry, MAREA_INTEGER_SIZE(0))));

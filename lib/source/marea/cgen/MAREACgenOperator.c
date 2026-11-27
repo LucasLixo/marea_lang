@@ -201,6 +201,16 @@ MAREA_CgenExcept MAREA_CALL MAREA_CgenWriteComparison(MAREA_CgenGenerator *gener
     MAREA_Uinteger32 leftEnum = MAREA_CGEN_KIND_NONE;
     MAREA_Uinteger32 rightEnum = MAREA_CGEN_KIND_NONE;
 
+    MAREA_Uinteger32 written = MAREA_CGEN_KIND_NONE;
+
+    if (MAREA_IrNodeGetResolvedType(MAREA_CgenChildAt(node, MAREA_INTEGER_SIZE(0))) != MAREA_NULLPTR) {
+        MAREA_CGEN_TRY(MAREA_CgenTypeOfNode(generator, MAREA_CgenChildAt(node, MAREA_INTEGER_SIZE(0)), &written));
+    }
+
+    if (MAREA_CgenIsTuple(generator, written) == MAREA_BOOLEAN_TRUE) {
+        return MAREA_CgenWriteTupleComparison(generator, node, written, outValue);
+    }
+
     MAREA_CGEN_TRY(MAREA_G_ComparisonOperand(generator, MAREA_CgenChildAt(node, MAREA_INTEGER_SIZE(0)), MAREA_CGEN_KIND_NONE, &leftEnum, &left));
 
     const MAREA_Uinteger32 HINT = (leftEnum == MAREA_CGEN_KIND_NONE) ? left.type : (MAREA_Uinteger32)MAREA_CGEN_KIND_NONE;
