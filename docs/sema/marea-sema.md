@@ -209,6 +209,31 @@ index access or in a literal, is `CONSTANT_INDEX_OUT_OF_RANGE` (3088). A paramet
 borrow when `semantics` is not written. The key of a `for each` is a value, not a reference. The counts are checked
 when they are written as literals.
 
+### Growable runs
+
+A descriptor with the index protocol, no role, a move class and one type parameter is a growable run: the element.
+`MAREA_VectorLibraryRegister` (`marea/base/MAREAVectorLibrary.h`) registers `marea.vector.Vector` in that shape. Its
+layout is the header `MAREA_VectorHeader` (24 bytes, aligned to 8) for every element, and sema checks these members:
+
+| Member | Rule |
+|---|---|
+| `front()`, `back()` | the element, which has to be `Copyable` (3013) |
+| `size()`, `max_size()`, `capacity()` | `uinteger64` |
+| `empty()` | `boolean` |
+| `append(value)`, `insert(index, value)` | a writable receiver (3069), a value that fits the element (3011); an existing value of a type that is not by value needs `copy` or `move` (3016) |
+| `pop()`, `erase(index)` | a writable receiver; the element |
+| `reserve(count)`, `shrink_to_fit()`, `clear()` | a writable receiver |
+| `resize(count, value)`, `fill(value)` | a writable receiver, a `Copyable` element (3013), a value that fits it (3011) |
+| `swap(other)` | as for an inline run |
+| `data()` | only in `unsafe` (3041); the call has no type yet |
+
+`copy` of a growable run is a deep copy, so it needs a `Copyable` element (3013). The members that change the run, the
+move class of it and the borrowed-source rule of `for each` and `with` (3073) are the ones that stop a loop from
+walking storage that moved. A parameter keeps the default of a move type (`reference_mutable`).
+
+`append` of a name that is a borrow is `REFERENCE_ESCAPES_SCOPE` (3018) only when its type is not by value: a value
+that is copied, such as the name of a `for each` over numbers, is no reference once it is stored.
+
 ### Caller inputs
 
 Everything the caller must tell sema is a plain struct in `marea/sema/MAREASema.h`: caller owned, not opaque, and only
@@ -1239,7 +1264,7 @@ float64); Empty; end` the size is 24, the alignment 8, the tag 1, the payload of
 alignment and no offset. The record has the same format for a measured layout, so a later change can measure a type
 that is undecided today without a change of format. The reasons are:
 
-- `LIBRARY_TYPE`: a field or a variant field of `string`, `vector`, `pointer`, `owned`, `slice`, `task`, an inline run
+- `LIBRARY_TYPE`: a field or a variant field of `string`, `pointer`, `owned`, `slice`, `task`, an inline run
   whose count is no literal, or any other type of a library under `c.{lib}` or `marea.{lib}`, or a name that sema cannot see. The layout of such a type
   comes from its library later.
 - `GENERIC`: a generic structure, or a field whose type is a generic parameter.
@@ -1375,16 +1400,20 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 - Two functions that call each other cannot be written, because a function must be declared before its use and the
   grammar has no forward declaration.
 - No check of the signature of `main` exists any more, and a driver-level replacement does not exist yet.
-- Only `marea.array` is a shipped library. The types of `marea.vector`, `marea.tuple`, `c.memory` and `c.threads` are
-  registered by fixtures in the tests. A registered type that is no inline run is checked for too many type arguments
-  only, never too few; a `vector` is still indexable in the type inference, though it is a move type.
+- Only `marea.array` and `marea.vector` are shipped libraries. The types of `marea.tuple`, `c.memory` and `c.threads`
+  are registered by fixtures in the tests. A registered type that is no inline run is checked for too many type
+  arguments only, never too few.
+- The borrowed-source rule sees an assignment, a move and a changing member. It does not see a call that changes a
+  vector through a write borrow (`grow(v)` in a `for each` over `v`, or `f(v[0], grow(v))`), so the address of an
+  element can outlive the storage that held it. The `vm` can then read or write freed memory.
+- A literal of a growable run is not checked entry by entry against the element type.
 - The bare `include_bytes!` stays in the table of the language macros, and `examples/macros/builtin.marea` still writes
   it. A bare call whose file the include resolver does not know is not reported (only the call by a qualified name is).
 - A member of an inline run is checked only when sema knows the written type of its receiver: the name of a `for each`
   or of a `with` has none here. A count written as a constant name is not checked and not measured.
 - `sum` and the element-wise operators of `examples/attributes/simd.marea` are in no specification: sema lets them
   through and no backend writes them.
-- `partition` over an array gives no part: the part is a view with a run-time length, of a library that is not written.
+- `partition` over an array or a vector gives no part: the part is a view with a run-time length, of a library that is not written.
 - The `when` item is read only by the attribute check. Another reader (`visibility`, `layout`, `align`, `pack`, `operator`,
   `export`, `inline`, `build`) sees the plain items, so a `when` that gives such a key has no effect on that reader yet. The
   `backend` rule reads it, since it is the only check that is about the target.

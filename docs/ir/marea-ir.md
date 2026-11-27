@@ -302,7 +302,8 @@ local a: Box = Box(); return a.x;
 
 **Arrays.** A local whose type is an inline run (a type with two arguments whose last one is a literal count) of a type
 with a destroy operator is destroyed too: its `DESTROY_CALL` names the operator of the innermost element and the local,
-and a backend calls it once for each element.
+and a backend calls it once for each element. The ir writes no destroy for a vector or for the elements in it: a
+backend destroys them, and finds the operator of an element by `MAREA_IrNodeIsDestroyOperator`.
 
 ## For-range desugaring
 
@@ -658,9 +659,9 @@ those of `sema`.
   write the output. A later change that lets `sema` measure such a type turns the entry into a measured one with no change
   of the format. The reasons are those of `sema`: `library_type`, `generic`, `function_type`, `opaque`,
   `invalid_attribute`, `too_deep` and `unresolved`.
-- **A structure that holds a library type is undecided on purpose.** `string`, `array`, `vector`, `pointer`, `slice`,
-  `task`, `owned` and any `c.` type get their layout from the library, not from the language, so `sema` does not measure
-  them and the structure or enum that holds one is undecided with the reason `library_type`. A holder of an undecided
+- **A structure that holds a library type is undecided on purpose.** `string`, `pointer`, `slice`, `task`, `owned`, any
+  `c.` type and any library type that is no run get their layout from the library, not from the language, so `sema` does
+  not measure them and the structure or enum that holds one is undecided with the reason `library_type`. A holder of an undecided
   type takes its reason.
 - **An opaque structure has an entry** (it lowers to a `STRUCTURE_DECLARATION` with no field). `sema` records no layout
   for an `OPAQUE_DECLARATION`, so the entry is undecided with the reason `opaque` and no member: its layout belongs to C.

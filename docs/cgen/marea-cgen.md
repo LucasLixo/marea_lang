@@ -145,6 +145,21 @@ The destroy calls are the ones the ir inserts at each scope exit, in the reverse
 trap runs none of them. A local array is destroyed by one call of the operator of its element for each
 element.
 
+**Vectors.** A registered growable run (see the sema doc) is `MAREA_VectorHeader` in C, so the program includes
+`marea/base/MAREAVectorRuntime.h` and links `marea::base`. The storage changes only through that runtime, which the
+`vm` calls too: capacities, the growth rule `max(4, 2 * capacity)` and `OUT_OF_MEMORY` are the same in both backends.
+Each call of the runtime gets a `MAREA_HostContext` with the allocator hooks of the context. An element of no size is a
+zeroed byte of the function. An index is compared as an unsigned value with the size.
+
+A value that holds a vector has one owner. A name, a field or an element that is taken (an initializer, an assignment,
+a `return`, a stored value, `move`) leaves zeros behind, and `copy` is a deep copy. A block destroys what it still owns,
+and so does each `return`, `break`, `continue` and trap that leaves it; a temporary that is only borrowed is destroyed
+with its block. A vector destroys its elements from the last to the first, with the destroy operator of an element, then
+gives its storage back. A parameter that holds a vector passes by its address, so a callee that takes it over leaves
+the value of the caller empty. A trap gives the storage back and runs no destroy operator. The value of an assignment to an element of a vector runs
+before its place is reached,
+since a call in the value can move the storage.
+
 ## Host calls
 
 A call that `MAREA_IrNodeIsExternalCall` marks goes to the C function that the resolver gives for its
@@ -179,18 +194,19 @@ parameters is called with the same sample values, eight rows (one call when it t
 test compares the trap of each call, the value when there is no trap (two NaN values are equal) and
 the log of the host functions.
 
-Of 314 accept items, 234 have a function with a result: 83 run on both backends (357 calls) and 138
+Of 314 accept items, 235 have a function with a result: 93 run on both backends (375 calls) and 135
 are excluded, each with a reason in the table of the test. The test checks every line both ways, so a
-line that no longer holds fails. The 70 excluded items that cgen writes are still compiled. One item
-whose functions take only composites is compiled and not run.
+line that no longer holds fails. The 71 excluded items that cgen writes are still compiled. Five items
+whose functions take only composites are compiled and not run. Two items of `marea.tuple` are ahead of
+the compiler and fail until that library exists.
 
 | Items | Reason | cgen writes it |
 |---|---|---|
-| 53 | the vm takes and returns no structure between functions | yes |
+| 55 | the vm takes and returns no structure between functions | yes |
 | 9 | the vm holds no enum value | yes |
 | 6 | the vm runs no construct and no destroy operator | yes |
 | 1 | the vm reads no constant of a structure type | yes |
-| 43 | a library type that no registry describes as an array | no |
+| 37 | a library type that no registry describes (an owner, a pointer, a view, a task, a C library) | no |
 | 11 | a string | no |
 | 3 | a call of a C function that no signature types and no host registers | no |
 | 2 | a character | no |
@@ -198,7 +214,7 @@ whose functions take only composites is compiled and not run.
 | 4 | a `with` block | no |
 | 1 | a generic structure, which the ir does not instantiate | no |
 | 1 | an operator or a method of a library array | no |
-| 1 | `size_of`, which neither backend lowers | no |
+| 2 | `size_of`, which neither backend lowers | no |
 | 1 | a user operator and a C function that no signature types | no |
 
 ## Diagnostics
@@ -206,18 +222,21 @@ whose functions take only composites is compiled and not run.
 | Code | Name | Example |
 |---|---|---|
 | 7001 | UNSUPPORTED_CONSTRUCT | A `with` block, the handle of a spawn, a construct operator that cannot be told apart, a macro of a library, a built-in other than `convert`, a call of a function that is not written. |
-| 7002 | UNSUPPORTED_TYPE | A string or a character, a structure with no layout, a library type that is not a registered array, a partition part used as a value. |
+| 7002 | UNSUPPORTED_TYPE | A string or a character, a structure with no layout, a library type that is no registered array or vector, a partition part used as a value. |
 | 7003 | UNRESOLVED_NAME | A call into another module, a name that is no local, parameter, constant or function. |
 | 7004 | UNTYPED_OPERAND | A host call that no signature types used as a value, or an argument of a host call with no type. |
 
 ## Gaps
 
 - Not written: strings, characters, function values, generic structures, library types other than a
-  registered array, operators and methods of a library, `with`, user operators (the ir calls no
+  registered array or vector, operators and methods of a library, `with`, user operators (the ir calls no
   function for them), `size_of`, `align_of`, macros other than `build_value!`, the handle of a spawn,
   the value of a partition part and a call into another module.
 - A `swap` or a `fill` of an array inside a packed structure writes through the place that cgen
   gives, with no test of its own. The Mach-O and COFF forms of an included file were not built.
+- Vector: `data` is not written, and neither is a copy of an enum that holds a vector or an element type that holds
+  itself through a vector. A trap gives back the storage of the values in scope, but not of a value that is being built;
+  the `vm` gives no storage back after a trap, so a host that counts its allocator calls sees a difference.
 - The ir does not name the construct operator. A type with two functions of that shape, or a construct
   with no parameter called as `Type()`, is reported.
 - A returned local with a destroy operator is destroyed in the callee and again in the caller, since

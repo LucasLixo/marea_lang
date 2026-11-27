@@ -236,6 +236,14 @@ counted loop; the name of a mutable loop over scalars reads and writes the eleme
 where it is read. The bytes of `include_bytes!` are a blob of the data section, which `load_data_block` copies into the
 frame.
 
+**Vectors.** A growable run (see the sema doc) is a `vector` row of the type table, and a value of it is the header
+`MAREA_VectorHeader` in the frame area. The storage changes only through calls of the imports
+`marea.vector.runtime_reserve`, `runtime_grow`, `runtime_open`, `runtime_close`, `runtime_shrink` and
+`runtime_release`; the elements are read and written with the composite opcodes. No opcode was added. The ownership
+rules are those of the C backend (see [marea-cgen.md](../cgen/marea-cgen.md), "Types and layout"): a taken value leaves
+zeros, `copy` is a deep copy, and a block and each jump out of it destroy what is still owned. A function that gives an
+array or a vector takes a hidden first parameter, the address of the result bytes of the caller, and returns it.
+
 ## Host calls
 
 A call that the IR marks external (`MAREA_IrNodeIsExternalCall`: a name that the host or a library registered, because a
@@ -322,15 +330,18 @@ The range 5000 to 5999 is reserved for this stage. The messages are fixed texts 
 - A `partition` runs its body the right number of times but gives no part: the value it cuts is not read and the
   rule that gives the first `length % n` parts one more element is not applied yet. The handle of a `spawn` has no
   form, so a result of a worker cannot be kept and read after the join.
-- An `enum` with data (a tagged union payload), `vector`, `tuple` and `string` are not lowered from the
-  IR: no shipped library registers the two containers yet, and no accepted program constructs a data-carrying enum variant (`Shape.Circle(2.0)`) either, so the
-  generator gives `UNSUPPORTED_TYPE` for all four. The vm's own mechanics for a tagged union (the tag at offset
+- An `enum` with data (a tagged union payload), `tuple` and `string` are not lowered from the
+  IR: no shipped library registers the tuple yet, and no accepted program constructs a data-carrying enum variant (`Shape.Circle(2.0)`) either, so the
+  generator gives `UNSUPPORTED_TYPE` for all three. The vm's own mechanics for a tagged union (the tag at offset
   0, a payload at a fixed offset, a dispatch on the tag) and for a bounds-checked, compiler-known array are
   proven directly against hand-built modules in `tests/source/vm/MAREAVm.cpp` (`EnumTaggedUnionConstructReadAndSwitchDispatch`,
   `IndexOutOfRangeTrapsOnABoundsCheckedArray`), standing in for the fixture descriptors the apply's own plan names,
   ahead of the generator wiring a later apply adds once the IR shape of a variant call is settled.
-- `for each` gives `UNWALKABLE_COLLECTION` over a `vector` and a `slice`, which are no bytecode value yet.
-- A function of the unit takes an array but returns none. A file of `include_bytes!` is copied into the frame area at
+- `for each` gives `UNWALKABLE_COLLECTION` over a `slice`, which is no bytecode value yet.
+- Vector: `data` is not lowered, a destroy operator of an element is not run (the item is `UNSUPPORTED_CONSTRUCT`), and
+  an element type that holds itself through a vector is not destroyed or copied. Every temporary of a vector takes bytes
+  of the frame area.
+- A structure result of a function of the unit is still not lowered; an array or a vector result is. A file of `include_bytes!` is copied into the frame area at
   each use, so a file larger than that area (4096 bytes) is `OPERAND_OVERFLOW`; a data address with no copy needs a new
   opcode. A user `destroy` of the elements of an array is not run, as for any value.
 - `owned<T>` storage and a `convert` result that exposes padding are not zero-filled: the zero-default rule's

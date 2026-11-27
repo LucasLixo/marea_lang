@@ -1555,8 +1555,8 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 - The runner checks one file per item, so an item cannot import a second file of its own (issue #250). A rule that
   needs two namespaces can use an `EXTERNAL` import, which the runner gives to the `c.`, `collections.`,
   `concurrency.`, `arenas.` prefixes and to `text`, or the one fixed `FOUND` namespace `fixture.shapes`.
-- The containers `marea.vector` and `marea.tuple` are not written yet, so their items are ahead of the compiler: most
-  items of the `vector` and `tuple` areas fail until the two libraries exist. The codes 3089 (a tuple index that is not
+- The container `marea.tuple` is not written yet, so its items are ahead of the compiler: most items of the `tuple`
+  area fail until the library exists. The codes 3089 (a tuple index that is not
   a constant) and 3090 (a `for each` over a type that is not a collection) are named by items before the header of `sema`
   defines them.
 - `partition` and `partition mutable` over an array or a vector are accepted, but give no part: the part is a view with
