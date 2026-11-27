@@ -1,0 +1,16 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- size_of and align_of measure a vector as its header of three words.
+
+namespace main;
+
+require marea.vector;
+
+static_assert!(size_of<marea.vector.Vector<float32>>() == 24, "address, size and capacity");
+static_assert!(align_of<marea.vector.Vector<float32>>() == 8, "the alignment of a word");
+
+function check(): uinteger64
+    return size_of<marea.vector.Vector<uinteger8>>();
+end

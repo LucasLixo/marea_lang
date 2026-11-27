@@ -4,7 +4,7 @@
 #if !defined(MAREA_TESTS_MAREALIBRARYREGISTRYHELPERS_HPP)
     #define MAREA_TESTS_MAREALIBRARYREGISTRYHELPERS_HPP
 
-    #include "tests/dependencies.hpp"
+    #include "tests/MAREAShippedLibraries.hpp"
 
 // INFO: the examples and the language catalogue write the old built-in names under the neutral fixture
 // root demo (never c or marea: those two already carry other, unrelated pre-existing meanings in this
@@ -28,7 +28,6 @@ inline const MAREA_LibraryDescriptorEntry *MAREA_libraryDescriptors(MAREA_Intege
         { MAREA_LIBRARY_FLAG_C_MEMORY, { "demo", MAREA_INTEGER_SIZE(4), "pointer", MAREA_INTEGER_SIZE(7), MAREA_INTEGER_SIZE(1), MAREA_TYPE_ROLE_RAW_POINTER, MAREA_TYPE_OWNERSHIP_CLASS_COPY, false } },
         { MAREA_LIBRARY_FLAG_C_MEMORY, { "demo", MAREA_INTEGER_SIZE(4), "owned", MAREA_INTEGER_SIZE(5), MAREA_INTEGER_SIZE(1), MAREA_TYPE_ROLE_OWNER, MAREA_TYPE_OWNERSHIP_CLASS_MOVE, false } },
         { MAREA_LIBRARY_FLAG_C_THREADS, { "demo", MAREA_INTEGER_SIZE(4), "task", MAREA_INTEGER_SIZE(4), MAREA_INTEGER_SIZE(1), MAREA_TYPE_ROLE_SPAWN_HANDLE, MAREA_TYPE_OWNERSHIP_CLASS_MOVE, false } },
-        { MAREA_LIBRARY_FLAG_MAREA_ARRAY, { "marea.array", MAREA_INTEGER_SIZE(11), "Array", MAREA_INTEGER_SIZE(5), MAREA_INTEGER_SIZE(2), MAREA_TYPE_ROLE_NONE, MAREA_TYPE_OWNERSHIP_CLASS_COPY, true } },
         { MAREA_LIBRARY_FLAG_C_MEMORY, { "c.memory", MAREA_INTEGER_SIZE(8), "Slice", MAREA_INTEGER_SIZE(5), MAREA_INTEGER_SIZE(1), (MAREA_TypeRole)(MAREA_TYPE_ROLE_VIEW | MAREA_TYPE_ROLE_PARTITION_PART), MAREA_TYPE_OWNERSHIP_CLASS_COPY, true } },
         { MAREA_LIBRARY_FLAG_C_MEMORY, { "c.memory", MAREA_INTEGER_SIZE(8), "Pointer", MAREA_INTEGER_SIZE(7), MAREA_INTEGER_SIZE(1), MAREA_TYPE_ROLE_RAW_POINTER, MAREA_TYPE_OWNERSHIP_CLASS_COPY, false } },
         { MAREA_LIBRARY_FLAG_C_MEMORY, { "c.memory", MAREA_INTEGER_SIZE(8), "Owned", MAREA_INTEGER_SIZE(5), MAREA_INTEGER_SIZE(1), MAREA_TYPE_ROLE_OWNER, MAREA_TYPE_OWNERSHIP_CLASS_MOVE, false } },
@@ -68,7 +67,6 @@ inline const MAREA_LibraryMacroEntry *MAREA_libraryMacros(MAREA_IntegerSize *out
 
     static const MAREA_LibraryMacroEntry ENTRIES[] = {
         { MAREA_LIBRARY_FLAG_MAREA_ARRAY, { "demo.array", MAREA_INTEGER_SIZE(10), "include_bytes", MAREA_INTEGER_SIZE(13), ARGUMENTS, MAREA_INTEGER_SIZE(1), &types[1].descriptor, "uinteger8", MAREA_INTEGER_SIZE(9), &MAREA_expandFixtureIncludeBytes } },
-        { MAREA_LIBRARY_FLAG_MAREA_ARRAY, { "marea.array", MAREA_INTEGER_SIZE(11), "include_bytes", MAREA_INTEGER_SIZE(13), ARGUMENTS, MAREA_INTEGER_SIZE(1), &types[7].descriptor, "uinteger8", MAREA_INTEGER_SIZE(9), &MAREA_expandFixtureIncludeBytes } },
     };
 
     *outCount = MAREA_ARRAY_SIZE(ENTRIES);
@@ -81,6 +79,11 @@ inline MAREA_TypeRegistry *MAREA_buildLibraryRegistry(MAREA_Arena *arena, MAREA_
     MAREA_TypeRegistry *registry{ nullptr };
 
     MAREA_IGNORE(MAREA_TypeRegistryCreate(arena, mask, &registry));
+
+    // INFO: the shipped libraries register first, so a search by name finds their descriptor before a fixture one.
+    MAREA_IGNORE(MAREA_registerArrayLibrary(registry));
+    MAREA_IGNORE(MAREA_registerVectorLibrary(registry));
+    MAREA_IGNORE(MAREA_registerTupleLibrary(registry));
 
     MAREA_IntegerSize count{ 0 };
 

@@ -30,7 +30,7 @@ MAREA_SemaCheckCompilationUnit(sema, root);   /* once per file, dependencies fir
 `MAREA_SemaCheckCompilationUnit` returns an error only for a null argument or an out of memory. A rule
 violation is a diagnostic in the sink. A size that does not fit in `MAREA_IntegerSize` (a diagnostic
 message, or the growth of a name table) is also an out of memory: nothing is allocated or copied.
-Every sema diagnostic is an error, in the range 3001-3086. Not every number of the range is a live code: the
+Every sema diagnostic is an error, in the range 3001-3090. Not every number of the range is a live code: the
 Diagnostics table lists the live ones.
 The lexer file name decides the path rule, so call `MAREA_LexContextSetFileName` with a project
 relative path with forward slashes and the `.marea` extension before the lex step.
@@ -185,6 +185,82 @@ is typed with the second argument by the structure alone (no signature is asked)
 signature function, a receiver that is not a registered type or a member the function does not know, nothing changes: the
 call stays untyped and no diagnostic is raised.
 
+### Inline runs
+
+A descriptor with the index protocol, no role, a copy class and two type parameters is an inline run: the element and a
+count. `MAREA_ArrayLibraryRegister` (`marea/base/MAREAArrayLibrary.h`) registers `marea.array.Array` in that shape and
+the macro `include_bytes`. Sema checks the shape itself and reads no signature for these members:
+
+| Member | Rule |
+|---|---|
+| `front()`, `back()` | the element, which has to be `Copyable` (3013) |
+| `size()`, `max_size()` | `uinteger64` |
+| `empty()` | `boolean` |
+| `fill(value)` | a writable receiver (3069), a `Copyable` element (3013), a value that fits it (3011) |
+| `swap(other)` | two writable arrays (3069) of the same type arguments (3014) that are not one storage (3019) |
+| `Array<E, N>.filled(value)` | static; a `Copyable` element and a value that fits it |
+
+A wrong argument count is `ARGUMENT_COUNT_MISMATCH`. Another name is `UNKNOWN_TYPE_FUNCTION` (3049) for a type under
+the root `marea` (`sum` is let through, see Gaps); a type that a host registers keeps the signature rule above. `fill`
+and `swap` change the array that a `for each` or a `with` borrows (3073). An inline run is written with both type
+arguments (3014 otherwise). A literal takes no value (all zeros), indexed entries (the rest zeros) or exactly as many
+positional values as the count (`LITERAL_COUNT_MISMATCH`, 3087). A constant index that is not below the count, in an
+index access or in a literal, is `CONSTANT_INDEX_OUT_OF_RANGE` (3088). A parameter of an inline run is a read-only
+borrow when `semantics` is not written. The key of a `for each` is a value, not a reference. The counts are checked
+when they are written as literals.
+
+### Growable runs
+
+A descriptor with the index protocol, no role, a move class and one type parameter is a growable run: the element.
+`MAREA_VectorLibraryRegister` (`marea/base/MAREAVectorLibrary.h`) registers `marea.vector.Vector` in that shape. Its
+layout is the header `MAREA_VectorHeader` (24 bytes, aligned to 8) for every element, and sema checks these members:
+
+| Member | Rule |
+|---|---|
+| `front()`, `back()` | the element, which has to be `Copyable` (3013) |
+| `size()`, `max_size()`, `capacity()` | `uinteger64` |
+| `empty()` | `boolean` |
+| `append(value)`, `insert(index, value)` | a writable receiver (3069), a value that fits the element (3011); an existing value of a type that is not by value needs `copy` or `move` (3016) |
+| `pop()`, `erase(index)` | a writable receiver; the element |
+| `reserve(count)`, `shrink_to_fit()`, `clear()` | a writable receiver |
+| `resize(count, value)`, `fill(value)` | a writable receiver, a `Copyable` element (3013), a value that fits it (3011) |
+| `swap(other)` | as for an inline run |
+| `data()` | only in `unsafe` (3041); the call has no type yet |
+
+`copy` of a growable run is a deep copy, so it needs a `Copyable` element (3013). The members that change the run, the
+move class of it and the borrowed-source rule of `for each` and `with` (3073) are the ones that stop a loop from
+walking storage that moved. A parameter keeps the default of a move type (`reference_mutable`).
+
+`append` of a name that is a borrow is `REFERENCE_ESCAPES_SCOPE` (3018) only when its type is not by value: a value
+that is copied, such as the name of a `for each` over numbers, is no reference once it is stored.
+
+### Tuples
+
+A descriptor with the parameter count `MAREA_TYPE_PARAMETER_COUNT_VARIADIC`, no role and no index protocol is a tuple
+(`MAREA_TYPE_DESCRIPTOR_IS_TUPLE`). `MAREA_TupleLibraryRegister` (`marea/base/MAREATupleLibrary.h`) registers
+`marea.tuple.Tuple` in that shape: one descriptor serves every arity, and the ownership class of it is not read. A tuple
+is an anonymous structure, with the type class `MAREA_SEMA_TYPE_CLASS_TUPLE`: a parameter is a read-only borrow by
+default, `=` of a name needs `copy` or `move` (3016), a write through a read-only borrow is 3069, and an element moves
+out alone (`move t[0]`). An alias of a tuple is read as the tuple.
+
+| Rule | Diagnostic |
+|---|---|
+| a tuple writes from 2 to 16 types | `GENERIC_ARGUMENT_MISMATCH` (3014) |
+| no element is a type with no layout, such as an opaque structure or a function type | `ELEMENT_WITHOUT_MEASURED_LAYOUT` (3082) |
+| a structure does not hold itself through a tuple | `RECURSIVE_TYPE` (3045) |
+| an index is an integer literal | `TUPLE_INDEX_NOT_CONSTANT` (3089) |
+| the literal is below the arity, and is not negative | `CONSTANT_INDEX_OUT_OF_RANGE` (3088) |
+| a literal holds no value (all zeros) or one value for each element, in order | `LITERAL_COUNT_MISMATCH` (3087) |
+| each value fits its element, with no name and no index | `TYPE_MISMATCH` (3011) |
+| an existing value that is stored and is not by value needs `copy` or `move` | 3016 |
+| only `==` and `!=`, of two tuples of one type, whose elements are primitives, enums or tuples of these | 3011 |
+| `for each` does not walk a tuple | `NOT_ITERABLE` (3090) |
+| `copy` needs every element type to be `Copyable`, so a tuple that holds a vector or a structure is not copied | `CONTRACT_NOT_SATISFIED` (3013) |
+| `swap(other)` is the one method: two writable tuples of one type that are not one storage | 3049, 3069, 3014, 3019 |
+
+The layout is the one of a `layout = c` structure: each element at the next multiple of its alignment, and the size
+rounded up to the largest one. A tuple with an element that is not measured has the reason of that element.
+
 ### Caller inputs
 
 Everything the caller must tell sema is a plain struct in `marea/sema/MAREASema.h`: caller owned, not opaque, and only
@@ -202,7 +278,12 @@ A context with none of them behaves as the host-neutral one.
 feature names and a `pointerWidth`. A null text, an empty list and a zero width are "not answered". `MAREA_SemaSettings` is a
 list of `name`, `value` text pairs; a pair whose name no call asks for is ignored. `MAREA_SemaIncludeResolver` is one function
 that gives the size of a file (`MAREA_MacroIncludeSizeFunction`, declared in the registry header, because a library expander
-calls it) and the pointer that goes with it. Sema never reads the disk: this function is the only way it learns about a file.
+calls it), the pointer that goes with it, and an optional load function (`MAREA_SemaIncludeLoadFunction`) that gives the bytes
+and the path of the file that the C compiler of the generated text can open. Sema never reads the disk: these functions are
+the only way it learns about a file. With a load function, a macro whose result is an array of `uinteger8` keeps the bytes in
+the typed tree (`MAREA_SemaTypedNodeGetIncludedFile`) and its call has the array type; a load that fails, or that gives
+another number of bytes than the size, is `INVALID_MACRO_ARGUMENT`. With no load function the call is checked by the size
+alone and no backend can write its value.
 
 ### Descriptors and roles
 
@@ -227,8 +308,10 @@ whether the first type parameter is an element reached by index (`hasIndexProtoc
 The ownership class is `COPY` (by value) or `MOVE` (a name needs `copy` or `move`, and a parameter of the type moves in).
 `hasIndexProtocol` makes `for each`, an index access, a literal value and `Copyable` (a `COPY` run with no role) read the first
 type argument as the element. A descriptor with a `COPY` class, no role and the index protocol is an inline run: the layout record
-measures it when its element is a primitive and its count is a literal (`marea.array.Array<sinteger32, 4>` is 16 bytes,
-aligned to 4).
+measures it when its element is measured (a primitive, a structure, an enum or another inline run) and its count is a
+literal: the size is the count times the element size, with no padding, and the alignment is the one of the element
+(`marea.array.Array<sinteger32, 4>` is 16 bytes, aligned to 4; a count of 0 is 0 bytes). A holder of an opaque structure
+by value in a run that is no view is `ELEMENT_WITHOUT_MEASURED_LAYOUT` (3082).
 
 **Registry.** `MAREA_TypeRegistryCreate(arena, mask, &registry)` makes a registry. The mask is a plain input of the caller:
 `MAREA_LibraryFlag` is a bit-flag enum, one bit per shipped library (`MAREA_LIBRARY_FLAG_MAREA_ARRAY`, `_MAREA_VECTOR`,
@@ -239,7 +322,8 @@ with a dependency that is off is a configuration error, `MAREA_TYPE_REGISTRY_EXC
 pass. A macro that returns a library type belongs to the library that owns the type (decision 53 of the 2026-11-24 plan):
 `include_bytes!` returns `marea.array.Array<uinteger8, N>`, so it is a macro of `marea.array`, called as
 `array.include_bytes!("file")` after `require marea.array as array;` or as `marea.array.include_bytes!("file")`. With
-`marea.array` off the name is unknown. The real macro is not written yet (see Gaps); a fixture library proves the mechanism.
+`marea.array` off the name is unknown. The macro refuses a path that is absolute, has a drive letter or holds a `..`
+segment, so a build cannot read an arbitrary file.
 
 The registry has two entries. `MAREA_TypeRegistryRegisterInternal` (and the function form, the registration macro) is used only
 by the libraries the language ships and may register under `c.*` and `marea.*`. `MAREA_TypeRegistryRegisterPublic` is the entry of
@@ -1207,8 +1291,8 @@ float64); Empty; end` the size is 24, the alignment 8, the tag 1, the payload of
 alignment and no offset. The record has the same format for a measured layout, so a later change can measure a type
 that is undecided today without a change of format. The reasons are:
 
-- `LIBRARY_TYPE`: a field or a variant field of `string`, `array`, `vector`, `pointer`, `owned`, `slice`, `task`, or
-  any type of a library under `c.{lib}` or `marea.{lib}`, or a name that sema cannot see. The layout of such a type
+- `LIBRARY_TYPE`: a field or a variant field of `string`, `pointer`, `owned`, `slice`, `task`, an inline run
+  whose count is no literal, or any other type that is no tuple of a library under `c.{lib}` or `marea.{lib}`, or a name that sema cannot see. The layout of such a type
   comes from its library later.
 - `GENERIC`: a generic structure, or a field whose type is a generic parameter.
 - `FUNCTION_TYPE`: a field of a function type. Its width is a choice of the backend.
@@ -1315,6 +1399,10 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 | 3084 | `ATTRIBUTE_NOT_ALLOWED_HERE` | `#![backend = auto]` or `#[backend = scalar]` in a file whose namespace is not `marea.math` or below |
 | 3085 | `MISPLACED_ATTRIBUTE` | `#[align = 16]` on a function, `#[inline = force]` on a structure or a constant, `#[operator = "+"]` on a free function, `#[visibility = public]` on a parameter or a macro statement, `#[export = "label"]` on a generic function, `#[backend = auto]` on a structure of `marea.math`: any `no` cell of the placement matrix, also inside `when(...)`, at the item |
 | 3086 | `INVALID_BUILD_VALUE` | a setting `LOG_LEVEL` with the text `high` for `build_value!("LOG_LEVEL", sinteger32, 2)`, `256` for a `uinteger8`, `yes` for a `boolean`, `Slow` for an enum with no such variant, at the call |
+| 3087 | `LITERAL_COUNT_MISMATCH` | `marea.array.Array<sinteger32, 2>{ 1, 2, 3 }`, or fewer positional values than the count |
+| 3088 | `CONSTANT_INDEX_OUT_OF_RANGE` | `values[4]` when `values` holds 4 elements, `pair[2]` for a tuple of two |
+| 3089 | `TUPLE_INDEX_NOT_CONSTANT` | `pair[index]` when `pair` is a tuple |
+| 3090 | `NOT_ITERABLE` | `for each value in pair do` when `pair` is a tuple |
 
 ## Gaps
 
@@ -1341,14 +1429,22 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 - Two functions that call each other cannot be written, because a function must be declared before its use and the
   grammar has no forward declaration.
 - No check of the signature of `main` exists any more, and a driver-level replacement does not exist yet.
-- No real library exists yet: the types of `marea.array`, `marea.vector`, `marea.tuple`, `c.memory` and `c.threads` are registered
-  by fixtures in the tests (under the neutral root `demo` and under the planned full paths), so the roles are proven but no shipped
-  descriptor set is. A registered type is checked for too many type arguments only, never too few (the examples write a growable
-  `marea.array.Array<T>`); a `vector` is still indexable in the type inference, though it is a move type.
-- `include_bytes!` is not a macro of `marea.array` yet: the real macro is written with the library (apply `lib-array-vector-tuple`),
-  and the fixture libraries of the tests prove the mechanism. The bare `include_bytes!` stays in the table of the language macros
-  as a placeholder, and `examples/macros/builtin.marea` still writes it; both leave with the real macro. A bare call
-  whose file the include resolver does not know is not reported (only the call by a qualified name is).
+- Only `marea.array`, `marea.vector` and `marea.tuple` are shipped libraries. The types of `c.memory` and `c.threads`
+  are registered by fixtures in the tests. A registered type that is no inline run is checked for too many type
+  arguments only, never too few.
+- The borrowed-source rule sees an assignment, a move and a changing member. It does not see a call that changes a
+  vector through a write borrow (`grow(v)` in a `for each` over `v`, or `f(v[0], grow(v))`), so the address of an
+  element can outlive the storage that held it. The `vm` can then read or write freed memory.
+- A literal of a growable run is not checked entry by entry against the element type.
+- The index of a tuple is an integer literal only: a named constant is `TUPLE_INDEX_NOT_CONSTANT`. A tuple has no
+  destructuring and no order. A tuple of a generic parameter inside a generic function has no test.
+- The bare `include_bytes!` stays in the table of the language macros, and `examples/macros/builtin.marea` still writes
+  it. A bare call whose file the include resolver does not know is not reported (only the call by a qualified name is).
+- A member of an inline run is checked only when sema knows the written type of its receiver: the name of a `for each`
+  or of a `with` has none here. A count written as a constant name is not checked and not measured.
+- `sum` and the element-wise operators of `examples/attributes/simd.marea` are in no specification: sema lets them
+  through and no backend writes them.
+- `partition` over an array or a vector gives no part: the part is a view with a run-time length, of a library that is not written.
 - The `when` item is read only by the attribute check. Another reader (`visibility`, `layout`, `align`, `pack`, `operator`,
   `export`, `inline`, `build`) sees the plain items, so a `when` that gives such a key has no effect on that reader yet. The
   `backend` rule reads it, since it is the only check that is about the target.
@@ -1511,7 +1607,7 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
   by exact name; a looser rule is a later decision of the user. The numeric range of a conversion
   (`convert<sinteger8>(count)` with `count` above 127) is a run-time stop, not a check of sema.
 - The layout record (see "Layout of a structure and an enum") leaves a library type undecided on purpose: a field of
-  `string`, `array`, `vector`, `pointer`, `owned`, `slice`, `task` or any `c.{lib}` or `marea.{lib}` type makes its
+  `string`, `vector`, `pointer`, `owned`, `slice`, `task` or any `c.{lib}` or `marea.{lib}` type makes its
   structure or enum undecided until the library gives the layout. A function type field is undecided too. The
   `marea` value of the `layout` key is measured like `c` and stays reserved so a later change can reorder the fields.
   An enum that is imported from another file is undecided (`UNRESOLVED`) too, because the names and the file

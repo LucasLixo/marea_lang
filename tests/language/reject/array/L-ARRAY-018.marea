@@ -1,0 +1,14 @@
+-- expect: 3088 @13
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A constant index writes into an array of count zero.
+
+namespace main;
+
+require marea.array;
+
+function check()
+    local values: marea.array.Array<sinteger32, 0> = marea.array.Array<sinteger32, 0>{};
+    values[0] = 1;
+end

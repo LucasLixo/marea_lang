@@ -1,0 +1,42 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- while, do while and for range walk an array by its index.
+
+namespace main;
+
+require marea.array;
+
+function sum_while(values: marea.array.Array<sinteger32, 4>): sinteger32
+    local total: sinteger32 = 0;
+    local index: uinteger64 = 0;
+    while index < values.size() do
+        total += values[index];
+        index += 1;
+    end
+    return total;
+end
+
+function steps_to_reach(values: marea.array.Array<sinteger32, 4>, limit: sinteger32): uinteger64
+    local total: sinteger32 = 0;
+    local index: uinteger64 = 0;
+    do
+        total += values[index];
+        index += 1;
+    while total < limit and index < values.size() end
+    return index;
+end
+
+function dot(left: marea.array.Array<sinteger32, 4>, right: marea.array.Array<sinteger32, 4>): sinteger32
+    local total: sinteger32 = 0;
+    for index in 0 .. 3 do
+        total += left[index] * right[index];
+    end
+    return total;
+end
+
+function check(limit: sinteger32): sinteger32
+    local values: marea.array.Array<sinteger32, 4> = marea.array.Array<sinteger32, 4>{ 1, 2, 3, 4 };
+    return sum_while(values) + dot(values, values) + convert<sinteger32>(steps_to_reach(values, limit));
+end

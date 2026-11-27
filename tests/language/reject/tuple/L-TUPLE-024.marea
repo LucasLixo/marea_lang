@@ -1,0 +1,13 @@
+-- expect: 3011 @12
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A tuple element has its own type.
+
+namespace main;
+
+require marea.tuple;
+
+function check(pair: marea.tuple.Tuple<sinteger32, boolean>): sinteger32
+    return pair[1];
+end

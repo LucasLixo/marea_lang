@@ -39,6 +39,23 @@ MAREA_BEGIN_EXTERN_C
     #define MAREA_LIBRARY_MASK_DEFAULT ((MAREA_LibraryMask)(MAREA_LIBRARY_FLAG_MAREA_ARRAY | MAREA_LIBRARY_FLAG_MAREA_VECTOR | MAREA_LIBRARY_FLAG_MAREA_TUPLE | MAREA_LIBRARY_FLAG_C_MEMORY | MAREA_LIBRARY_FLAG_C_THREADS))
 
     /**
+     * @brief The typeParameterCount of a type that takes a list of types, each with its own place: a tuple. The
+     * language sets how many such a type takes, from MAREA_TYPE_TUPLE_MINIMUM_ARITY to MAREA_TYPE_TUPLE_MAXIMUM_ARITY.
+     */
+    #define MAREA_TYPE_PARAMETER_COUNT_VARIADIC ((MAREA_IntegerSize) - 1)
+
+    #define MAREA_TYPE_TUPLE_MINIMUM_ARITY MAREA_INTEGER_SIZE(2)
+
+    #define MAREA_TYPE_TUPLE_MAXIMUM_ARITY MAREA_INTEGER_SIZE(16)
+
+    /**
+     * @brief True for the descriptor of a tuple: a variadic parameter count, no role and no index protocol. The
+     * stages read this shape and never the name of the type. The ownership class of such a descriptor is not read,
+     * because the elements of each written type decide what can be copied.
+     */
+    #define MAREA_TYPE_DESCRIPTOR_IS_TUPLE(descriptor) (((descriptor)->typeParameterCount == MAREA_TYPE_PARAMETER_COUNT_VARIADIC) && ((descriptor)->roles == MAREA_TYPE_ROLE_NONE) && ((descriptor)->hasIndexProtocol == MAREA_BOOLEAN_FALSE))
+
+    /**
      * @brief One role the language reads from a registered type without ever reading its name. A
      * descriptor may carry more than one role, combined with bitwise or.
      */

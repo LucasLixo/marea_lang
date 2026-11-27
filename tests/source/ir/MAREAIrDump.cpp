@@ -324,3 +324,32 @@ TEST(MAREAIrDump, DeepChainDumpsOnASmallStack)
     EXPECT_EQ(TEXT.substr(TEXT.size() - LAST_LINE.size()), LAST_LINE) << "The deepest line must be indented by two spaces per level.";
 }
 #endif
+
+TEST(MAREAIrDump, TheDestroyOperatorOfATypeIsMarkedAndWritten)
+{
+    GTEST_COUT << "Validating the function of the destroy operator carries a mark, in the node and in the dump, and no other function does." << std::endl;
+
+    MAREA_IrFixture fixture;
+
+    ASSERT_EQ(fixture.MAREA_lower("namespace main; structure H id: sinteger32; end implementation H #[operator = \"destroy\"] function close() end function other() end end"), MAREA_IR_EXCEPT_SUCCESS) << "The unit must lower.";
+
+    std::vector<bool> marks;
+
+    for (MAREA_IntegerSize index{ 0 }; index < MAREA_IrNodeGetChildCount(fixture.module); ++index) {
+        const MAREA_IrNode *child{ MAREA_irChild(fixture.module, index) };
+
+        if (MAREA_IrNodeGetKind(child) == MAREA_IR_KIND_FUNCTION_DECLARATION) {
+            marks.push_back(MAREA_IrNodeIsDestroyOperator(child) == MAREA_BOOLEAN_TRUE);
+        }
+    }
+
+    EXPECT_EQ(marks, (std::vector<bool>{ true, false })) << "Only close is the destroy operator.";
+
+    EXPECT_FALSE(MAREA_IrNodeIsDestroyOperator(nullptr)) << "A null node is not.";
+
+    const std::string DUMP{ MAREA_dumpOf(fixture) };
+
+    EXPECT_NE(DUMP.find(" destroy\n"), std::string::npos) << "The mark is written on the function: " << DUMP;
+
+    EXPECT_EQ(DUMP.find(" destroy\n"), DUMP.rfind(" destroy\n")) << "Only one function is marked: " << DUMP;
+}

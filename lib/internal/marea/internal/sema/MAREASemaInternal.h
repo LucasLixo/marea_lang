@@ -273,6 +273,7 @@ MAREA_BEGIN_EXTERN_C
         const MAREA_Character8 *backend;
         MAREA_SemaExprType exprType;
         MAREA_SemaTypedNode **children;
+        const MAREA_SemaIncludedFile *includedFile;
         MAREA_IntegerSize typeNameLength;
         MAREA_IntegerSize resolvedTypeLength;
         MAREA_IntegerSize backendLength;
@@ -2128,6 +2129,207 @@ MAREA_BEGIN_EXTERN_C
      * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER on a null argument, or ERROR_OUT_OF_MEMORY.
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaBaseEntry(MAREA_SemaContext * context, const MAREA_AstNode *base, const MAREA_AstNode *member, const MAREA_SemaName **outEntry);
+
+    /**
+     * @brief What a written type of a sequence holds: the shape that a descriptor with the index protocol and no
+     * role gives. An inline run has the copy class and two type parameters (the element and the count). A growable
+     * run (isGrowable) has the move class and one type parameter (the element).
+     */
+    typedef struct MAREA_SemaInlineRun
+    {
+        const MAREA_AstNode *type;
+        const MAREA_AstNode *element;
+        MAREA_Uinteger64 count;
+        MAREA_Boolean hasCount;
+        MAREA_Boolean isGrowable;
+    } MAREA_SemaInlineRun;
+
+    /**
+     * @brief The members of an inline run, which the compiler implements itself.
+     */
+    typedef enum MAREA_SemaInlineRunMember
+    {
+        MAREA_SEMA_INLINE_RUN_MEMBER_NONE = MAREA_UINTEGER_8(0),
+        MAREA_SEMA_INLINE_RUN_MEMBER_FRONT = MAREA_UINTEGER_8(1),
+        MAREA_SEMA_INLINE_RUN_MEMBER_BACK = MAREA_UINTEGER_8(2),
+        MAREA_SEMA_INLINE_RUN_MEMBER_SIZE = MAREA_UINTEGER_8(3),
+        MAREA_SEMA_INLINE_RUN_MEMBER_MAX_SIZE = MAREA_UINTEGER_8(4),
+        MAREA_SEMA_INLINE_RUN_MEMBER_EMPTY = MAREA_UINTEGER_8(5),
+        MAREA_SEMA_INLINE_RUN_MEMBER_FILL = MAREA_UINTEGER_8(6),
+        MAREA_SEMA_INLINE_RUN_MEMBER_SWAP = MAREA_UINTEGER_8(7),
+        MAREA_SEMA_INLINE_RUN_MEMBER_FILLED = MAREA_UINTEGER_8(8),
+        MAREA_SEMA_INLINE_RUN_MEMBER_CAPACITY = MAREA_UINTEGER_8(9),
+        MAREA_SEMA_INLINE_RUN_MEMBER_RESERVE = MAREA_UINTEGER_8(10),
+        MAREA_SEMA_INLINE_RUN_MEMBER_SHRINK_TO_FIT = MAREA_UINTEGER_8(11),
+        MAREA_SEMA_INLINE_RUN_MEMBER_APPEND = MAREA_UINTEGER_8(12),
+        MAREA_SEMA_INLINE_RUN_MEMBER_POP = MAREA_UINTEGER_8(13),
+        MAREA_SEMA_INLINE_RUN_MEMBER_INSERT = MAREA_UINTEGER_8(14),
+        MAREA_SEMA_INLINE_RUN_MEMBER_ERASE = MAREA_UINTEGER_8(15),
+        MAREA_SEMA_INLINE_RUN_MEMBER_CLEAR = MAREA_UINTEGER_8(16),
+        MAREA_SEMA_INLINE_RUN_MEMBER_RESIZE = MAREA_UINTEGER_8(17),
+        MAREA_SEMA_INLINE_RUN_MEMBER_DATA = MAREA_UINTEGER_8(18),
+    } MAREA_SemaInlineRunMember;
+
+    /**
+     * @brief One call whose receiver is an inline run. member is NONE for a name that the run does not have.
+     * written is the type of the receiver with the bindings of its frame.
+     */
+    typedef struct MAREA_SemaInlineRunCall
+    {
+        const MAREA_AstNode *receiver;
+        const MAREA_AstNode *name;
+        MAREA_SemaWrittenType written;
+        MAREA_SemaInlineRun run;
+        MAREA_IntegerSize argumentCount;
+        MAREA_SemaInlineRunMember member;
+        MAREA_Boolean isStatic;
+    } MAREA_SemaInlineRunCall;
+
+    /**
+     * @brief Reads a written type as an inline run. The count is known when it is written as an integer literal.
+     * @return MAREA_BOOLEAN_TRUE when the type is an inline run.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaInlineRunOfType(const MAREA_SemaContext *context, const MAREA_AstNode *type, MAREA_SemaInlineRun *outRun);
+
+    /**
+     * @brief Reads the written type of an expression as an inline run.
+     * @param outWritten Receives the written type; its node is null when sema does not know it. Must not be null.
+     * @return MAREA_BOOLEAN_TRUE when the type is an inline run.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaInlineRunOfValue(const MAREA_SemaContext *context, const MAREA_AstNode *expression, MAREA_SemaWrittenType *outWritten, MAREA_SemaInlineRun *outRun);
+
+    /**
+     * @brief Tells whether a written type is a type that the language ships, under the root marea, whose members the
+     * compiler gives. The members of a type that a host registers may come from its signatures.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaInlineRunIsShipped(const MAREA_SemaContext *context, const MAREA_AstNode *type);
+
+    /**
+     * @brief Finds the member of a run that a name gives, on the type itself when isStatic is true, of a growable
+     * run when isGrowable is true.
+     * @param outArgumentCount Receives the argument count of a member that is found. May be null.
+     * @return The member, or NONE.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaInlineRunMember MAREA_CALL MAREA_SemaInlineRunMemberOf(const MAREA_AstNode *name, MAREA_Boolean isStatic, MAREA_Boolean isGrowable, MAREA_IntegerSize *outArgumentCount);
+
+    /**
+     * @brief Reads a call expression as a call of a member of an inline run, on a value or on the type itself.
+     * @return MAREA_BOOLEAN_TRUE when the receiver is an inline run.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaInlineRunCallOf(const MAREA_SemaContext *context, const MAREA_AstNode *call, MAREA_SemaInlineRunCall *outCall);
+
+    /**
+     * @brief Checks a call of a member of an inline run: the name, the argument count, the Copyable element, the
+     * writable receiver, the fit of a value and the two arrays of a swap.
+     * @param outHandled Receives MAREA_BOOLEAN_TRUE when the call is one of an inline run. Must not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS, ERROR_NULL_POINTER or ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckInlineRunCall(MAREA_SemaContext * context, const MAREA_AstNode *node, MAREA_Boolean *outHandled);
+
+    /**
+     * @brief Reports a copy of a growable run whose element does not meet the contract Copyable, since the copy
+     * is a deep copy of the elements.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckGrowableRunCopy(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
+     * @brief Reports a constant index of an INDEX_ACCESS that is not below the count of its inline run.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckInlineRunIndex(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
+     * @brief Checks the entries of a LITERAL_VALUE of an inline run against its count.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckInlineRunLiteral(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
+     * @brief Reads an INTEGER_LITERAL node.
+     * @return MAREA_BOOLEAN_TRUE when the node is an integer literal that fits 64 bits.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaReadIntegerLiteral(const MAREA_AstNode *node, MAREA_Uinteger64 *outValue);
+
+    /**
+     * @brief Tells whether two places may name the same storage.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaPlacesAlias(const MAREA_AstNode *left, const MAREA_AstNode *right);
+
+    /**
+     * @brief Tells whether a written type meets the contract Copyable. A type that sema cannot see meets it.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaIsCopyable(const MAREA_SemaContext *context, const MAREA_AstNode *type);
+
+    /**
+     * @brief Reads the file of a call of a registered macro whose result is an array of uinteger8: the bytes of the
+     * file that its argument names, copied into the arena with their path.
+     * @param outFile Receives the file, or null when the call is no such macro or the resolver gives no bytes. Must
+     * not be null.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS or MAREA_SEMA_EXCEPT_ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaMacroIncludedFile(const MAREA_SemaContext *context, const MAREA_AstNode *call, const MAREA_SemaIncludedFile **outFile);
+
+    /**
+     * @brief Reads a written type as a tuple.
+     * @param outArguments Receives the TYPE_ARGUMENTS node, or null when the type writes none. May be null.
+     * @return MAREA_BOOLEAN_TRUE when the type is a tuple.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaTupleOfType(const MAREA_SemaContext *context, const MAREA_AstNode *type, const MAREA_AstNode **outArguments);
+
+    /**
+     * @brief The written type of the element that a constant index of a tuple names.
+     * @return The type, or null when the type is no tuple or the key is no integer literal below the arity.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_AstNode *MAREA_CALL MAREA_SemaTupleElement(const MAREA_SemaContext *context, const MAREA_AstNode *type, const MAREA_AstNode *key);
+
+    /**
+     * @brief Reports a written tuple type whose arity is outside the limits, or that holds an element with no layout.
+     * @return MAREA_SEMA_EXCEPT_SUCCESS or MAREA_SEMA_EXCEPT_ERROR_OUT_OF_MEMORY.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckTupleType(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
+     * @brief Reports an index of a tuple that is no integer literal, or that is not below its arity.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckTupleIndex(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
+     * @brief Checks the entries of a LITERAL_VALUE of a tuple: their count, their types, and copy or move for a
+     * value that exists and is not held by value. A literal with no entry is the zero value.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckTupleLiteral(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
+     * @brief Checks a method call whose receiver is a tuple: swap is the only one.
+     * @param outHandled Receives MAREA_BOOLEAN_TRUE when the receiver is a tuple. Must not be null.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckTupleCall(MAREA_SemaContext * context, const MAREA_AstNode *node, MAREA_Boolean *outHandled);
+
+    /**
+     * @brief Checks a binary expression with a tuple on a side: only == and != of two tuples of one type, whose
+     * elements are primitives, enums or tuples of these.
+     * @param outHandled Receives MAREA_BOOLEAN_TRUE when a side is a tuple. Must not be null.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckTupleOperands(MAREA_SemaContext * context, const MAREA_AstNode *expression, MAREA_Boolean *outHandled);
+
+    /**
+     * @brief Reports a for each whose collection is a tuple.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckTupleForEach(MAREA_SemaContext * context, const MAREA_AstNode *node);
+
+    /**
+     * @brief Tells whether every element of a written tuple type meets the contract Copyable.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaTupleIsCopyable(const MAREA_SemaContext *context, const MAREA_AstNode *type);
+
+    /**
+     * @brief Tells whether a type can be held by value in a holder with the given roles.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaHasKnownLayout(const MAREA_SemaContext *context, const MAREA_AstNode *type, MAREA_TypeRole holderRoles);
+
+    /**
+     * @brief Tells whether a place needs storage of this function that is not a read-only borrow, and reports the
+     * write of a member that is named name when it does not.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckWritablePlace(MAREA_SemaContext * context, const MAREA_AstNode *place, const MAREA_AstNode *name);
 
 MAREA_END_EXTERN_C
 

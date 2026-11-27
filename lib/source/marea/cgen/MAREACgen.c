@@ -241,16 +241,19 @@ static void MAREA_CALL MAREA_G_Enter(MAREA_CgenGenerator *generator, MAREA_CgenF
     generator->selfLength = function->ownerLength;
     generator->functionFailed = MAREA_BOOLEAN_FALSE;
     generator->symbolCount = MAREA_INTEGER_SIZE(0);
+    generator->ownedCount = MAREA_INTEGER_SIZE(0);
+    generator->loopMark = MAREA_INTEGER_SIZE(0);
     generator->temporaryCount = MAREA_UINTEGER_32(0);
     generator->constantDepth = MAREA_UINTEGER_32(0);
 }
 
-// INFO: a structure is a borrow, written with mutable or read only. An array is always passed by its address, since the ir sets no flag for a write borrow of one and a read-only borrow is never written.
+// INFO: a structure is a borrow, written with mutable or read only. An array or a vector is always passed by its address, since the ir sets no flag for a write borrow of one and a read-only borrow is never written.
 static MAREA_Uinteger8 MAREA_CALL MAREA_G_PassingOf(const MAREA_CgenGenerator *generator, const MAREA_IrNode *parameter, MAREA_Uinteger32 type)
 {
     const MAREA_Uinteger8 CATEGORY = MAREA_CgenCategoryOf(generator, type);
 
-    if (CATEGORY == MAREA_CGEN_CATEGORY_ARRAY) {
+    // INFO: a value that holds storage passes by its address too, so a callee that takes it over leaves zeros in the value of the caller.
+    if ((CATEGORY == MAREA_CGEN_CATEGORY_ARRAY) || (MAREA_CgenNeedsDrop(generator, type) == MAREA_BOOLEAN_TRUE)) {
         return MAREA_CGEN_PASSING_MUTABLE_BORROW;
     }
 
@@ -353,7 +356,11 @@ static MAREA_CgenExcept MAREA_CALL MAREA_G_WriteFunction(MAREA_CgenGenerator *ge
 
     MAREA_CgenBuffer body = { .arena = generator->arena, .data = MAREA_NULLPTR, .length = MAREA_INTEGER_SIZE(0), .capacity = MAREA_INTEGER_SIZE(0), .failed = MAREA_BOOLEAN_FALSE };
 
+    MAREA_CgenBuffer prelude = { .arena = generator->arena, .data = MAREA_NULLPTR, .length = MAREA_INTEGER_SIZE(0), .capacity = MAREA_INTEGER_SIZE(0), .failed = MAREA_BOOLEAN_FALSE };
+    MAREA_CgenBuffer statements = { .arena = generator->arena, .data = MAREA_NULLPTR, .length = MAREA_INTEGER_SIZE(0), .capacity = MAREA_INTEGER_SIZE(0), .failed = MAREA_BOOLEAN_FALSE };
+
     generator->buffer = &body;
+    generator->prelude = &prelude;
 
     MAREA_G_WriteSignature(generator, &body, function);
 
@@ -362,6 +369,9 @@ static MAREA_CgenExcept MAREA_CALL MAREA_G_WriteFunction(MAREA_CgenGenerator *ge
     MAREA_CGEN_TRY(MAREA_G_PushParameters(generator, function));
 
     const MAREA_IrNode *block = MAREA_CgenChildAt(function->node, MAREA_INTEGER_SIZE(1));
+
+    // INFO: the statements go to a buffer of their own, since they add the declarations that stand before them.
+    generator->buffer = &statements;
 
     if ((block == MAREA_NULLPTR) || (MAREA_IrNodeGetKind(block) != MAREA_IR_KIND_BLOCK)) {
         MAREA_CGEN_TRY(MAREA_CgenGeneratorFail(generator, function->node, MAREA_CGEN_DIAGNOSTIC_CODE_UNSUPPORTED_CONSTRUCT, "A function has no body."));
@@ -374,7 +384,13 @@ static MAREA_CgenExcept MAREA_CALL MAREA_G_WriteFunction(MAREA_CgenGenerator *ge
         MAREA_CgenWriteTrap(generator, "MAREA_RT_TRAP_MISSING_RETURN");
     }
 
+    MAREA_CgenWrite(&body, prelude.data, prelude.length);
+    MAREA_CgenWrite(&body, statements.data, statements.length);
     MAREA_CgenWriteText(&body, "}\n");
+
+    if ((prelude.failed == MAREA_BOOLEAN_TRUE) || (statements.failed == MAREA_BOOLEAN_TRUE)) {
+        return MAREA_CGEN_EXCEPT_ERROR_OUT_OF_MEMORY;
+    }
 
     if (body.failed == MAREA_BOOLEAN_TRUE) {
         return MAREA_CGEN_EXCEPT_ERROR_OUT_OF_MEMORY;
@@ -426,6 +442,10 @@ static void MAREA_CALL MAREA_G_Assemble(const MAREA_CgenGenerator *generator, MA
 
     if (generator->usesContext == MAREA_BOOLEAN_TRUE) {
         MAREA_CgenWriteText(buffer, "#include \"marea/base/MAREAHostContext.h\"\n");
+    }
+
+    if (generator->usesVector == MAREA_BOOLEAN_TRUE) {
+        MAREA_CgenWriteText(buffer, "#include \"marea/base/MAREAVectorRuntime.h\"\n");
     }
 
     for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < generator->context->includeCount; index = (index + MAREA_INTEGER_SIZE(1))) {

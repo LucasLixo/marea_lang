@@ -1,0 +1,16 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- copy and move of a tuple name.
+
+namespace main;
+
+require marea.tuple;
+
+function check(): sinteger32
+    local first: marea.tuple.Tuple<sinteger32, sinteger32> = marea.tuple.Tuple<sinteger32, sinteger32>{ 1, 2 };
+    local second: marea.tuple.Tuple<sinteger32, sinteger32> = copy first;
+    local third: marea.tuple.Tuple<sinteger32, sinteger32> = move second;
+    return first[0] + third[1];
+end

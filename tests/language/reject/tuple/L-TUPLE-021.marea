@@ -1,0 +1,14 @@
+-- expect: 3019 @13
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- swap of a tuple with itself borrows it twice.
+
+namespace main;
+
+require marea.tuple;
+
+function check()
+    local pair: marea.tuple.Tuple<sinteger32, sinteger32> = marea.tuple.Tuple<sinteger32, sinteger32>{ 1, 2 };
+    pair.swap(pair);
+end

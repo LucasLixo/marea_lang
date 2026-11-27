@@ -177,12 +177,16 @@ MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorEmitConstant(MAREA_Byteco
             return MAREA_BYTECODE_EXCEPT_ERROR_OUT_OF_MEMORY;
         }
 
+        MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorGrow(generator, generator->dataBlobs, &generator->dataBlobCapacity, generator->dataCount, sizeof(MAREA_Uinteger32), MAREA_ALIGNOF(MAREA_Uinteger32), &items));
+
+        generator->dataBlobs = items;
+        generator->dataBlobs[generator->dataCount] = blob;
         generator->dataValues[generator->dataCount] = bits;
 
         generator->dataCount += MAREA_INTEGER_SIZE(1);
     }
 
-    return MAREA_BytecodeGeneratorEmit(generator, MAREA_BYTECODE_OPCODE_LOAD_DATA, destination, (MAREA_Uinteger32)found, MAREA_UINTEGER_32(0), MAREA_NULLPTR);
+    return MAREA_BytecodeGeneratorEmit(generator, MAREA_BYTECODE_OPCODE_LOAD_DATA, destination, generator->dataBlobs[found], MAREA_UINTEGER_32(0), MAREA_NULLPTR);
 }
 
 MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorPushSymbol(MAREA_BytecodeGenerator *generator, const MAREA_Character8 *name, MAREA_IntegerSize length, MAREA_Uinteger32 registerIndex, MAREA_Uinteger8 kind, MAREA_Uinteger32 aggregateIndex)
@@ -200,6 +204,7 @@ MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorPushSymbol(MAREA_Bytecode
     symbol->registerIndex = registerIndex;
     symbol->kind = kind;
     symbol->aggregateType = aggregateIndex;
+    symbol->isPlace = MAREA_BOOLEAN_FALSE;
 
     generator->symbolCount += MAREA_INTEGER_SIZE(1);
 
@@ -444,6 +449,8 @@ static MAREA_BytecodeExcept MAREA_CALL MAREA_G_BuildAggregate(MAREA_BytecodeGene
     const MAREA_Uinteger32 SELF = (MAREA_Uinteger32)generator->aggregateCount;
     MAREA_BytecodeGeneratorAggregate *aggregate = &generator->aggregates[SELF];
 
+    memset(aggregate, 0, sizeof(*aggregate));
+
     aggregate->declaration = declaration;
     aggregate->layout = layout;
     aggregate->name = name;
@@ -522,9 +529,12 @@ MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorAggregateKind(MAREA_Bytec
         return MAREA_BYTECODE_EXCEPT_SUCCESS;
     }
 
-    const MAREA_Character8 *text = MAREA_IrNodeGetResolvedType(node);
-    const MAREA_IntegerSize length = MAREA_IrNodeGetResolvedTypeLength(node);
+    return MAREA_BytecodeGeneratorTextKind(generator, node, MAREA_IrNodeGetResolvedType(node), MAREA_IrNodeGetResolvedTypeLength(node), outKind, outAggregateIndex);
+}
 
+MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorTextKind(MAREA_BytecodeGenerator *generator, const MAREA_IrNode *node, const MAREA_Character8 *text, MAREA_IntegerSize length, MAREA_Uinteger8 *outKind, MAREA_Uinteger32 *outAggregateIndex)
+{
+    *outAggregateIndex = MAREA_BYTECODE_NONE;
     *outKind = MAREA_BYTECODE_GENERATOR_KIND_NONE;
 
     if ((text == MAREA_NULLPTR) || (length == MAREA_INTEGER_SIZE(0))) {
@@ -540,6 +550,17 @@ MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorAggregateKind(MAREA_Bytec
 
             return MAREA_BYTECODE_EXCEPT_SUCCESS;
         }
+    }
+
+    MAREA_Uinteger32 run = MAREA_BYTECODE_NONE;
+
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorRunKind(generator, node, text, length, &run));
+
+    if (run != MAREA_BYTECODE_NONE) {
+        *outKind = MAREA_BYTECODE_GENERATOR_KIND_AGGREGATE;
+        *outAggregateIndex = run;
+
+        return MAREA_BYTECODE_EXCEPT_SUCCESS;
     }
 
     const MAREA_IrLayout *layout = MAREA_NULLPTR;
@@ -581,7 +602,7 @@ MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorAggregateKind(MAREA_Bytec
 
 MAREA_Boolean MAREA_CALL MAREA_BytecodeGeneratorAggregateField(const MAREA_BytecodeGenerator *generator, MAREA_Uinteger32 aggregateIndex, const MAREA_Character8 *name, MAREA_IntegerSize length, MAREA_Uinteger64 *outOffset, const MAREA_IrNode **outField)
 {
-    if (aggregateIndex >= generator->aggregateCount) {
+    if ((aggregateIndex >= generator->aggregateCount) || generator->aggregates[aggregateIndex].isRun || generator->aggregates[aggregateIndex].isVector || generator->aggregates[aggregateIndex].isTuple) {
         return MAREA_BOOLEAN_FALSE;
     }
 

@@ -448,7 +448,7 @@ static const MAREA_AstNode *MAREA_CALL MAREA_G_FindTypeArguments(const MAREA_Ast
 // the instantiation that fills it, not here). A registered type has the shape its descriptor gives (a
 // handle for a task, an owner or a pointer, an inline run for an array), and its own type arguments are
 // checked when its own node is visited. A function type is rejected.
-static MAREA_Boolean MAREA_CALL MAREA_G_HasKnownLayout(const MAREA_SemaContext *context, const MAREA_AstNode *type)
+MAREA_Boolean MAREA_CALL MAREA_SemaHasKnownLayout(const MAREA_SemaContext *context, const MAREA_AstNode *type, MAREA_TypeRole holderRoles)
 {
     const MAREA_AstNode *declaration = MAREA_NULLPTR;
 
@@ -463,8 +463,15 @@ static MAREA_Boolean MAREA_CALL MAREA_G_HasKnownLayout(const MAREA_SemaContext *
     }
 
     // INFO: a type sema cannot see (an external one, or an unknown name that its own check reports) is not
-    // guessed here; only a function type, the one shape that is known to have no layout, is rejected.
-    return (MAREA_SemaClassifyType(context, type, &declaration, &name, &length) == MAREA_SEMA_TYPE_CLASS_COPY_BUILTIN) ? MAREA_BOOLEAN_FALSE : MAREA_BOOLEAN_TRUE;
+    // guessed here; a function type, and an opaque structure in a holder that stores it (not a view, which only
+    // refers to it), are the shapes that are known to have no layout.
+    const MAREA_SemaTypeClass CLASS = MAREA_SemaClassifyType(context, type, &declaration, &name, &length);
+
+    if ((holderRoles == MAREA_TYPE_ROLE_NONE) && (CLASS == MAREA_SEMA_TYPE_CLASS_USER) && (declaration != MAREA_NULLPTR) && (MAREA_AstNodeGetKind(declaration) == MAREA_AST_KIND_OPAQUE_DECLARATION)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    return (CLASS == MAREA_SEMA_TYPE_CLASS_COPY_BUILTIN) ? MAREA_BOOLEAN_FALSE : MAREA_BOOLEAN_TRUE;
 }
 
 // INFO: an element type with no measured layout cannot be held by value (decision 28 of the
@@ -482,7 +489,7 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckElementLayout(MAREA_SemaContext 
 
     const MAREA_AstNode *element = (arguments == MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_SemaChildAt(arguments, 0);
 
-    if ((element == MAREA_NULLPTR) || (MAREA_G_HasKnownLayout(context, element) == MAREA_BOOLEAN_TRUE)) {
+    if ((element == MAREA_NULLPTR) || (MAREA_SemaHasKnownLayout(context, element, descriptor->roles) == MAREA_BOOLEAN_TRUE)) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
@@ -530,6 +537,12 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckNamedType(MAREA_SemaContext *context,
         return ELEMENT_LAYOUT_RESULT;
     }
 
+    const MAREA_SemaExcept TUPLE_RESULT = MAREA_SemaCheckTupleType(context, node);
+
+    if (TUPLE_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+        return TUPLE_RESULT;
+    }
+
     const MAREA_SemaExcept RAW_POINTER_RESULT = MAREA_G_CheckRawPointerPlacement(context, node);
 
     if (RAW_POINTER_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
@@ -542,7 +555,10 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckNamedType(MAREA_SemaContext *context,
 
     const MAREA_AstNode *writtenArguments = MAREA_G_FindTypeArguments(node);
 
-    if ((writtenArguments != MAREA_NULLPTR) && (MAREA_SemaDescriptorOfType(context, node, &registered) == MAREA_BOOLEAN_TRUE) && (MAREA_AstNodeGetChildCount(writtenArguments) > registered->typeParameterCount)) {
+    MAREA_SemaInlineRun run = { 0 };
+
+    // INFO: an inline run is stored inline, so each of its type arguments, the count too, has to be written.
+    if ((writtenArguments != MAREA_NULLPTR) && (MAREA_SemaDescriptorOfType(context, node, &registered) == MAREA_BOOLEAN_TRUE) && ((MAREA_AstNodeGetChildCount(writtenArguments) > registered->typeParameterCount) || ((MAREA_SemaInlineRunOfType(context, node, &run) == MAREA_BOOLEAN_TRUE) && (MAREA_AstNodeGetChildCount(writtenArguments) != registered->typeParameterCount)))) {
         return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_GENERIC_ARGUMENT_MISMATCH, MAREA_AstNodeGetPosition(node), "type arguments do not match the generic parameters of", registered->name, registered->nameLength);
     }
 

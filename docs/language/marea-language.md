@@ -1170,6 +1170,142 @@ Facts the items fix, checked by running the compiler:
 | Id | Shows | Expected |
 |---|---|---|
 
+## Array
+
+`marea.array.Array<Element, Count>`: its members, its loops, its layout and its rejections. The items sit in
+`tests/language/<class>/array/`.
+
+### Array: accept
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-ARRAY-001 | an element of a fixed array is read, written and taken with front and back | ok |
+| L-ARRAY-002 | size, max_size and empty give the count, also a count of zero | ok |
+| L-ARRAY-003 | fill writes every element and filled makes an array of one value | ok |
+| L-ARRAY-004 | swap exchanges the elements of two arrays of one count | ok |
+| L-ARRAY-005 | an array holds arrays and structures in place | ok |
+| L-ARRAY-006 | while, do while and for range walk an array by its index | ok |
+| L-ARRAY-007 | for each reads an array with one name or with a key and returns the key | ok |
+| L-ARRAY-008 | for each in mutable writes each element in place through a write borrow | ok |
+| L-ARRAY-009 | a for each over an array of count zero runs no body | ok |
+| L-ARRAY-010 | size_of and align_of measure an array as its count times its element | ok |
+| L-ARRAY-011 | a walk by for each and a walk from the end read an array in both orders | ok |
+| L-ARRAY-012 | an array of owners is borrowed by for each and never copied | ok |
+
+### Array: reject
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-ARRAY-014 | an array literal holds more values than the count | 3087 @12 |
+| L-ARRAY-015 | a positional array literal holds fewer values than the count | 3087 @12 |
+| L-ARRAY-016 | an array type is written with no count | 3014 @11 |
+| L-ARRAY-017 | a constant index is past the count of the array | 3088 @12 |
+| L-ARRAY-018 | a constant index writes into an array of count zero | 3088 @13 |
+| L-ARRAY-019 | fill needs an element type that can be copied | 3013 @16 |
+| L-ARRAY-020 | front needs an element type that can be copied | 3013 @16 |
+| L-ARRAY-021 | swap of an array with itself borrows it twice | 3019 @13 |
+| L-ARRAY-022 | for each in mutable writes through a read only parameter | 3069 @12 |
+| L-ARRAY-023 | fill changes the array that a for each walks | 3073 @14 |
+| L-ARRAY-024 | fill writes through a read only parameter | 3069 @12 |
+| L-ARRAY-025 | fill takes a value of the element type | 3011 @13 |
+| L-ARRAY-026 | swap takes an array of the same count | 3014 @14 |
+| L-ARRAY-027 | an array cannot hold an opaque structure by value | 3082 @13 |
+| L-ARRAY-028 | an array has no member at, only the index | 3049 @12 |
+
+### Array: known_gap
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-ARRAY-013 | partition over an array gives no part until the run time view type exists | #393 NEW |
+
+## Vector
+
+`marea.vector.Vector<Element>`: its members, its ownership, its loops, its layout and its rejections. The items
+sit in `tests/language/<class>/vector/`.
+
+### Vector: accept
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-VECTOR-001 | an empty literal and a literal of values give the size and the capacity | ok |
+| L-VECTOR-002 | append past the capacity grows the vector and keeps the order | ok |
+| L-VECTOR-003 | pop, insert in the middle and erase move the elements | ok |
+| L-VECTOR-004 | reserve, shrink_to_fit and clear change the capacity as they say | ok |
+| L-VECTOR-005 | resize, fill, front, back and max_size of a vector | ok |
+| L-VECTOR-006 | swap exchanges the storage of two vectors | ok |
+| L-VECTOR-007 | for each writes in place and another vector grows in the body | ok |
+| L-VECTOR-008 | while, do while and for range read the size of a vector | ok |
+| L-VECTOR-009 | a vector holds structures and takes inner vectors by move | ok |
+| L-VECTOR-010 | copy, move and return hand a vector on | ok |
+| L-VECTOR-011 | a vector of owners is borrowed by for each and never copied | ok |
+| L-VECTOR-012 | data gives the address of the first element inside unsafe | ok |
+| L-VECTOR-013 | size_of and align_of measure a vector as its header of three words | ok |
+
+### Vector: reject
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-VECTOR-015 | copy of a vector needs an element type that can be copied | 3013 @16 |
+| L-VECTOR-016 | append changes the vector that a for each walks | 3073 @14 |
+| L-VECTOR-017 | reserve may move the storage that a for each walks | 3073 @14 |
+| L-VECTOR-018 | erase changes the vector that a for each walks | 3073 @14 |
+| L-VECTOR-019 | shrink_to_fit may move the storage that a for each walks | 3073 @14 |
+| L-VECTOR-020 | a vector is used after it moved | 3070 @14 |
+| L-VECTOR-021 | swap of a vector with itself borrows it twice | 3019 @13 |
+| L-VECTOR-022 | a vector name is assigned with no copy and no move | 3016 @13 |
+| L-VECTOR-023 | a vector cannot hold an opaque structure by value | 3082 @13 |
+| L-VECTOR-024 | append writes through a read only borrow | 3069 @12 |
+| L-VECTOR-025 | data is called outside unsafe | 3041 @13 |
+| L-VECTOR-026 | append takes a value of the element type | 3011 @13 |
+| L-VECTOR-027 | resize needs an element type that can be copied | 3013 @17 |
+| L-VECTOR-028 | back needs an element type that can be copied | 3013 @16 |
+
+### Vector: known_gap
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-VECTOR-014 | partition over a vector gives no part until the run time view type exists | #393 NEW |
+
+## Tuple
+
+`marea.tuple.Tuple<T0, T1, ...>`: its literal, its constant index, its equality, its layout and its rejections. The
+items sit in `tests/language/<class>/tuple/`.
+
+### Tuple: accept
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-TUPLE-001 | a tuple element is read and written by a constant index | ok |
+| L-TUPLE-002 | == and != compare two tuples element by element | ok |
+| L-TUPLE-003 | a function gives back two values in one tuple | ok |
+| L-TUPLE-004 | a tuple holds a tuple, a structure and an array | ok |
+| L-TUPLE-005 | swap exchanges the elements of two tuples of one type | ok |
+| L-TUPLE-006 | copy and move of a tuple name | ok |
+| L-TUPLE-007 | a vector moves out of a tuple that holds it | ok |
+| L-TUPLE-008 | size_of and align_of measure a tuple as a structure of its elements | ok |
+
+### Tuple: reject
+
+| Id | Shows | Expected |
+|---|---|---|
+| L-TUPLE-009 | a tuple type has one element only | 3014 @11 |
+| L-TUPLE-010 | a tuple type has seventeen elements | 3014 @11 |
+| L-TUPLE-011 | a tuple literal holds fewer values than the elements | 3087 @12 |
+| L-TUPLE-012 | a tuple literal holds more values than the elements | 3087 @12 |
+| L-TUPLE-013 | a tuple literal gives a value of another type | 3011 @12 |
+| L-TUPLE-014 | a tuple index is not a constant | 3089 @12 |
+| L-TUPLE-015 | a tuple index is past the last element | 3088 @12 |
+| L-TUPLE-016 | for each walks a tuple, which is not a collection | 3090 @12 |
+| L-TUPLE-017 | copy of a tuple needs every element to be copyable | 3013 @16 |
+| L-TUPLE-018 | a tuple cannot hold an opaque structure by value | 3082 @13 |
+| L-TUPLE-019 | a tuple has no order | 3011 @12 |
+| L-TUPLE-020 | a tuple name is assigned with no copy and no move | 3016 @13 |
+| L-TUPLE-021 | swap of a tuple with itself borrows it twice | 3019 @13 |
+| L-TUPLE-022 | == needs every element of a tuple to support it | 3011 @13 |
+| L-TUPLE-023 | a write to a tuple element goes through a read only parameter | 3069 @12 |
+| L-TUPLE-024 | a tuple element has its own type | 3011 @12 |
+| L-TUPLE-025 | a tuple index through a type alias is past the last element | 3088 @14 |
+
 ## Adversarial
 
 Programs that no single area owns: features that meet in one program, and accept items of the other areas with one small
@@ -1350,6 +1486,7 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | area | accept | reject | known_gap |
 |---|---|---|---|
 | adversarial | 0 | 64 | 8 |
+| array | 12 | 15 | 1 |
 | attributes | 3 | 20 | 0 |
 | bindings | 33 | 84 | 0 |
 | coverage | 0 | 2 | 0 |
@@ -1361,8 +1498,10 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | ownership | 67 | 78 | 2 |
 | parallel | 20 | 41 | 0 |
 | seed | 1 | 2 | 0 |
+| tuple | 8 | 17 | 0 |
 | types | 62 | 154 | 0 |
-| total | 281 | 601 | 10 |
+| vector | 13 | 14 | 1 |
+| total | 314 | 647 | 12 |
 
 ## Parity
 
@@ -1410,6 +1549,8 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 | 3077 | `sema` | [marea-sema.md](../sema/marea-sema.md), `MISSING_FIELD` |
 | 3078-3081 | `sema` | [marea-sema.md](../sema/marea-sema.md), `UNIMPORTED_NAMESPACE`, `UNRESOLVED_REQUIRE`, `AMBIGUOUS_NAMESPACE` and `RESERVED_NAMESPACE_ROOT` |
 | 3083-3086 | `sema` | [marea-sema.md](../sema/marea-sema.md), `BACKEND_UNAVAILABLE`, `ATTRIBUTE_NOT_ALLOWED_HERE`, `MISPLACED_ATTRIBUTE` and `INVALID_BUILD_VALUE`; 3083 and 3086 have no item (see Gaps) |
+| 3087-3088 | `sema` | [marea-sema.md](../sema/marea-sema.md), `LITERAL_COUNT_MISMATCH` and `CONSTANT_INDEX_OUT_OF_RANGE` |
+| 3089-3090 | `sema` | [marea-sema.md](../sema/marea-sema.md), `TUPLE_INDEX_NOT_CONSTANT` and `NOT_ITERABLE` |
 | 4004-4006 | `ir` | [marea-ir.md](../ir/marea-ir.md), no item reaches them (see Gaps) |
 
 ## Gaps
@@ -1417,9 +1558,10 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 - The runner checks one file per item, so an item cannot import a second file of its own (issue #250). A rule that
   needs two namespaces can use an `EXTERNAL` import, which the runner gives to the `c.`, `collections.`,
   `concurrency.`, `arenas.` prefixes and to `text`, or the one fixed `FOUND` namespace `fixture.shapes`.
-- The code 3082 (`ELEMENT_WITHOUT_MEASURED_LAYOUT`, an element with no measured layout held by value) has no item
-  yet: no shipped library type exists for an item to write, since sema now knows no library and only reads the
-  descriptors a registry holds (a library type in an item is the fixture root `demo`, registered by the runner). `tests/source/sema/MAREASemaTypeRegistry.cpp` proves the code with a fixture descriptor instead.
+- `partition` and `partition mutable` over an array or a vector are accepted, but give no part: the part is a view with
+  a run-time length, which belongs to a library that is not written yet. L-ARRAY-013 and L-VECTOR-014 keep this gap.
+- `include_bytes!` has no `accept` item: the runner gives sema no include resolver. `tests/source/sema/MAREASemaArrayLibrary.cpp`
+  proves it instead.
 - The codes 3083 (`BACKEND_UNAVAILABLE`) and 3086 (`INVALID_BUILD_VALUE`) have no item: the runner gives sema no target
   description and no build settings, and `include_bytes!` of a library has no include resolver there either (the `reject`
   item L-INTEROP-070 shows the missing-file case only). `tests/source/sema/MAREASemaBackendWhen.cpp`,
@@ -1464,7 +1606,7 @@ The coverage test holds this list; an example that gains an item must leave it.
 ### Diagnostic codes with no reject item
 
 Every live lex, parse and sema code (1001-1006, 2001-2010, 3001-3086 without 3023 and the numbers no code uses) has a
-`reject` item, except 3082, 3083 and 3086 (exempt as the Gaps list above says). The ir codes
+`reject` item, except 3083 and 3086 (exempt as the Gaps list above says). The ir codes
 4004, 4005 and 4006 are exempt: the runner runs lex, parse and sema only, so no item can reach the ir. The exemption ends
 when a runner or an apply makes the ir run in it. The retired codes 3023 and 4001-4003 are excluded and must not
 return in a header.

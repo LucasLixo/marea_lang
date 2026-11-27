@@ -413,6 +413,7 @@ inline MAREA_ParityModules MAREA_parityGenerate(MAREA_IrFixture &fixture, const 
     MAREA_BytecodeContext *bytecodeContext{ nullptr };
 
     MAREA_IGNORE(MAREA_BytecodeContextCreate(fixture.sema.parser.lexer.arena, fixture.sema.parser.lexer.sink, &bytecodeContext));
+    MAREA_IGNORE(MAREA_BytecodeContextSetTypeRegistry(bytecodeContext, MAREA_buildLibraryRegistry(fixture.sema.parser.lexer.arena)));
 
     MAREA_IntegerSize first{ MAREA_DiagnosticSinkGetCount(fixture.sema.parser.lexer.sink) };
 
@@ -446,11 +447,10 @@ inline std::vector<MAREA_ParityOutcome> MAREA_parityRunVm(MAREA_IrFixture &fixtu
 
     MAREA_IGNORE(MAREA_VmContextCreate(arena, fixture.sema.parser.lexer.sink, &context));
 
+    // INFO: the vm reads the same libraries as sema and cgen; a host adds its functions and its allocator hooks.
+    MAREA_TypeRegistry *registry{ MAREA_buildLibraryRegistry(arena) };
+
     if (host != nullptr) {
-        MAREA_TypeRegistry *registry{ nullptr };
-
-        MAREA_IGNORE(MAREA_TypeRegistryCreate(arena, MAREA_LIBRARY_MASK_DEFAULT, &registry));
-
         for (const auto &entry : host->vmFunctions) {
             const std::size_t DOT{ entry.first.rfind('.') };
 
@@ -465,9 +465,9 @@ inline std::vector<MAREA_ParityOutcome> MAREA_parityRunVm(MAREA_IrFixture &fixtu
             MAREA_IGNORE(MAREA_TypeRegistryReplaceRuntimeFunction(registry, "alloc", 5, reinterpret_cast<MAREA_Null>(host->vmAllocate)));
             MAREA_IGNORE(MAREA_TypeRegistryReplaceRuntimeFunction(registry, "free", 4, reinterpret_cast<MAREA_Null>(host->vmRelease)));
         }
-
-        MAREA_IGNORE(MAREA_VmContextSetTypeRegistry(context, registry));
     }
+
+    MAREA_IGNORE(MAREA_VmContextSetTypeRegistry(context, registry));
 
     std::vector<MAREA_ParityOutcome> outcomes;
 
@@ -801,11 +801,15 @@ struct MAREA_ParityResult
     }
 };
 
-inline MAREA_ParityResult MAREA_parityCheck(const std::string &source, const std::vector<MAREA_ParityCall> &calls, const MAREA_ParityHost *host = nullptr)
+inline MAREA_ParityResult MAREA_parityCheck(const std::string &source, const std::vector<MAREA_ParityCall> &calls, const MAREA_ParityHost *host = nullptr, const MAREA_SemaIncludeResolver *includes = nullptr)
 {
     MAREA_ParityResult result;
 
     MAREA_IrFixture fixture((host != nullptr) ? MAREA_parityHostResolverCallback() : MAREA_parityLibraries());
+
+    if (includes != nullptr) {
+        MAREA_IGNORE(MAREA_SemaContextSetIncludeResolver(fixture.sema.context, includes));
+    }
 
     if (host != nullptr) {
         MAREA_IGNORE(MAREA_SemaImportResolverSetSignatureFunction(fixture.sema.resolver, &MAREA_hostSignatureThunk));

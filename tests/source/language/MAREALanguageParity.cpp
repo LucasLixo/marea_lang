@@ -28,16 +28,15 @@ namespace
     const std::vector<MAREA_Exclusion> &MAREA_exclusions()
     {
         static const std::vector<MAREA_Exclusion> EXCLUSIONS{
-            { "the vm takes and returns no structure between functions of the unit", MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, true, { "L-EXAMPLES-016", "L-FUNCTIONS-007", "L-FUNCTIONS-013", "L-FUNCTIONS-014", "L-FUNCTIONS-015", "L-MEMORY-001", "L-MEMORY-002", "L-MEMORY-003", "L-MEMORY-005", "L-MEMORY-015", "L-MEMORY-024", "L-MEMORY-027", "L-MEMORY-033", "L-OWNERSHIP-001", "L-OWNERSHIP-003", "L-OWNERSHIP-005", "L-OWNERSHIP-006", "L-OWNERSHIP-008", "L-OWNERSHIP-012", "L-OWNERSHIP-016", "L-OWNERSHIP-018", "L-OWNERSHIP-020", "L-OWNERSHIP-028", "L-OWNERSHIP-037", "L-OWNERSHIP-040", "L-OWNERSHIP-043", "L-OWNERSHIP-045", "L-OWNERSHIP-049", "L-OWNERSHIP-052", "L-OWNERSHIP-067", "L-OWNERSHIP-070", "L-OWNERSHIP-075", "L-OWNERSHIP-090", "L-OWNERSHIP-104", "L-OWNERSHIP-114", "L-OWNERSHIP-120", "L-OWNERSHIP-122", "L-OWNERSHIP-124", "L-OWNERSHIP-130", "L-OWNERSHIP-132", "L-OWNERSHIP-134", "L-OWNERSHIP-135", "L-OWNERSHIP-137", "L-TYPES-001", "L-TYPES-002", "L-TYPES-003", "L-TYPES-005", "L-TYPES-006", "L-TYPES-075", "L-TYPES-076", "L-TYPES-077", "L-TYPES-078", "L-TYPES-081" } },
+            { "the vm takes and returns no structure between functions of the unit", MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, true, { "L-EXAMPLES-016", "L-FUNCTIONS-007", "L-FUNCTIONS-013", "L-FUNCTIONS-014", "L-FUNCTIONS-015", "L-MEMORY-001", "L-MEMORY-002", "L-MEMORY-003", "L-MEMORY-005", "L-MEMORY-015", "L-MEMORY-024", "L-MEMORY-027", "L-MEMORY-033", "L-OWNERSHIP-001", "L-OWNERSHIP-003", "L-OWNERSHIP-005", "L-OWNERSHIP-006", "L-OWNERSHIP-008", "L-OWNERSHIP-012", "L-OWNERSHIP-016", "L-OWNERSHIP-018", "L-OWNERSHIP-020", "L-OWNERSHIP-028", "L-OWNERSHIP-037", "L-OWNERSHIP-040", "L-OWNERSHIP-043", "L-OWNERSHIP-045", "L-OWNERSHIP-049", "L-OWNERSHIP-052", "L-OWNERSHIP-067", "L-OWNERSHIP-070", "L-OWNERSHIP-075", "L-OWNERSHIP-078", "L-OWNERSHIP-090", "L-OWNERSHIP-104", "L-OWNERSHIP-114", "L-OWNERSHIP-118", "L-OWNERSHIP-120", "L-OWNERSHIP-122", "L-OWNERSHIP-124", "L-OWNERSHIP-130", "L-OWNERSHIP-132", "L-OWNERSHIP-134", "L-OWNERSHIP-135", "L-OWNERSHIP-137", "L-TYPES-001", "L-TYPES-002", "L-TYPES-003", "L-TYPES-005", "L-TYPES-006", "L-TYPES-075", "L-TYPES-076", "L-TYPES-077", "L-TYPES-078", "L-TYPES-081" } },
             { "the vm holds no enum value", MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, true, { "L-NAMESPACES-064", "L-OWNERSHIP-027", "L-TYPES-032", "L-TYPES-036", "L-TYPES-037", "L-TYPES-038", "L-TYPES-039", "L-TYPES-041", "L-TYPES-042" } },
             { "the vm runs no construct and no destroy operator", MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_CONSTRUCT, true, { "L-MEMORY-010", "L-MEMORY-011", "L-MEMORY-012", "L-MEMORY-013", "L-MEMORY-014", "L-MEMORY-016" } },
-            { "the vm assigns no field of a structure", MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_CONSTRUCT, true, { "L-TYPES-004" } },
-            { "the vm reads no constant of a structure type", MAREA_BYTECODE_DIAGNOSTIC_CODE_UNRESOLVED_NAME, true, { "L-OWNERSHIP-024" } },
-            { "an array type of a library that the vm cannot hold", MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, true, { "L-OWNERSHIP-031" } },
-            { "an operator or a method of a library array, with no library yet", MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, false, { "L-EXAMPLES-003" } },
+            { "the vm reads no constant of a structure type", MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, true, { "L-OWNERSHIP-024" } },
+            { "an operator or a method of a library array, with no library yet", MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_CONSTRUCT, false, { "L-EXAMPLES-003" } },
+            { "size_of, which neither backend lowers yet", MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_CONSTRUCT, false, { "L-ARRAY-010", "L-VECTOR-013", "L-TUPLE-008" } },
             { "a user operator that the ir lowers to no call, and a C function that no signature types", MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, false, { "L-EXAMPLES-019" } },
             { "a with block, which neither backend writes yet", MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, false, { "L-OWNERSHIP-022", "L-OWNERSHIP-087", "L-OWNERSHIP-099", "L-OWNERSHIP-147" } },
-            { "a library type that no registry describes as an array, with no library yet", MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, false, { "L-EXAMPLES-017", "L-EXAMPLES-018", "L-EXAMPLES-020", "L-INTEROP-005", "L-INTEROP-008", "L-NAMESPACES-006", "L-OWNERSHIP-010", "L-OWNERSHIP-014", "L-OWNERSHIP-030", "L-OWNERSHIP-033", "L-OWNERSHIP-034", "L-OWNERSHIP-047", "L-OWNERSHIP-078", "L-OWNERSHIP-080", "L-OWNERSHIP-081", "L-OWNERSHIP-083", "L-OWNERSHIP-085", "L-OWNERSHIP-118", "L-OWNERSHIP-139", "L-OWNERSHIP-140", "L-OWNERSHIP-141", "L-OWNERSHIP-143", "L-OWNERSHIP-145", "L-PARALLEL-001", "L-PARALLEL-002", "L-PARALLEL-003", "L-PARALLEL-004", "L-PARALLEL-005", "L-PARALLEL-006", "L-PARALLEL-008", "L-PARALLEL-009", "L-PARALLEL-010", "L-PARALLEL-011", "L-PARALLEL-013", "L-PARALLEL-014", "L-PARALLEL-015", "L-PARALLEL-016", "L-PARALLEL-017", "L-PARALLEL-018", "L-PARALLEL-019", "L-PARALLEL-020", "L-PARALLEL-079", "L-TYPES-129" } },
+            { "a library type that no registry describes as an array, with no library yet", MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, false, { "L-EXAMPLES-017", "L-EXAMPLES-018", "L-EXAMPLES-020", "L-INTEROP-005", "L-INTEROP-008", "L-NAMESPACES-006", "L-OWNERSHIP-030", "L-OWNERSHIP-034", "L-OWNERSHIP-047", "L-OWNERSHIP-080", "L-OWNERSHIP-081", "L-OWNERSHIP-083", "L-OWNERSHIP-139", "L-OWNERSHIP-140", "L-OWNERSHIP-141", "L-OWNERSHIP-143", "L-OWNERSHIP-145", "L-PARALLEL-001", "L-PARALLEL-002", "L-PARALLEL-003", "L-PARALLEL-004", "L-PARALLEL-005", "L-PARALLEL-006", "L-PARALLEL-008", "L-PARALLEL-009", "L-PARALLEL-010", "L-PARALLEL-011", "L-PARALLEL-013", "L-PARALLEL-014", "L-PARALLEL-015", "L-PARALLEL-016", "L-PARALLEL-017", "L-PARALLEL-018", "L-PARALLEL-019", "L-PARALLEL-020", "L-PARALLEL-079", "L-TYPES-129" } },
             { "a string, which neither backend holds yet", MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, false, { "L-BINDINGS-023", "L-BINDINGS-076", "L-EXAMPLES-006", "L-EXAMPLES-007", "L-EXAMPLES-009", "L-EXAMPLES-011", "L-EXAMPLES-012", "L-EXAMPLES-014", "L-EXAMPLES-015", "L-INTEROP-016", "L-NAMESPACES-013" } },
             { "a character, which neither backend holds yet", MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, false, { "L-BINDINGS-024", "L-TYPES-064" } },
             { "a function type value, which neither backend holds yet", MAREA_BYTECODE_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, false, { "L-FUNCTIONS-004", "L-FUNCTIONS-016" } },
@@ -57,6 +56,11 @@ namespace
         }
 
         return nullptr;
+    }
+
+    bool MAREA_isContainerItem(const std::string &relativePath)
+    {
+        return (relativePath.rfind("accept/array/", 0) == 0) || (relativePath.rfind("accept/vector/", 0) == 0) || (relativePath.rfind("accept/tuple/", 0) == 0);
     }
 
     bool MAREA_hasResultFunction(const MAREA_IrNode *module)
@@ -148,6 +152,15 @@ TEST(MAREALanguageParity, EveryAcceptItemWithAResultRunsOnBothBackendsOrIsExclud
             continue;
         }
 
+        // INFO: the ir does not lower a static_assert of the module, which sema has checked already.
+        const std::vector<MAREA_Uinteger32> IR_CODES{ fixture.MAREA_irCodes() };
+
+        if (MAREA_isContainerItem(file.relativePath) && std::any_of(IR_CODES.begin(), IR_CODES.end(), [](MAREA_Uinteger32 code) { return code != MAREA_IR_DIAGNOSTIC_CODE_UNSUPPORTED_MACRO; })) {
+            failures += ITEM + ": the item raises an ir diagnostic\n";
+
+            continue;
+        }
+
         if (!MAREA_hasResultFunction(fixture.module)) {
             continue;
         }
@@ -187,6 +200,13 @@ TEST(MAREALanguageParity, EveryAcceptItemWithAResultRunsOnBothBackendsOrIsExclud
         }
 
         const std::vector<MAREA_ParityCall> CALLS{ MAREA_parityCalls(fixture.module) };
+
+        // INFO: an item whose functions with a result all take a composite has no call to compare, so its C text is only compiled.
+        if (CALLS.empty() && ((ITEM == "L-OWNERSHIP-010") || (ITEM == "L-OWNERSHIP-014") || (ITEM == "L-OWNERSHIP-031") || (ITEM == "L-OWNERSHIP-033") || (ITEM == "L-OWNERSHIP-085"))) {
+            jobs.push_back({ ITEM, MODULES.cText, {}, {}, {}, {} });
+
+            continue;
+        }
 
         if (CALLS.empty()) {
             failures += ITEM + ": no function of the item takes only primitive values and returns one\n";

@@ -153,7 +153,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_SameImport(const MAREA_BytecodeGenerator
 }
 
 // INFO: the imports come after the functions of the unit, so the index of one is known before it is published.
-static MAREA_BytecodeExcept MAREA_CALL MAREA_G_ImportIndex(MAREA_BytecodeGenerator *generator, const MAREA_BytecodeGeneratorImport *import, MAREA_Uinteger32 *outIndex)
+MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorImportIndex(MAREA_BytecodeGenerator *generator, const MAREA_BytecodeGeneratorImport *import, MAREA_Uinteger32 *outIndex)
 {
     for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < generator->importCount; index += MAREA_INTEGER_SIZE(1)) {
         if (MAREA_G_SameImport(&generator->imports[index], import)) {
@@ -259,7 +259,7 @@ MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeGeneratorLowerHostCall(MAREA_Bytec
 
     MAREA_Uinteger32 functionIndex = MAREA_UINTEGER_32(0);
 
-    MAREA_BYTECODE_TRY(MAREA_G_ImportIndex(generator, &import, &functionIndex));
+    MAREA_BYTECODE_TRY(MAREA_BytecodeGeneratorImportIndex(generator, &import, &functionIndex));
 
     if (functionIndex > MAREA_BYTECODE_GENERATOR_REGISTER_LIMIT) {
         return MAREA_BytecodeGeneratorFail(generator, node, MAREA_BYTECODE_DIAGNOSTIC_CODE_OPERAND_OVERFLOW, "A module needs more than 65535 functions and imports.");

@@ -440,6 +440,14 @@ static MAREA_CgenExcept MAREA_CALL MAREA_G_WriteIndexPlace(MAREA_CgenGenerator *
         return MAREA_CGEN_EXCEPT_SUCCESS;
     }
 
+    if (MAREA_CgenCategoryOf(generator, base.type) == MAREA_CGEN_CATEGORY_VECTOR) {
+        return MAREA_CgenWriteVectorIndex(generator, node, &base, outPlace);
+    }
+
+    if (MAREA_CgenIsTuple(generator, base.type) == MAREA_BOOLEAN_TRUE) {
+        return MAREA_CgenWriteTupleIndex(generator, node, &base, outPlace);
+    }
+
     if (MAREA_CgenCategoryOf(generator, base.type) != MAREA_CGEN_CATEGORY_ARRAY) {
         return MAREA_CgenGeneratorFail(generator, node, MAREA_CGEN_DIAGNOSTIC_CODE_UNSUPPORTED_CONSTRUCT, "Only an array of a registered inline run is indexed.");
     }
@@ -457,6 +465,14 @@ static MAREA_CgenExcept MAREA_CALL MAREA_G_WriteIndexPlace(MAREA_CgenGenerator *
 
     if (MAREA_CgenIsInteger(index.type) == MAREA_BOOLEAN_FALSE) {
         return MAREA_CgenGeneratorFail(generator, node, MAREA_CGEN_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, "An index is an integer.");
+    }
+
+    // INFO: an array of no element has no index in range, and a test against zero would never be false.
+    if (COUNT == MAREA_UINTEGER_64(0)) {
+        MAREA_CGEN_WRITE(generator->buffer, "(void)(", index.text, ");\n");
+        MAREA_CgenWriteEmptyElement(generator, ELEMENT, outPlace);
+
+        return MAREA_CGEN_EXCEPT_SUCCESS;
     }
 
     const MAREA_Character8 *name = MAREA_CgenTemporaryName(generator);
@@ -549,6 +565,11 @@ MAREA_CgenExcept MAREA_CALL MAREA_CgenWritePlace(MAREA_CgenGenerator *generator,
         MAREA_CgenSnapshot(generator, outPlace);
     }
 
+    // INFO: a value that is only borrowed here has no owner yet, so the block destroys it.
+    if ((generator->functionFailed == MAREA_BOOLEAN_FALSE) && (MAREA_IrNodeGetKind(node) != MAREA_IR_KIND_IDENTIFIER)) {
+        MAREA_CGEN_TRY(MAREA_CgenHold(generator, node, outPlace));
+    }
+
     return MAREA_CGEN_EXCEPT_SUCCESS;
 }
 
@@ -611,6 +632,8 @@ MAREA_CgenExcept MAREA_CALL MAREA_CgenWriteValue(MAREA_CgenGenerator *generator,
         return MAREA_CgenWriteLiteralValue(generator, node, expected, outValue);
     case MAREA_IR_KIND_CONSTRUCT_CALL:
         return MAREA_CgenWriteConstruct(generator, node, outValue);
+    case MAREA_IR_KIND_INCLUDED_BYTES:
+        return MAREA_CgenWriteIncludedBytes(generator, node, outValue);
     case MAREA_IR_KIND_MACRO_CALL:
         return MAREA_G_WriteMacro(generator, node, expected, outValue);
     case MAREA_IR_KIND_STRING_LITERAL:

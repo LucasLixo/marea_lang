@@ -3,6 +3,8 @@
 
 #include "marea/internal/cgen/MAREACgenInternal.h"
 
+#include "marea/base/MAREAVectorRuntime.h"
+
 #include <string.h>
 
 typedef struct MAREA_G_Scalar
@@ -565,6 +567,192 @@ static MAREA_Boolean MAREA_CALL MAREA_G_TwoArguments(const MAREA_Character8 *tex
     return MAREA_BOOLEAN_TRUE;
 }
 
+static MAREA_CgenExcept MAREA_CALL MAREA_G_DefineVector(MAREA_CgenGenerator *generator, MAREA_Uinteger32 element, MAREA_Uinteger32 *outType)
+{
+    generator->usesVector = MAREA_BOOLEAN_TRUE;
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < generator->typeCount; index = (index + MAREA_INTEGER_SIZE(1))) {
+        const MAREA_CgenType *entry = &generator->typeTable[index];
+
+        if ((entry->category == MAREA_CGEN_CATEGORY_VECTOR) && (entry->element == element)) {
+            *outType = (MAREA_CGEN_TYPE_FIRST_COMPOSITE + (MAREA_Uinteger32)index);
+
+            return MAREA_CGEN_EXCEPT_SUCCESS;
+        }
+    }
+
+    // INFO: every vector is the header of the runtime in C; the table keeps one type for each element.
+    MAREA_CGEN_TRY(MAREA_G_AddType(generator, MAREA_CGEN_CATEGORY_VECTOR, "", MAREA_INTEGER_SIZE(0), "MAREA_VectorHeader", outType));
+
+    MAREA_CgenType *entry = MAREA_G_Entry(generator, *outType);
+
+    entry->element = element;
+    entry->size = sizeof(MAREA_VectorHeader);
+    entry->alignment = MAREA_ALIGNOF(MAREA_VectorHeader);
+    entry->done = MAREA_BOOLEAN_TRUE;
+
+    return MAREA_CGEN_EXCEPT_SUCCESS;
+}
+
+// INFO: the one type argument of a resolved spelling of a growable run.
+static MAREA_CgenExcept MAREA_CALL MAREA_G_VectorType(MAREA_CgenGenerator *generator, const MAREA_Character8 *resolved, MAREA_IntegerSize resolvedLength, MAREA_Uinteger32 *outType)
+{
+    MAREA_IntegerSize open = MAREA_INTEGER_SIZE(0);
+
+    while ((open < resolvedLength) && (resolved[open] != '<')) {
+        open = (open + MAREA_INTEGER_SIZE(1));
+    }
+
+    if (((open + MAREA_INTEGER_SIZE(1)) >= resolvedLength) || (resolved[(resolvedLength - MAREA_INTEGER_SIZE(1))] != '>')) {
+        return MAREA_CGEN_EXCEPT_SUCCESS;
+    }
+
+    const MAREA_Character8 *text = (resolved + open + MAREA_INTEGER_SIZE(1));
+
+    MAREA_IntegerSize length = (resolvedLength - open - MAREA_INTEGER_SIZE(2));
+
+    MAREA_G_Trim(&text, &length);
+
+    MAREA_Uinteger32 element = MAREA_CGEN_KIND_NONE;
+
+    MAREA_CGEN_TRY(MAREA_CgenTypeOfText(generator, MAREA_NULLPTR, MAREA_INTEGER_SIZE(0), text, length, &element));
+
+    return (MAREA_CgenIsValueType(generator, element) == MAREA_BOOLEAN_TRUE) ? MAREA_G_DefineVector(generator, element, outType) : MAREA_CGEN_EXCEPT_SUCCESS;
+}
+
+// INFO: the next top-level type argument of a resolved spelling, from the place *ioAt up to the comma or the end.
+static MAREA_Boolean MAREA_CALL MAREA_G_NextArgument(const MAREA_Character8 *text, MAREA_IntegerSize end, MAREA_IntegerSize *ioAt, const MAREA_Character8 **outText, MAREA_IntegerSize *outLength)
+{
+    if (*ioAt >= end) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    const MAREA_IntegerSize FROM = *ioAt;
+
+    MAREA_Sinteger32 depth = MAREA_SINTEGER_32(0);
+
+    MAREA_IntegerSize at = FROM;
+
+    while ((at < end) && ((text[at] != ',') || (depth != MAREA_SINTEGER_32(0)))) {
+        if ((text[at] == '<') || (text[at] == '(')) {
+            depth = (depth + MAREA_SINTEGER_32(1));
+        } else if ((text[at] == '>') || (text[at] == ')')) {
+            depth = (depth - MAREA_SINTEGER_32(1));
+        }
+
+        at = (at + MAREA_INTEGER_SIZE(1));
+    }
+
+    *outText = (text + FROM);
+    *outLength = (at - FROM);
+    *ioAt = (at + MAREA_INTEGER_SIZE(1));
+
+    MAREA_G_Trim(outText, outLength);
+
+    return MAREA_BOOLEAN_TRUE;
+}
+
+static MAREA_Boolean MAREA_CALL MAREA_G_SameElements(const MAREA_CgenType *entry, const MAREA_CgenField *fields, MAREA_IntegerSize count)
+{
+    if ((entry->isTuple == MAREA_BOOLEAN_FALSE) || (entry->memberCount != count)) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < count; index = (index + MAREA_INTEGER_SIZE(1))) {
+        if (entry->fields[index].type != fields[index].type) {
+            return MAREA_BOOLEAN_FALSE;
+        }
+    }
+
+    return MAREA_BOOLEAN_TRUE;
+}
+
+// INFO: a tuple is one generated structure for each distinct list of element types, laid out as sema measures it: each element at the next multiple of its alignment, and the size rounded to the largest one.
+static MAREA_CgenExcept MAREA_CALL MAREA_G_TupleType(MAREA_CgenGenerator *generator, const MAREA_Character8 *resolved, MAREA_IntegerSize resolvedLength, MAREA_Uinteger32 *outType)
+{
+    static const MAREA_Character8 *const NAMES[] = { "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15" };
+
+    MAREA_IntegerSize at = MAREA_INTEGER_SIZE(0);
+
+    while ((at < resolvedLength) && (resolved[at] != '<')) {
+        at = (at + MAREA_INTEGER_SIZE(1));
+    }
+
+    if (((at + MAREA_INTEGER_SIZE(1)) >= resolvedLength) || (resolved[(resolvedLength - MAREA_INTEGER_SIZE(1))] != '>')) {
+        return MAREA_CGEN_EXCEPT_SUCCESS;
+    }
+
+    at = (at + MAREA_INTEGER_SIZE(1));
+
+    MAREA_Null memory = MAREA_NULLPTR;
+
+    MAREA_CGEN_TRY(MAREA_CgenAllocate(generator, (MAREA_TYPE_TUPLE_MAXIMUM_ARITY * sizeof(MAREA_CgenField)), MAREA_ALIGNOF(MAREA_CgenField), &memory));
+
+    MAREA_CgenField *fields = memory;
+
+    MAREA_IntegerSize count = MAREA_INTEGER_SIZE(0);
+
+    MAREA_Uinteger64 offset = MAREA_UINTEGER_64(0);
+    MAREA_Uinteger64 alignment = MAREA_UINTEGER_64(1);
+
+    const MAREA_Character8 *text = MAREA_NULLPTR;
+    MAREA_IntegerSize length = MAREA_INTEGER_SIZE(0);
+
+    while (MAREA_G_NextArgument(resolved, (resolvedLength - MAREA_INTEGER_SIZE(1)), &at, &text, &length) == MAREA_BOOLEAN_TRUE) {
+        MAREA_Uinteger32 element = MAREA_CGEN_KIND_NONE;
+
+        MAREA_CGEN_TRY(MAREA_CgenTypeOfText(generator, MAREA_NULLPTR, MAREA_INTEGER_SIZE(0), text, length, &element));
+
+        if ((count >= MAREA_TYPE_TUPLE_MAXIMUM_ARITY) || (MAREA_CgenIsValueType(generator, element) == MAREA_BOOLEAN_FALSE)) {
+            return MAREA_CGEN_EXCEPT_SUCCESS;
+        }
+
+        const MAREA_Uinteger64 ALIGNMENT = MAREA_CgenAlignmentOf(generator, element);
+
+        offset = ((((offset + ALIGNMENT) - MAREA_UINTEGER_64(1)) / ALIGNMENT) * ALIGNMENT);
+        alignment = ((ALIGNMENT > alignment) ? ALIGNMENT : alignment);
+
+        fields[count] = (MAREA_CgenField){ .name = NAMES[count], .nameLength = (MAREA_IntegerSize)strlen(NAMES[count]), .type = element, .offset = offset };
+
+        offset = (offset + MAREA_CgenSizeOf(generator, element));
+        count = (count + MAREA_INTEGER_SIZE(1));
+    }
+
+    for (MAREA_IntegerSize index = MAREA_INTEGER_SIZE(0); index < generator->typeCount; index = (index + MAREA_INTEGER_SIZE(1))) {
+        if (MAREA_G_SameElements(&generator->typeTable[index], fields, count) == MAREA_BOOLEAN_TRUE) {
+            *outType = (MAREA_CGEN_TYPE_FIRST_COMPOSITE + (MAREA_Uinteger32)index);
+
+            return MAREA_CGEN_EXCEPT_SUCCESS;
+        }
+    }
+
+    const MAREA_Character8 *cName = MAREA_CGEN_JOIN(generator, "marea_tuple", MAREA_CgenNumber(generator, generator->typeCount));
+
+    // INFO: a tuple has no name, so no method, construct or destroy operator of the unit belongs to it.
+    MAREA_CGEN_TRY(MAREA_G_AddType(generator, MAREA_CGEN_CATEGORY_STRUCTURE, "", MAREA_INTEGER_SIZE(0), cName, outType));
+
+    MAREA_CgenType *entry = MAREA_G_Entry(generator, *outType);
+
+    entry->isTuple = MAREA_BOOLEAN_TRUE;
+    entry->fields = fields;
+    entry->memberCount = count;
+    entry->alignment = alignment;
+    entry->size = ((((offset + alignment) - MAREA_UINTEGER_64(1)) / alignment) * alignment);
+
+    MAREA_CgenWriteStructureDefinition(generator, entry);
+
+    entry->done = MAREA_BOOLEAN_TRUE;
+
+    return MAREA_CGEN_EXCEPT_SUCCESS;
+}
+
+MAREA_Boolean MAREA_CALL MAREA_CgenIsTuple(const MAREA_CgenGenerator *generator, MAREA_Uinteger32 type)
+{
+    const MAREA_CgenType *entry = MAREA_G_Entry(generator, type);
+
+    return ((entry != MAREA_NULLPTR) && (entry->isTuple == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+}
+
 // INFO: an array of a registered inline run: an index protocol, no role, a copy class and two type arguments, the element and a literal count. This is the shape that sema measures, so cgen writes it as a C array.
 static MAREA_CgenExcept MAREA_CALL MAREA_G_ArrayType(MAREA_CgenGenerator *generator, const MAREA_Character8 *head, MAREA_IntegerSize headLength, const MAREA_Character8 *resolved, MAREA_IntegerSize resolvedLength, MAREA_Uinteger32 *outType)
 {
@@ -578,7 +766,19 @@ static MAREA_CgenExcept MAREA_CALL MAREA_G_ArrayType(MAREA_CgenGenerator *genera
 
     const MAREA_TypeDescriptor *descriptor = MAREA_G_Describe(generator, full, fullLength);
 
-    if ((descriptor == MAREA_NULLPTR) || (descriptor->hasIndexProtocol == MAREA_BOOLEAN_FALSE) || (descriptor->roles != MAREA_TYPE_ROLE_NONE) || (descriptor->ownershipClass != MAREA_TYPE_OWNERSHIP_CLASS_COPY) || (descriptor->typeParameterCount != MAREA_INTEGER_SIZE(2))) {
+    if ((descriptor != MAREA_NULLPTR) && MAREA_TYPE_DESCRIPTOR_IS_TUPLE(descriptor)) {
+        return MAREA_G_TupleType(generator, resolved, resolvedLength, outType);
+    }
+
+    if ((descriptor == MAREA_NULLPTR) || (descriptor->hasIndexProtocol == MAREA_BOOLEAN_FALSE) || (descriptor->roles != MAREA_TYPE_ROLE_NONE)) {
+        return MAREA_CGEN_EXCEPT_SUCCESS;
+    }
+
+    if ((descriptor->ownershipClass == MAREA_TYPE_OWNERSHIP_CLASS_MOVE) && (descriptor->typeParameterCount == MAREA_INTEGER_SIZE(1))) {
+        return MAREA_G_VectorType(generator, resolved, resolvedLength, outType);
+    }
+
+    if ((descriptor->ownershipClass != MAREA_TYPE_OWNERSHIP_CLASS_COPY) || (descriptor->typeParameterCount != MAREA_INTEGER_SIZE(2))) {
         return MAREA_CGEN_EXCEPT_SUCCESS;
     }
 
@@ -589,7 +789,7 @@ static MAREA_CgenExcept MAREA_CALL MAREA_G_ArrayType(MAREA_CgenGenerator *genera
 
     MAREA_Uinteger64 count = MAREA_UINTEGER_64(0);
 
-    if ((MAREA_G_TwoArguments(resolved, resolvedLength, &first, &firstLength, &second, &secondLength) == MAREA_BOOLEAN_FALSE) || (MAREA_CgenParseInteger(second, secondLength, &count) == MAREA_BOOLEAN_FALSE) || (count == MAREA_UINTEGER_64(0))) {
+    if ((MAREA_G_TwoArguments(resolved, resolvedLength, &first, &firstLength, &second, &secondLength) == MAREA_BOOLEAN_FALSE) || (MAREA_CgenParseInteger(second, secondLength, &count) == MAREA_BOOLEAN_FALSE)) {
         return MAREA_CGEN_EXCEPT_SUCCESS;
     }
 

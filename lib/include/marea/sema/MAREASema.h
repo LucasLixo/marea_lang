@@ -126,6 +126,14 @@ MAREA_BEGIN_EXTERN_C
         MAREA_SEMA_DIAGNOSTIC_CODE_MISPLACED_ATTRIBUTE = MAREA_UINTEGER_32(3085),
         // INFO: a value that the build gives to build_value! and that does not fit the type of the call.
         MAREA_SEMA_DIAGNOSTIC_CODE_INVALID_BUILD_VALUE = MAREA_UINTEGER_32(3086),
+        // INFO: an array literal whose positional values differ from the count of the array.
+        MAREA_SEMA_DIAGNOSTIC_CODE_LITERAL_COUNT_MISMATCH = MAREA_UINTEGER_32(3087),
+        // INFO: a constant index of an array that is not below its count.
+        MAREA_SEMA_DIAGNOSTIC_CODE_CONSTANT_INDEX_OUT_OF_RANGE = MAREA_UINTEGER_32(3088),
+        // INFO: an index of a tuple that is no integer literal, so the type of the element is not known.
+        MAREA_SEMA_DIAGNOSTIC_CODE_TUPLE_INDEX_NOT_CONSTANT = MAREA_UINTEGER_32(3089),
+        // INFO: a for each over a tuple, whose elements have different types.
+        MAREA_SEMA_DIAGNOSTIC_CODE_NOT_ITERABLE = MAREA_UINTEGER_32(3090),
     } MAREA_SemaDiagnosticCode;
 
     /**
@@ -168,6 +176,32 @@ MAREA_BEGIN_EXTERN_C
     } MAREA_SemaSettings;
 
     /**
+     * @brief A file that include_bytes! names, as the caller of sema read it: its bytes, their number, and the path
+     * of the file that the C compiler of the generated text can open. path is not NUL terminated; with no path the
+     * length is 0 and the C backend cannot write the file. A plain struct, filled by the load function of the
+     * caller; sema copies the bytes and the path into its arena.
+     */
+    typedef struct MAREA_ALIGNED(8) MAREA_SemaIncludedFile
+    {
+        const MAREA_Byte *bytes;
+        MAREA_IntegerSize size;
+        const MAREA_Character8 *path;
+        MAREA_IntegerSize pathLength;
+    } MAREA_SemaIncludedFile;
+
+    /**
+     * @brief Function the caller of sema gives so that a program can take the bytes of a file. Sema never reads the
+     * disk itself.
+     * @param userData Pointer the caller keeps with the function.
+     * @param path File path as written in the call, relative to the source file, not NUL terminated.
+     * @param pathLength Length of path in bytes.
+     * @param outFile Receives the file. Read only when the function returns true. Its pointers must stay valid
+     * until the next call of the function.
+     * @return True when the file was read, false when it was not.
+     */
+    typedef MAREA_Boolean(MAREA_CALL * MAREA_SemaIncludeLoadFunction)(MAREA_Null userData, const MAREA_Character8 *path, MAREA_IntegerSize pathLength, MAREA_SemaIncludedFile *outFile);
+
+    /**
      * @brief The include resolver that the caller gives to sema: the one way a registered macro such as
      * include_bytes! learns the size of a file, because sema never reads the disk. A plain struct, caller
      * owned, not opaque, for the same reason as MAREA_SemaTarget.
@@ -176,6 +210,9 @@ MAREA_BEGIN_EXTERN_C
     {
         MAREA_MacroIncludeSizeFunction size;
         MAREA_Null userData;
+        // INFO: gives the bytes of a file, whose number must be the one that size gives. May be null: include_bytes!
+        // is then checked by its size alone, and no backend can write its value.
+        MAREA_SemaIncludeLoadFunction load;
     } MAREA_SemaIncludeResolver;
 
     /**

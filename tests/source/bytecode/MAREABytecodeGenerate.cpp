@@ -400,7 +400,7 @@ TEST(MAREABytecodeGenerate, UnsupportedConstructGivesADiagnostic)
 
     MAREA_GenerateFixture fixture;
 
-    EXPECT_FALSE(fixture.MAREA_generate("namespace main; structure Point x: sinteger32; end function f() local p: Point = Point{ x = 1 }; p.x = 2; end")) << "An assignment to a field is not lowered yet.";
+    EXPECT_FALSE(fixture.MAREA_generate("namespace main; structure Point x: sinteger32; end function f() local p: Point = Point{ x = 1 }; with p.x as value do end end")) << "A with block is not lowered yet.";
 
     EXPECT_EQ(fixture.module, nullptr) << "No module is given.";
 

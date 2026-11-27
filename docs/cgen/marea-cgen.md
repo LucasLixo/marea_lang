@@ -107,8 +107,8 @@ The scalars are `int8_t` to `int64_t`, `uint8_t` to `uint64_t`, `float`, `double
 
 - **Structure.** The layout of sema, with explicit padding. `_Static_assert` checks the size, the
   alignment and every offset. A layout that C would not give is written `__packed__` or
-  `__aligned__`. A structure whose layout sema does not measure (a string field, a generic type, an
-  array of structures or enums inside it) has no form.
+  `__aligned__`. A structure whose layout sema does not measure (a string field, a generic type) has
+  no form.
 - **Enum.** With no data and the size of its tag, a `typedef` of the tag integer. Else a structure with
   `marea_tag` and a union `marea_data` of the data of each variant, at the offsets of sema, also
   asserted. `==` and `!=` compare the variant. A data field is read and written under the tag; the
@@ -116,7 +116,17 @@ The scalars are `int8_t` to `int64_t`, `uint8_t` to `uint64_t`, `float`, `double
 - **Array.** A registered type with an index protocol, no role, a copy class and two type arguments,
   the element and a literal count, is a structure that holds `items[count]`. This is the shape that
   sema measures. An index is checked on each access; a negative index is out of bounds. The spelling
-  of an element type is read through the aliases that the module shows.
+  of an element type is read through the aliases that the module shows. A count of 0 is a marked zero
+  length array (an extension of the C compiler): its index always traps and its loops are not written.
+  `size`, `max_size` and `empty` are constants, `front` and `back` copy an end, `fill`, `filled` and
+  `swap` are loops or whole copies.
+- **Included file.** `INCLUDED_BYTES` is one static array for each file of the module, named
+  `marea_included_<hash of the namespace, the path and the bytes>`. File scope `asm` puts the file
+  with `.incbin` into the read only section of ELF, Mach-O or COFF, and a `.if` stops the C build when
+  the file no longer has the checked size. Emscripten has no `.incbin`: there a constructor loads the
+  path from the virtual file system into a static buffer, and a file that is missing or has another
+  size aborts. The build then has to put the file at that path (`--embed-file` or `--preload-file`).
+  The C compiler must be able to open the path that the include resolver gave.
 - A constant is built where it is read, so each reader gets a new value.
 - `build_value!` is its default value.
 - `copy` gives a new value. `move` of a composite value leaves zeros in the source.
@@ -132,7 +142,23 @@ parameter, the argument count of the call, that is not a destroy operator. With 
 and no function of that shape, the value is only zeros. Any other case is reported, never guessed.
 
 The destroy calls are the ones the ir inserts at each scope exit, in the reverse order of creation. A
-trap runs none of them.
+trap runs none of them. A local array is destroyed by one call of the operator of its element for each
+element.
+
+**Vectors.** A registered growable run (see the sema doc) is `MAREA_VectorHeader` in C, so the program includes
+`marea/base/MAREAVectorRuntime.h` and links `marea::base`. The storage changes only through that runtime, which the
+`vm` calls too: capacities, the growth rule `max(4, 2 * capacity)` and `OUT_OF_MEMORY` are the same in both backends.
+Each call of the runtime gets a `MAREA_HostContext` with the allocator hooks of the context. An element of no size is a
+zeroed byte of the function. An index is compared as an unsigned value with the size.
+
+A value that holds a vector has one owner. A name, a field or an element that is taken (an initializer, an assignment,
+a `return`, a stored value, `move`) leaves zeros behind, and `copy` is a deep copy. A block destroys what it still owns,
+and so does each `return`, `break`, `continue` and trap that leaves it; a temporary that is only borrowed is destroyed
+with its block. A vector destroys its elements from the last to the first, with the destroy operator of an element, then
+gives its storage back. A parameter that holds a vector passes by its address, so a callee that takes it over leaves
+the value of the caller empty. A trap gives the storage back and runs no destroy operator. The value of an assignment to an element of a vector runs
+before its place is reached,
+since a call in the value can move the storage.
 
 ## Host calls
 
@@ -168,45 +194,57 @@ parameters is called with the same sample values, eight rows (one call when it t
 test compares the trap of each call, the value when there is no trap (two NaN values are equal) and
 the log of the host functions.
 
-Of 275 accept items, 209 have a function with a result: 72 run on both backends (324 calls) and 137
+Of 314 accept items, 241 have a function with a result: 100 run on both backends (396 calls) and 136
 are excluded, each with a reason in the table of the test. The test checks every line both ways, so a
-line that no longer holds fails. The 71 excluded items that cgen writes are still compiled.
+line that no longer holds fails. The 71 excluded items that cgen writes are still compiled. Five items
+whose functions take only composites are compiled and not run.
 
 | Items | Reason | cgen writes it |
 |---|---|---|
-| 53 | the vm takes and returns no structure between functions | yes |
+| 55 | the vm takes and returns no structure between functions | yes |
 | 9 | the vm holds no enum value | yes |
 | 6 | the vm runs no construct and no destroy operator | yes |
-| 1 | the vm assigns no field of a structure | yes |
 | 1 | the vm reads no constant of a structure type | yes |
-| 1 | a library array type that the vm cannot hold | yes |
-| 43 | a library type that no registry describes as an array | no |
+| 37 | a library type that no registry describes (an owner, a pointer, a view, a task, a C library) | no |
 | 11 | a string | no |
 | 3 | a call of a C function that no signature types and no host registers | no |
 | 2 | a character | no |
 | 2 | a function type value | no |
-| 2 | a `with` block | no |
+| 4 | a `with` block | no |
 | 1 | a generic structure, which the ir does not instantiate | no |
 | 1 | an operator or a method of a library array | no |
+| 3 | `size_of`, which neither backend lowers | no |
 | 1 | a user operator and a C function that no signature types | no |
+
+## Tuples
+
+Each distinct list of element types is one generated structure, `marea_tuple<N>`, with the fields `f_0`, `f_1` and so
+on, at the offsets of the layout of C. It has no name, so no method, `construct` or `destroy` operator of the unit
+belongs to it. Passing, drop, deep copy and `move` are those of a structure. The constant index reads a field, a
+literal stores each value in order, `==` and `!=` compare element by element (a float that is not a number differs from
+itself, an enum by its tag), and `swap` goes through a temporary. The `ir` has no layout table entry for a tuple, so
+the backend computes the offsets.
 
 ## Diagnostics
 
 | Code | Name | Example |
 |---|---|---|
 | 7001 | UNSUPPORTED_CONSTRUCT | A `with` block, the handle of a spawn, a construct operator that cannot be told apart, a macro of a library, a built-in other than `convert`, a call of a function that is not written. |
-| 7002 | UNSUPPORTED_TYPE | A string or a character, a structure with no layout, a library type that is not a registered array, a partition part used as a value. |
+| 7002 | UNSUPPORTED_TYPE | A string or a character, a structure with no layout, a library type that is no registered array, vector or tuple, a partition part used as a value. |
 | 7003 | UNRESOLVED_NAME | A call into another module, a name that is no local, parameter, constant or function. |
 | 7004 | UNTYPED_OPERAND | A host call that no signature types used as a value, or an argument of a host call with no type. |
 
 ## Gaps
 
 - Not written: strings, characters, function values, generic structures, library types other than a
-  registered array, operators and methods of a library, `with`, user operators (the ir calls no
+  registered array, vector or tuple, operators and methods of a library, `with`, user operators (the ir calls no
   function for them), `size_of`, `align_of`, macros other than `build_value!`, the handle of a spawn,
   the value of a partition part and a call into another module.
-- Sema measures an array only when its element is a primitive or another measured array, so a
-  structure that holds an array of structures or enums is reported.
+- A `swap` or a `fill` of an array inside a packed structure writes through the place that cgen
+  gives, with no test of its own. The Mach-O and COFF forms of an included file were not built.
+- Vector: `data` is not written, and neither is a copy of an enum that holds a vector or an element type that holds
+  itself through a vector. A trap gives back the storage of the values in scope, but not of a value that is being built;
+  the `vm` gives no storage back after a trap, so a host that counts its allocator calls sees a difference.
 - The ir does not name the construct operator. A type with two functions of that shape, or a construct
   with no parameter called as `Type()`, is reported.
 - A returned local with a destroy operator is destroyed in the callee and again in the caller, since

@@ -1,0 +1,16 @@
+-- expect: 3073 @14
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- fill changes the array that a for each walks.
+
+namespace main;
+
+require marea.array;
+
+function check()
+    local values: marea.array.Array<sinteger32, 4> = marea.array.Array<sinteger32, 4>{ 1, 2, 3, 4 };
+    for each value in values do
+        values.fill(1);
+    end
+end

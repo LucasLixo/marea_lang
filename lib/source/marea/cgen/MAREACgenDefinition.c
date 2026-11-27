@@ -292,5 +292,6 @@ void MAREA_CALL MAREA_CgenWriteEnumDefinition(MAREA_CgenGenerator *generator, MA
 
 void MAREA_CALL MAREA_CgenWriteArrayDefinition(MAREA_CgenGenerator *generator, const MAREA_CgenType *entry)
 {
-    MAREA_CGEN_WRITE(generator->types, "typedef struct __attribute__((__may_alias__)) ", entry->cName, " {\n    ", MAREA_CgenTypeName(generator, entry->element), " items[", MAREA_CgenNumber(generator, entry->count), "ULL];\n} ", entry->cName, ";\n");
+    // INFO: an array of no element takes no byte, as the layout of sema says; C11 has no such array, so the extension of the C compiler is marked.
+    MAREA_CGEN_WRITE(generator->types, ((entry->count == MAREA_UINTEGER_64(0)) ? "__extension__ " : ""), "typedef struct __attribute__((__may_alias__)) ", entry->cName, " {\n    ", MAREA_CgenTypeName(generator, entry->element), " items[", MAREA_CgenNumber(generator, entry->count), "ULL];\n} ", entry->cName, ";\n");
 }

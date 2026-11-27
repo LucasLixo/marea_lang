@@ -176,8 +176,8 @@ d1 -
 Covers the scalar slices (integer and float expressions, locals, `return`, `if`, `while`, `switch`, `for` range,
 calls with scalar parameters, a borrow of a primitive, which the language already passes by value), a `structure`
 local with no `construct` or `destroy` operator (see "Composite values" below), calls of registered C functions (see
-"Host calls") and `fork_join` with `spawn` and `partition` (see "fork_join, spawn and partition"). `array`, `enum`
-with data, `string`, a lifecycle call to a user `construct` or `destroy`, and a `structure` as a parameter or a
+"Host calls"), arrays (see "Arrays") and `fork_join` with `spawn` and `partition` (see "fork_join, spawn and
+partition"). `enum` with data, `string`, a lifecycle call to a user `construct` or `destroy`, and a `structure` as a parameter or a
 result of a function of the unit are still `UNSUPPORTED_TYPE` or `UNSUPPORTED_CONSTRUCT`, left to a later slice.
 No source construct lowers to `alloc` or `free` yet: the library that owns the pointer and owner types adds it.
 
@@ -186,9 +186,8 @@ No source construct lowers to `alloc` or `free` yet: the library that owns the p
   A parameter takes the first registers, in order. `MAREA_BytecodeFunctionInfo.registerCount` is the widest point
   the function reached, which may be higher than the number any single statement still holds.
 - **Scalar-only slice.** Only a primitive number kind and `boolean` lower; every other type gives
-  `UNSUPPORTED_TYPE` (5033) for a parameter, a local or a result. `for each` always gives `UNWALKABLE_COLLECTION`
-  (5034) in this slice, because no collection type is a bytecode value yet (B2 of the plan): the counted walk B3
-  describes needs an aggregate the vm cannot represent before the composites slice.
+  `UNSUPPORTED_TYPE` (5033) for a parameter, a local or a result; a structure and an array are the composite values
+  below. `for each` walks an array; over any other collection it is `UNWALKABLE_COLLECTION` (5034).
   `do ... while`, `switch` and a `for` range desugar in the IR itself (see `docs/ir/marea-ir.md`) into `while`,
   `if` and a hidden local and lower with no code of their own: lowering the one general `while`, `if`,
   `BINARY_EXPRESSION` and `LOCAL_DECLARATION` already covers all three.
@@ -219,13 +218,37 @@ No source construct lowers to `alloc` or `free` yet: the library that owns the p
   structure local (`=`) builds the new value in frame bytes of its own and then `copy_bytes` it over the target,
   so the value may read the target and the two never alias. A `MEMBER_ACCESS`
   chain (`a.b.c`) reads a field, following a nested structure's address through as many `field` steps as the
-  chain needs. `load_data_block` copies a read-only blob into a reserved range of the frame area, for a future
-  `include_bytes!`. A structure crosses a host call only: a `structure` parameter or result of a function of the
+  chain needs. A field is assigned through the same address, also with a compound operator. A structure crosses a host call only: a `structure` parameter or result of a function of the
   unit, a `CONSTRUCT_CALL` or `DESTROY_CALL` to a user `construct` or `destroy` (which would need the address of the
-  value as a hidden argument), an `enum` with data, an `array` or a `tuple` are a later slice (see Gaps); the vm's
+  value as a hidden argument) or an `enum` with data are a later slice (see Gaps); the vm's
   own mechanics for all of them (the frame memory area, the bounds check an index needs, a tagged union's tag and
   payload) are already proven directly against hand-built modules in `tests/source/vm/MAREAVm.cpp`, ahead of the
   generator wiring.
+
+**Arrays.** `MAREA_BytecodeContextSetTypeRegistry` gives the context the registry that describes the library types. A
+type with the shape of an inline run (see the sema doc) and a literal count is an `array` row of the type table (element,
+count, stride) and lives in the frame area, as a structure does. With no registry no array is lowered. An index is
+compared as an unsigned value with the count, so a negative one traps `INDEX_OUT_OF_BOUNDS` too; the address of an element
+is `base + index * stride`, with no new opcode. A literal zero-fills, then stores each entry. An array parameter takes the
+address of the argument, so a write borrow reaches the caller. `size`, `max_size` and `empty` are constants; `front` and
+`back` load an end and trap on a count of 0; `fill`, `filled` and `swap` are loops or `copy_bytes`. `for each` is a
+counted loop; the name of a mutable loop over scalars reads and writes the element itself. A constant array is built
+where it is read. The bytes of `include_bytes!` are a blob of the data section, which `load_data_block` copies into the
+frame.
+
+**Tuples.** Each distinct spelling of a tuple is a `structure` row of the type table whose members are named `0`, `1`
+and so on, at the offsets of the layout of C. A value of it lives in the frame area and is passed to and returned from
+a function of the unit by its bytes, as an array is. An element is `field` at its offset, a literal zero-fills and then
+stores each value, `==` and `!=` load and compare element by element after the left value is copied aside, and `swap`
+is three `copy_bytes`. Drop and deep copy walk the elements. No opcode was added.
+
+**Vectors.** A growable run (see the sema doc) is a `vector` row of the type table, and a value of it is the header
+`MAREA_VectorHeader` in the frame area. The storage changes only through calls of the imports
+`marea.vector.runtime_reserve`, `runtime_grow`, `runtime_open`, `runtime_close`, `runtime_shrink` and
+`runtime_release`; the elements are read and written with the composite opcodes. No opcode was added. The ownership
+rules are those of the C backend (see [marea-cgen.md](../cgen/marea-cgen.md), "Types and layout"): a taken value leaves
+zeros, `copy` is a deep copy, and a block and each jump out of it destroy what is still owned. A function that gives an
+array or a vector takes a hidden first parameter, the address of the result bytes of the caller, and returns it.
 
 ## Host calls
 
@@ -285,11 +308,11 @@ line, column and offset of the IR node it was raised at.
 | 5022 | `TEXT_BAD_INDEX` | an item that does not carry the next number, or a reference with the wrong letter |
 | 5023 | `TEXT_BAD_NUMBER` | a number with a non-digit, with no digit, or above the limit of its field |
 | 5024 | `TEXT_BAD_STRING` | a string with no opening or closing quote, an unknown escape, a character that is not printable ASCII |
-| 5030 | `UNSUPPORTED_CONSTRUCT` | an assignment to a field, a `with`, a `CONSTRUCT_CALL` or a `DESTROY_CALL` (a user `construct` or `destroy`), a structure literal that holds something that is not a named field, a call with the wrong argument count, a method call |
+| 5030 | `UNSUPPORTED_CONSTRUCT` | a `with`, a `CONSTRUCT_CALL` or a `DESTROY_CALL` (a user `construct` or `destroy`), a structure literal that holds something that is not a named field, a call with the wrong argument count, a method call |
 | 5031 | `UNRESOLVED_NAME` | a name that is not a local, a parameter, a module constant or a function of the unit; a call that names no function of the unit and no registered name (another unit, `Self`, a local type alias); a structure field name a `MEMBER_ACCESS` or a `FIELD_ENTRY` does not declare |
 | 5032 | `OPERAND_OVERFLOW` | a function needs more than 65535 registers, a jump farther than 32767 instructions, a module needs more than 65535 constants, functions or imports, the frame area needs more bytes than this slice allows |
-| 5033 | `UNSUPPORTED_TYPE` | a parameter or a result of a `structure` in a function of the unit; a `string`, an `enum` with data, an `array` or a `tuple` anywhere; a structure field of such a type; a `MEMBER_ACCESS` of a nested structure (reads only a scalar field); the handle of a `spawn` or the part of a `partition` used as a value |
-| 5034 | `UNWALKABLE_COLLECTION` | a `for each`, because no collection type is a bytecode value in this slice |
+| 5033 | `UNSUPPORTED_TYPE` | a parameter or a result of a `structure` in a function of the unit; a `string`, an `enum` with data, a `tuple` that holds one of these or an `enum`, or an `array` with no registry; a structure field of such a type; a `MEMBER_ACCESS` of a nested structure (reads only a scalar field); the handle of a `spawn` or the part of a `partition` used as a value |
+| 5034 | `UNWALKABLE_COLLECTION` | a `for each` over a collection that is no array |
 | 5035 | `UNTYPED_OPERAND` | a host call that sema gave no type, used as a value or as an argument of a host call |
 
 The range 5000 to 5999 is reserved for this stage. The messages are fixed texts and do not name the value.
@@ -313,17 +336,21 @@ The range 5000 to 5999 is reserved for this stage. The messages are fixed texts 
 - A `partition` runs its body the right number of times but gives no part: the value it cuts is not read and the
   rule that gives the first `length % n` parts one more element is not applied yet. The handle of a `spawn` has no
   form, so a result of a worker cannot be kept and read after the join.
-- An `enum` with data (a tagged union payload), `array`, `vector`, `tuple` and `string` are not lowered from the
-  IR: no accepted program can write `array<T, N>` or `tuple<T, U>` yet (no shipped library registers them, wave
-  5), and no accepted program constructs a data-carrying enum variant (`Shape.Circle(2.0)`) either, so the
-  generator gives `UNSUPPORTED_TYPE` for all four. The vm's own mechanics for a tagged union (the tag at offset
+- An `enum` with data (a tagged union payload) and `string` are not lowered from the
+  IR, and neither is a tuple that holds an `enum` or a `string`: no accepted program constructs a data-carrying enum
+  variant (`Shape.Circle(2.0)`), so the
+  generator gives `UNSUPPORTED_TYPE` for them. The vm's own mechanics for a tagged union (the tag at offset
   0, a payload at a fixed offset, a dispatch on the tag) and for a bounds-checked, compiler-known array are
   proven directly against hand-built modules in `tests/source/vm/MAREAVm.cpp` (`EnumTaggedUnionConstructReadAndSwitchDispatch`,
   `IndexOutOfRangeTrapsOnABoundsCheckedArray`), standing in for the fixture descriptors the apply's own plan names,
   ahead of the generator wiring a later apply adds once the IR shape of a variant call is settled.
-- `for each` always gives `UNWALKABLE_COLLECTION`, even over a type sema can type the value of (an `array`, a
-  `vector`, a `slice`): no such type is a bytecode value yet, so there is nothing to build a counted loop from.
-  B3 of the plan (the counted loop the bytecode builds itself) waits on a later slice.
+- `for each` gives `UNWALKABLE_COLLECTION` over a `slice`, which is no bytecode value yet.
+- Vector: `data` is not lowered, a destroy operator of an element is not run (the item is `UNSUPPORTED_CONSTRUCT`), and
+  an element type that holds itself through a vector is not destroyed or copied. Every temporary of a vector takes bytes
+  of the frame area.
+- A structure result of a function of the unit is still not lowered; an array or a vector result is. A file of `include_bytes!` is copied into the frame area at
+  each use, so a file larger than that area (4096 bytes) is `OPERAND_OVERFLOW`; a data address with no copy needs a new
+  opcode. A user `destroy` of the elements of an array is not run, as for any value.
 - `owned<T>` storage and a `convert` result that exposes padding are not zero-filled: the zero-default rule's
   other two creation paths (`docs/ir/marea-ir.md`, "Zero-default creation"), neither reachable by an accepted
   program yet.

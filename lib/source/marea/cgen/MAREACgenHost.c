@@ -80,7 +80,7 @@ static void MAREA_CALL MAREA_G_WriteMissing(MAREA_CgenGenerator *generator, cons
 }
 
 // INFO: the context lives for one call, on the stack, with the allocator hooks of the caller of cgen.
-static const MAREA_Character8 *MAREA_CALL MAREA_G_WriteContext(MAREA_CgenGenerator *generator)
+const MAREA_Character8 *MAREA_CALL MAREA_CgenWriteContext(MAREA_CgenGenerator *generator)
 {
     const MAREA_CgenContext *context = generator->context;
 
@@ -175,7 +175,7 @@ MAREA_CgenExcept MAREA_CALL MAREA_CgenWriteHostCall(MAREA_CgenGenerator *generat
 
     const MAREA_Character8 *symbol = MAREA_CgenCopyText(generator, host.symbol, host.symbolLength);
 
-    const MAREA_Character8 *contextName = (host.contextPosition == MAREA_CGEN_HOST_NO_CONTEXT) ? MAREA_NULLPTR : MAREA_G_WriteContext(generator);
+    const MAREA_Character8 *contextName = (host.contextPosition == MAREA_CGEN_HOST_NO_CONTEXT) ? MAREA_NULLPTR : MAREA_CgenWriteContext(generator);
 
     const MAREA_Boolean AGGREGATE = ((RESULT == MAREA_BOOLEAN_TRUE) && (MAREA_CgenIsAggregate(generator, type) == MAREA_BOOLEAN_TRUE));
 

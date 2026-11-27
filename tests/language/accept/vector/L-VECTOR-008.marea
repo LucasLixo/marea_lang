@@ -1,0 +1,28 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- while, do while and for range read the size of a vector.
+
+namespace main;
+
+require marea.vector;
+
+function check(): sinteger32
+    local values: marea.vector.Vector<sinteger32> = marea.vector.Vector<sinteger32>{ 1, 2, 3 };
+    local total: sinteger32 = 0;
+    local index: uinteger64 = 0;
+    while index < values.size() do
+        total += values[index];
+        index += 1;
+    end
+    index = 0;
+    do
+        total += values[index];
+        index += 1;
+    while index < values.size() end
+    for position in 0 .. 2 do
+        total += values[position];
+    end
+    return total;
+end

@@ -1,0 +1,18 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A for each over an array of count zero runs no body.
+
+namespace main;
+
+require marea.array;
+
+function check(): sinteger32
+    local values: marea.array.Array<sinteger32, 0> = marea.array.Array<sinteger32, 0>{};
+    local count: sinteger32 = 0;
+    for each value in values do
+        count += 1;
+    end
+    return count;
+end

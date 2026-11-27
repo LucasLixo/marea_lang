@@ -646,6 +646,11 @@ static MAREA_SemaTypeClass MAREA_CALL MAREA_G_Classify(const MAREA_SemaContext *
         *outName = descriptor->name;
         *outLength = descriptor->nameLength;
 
+        // INFO: a tuple follows the rules of a structure, so it is neither a built-in that copies nor one that moves.
+        if (MAREA_TYPE_DESCRIPTOR_IS_TUPLE(descriptor)) {
+            return MAREA_SEMA_TYPE_CLASS_TUPLE;
+        }
+
         return (descriptor->ownershipClass == MAREA_TYPE_OWNERSHIP_CLASS_MOVE) ? MAREA_SEMA_TYPE_CLASS_MOVE_BUILTIN : MAREA_SEMA_TYPE_CLASS_COPY_BUILTIN;
     }
 
@@ -692,6 +697,37 @@ MAREA_SemaTypeClass MAREA_CALL MAREA_SemaClassifyType(const MAREA_SemaContext *c
     return MAREA_G_Classify(context, type, 0, outDeclaration, outName, outLength);
 }
 
+MAREA_Boolean MAREA_CALL MAREA_SemaIsCopyable(const MAREA_SemaContext *context, const MAREA_AstNode *type)
+{
+    const MAREA_AstNode *declaration = MAREA_NULLPTR;
+
+    const MAREA_Character8 *name = MAREA_NULLPTR;
+
+    MAREA_IntegerSize length = 0;
+
+    switch (MAREA_G_Classify(context, type, 0, &declaration, &name, &length)) {
+    case MAREA_SEMA_TYPE_CLASS_PRIMITIVE:
+    case MAREA_SEMA_TYPE_CLASS_EXTERNAL:
+        return MAREA_BOOLEAN_TRUE;
+    case MAREA_SEMA_TYPE_CLASS_GENERIC:
+        return MAREA_G_ConstraintListed(context->function, name, length, "Copyable", strlen("Copyable"));
+    case MAREA_SEMA_TYPE_CLASS_COPY_BUILTIN:
+    {
+        // INFO: an inline run is copied element by element, so it is Copyable only when its element is. A pointer and a view copy the handle.
+        MAREA_SemaInlineRun run = { 0 };
+
+        return ((MAREA_SemaInlineRunOfType(context, type, &run) == MAREA_BOOLEAN_FALSE) || (run.element == MAREA_NULLPTR)) ? MAREA_BOOLEAN_TRUE : MAREA_SemaIsCopyable(context, run.element);
+    }
+    case MAREA_SEMA_TYPE_CLASS_TUPLE:
+        return MAREA_SemaTupleIsCopyable(context, type);
+    case MAREA_SEMA_TYPE_CLASS_USER:
+        // INFO: an enum is always copied, the one documented copy-contract exception; the retired "value" key exempts no structure now.
+        return (MAREA_AstNodeGetKind(declaration) == MAREA_AST_KIND_ENUM_DECLARATION) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+    default:
+        return MAREA_BOOLEAN_FALSE;
+    }
+}
+
 static MAREA_Boolean MAREA_CALL MAREA_G_IsSatisfied(const MAREA_SemaContext *context, const MAREA_AstNode *type, const MAREA_AstNode *contract)
 {
     const MAREA_AstNode *contractSegment = MAREA_SemaChildAt(contract, 0);
@@ -721,27 +757,7 @@ static MAREA_Boolean MAREA_CALL MAREA_G_IsSatisfied(const MAREA_SemaContext *con
     }
 
     if (MAREA_G_TextIs(contractName, CONTRACT_LENGTH, "Copyable") == MAREA_BOOLEAN_TRUE) {
-        if (CLASS == MAREA_SEMA_TYPE_CLASS_PRIMITIVE) {
-            return MAREA_BOOLEAN_TRUE;
-        }
-
-        // INFO: an inline run (an index-protocol type with no role) is copied element by element, so it is Copyable only when its element is. A pointer and a view copy the handle.
-        if (CLASS == MAREA_SEMA_TYPE_CLASS_COPY_BUILTIN) {
-            const MAREA_TypeDescriptor *descriptor = MAREA_NULLPTR;
-
-            if ((MAREA_SemaDescriptorOfType(context, type, &descriptor) == MAREA_BOOLEAN_FALSE) || (descriptor->hasIndexProtocol == MAREA_BOOLEAN_FALSE) || (descriptor->roles != MAREA_TYPE_ROLE_NONE)) {
-                return MAREA_BOOLEAN_TRUE;
-            }
-
-            const MAREA_AstNode *arguments = MAREA_G_FindChild(type, MAREA_AST_KIND_TYPE_ARGUMENTS);
-
-            const MAREA_AstNode *element = (arguments == MAREA_NULLPTR) ? MAREA_NULLPTR : MAREA_SemaChildAt(arguments, 0);
-
-            return (element == MAREA_NULLPTR) ? MAREA_BOOLEAN_TRUE : MAREA_G_IsSatisfied(context, element, contract);
-        }
-
-        // INFO: an enum is always copied, the one documented copy-contract exception; the retired "value" key exempts no structure now.
-        return ((CLASS == MAREA_SEMA_TYPE_CLASS_USER) && (MAREA_AstNodeGetKind(declaration) == MAREA_AST_KIND_ENUM_DECLARATION)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
+        return MAREA_SemaIsCopyable(context, type);
     }
 
     if (MAREA_G_TextIs(contractName, CONTRACT_LENGTH, "Movable") == MAREA_BOOLEAN_TRUE) {
@@ -831,6 +847,12 @@ const MAREA_AstNode *MAREA_CALL MAREA_SemaInferType(const MAREA_SemaContext *con
         const MAREA_AstNode *base = MAREA_SemaInferType(context, MAREA_SemaChildAt(expression, 0));
 
         const MAREA_TypeDescriptor *descriptor = MAREA_NULLPTR;
+
+        const MAREA_AstNode *part = MAREA_SemaTupleElement(context, base, MAREA_SemaChildAt(expression, 1));
+
+        if (part != MAREA_NULLPTR) {
+            return (MAREA_G_IsType(part) == MAREA_BOOLEAN_TRUE) ? part : MAREA_NULLPTR;
+        }
 
         // INFO: a registered type with the index protocol (an array, a vector or a view) has an element at
         // index 0; a raw pointer is index-worthy too.
@@ -963,6 +985,15 @@ static MAREA_Boolean MAREA_CALL MAREA_G_ArgumentsDiffer(const MAREA_SemaContext 
 
     if ((LEFT.known == MAREA_BOOLEAN_TRUE) && (RIGHT.known == MAREA_BOOLEAN_TRUE)) {
         if ((LEFT.identity != RIGHT.identity) || (MAREA_SemaTextEquals(LEFT.primitive, LEFT.primitiveLength, RIGHT.primitive, RIGHT.primitiveLength) == MAREA_BOOLEAN_FALSE)) {
+            return MAREA_BOOLEAN_TRUE;
+        }
+
+        const MAREA_AstNode *leftList = MAREA_G_FindChild(left, MAREA_AST_KIND_TYPE_ARGUMENTS);
+
+        const MAREA_AstNode *rightList = MAREA_G_FindChild(right, MAREA_AST_KIND_TYPE_ARGUMENTS);
+
+        // INFO: two tuples of one descriptor differ in type when their arity differs.
+        if ((MAREA_SemaTupleOfType(context, left, MAREA_NULLPTR) == MAREA_BOOLEAN_TRUE) && (leftList != MAREA_NULLPTR) && (rightList != MAREA_NULLPTR) && (MAREA_AstNodeGetChildCount(leftList) != MAREA_AstNodeGetChildCount(rightList))) {
             return MAREA_BOOLEAN_TRUE;
         }
 
@@ -1435,6 +1466,15 @@ static void MAREA_CALL MAREA_G_ElementType(const MAREA_SemaContext *context, con
 
     const MAREA_TypeDescriptor *descriptor = MAREA_NULLPTR;
 
+    const MAREA_AstNode *part = MAREA_SemaTupleElement(context, value.type, MAREA_SemaChildAt(access, 1));
+
+    if (part != MAREA_NULLPTR) {
+        outType->type = (MAREA_G_IsType(part) == MAREA_BOOLEAN_TRUE) ? part : MAREA_NULLPTR;
+        outType->bindings = value.bindings;
+
+        return;
+    }
+
     // INFO: the same rule as MAREA_SemaInferType: a type with the index protocol or a raw pointer has the element of its first type argument.
     if ((MAREA_SemaDescriptorOfType(context, value.type, &descriptor) == MAREA_BOOLEAN_FALSE) || ((descriptor->hasIndexProtocol == MAREA_BOOLEAN_FALSE) && ((descriptor->roles & MAREA_TYPE_ROLE_RAW_POINTER) == MAREA_TYPE_ROLE_NONE))) {
         return;
@@ -1567,8 +1607,22 @@ static void MAREA_CALL MAREA_G_CallType(const MAREA_SemaContext *context, const 
                 return;
             }
         }
-    } else if ((MAREA_AstNodeGetKind(callee) == MAREA_AST_KIND_MEMBER_ACCESS) && (MAREA_G_MethodCallType(context, call, callee, depth, outType) == MAREA_BOOLEAN_TRUE)) {
-        return;
+    } else if (MAREA_AstNodeGetKind(callee) == MAREA_AST_KIND_MEMBER_ACCESS) {
+        MAREA_SemaInlineRunCall runCall;
+
+        if (MAREA_SemaInlineRunCallOf(context, call, &runCall) == MAREA_BOOLEAN_TRUE) {
+            if ((runCall.member == MAREA_SEMA_INLINE_RUN_MEMBER_FRONT) || (runCall.member == MAREA_SEMA_INLINE_RUN_MEMBER_BACK) || (runCall.member == MAREA_SEMA_INLINE_RUN_MEMBER_POP) || (runCall.member == MAREA_SEMA_INLINE_RUN_MEMBER_ERASE)) {
+                *outType = runCall.written;
+
+                outType->type = runCall.run.element;
+            }
+
+            return;
+        }
+
+        if (MAREA_G_MethodCallType(context, call, callee, depth, outType) == MAREA_BOOLEAN_TRUE) {
+            return;
+        }
     }
 
     MAREA_G_ValueCallType(context, callee, depth, outType);
@@ -2048,6 +2102,22 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckCall(MAREA_SemaContext *context, cons
     const MAREA_SemaSignature *externalSignature = MAREA_NULLPTR;
 
     if (MAREA_AstNodeGetKind(callee) == MAREA_AST_KIND_MEMBER_ACCESS) {
+        MAREA_Boolean isInlineRun = MAREA_BOOLEAN_FALSE;
+
+        const MAREA_SemaExcept RUN_RESULT = MAREA_SemaCheckInlineRunCall(context, node, &isInlineRun);
+
+        if ((RUN_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) || (isInlineRun == MAREA_BOOLEAN_TRUE)) {
+            return RUN_RESULT;
+        }
+
+        MAREA_Boolean isTuple = MAREA_BOOLEAN_FALSE;
+
+        const MAREA_SemaExcept TUPLE_RESULT = MAREA_SemaCheckTupleCall(context, node, &isTuple);
+
+        if ((TUPLE_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) || (isTuple == MAREA_BOOLEAN_TRUE)) {
+            return TUPLE_RESULT;
+        }
+
         const MAREA_SemaExcept TYPE_FUNCTION_RESULT = MAREA_G_CheckTypeFunction(context, node, callee);
 
         if (TYPE_FUNCTION_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {

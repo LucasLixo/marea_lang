@@ -1,0 +1,15 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- == and != compare two tuples element by element.
+
+namespace main;
+
+require marea.tuple;
+
+function check(value: sinteger32): boolean
+    local left: marea.tuple.Tuple<sinteger32, boolean> = marea.tuple.Tuple<sinteger32, boolean>{ value, true };
+    local right: marea.tuple.Tuple<sinteger32, boolean> = marea.tuple.Tuple<sinteger32, boolean>{ 1, true };
+    return left == right and not (left != right);
+end

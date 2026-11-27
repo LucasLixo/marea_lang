@@ -33,8 +33,20 @@ MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeContextCreate(MAREA_Arena *arena, 
 
     context->arena = arena;
     context->sink = sink;
+    context->registry = MAREA_NULLPTR;
 
     *outContext = context;
+
+    return MAREA_BYTECODE_EXCEPT_SUCCESS;
+}
+
+MAREA_BytecodeExcept MAREA_CALL MAREA_BytecodeContextSetTypeRegistry(MAREA_BytecodeContext *context, const MAREA_TypeRegistry *registry)
+{
+    if (context == MAREA_NULLPTR) {
+        return MAREA_BYTECODE_EXCEPT_ERROR_NULL_POINTER;
+    }
+
+    context->registry = registry;
 
     return MAREA_BYTECODE_EXCEPT_SUCCESS;
 }

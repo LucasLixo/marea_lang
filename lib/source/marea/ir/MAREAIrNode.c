@@ -61,6 +61,7 @@ static const MAREA_Character8 *const MAREA_G_IrKindNames[] = {
     "DESTROY_CALL",
     "BACKEND_ATTRIBUTE",
     "MACRO_CALL",
+    "INCLUDED_BYTES",
 };
 
 MAREA_STATIC_ASSERT((sizeof(MAREA_G_IrKindNames) / sizeof(MAREA_G_IrKindNames[0])) == MAREA_IR_KIND_COUNT, "MAREA_G_IrKindNames must have one entry per IR kind.");
@@ -120,6 +121,15 @@ MAREA_Boolean MAREA_CALL MAREA_IrNodeIsExternalCall(const MAREA_IrNode *node)
     }
 
     return node->externalCall;
+}
+
+MAREA_Boolean MAREA_CALL MAREA_IrNodeIsDestroyOperator(const MAREA_IrNode *node)
+{
+    if (node == MAREA_NULLPTR) {
+        return MAREA_BOOLEAN_FALSE;
+    }
+
+    return node->destroyOperator;
 }
 
 MAREA_TokenKind MAREA_CALL MAREA_IrNodeGetOperator(const MAREA_IrNode *node)
@@ -241,6 +251,7 @@ MAREA_IrExcept MAREA_CALL MAREA_IrNodeCreate(MAREA_IrContext *context, MAREA_IrK
     node->operatorKind = MAREA_AstNodeGetOperator(astNode);
     node->kind = kind;
     node->externalCall = MAREA_BOOLEAN_FALSE;
+    node->destroyOperator = MAREA_BOOLEAN_FALSE;
 
     *outNode = node;
 

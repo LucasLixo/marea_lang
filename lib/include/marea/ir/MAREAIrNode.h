@@ -134,6 +134,15 @@ MAREA_BEGIN_EXTERN_C
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_IrNodeIsExternalCall(const MAREA_IrNode *node);
 
+    /**
+     * @brief Tells whether a node is the FUNCTION_DECLARATION of the destroy operator of its type. A backend runs
+     * it for each element of that type that a container destroys, since the ir writes a DESTROY_CALL only for a
+     * local.
+     * @param node Node to query. Null returns false.
+     * @return True for such a function, false for any other node.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_IrNodeIsDestroyOperator(const MAREA_IrNode *node);
+
 MAREA_END_EXTERN_C
 
 #endif /* MAREA_INCLUDE_IR_MAREAIRNODE_H */

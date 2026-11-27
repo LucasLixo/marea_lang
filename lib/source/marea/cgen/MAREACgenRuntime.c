@@ -166,6 +166,17 @@ void MAREA_CALL MAREA_CgenWriteZeroReturn(MAREA_CgenGenerator *generator)
 {
     const MAREA_Uinteger32 RESULT = ((generator->current == MAREA_NULLPTR) ? (MAREA_Uinteger32)MAREA_CGEN_KIND_VOID : generator->current->result);
 
+    // INFO: a trap leaves the function, so it gives back the storage of the values of the function first.
+    if ((generator->unwinding == MAREA_BOOLEAN_FALSE) && (generator->ownedCount > MAREA_INTEGER_SIZE(0))) {
+        generator->unwinding = MAREA_BOOLEAN_TRUE;
+
+        if (MAREA_CgenWriteDrops(generator, generator->current->node, MAREA_INTEGER_SIZE(0)) != MAREA_CGEN_EXCEPT_SUCCESS) {
+            generator->outOfMemory = MAREA_BOOLEAN_TRUE;
+        }
+
+        generator->unwinding = MAREA_BOOLEAN_FALSE;
+    }
+
     if (RESULT == MAREA_CGEN_KIND_VOID) {
         MAREA_CgenWriteText(generator->buffer, "return;\n");
     } else if (MAREA_CgenIsAggregate(generator, RESULT) == MAREA_BOOLEAN_TRUE) {
@@ -177,6 +188,10 @@ void MAREA_CALL MAREA_CgenWriteZeroReturn(MAREA_CgenGenerator *generator)
 
 void MAREA_CALL MAREA_CgenWriteTrapGuard(MAREA_CgenGenerator *generator)
 {
+    if (generator->unwinding == MAREA_BOOLEAN_TRUE) {
+        return;
+    }
+
     MAREA_CgenWriteText(generator->buffer, "if (*marea_trap != MAREA_RT_TRAP_NONE) {\n");
     MAREA_CgenWriteZeroReturn(generator);
     MAREA_CgenWriteText(generator->buffer, "}\n");

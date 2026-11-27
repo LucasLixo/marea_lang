@@ -1,0 +1,16 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- swap exchanges the elements of two arrays of one count.
+
+namespace main;
+
+require marea.array;
+
+function check(): sinteger32
+    local first: marea.array.Array<sinteger32, 4> = marea.array.Array<sinteger32, 4>{ 1, 2, 3, 4 };
+    local second: marea.array.Array<sinteger32, 4> = marea.array.Array<sinteger32, 4>{ 5, 6, 7, 8 };
+    first.swap(second);
+    return (first[0] * 10) + second[0];
+end

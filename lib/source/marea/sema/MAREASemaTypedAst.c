@@ -129,6 +129,12 @@ static const MAREA_AstNode *MAREA_CALL MAREA_G_InferTypedResultType(MAREA_SemaCo
 
         const MAREA_TypeDescriptor *descriptor = MAREA_NULLPTR;
 
+        const MAREA_AstNode *part = MAREA_SemaTupleElement(context, base, MAREA_SemaChildAt(expression, 1));
+
+        if (part != MAREA_NULLPTR) {
+            return (MAREA_G_TypedAstIsType(part) == MAREA_BOOLEAN_TRUE) ? part : MAREA_NULLPTR;
+        }
+
         const MAREA_Boolean HAS_ELEMENT = ((MAREA_SemaDescriptorOfType(context, base, &descriptor) == MAREA_BOOLEAN_TRUE) && ((descriptor->hasIndexProtocol == MAREA_BOOLEAN_TRUE) || ((descriptor->roles & MAREA_TYPE_ROLE_RAW_POINTER) != MAREA_TYPE_ROLE_NONE))) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 
         if (HAS_ELEMENT == MAREA_BOOLEAN_FALSE) {
@@ -394,6 +400,7 @@ static MAREA_SemaTypedAstExcept MAREA_CALL MAREA_G_TypedAstBuildNode(MAREA_SemaC
     built->ownershipMode = MAREA_SEMA_OWNERSHIP_MODE_VALUE;
     built->isQualifier = MAREA_BOOLEAN_FALSE;
     built->isExternalCall = MAREA_BOOLEAN_FALSE;
+    built->includedFile = MAREA_NULLPTR;
 
     // INFO: the checker's scope stack is replayed read-only, matching the first sema visit.
     MAREA_SemaScopeMark mark = { 0 };
@@ -653,4 +660,9 @@ MAREA_SemaTypedAstExcept MAREA_CALL MAREA_SemaTypedNodeGetBackend(const MAREA_Se
 
     return (node->backend == MAREA_NULLPTR) ?
 MAREA_SEMA_TYPED_AST_EXCEPT_ERROR_NO_BACKEND : MAREA_SEMA_TYPED_AST_EXCEPT_SUCCESS;
+}
+
+const MAREA_SemaIncludedFile *MAREA_CALL MAREA_SemaTypedNodeGetIncludedFile(const MAREA_SemaTypedNode *node)
+{
+    return (node == MAREA_NULLPTR) ? MAREA_NULLPTR : node->includedFile;
 }

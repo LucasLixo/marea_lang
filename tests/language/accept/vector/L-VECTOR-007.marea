@@ -1,0 +1,36 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- for each writes in place and another vector grows in the body.
+
+namespace main;
+
+require marea.vector;
+
+function double_all(#[semantics = reference_mutable] values: marea.vector.Vector<sinteger32>)
+    for each value in mutable values do
+        value *= 2;
+    end
+end
+
+function evens(#[semantics = reference_read_only] values: marea.vector.Vector<sinteger32>): marea.vector.Vector<sinteger32>
+    local result: marea.vector.Vector<sinteger32> = marea.vector.Vector<sinteger32>{};
+    for each value in values do
+        if value % 2 == 0 then
+            result.append(value);
+        end
+    end
+    return result;
+end
+
+function check(): sinteger32
+    local values: marea.vector.Vector<sinteger32> = marea.vector.Vector<sinteger32>{ 1, 2, 3 };
+    double_all(values);
+    local even: marea.vector.Vector<sinteger32> = evens(values);
+    local total: sinteger32 = 0;
+    for each index, value in even do
+        total += value * (convert<sinteger32>(index) + 1);
+    end
+    return total;
+end

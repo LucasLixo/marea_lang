@@ -13,7 +13,8 @@ MAREA_BEGIN_EXTERN_C
 
     /**
      * @brief How the checks treat a type: a built-in primitive, a built-in that copies or moves, an
-     * unbound generic parameter, a user structure or enum, or a type from outside the language core.
+     * unbound generic parameter, a user structure or enum, a type from outside the language core, or a
+     * tuple, which follows the rules of a structure.
      */
     typedef enum MAREA_SemaTypeClass
     {
@@ -23,6 +24,7 @@ MAREA_BEGIN_EXTERN_C
         MAREA_SEMA_TYPE_CLASS_GENERIC = MAREA_UINTEGER_8(3),
         MAREA_SEMA_TYPE_CLASS_USER = MAREA_UINTEGER_8(4),
         MAREA_SEMA_TYPE_CLASS_EXTERNAL = MAREA_UINTEGER_8(5),
+        MAREA_SEMA_TYPE_CLASS_TUPLE = MAREA_UINTEGER_8(6),
     } MAREA_SemaTypeClass;
 
     /**
@@ -187,6 +189,14 @@ MAREA_BEGIN_EXTERN_C
      * @return True for such a CALL_EXPRESSION, false for any other node and for a null node.
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaTypedNodeIsExternalCall(const MAREA_SemaTypedNode *node);
+
+    /**
+     * @brief Returns the file of a MACRO_CALL that gives the bytes of a file, as include_bytes! does.
+     * @param node Node to query. May be null.
+     * @return The bytes and the path, held by the arena of the context, or null for any other node and when the
+     * include resolver of the context gave no bytes.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_SemaIncludedFile *MAREA_CALL MAREA_SemaTypedNodeGetIncludedFile(const MAREA_SemaTypedNode *node);
 
 MAREA_END_EXTERN_C
 

@@ -57,6 +57,11 @@ static MAREA_Boolean MAREA_CALL MAREA_G_FunctionCarriesOperator(const MAREA_Sema
     return MAREA_BOOLEAN_FALSE;
 }
 
+MAREA_Boolean MAREA_CALL MAREA_IrIsDestroyFunction(const MAREA_SemaTypedNode *function)
+{
+    return MAREA_G_FunctionCarriesOperator(function, "destroy", (MAREA_IntegerSize)strlen("destroy"));
+}
+
 const MAREA_SemaTypedNode *MAREA_CALL MAREA_IrFindLifecycleFunction(const MAREA_IrContext *context, const MAREA_Character8 *typeName, MAREA_IntegerSize typeNameLength, MAREA_Boolean wantConstruct)
 {
     if ((context == MAREA_NULLPTR) || (context->unit == MAREA_NULLPTR) || (typeName == MAREA_NULLPTR)) {
@@ -482,6 +487,8 @@ static MAREA_IrExcept MAREA_CALL MAREA_G_LowerFunctionBody(MAREA_IrContext *cont
     if (result != MAREA_IR_EXCEPT_SUCCESS) {
         return result;
     }
+
+    node->destroyOperator = MAREA_IrIsDestroyFunction(typed);
 
     const MAREA_SemaTypedNode *parameters = MAREA_IrTypedFindChild(typed, MAREA_AST_KIND_PARAMETER_LIST);
 

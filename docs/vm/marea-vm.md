@@ -197,6 +197,10 @@ or neither: with one only, the first `alloc` or `free` is `MAREA_VM_EXCEPT_ERROR
 - `free` of the null address does nothing. A second `free` of a block, or an address that `alloc` did not give, is
   undefined. A block that is still held when a run ends or traps is never freed by the vm.
 
+A vector takes its storage through the same hooks: the program calls the functions `marea.vector.runtime_*` that
+`MAREA_VectorLibraryRegister` registers, which are the runtime of `marea/base/MAREAVectorRuntime.h` that the generated C
+calls too. A registry of the vm without the vector library gives `HOST_FUNCTION_MISSING`.
+
 ## fork_join
 
 The vm has nothing for `fork_join`: the bytecode stage lowers it to the plain calls and loops of one thread, so a trap
@@ -232,10 +236,12 @@ of `docs/bytecode/marea-bytecode.md`), and every other fault is a `MAREA_VmExcep
   still trusts the module rather than checking it; `MAREA_BytecodeGenerate` itself never emits such an offset.
   A tighter check (the address plus the count against the owning frame's own range) is future work.
 - `MAREA_BytecodeGenerate` does not yet lower a structure as a parameter or a result of a function of the unit, a
-  user `construct` or `destroy`, an `enum` with data, an `array`, a `vector`, a `tuple` or a `string` (see the Gaps of
+  user `construct` or `destroy`, an `enum` with data or a `string`, or a tuple that holds an `enum` (see the Gaps of
   `docs/bytecode/marea-bytecode.md`), so this interpreter has not run any of them through a generated program
-  yet; its own mechanics for a tagged union and for a bounds-checked array are proven directly against hand-built
+  yet; its own mechanics for a tagged union are proven directly against hand-built
   modules instead (`tests/source/vm/MAREAVm.cpp`).
+- A trap stops the run with no destroy, so the storage of the vectors in scope is not given back. The generated C
+  gives it back.
 - The frame is a fixed-size native array (`MAREA_VM_FRAME_REGISTER_LIMIT`, 256 registers, and
   `MAREA_VM_FRAME_MEMORY_LIMIT`, 4096 bytes) on the C call stack, not an arena allocation, so a function that
   needs more registers or more composite storage than that is a vm limit (`MAREA_VM_EXCEPT_ERROR_OUT_OF_RANGE`,

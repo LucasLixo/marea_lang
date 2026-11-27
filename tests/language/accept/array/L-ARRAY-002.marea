@@ -1,0 +1,19 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- size, max_size and empty give the count, also a count of zero.
+
+namespace main;
+
+require marea.array;
+
+function count(): uinteger64
+    local values: marea.array.Array<sinteger32, 4> = marea.array.Array<sinteger32, 4>{};
+    return values.size() + values.max_size();
+end
+
+function nothing(): boolean
+    local values: marea.array.Array<sinteger32, 0> = marea.array.Array<sinteger32, 0>{};
+    return values.empty() and values.size() == 0;
+end

@@ -201,6 +201,19 @@ MAREA_CgenExcept MAREA_CALL MAREA_CgenWriteComparison(MAREA_CgenGenerator *gener
     MAREA_Uinteger32 leftEnum = MAREA_CGEN_KIND_NONE;
     MAREA_Uinteger32 rightEnum = MAREA_CGEN_KIND_NONE;
 
+    MAREA_Uinteger32 written = MAREA_CGEN_KIND_NONE;
+
+    const MAREA_IrNode *first = MAREA_CgenChildAt(node, MAREA_INTEGER_SIZE(0));
+
+    // INFO: the type is read from the resolved spelling alone, because the type name of a call is not the one of its result.
+    if (MAREA_IrNodeGetResolvedType(first) != MAREA_NULLPTR) {
+        MAREA_CGEN_TRY(MAREA_CgenTypeOfText(generator, MAREA_NULLPTR, MAREA_INTEGER_SIZE(0), MAREA_IrNodeGetResolvedType(first), MAREA_IrNodeGetResolvedTypeLength(first), &written));
+    }
+
+    if (MAREA_CgenIsTuple(generator, written) == MAREA_BOOLEAN_TRUE) {
+        return MAREA_CgenWriteTupleComparison(generator, node, written, outValue);
+    }
+
     MAREA_CGEN_TRY(MAREA_G_ComparisonOperand(generator, MAREA_CgenChildAt(node, MAREA_INTEGER_SIZE(0)), MAREA_CGEN_KIND_NONE, &leftEnum, &left));
 
     const MAREA_Uinteger32 HINT = (leftEnum == MAREA_CGEN_KIND_NONE) ? left.type : (MAREA_Uinteger32)MAREA_CGEN_KIND_NONE;
@@ -382,6 +395,12 @@ MAREA_CgenExcept MAREA_CALL MAREA_CgenWriteUnary(MAREA_CgenGenerator *generator,
     // INFO: a copy is a new value that no later change of its source reaches.
     if (OPERATOR == MAREA_TOKEN_KIND_KEYWORD_COPY) {
         *outValue = value;
+
+        if (MAREA_CgenNeedsDrop(generator, value.type) == MAREA_BOOLEAN_TRUE) {
+            MAREA_CgenZeroTemporary(generator, value.type, outValue);
+
+            return MAREA_CgenWriteDeepCopy(generator, node, outValue->text, value.text, value.type);
+        }
 
         if ((value.stable == MAREA_BOOLEAN_FALSE) || (MAREA_CgenIsAggregate(generator, value.type) == MAREA_BOOLEAN_TRUE)) {
             MAREA_CgenSnapshot(generator, outValue);

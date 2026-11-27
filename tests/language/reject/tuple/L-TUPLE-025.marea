@@ -1,0 +1,15 @@
+-- expect: 3088 @14
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A tuple index through a type alias is past the last element.
+
+namespace main;
+
+require marea.tuple;
+
+type Pair = marea.tuple.Tuple<sinteger32, sinteger32>;
+
+function check(pair: Pair): sinteger32
+    return pair[2];
+end

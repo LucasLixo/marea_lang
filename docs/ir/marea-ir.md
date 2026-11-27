@@ -300,6 +300,11 @@ local a: Box = Box(); return a.x;
               (DESTROY_CALL Box.drop (IDENTIFIER a)) (RETURN_STATEMENT (IDENTIFIER $return0))))
 ```
 
+**Arrays.** A local whose type is an inline run (a type with two arguments whose last one is a literal count) of a type
+with a destroy operator is destroyed too: its `DESTROY_CALL` names the operator of the innermost element and the local,
+and a backend calls it once for each element. The ir writes no destroy for a vector or for the elements in it: a
+backend destroys them, and finds the operator of an element by `MAREA_IrNodeIsDestroyOperator`.
+
 ## For-range desugaring
 
 `for name in first .. last do body end` has no IR kind of its own. It lowers to:
@@ -524,6 +529,10 @@ the `ARGUMENT_LIST` of the lowered arguments, in the order written. In a stateme
 `EXPRESSION_STATEMENT`. Sema gives the call no resolved type, so the node has none; the declaration around it carries
 the type. Every other built-in macro still raises 4005, and `unreachable!()` as a statement is `UNREACHABLE_STATEMENT`.
 
+A macro that gives the bytes of a file (`include_bytes!`) lowers to `INCLUDED_BYTES` instead when the include resolver
+gave them: the text is two lowercase hexadecimal digits for each byte, the one child is a `STRING_LITERAL` with the path
+of the file, and the resolved type is the array (`marea.array.Array<uinteger8,12>`).
+
 ## Aliases
 
 The IR lowers every alias to the full path it stands for, so a backend sees no alias and no two namespaces share a
@@ -650,10 +659,13 @@ those of `sema`.
   write the output. A later change that lets `sema` measure such a type turns the entry into a measured one with no change
   of the format. The reasons are those of `sema`: `library_type`, `generic`, `function_type`, `opaque`,
   `invalid_attribute`, `too_deep` and `unresolved`.
-- **A structure that holds a library type is undecided on purpose.** `string`, `array`, `vector`, `pointer`, `slice`,
-  `task`, `owned` and any `c.` type get their layout from the library, not from the language, so `sema` does not measure
-  them and the structure or enum that holds one is undecided with the reason `library_type`. A holder of an undecided
+- **A structure that holds a library type is undecided on purpose.** `string`, `pointer`, `slice`, `task`, `owned`, any
+  `c.` type and any library type that is no run and no tuple get their layout from the library, not from the language, so `sema` does
+  not measure them and the structure or enum that holds one is undecided with the reason `library_type`. A holder of an undecided
   type takes its reason.
+- **A tuple has no entry of its own.** A structure that holds one is measured, and a backend computes the offsets of the
+  elements by the layout of C. An index of a tuple stays an `INDEX_ACCESS` with an integer literal, whose resolved type
+  is the one of the element.
 - **An opaque structure has an entry** (it lowers to a `STRUCTURE_DECLARATION` with no field). `sema` records no layout
   for an `OPAQUE_DECLARATION`, so the entry is undecided with the reason `opaque` and no member: its layout belongs to C.
   This reason is the one choice the `ir` makes; it is not a computed value.
@@ -666,7 +678,7 @@ those of `sema`.
 `MAREA_IrModuleDump` writes the tree as stable text into the arena, one node per line, in the same
 shape as `MAREA_AstDump`. A line is the kind name indented two spaces per depth, then the text in
 double quotes when present (for the `MODULE` line, the namespace of the unit), then `type=NAME` when the node has a type name, then `resolved=TEXT` when it has a resolved type (the text has no
-space in its canonical spelling, so it needs no quoting), then `op=OPERATOR` when it has an operator, then `flags=NUMBER` when the flags are not zero, then `external` for an external call. In the text, `"` and `\` get a
+space in its canonical spelling, so it needs no quoting), then `op=OPERATOR` when it has an operator, then `flags=NUMBER` when the flags are not zero, then `external` for an external call, then `destroy` for the function of a destroy operator (`MAREA_IrNodeIsDestroyOperator`). In the text, `"` and `\` get a
 backslash and a byte below 0x20 or above 0x7E is written as `\xHH`. The result is NUL terminated;
 `outLength` does not count the NUL. It returns `ERROR_NULL_POINTER` for a null argument and
 `ERROR_OUT_OF_MEMORY` when the arena cannot grow. The walk uses an explicit stack held in the arena, so
@@ -757,8 +769,8 @@ Each diagnostic carries the position of the construct that raised it. The messag
   nodes that the ir invents are typed, except the step `ASSIGNMENT` and the `DESTROY_CALL`, which are statements.
 - The zero-default rule (see Zero-default creation) has no node in the ir: a `LOCAL_DECLARATION` with no written
   initializer is rejected by sema (3065) and a struct literal that omits a field is rejected by sema (3077). Four
-  creation paths the language spec names are not lowered yet, because they need a backend to exist first: the zero fill of `Type(args)` before `construct` (the call itself is a `CONSTRUCT_CALL` now), `array<T, N>`
-  elements, `owned<T>` storage and a `convert` result that exposes padding. A `PARAMETER`, a `CONSTANT_DECLARATION`
+  creation paths the language spec names are not lowered yet, because they need a backend to exist first: the zero fill of `Type(args)` before `construct` (the call itself is a `CONSTRUCT_CALL` now),
+  `owned<T>` storage and a `convert` result that exposes padding. A `PARAMETER`, a `CONSTANT_DECLARATION`
   and a `VARIANT_FIELD` with no value are outside the rule on purpose (see Zero-default creation), not an
   oversight.
 - A `FOR_EACH_STATEMENT` does not say how its collection is walked, or what the key is for it beyond its type. The
@@ -816,7 +828,7 @@ Each diagnostic carries the position of the construct that raised it. The messag
   function that has no default; the ir does not check it either.
 - The layout table (see Layout table) is as complete as `sema` makes it, and holds only what the unit declares. A
   structure or enum that holds a library type that no descriptor measures (`string`, a type whose descriptor is not an inline
-  run) is undecided with the reason `library_type`, on purpose: the layout of those types belongs to the library, so
+  run, a growable run or a tuple) is undecided with the reason `library_type`, on purpose: the layout of those types belongs to the library, so
   the `ir` gives no number for them and a backend must not guess one. An inline run that a descriptor of the registry
   describes (`marea.array.Array<sinteger32, 4>`) is measured by `sema` from the descriptor, and the table copies the
   numbers (the IR has no descriptor of its own). The same holds for a function-type field, an

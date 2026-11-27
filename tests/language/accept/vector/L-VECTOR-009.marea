@@ -1,0 +1,23 @@
+-- expect: ok
+-- Copyright (c) 2026 Paulo Lucas Alves Franca
+-- Licensed under the MIT License. See LICENSE.txt for full terms.
+
+-- A vector holds structures and takes inner vectors by move.
+
+namespace main;
+
+require marea.vector;
+
+structure Point
+    x: sinteger32;
+    y: sinteger32;
+end
+
+function check(): sinteger32
+    local points: marea.vector.Vector<Point> = marea.vector.Vector<Point>{};
+    points.append(Point{ x = 1, y = 2 });
+    local outer: marea.vector.Vector<marea.vector.Vector<sinteger32>> = marea.vector.Vector<marea.vector.Vector<sinteger32>>{};
+    local inner: marea.vector.Vector<sinteger32> = marea.vector.Vector<sinteger32>{ 7 };
+    outer.append(move inner);
+    return points[0].y + outer[0][0];
+end
