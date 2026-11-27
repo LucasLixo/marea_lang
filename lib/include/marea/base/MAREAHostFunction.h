@@ -139,6 +139,34 @@ MAREA_BEGIN_EXTERN_C
     MAREA_HOST_DETAIL_FLOAT(float64, MAREA_Float64)
 
     /**
+     * @brief The C type of the scalar character of the language.
+     */
+    typedef MAREA_Character8 MAREA_HostType_character;
+
+    /**
+     * @brief Reads a character argument: the low byte of the 8 bytes, zero extended while in register
+     * form, independent of whether MAREA_Character8 is signed or unsigned on this target. For the code
+     * that MAREA_HOST_FUNCTION makes.
+     * @param slot The 8 bytes of the argument. Must not be null.
+     * @return The value.
+     */
+    MAREA_FORCE_INLINE MAREA_Character8 MAREA_CALL MAREA_HostRead_character(const MAREA_Null slot)
+    {
+        return (MAREA_Character8)(MAREA_Uinteger8)MAREA_HostDetailLoad(slot);
+    }
+
+    /**
+     * @brief Writes a character result zero extended to 8 bytes, never sign extended even when
+     * MAREA_Character8 is a signed char on this target. For the code that MAREA_HOST_FUNCTION makes.
+     * @param result The 8 bytes of the result, or null.
+     * @param value The value.
+     */
+    MAREA_FORCE_INLINE void MAREA_CALL MAREA_HostWrite_character(MAREA_Null result, MAREA_Character8 value)
+    {
+        MAREA_HostDetailStore(result, (MAREA_Uinteger64)(MAREA_Uinteger8)value);
+    }
+
+    /**
      * @brief The most parameters of the language function that a binding takes: the parameter limit of the vm. The
      * context is not one of them.
      */
