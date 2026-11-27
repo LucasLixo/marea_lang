@@ -660,9 +660,12 @@ those of `sema`.
   of the format. The reasons are those of `sema`: `library_type`, `generic`, `function_type`, `opaque`,
   `invalid_attribute`, `too_deep` and `unresolved`.
 - **A structure that holds a library type is undecided on purpose.** `string`, `pointer`, `slice`, `task`, `owned`, any
-  `c.` type and any library type that is no run get their layout from the library, not from the language, so `sema` does
+  `c.` type and any library type that is no run and no tuple get their layout from the library, not from the language, so `sema` does
   not measure them and the structure or enum that holds one is undecided with the reason `library_type`. A holder of an undecided
   type takes its reason.
+- **A tuple has no entry of its own.** A structure that holds one is measured, and a backend computes the offsets of the
+  elements by the layout of C. An index of a tuple stays an `INDEX_ACCESS` with an integer literal, whose resolved type
+  is the one of the element.
 - **An opaque structure has an entry** (it lowers to a `STRUCTURE_DECLARATION` with no field). `sema` records no layout
   for an `OPAQUE_DECLARATION`, so the entry is undecided with the reason `opaque` and no member: its layout belongs to C.
   This reason is the one choice the `ir` makes; it is not a computed value.
@@ -825,7 +828,7 @@ Each diagnostic carries the position of the construct that raised it. The messag
   function that has no default; the ir does not check it either.
 - The layout table (see Layout table) is as complete as `sema` makes it, and holds only what the unit declares. A
   structure or enum that holds a library type that no descriptor measures (`string`, a type whose descriptor is not an inline
-  run) is undecided with the reason `library_type`, on purpose: the layout of those types belongs to the library, so
+  run, a growable run or a tuple) is undecided with the reason `library_type`, on purpose: the layout of those types belongs to the library, so
   the `ir` gives no number for them and a backend must not guess one. An inline run that a descriptor of the registry
   describes (`marea.array.Array<sinteger32, 4>`) is measured by `sema` from the descriptor, and the table copies the
   numbers (the IR has no descriptor of its own). The same holds for a function-type field, an

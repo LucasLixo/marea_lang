@@ -220,7 +220,7 @@ No source construct lowers to `alloc` or `free` yet: the library that owns the p
   chain (`a.b.c`) reads a field, following a nested structure's address through as many `field` steps as the
   chain needs. A field is assigned through the same address, also with a compound operator. A structure crosses a host call only: a `structure` parameter or result of a function of the
   unit, a `CONSTRUCT_CALL` or `DESTROY_CALL` to a user `construct` or `destroy` (which would need the address of the
-  value as a hidden argument), an `enum` with data or a `tuple` are a later slice (see Gaps); the vm's
+  value as a hidden argument) or an `enum` with data are a later slice (see Gaps); the vm's
   own mechanics for all of them (the frame memory area, the bounds check an index needs, a tagged union's tag and
   payload) are already proven directly against hand-built modules in `tests/source/vm/MAREAVm.cpp`, ahead of the
   generator wiring.
@@ -235,6 +235,12 @@ address of the argument, so a write borrow reaches the caller. `size`, `max_size
 counted loop; the name of a mutable loop over scalars reads and writes the element itself. A constant array is built
 where it is read. The bytes of `include_bytes!` are a blob of the data section, which `load_data_block` copies into the
 frame.
+
+**Tuples.** Each distinct spelling of a tuple is a `structure` row of the type table whose members are named `0`, `1`
+and so on, at the offsets of the layout of C. A value of it lives in the frame area and is passed to and returned from
+a function of the unit by its bytes, as an array is. An element is `field` at its offset, a literal zero-fills and then
+stores each value, `==` and `!=` load and compare element by element after the left value is copied aside, and `swap`
+is three `copy_bytes`. Drop and deep copy walk the elements. No opcode was added.
 
 **Vectors.** A growable run (see the sema doc) is a `vector` row of the type table, and a value of it is the header
 `MAREA_VectorHeader` in the frame area. The storage changes only through calls of the imports
@@ -305,7 +311,7 @@ line, column and offset of the IR node it was raised at.
 | 5030 | `UNSUPPORTED_CONSTRUCT` | a `with`, a `CONSTRUCT_CALL` or a `DESTROY_CALL` (a user `construct` or `destroy`), a structure literal that holds something that is not a named field, a call with the wrong argument count, a method call |
 | 5031 | `UNRESOLVED_NAME` | a name that is not a local, a parameter, a module constant or a function of the unit; a call that names no function of the unit and no registered name (another unit, `Self`, a local type alias); a structure field name a `MEMBER_ACCESS` or a `FIELD_ENTRY` does not declare |
 | 5032 | `OPERAND_OVERFLOW` | a function needs more than 65535 registers, a jump farther than 32767 instructions, a module needs more than 65535 constants, functions or imports, the frame area needs more bytes than this slice allows |
-| 5033 | `UNSUPPORTED_TYPE` | a parameter or a result of a `structure` in a function of the unit; a `string`, an `enum` with data, a `tuple`, or an `array` with no registry or as a result; a structure field of such a type; a `MEMBER_ACCESS` of a nested structure (reads only a scalar field); the handle of a `spawn` or the part of a `partition` used as a value |
+| 5033 | `UNSUPPORTED_TYPE` | a parameter or a result of a `structure` in a function of the unit; a `string`, an `enum` with data, a `tuple` that holds one of these or an `enum`, or an `array` with no registry; a structure field of such a type; a `MEMBER_ACCESS` of a nested structure (reads only a scalar field); the handle of a `spawn` or the part of a `partition` used as a value |
 | 5034 | `UNWALKABLE_COLLECTION` | a `for each` over a collection that is no array |
 | 5035 | `UNTYPED_OPERAND` | a host call that sema gave no type, used as a value or as an argument of a host call |
 
@@ -330,9 +336,10 @@ The range 5000 to 5999 is reserved for this stage. The messages are fixed texts 
 - A `partition` runs its body the right number of times but gives no part: the value it cuts is not read and the
   rule that gives the first `length % n` parts one more element is not applied yet. The handle of a `spawn` has no
   form, so a result of a worker cannot be kept and read after the join.
-- An `enum` with data (a tagged union payload), `tuple` and `string` are not lowered from the
-  IR: no shipped library registers the tuple yet, and no accepted program constructs a data-carrying enum variant (`Shape.Circle(2.0)`) either, so the
-  generator gives `UNSUPPORTED_TYPE` for all three. The vm's own mechanics for a tagged union (the tag at offset
+- An `enum` with data (a tagged union payload) and `string` are not lowered from the
+  IR, and neither is a tuple that holds an `enum` or a `string`: no accepted program constructs a data-carrying enum
+  variant (`Shape.Circle(2.0)`), so the
+  generator gives `UNSUPPORTED_TYPE` for them. The vm's own mechanics for a tagged union (the tag at offset
   0, a payload at a fixed offset, a dispatch on the tag) and for a bounds-checked, compiler-known array are
   proven directly against hand-built modules in `tests/source/vm/MAREAVm.cpp` (`EnumTaggedUnionConstructReadAndSwitchDispatch`,
   `IndexOutOfRangeTrapsOnABoundsCheckedArray`), standing in for the fixture descriptors the apply's own plan names,

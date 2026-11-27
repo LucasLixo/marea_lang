@@ -236,7 +236,7 @@ of `docs/bytecode/marea-bytecode.md`), and every other fault is a `MAREA_VmExcep
   still trusts the module rather than checking it; `MAREA_BytecodeGenerate` itself never emits such an offset.
   A tighter check (the address plus the count against the owning frame's own range) is future work.
 - `MAREA_BytecodeGenerate` does not yet lower a structure as a parameter or a result of a function of the unit, a
-  user `construct` or `destroy`, an `enum` with data, a `tuple` or a `string` (see the Gaps of
+  user `construct` or `destroy`, an `enum` with data or a `string`, or a tuple that holds an `enum` (see the Gaps of
   `docs/bytecode/marea-bytecode.md`), so this interpreter has not run any of them through a generated program
   yet; its own mechanics for a tagged union are proven directly against hand-built
   modules instead (`tests/source/vm/MAREAVm.cpp`).

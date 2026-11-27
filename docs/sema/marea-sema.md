@@ -30,7 +30,7 @@ MAREA_SemaCheckCompilationUnit(sema, root);   /* once per file, dependencies fir
 `MAREA_SemaCheckCompilationUnit` returns an error only for a null argument or an out of memory. A rule
 violation is a diagnostic in the sink. A size that does not fit in `MAREA_IntegerSize` (a diagnostic
 message, or the growth of a name table) is also an out of memory: nothing is allocated or copied.
-Every sema diagnostic is an error, in the range 3001-3086. Not every number of the range is a live code: the
+Every sema diagnostic is an error, in the range 3001-3090. Not every number of the range is a live code: the
 Diagnostics table lists the live ones.
 The lexer file name decides the path rule, so call `MAREA_LexContextSetFileName` with a project
 relative path with forward slashes and the `.marea` extension before the lex step.
@@ -233,6 +233,33 @@ walking storage that moved. A parameter keeps the default of a move type (`refer
 
 `append` of a name that is a borrow is `REFERENCE_ESCAPES_SCOPE` (3018) only when its type is not by value: a value
 that is copied, such as the name of a `for each` over numbers, is no reference once it is stored.
+
+### Tuples
+
+A descriptor with the parameter count `MAREA_TYPE_PARAMETER_COUNT_VARIADIC`, no role and no index protocol is a tuple
+(`MAREA_TYPE_DESCRIPTOR_IS_TUPLE`). `MAREA_TupleLibraryRegister` (`marea/base/MAREATupleLibrary.h`) registers
+`marea.tuple.Tuple` in that shape: one descriptor serves every arity, and the ownership class of it is not read. A tuple
+is an anonymous structure, with the type class `MAREA_SEMA_TYPE_CLASS_TUPLE`: a parameter is a read-only borrow by
+default, `=` of a name needs `copy` or `move` (3016), a write through a read-only borrow is 3069, and an element moves
+out alone (`move t[0]`). An alias of a tuple is read as the tuple.
+
+| Rule | Diagnostic |
+|---|---|
+| a tuple writes from 2 to 16 types | `GENERIC_ARGUMENT_MISMATCH` (3014) |
+| no element is a type with no layout, such as an opaque structure or a function type | `ELEMENT_WITHOUT_MEASURED_LAYOUT` (3082) |
+| a structure does not hold itself through a tuple | `RECURSIVE_TYPE` (3045) |
+| an index is an integer literal | `TUPLE_INDEX_NOT_CONSTANT` (3089) |
+| the literal is below the arity, and is not negative | `CONSTANT_INDEX_OUT_OF_RANGE` (3088) |
+| a literal holds no value (all zeros) or one value for each element, in order | `LITERAL_COUNT_MISMATCH` (3087) |
+| each value fits its element, with no name and no index | `TYPE_MISMATCH` (3011) |
+| an existing value that is stored and is not by value needs `copy` or `move` | 3016 |
+| only `==` and `!=`, of two tuples of one type, whose elements are primitives, enums or tuples of these | 3011 |
+| `for each` does not walk a tuple | `NOT_ITERABLE` (3090) |
+| `copy` needs every element type to be `Copyable`, so a tuple that holds a vector or a structure is not copied | `CONTRACT_NOT_SATISFIED` (3013) |
+| `swap(other)` is the one method: two writable tuples of one type that are not one storage | 3049, 3069, 3014, 3019 |
+
+The layout is the one of a `layout = c` structure: each element at the next multiple of its alignment, and the size
+rounded up to the largest one. A tuple with an element that is not measured has the reason of that element.
 
 ### Caller inputs
 
@@ -1265,7 +1292,7 @@ alignment and no offset. The record has the same format for a measured layout, s
 that is undecided today without a change of format. The reasons are:
 
 - `LIBRARY_TYPE`: a field or a variant field of `string`, `pointer`, `owned`, `slice`, `task`, an inline run
-  whose count is no literal, or any other type of a library under `c.{lib}` or `marea.{lib}`, or a name that sema cannot see. The layout of such a type
+  whose count is no literal, or any other type that is no tuple of a library under `c.{lib}` or `marea.{lib}`, or a name that sema cannot see. The layout of such a type
   comes from its library later.
 - `GENERIC`: a generic structure, or a field whose type is a generic parameter.
 - `FUNCTION_TYPE`: a field of a function type. Its width is a choice of the backend.
@@ -1373,7 +1400,9 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 | 3085 | `MISPLACED_ATTRIBUTE` | `#[align = 16]` on a function, `#[inline = force]` on a structure or a constant, `#[operator = "+"]` on a free function, `#[visibility = public]` on a parameter or a macro statement, `#[export = "label"]` on a generic function, `#[backend = auto]` on a structure of `marea.math`: any `no` cell of the placement matrix, also inside `when(...)`, at the item |
 | 3086 | `INVALID_BUILD_VALUE` | a setting `LOG_LEVEL` with the text `high` for `build_value!("LOG_LEVEL", sinteger32, 2)`, `256` for a `uinteger8`, `yes` for a `boolean`, `Slow` for an enum with no such variant, at the call |
 | 3087 | `LITERAL_COUNT_MISMATCH` | `marea.array.Array<sinteger32, 2>{ 1, 2, 3 }`, or fewer positional values than the count |
-| 3088 | `CONSTANT_INDEX_OUT_OF_RANGE` | `values[4]` when `values` holds 4 elements |
+| 3088 | `CONSTANT_INDEX_OUT_OF_RANGE` | `values[4]` when `values` holds 4 elements, `pair[2]` for a tuple of two |
+| 3089 | `TUPLE_INDEX_NOT_CONSTANT` | `pair[index]` when `pair` is a tuple |
+| 3090 | `NOT_ITERABLE` | `for each value in pair do` when `pair` is a tuple |
 
 ## Gaps
 
@@ -1400,13 +1429,15 @@ still not compared, and a `marea` structure inside a `c` structure is still not 
 - Two functions that call each other cannot be written, because a function must be declared before its use and the
   grammar has no forward declaration.
 - No check of the signature of `main` exists any more, and a driver-level replacement does not exist yet.
-- Only `marea.array` and `marea.vector` are shipped libraries. The types of `marea.tuple`, `c.memory` and `c.threads`
+- Only `marea.array`, `marea.vector` and `marea.tuple` are shipped libraries. The types of `c.memory` and `c.threads`
   are registered by fixtures in the tests. A registered type that is no inline run is checked for too many type
   arguments only, never too few.
 - The borrowed-source rule sees an assignment, a move and a changing member. It does not see a call that changes a
   vector through a write borrow (`grow(v)` in a `for each` over `v`, or `f(v[0], grow(v))`), so the address of an
   element can outlive the storage that held it. The `vm` can then read or write freed memory.
 - A literal of a growable run is not checked entry by entry against the element type.
+- The index of a tuple is an integer literal only: a named constant is `TUPLE_INDEX_NOT_CONSTANT`. A tuple has no
+  destructuring and no order. A tuple of a generic parameter inside a generic function has no test.
 - The bare `include_bytes!` stays in the table of the language macros, and `examples/macros/builtin.marea` still writes
   it. A bare call whose file the include resolver does not know is not reported (only the call by a qualified name is).
 - A member of an inline run is checked only when sema knows the written type of its receiver: the name of a `for each`

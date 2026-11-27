@@ -194,11 +194,10 @@ parameters is called with the same sample values, eight rows (one call when it t
 test compares the trap of each call, the value when there is no trap (two NaN values are equal) and
 the log of the host functions.
 
-Of 314 accept items, 235 have a function with a result: 93 run on both backends (375 calls) and 135
+Of 314 accept items, 241 have a function with a result: 100 run on both backends (396 calls) and 136
 are excluded, each with a reason in the table of the test. The test checks every line both ways, so a
 line that no longer holds fails. The 71 excluded items that cgen writes are still compiled. Five items
-whose functions take only composites are compiled and not run. Two items of `marea.tuple` are ahead of
-the compiler and fail until that library exists.
+whose functions take only composites are compiled and not run.
 
 | Items | Reason | cgen writes it |
 |---|---|---|
@@ -214,22 +213,31 @@ the compiler and fail until that library exists.
 | 4 | a `with` block | no |
 | 1 | a generic structure, which the ir does not instantiate | no |
 | 1 | an operator or a method of a library array | no |
-| 2 | `size_of`, which neither backend lowers | no |
+| 3 | `size_of`, which neither backend lowers | no |
 | 1 | a user operator and a C function that no signature types | no |
+
+## Tuples
+
+Each distinct list of element types is one generated structure, `marea_tuple<N>`, with the fields `f_0`, `f_1` and so
+on, at the offsets of the layout of C. It has no name, so no method, `construct` or `destroy` operator of the unit
+belongs to it. Passing, drop, deep copy and `move` are those of a structure. The constant index reads a field, a
+literal stores each value in order, `==` and `!=` compare element by element (a float that is not a number differs from
+itself, an enum by its tag), and `swap` goes through a temporary. The `ir` has no layout table entry for a tuple, so
+the backend computes the offsets.
 
 ## Diagnostics
 
 | Code | Name | Example |
 |---|---|---|
 | 7001 | UNSUPPORTED_CONSTRUCT | A `with` block, the handle of a spawn, a construct operator that cannot be told apart, a macro of a library, a built-in other than `convert`, a call of a function that is not written. |
-| 7002 | UNSUPPORTED_TYPE | A string or a character, a structure with no layout, a library type that is no registered array or vector, a partition part used as a value. |
+| 7002 | UNSUPPORTED_TYPE | A string or a character, a structure with no layout, a library type that is no registered array, vector or tuple, a partition part used as a value. |
 | 7003 | UNRESOLVED_NAME | A call into another module, a name that is no local, parameter, constant or function. |
 | 7004 | UNTYPED_OPERAND | A host call that no signature types used as a value, or an argument of a host call with no type. |
 
 ## Gaps
 
 - Not written: strings, characters, function values, generic structures, library types other than a
-  registered array or vector, operators and methods of a library, `with`, user operators (the ir calls no
+  registered array, vector or tuple, operators and methods of a library, `with`, user operators (the ir calls no
   function for them), `size_of`, `align_of`, macros other than `build_value!`, the handle of a spawn,
   the value of a partition part and a call into another module.
 - A `swap` or a `fill` of an array inside a packed structure writes through the place that cgen
