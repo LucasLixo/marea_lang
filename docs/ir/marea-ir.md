@@ -300,6 +300,10 @@ local a: Box = Box(); return a.x;
               (DESTROY_CALL Box.drop (IDENTIFIER a)) (RETURN_STATEMENT (IDENTIFIER $return0))))
 ```
 
+**Arrays.** A local whose type is an inline run (a type with two arguments whose last one is a literal count) of a type
+with a destroy operator is destroyed too: its `DESTROY_CALL` names the operator of the innermost element and the local,
+and a backend calls it once for each element.
+
 ## For-range desugaring
 
 `for name in first .. last do body end` has no IR kind of its own. It lowers to:
@@ -523,6 +527,10 @@ is the name (the alias of a namespace is replaced by the namespace, so the name 
 the `ARGUMENT_LIST` of the lowered arguments, in the order written. In a statement the call is the one child of an
 `EXPRESSION_STATEMENT`. Sema gives the call no resolved type, so the node has none; the declaration around it carries
 the type. Every other built-in macro still raises 4005, and `unreachable!()` as a statement is `UNREACHABLE_STATEMENT`.
+
+A macro that gives the bytes of a file (`include_bytes!`) lowers to `INCLUDED_BYTES` instead when the include resolver
+gave them: the text is two lowercase hexadecimal digits for each byte, the one child is a `STRING_LITERAL` with the path
+of the file, and the resolved type is the array (`marea.array.Array<uinteger8,12>`).
 
 ## Aliases
 
@@ -757,8 +765,8 @@ Each diagnostic carries the position of the construct that raised it. The messag
   nodes that the ir invents are typed, except the step `ASSIGNMENT` and the `DESTROY_CALL`, which are statements.
 - The zero-default rule (see Zero-default creation) has no node in the ir: a `LOCAL_DECLARATION` with no written
   initializer is rejected by sema (3065) and a struct literal that omits a field is rejected by sema (3077). Four
-  creation paths the language spec names are not lowered yet, because they need a backend to exist first: the zero fill of `Type(args)` before `construct` (the call itself is a `CONSTRUCT_CALL` now), `array<T, N>`
-  elements, `owned<T>` storage and a `convert` result that exposes padding. A `PARAMETER`, a `CONSTANT_DECLARATION`
+  creation paths the language spec names are not lowered yet, because they need a backend to exist first: the zero fill of `Type(args)` before `construct` (the call itself is a `CONSTRUCT_CALL` now),
+  `owned<T>` storage and a `convert` result that exposes padding. A `PARAMETER`, a `CONSTANT_DECLARATION`
   and a `VARIANT_FIELD` with no value are outside the rule on purpose (see Zero-default creation), not an
   oversight.
 - A `FOR_EACH_STATEMENT` does not say how its collection is walked, or what the key is for it beyond its type. The

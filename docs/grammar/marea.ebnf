@@ -449,7 +449,7 @@ macro_call          = ( qualified_name | "namespace" ), "!", "(", [ argument_lis
 (*     function named "main" in the namespace "main", with the signature "function        *)
 (*     main(arguments: array<string>): sinteger32". This is a checker/driver rule, as note  *)
 (*     7 lists, never grammar: "main" stays an ordinary, non-reserved name everywhere      *)
-(*     else. examples/main.marea already follows it (decided).                            *)
+(*     else. examples/main.marea writes a vector until a run time view type exists.       *)
 (* 14. Renaming with "as". Three forms give a name a second name (decided):                   *)
 (*     a. Imported names: "import a.b { f as g, T as U };". Each member may take its own "as". *)
 (*        A member may be a function, a type or a constant ("MAX as LIMIT"). The whole path    *)

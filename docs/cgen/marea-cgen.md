@@ -107,8 +107,8 @@ The scalars are `int8_t` to `int64_t`, `uint8_t` to `uint64_t`, `float`, `double
 
 - **Structure.** The layout of sema, with explicit padding. `_Static_assert` checks the size, the
   alignment and every offset. A layout that C would not give is written `__packed__` or
-  `__aligned__`. A structure whose layout sema does not measure (a string field, a generic type, an
-  array of structures or enums inside it) has no form.
+  `__aligned__`. A structure whose layout sema does not measure (a string field, a generic type) has
+  no form.
 - **Enum.** With no data and the size of its tag, a `typedef` of the tag integer. Else a structure with
   `marea_tag` and a union `marea_data` of the data of each variant, at the offsets of sema, also
   asserted. `==` and `!=` compare the variant. A data field is read and written under the tag; the
@@ -116,7 +116,17 @@ The scalars are `int8_t` to `int64_t`, `uint8_t` to `uint64_t`, `float`, `double
 - **Array.** A registered type with an index protocol, no role, a copy class and two type arguments,
   the element and a literal count, is a structure that holds `items[count]`. This is the shape that
   sema measures. An index is checked on each access; a negative index is out of bounds. The spelling
-  of an element type is read through the aliases that the module shows.
+  of an element type is read through the aliases that the module shows. A count of 0 is a marked zero
+  length array (an extension of the C compiler): its index always traps and its loops are not written.
+  `size`, `max_size` and `empty` are constants, `front` and `back` copy an end, `fill`, `filled` and
+  `swap` are loops or whole copies.
+- **Included file.** `INCLUDED_BYTES` is one static array for each file of the module, named
+  `marea_included_<hash of the namespace, the path and the bytes>`. File scope `asm` puts the file
+  with `.incbin` into the read only section of ELF, Mach-O or COFF, and a `.if` stops the C build when
+  the file no longer has the checked size. Emscripten has no `.incbin`: there a constructor loads the
+  path from the virtual file system into a static buffer, and a file that is missing or has another
+  size aborts. The build then has to put the file at that path (`--embed-file` or `--preload-file`).
+  The C compiler must be able to open the path that the include resolver gave.
 - A constant is built where it is read, so each reader gets a new value.
 - `build_value!` is its default value.
 - `copy` gives a new value. `move` of a composite value leaves zeros in the source.
@@ -132,7 +142,8 @@ parameter, the argument count of the call, that is not a destroy operator. With 
 and no function of that shape, the value is only zeros. Any other case is reported, never guessed.
 
 The destroy calls are the ones the ir inserts at each scope exit, in the reverse order of creation. A
-trap runs none of them.
+trap runs none of them. A local array is destroyed by one call of the operator of its element for each
+element.
 
 ## Host calls
 
@@ -168,26 +179,26 @@ parameters is called with the same sample values, eight rows (one call when it t
 test compares the trap of each call, the value when there is no trap (two NaN values are equal) and
 the log of the host functions.
 
-Of 275 accept items, 209 have a function with a result: 72 run on both backends (324 calls) and 137
+Of 314 accept items, 234 have a function with a result: 83 run on both backends (357 calls) and 138
 are excluded, each with a reason in the table of the test. The test checks every line both ways, so a
-line that no longer holds fails. The 71 excluded items that cgen writes are still compiled.
+line that no longer holds fails. The 70 excluded items that cgen writes are still compiled. One item
+whose functions take only composites is compiled and not run.
 
 | Items | Reason | cgen writes it |
 |---|---|---|
 | 53 | the vm takes and returns no structure between functions | yes |
 | 9 | the vm holds no enum value | yes |
 | 6 | the vm runs no construct and no destroy operator | yes |
-| 1 | the vm assigns no field of a structure | yes |
 | 1 | the vm reads no constant of a structure type | yes |
-| 1 | a library array type that the vm cannot hold | yes |
 | 43 | a library type that no registry describes as an array | no |
 | 11 | a string | no |
 | 3 | a call of a C function that no signature types and no host registers | no |
 | 2 | a character | no |
 | 2 | a function type value | no |
-| 2 | a `with` block | no |
+| 4 | a `with` block | no |
 | 1 | a generic structure, which the ir does not instantiate | no |
 | 1 | an operator or a method of a library array | no |
+| 1 | `size_of`, which neither backend lowers | no |
 | 1 | a user operator and a C function that no signature types | no |
 
 ## Diagnostics
@@ -205,8 +216,8 @@ line that no longer holds fails. The 71 excluded items that cgen writes are stil
   registered array, operators and methods of a library, `with`, user operators (the ir calls no
   function for them), `size_of`, `align_of`, macros other than `build_value!`, the handle of a spawn,
   the value of a partition part and a call into another module.
-- Sema measures an array only when its element is a primitive or another measured array, so a
-  structure that holds an array of structures or enums is reported.
+- A `swap` or a `fill` of an array inside a packed structure writes through the place that cgen
+  gives, with no test of its own. The Mach-O and COFF forms of an included file were not built.
 - The ir does not name the construct operator. A type with two functions of that shape, or a construct
   with no parameter called as `Type()`, is reported.
 - A returned local with a destroy operator is destroyed in the callee and again in the caller, since
