@@ -1,4 +1,4 @@
--- expect: 3083 @9
+-- expect: 3083 @10
 -- shipped: marea/math.marea
 -- Copyright (c) 2026 Paulo Lucas Alves Franca
 -- Licensed under the MIT License. See LICENSE.txt for full terms.

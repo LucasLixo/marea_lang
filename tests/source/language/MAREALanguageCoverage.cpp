@@ -53,7 +53,6 @@ namespace
         { 4004, "the catalogue runner runs lex, parse and sema only, so no item reaches the ir; remove this entry when a runner makes the ir run" },
         { 4005, "the catalogue runner runs lex, parse and sema only, so no item reaches the ir; remove this entry when a runner makes the ir run" },
         { 4006, "the catalogue runner runs lex, parse and sema only, so no item reaches the ir; remove this entry when a runner makes the ir run" },
-        { 3083, "the catalogue runner gives sema no target description, so an item cannot ask for a backend that a target gives or lacks; proven by tests/source/sema/MAREASemaBackendWhen.cpp" },
         { 3086, "the catalogue runner gives sema no build settings, so an item cannot hand a text to a build_value macro; proven by tests/source/sema/MAREASemaBuildValue.cpp" },
     };
 

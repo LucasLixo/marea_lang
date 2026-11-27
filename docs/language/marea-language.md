@@ -1059,8 +1059,9 @@ checked. The type `handle<T>` is rejected with 3009 by the type checker, so it h
 The attribute keys, the placement matrix of the attribute map, the `when` item and the `backend` key. The items sit in
 `tests/language/<class>/attributes/`. Every row of the placement matrix has a `reject` item (L-ATTRIBUTES-010 to
 023, code 3085). The catalogue runner gives sema no target description, no build settings and no include resolver, so
-every `when` predicate is false and `BACKEND_UNAVAILABLE` (3083) and `INVALID_BUILD_VALUE` (3086) have no item (see
-Gaps); `tests/source/sema/MAREASemaBackendWhen.cpp` and `tests/source/sema/MAREASemaBuildValue.cpp` prove them.
+every `when` predicate is false; an explicit backend still resolves against the empty target of
+`MAREA_G_BackendNameAvailable` (L-MATH-012, code 3083), but `INVALID_BUILD_VALUE` (3086) has no item (see
+Gaps); `tests/source/sema/MAREASemaBackendWhen.cpp` and `tests/source/sema/MAREASemaBuildValue.cpp` prove the rest.
 
 ### Attributes: accept
 
@@ -1502,6 +1503,7 @@ file, `lib/source/marea/math.marea`.
 | Id | Shows | Expected |
 |---|---|---|
 | L-MATH-006 | A file of the project cannot declare a namespace under marea | 3002 @7, 3081 @7 |
+| L-MATH-012 | An explicit backend the build target does not give is BACKEND_UNAVAILABLE, never a silent fallback | 3083 @10 |
 
 ## Examples and coverage
 
@@ -1560,7 +1562,7 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | examples | 20 | 0 | 0 |
 | functions | 19 | 54 | 0 |
 | interop | 18 | 38 | 0 |
-| math | 10 | 1 | 0 |
+| math | 10 | 2 | 0 |
 | memory | 18 | 23 | 0 |
 | namespaces | 23 | 46 | 0 |
 | ownership | 67 | 78 | 2 |
@@ -1569,7 +1571,7 @@ The files on disk, per area and class. `CountsTableEqualsTheFilesOnDisk` fails w
 | tuple | 8 | 17 | 0 |
 | types | 62 | 154 | 0 |
 | vector | 13 | 14 | 1 |
-| total | 327 | 653 | 12 |
+| total | 327 | 654 | 12 |
 
 ## Parity
 
@@ -1616,7 +1618,7 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
 | 3075-3076 | `sema` | [marea-sema.md](../sema/marea-sema.md), `PARTITION_BODY_WRITES_OUTER_NAME` and `PARTITION_SOURCE_USED_IN_BODY` |
 | 3077 | `sema` | [marea-sema.md](../sema/marea-sema.md), `MISSING_FIELD` |
 | 3078-3081 | `sema` | [marea-sema.md](../sema/marea-sema.md), `UNIMPORTED_NAMESPACE`, `UNRESOLVED_REQUIRE`, `AMBIGUOUS_NAMESPACE` and `RESERVED_NAMESPACE_ROOT` |
-| 3083-3086 | `sema` | [marea-sema.md](../sema/marea-sema.md), `BACKEND_UNAVAILABLE`, `ATTRIBUTE_NOT_ALLOWED_HERE`, `MISPLACED_ATTRIBUTE` and `INVALID_BUILD_VALUE`; 3083 and 3086 have no item (see Gaps) |
+| 3083-3086 | `sema` | [marea-sema.md](../sema/marea-sema.md), `BACKEND_UNAVAILABLE`, `ATTRIBUTE_NOT_ALLOWED_HERE`, `MISPLACED_ATTRIBUTE` and `INVALID_BUILD_VALUE`; 3086 has no item (see Gaps) |
 | 3087-3088 | `sema` | [marea-sema.md](../sema/marea-sema.md), `LITERAL_COUNT_MISMATCH` and `CONSTANT_INDEX_OUT_OF_RANGE` |
 | 3089-3090 | `sema` | [marea-sema.md](../sema/marea-sema.md), `TUPLE_INDEX_NOT_CONSTANT` and `NOT_ITERABLE` |
 | 4004-4006 | `ir` | [marea-ir.md](../ir/marea-ir.md), no item reaches them (see Gaps) |
@@ -1630,10 +1632,12 @@ The catalogue raises no diagnostic of its own. A `reject` item carries a code of
   a run-time length, which belongs to a library that is not written yet. L-ARRAY-013 and L-VECTOR-014 keep this gap.
 - `include_bytes!` has no `accept` item: the runner gives sema no include resolver. `tests/source/sema/MAREASemaArrayLibrary.cpp`
   proves it instead.
-- The codes 3083 (`BACKEND_UNAVAILABLE`) and 3086 (`INVALID_BUILD_VALUE`) have no item: the runner gives sema no target
-  description and no build settings, and `include_bytes!` of a library has no include resolver there either (the `reject`
-  item L-INTEROP-070 shows the missing-file case only). `tests/source/sema/MAREASemaBackendWhen.cpp`,
-  `tests/source/sema/MAREASemaBuildValue.cpp` and `tests/source/sema/MAREASemaRegisteredMacros.cpp` prove them.
+- The code 3086 (`INVALID_BUILD_VALUE`) has no item: the runner gives sema no build settings, and `include_bytes!` of a
+  library has no include resolver there either (the `reject` item L-INTEROP-070 shows the missing-file case only).
+  `tests/source/sema/MAREASemaBuildValue.cpp` and `tests/source/sema/MAREASemaRegisteredMacros.cpp` prove it. The code
+  3083 (`BACKEND_UNAVAILABLE`) does have an item now: L-MATH-012, an explicit backend the empty target of the catalogue
+  runner cannot give. `tests/source/sema/MAREASemaBackendWhen.cpp` proves the rest of the `when` and `backend` checks
+  that the runner's empty target cannot reach.
 - The runner compares the codes of a `reject` item in the order the compiler gives them, so an item over two stages
   depends on the order of the stages (lex, then parse, then sema).
 - A known_gap item must be accepted today, so a valid program that the compiler rejects by mistake has no item. Known:
@@ -1680,7 +1684,7 @@ The coverage test holds this list; an example that gains an item must leave it.
 ### Diagnostic codes with no reject item
 
 Every live lex, parse and sema code (1001-1006, 2001-2010, 3001-3086 without 3023 and the numbers no code uses) has a
-`reject` item, except 3083 and 3086 (exempt as the Gaps list above says). The ir codes
+`reject` item, except 3086 (exempt as the Gaps list above says). The ir codes
 4004, 4005 and 4006 are exempt: the runner runs lex, parse and sema only, so no item can reach the ir. The exemption ends
 when a runner or an apply makes the ir run in it. The retired codes 3023 and 4001-4003 are excluded and must not
 return in a header.
