@@ -430,6 +430,13 @@ static MAREA_CgenExcept MAREA_CALL MAREA_G_WriteForEach(MAREA_CgenGenerator *gen
 
     const MAREA_Uinteger64 COUNT = MAREA_CgenTypeAt(generator, collection.type)->count;
 
+    // INFO: the body of a loop over no element never runs, so it is not written.
+    if (COUNT == MAREA_UINTEGER_64(0)) {
+        MAREA_CGEN_WRITE(generator->buffer, "(void)(", collection.text, ");\n}\n");
+
+        return MAREA_CGEN_EXCEPT_SUCCESS;
+    }
+
     const MAREA_Character8 *index = MAREA_CgenTemporaryName(generator);
 
     MAREA_CGEN_WRITE(generator->buffer, "for (uint64_t ", index, " = 0; ", index, " < ", MAREA_CgenNumber(generator, COUNT), "ULL; ", index, " += 1u) {\n");

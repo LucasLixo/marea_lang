@@ -459,6 +459,14 @@ static MAREA_CgenExcept MAREA_CALL MAREA_G_WriteIndexPlace(MAREA_CgenGenerator *
         return MAREA_CgenGeneratorFail(generator, node, MAREA_CGEN_DIAGNOSTIC_CODE_UNSUPPORTED_TYPE, "An index is an integer.");
     }
 
+    // INFO: an array of no element has no index in range, and a test against zero would never be false.
+    if (COUNT == MAREA_UINTEGER_64(0)) {
+        MAREA_CGEN_WRITE(generator->buffer, "(void)(", index.text, ");\n");
+        MAREA_CgenWriteEmptyElement(generator, ELEMENT, outPlace);
+
+        return MAREA_CGEN_EXCEPT_SUCCESS;
+    }
+
     const MAREA_Character8 *name = MAREA_CgenTemporaryName(generator);
 
     MAREA_CGEN_WRITE(generator->buffer, "uint64_t ", name, " = (uint64_t)(", index.text, ");\nif (", name, " >= ", MAREA_CgenNumber(generator, COUNT), "ULL) {\n");

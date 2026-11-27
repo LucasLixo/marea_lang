@@ -2186,6 +2186,19 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaInlineRunOfValue(const MAREA_SemaContext *context, const MAREA_AstNode *expression, MAREA_SemaWrittenType *outWritten, MAREA_SemaInlineRun *outRun);
 
     /**
+     * @brief Tells whether a written type is a type that the language ships, under the root marea, whose members the
+     * compiler gives. The members of a type that a host registers may come from its signatures.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaInlineRunIsShipped(const MAREA_SemaContext *context, const MAREA_AstNode *type);
+
+    /**
+     * @brief Finds the member of an inline run that a name gives, on the type itself when isStatic is true.
+     * @param outArgumentCount Receives the argument count of a member that is found. May be null.
+     * @return The member, or NONE.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_SemaInlineRunMember MAREA_CALL MAREA_SemaInlineRunMemberOf(const MAREA_AstNode *name, MAREA_Boolean isStatic, MAREA_IntegerSize * outArgumentCount);
+
+    /**
      * @brief Reads a call expression as a call of a member of an inline run, on a value or on the type itself.
      * @return MAREA_BOOLEAN_TRUE when the receiver is an inline run.
      */

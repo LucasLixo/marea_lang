@@ -177,6 +177,11 @@ static MAREA_CgenExcept MAREA_CALL MAREA_G_WriteMemberCall(MAREA_CgenGenerator *
     const MAREA_Character8 *name = MAREA_IrNodeGetText(member);
     const MAREA_IntegerSize LENGTH = MAREA_IrNodeGetTextLength(member);
 
+    // INFO: a static call on a written type is one of an array, since a generic type of the unit is not instantiated.
+    if (MAREA_IrNodeGetKind(base) == MAREA_IR_KIND_TYPE_NAME) {
+        return MAREA_CgenWriteArrayFilled(generator, node, arguments, outValue);
+    }
+
     MAREA_Uinteger32 type = MAREA_CGEN_KIND_NONE;
 
     MAREA_CGEN_TRY(MAREA_CgenQualifierType(generator, base, &type));
@@ -223,6 +228,10 @@ static MAREA_CgenExcept MAREA_CALL MAREA_G_WriteMemberCall(MAREA_CgenGenerator *
 
     if (generator->functionFailed == MAREA_BOOLEAN_TRUE) {
         return MAREA_CGEN_EXCEPT_SUCCESS;
+    }
+
+    if (MAREA_CgenCategoryOf(generator, receiver.type) == MAREA_CGEN_CATEGORY_ARRAY) {
+        return MAREA_CgenWriteArrayCall(generator, node, &receiver, member, arguments, outValue);
     }
 
     const MAREA_CgenType *entry = MAREA_CgenTypeAt(generator, receiver.type);

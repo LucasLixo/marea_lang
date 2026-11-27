@@ -200,6 +200,31 @@ MAREA_SemaExprType MAREA_CALL MAREA_SemaTypedAstLibraryCallType(MAREA_SemaContex
         frame = peeled.frame;
     }
 
+    // INFO: the members of an inline run are the compiler's own, so they are typed from its element and not from a signature.
+    MAREA_SemaInlineRun run = { 0 };
+
+    if ((MAREA_SemaInlineRunOfType(context, receiver, &run) == MAREA_BOOLEAN_TRUE) && (MAREA_SemaInlineRunIsShipped(context, receiver) == MAREA_BOOLEAN_TRUE)) {
+        const MAREA_SemaInlineRunMember RUN_MEMBER = MAREA_SemaInlineRunMemberOf(member, (receiver == base) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE, MAREA_NULLPTR);
+
+        switch (RUN_MEMBER) {
+        case MAREA_SEMA_INLINE_RUN_MEMBER_FRONT:
+        case MAREA_SEMA_INLINE_RUN_MEMBER_BACK:
+            return (run.element == MAREA_NULLPTR) ? MAREA_G_TypeNone() : MAREA_G_TypeOfNode(run.element, frame);
+        case MAREA_SEMA_INLINE_RUN_MEMBER_SIZE:
+        case MAREA_SEMA_INLINE_RUN_MEMBER_MAX_SIZE:
+            return MAREA_G_TypeOfText("uinteger64", MAREA_INTEGER_SIZE(10));
+        case MAREA_SEMA_INLINE_RUN_MEMBER_EMPTY:
+            return MAREA_G_TypeOfText("boolean", MAREA_INTEGER_SIZE(7));
+        case MAREA_SEMA_INLINE_RUN_MEMBER_FILLED:
+            return MAREA_G_TypeOfNode(receiver, frame);
+        case MAREA_SEMA_INLINE_RUN_MEMBER_FILL:
+        case MAREA_SEMA_INLINE_RUN_MEMBER_SWAP:
+            return MAREA_G_TypeNone();
+        case MAREA_SEMA_INLINE_RUN_MEMBER_NONE:
+            break;
+        }
+    }
+
     const MAREA_SemaSignature *signature = MAREA_G_QuerySignature(context, &shape, member);
 
     if (signature == MAREA_NULLPTR) {

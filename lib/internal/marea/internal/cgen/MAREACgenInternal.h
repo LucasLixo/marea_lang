@@ -721,6 +721,21 @@ MAREA_BEGIN_EXTERN_C
      */
     MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_CgenExcept MAREA_CALL MAREA_CgenWriteModuleScoped(MAREA_CgenGenerator * generator, const MAREA_IrNode *node, const MAREA_Character8 *owner, MAREA_IntegerSize ownerLength, MAREA_Uinteger32 expected, MAREA_CgenValue *outValue);
 
+    /**
+     * @brief Writes the trap of an element that does not exist and gives a zero value that is never read.
+     */
+    MAREA_EXTERN_DECL void MAREA_CALL MAREA_CgenWriteEmptyElement(MAREA_CgenGenerator * generator, MAREA_Uinteger32 element, MAREA_CgenValue * outPlace);
+
+    /**
+     * @brief Writes the static call filled of the array type that a CALL_EXPRESSION gives.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_CgenExcept MAREA_CALL MAREA_CgenWriteArrayFilled(MAREA_CgenGenerator * generator, const MAREA_IrNode *node, const MAREA_IrNode *arguments, MAREA_CgenValue *outValue);
+
+    /**
+     * @brief Writes a call of a member of an array, whose place is already written.
+     */
+    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_CgenExcept MAREA_CALL MAREA_CgenWriteArrayCall(MAREA_CgenGenerator * generator, const MAREA_IrNode *node, const MAREA_CgenValue *receiver, const MAREA_IrNode *member, const MAREA_IrNode *arguments, MAREA_CgenValue *outValue);
+
 MAREA_END_EXTERN_C
 
 #endif /* MAREA_INTERNAL_CGEN_MAREACGENINTERNAL_H */

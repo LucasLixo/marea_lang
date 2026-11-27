@@ -121,19 +121,6 @@ static MAREA_IntegerSize MAREA_CALL MAREA_G_CountChildren(const MAREA_AstNode *n
 }
 
 // INFO: the members of a declaration: the variants of an enum, else the fields of a structure.
-static const MAREA_AstNode *MAREA_CALL MAREA_G_FindChildOfKind(const MAREA_AstNode *node, MAREA_AstKind kind)
-{
-    for (MAREA_IntegerSize index = 0; index < MAREA_AstNodeGetChildCount(node); ++index) {
-        const MAREA_AstNode *child = MAREA_SemaChildAt(node, index);
-
-        if (MAREA_G_IsKind(child, kind) == MAREA_BOOLEAN_TRUE) {
-            return child;
-        }
-    }
-
-    return MAREA_NULLPTR;
-}
-
 static MAREA_IntegerSize MAREA_CALL MAREA_G_CountMembers(const MAREA_AstNode *declaration)
 {
     return MAREA_G_CountChildren(declaration, (MAREA_G_IsKind(declaration, MAREA_AST_KIND_ENUM_DECLARATION) == MAREA_BOOLEAN_TRUE) ? MAREA_AST_KIND_VARIANT_DECLARATION : MAREA_AST_KIND_FIELD_DECLARATION);

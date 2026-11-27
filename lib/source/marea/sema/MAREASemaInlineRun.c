@@ -60,6 +60,23 @@ MAREA_Boolean MAREA_CALL MAREA_SemaInlineRunOfValue(const MAREA_SemaContext *con
     return MAREA_SemaInlineRunOfType(context, outWritten->type, outRun);
 }
 
+MAREA_SemaInlineRunMember MAREA_CALL MAREA_SemaInlineRunMemberOf(const MAREA_AstNode *name, MAREA_Boolean isStatic, MAREA_IntegerSize *outArgumentCount)
+{
+    for (MAREA_IntegerSize index = 0; index < MAREA_ARRAY_SIZE(MAREA_G_MEMBERS); ++index) {
+        const MAREA_G_MemberRow *row = &MAREA_G_MEMBERS[index];
+
+        if ((row->isStatic == isStatic) && (MAREA_SemaTextEquals(MAREA_AstNodeGetText(name), MAREA_AstNodeGetTextLength(name), row->name, strlen(row->name)) == MAREA_BOOLEAN_TRUE)) {
+            if (outArgumentCount != MAREA_NULLPTR) {
+                *outArgumentCount = row->argumentCount;
+            }
+
+            return row->member;
+        }
+    }
+
+    return MAREA_SEMA_INLINE_RUN_MEMBER_NONE;
+}
+
 MAREA_Boolean MAREA_CALL MAREA_SemaInlineRunCallOf(const MAREA_SemaContext *context, const MAREA_AstNode *call, MAREA_SemaInlineRunCall *outCall)
 {
     const MAREA_AstNode *callee = MAREA_SemaChildAt(call, 0);
@@ -88,14 +105,7 @@ MAREA_Boolean MAREA_CALL MAREA_SemaInlineRunCallOf(const MAREA_SemaContext *cont
         return MAREA_BOOLEAN_FALSE;
     }
 
-    for (MAREA_IntegerSize index = 0; index < MAREA_ARRAY_SIZE(MAREA_G_MEMBERS); ++index) {
-        const MAREA_G_MemberRow *row = &MAREA_G_MEMBERS[index];
-
-        if ((row->isStatic == outCall->isStatic) && (MAREA_SemaTextEquals(MAREA_AstNodeGetText(outCall->name), MAREA_AstNodeGetTextLength(outCall->name), row->name, strlen(row->name)) == MAREA_BOOLEAN_TRUE)) {
-            outCall->member = row->member;
-            outCall->argumentCount = row->argumentCount;
-        }
-    }
+    outCall->member = MAREA_SemaInlineRunMemberOf(outCall->name, outCall->isStatic, &outCall->argumentCount);
 
     return MAREA_BOOLEAN_TRUE;
 }
@@ -156,7 +166,7 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckSwapArgument(MAREA_SemaContext *
     return MAREA_G_CheckWritable(context, argument, call->name);
 }
 
-static MAREA_Boolean MAREA_CALL MAREA_G_IsShipped(const MAREA_SemaContext *context, const MAREA_AstNode *type)
+MAREA_Boolean MAREA_CALL MAREA_SemaInlineRunIsShipped(const MAREA_SemaContext *context, const MAREA_AstNode *type)
 {
     const MAREA_TypeDescriptor *descriptor = MAREA_NULLPTR;
 
@@ -179,7 +189,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckInlineRunCall(MAREA_SemaContext *cont
 
     // INFO: the compiler gives every member of a type that the language ships, so another name does not exist. The
     // members of a type that a host registers may come from its signatures.
-    if ((call.member == MAREA_SEMA_INLINE_RUN_MEMBER_NONE) && (MAREA_G_IsShipped(context, call.run.type) == MAREA_BOOLEAN_FALSE)) {
+    if ((call.member == MAREA_SEMA_INLINE_RUN_MEMBER_NONE) && (MAREA_SemaInlineRunIsShipped(context, call.run.type) == MAREA_BOOLEAN_FALSE)) {
         *outHandled = MAREA_BOOLEAN_FALSE;
 
         return MAREA_SEMA_EXCEPT_SUCCESS;

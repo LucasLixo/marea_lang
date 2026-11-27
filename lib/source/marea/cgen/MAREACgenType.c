@@ -589,7 +589,7 @@ static MAREA_CgenExcept MAREA_CALL MAREA_G_ArrayType(MAREA_CgenGenerator *genera
 
     MAREA_Uinteger64 count = MAREA_UINTEGER_64(0);
 
-    if ((MAREA_G_TwoArguments(resolved, resolvedLength, &first, &firstLength, &second, &secondLength) == MAREA_BOOLEAN_FALSE) || (MAREA_CgenParseInteger(second, secondLength, &count) == MAREA_BOOLEAN_FALSE) || (count == MAREA_UINTEGER_64(0))) {
+    if ((MAREA_G_TwoArguments(resolved, resolvedLength, &first, &firstLength, &second, &secondLength) == MAREA_BOOLEAN_FALSE) || (MAREA_CgenParseInteger(second, secondLength, &count) == MAREA_BOOLEAN_FALSE)) {
         return MAREA_CGEN_EXCEPT_SUCCESS;
     }
 
