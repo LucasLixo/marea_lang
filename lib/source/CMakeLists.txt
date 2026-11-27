@@ -15,5 +15,9 @@ unset(TEMP_GUARD_SET)
 include("${MAREA_FOLDER_CMAKE_SETTINGS}/ConfigureLibTargets.cmake")
 ConfigureLibTargets()
 
+# marea_add_library/marea_add_executable: the keyword functions a consumer of this build uses to compile Marea sources
+include("${MAREA_FOLDER_CMAKE_SETTINGS}/ConfigureMareaFunctions.cmake")
+ConfigureMareaFunctions()
+
 include("${MAREA_FOLDER_CMAKE_SETTINGS}/ConfigureLibPrecompiledHeaders.cmake")
 ConfigureLibPrecompiledHeaders()
