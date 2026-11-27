@@ -10,6 +10,26 @@ per stage, so a tool can use only the lexer, the parser, the type checker or the
 library: every type beyond the language's own primitives is a library, written in C11 or in the language itself, and
 a host can replace any library or runtime function from C11.
 
+## Documentation
+
+The compiler and language specifications live under `docs/`, one reference per area. In pipeline
+order:
+
+| Doc | Covers |
+| --- | --- |
+| [docs/grammar/marea.ebnf](docs/grammar/marea.ebnf) | The formal syntax grammar and the language's own main rules (statement and body endings, braces, identifier case) |
+| [docs/lex/marea-lex.md](docs/lex/marea-lex.md) | The `lex` stage |
+| [docs/ast/marea-ast.md](docs/ast/marea-ast.md) | The `parse` stage |
+| [docs/sema/marea-sema.md](docs/sema/marea-sema.md) | The `sema` stage: typing, ownership and borrow checking, the library registry and the C registration macro |
+| [docs/ir/marea-ir.md](docs/ir/marea-ir.md) | The `ir` stage |
+| [docs/bytecode/marea-bytecode.md](docs/bytecode/marea-bytecode.md) | The `bytecode` stage |
+| [docs/vm/marea-vm.md](docs/vm/marea-vm.md) | The `vm` stage: the bytecode reference interpreter |
+| [docs/cgen/marea-cgen.md](docs/cgen/marea-cgen.md) | The `cgen` stage: the C11 backend |
+| [docs/tools/marea-cc-and-bc.md](docs/tools/marea-cc-and-bc.md) | The `marea-cc` and `marea-bc` command-line tools |
+| [docs/language/marea-language.md](docs/language/marea-language.md) | The language catalogue: what is accepted, what is rejected and why |
+
+The example programs are in [examples](examples).
+
 ## Build
 
 ```sh
