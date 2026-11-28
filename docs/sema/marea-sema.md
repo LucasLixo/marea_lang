@@ -805,14 +805,15 @@ comparison between two `boolean` operands (`==` and `!=` too), is `TYPE_MISMATCH
 expression, and only when the two operands already agree in type: a pair that raises 3011 raises no second code. An
 operand of an unknown type is accepted, and so is an expression that holds a node the parser could not build.
 
-**A declared operator.** When the left side of a binary operator is a structure or an enum of the file, the right side
-must fit the second parameter of the function that declares the operator (`Self` is the type of the left side). When
-no implementation of a **structure** left side has `#[operator = "token"]` for the operator, `UNDECLARED_OPERATOR`
-(3091) is raised at the expression, since the built-in operand rules above never judge a structure operand either. An
-**enum** left side with no such implementation raises nothing: sema never compares an enum type, so its variants
-compare by ordinal with no declared operator needed. When exactly one function declares it, a right side that does
-not fit is `TYPE_MISMATCH` (3011) at the expression; a value of an unknown type fits. When more than one function
-declares it, sema does not choose and accepts.
+**A declared operator.** When the left side of a binary operator is a structure or an enum, the right side must fit
+the second parameter of the function that declares the operator (`Self` is the type of the left side). The structure
+or enum may be of the file or of a `FOUND` namespace; the implementations of the tree that declares it are the ones
+read. When no implementation of a **structure** left side has `#[operator = "token"]` for the operator,
+`UNDECLARED_OPERATOR` (3091) is raised at the expression, since the built-in operand rules above never judge a
+structure operand either. An **enum** left side with no such implementation raises nothing: sema never compares an
+enum type, so its variants compare by ordinal with no declared operator needed. When exactly one function declares
+it, a right side that does not fit is `TYPE_MISMATCH` (3011) at the expression; a value of an unknown type fits.
+When more than one function declares it, sema does not choose and accepts.
 
 **A declared index.** An index access on a **structure**, read or written, needs a function with
 `#[operator = "[]"]`, else it is `UNDECLARED_OPERATOR` (3091) at the access. The structure may be of the file or of a

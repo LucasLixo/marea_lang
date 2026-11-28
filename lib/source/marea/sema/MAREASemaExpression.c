@@ -1084,18 +1084,47 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckDeclaredOperator(MAREA_SemaConte
 
     const MAREA_Character8 *token = MAREA_G_OperatorText(MAREA_AstNodeGetOperator(expression));
 
-    if (((left->kind != MAREA_G_SHAPE_KIND_STRUCTURE) && (left->kind != MAREA_G_SHAPE_KIND_ENUM)) || (left->declaration == MAREA_NULLPTR) || (token == MAREA_NULLPTR)) {
+    if (token == MAREA_NULLPTR) {
+        return MAREA_SEMA_EXCEPT_SUCCESS;
+    }
+
+    MAREA_SemaTypeTarget valueTarget = { .type = MAREA_NULLPTR, .declaration = MAREA_NULLPTR, .root = MAREA_NULLPTR };
+
+    const MAREA_SemaExcept TARGET_RESULT = MAREA_SemaFindValueTarget(context, MAREA_SemaChildAt(expression, 0), &valueTarget);
+
+    if (TARGET_RESULT != MAREA_SEMA_EXCEPT_SUCCESS) {
+        return TARGET_RESULT;
+    }
+
+    // INFO: a qualified type name of a FOUND namespace classifies as a library shape, never as a structure or an
+    // enum shape, so that case is read from the resolved value target instead of the left shape.
+    MAREA_G_Shape effective = *left;
+
+    const MAREA_AstNode *importedRoot = MAREA_NULLPTR;
+
+    if ((valueTarget.root != MAREA_NULLPTR) && (MAREA_G_IsKind(valueTarget.declaration, MAREA_AST_KIND_STRUCTURE_DECLARATION) == MAREA_BOOLEAN_TRUE)) {
+        effective.kind = MAREA_G_SHAPE_KIND_STRUCTURE;
+        effective.declaration = valueTarget.declaration;
+        importedRoot = valueTarget.root;
+    } else if ((valueTarget.root != MAREA_NULLPTR) && (MAREA_G_IsKind(valueTarget.declaration, MAREA_AST_KIND_ENUM_DECLARATION) == MAREA_BOOLEAN_TRUE)) {
+        effective.kind = MAREA_G_SHAPE_KIND_ENUM;
+        effective.declaration = valueTarget.declaration;
+        importedRoot = valueTarget.root;
+    }
+
+    if (((effective.kind != MAREA_G_SHAPE_KIND_STRUCTURE) && (effective.kind != MAREA_G_SHAPE_KIND_ENUM)) || (effective.declaration == MAREA_NULLPTR)) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
     }
 
     MAREA_IntegerSize count = 0;
 
-    const MAREA_AstNode *function = MAREA_SemaFindOperatorFunction(context, left->declaration, token, strlen(token), &count);
+    // INFO: a structure or an enum found through a FOUND namespace keeps its implementations in that namespace's own tree, not in context->root.
+    const MAREA_AstNode *function = (importedRoot != MAREA_NULLPTR) ? MAREA_SemaFindOperatorFunctionInTree(importedRoot, effective.declaration, token, strlen(token), &count) : MAREA_SemaFindOperatorFunction(context, effective.declaration, token, strlen(token), &count);
 
     *outDeclared = (count > 0) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 
     // ERROR: a structure with no implementation that declares this operator token has nothing to apply it, and the built-in operand rules never judge a structure either. An enum is excluded: sema never compares an enum type (its variants compare by ordinal with no declared operator needed), so a zero count there is not a defect.
-    if ((count == 0) && (left->kind == MAREA_G_SHAPE_KIND_STRUCTURE)) {
+    if ((count == 0) && (effective.kind == MAREA_G_SHAPE_KIND_STRUCTURE)) {
         *outDeclared = MAREA_BOOLEAN_TRUE;
 
         return MAREA_SemaReportNamed(context, MAREA_SEMA_DIAGNOSTIC_CODE_UNDECLARED_OPERATOR, MAREA_AstNodeGetPosition(expression), "no implementation declares the operator", token, strlen(token));
@@ -1114,7 +1143,7 @@ static MAREA_SemaExcept MAREA_CALL MAREA_G_CheckDeclaredOperator(MAREA_SemaConte
     // INFO: Self is the type of the left side, as the function is a member of that type.
     const MAREA_Boolean IS_SELF = ((segment != MAREA_NULLPTR) && (MAREA_G_TextIs(MAREA_AstNodeGetText(segment), MAREA_AstNodeGetTextLength(segment), "Self") == MAREA_BOOLEAN_TRUE)) ? MAREA_BOOLEAN_TRUE : MAREA_BOOLEAN_FALSE;
 
-    const MAREA_G_Shape target = (IS_SELF == MAREA_BOOLEAN_TRUE) ? *left : MAREA_G_ShapeOfType(context, type);
+    const MAREA_G_Shape target = (IS_SELF == MAREA_BOOLEAN_TRUE) ? effective : MAREA_G_ShapeOfType(context, type);
 
     if (MAREA_G_IsWrongOperand(&target, right) == MAREA_BOOLEAN_FALSE) {
         return MAREA_SEMA_EXCEPT_SUCCESS;
