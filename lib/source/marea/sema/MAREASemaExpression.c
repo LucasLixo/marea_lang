@@ -1174,7 +1174,7 @@ MAREA_SemaExcept MAREA_CALL MAREA_SemaCheckIndexOperator(MAREA_SemaContext *cont
     MAREA_IntegerSize count = 0;
 
     if ((target.root != MAREA_NULLPTR) && (MAREA_G_IsKind(target.declaration, MAREA_AST_KIND_STRUCTURE_DECLARATION) == MAREA_BOOLEAN_TRUE)) {
-        count = (MAREA_SemaTreeDeclaresOperator(target.root, target.declaration, token, strlen(token)) == MAREA_BOOLEAN_TRUE) ? MAREA_INTEGER_SIZE(1) : MAREA_INTEGER_SIZE(0);
+        MAREA_IGNORE(MAREA_SemaFindOperatorFunctionInTree(target.root, target.declaration, token, strlen(token), &count));
     } else {
         const MAREA_G_Shape shape = MAREA_G_ShapeOf(context, base, 0);
 
