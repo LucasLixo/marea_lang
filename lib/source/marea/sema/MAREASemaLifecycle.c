@@ -393,17 +393,23 @@ const MAREA_AstNode *MAREA_CALL MAREA_SemaFindOperatorFunction(const MAREA_SemaC
     return found;
 }
 
-MAREA_Boolean MAREA_CALL MAREA_SemaTreeDeclaresOperator(const MAREA_AstNode *root, const MAREA_AstNode *typeDeclaration, const MAREA_Character8 *token, MAREA_IntegerSize tokenLength)
+const MAREA_AstNode *MAREA_CALL MAREA_SemaFindOperatorFunctionInTree(const MAREA_AstNode *root, const MAREA_AstNode *typeDeclaration, const MAREA_Character8 *token, MAREA_IntegerSize tokenLength, MAREA_IntegerSize *outCount)
 {
+    if (outCount != MAREA_NULLPTR) {
+        *outCount = 0;
+    }
+
     const MAREA_Character8 *typeName = MAREA_NULLPTR;
 
     MAREA_IntegerSize typeLength = 0;
 
     if ((root == MAREA_NULLPTR) || (token == MAREA_NULLPTR) || (MAREA_SemaDeclarationName(typeDeclaration, &typeName, &typeLength) == MAREA_BOOLEAN_FALSE)) {
-        return MAREA_BOOLEAN_FALSE;
+        return MAREA_NULLPTR;
     }
 
     const MAREA_IntegerSize COUNT = MAREA_AstNodeGetChildCount(root);
+
+    const MAREA_AstNode *found = MAREA_NULLPTR;
 
     for (MAREA_IntegerSize current = 0; current < COUNT; ++current) {
         const MAREA_AstNode *implementation = MAREA_SemaChildAt(root, current);
@@ -422,15 +428,27 @@ MAREA_Boolean MAREA_CALL MAREA_SemaTreeDeclaresOperator(const MAREA_AstNode *roo
         const MAREA_IntegerSize MEMBER_COUNT = MAREA_AstNodeGetChildCount(implementation);
 
         for (MAREA_IntegerSize index = 0; index < MEMBER_COUNT; ++index) {
-            const MAREA_AstNode *item = MAREA_SemaAttributeFind(MAREA_NULLPTR, MAREA_SemaChildAt(implementation, index), "operator");
+            const MAREA_AstNode *member = MAREA_SemaChildAt(implementation, index);
 
-            if (MAREA_G_IsQuoted(MAREA_SemaChildAt(item, 1), token, tokenLength) == MAREA_BOOLEAN_TRUE) {
-                return MAREA_BOOLEAN_TRUE;
+            if ((member == MAREA_NULLPTR) || (MAREA_AstNodeGetKind(member) != MAREA_AST_KIND_FUNCTION_DECLARATION)) {
+                continue;
+            }
+
+            const MAREA_AstNode *item = MAREA_SemaAttributeFind(MAREA_NULLPTR, member, "operator");
+
+            if (MAREA_G_IsQuoted(MAREA_SemaChildAt(item, 1), token, tokenLength) == MAREA_BOOLEAN_FALSE) {
+                continue;
+            }
+
+            found = (found == MAREA_NULLPTR) ? member : found;
+
+            if (outCount != MAREA_NULLPTR) {
+                *outCount += 1;
             }
         }
     }
 
-    return MAREA_BOOLEAN_FALSE;
+    return found;
 }
 
 const MAREA_AstNode *MAREA_CALL MAREA_SemaFindConstructOperator(const MAREA_SemaContext *context, const MAREA_AstNode *typeDeclaration)

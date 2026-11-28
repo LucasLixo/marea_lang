@@ -237,3 +237,34 @@ TEST(MAREASemaOperatorOperand, UndeclaredIndexOnAnImportedStructureIsRejected)
 
     EXPECT_TRUE(codesOf("structure Cells x: float32; end function f(h: shapes.Holder) local c: float32 = h.cells[0]; end").empty()) << "A library type behind an imported alias must not stand for a structure of the file.";
 }
+
+TEST(MAREASemaOperatorOperand, UndeclaredBinaryOperatorOnAnImportedStructureIsRejected)
+{
+    GTEST_COUT << "Validating that a binary operator on a structure of a FOUND namespace follows the operators of its own tree." << std::endl;
+
+    MAREA_ParseFixture library;
+
+    ASSERT_EQ(library.MAREA_parse("namespace shapes; structure Bare x: float32; end structure Point x: float32; end implementation Point #[operator = \"+\"] function add(self: Self, other: Point): Point return Point { x = self.x }; end end"), MAREA_PARSE_EXCEPT_SUCCESS) << "The imported tree must parse.";
+
+    const auto codesOf{ [&library](const std::string &body) {
+        MAREA_SemaFixture fixture([&library](const std::string &text, const MAREA_AstNode **outRoot) {
+            if (text != "shapes") {
+                return MAREA_SEMA_IMPORT_RESULT_NOT_FOUND;
+            }
+
+            *outRoot = library.root;
+
+            return MAREA_SEMA_IMPORT_RESULT_FOUND;
+        });
+
+        if (fixture.MAREA_sema("namespace main; require shapes as shapes; " + body) != MAREA_SEMA_EXCEPT_SUCCESS) {
+            return Codes{ 0 };
+        }
+
+        return fixture.MAREA_semaCodes();
+    } };
+
+    EXPECT_EQ(codesOf("function f(a: shapes.Bare, b: shapes.Bare) local c: boolean = a == b; end"), Codes{ UNDECLARED }) << "An imported structure with no implementation that declares == must raise 3091.";
+
+    EXPECT_TRUE(codesOf("function f(a: shapes.Point, b: shapes.Point) local c: shapes.Point = a + b; end").empty()) << "An imported structure with a declared + must raise nothing.";
+}

@@ -1415,15 +1415,18 @@ MAREA_BEGIN_EXTERN_C
     MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_AstNode *MAREA_CALL MAREA_SemaFindOperatorFunction(const MAREA_SemaContext *context, const MAREA_AstNode *typeDeclaration, const MAREA_Character8 *token, MAREA_IntegerSize tokenLength, MAREA_IntegerSize *outCount);
 
     /**
-     * @brief Tells whether an implementation of a tree marks a function of a type with an operator token. The
-     * type is matched by its name, so the tree must be the one that declares the type.
-     * @param root Tree of a namespace. May be null, which gives false.
-     * @param typeDeclaration Declaration of the type in that tree. May be null, which gives false.
-     * @param token Operator token, not NUL terminated (for example "[]"). May be null, which gives false.
-     * @param tokenLength Length of token in bytes.
-     * @return True when at least one function is marked with the token.
+     * @brief Finds the functions that the implementations of a tree mark with #[operator = "token"] for a type
+     * of that same tree. The type is matched by its name, so the tree must be the one that declares the type -
+     * the counterpart of MAREA_SemaFindOperatorFunction for a structure or an enum found through a FOUND
+     * namespace, whose implementation lives in that namespace's own tree rather than the file of the run.
+     * @param root Tree of a namespace. May be null, which gives null.
+     * @param typeDeclaration Declaration of the type in that tree. May be null, which gives null.
+     * @param token Operator text without quotes. Must not be null.
+     * @param tokenLength Length of token.
+     * @param outCount Receives the count of such functions. May be null.
+     * @return The first FUNCTION_DECLARATION, or null when the type declares none.
      */
-    MAREA_NODISCARD MAREA_EXTERN_DECL MAREA_Boolean MAREA_CALL MAREA_SemaTreeDeclaresOperator(const MAREA_AstNode *root, const MAREA_AstNode *typeDeclaration, const MAREA_Character8 *token, MAREA_IntegerSize tokenLength);
+    MAREA_NODISCARD MAREA_EXTERN_DECL const MAREA_AstNode *MAREA_CALL MAREA_SemaFindOperatorFunctionInTree(const MAREA_AstNode *root, const MAREA_AstNode *typeDeclaration, const MAREA_Character8 *token, MAREA_IntegerSize tokenLength, MAREA_IntegerSize *outCount);
 
     /**
      * @brief Checks that a call does not pass one name twice when one of the parameters is a write borrow.
